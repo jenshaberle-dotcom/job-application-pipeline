@@ -1,0 +1,19 @@
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: job_pipeline_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: job_pipeline
+      POSTGRES_USER: job_user
+      POSTGRES_PASSWORD: job_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+
+
