@@ -33,6 +33,7 @@ print("Status Code:", response.status_code)
 print("Final URL:", response.url)
 
 response.raise_for_status()
+
 data = response.json()
 jobs = data.get("stellenangebote", [])
 
@@ -49,6 +50,7 @@ conn = psycopg.connect(
 cur = conn.cursor()
 
 inserted_count = 0
+duplicate_count = 0
 
 for job in jobs:
     source_url = job.get("externeUrl") or job.get("url") or f"ba://{job.get('refnr')}"
@@ -62,6 +64,9 @@ for job in jobs:
             raw_data
         )
         VALUES (%s, %s, %s, %s)
+        ON CONFLICT (source_name, external_job_id)
+        WHERE external_job_id IS NOT NULL
+        DO NOTHING
         RETURNING id;
         """,
         (
@@ -78,14 +83,23 @@ for job in jobs:
         ),
     )
 
-    new_id = cur.fetchone()[0]
+    result = cur.fetchone()
+
+    if result is None:
+        duplicate_count += 1
+        print(f"Bereits vorhanden: {job.get('titel')} | {job.get('arbeitgeber')}")
+        continue
+
+    new_id = result[0]
     inserted_count += 1
 
     print(f"Gespeichert: ID={new_id} | {job.get('titel')} | {job.get('arbeitgeber')}")
 
 conn.commit()
 
-print(f"{inserted_count} Jobs gespeichert")
+print("---")
+print(f"Neue Jobs gespeichert: {inserted_count}")
+print(f"Bereits vorhandene Jobs übersprungen: {duplicate_count}")
 
 cur.close()
 conn.close()

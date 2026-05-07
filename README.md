@@ -99,9 +99,11 @@ Implemented:
 - Initial Bronze Layer table (`raw_jobs`)
 - Initial real-world ingestion pipeline
 - Raw job ingestion from the German Federal Employment Agency job search
+- Database-level duplicate protection
+- Idempotent ingestion behavior using PostgreSQL constraints
 
 In Progress:
-- Duplicate detection strategy
+- Duplicate handling strategy
 - Search profile expansion
 - Bronze ingestion improvements
 
@@ -252,6 +254,37 @@ Future iterations may include:
 
 ---
 
+## Duplicate Handling Strategy
+
+The project currently uses technical duplicate protection based on:
+- `source_name`
+- `external_job_id`
+
+Duplicate protection is enforced at the database level using a PostgreSQL unique index.
+
+This ensures:
+- idempotent ingestion behavior
+- consistent data integrity
+- protection against duplicate inserts
+- scalable ingestion behavior for future schedulers and parallel processing
+
+The ingestion pipeline currently uses:
+
+```sql
+ON CONFLICT DO NOTHING
+```
+
+to safely ignore already ingested job postings.
+
+Future iterations may introduce:
+- change detection
+- version tracking
+- historical snapshots
+- soft deletion handling
+- fuzzy duplicate detection across multiple platforms
+
+---
+
 ## Roadmap
 
 - [x] Local development environment
@@ -261,7 +294,7 @@ Future iterations may include:
 - [x] SSH authentication
 - [x] Environment based configuration
 - [x] Initial real-world job ingestion
-- [ ] Duplicate detection engine
+- [x] Database-level duplicate protection
 - [ ] Search profile management
 - [ ] Multi-source ingestion
 - [ ] Silver layer transformation
