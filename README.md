@@ -36,6 +36,7 @@ Stores:
 
 Current Bronze Layer tables:
 - `search_profiles`
+- `search_terms`
 - `ingestion_runs`
 - `raw_jobs`
 
@@ -105,12 +106,16 @@ Implemented:
 - Database-level duplicate protection
 - Idempotent ingestion behavior using PostgreSQL constraints
 - Search profile driven ingestion
+- Multi-term search strategy
 - Ingestion run tracking
+- Architecture documentation
+- Mermaid-based architecture diagrams
+- Architecture Decision Records (ADRs)
 
 In Progress:
-- Multi-profile ingestion
-- Bronze ingestion improvements
-- Pagination handling
+- Multi-source ingestion architecture
+- Connector modularization
+- Source evaluation
 
 Planned:
 - Multi-source ingestion
@@ -128,11 +133,21 @@ Planned:
 Defines configurable ingestion search profiles.
 
 Contains:
-- search terms
+- search strategy metadata
 - locations
 - search radius
 - source information
 - activation state
+
+### search_terms
+
+Contains multiple search terms per search profile.
+
+Allows:
+- broader market coverage
+- configurable search strategies
+- ingestion experimentation
+- future analytics on search effectiveness
 
 ### ingestion_runs
 
@@ -164,6 +179,12 @@ The project intentionally uses realistic job market data sources instead of tuto
 
 The first ingestion source is the German Federal Employment Agency job search.
 
+Planned additional sources:
+- StepStone
+- LinkedIn Jobs
+- Greenhouse ATS
+- Workday-based career systems
+
 Reasons for this decision:
 - realistic German labor market data
 - relevant regional search capability
@@ -188,11 +209,31 @@ job-application-pipeline/
 │
 ├── db/
 │   └── migrations/
-│       └── 001_bronze_ingestion_model.sql
+│       ├── 001_bronze_ingestion_model.sql
+│       └── 002_search_terms_model.sql
+│
+├── docs/
+│   ├── adr/
+│   │   ├── README.md
+│   │   ├── 001_use_real_job_market_sources.md
+│   │   ├── 002_use_bronze_first_architecture.md
+│   │   ├── 003_use_database_level_duplicate_protection.md
+│   │   ├── 004_use_search_profile_based_ingestion.md
+│   │   ├── 005_use_postgresql_as_primary_database.md
+│   │   ├── 006_use_dockerized_local_development.md
+│   │   ├── 007_use_ssh_for_github_authentication.md
+│   │   └── 008_use_environment_based_configuration.md
+│   │
+│   ├── diagrams/
+│   │   ├── README.md
+│   │   ├── architecture.md
+│   │   └── bronze_data_model.md
+│   │
+│   └── roadmap.md
 │
 ├── src/
-│   ├── main.py
-│   └── ingest_jobs.py
+│   ├── ingest_jobs.py
+│   └── main.py
 │
 ├── docker-compose.yml
 ├── requirements.txt
@@ -243,6 +284,16 @@ python src/ingest_jobs.py
 
 ---
 
+## Optional Developer Tools
+
+```bash
+sudo apt install tree
+```
+
+Useful for visualizing local repository structures during development.
+
+---
+
 ## Environment Configuration
 
 Create a local `.env` file based on `.env.example`.
@@ -277,7 +328,7 @@ Future cloud deployments may use:
 
 The ingestion pipeline is designed around configurable search profiles.
 
-Instead of relying on a single narrow search term, the pipeline will ingest broader datasets and later evaluate relevance using matching and scoring logic.
+Instead of relying on a single narrow search term, the pipeline ingests broader datasets and later evaluates relevance using matching and scoring logic.
 
 This allows:
 - broader market coverage
@@ -286,16 +337,18 @@ This allows:
 - profile optimization
 - recommendation logic
 
-The current implementation starts with:
-- `Data Engineer`
+The current implementation uses:
+- profile-based ingestion
+- multiple search terms per profile
 - ZIP code based regional search
 - configurable search radius
 
 Future iterations may include:
-- multiple search profiles
+- multiple data sources
 - scheduling
 - incremental updates
 - change tracking
+- semantic matching
 
 ---
 
@@ -330,6 +383,22 @@ Future iterations may introduce:
 
 ---
 
+## Documentation Strategy
+
+The project documents major engineering and architecture decisions using:
+- Architecture Decision Records (ADRs)
+- Mermaid architecture diagrams
+- Roadmaps
+- Structured repository documentation
+
+The goal is to preserve:
+- architectural reasoning
+- design tradeoffs
+- implementation decisions
+- project evolution over time
+
+---
+
 ## Roadmap
 
 - [x] Local development environment
@@ -341,11 +410,15 @@ Future iterations may introduce:
 - [x] Initial real-world job ingestion
 - [x] Database-level duplicate protection
 - [x] Search profile based ingestion
+- [x] Multi-term search strategy
 - [x] Ingestion run tracking
-- [ ] Multi-profile ingestion
+- [x] ADR documentation
+- [x] Mermaid architecture diagrams
+- [ ] Connector abstraction layer
 - [ ] Multi-source ingestion
+- [ ] Source capability evaluation
 - [ ] Silver layer transformation
-- [ ] Matching / scoring engine
+- [ ] Semantic matching / embeddings
 - [ ] Dashboard / visualization
 - [ ] Cloud deployment
 
