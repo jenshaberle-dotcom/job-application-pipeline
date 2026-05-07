@@ -1,41 +1,25 @@
-import json
-import psycopg
+import os
 
-test_job = {
-    "title": "Data Engineer",
-    "company": "Test Company",
-    "location": "Hannover",
-    "description": "Erster Testdatensatz für unsere Job-Pipeline",
-    "skills": ["Python", "SQL", "PostgreSQL"]
-}
+import psycopg
+from dotenv import load_dotenv
+
+load_dotenv()
 
 conn = psycopg.connect(
-    host="localhost",
-    port=5432,
-    dbname="job_pipeline",
-    user="job_user",
-    password="job_password"
+    host=os.getenv("POSTGRES_HOST"),
+    port=int(os.getenv("POSTGRES_PORT", "5432")),
+    dbname=os.getenv("POSTGRES_DB"),
+    user=os.getenv("POSTGRES_USER"),
+    password=os.getenv("POSTGRES_PASSWORD"),
 )
 
 cur = conn.cursor()
 
-cur.execute(
-    """
-    INSERT INTO raw_jobs (source_name, source_url, raw_data)
-    VALUES (%s, %s, %s)
-    RETURNING id;
-    """,
-    (
-        "manual_test",
-        "https://example.com/jobs/data-engineer-1",
-        json.dumps(test_job)
-    )
-)
+cur.execute("SELECT 1;")
 
-new_id = cur.fetchone()[0]
-conn.commit()
+result = cur.fetchone()
 
-print(f"Job gespeichert mit ID: {new_id}")
+print("DB Antwort:", result)
 
 cur.close()
 conn.close()
