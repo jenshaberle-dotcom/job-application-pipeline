@@ -10,6 +10,13 @@ The project is designed as both:
 - a personal learning journey towards Data Engineering
 - and a production-oriented showcase project
 
+The focus is intentionally placed on:
+- realistic data sources
+- maintainable architecture
+- reproducible environments
+- pragmatic security concepts
+- explainable engineering decisions
+
 ---
 
 ## Architecture
@@ -24,6 +31,7 @@ Stores:
 - original API responses
 - raw job postings as JSON
 - unmodified source data
+- ingestion metadata
 
 Current table:
 - `raw_jobs`
@@ -44,10 +52,11 @@ Will contain:
 Planned analytics and matching layer.
 
 Will contain:
-- job matching scores
+- matching scores
 - skill heatmaps
 - recommendation logic
 - reporting datasets
+- ranking and relevance calculations
 
 ---
 
@@ -84,20 +93,47 @@ Implemented:
 - Dockerized PostgreSQL database
 - Python virtual environment
 - PostgreSQL connection from Python
-- Initial Bronze Layer table (`raw_jobs`)
 - GitHub repository integration
 - SSH based GitHub authentication
 - Environment based configuration using `.env`
+- Initial Bronze Layer table (`raw_jobs`)
+- Initial real-world ingestion pipeline
+- Raw job ingestion from the German Federal Employment Agency job search
 
 In Progress:
-- API-based job ingestion
+- Duplicate detection strategy
+- Search profile expansion
+- Bronze ingestion improvements
 
 Planned:
-- Deduplication logic
+- Multi-source ingestion
 - Silver layer normalization
 - Matching engine
 - Dashboard / visualization
 - Cloud deployment
+
+---
+
+## Data Source Strategy
+
+The project intentionally uses realistic job market data sources instead of tutorial/demo APIs.
+
+The first ingestion source is the German Federal Employment Agency job search.
+
+Reasons for this decision:
+- realistic German labor market data
+- relevant regional search capability
+- real-world API structures
+- realistic ingestion challenges
+- duplicate handling requirements
+- production-oriented data quality problems
+
+The project prioritizes:
+- realistic engineering problems
+- explainable architectural decisions
+- scalable data ingestion patterns
+
+over artificially simplified tutorial scenarios.
 
 ---
 
@@ -107,6 +143,9 @@ Planned:
 job-application-pipeline/
 │
 ├── src/
+│   ├── main.py
+│   └── ingest_jobs.py
+│
 ├── docker-compose.yml
 ├── requirements.txt
 ├── README.md
@@ -152,6 +191,7 @@ docker compose up -d
 
 ```bash
 python src/main.py
+python src/ingest_jobs.py
 ```
 
 ---
@@ -186,6 +226,32 @@ Future cloud deployments may use:
 
 ---
 
+## Ingestion Strategy
+
+The ingestion pipeline is designed around configurable search profiles.
+
+Instead of relying on a single narrow search term, the pipeline will ingest broader datasets and later evaluate relevance using matching and scoring logic.
+
+This allows:
+- broader market coverage
+- duplicate analysis
+- relevance scoring
+- profile optimization
+- recommendation logic
+
+The current implementation starts with:
+- `Data Engineer`
+- ZIP code based regional search
+- configurable search radius
+
+Future iterations may include:
+- multiple search profiles
+- scheduling
+- incremental updates
+- change tracking
+
+---
+
 ## Roadmap
 
 - [x] Local development environment
@@ -194,8 +260,10 @@ Future cloud deployments may use:
 - [x] GitHub integration
 - [x] SSH authentication
 - [x] Environment based configuration
-- [ ] API ingestion pipeline
-- [ ] Deduplication engine
+- [x] Initial real-world job ingestion
+- [ ] Duplicate detection engine
+- [ ] Search profile management
+- [ ] Multi-source ingestion
 - [ ] Silver layer transformation
 - [ ] Matching / scoring engine
 - [ ] Dashboard / visualization
