@@ -32,8 +32,11 @@ Stores:
 - raw job postings as JSON
 - unmodified source data
 - ingestion metadata
+- ingestion history
 
-Current table:
+Current Bronze Layer tables:
+- `search_profiles`
+- `ingestion_runs`
 - `raw_jobs`
 
 ### Silver Layer
@@ -96,16 +99,18 @@ Implemented:
 - GitHub repository integration
 - SSH based GitHub authentication
 - Environment based configuration using `.env`
-- Initial Bronze Layer table (`raw_jobs`)
-- Initial real-world ingestion pipeline
+- Initial Bronze Layer implementation
+- Real-world job ingestion pipeline
 - Raw job ingestion from the German Federal Employment Agency job search
 - Database-level duplicate protection
 - Idempotent ingestion behavior using PostgreSQL constraints
+- Search profile driven ingestion
+- Ingestion run tracking
 
 In Progress:
-- Duplicate handling strategy
-- Search profile expansion
+- Multi-profile ingestion
 - Bronze ingestion improvements
+- Pagination handling
 
 Planned:
 - Multi-source ingestion
@@ -113,6 +118,43 @@ Planned:
 - Matching engine
 - Dashboard / visualization
 - Cloud deployment
+
+---
+
+## Bronze Layer Data Model
+
+### search_profiles
+
+Defines configurable ingestion search profiles.
+
+Contains:
+- search terms
+- locations
+- search radius
+- source information
+- activation state
+
+### ingestion_runs
+
+Tracks every ingestion execution.
+
+Contains:
+- runtime metadata
+- execution timestamps
+- ingestion statistics
+- status information
+- requested URLs
+
+### raw_jobs
+
+Stores raw job postings and ingestion references.
+
+Contains:
+- raw API payloads
+- source metadata
+- external identifiers
+- ingestion references
+- search profile references
 
 ---
 
@@ -143,6 +185,10 @@ over artificially simplified tutorial scenarios.
 
 ```text
 job-application-pipeline/
+│
+├── db/
+│   └── migrations/
+│       └── 001_bronze_ingestion_model.sql
 │
 ├── src/
 │   ├── main.py
@@ -189,10 +235,9 @@ pip install -r requirements.txt
 docker compose up -d
 ```
 
-### Run Python scripts
+### Run ingestion pipeline
 
 ```bash
-python src/main.py
 python src/ingest_jobs.py
 ```
 
@@ -295,7 +340,9 @@ Future iterations may introduce:
 - [x] Environment based configuration
 - [x] Initial real-world job ingestion
 - [x] Database-level duplicate protection
-- [ ] Search profile management
+- [x] Search profile based ingestion
+- [x] Ingestion run tracking
+- [ ] Multi-profile ingestion
 - [ ] Multi-source ingestion
 - [ ] Silver layer transformation
 - [ ] Matching / scoring engine
