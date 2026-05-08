@@ -253,7 +253,8 @@ job-application-pipeline/
 ├── src/
 │   ├── connectors/
 │   │   ├── base.py
-│   │   └── bundesagentur.py
+│   │   ├── bundesagentur.py
+│   │   └── greenhouse.py
 │   │
 │   ├── ingestion/
 │   │   ├── repository.py

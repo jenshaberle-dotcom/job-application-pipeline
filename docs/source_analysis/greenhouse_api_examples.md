@@ -105,3 +105,30 @@ Greenhouse is expected to validate whether the current architecture:
 5. Evaluate pagination behavior
 6. Design first Greenhouse Bronze ingestion strategy
 7. Design initial Greenhouse-to-Silver transformation approach
+
+---
+
+# Initial Connector Design Decision
+
+The first Greenhouse implementation intentionally uses a board-parametrized connector design.
+
+Example:
+
+- `greenhouse:stripe`
+- `greenhouse:pilothq`
+- `greenhouse:metronome`
+
+instead of a single generic `greenhouse` source identifier.
+
+Reasoning:
+- company boards represent logically independent source scopes
+- identifiers may not be globally unique across boards
+- source traceability becomes clearer
+- future deduplication remains easier to reason about
+
+The connector currently focuses only on:
+- retrieval
+- transport mapping
+- Bronze-layer compatibility
+
+No normalization or semantic interpretation is performed in the connector itself.
