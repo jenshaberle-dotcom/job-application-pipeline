@@ -23,93 +23,409 @@ The focus is intentionally placed on:
 
 The pipeline follows a layered data architecture inspired by modern data platforms and Microsoft Fabric concepts.
 
-The ingestion layer follows a **connector-based architecture**.
+### Bronze Layer
 
-Source-specific access logic is implemented in connectors, while the ingestion runner handles orchestration and the repository handles database persistence.
+Raw ingestion layer.
 
-This keeps the Bronze layer source-preserving and prepares the project for adding further sources and later Silver-layer normalization.
+Stores:
+- original API responses
+- raw job postings as JSON
+- unmodified source data
+- ingestion metadata
+- ingestion history
 
-### Connector Architecture
+Current Bronze Layer tables:
+- `search_profiles`
+- `search_terms`
+- `ingestion_runs`
+- `raw_jobs`
 
-```mermaid
-classDiagram
-    class JobSourceConnector {
-        <<interface>>
-        +source_name
-        +fetch_jobs(profile, search_term)
-    }
+### Silver Layer
 
-    class BundesagenturConnector {
-        +source_name
-        +fetch_jobs(profile, search_term)
-    }
+Planned normalization and transformation layer.
 
-    class FutureConnector {
-        +source_name
-        +fetch_jobs(profile, search_term)
-    }
+Will contain:
+- cleaned job titles
+- normalized locations
+- extracted skills
+- duplicate detection
+- standardized company data
 
-    class JobIngestionRunner {
-        +run(profile_name)
-    }
+### Gold Layer
 
-    class JobIngestionRepository {
-        +load_active_search_terms(profile_name)
-        +create_ingestion_run(...)
-        +save_raw_job(...)
-        +finish_ingestion_run(...)
-    }
+Planned analytics and matching layer.
 
-    class SearchProfile {
-        +id
-        +profile_name
-        +source_name
-        +search_location
-        +search_radius_km
-        +offer_type
-        +page_size
-    }
+Will contain:
+- matching scores
+- skill heatmaps
+- recommendation logic
+- reporting datasets
+- ranking and relevance calculations
 
-    class SearchTerm {
-        +search_term
-    }
+---
 
-    class RawJobRecord {
-        +source_name
-        +source_url
-        +external_job_id
-        +raw_data
-    }
+## Current Tech Stack
 
-    class raw_jobs {
-        <<Bronze Layer>>
-    }
+### Infrastructure
+- Windows 11
+- WSL2
+- Ubuntu 24.04
+- Docker Desktop
 
-    class silver_jobs {
-        <<Future Silver Layer>>
-    }
+### Backend / Data
+- PostgreSQL 17
+- Python 3.12
+- psycopg
+- requests
+- python-dotenv
 
-    class skills {
-        <<Future Silver Layer>>
-    }
+### Version Control
+- Git
+- GitHub
 
-    class job_skills {
-        <<Future Silver Layer>>
-    }
+### Security / Credential Management
+- Bitwarden
+- Ente Auth
+- SSH Authentication
 
-    JobSourceConnector <|.. BundesagenturConnector
-    JobSourceConnector <|.. FutureConnector
+---
 
-    JobIngestionRunner --> JobSourceConnector
-    JobIngestionRunner --> JobIngestionRepository
+## Current Status
 
-    BundesagenturConnector --> RawJobRecord
-    FutureConnector --> RawJobRecord
+Implemented:
+- Local Linux development environment using WSL2
+- Dockerized PostgreSQL database
+- Python virtual environment
+- PostgreSQL connection from Python
+- GitHub repository integration
+- SSH based GitHub authentication
+- Environment based configuration using `.env`
+- Initial Bronze Layer implementation
+- Real-world job ingestion pipeline
+- Raw job ingestion from the German Federal Employment Agency job search
+- Database-level duplicate protection
+- Idempotent ingestion behavior using PostgreSQL constraints
+- Search profile driven ingestion
+- Multi-term search strategy
+- Ingestion run tracking
+- Architecture documentation
+- Mermaid-based architecture diagrams
+- Architecture Decision Records (ADRs)
 
-    JobIngestionRepository --> SearchProfile
-    JobIngestionRepository --> SearchTerm
-    JobIngestionRepository --> raw_jobs
+In Progress:
+- Multi-source ingestion architecture
+- Connector modularization
+- Source evaluation
 
-    raw_jobs ..> silver_jobs : later normalization
-    raw_jobs ..> skills : later extraction
-    raw_jobs ..> job_skills : later extraction
+Planned:
+- Multi-source ingestion
+- Silver layer normalization
+- Matching engine
+- Dashboard / visualization
+- Cloud deployment
+
+---
+
+## Bronze Layer Data Model
+
+### search_profiles
+
+Defines configurable ingestion search profiles.
+
+Contains:
+- search strategy metadata
+- locations
+- search radius
+- source information
+- activation state
+
+### search_terms
+
+Contains multiple search terms per search profile.
+
+Allows:
+- broader market coverage
+- configurable search strategies
+- ingestion experimentation
+- future analytics on search effectiveness
+
+### ingestion_runs
+
+Tracks every ingestion execution.
+
+Contains:
+- runtime metadata
+- execution timestamps
+- ingestion statistics
+- status information
+- requested URLs
+
+### raw_jobs
+
+Stores raw job postings and ingestion references.
+
+Contains:
+- raw API payloads
+- source metadata
+- external identifiers
+- ingestion references
+- search profile references
+
+---
+
+## Data Source Strategy
+
+The project intentionally uses realistic job market data sources instead of tutorial/demo APIs.
+
+The first ingestion source is the German Federal Employment Agency job search.
+
+Planned additional sources:
+- StepStone
+- LinkedIn Jobs
+- Greenhouse ATS
+- Workday-based career systems
+
+Reasons for this decision:
+- realistic German labor market data
+- relevant regional search capability
+- real-world API structures
+- realistic ingestion challenges
+- duplicate handling requirements
+- production-oriented data quality problems
+
+The project prioritizes:
+- realistic engineering problems
+- explainable architectural decisions
+- scalable data ingestion patterns
+
+over artificially simplified tutorial scenarios.
+
+---
+
+## Repository Structure
+
+```text
+job-application-pipeline/
+│
+├── db/
+│   └── migrations/
+│       ├── 001_bronze_ingestion_model.sql
+│       └── 002_search_terms_model.sql
+│
+├── docs/
+│   ├── adr/
+│   │   ├── README.md
+│   │   ├── 001_use_real_job_market_sources.md
+│   │   ├── 002_use_bronze_first_architecture.md
+│   │   ├── 003_use_database_level_duplicate_protection.md
+│   │   ├── 004_use_search_profile_based_ingestion.md
+│   │   ├── 005_use_postgresql_as_primary_database.md
+│   │   ├── 006_use_dockerized_local_development.md
+│   │   ├── 007_use_ssh_for_github_authentication.md
+│   │   └── 008_use_environment_based_configuration.md
+│   │
+│   ├── diagrams/
+│   │   ├── README.md
+│   │   ├── architecture.md
+│   │   └── bronze_data_model.md
+│   │
+│   └── roadmap.md
+│
+├── src/
+│   ├── ingest_jobs.py
+│   └── main.py
+│
+├── docker-compose.yml
+├── requirements.txt
+├── README.md
+├── .env.example
+└── .gitignore
+```
+
+---
+
+## Setup
+
+### Clone repository
+
+```bash
+git clone git@github.com:jenshaberle-dotcom/job-application-pipeline.git
+```
+
+### Create Python virtual environment
+
+```bash
+python3 -m venv .venv
+```
+
+### Activate virtual environment
+
+```bash
+source .venv/bin/activate
+```
+
+### Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Start PostgreSQL container
+
+```bash
+docker compose up -d
+```
+
+### Run ingestion pipeline
+
+```bash
+python src/ingest_jobs.py
+```
+
+---
+
+## Optional Developer Tools
+
+```bash
+sudo apt install tree
+```
+
+Useful for visualizing local repository structures during development.
+
+---
+
+## Environment Configuration
+
+Create a local `.env` file based on `.env.example`.
+
+Example:
+
+```env
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=job_pipeline
+POSTGRES_USER=your_username
+POSTGRES_PASSWORD=your_password
+```
+
+Secrets are intentionally excluded from version control via `.gitignore`.
+
+Local credentials are managed using:
+- `.env` files for runtime configuration
+- Bitwarden for credential storage
+- separate MFA protection for secure access
+
+The current setup is optimized for local development.
+
+Future cloud deployments may use:
+- Azure Application Settings
+- centralized secret management
+- Azure Key Vault with Managed Identity
+
+---
+
+## Ingestion Strategy
+
+The ingestion pipeline is designed around configurable search profiles.
+
+Instead of relying on a single narrow search term, the pipeline ingests broader datasets and later evaluates relevance using matching and scoring logic.
+
+This allows:
+- broader market coverage
+- duplicate analysis
+- relevance scoring
+- profile optimization
+- recommendation logic
+
+The current implementation uses:
+- profile-based ingestion
+- multiple search terms per profile
+- ZIP code based regional search
+- configurable search radius
+
+Future iterations may include:
+- multiple data sources
+- scheduling
+- incremental updates
+- change tracking
+- semantic matching
+
+---
+
+## Duplicate Handling Strategy
+
+The project currently uses technical duplicate protection based on:
+- `source_name`
+- `external_job_id`
+
+Duplicate protection is enforced at the database level using a PostgreSQL unique index.
+
+This ensures:
+- idempotent ingestion behavior
+- consistent data integrity
+- protection against duplicate inserts
+- scalable ingestion behavior for future schedulers and parallel processing
+
+The ingestion pipeline currently uses:
+
+```sql
+ON CONFLICT DO NOTHING
+```
+
+to safely ignore already ingested job postings.
+
+Future iterations may introduce:
+- change detection
+- version tracking
+- historical snapshots
+- soft deletion handling
+- fuzzy duplicate detection across multiple platforms
+
+---
+
+## Documentation Strategy
+
+The project documents major engineering and architecture decisions using:
+- Architecture Decision Records (ADRs)
+- Mermaid architecture diagrams
+- Roadmaps
+- Structured repository documentation
+
+The goal is to preserve:
+- architectural reasoning
+- design tradeoffs
+- implementation decisions
+- project evolution over time
+
+---
+
+## Roadmap
+
+- [x] Local development environment
+- [x] Dockerized PostgreSQL
+- [x] Python database connection
+- [x] GitHub integration
+- [x] SSH authentication
+- [x] Environment based configuration
+- [x] Initial real-world job ingestion
+- [x] Database-level duplicate protection
+- [x] Search profile based ingestion
+- [x] Multi-term search strategy
+- [x] Ingestion run tracking
+- [x] ADR documentation
+- [x] Mermaid architecture diagrams
+- [ ] Connector abstraction layer
+- [ ] Multi-source ingestion
+- [ ] Source capability evaluation
+- [ ] Silver layer transformation
+- [ ] Semantic matching / embeddings
+- [ ] Dashboard / visualization
+- [ ] Cloud deployment
+
+---
+
+## Disclaimer
+
+This repository is currently an active learning and engineering project.
+
+Architecture, tooling and implementation details may evolve over time.
