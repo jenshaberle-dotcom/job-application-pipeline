@@ -16,7 +16,8 @@ The project architecture evolved incrementally:
 2. Database-level duplicate protection
 3. Search-profile-based ingestion
 4. Connector-based source abstraction
-5. Preparation for canonical Silver-layer normalization
+5. Initial Silver-layer normalization
+6. Preparation for multi-source canonical modeling
 
 The ADRs intentionally reflect this evolution.
 
@@ -35,7 +36,7 @@ The ADRs intentionally reflect this evolution.
 | 007 | Use SSH for GitHub authentication | Accepted |
 | 008 | Use environment-based configuration | Accepted |
 | 009 | Use connector-based ingestion | Accepted |
-| 010 | Define a canonical job model for the Silver layer | Proposed |
+| 010 | Define a canonical job model for the Silver layer | Accepted |
 
 ---
 

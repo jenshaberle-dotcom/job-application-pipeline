@@ -42,9 +42,11 @@ This evaluation is important to avoid overfitting the architecture to the Bundes
 ## Bundesagentur für Arbeit API
 
 ### Type
+
 Structured public API
 
 ### Advantages
+
 - Stable structured responses
 - Official public interface
 - Good initial Bronze-layer source
@@ -53,12 +55,14 @@ Structured public API
 - Reliable pagination
 
 ### Challenges
+
 - Limited realism compared to modern ATS systems
 - German-market-specific structure
 - Relatively clean and normalized data
 - Lower transformation complexity
 
 ### Architectural Value
+
 Useful as the first production-style Bronze ingestion source.
 
 However, the project architecture should not become overly optimized for this source alone.
@@ -70,36 +74,49 @@ However, the project architecture should not become overly optimized for this so
 ## Greenhouse
 
 ### Type
+
 ATS platform
 
 ### Expected Advantages
+
 - Widely used by technology companies
 - More realistic modern recruiting workflows
 - Structured but company-specific variations
 - Good candidate for canonical normalization testing
 
 ### Expected Challenges
+
 - Different company implementations
 - Different field availability
 - Potential pagination differences
 - Potentially inconsistent metadata quality
 
 ### Portfolio Value
+
 High
+
+### Decision
+
+Selected as the next connector candidate.
+
+Greenhouse introduces more realistic ATS-style data while remaining manageable for iterative architecture development.
 
 ---
 
 ## Workday
 
 ### Type
+
 Enterprise ATS platform
 
 ### Expected Advantages
+
 - Very common in enterprise recruiting
 - Highly realistic production scenario
 - Good test for normalization boundaries
 
 ### Expected Challenges
+
 - Complex page structures
 - Dynamic requests
 - Difficult navigation flows
@@ -107,6 +124,7 @@ Enterprise ATS platform
 - Often inconsistent implementations between companies
 
 ### Portfolio Value
+
 Very High
 
 ---
@@ -114,14 +132,17 @@ Very High
 ## StepStone
 
 ### Type
+
 Commercial job platform
 
 ### Expected Advantages
+
 - Large job market coverage
 - Rich metadata
 - Real-world aggregation platform
 
 ### Expected Challenges
+
 - Anti-bot protections
 - HTML parsing complexity
 - Potential legal restrictions
@@ -129,6 +150,7 @@ Commercial job platform
 - Higher maintenance effort
 
 ### Portfolio Value
+
 High
 
 ---
@@ -136,26 +158,32 @@ High
 ## Company Career Pages
 
 ### Type
+
 Direct company websites
 
 ### Expected Advantages
+
 - Highly realistic
 - Diverse structures
 - Good test for connector abstraction
 - Good test for canonical modeling
 
 ### Expected Challenges
+
 - No standardized structure
 - High implementation variability
 - Potential scraping instability
 - Requires source-specific logic
 
 ### Portfolio Value
+
 Very High
 
 ---
 
 # Current Direction
+
+Greenhouse has been selected as the next connector candidate.
 
 The next source should intentionally introduce more architectural complexity than the Bundesagentur für Arbeit API.
 
@@ -167,6 +195,6 @@ The goal is to validate:
 - normalization flexibility
 - handling of incomplete or inconsistent data
 
-The next connector does not need to be production-grade immediately.
+The Greenhouse connector does not need to be production-grade immediately.
 
 Learning architectural differences between source types is more important than maximizing ingestion volume.

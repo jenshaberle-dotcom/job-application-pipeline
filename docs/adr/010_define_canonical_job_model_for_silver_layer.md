@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -14,30 +14,28 @@ The project therefore needs a later Silver layer that transforms raw job posting
 
 This canonical model will provide a stable internal structure independent of the original source.
 
+---
+
 ## Decision
 
-We will introduce a canonical job model in the Silver layer.
+We introduce a canonical job model in the Silver layer.
 
-The Silver layer will be responsible for interpreting and normalizing raw Bronze records into a consistent structure.
+The Silver layer is responsible for interpreting and normalizing raw Bronze records into a consistent structure.
 
-The canonical job model should represent fields such as:
+The first implementation introduces an initial `silver_jobs` table and a source-aware Bronze-to-Silver transformation step.
+
+The canonical job model currently focuses on:
 
 - job title
 - company name
 - location
-- remote/hybrid information
-- employment type
-- seniority level
-- required skills
-- optional skills
-- source references
-- original source identifiers
 - publication date
-- ingestion metadata
+- source references
+- ingestion traceability
 
-The canonical model will not replace the Bronze layer.
+The model will evolve incrementally as additional sources are integrated.
 
-Bronze remains the immutable source-preserving layer. Silver provides the interpreted and normalized representation used for analytics, deduplication, enrichment, and matching.
+---
 
 ## Architectural Boundary
 
@@ -49,16 +47,20 @@ Gold later derives metrics, scores, recommendations, and dashboards from Silver 
 
 Connectors must not implement Silver-layer logic.
 
+The Silver layer may initially contain source-aware transformations, but should evolve toward a stable canonical representation independent of any single source.
+
+---
+
 ## Consequences
 
 ### Positive
 
 - Job postings from different sources become comparable.
-- Analytics can be built on stable, normalized data.
+- Analytics can be built on stable normalized data.
 - Matching logic can rely on a consistent representation.
 - Source-specific quirks remain isolated in Bronze.
-- The project can support cross-source deduplication.
-- The architecture follows a clear Bronze/Silver/Gold separation.
+- The architecture supports later cross-source deduplication.
+- The project follows a clear Bronze/Silver/Gold separation.
 
 ### Negative
 
@@ -68,12 +70,19 @@ Connectors must not implement Silver-layer logic.
 - The canonical model may evolve as new sources are added.
 - Premature over-modeling must be avoided.
 
+---
+
 ## Notes
 
 The canonical model should start pragmatic and evolve with real data.
 
-The first Silver-layer implementation may be based on the Bundesagentur für Arbeit data source, but the model must not be designed only around this source. Future sources are expected to include more difficult real-world inputs such as HTML pages, ATS-based career sites, incomplete postings, differently named fields, and source-specific metadata.
+The first Silver-layer implementation is based on the Bundesagentur für Arbeit source, but the model must not become tightly coupled to this source alone.
 
-Not every field needs to be normalized immediately. The first implementation should focus on fields that are required for deduplication, search analysis, and CV-to-job matching.
+Future sources such as Greenhouse, Workday, StepStone, or company career pages are expected to introduce:
+- different field structures
+- inconsistent metadata
+- HTML content
+- incomplete records
+- source-specific semantics
 
 The Silver layer should preserve traceability back to the original Bronze record.

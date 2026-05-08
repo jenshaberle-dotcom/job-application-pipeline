@@ -31,22 +31,23 @@ Completed:
 - Ingestion runner orchestration
 
 In Progress:
-- Source evaluation
 - Additional connector candidates
-- Documentation alignment for the connector architecture
+- Multi-source architecture validation
 
 ---
 
 ## Phase 3 — Source Evaluation
 
+Completed:
+- Initial source evaluation strategy
+- Greenhouse selected as next connector candidate
+- Greenhouse source analysis
+
 Planned:
 - StepStone integration evaluation
 - LinkedIn Jobs evaluation
-- Greenhouse integration evaluation
 - Workday integration evaluation
-- Source capability comparison
-- Data structure comparison
-- Detail page ingestion evaluation
+- Company career page evaluation
 
 Goals:
 - Identify universal job fields
@@ -63,9 +64,13 @@ Goals:
 
 ## Phase 4 — Silver Layer
 
+Completed:
+- Initial canonical `silver_jobs` table
+- Initial Bronze-to-Silver transformation
+- Traceability from Silver records back to raw Bronze records
+
 Planned:
-- Canonical job model
-- Job normalization
+- Expanded job normalization
 - Unified job representation
 - Skill extraction
 - Location normalization

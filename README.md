@@ -42,9 +42,14 @@ Current Bronze Layer tables:
 
 ### Silver Layer
 
-Planned normalization and transformation layer.
+Initial normalization and transformation layer.
 
-Will contain:
+Currently contains:
+- first canonical `silver_jobs` table
+- source-aware transformation from Bronze records
+- traceability back to `raw_jobs`
+
+Will later contain:
 - cleaned job titles
 - normalized locations
 - extracted skills
@@ -112,19 +117,22 @@ Implemented:
 - Source-specific connector isolation
 - Repository-based Bronze-layer persistence
 - Ingestion runner orchestration
+- Initial Silver-layer table
+- Initial Bronze-to-Silver transformation
+- Source evaluation documentation
+- Greenhouse source analysis
 - Architecture documentation
 - Mermaid-based architecture diagrams
 - Architecture Decision Records (ADRs)
 
 In Progress:
-- Source evaluation
+- Greenhouse connector evaluation
 - Additional connector candidates
-- Documentation alignment for the connector architecture
+- Multi-source architecture validation
 
 Planned:
 - Additional production-style connectors
-- Silver layer normalization
-- Initial canonical Silver-layer model design
+- Expanded Silver layer normalization
 - Matching engine
 - Dashboard / visualization
 - Cloud deployment
@@ -219,6 +227,7 @@ job-application-pipeline/
 │
 ├── docs/
 │   ├── adr/
+│   │   ├── README.md
 │   │   ├── 001_use_real_job_market_sources.md
 │   │   ├── 002_use_bronze_first_architecture.md
 │   │   ├── 003_use_database_level_duplicate_protection.md
@@ -234,8 +243,17 @@ job-application-pipeline/
 │   │   ├── architecture.md
 │   │   └── bronze_data_model.md
 │   │
+│   ├── source_analysis/
+│   │   └── greenhouse.md
+│   │
 │   ├── roadmap.md
 │   └── source_evaluation.md
+│
+├── db/
+│   └── migrations/
+│       ├── 001_bronze_ingestion_model.sql
+│       ├── 002_search_terms_model.sql
+│       └── 003_silver_jobs_model.sql
 │
 ├── src/
 │   ├── connectors/
@@ -246,17 +264,15 @@ job-application-pipeline/
 │   │   ├── repository.py
 │   │   └── runner.py
 │   │
+│   ├── silver/
+│   │   ├── repository.py
+│   │   └── transformer.py
+│   │
 │   ├── config.py
 │   ├── ingest_jobs.py
+│   ├── run_silver_jobs.py
 │   └── main.py
-│
-├── docker-compose.yml
-├── requirements.txt
-├── README.md
-├── .env.example
-└── .gitignore
 ```
-
 ---
 
 ## Setup
@@ -429,11 +445,14 @@ The goal is to preserve:
 - [x] Ingestion run tracking
 - [x] ADR documentation
 - [x] Mermaid architecture diagrams
-- [ ] Connector abstraction layer
+- [x] Connector abstraction layer
 - [ ] Multi-source ingestion
-- [ ] Source capability evaluation
-- [ ] Silver layer transformation
-- [ ] Semantic matching / embeddings
+- [x] Source capability evaluation
+- [x] Initial Silver layer transformation
+- [ ] Canonical normalization expansion
+- [ ] Cross-source deduplication
+- [ ] Skill extraction
+- [ ] Matching engine
 - [ ] Dashboard / visualization
 - [ ] Cloud deployment
 

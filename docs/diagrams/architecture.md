@@ -29,6 +29,11 @@ classDiagram
         +finish_ingestion_run(...)
     }
 
+    class SilverJobRepository {
+        +load_unprocessed_raw_jobs(limit)
+        +upsert_silver_job(job)
+    }
+
     class SearchProfile {
         +id
         +profile_name
@@ -58,15 +63,12 @@ classDiagram
     }
 
     class silver_jobs {
-        <<Future Silver Layer>>
-    }
-
-    class skills {
-        <<Future Silver Layer>>
-    }
-
-    class job_skills {
-        <<Future Silver Layer>>
+        <<Silver Layer v0>>
+        +raw_job_id
+        +title
+        +company_name
+        +city
+        +publication_date
     }
 
     class matching_scores {
@@ -80,7 +82,7 @@ classDiagram
     JobIngestionRunner --> JobIngestionRepository : persists via
 
     JobIngestionRepository --> SearchProfile
-    JobInestionRepository --> SearchTerm
+    JobIngestionRepository --> SearchTerm
     JobIngestionRepository --> raw_jobs
 
     BundesagenturConnector --> RawJobRecord : returns
@@ -88,8 +90,24 @@ classDiagram
 
     RawJobRecord --> raw_jobs : source-preserving storage
 
-    raw_jobs ..> silver_jobs : later normalization
-    raw_jobs ..> skills : later extraction
-    raw_jobs ..> job_skills : later extraction
+    SilverJobRepository --> raw_jobs : reads unprocessed records
+    SilverJobRepository --> silver_jobs : writes normalized records
 
+    raw_jobs ..> silver_jobs : source-aware normalization
     silver_jobs ..> matching_scores : later scoring
+```
+
+## Boundary Notes
+
+Connectors fetch and transport source-specific job data.
+
+They do not perform business-level interpretation such as:
+- skill extraction
+- company normalization
+- location normalization
+- deduplication across sources
+- CV-to-job matching
+
+The Bronze layer stores source-preserving raw records.
+
+The Silver layer starts with a pragmatic canonical representation and will evolve as additional sources such as Greenhouse are added.
