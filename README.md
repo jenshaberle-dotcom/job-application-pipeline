@@ -119,7 +119,7 @@ Implemented:
 - Ingestion runner orchestration
 - Initial Silver-layer table
 - Initial Bronze-to-Silver transformation
-- Source evaluation documentation
+- Separation of technical duplicate protection and semantic deduplication- Source evaluation documentation
 - Greenhouse source analysis
 - Architecture documentation
 - Mermaid-based architecture diagrams
@@ -229,7 +229,8 @@ job-application-pipeline/
 │   │   ├── 007_use_ssh_for_github_authentication.md
 │   │   ├── 008_use_environment_based_configuration.md
 │   │   ├── 009_use_connector_based_ingestion.md
-│   │   └── 010_define_canonical_job_model_for_silver_layer.md
+│   │   ├── 010_define_canonical_job_model_for_silver_layer.md
+│   │   └── 011_separate_technical_duplicates_from_cross_source_deduplication.md
 │   │
 │   ├── diagrams/
 │   │   ├── architecture.md
