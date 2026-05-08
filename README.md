@@ -213,18 +213,10 @@ The project prioritizes:
 
 over artificially simplified tutorial scenarios.
 
----
-
 ## Repository Structure
 
-│   ├── glossary.md```text
+```text
 job-application-pipeline/
-│
-├── db/
-│   └── migrations/
-│       ├── 001_bronze_ingestion_model.sql
-│       └── 002_search_terms_model.sql
-│
 ├── docs/
 │   ├── adr/
 │   │   ├── README.md
@@ -246,7 +238,7 @@ job-application-pipeline/
 │   ├── source_analysis/
 │   │   ├── greenhouse.md
 │   │   └── greenhouse_api_examples.md
-│   │   
+│   │
 │   ├── glossary.md
 │   ├── roadmap.md
 │   └── source_evaluation.md
