@@ -244,7 +244,8 @@ job-application-pipeline/
 │   │   └── bronze_data_model.md
 │   │
 │   ├── source_analysis/
-│   │   └── greenhouse.md
+│   │   ├── greenhouse.md
+│   │   └── greenhouse_api_examples.md
 │   │
 │   ├── roadmap.md
 │   └── source_evaluation.md
