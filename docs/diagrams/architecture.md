@@ -1,31 +1,84 @@
-# System Architecture
+# Connector Architecture
 
 ```mermaid
-flowchart LR
+classDiagram
+    class JobSourceConnector {
+        <<interface>>
+        +source_name
+        +fetch_jobs(profile, search_term)
+    }
 
-    Sources[Job Sources]
+    class BundesagenturConnector {
+        +source_name
+        +fetch_jobs(profile, search_term)
+    }
 
-    Sources --> BA[Bundesagentur für Arbeit]
-    Sources --> StepStone[StepStone]
-    Sources --> LinkedIn[LinkedIn Jobs]
-    Sources --> Greenhouse[Greenhouse ATS]
-    Sources --> Workday[Workday]
+    class FutureConnector {
+        +source_name
+        +fetch_jobs(profile, search_term)
+    }
 
-    BA --> Ingestion
-    StepStone --> Ingestion
-    LinkedIn --> Ingestion
-    Greenhouse --> Ingestion
-    Workday --> Ingestion
+    class JobIngestionRunner {
+        +run(profile_name)
+    }
 
-    Ingestion[Ingestion Layer]
+    class JobIngestionRepository {
+        +load_active_search_terms(profile_name)
+        +create_ingestion_run(...)
+        +save_raw_job(...)
+        +finish_ingestion_run(...)
+    }
 
-    Ingestion --> SearchProfiles[search_profiles]
-    Ingestion --> IngestionRuns[ingestion_runs]
-    Ingestion --> RawJobs[raw_jobs]
+    class SearchProfile {
+        +id
+        +profile_name
+        +source_name
+        +search_location
+        +search_radius_km
+        +offer_type
+        +page_size
+    }
 
-    RawJobs --> Silver[Silver Layer]
-    Silver --> Gold[Gold Layer]
+    class SearchTerm {
+        +search_term
+    }
 
-    Gold --> Matching[Matching Engine]
-    Gold --> Dashboard[Dashboards & Analytics]
-```
+    class RawJobRecord {
+        +source_name
+        +source_url
+        +external_job_id
+        +raw_data
+    }
+
+    class raw_jobs {
+        <<Bronze Layer>>
+    }
+
+    class silver_jobs {
+        <<Future Silver Layer>>
+    }
+
+    class skills {
+        <<Future Silver Layer>>
+    }
+
+    class job_skills {
+        <<Future Silver Layer>>
+    }
+
+    JobSourceConnector <|.. BundesagenturConnector
+    JobSourceConnector <|.. FutureConnector
+
+    JobIngestionRunner --> JobSourceConnector
+    JobIngestionRunner --> JobIngestionRepository
+
+    BundesagenturConnector --> RawJobRecord
+    FutureConnector --> RawJobRecord
+
+    JobIngestionRepository --> SearchProfile
+    JobIngestionRepository --> SearchTerm
+    JobIngestionRepository --> raw_jobs
+
+    raw_jobs ..> silver_jobs : later normalization
+    raw_jobs ..> skills : later extraction
+    raw_jobs ..> job_skills : later extraction
