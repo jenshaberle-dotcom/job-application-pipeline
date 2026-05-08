@@ -217,7 +217,7 @@ over artificially simplified tutorial scenarios.
 
 ## Repository Structure
 
-```text
+│   ├── glossary.md```text
 job-application-pipeline/
 │
 ├── db/
@@ -246,7 +246,8 @@ job-application-pipeline/
 │   ├── source_analysis/
 │   │   ├── greenhouse.md
 │   │   └── greenhouse_api_examples.md
-│   │
+│   │   
+│   ├── glossary.md
 │   ├── roadmap.md
 │   └── source_evaluation.md
 │
