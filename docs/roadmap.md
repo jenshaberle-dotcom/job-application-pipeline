@@ -54,6 +54,9 @@ Goals:
 - Evaluate ingestion complexity
 - Evaluate data quality
 - Evaluate anti-bot challenges
+- Compare easy API-based sources with harder real-world sources
+- Include sources with different access patterns such as public APIs, HTML pages, ATS platforms, and company career pages
+- Avoid overfitting the architecture to the Bundesagentur für Arbeit API
 - Decide which source should become the next production-style connector
 
 ---
