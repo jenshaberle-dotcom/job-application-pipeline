@@ -1,244 +1,115 @@
 # Job Application Pipeline
 
-A portfolio and learning project focused on building a realistic data engineering pipeline for ingesting, storing, normalizing, and analyzing job postings from real-world job market sources.
+## Vision
 
-The project intentionally focuses on practical engineering decisions instead of tutorial-style implementations. The goal is to simulate realistic ingestion challenges such as heterogeneous source systems, duplicate handling, normalization, and later semantic matching against personal skill profiles and CV data.
+This project aims to build an automated end-to-end job ingestion and analysis pipeline.
 
----
+The goal is to collect job postings from multiple sources, store them in a structured data platform, remove duplicates, normalize content and evaluate job postings based on custom matching criteria.
 
-# Goals
+The project is designed as both:
+- a personal learning journey towards Data Engineering
+- and a production-oriented showcase project
 
-* Build a local-first data engineering pipeline
-* Work with real job market sources instead of static demo datasets
-* Preserve raw source data for reproducibility and traceability
-* Handle duplicate postings across multiple sources
-* Prepare for later normalization and analytics layers
-* Generate matching metrics between job postings and a personal CV/profile
-* Create a realistic portfolio project demonstrating engineering tradeoffs and architectural decisions
-
----
-
-# Current Status
-
-Implemented:
-
-* PostgreSQL-based Bronze layer
-* Dockerized local PostgreSQL environment
-* Search-profile-based ingestion
-* Bundesagentur für Arbeit API ingestion
-* Duplicate prevention on source identifiers
-* Ingestion run tracking
-* Connector-based ingestion architecture
-* Architecture Decision Records (ADR)
-
-Planned:
-
-* Additional job sources
-* Connector registry
-* Silver-layer normalization
-* Skill extraction
-* Duplicate candidate detection
-* Company normalization
-* Location normalization
-* Gold-layer analytics and matching
-* Dashboards and KPI generation
+The focus is intentionally placed on:
+- realistic data sources
+- maintainable architecture
+- reproducible environments
+- pragmatic security concepts
+- explainable engineering decisions
 
 ---
 
-# Architecture
+## Architecture
 
-The ingestion layer follows a connector-based architecture.
+The pipeline follows a layered data architecture inspired by modern data platforms and Microsoft Fabric concepts.
+
+The ingestion layer follows a **connector-based architecture**.
 
 Source-specific access logic is implemented in connectors, while the ingestion runner handles orchestration and the repository handles database persistence.
 
 This keeps the Bronze layer source-preserving and prepares the project for adding further sources and later Silver-layer normalization.
 
+### Connector Architecture
+
 ```mermaid
-flowchart LR
-    subgraph Sources
-        BA[Bundesagentur API]
-        STEP[Future source: StepStone / ATS / Company pages]
-    end
+classDiagram
+    class JobSourceConnector {
+        <<interface>>
+        +source_name
+        +fetch_jobs(profile, search_term)
+    }
 
-    subgraph Connectors
-        BAC[BundesagenturConnector]
-        FC[Future connectors]
-    end
+    class BundesagenturConnector {
+        +source_name
+        +fetch_jobs(profile, search_term)
+    }
 
-    subgraph Ingestion
-        RUN[JobIngestionRunner]
-        REPO[JobIngestionRepository]
-    end
+    class FutureConnector {
+        +source_name
+        +fetch_jobs(profile, search_term)
+    }
 
-    subgraph PostgreSQL
-        SP[search_profiles]
-        ST[search_terms]
-        IR[ingestion_runs]
-        RJ[raw_jobs - Bronze]
-    end
+    class JobIngestionRunner {
+        +run(profile_name)
+    }
 
-    subgraph Future_Silver_Layer
-        SJ[silver_jobs]
-        SK[skills]
-        JS[job_skills]
-        DL[duplicate_candidates]
-    end
+    class JobIngestionRepository {
+        +load_active_search_terms(profile_name)
+        +create_ingestion_run(...)
+        +save_raw_job(...)
+        +finish_ingestion_run(...)
+    }
 
-    BA --> BAC
-    STEP --> FC
+    class SearchProfile {
+        +id
+        +profile_name
+        +source_name
+        +search_location
+        +search_radius_km
+        +offer_type
+        +page_size
+    }
 
-    BAC --> RUN
-    FC --> RUN
+    class SearchTerm {
+        +search_term
+    }
 
-    RUN --> REPO
-    REPO --> SP
-    REPO --> ST
-    REPO --> IR
-    REPO --> RJ
+    class RawJobRecord {
+        +source_name
+        +source_url
+        +external_job_id
+        +raw_data
+    }
 
-    RJ -. later transformation .-> SJ
-    RJ -. later extraction .-> SK
-    RJ -. later extraction .-> JS
-    RJ -. later deduplication .-> DL
-```
+    class raw_jobs {
+        <<Bronze Layer>>
+    }
 
----
+    class silver_jobs {
+        <<Future Silver Layer>>
+    }
 
-# Project Structure
+    class skills {
+        <<Future Silver Layer>>
+    }
 
-```text
-job-application-pipeline/
-│
-├── db/
-│   ├── migrations/
-│   └── seeds/
-│
-├── docs/
-│   ├── adr/
-│   └── diagrams/
-│
-├── src/
-│   ├── connectors/
-│   ├── ingestion/
-│   └── ingest_jobs.py
-│
-├── docker-compose.yml
-├── requirements.txt
-└── README.md
-```
+    class job_skills {
+        <<Future Silver Layer>>
+    }
 
----
+    JobSourceConnector <|.. BundesagenturConnector
+    JobSourceConnector <|.. FutureConnector
 
-# Bronze Layer Philosophy
+    JobIngestionRunner --> JobSourceConnector
+    JobIngestionRunner --> JobIngestionRepository
 
-The Bronze layer intentionally stores minimally transformed source data.
+    BundesagenturConnector --> RawJobRecord
+    FutureConnector --> RawJobRecord
 
-This preserves:
+    JobIngestionRepository --> SearchProfile
+    JobIngestionRepository --> SearchTerm
+    JobIngestionRepository --> raw_jobs
 
-* original source payloads
-* traceability
-* reproducibility
-* reprocessing capability
-
-Normalization and interpretation are intentionally postponed to later pipeline stages.
-
----
-
-# Future Silver Layer
-
-The Silver layer is intended to transform and normalize raw source data into reusable analytical entities.
-
-Planned Silver entities include:
-
-* normalized job postings
-* normalized companies
-* normalized locations
-* extracted skills
-* duplicate candidates
-* semantic enrichments
-
-Example future tables:
-
-```text
-silver_jobs
-skills
-job_skills
-duplicate_candidates
-normalized_companies
-normalized_locations
-```
-
----
-
-# Future Gold Layer
-
-The Gold layer is intended for analytics and matching use cases.
-
-Planned examples:
-
-* CV-to-job matching
-* skill gap analysis
-* job market trend analysis
-* heatmaps
-* ranking scores
-* dashboards
-
----
-
-# Technologies
-
-Current stack:
-
-* Python
-* PostgreSQL
-* Docker
-* psycopg
-* requests
-
-Planned additions:
-
-* SQLAlchemy or dbt evaluation
-* Apache Airflow evaluation
-* Semantic matching approaches
-* Visualization layer
-* Cloud deployment evaluation
-
----
-
-# ADRs
-
-Architecture decisions are documented inside:
-
-```text
-docs/adr/
-```
-
-The project intentionally tracks architectural tradeoffs and reasoning as part of the learning and portfolio process.
-
----
-
-# Local Setup
-
-## Start PostgreSQL
-
-```bash
-docker compose up -d
-```
-
-## Run ingestion
-
-```bash
-python -m src.ingest_jobs
-```
-
----
-
-# Design Principles
-
-* Local-first development
-* Real-world data instead of demo datasets
-* Source-preserving ingestion
-* Incremental architecture evolution
-* Explicit architectural documentation
-* Reproducibility over convenience
-* Practical engineering tradeoffs
+    raw_jobs ..> silver_jobs : later normalization
+    raw_jobs ..> skills : later extraction
+    raw_jobs ..> job_skills : later extraction
