@@ -108,18 +108,23 @@ Implemented:
 - Search profile driven ingestion
 - Multi-term search strategy
 - Ingestion run tracking
+- Connector-based ingestion architecture
+- Source-specific connector isolation
+- Repository-based Bronze-layer persistence
+- Ingestion runner orchestration
 - Architecture documentation
 - Mermaid-based architecture diagrams
 - Architecture Decision Records (ADRs)
 
 In Progress:
-- Multi-source ingestion architecture
-- Connector modularization
 - Source evaluation
+- Additional connector candidates
+- Documentation alignment for the connector architecture
 
 Planned:
-- Multi-source ingestion
+- Additional production-style connectors
 - Silver layer normalization
+- Canonical job model
 - Matching engine
 - Dashboard / visualization
 - Cloud deployment
@@ -214,7 +219,6 @@ job-application-pipeline/
 │
 ├── docs/
 │   ├── adr/
-│   │   ├── README.md
 │   │   ├── 001_use_real_job_market_sources.md
 │   │   ├── 002_use_bronze_first_architecture.md
 │   │   ├── 003_use_database_level_duplicate_protection.md
@@ -222,16 +226,25 @@ job-application-pipeline/
 │   │   ├── 005_use_postgresql_as_primary_database.md
 │   │   ├── 006_use_dockerized_local_development.md
 │   │   ├── 007_use_ssh_for_github_authentication.md
-│   │   └── 008_use_environment_based_configuration.md
+│   │   ├── 008_use_environment_based_configuration.md
+│   │   └── 009_use_connector_based_ingestion.md
 │   │
 │   ├── diagrams/
-│   │   ├── README.md
 │   │   ├── architecture.md
 │   │   └── bronze_data_model.md
 │   │
 │   └── roadmap.md
 │
 ├── src/
+│   ├── connectors/
+│   │   ├── base.py
+│   │   └── bundesagentur.py
+│   │
+│   ├── ingestion/
+│   │   ├── repository.py
+│   │   └── runner.py
+│   │
+│   ├── config.py
 │   ├── ingest_jobs.py
 │   └── main.py
 │

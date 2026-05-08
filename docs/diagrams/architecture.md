@@ -52,6 +52,9 @@ classDiagram
 
     class raw_jobs {
         <<Bronze Layer>>
+        +source_name
+        +external_job_id
+        +raw_data
     }
 
     class silver_jobs {
@@ -66,19 +69,27 @@ classDiagram
         <<Future Silver Layer>>
     }
 
+    class matching_scores {
+        <<Future Gold Layer>>
+    }
+
     JobSourceConnector <|.. BundesagenturConnector
     JobSourceConnector <|.. FutureConnector
 
-    JobIngestionRunner --> JobSourceConnector
-    JobIngestionRunner --> JobIngestionRepository
-
-    BundesagenturConnector --> RawJobRecord
-    FutureConnector --> RawJobRecord
+    JobIngestionRunner --> JobSourceConnector : executes
+    JobIngestionRunner --> JobIngestionRepository : persists via
 
     JobIngestionRepository --> SearchProfile
-    JobIngestionRepository --> SearchTerm
+    JobInestionRepository --> SearchTerm
     JobIngestionRepository --> raw_jobs
+
+    BundesagenturConnector --> RawJobRecord : returns
+    FutureConnector --> RawJobRecord : returns
+
+    RawJobRecord --> raw_jobs : source-preserving storage
 
     raw_jobs ..> silver_jobs : later normalization
     raw_jobs ..> skills : later extraction
     raw_jobs ..> job_skills : later extraction
+
+    silver_jobs ..> matching_scores : later scoring

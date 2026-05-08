@@ -25,23 +25,28 @@ Completed:
 - Raw JSON storage
 - Database-level duplicate protection
 - Idempotent ingestion behavior
+- Connector-based ingestion architecture
+- Source-specific connector isolation
+- Repository-based Bronze-layer persistence
+- Ingestion runner orchestration
 
 In Progress:
-- Multi-source ingestion architecture
-- Connector modularization
+- Source evaluation
+- Additional connector candidates
+- Documentation alignment for the connector architecture
 
 ---
 
 ## Phase 3 — Source Evaluation
 
 Planned:
-- StepStone integration
+- StepStone integration evaluation
 - LinkedIn Jobs evaluation
-- Greenhouse integration
-- Workday integration
+- Greenhouse integration evaluation
+- Workday integration evaluation
 - Source capability comparison
 - Data structure comparison
-- Detail page ingestion
+- Detail page ingestion evaluation
 
 Goals:
 - Identify universal job fields
@@ -49,17 +54,20 @@ Goals:
 - Evaluate ingestion complexity
 - Evaluate data quality
 - Evaluate anti-bot challenges
+- Decide which source should become the next production-style connector
 
 ---
 
 ## Phase 4 — Silver Layer
 
 Planned:
+- Canonical job model
 - Job normalization
-- Unified job model
+- Unified job representation
 - Skill extraction
 - Location normalization
-- Duplicate consolidation
+- Company normalization
+- Duplicate consolidation across sources
 - Structured metadata extraction
 
 ---
@@ -83,6 +91,7 @@ Planned:
 - Trend analysis
 - Source effectiveness metrics
 - Search profile analytics
+- Search term effectiveness analytics
 
 ---
 
