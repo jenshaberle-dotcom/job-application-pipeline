@@ -124,7 +124,7 @@ In Progress:
 Planned:
 - Additional production-style connectors
 - Silver layer normalization
-- Canonical job model
+- Initial canonical Silver-layer model design
 - Matching engine
 - Dashboard / visualization
 - Cloud deployment
@@ -227,7 +227,8 @@ job-application-pipeline/
 │   │   ├── 006_use_dockerized_local_development.md
 │   │   ├── 007_use_ssh_for_github_authentication.md
 │   │   ├── 008_use_environment_based_configuration.md
-│   │   └── 009_use_connector_based_ingestion.md
+│   │   ├── 009_use_connector_based_ingestion.md
+│   │   └── 010_define_canonical_job_model_for_silver_layer.md
 │   │
 │   ├── diagrams/
 │   │   ├── architecture.md
