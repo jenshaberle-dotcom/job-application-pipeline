@@ -2,11 +2,21 @@ import requests
 
 from src.config import BA_API_KEY
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchProfile, SearchTerm
-
+from src.connectors.capabilities import SourceCapabilities
 
 class BundesagenturConnector(JobSourceConnector):
     source_name = "bundesagentur_fuer_arbeit"
     base_url = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobs"
+
+    capabilities = SourceCapabilities(
+        supports_keyword=True,
+        supports_location=True,
+        supports_radius=True,
+        supports_employment_type=True,
+        supports_remote_filter=False,
+        supports_pagination=True,
+        supports_full_fetch=False,
+    )
 
     def fetch_jobs(
         self,

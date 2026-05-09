@@ -1,6 +1,6 @@
 from src.connectors.base import JobSourceConnector
+from src.ingestion.post_fetch_filter import apply_keyword_filter
 from src.ingestion.repository import JobIngestionRepository
-
 
 class JobIngestionRunner:
     def __init__(
@@ -23,7 +23,13 @@ class JobIngestionRunner:
 
         for profile, search_term in search_terms:
             records, requested_url = self.connector.fetch_jobs(profile, search_term)
+            loaded_before_local_filter = len(records)
 
+            if not self.connector.capabilities.supports_keyword:
+                records = apply_keyword_filter(
+                    records=records,
+                    search_term=search_term.search_term,
+                )
             ingestion_run_id = self.repository.create_ingestion_run(
                 source_name=self.connector.source_name,
                 search_profile_id=profile.id,
@@ -37,8 +43,10 @@ class JobIngestionRunner:
             print(f"Profile: {profile.profile_name}")
             print(f"Search term: {search_term.search_term}")
             print(f"Final URL: {requested_url}")
-            print(f"{len(records)} Jobs geladen")
+            print(f"{loaded_before_local_filter} Jobs geladen vor lokaler Filterung")
 
+            if not self.connector.capabilities.supports_keyword:
+                print(f"{len(records)} Jobs nach lokaler Keyword-Filterung")
             for record in records:
                 new_id = self.repository.save_raw_job(
                     record=record,

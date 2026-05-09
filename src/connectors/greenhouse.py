@@ -1,10 +1,20 @@
 import requests
 
 from src.connectors.base import JobSourceConnector, RawJobRecord
-
+from src.connectors.capabilities import SourceCapabilities
 
 class GreenhouseConnector(JobSourceConnector):
     BASE_URL = "https://boards-api.greenhouse.io/v1/boards"
+
+    capabilities = SourceCapabilities(
+        supports_keyword=False,
+        supports_location=False,
+        supports_radius=False,
+        supports_employment_type=False,
+        supports_remote_filter=False,
+        supports_pagination=False,
+        supports_full_fetch=True,
+    )
 
     def __init__(self, board_token: str) -> None:
         self.board_token = board_token
