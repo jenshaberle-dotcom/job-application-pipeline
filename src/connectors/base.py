@@ -1,15 +1,17 @@
 from dataclasses import dataclass
 from typing import Any
 
+from src.connectors.capabilities import SourceCapabilities
+
 
 @dataclass(frozen=True)
 class SearchProfile:
     id: int
     profile_name: str
     source_name: str
-    search_location: str
-    search_radius_km: int
-    offer_type: int
+    search_location: str | None
+    search_radius_km: int | None
+    offer_type: int | None
     page_size: int
 
 
@@ -28,6 +30,7 @@ class RawJobRecord:
 
 class JobSourceConnector:
     source_name: str
+    capabilities: SourceCapabilities
 
     def fetch_jobs(
         self,
