@@ -119,11 +119,22 @@ Implemented:
 - Ingestion runner orchestration
 - Initial Silver-layer table
 - Initial Bronze-to-Silver transformation
-- Separation of technical duplicate protection and semantic deduplication- Source evaluation documentation
+- Separation of technical duplicate protection and semantic deduplication
+- Source evaluation documentation
 - Greenhouse source analysis
 - Architecture documentation
 - Mermaid-based architecture diagrams
 - Architecture Decision Records (ADRs)
+
+### Current Direction
+
+The project is evolving from a job ingestion pipeline into a personal job market intelligence platform focused on:
+- multi-source ingestion
+- canonical modeling
+- historical analytics
+- semantic matching
+- market intelligence
+- personal workflow support
 
 In Progress:
 - Greenhouse connector evaluation
@@ -136,6 +147,9 @@ Planned:
 - Matching engine
 - Dashboard / visualization
 - Cloud deployment
+- Historical job observation tracking
+- Cross-source semantic deduplication
+- Canonical job identity modeling
 
 ---
 
@@ -231,7 +245,8 @@ job-application-pipeline/
 │   │   ├── 009_use_connector_based_ingestion.md
 │   │   ├── 010_define_canonical_job_model_for_silver_layer.md
 │   │   ├── 011_separate_technical_duplicates_from_cross_source_deduplication.md
-│   │   └── 012_prepare_bronze_layer_for_historical_job_observations.md
+│   │   ├── 012_prepare_bronze_layer_for_historical_job_observations.md
+│   │   └── 013_evolve_toward_a_personal_job_market_intelligence_platform.md
 │   │
 │   ├── diagrams/
 │   │   ├── architecture.md
