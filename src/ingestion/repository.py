@@ -12,6 +12,44 @@ class JobIngestionRepository:
     def get_connection(self):
         return psycopg.connect(**self.connection_config)
 
+    def load_search_profile(
+        self,
+        profile_name: str,
+    ) -> SearchProfile:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        profile_name,
+                        source_name,
+                        search_location,
+                        search_radius_km,
+                        offer_type,
+                        page_size
+                    FROM search_profiles
+                    WHERE profile_name = %s
+                      AND is_active = TRUE;
+                    """,
+                    (profile_name,),
+                )
+
+                row = cur.fetchone()
+
+        if row is None:
+            raise ValueError(f"No active search profile found: {profile_name}")
+
+        return SearchProfile(
+            id=row[0],
+            profile_name=row[1],
+            source_name=row[2],
+            search_location=row[3],
+            search_radius_km=row[4],
+            offer_type=row[5],
+            page_size=row[6],
+        )
+
     def load_active_search_terms(
         self,
         profile_name: str,

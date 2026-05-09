@@ -1,6 +1,6 @@
 import requests
 
-from src.connectors.base import JobSourceConnector
+from src.connectors.base import JobSourceConnector, RawJobRecord
 
 
 class GreenhouseConnector(JobSourceConnector):
@@ -10,33 +10,32 @@ class GreenhouseConnector(JobSourceConnector):
         self.board_token = board_token
         self.source_name = f"greenhouse:{board_token}"
 
-    def fetch_jobs(self, profile: dict, search_term: str) -> list[dict]:
-        url = f"{self.BASE_URL}/{self.board_token}/jobs"
+    def fetch_jobs(self, profile, search_term) -> tuple[list[RawJobRecord], str]:
+        requested_url = f"{self.BASE_URL}/{self.board_token}/jobs"
 
         response = requests.get(
-            url,
+            requested_url,
             timeout=30,
         )
 
         response.raise_for_status()
 
         payload = response.json()
-
         jobs = payload.get("jobs", [])
 
-        raw_jobs = []
+        records = []
 
         for job in jobs:
-            raw_jobs.append(
-                {
-                    "source_name": self.source_name,
-                    "external_job_id": str(job["id"]),
-                    "source_url": job.get("absolute_url"),
-                    "raw_data": {
+            records.append(
+                RawJobRecord(
+                    source_name=self.source_name,
+                    external_job_id=str(job["id"]),
+                    source_url=job.get("absolute_url"),
+                    raw_data={
                         "board_token": self.board_token,
                         "job": job,
                     },
-                }
+                )
             )
 
-        return raw_jobs
+        return records, requested_url
