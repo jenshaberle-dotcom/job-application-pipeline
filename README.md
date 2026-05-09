@@ -115,16 +115,24 @@ Implemented:
 - Ingestion run tracking
 - Connector-based ingestion architecture
 - Source-specific connector isolation
+- Explicit source capability modeling
+- Canonical search intent architecture
+- Local post-fetch filtering for non-search-capable sources
 - Repository-based Bronze-layer persistence
 - Ingestion runner orchestration
 - Initial Silver-layer table
 - Initial Bronze-to-Silver transformation
 - Separation of technical duplicate protection and semantic deduplication
+- Detailed PostgreSQL schema documentation
+- Constraint and index documentation
+- Bronze/Silver ERD documentation
+- Connector capability comparison documentation
 - Source evaluation documentation
 - Greenhouse source analysis
 - Architecture documentation
 - Mermaid-based architecture diagrams
 - Architecture Decision Records (ADRs)
+- StepStone connector preparation skeleton
 
 ### Current Direction
 
@@ -135,6 +143,13 @@ The project is evolving from a job ingestion pipeline into a personal job market
 - semantic matching
 - market intelligence
 - personal workflow support
+
+The architecture is increasingly optimized for heterogeneous real-world source behavior where:
+- some sources support strong server-side filtering
+- some sources only support full-board fetches
+- some sources require local filtering after ingestion
+
+The project intentionally models these differences explicitly instead of hiding them behind artificial abstractions.
 
 In Progress:
 - Greenhouse connector evaluation
@@ -198,6 +213,24 @@ Contains:
 - ingestion references
 - search profile references
 
+### Database Documentation
+
+Detailed database documentation is available in:
+
+- `docs/diagrams/bronze_data_model.md`
+- `docs/database/tables.md`
+
+The documentation includes:
+- ERD relationships
+- primary keys
+- foreign keys
+- indexes
+- unique constraints
+- lineage rationale
+- duplicate handling rationale
+- current design limitations
+- future extension considerations
+
 ---
 
 ## Data Source Strategy
@@ -225,6 +258,29 @@ The project prioritizes:
 - explainable architectural decisions
 - scalable data ingestion patterns
 
+### Source Capability Modeling
+
+The project explicitly models differences between source capabilities.
+
+Examples:
+- some APIs support keyword search
+- some APIs support location and radius filtering
+- some ATS systems only support full-board fetches
+- some platforms require local filtering after ingestion
+
+The ingestion layer therefore separates:
+- canonical search intent
+- source-specific connector behavior
+- local post-fetch filtering
+- source capability metadata
+
+Current implemented examples:
+
+| Source | Keyword | Location | Radius | Pagination | Full Fetch |
+|---|---:|---:|---:|---:|---:|
+| Bundesagentur für Arbeit | yes | yes | yes | yes | no |
+| Greenhouse | no | no | no | no | yes |
+
 over artificially simplified tutorial scenarios.
 
 ## Repository Structure
@@ -246,11 +302,19 @@ job-application-pipeline/
 │   │   ├── 010_define_canonical_job_model_for_silver_layer.md
 │   │   ├── 011_separate_technical_duplicates_from_cross_source_deduplication.md
 │   │   ├── 012_prepare_bronze_layer_for_historical_job_observations.md
-│   │   └── 013_evolve_toward_a_personal_job_market_intelligence_platform.md
+│   │   ├── 013_evolve_toward_a_personal_job_market_intelligence_platform.md
+│   │   ├── 014_document_database_schema_and_constraints.md
+│   │   └── 015_use_canonical_search_intent_and_source_capabilities.md
 │   │
 │   ├── diagrams/
 │   │   ├── architecture.md
 │   │   └── bronze_data_model.md
+│   │
+│   ├── database/
+│   │   └── tables.md
+│   │
+│   ├── data_sources/
+│   │   └── source_capabilities.md
 │   │
 │   ├── source_analysis/
 │   │   ├── greenhouse.md
@@ -269,10 +333,13 @@ job-application-pipeline/
 ├── src/
 │   ├── connectors/
 │   │   ├── base.py
+│   │   ├── capabilities.py
 │   │   ├── bundesagentur.py
-│   │   └── greenhouse.py
+│   │   ├── greenhouse.py
+│   │   └── stepstone.py
 │   │
 │   ├── ingestion/
+│   │   ├── post_fetch_filter.py
 │   │   ├── repository.py
 │   │   └── runner.py
 │   │
@@ -285,6 +352,7 @@ job-application-pipeline/
 │   ├── run_silver_jobs.py
 │   └── main.py
 ```
+
 ---
 
 ## Setup
@@ -322,7 +390,19 @@ docker compose up -d
 ### Run ingestion pipeline
 
 ```bash
-python src/ingest_jobs.py
+python -m src.ingest_jobs <profile_name>
+```
+
+Example:
+
+```bash
+python -m src.ingest_jobs ba_data_engineer_30629_50km
+```
+
+### Run Silver normalization
+
+```bash
+python -m src.run_silver_jobs
 ```
 
 ---
@@ -385,6 +465,9 @@ The current implementation uses:
 - multiple search terms per profile
 - ZIP code based regional search
 - configurable search radius
+- source capability aware ingestion
+- connector-level filter capability modeling
+- local keyword filtering for non-search-capable sources
 
 Future iterations may include:
 - multiple data sources
@@ -400,6 +483,18 @@ Future iterations may include:
 The project currently uses technical duplicate protection based on:
 - `source_name`
 - `external_job_id`
+
+The current implementation intentionally separates:
+- technical duplicate protection
+- future semantic cross-source deduplication
+
+Technical duplicate protection currently operates only within the same source.
+
+Examples of future semantic duplicates:
+- same employer job on Bundesagentur
+- same job on StepStone
+- same job on company career pages
+- same job on ATS boards such as Greenhouse
 
 Duplicate protection is enforced at the database level using a PostgreSQL unique index.
 
@@ -433,6 +528,10 @@ The project documents major engineering and architecture decisions using:
 - Mermaid architecture diagrams
 - Roadmaps
 - Structured repository documentation
+- detailed database schema documentation
+- constraint and index documentation
+- source capability comparison documentation
+- ERD-based lineage modeling
 
 The goal is to preserve:
 - architectural reasoning
@@ -458,9 +557,15 @@ The goal is to preserve:
 - [x] ADR documentation
 - [x] Mermaid architecture diagrams
 - [x] Connector abstraction layer
-- [ ] Multi-source ingestion
 - [x] Source capability evaluation
 - [x] Initial Silver layer transformation
+- [x] Database schema documentation
+- [x] Bronze/Silver ERD documentation
+- [x] Source capability modeling
+- [x] Local post-fetch filtering
+- [x] Canonical search intent modeling
+- [x] StepStone connector preparation
+- [ ] Multi-source ingestion
 - [ ] Canonical normalization expansion
 - [ ] Cross-source deduplication
 - [ ] Skill extraction
