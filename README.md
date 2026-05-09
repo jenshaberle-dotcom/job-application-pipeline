@@ -230,7 +230,8 @@ job-application-pipeline/
 │   │   ├── 008_use_environment_based_configuration.md
 │   │   ├── 009_use_connector_based_ingestion.md
 │   │   ├── 010_define_canonical_job_model_for_silver_layer.md
-│   │   └── 011_separate_technical_duplicates_from_cross_source_deduplication.md
+│   │   ├── 011_separate_technical_duplicates_from_cross_source_deduplication.md
+│   │   └── 012_prepare_bronze_layer_for_historical_job_observations.md
 │   │
 │   ├── diagrams/
 │   │   ├── architecture.md

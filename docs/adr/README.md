@@ -37,6 +37,8 @@ The ADRs intentionally reflect this evolution.
 | 008 | Use environment-based configuration | Accepted |
 | 009 | Use connector-based ingestion | Accepted |
 | 010 | Define a canonical job model for the Silver layer | Accepted |
+| 011 | separate technical duplicates from cross source deduplication | Accepted |
+| 012 | Prepare Bronze layer for historical job observations | Accepted |
 
 ---
 
