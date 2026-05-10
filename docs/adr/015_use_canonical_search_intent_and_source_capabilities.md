@@ -81,3 +81,13 @@ The pipeline can support heterogeneous sources without pretending that all APIs 
 The project can later expose the same search intent through hard-coded defaults, CLI arguments, database configuration, API endpoints or a GUI.
 
 The model supports future productization without forcing a rewrite of the connector contract.
+
+Canonical search terms may have source-specific interpretations.
+
+Example:
+- Bundesagentur applies keywords server-side.
+- Greenhouse may use `*` to explicitly indicate full-board ingestion without keyword restriction.
+
+Local post-fetch filtering must therefore distinguish between:
+- actual keyword intent
+- explicit unrestricted fetch semantics
