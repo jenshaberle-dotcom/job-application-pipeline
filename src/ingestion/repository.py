@@ -155,6 +155,62 @@ class JobIngestionRepository:
                 result = cur.fetchone()
                 return None if result is None else result[0]
 
+    def find_existing_raw_job_id(
+        self,
+        source_name: str,
+        external_job_id: str | None,
+    ) -> int | None:
+        if external_job_id is None:
+            return None
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id
+                    FROM raw_jobs
+                    WHERE source_name = %s
+                      AND external_job_id = %s;
+                    """,
+                    (
+                        source_name,
+                        external_job_id,
+                    ),
+                )
+
+                result = cur.fetchone()
+
+        return None if result is None else result[0]
+
+    def save_job_observation(
+        self,
+        record: RawJobRecord,
+        ingestion_run_id: int,
+        raw_job_id: int | None,
+    ) -> None:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO job_observations (
+                        source_name,
+                        external_job_id,
+                        source_url,
+                        ingestion_run_id,
+                        raw_job_id,
+                        is_seen
+                    )
+                    VALUES (%s, %s, %s, %s, %s, TRUE);
+                    """,
+                    (
+                        record.source_name,
+                        record.external_job_id,
+                        record.source_url,
+                        ingestion_run_id,
+                        raw_job_id,
+                    ),
+                )
+
     def finish_ingestion_run(
         self,
         ingestion_run_id: int,

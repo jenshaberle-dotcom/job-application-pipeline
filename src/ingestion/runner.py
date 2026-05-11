@@ -2,6 +2,7 @@ from src.connectors.base import JobSourceConnector
 from src.ingestion.post_fetch_filter import apply_keyword_filter
 from src.ingestion.repository import JobIngestionRepository
 
+
 class JobIngestionRunner:
     def __init__(
         self,
@@ -30,6 +31,7 @@ class JobIngestionRunner:
                     records=records,
                     search_term=search_term.search_term,
                 )
+
             ingestion_run_id = self.repository.create_ingestion_run(
                 source_name=self.connector.source_name,
                 search_profile_id=profile.id,
@@ -47,11 +49,26 @@ class JobIngestionRunner:
 
             if not self.connector.capabilities.supports_keyword:
                 print(f"{len(records)} Jobs nach lokaler Keyword-Filterung")
+
             for record in records:
                 new_id = self.repository.save_raw_job(
                     record=record,
                     ingestion_run_id=ingestion_run_id,
                     search_profile_id=profile.id,
+                )
+
+                raw_job_id = new_id
+
+                if raw_job_id is None:
+                    raw_job_id = self.repository.find_existing_raw_job_id(
+                        source_name=record.source_name,
+                        external_job_id=record.external_job_id,
+                    )
+
+                self.repository.save_job_observation(
+                    record=record,
+                    ingestion_run_id=ingestion_run_id,
+                    raw_job_id=raw_job_id,
                 )
 
                 job = record.raw_data.get("job", {})
