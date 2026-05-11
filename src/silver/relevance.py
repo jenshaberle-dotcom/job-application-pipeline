@@ -1,19 +1,35 @@
+import re
 from typing import Any
 
 
-ROLE_TERMS = (
+ROLE_PHRASES = (
     "data engineer",
     "analytics engineer",
     "data platform",
     "data analyst",
     "bi engineer",
     "business intelligence",
-    "etl",
-    "elt",
+    "etl developer",
     "machine learning engineer",
+    "data scientist",
+    "data science",
+    "data & insights",
+    "data insights",
+    "analytics",
+    "backend engineer",
+    "backend / api engineer",
+    "backend/api engineer",
+    "api engineer",
+    "cloud engineer",
+    "cloud security engineer",
+    "platform engineer",
+    "developer experience",
+    "product platform",
+    "infrastructure engineer",
+    "ai security",
 )
 
-SKILL_TERMS = (
+SKILL_PHRASES = (
     "sql",
     "python",
     "etl",
@@ -44,6 +60,28 @@ SKILL_TERMS = (
     "ci/cd",
 )
 
+ACCESSIBILITY_PHRASES = (
+    "remote",
+    "germany",
+    "deutschland",
+    "hannover",
+    "hanover",
+    "berlin",
+    "hamburg",
+    "munich",
+    "münchen",
+    "cologne",
+    "köln",
+    "frankfurt",
+    "dublin",
+    "ireland",
+    "london",
+    "united kingdom",
+    "uk",
+    "europe",
+    "emea",
+)
+
 
 def normalize_text(value: Any) -> str:
     if value is None:
@@ -63,6 +101,22 @@ def flatten_value(value: Any) -> str:
         return " ".join(flatten_value(item) for item in value)
 
     return normalize_text(value)
+
+
+def phrase_matches(text: str, phrase: str) -> bool:
+    normalized_phrase = normalize_text(phrase)
+
+    if not normalized_phrase:
+        return False
+
+    escaped_phrase = re.escape(normalized_phrase)
+    pattern = rf"(?<![a-z0-9]){escaped_phrase}(?![a-z0-9])"
+
+    return re.search(pattern, text) is not None
+
+
+def matching_phrases(text: str, phrases: tuple[str, ...]) -> list[str]:
+    return [phrase for phrase in phrases if phrase_matches(text, phrase)]
 
 
 def build_relevance_text(raw_job: dict) -> str:
@@ -91,18 +145,27 @@ def build_relevance_text(raw_job: dict) -> str:
     )
 
 
-def has_relevant_role_signal(text: str) -> bool:
-    return any(term in text for term in ROLE_TERMS)
+def get_role_matches(raw_job: dict) -> list[str]:
+    return matching_phrases(build_relevance_text(raw_job), ROLE_PHRASES)
 
 
-def count_skill_matches(text: str) -> int:
-    return sum(1 for term in SKILL_TERMS if term in text)
+def get_skill_matches(raw_job: dict) -> list[str]:
+    return matching_phrases(build_relevance_text(raw_job), SKILL_PHRASES)
+
+
+def get_accessibility_matches(raw_job: dict) -> list[str]:
+    return matching_phrases(build_relevance_text(raw_job), ACCESSIBILITY_PHRASES)
 
 
 def is_relevant_for_silver(raw_job: dict) -> bool:
-    text = build_relevance_text(raw_job)
+    role_matches = get_role_matches(raw_job)
+    skill_matches = get_skill_matches(raw_job)
+    accessibility_matches = get_accessibility_matches(raw_job)
 
-    if has_relevant_role_signal(text):
+    if role_matches and accessibility_matches:
         return True
 
-    return count_skill_matches(text) >= 2
+    if len(skill_matches) >= 2 and accessibility_matches:
+        return True
+
+    return False

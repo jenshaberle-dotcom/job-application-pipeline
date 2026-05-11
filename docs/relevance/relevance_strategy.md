@@ -30,7 +30,7 @@ Current scope types:
 
 ## Relevance Criteria
 
-A Bronze job is eligible for Silver if it matches at least one relevant role or skill signal.
+A Bronze job is eligible for Silver if it matches relevant role, skill or accessibility signals.
 
 Relevant signals may include:
 
@@ -44,6 +44,7 @@ Relevant signals may include:
 - Cloud Data Engineer
 - Data Analyst with strong engineering focus
 - Machine Learning Engineer with platform/data focus
+- Backend/API Engineer with platform or data relevance
 
 ### Skill Clusters
 
@@ -96,16 +97,55 @@ Relevant signals may include:
 - Docker
 - APIs
 
+## Location and Accessibility
+
+A job may be technically relevant but not realistically accessible.
+
+Accessibility signals include:
+
+- Hannover or regional proximity
+- Germany
+- Europe
+- EMEA
+- Remote
+- Hybrid with realistic location
+- unclear location that requires review
+
+US-only or non-European onsite roles are usually not strong application candidates, but may still be useful for market and skill trend analysis.
+
 ## Greenhouse Example
 
 A Greenhouse board may expose all open jobs of a company.
 
 This does not mean every job should be considered relevant.
 
-Example:
+Example flow:
 
-```text
-Greenhouse full fetch
-→ raw jobs captured in Bronze only if the company/profile is in scope
-→ relevance filter checks role and skill signals
+Greenhouse full fetch  
+→ raw jobs captured in Bronze only if the company/profile is in scope  
+→ relevance filter checks role, skill and accessibility signals  
 → only potentially relevant jobs enter Silver
+
+## Current Diagnostic Finding
+
+Initial Greenhouse diagnostics on the Stripe board showed that naive substring matching is unsafe.
+
+Examples of false positives:
+
+- `bi` matched `billing`
+- `api` matched `capital`
+- `ai` matched words such as `affairs`
+
+Relevance matching therefore requires token-aware or phrase-aware matching instead of plain substring checks.
+
+## Design Principle
+
+Technical availability is not relevance.
+
+Fetch capability is not ingestion scope.
+
+Bronze may be broad, but must be bounded.
+
+Silver should be relevant.
+
+Gold should score and rank.

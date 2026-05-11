@@ -1,4 +1,4 @@
-# ADR-017: Define ingestion scope and relevance boundaries
+# ADR-016: Define ingestion scope and relevance boundaries
 
 ## Status
 
@@ -35,7 +35,7 @@ The project distinguishes between three conceptual stages.
 
 The ingestion scope defines which jobs are allowed to enter the Bronze layer.
 
-Bronze is not intended to store every job technically available from a source.
+Bronze is not intended to store every job technically available from every possible source.
 
 Bronze stores raw jobs captured within a defined search or observation scope.
 
