@@ -200,7 +200,20 @@ class JobIngestionRepository:
                         raw_job_id,
                         is_seen
                     )
-                    VALUES (%s, %s, %s, %s, %s, TRUE);
+                    VALUES (%s, %s, %s, %s, %s, TRUE)
+                    ON CONFLICT (
+                        ingestion_run_id,
+                        source_name,
+                        external_job_id
+                    )
+                    WHERE external_job_id IS NOT NULL
+                    DO UPDATE SET
+                        source_url = EXCLUDED.source_url,
+                        raw_job_id = COALESCE(
+                            job_observations.raw_job_id,
+                            EXCLUDED.raw_job_id
+                        ),
+                        is_seen = TRUE;
                     """,
                     (
                         record.source_name,
