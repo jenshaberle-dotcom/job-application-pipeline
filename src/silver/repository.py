@@ -1,3 +1,5 @@
+import json
+
 import psycopg
 from psycopg.rows import dict_row
 
@@ -9,13 +11,38 @@ class SilverJobRepository:
         self.connection_config = get_database_config()
 
     def get_connection(self):
-        return psycopg.connect(**self.connection_config, row_factory=dict_row)
+        return psycopg.connect(
+            **self.connection_config,
+            row_factory=dict_row,
+        )
 
-    def load_unprocessed_raw_jobs(self, limit: int = 100) -> list[dict]:
+    def load_unprocessed_raw_jobs(
+        self,
+        limit: int = 100,
+        source_patterns: list[str] | None = None,
+    ) -> list[dict]:
+        source_patterns = source_patterns or []
+
+        source_filter = ""
+        params: list[object] = []
+
+        if source_patterns:
+            source_clauses = []
+
+            for pattern in source_patterns:
+                if "%" in pattern:
+                    source_clauses.append("r.source_name LIKE %s")
+                else:
+                    source_clauses.append("r.source_name = %s")
+
+                params.append(pattern)
+
+            source_filter = "AND (" + " OR ".join(source_clauses) + ")"
+
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         r.id,
                         r.source_name,
@@ -25,13 +52,17 @@ class SilverJobRepository:
                     FROM raw_jobs r
                     LEFT JOIN silver_jobs s
                         ON s.raw_job_id = r.id
+                    LEFT JOIN silver_processing_decisions d
+                        ON d.raw_job_id = r.id
                     WHERE s.id IS NULL
-                        AND r.source_name = 'bundesagentur_fuer_arbeit'
+                      AND d.id IS NULL
+                      {source_filter}
                     ORDER BY r.id
                     LIMIT %s;
                     """,
-                    (limit,),
+                    (*params, limit),
                 )
+
                 return list(cur.fetchall())
 
     def upsert_silver_job(self, job: dict) -> None:
@@ -79,3 +110,55 @@ class SilverJobRepository:
                     """,
                     job,
                 )
+
+            conn.commit()
+
+    def record_processing_decision(
+        self,
+        raw_job_id: int,
+        decision: str,
+        reason: str | None = None,
+        role_matches: list[str] | None = None,
+        skill_matches: list[str] | None = None,
+        accessibility_matches: list[str] | None = None,
+    ) -> None:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO silver_processing_decisions (
+                        raw_job_id,
+                        decision,
+                        reason,
+                        role_matches,
+                        skill_matches,
+                        accessibility_matches
+                    )
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s::jsonb,
+                        %s::jsonb,
+                        %s::jsonb
+                    )
+                    ON CONFLICT (raw_job_id)
+                    DO UPDATE SET
+                        decision = EXCLUDED.decision,
+                        reason = EXCLUDED.reason,
+                        role_matches = EXCLUDED.role_matches,
+                        skill_matches = EXCLUDED.skill_matches,
+                        accessibility_matches = EXCLUDED.accessibility_matches,
+                        decided_at = NOW();
+                    """,
+                    (
+                        raw_job_id,
+                        decision,
+                        reason,
+                        json.dumps(role_matches or []),
+                        json.dumps(skill_matches or []),
+                        json.dumps(accessibility_matches or []),
+                    ),
+                )
+
+            conn.commit()
