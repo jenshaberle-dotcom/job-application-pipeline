@@ -258,6 +258,36 @@ A job can currently be considered "last seen" based on the maximum `observed_at`
 
 Future iterations may add explicit not-seen tracking or run-level source snapshots to detect removals more precisely.
 
+## Derived View: job_lifecycle
+
+`job_lifecycle` derives basic lifecycle metrics from `job_observations`.
+
+Current fields:
+
+| Field | Meaning |
+|---|---|
+| `source_name` | Source that provided the job. |
+| `external_job_id` | Source-local job identifier. |
+| `first_seen_at` | First time this pipeline observed the job. |
+| `last_seen_at` | Last time this pipeline observed the job. |
+| `runs_seen` | Number of distinct ingestion runs in which the job was observed. |
+| `observed_days` | Full days between `first_seen_at` and `last_seen_at`. |
+
+Important semantic distinction:
+
+`first_seen_at` is not necessarily the original publication date.
+
+`observed_days` is not necessarily the full online duration of a job posting.
+
+These metrics describe the observation window of this pipeline.
+
+True publication or availability duration requires additional source metadata such as:
+
+- `publication_date`
+- `first_published`
+- `posted_at`
+- `application_deadline`
+
 ---
 
 # Table: silver_jobs

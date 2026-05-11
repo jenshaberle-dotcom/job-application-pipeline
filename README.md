@@ -422,8 +422,7 @@ Current implemented examples:
 
 ## Repository Structure
 
-```
-text
+```text
 job-application-pipeline/
 ├── db/
 │   ├── migrations/
@@ -498,9 +497,9 @@ job-application-pipeline/
 │   │
 │   ├── config.py
 │   │
-│   ├── run_bundesagentur_ingestion.py
-│   ├── run_greenhouse_ingestion.py
-│   └── run_silver_jobs.py
+│   ├── ingest_jobs.py
+│   ├── run_silver_jobs.py
+│   ├── main.py
 │
 ├── .env
 ├── .gitignore
@@ -594,11 +593,11 @@ Start PostgreSQL using Docker:
 
 Run Bundesagentur ingestion:
 
-    python -m src.run_bundesagentur_ingestion
+    python -m src.ingest_jobs bundesagentur_data_jobs
 
 Run Greenhouse ingestion:
 
-    python -m src.run_greenhouse_ingestion
+    python -m src.ingest_jobs greenhouse_stripe_jobs
 
 Run Silver normalization:
 
