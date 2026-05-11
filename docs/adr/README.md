@@ -43,6 +43,7 @@ The ADRs intentionally reflect this evolution.
 | 014 | Document database schema and constraints | Accepted |
 | 015 | Use canonical search intent and source capabilities | Accepted |
 | 016 | Define ingestion scope and relevance boundaries | Accepted |
+| 017 | Prepare API-first dashboard architecture | Proposed |
 
 ---
 
