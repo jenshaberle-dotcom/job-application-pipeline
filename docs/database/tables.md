@@ -18,6 +18,7 @@ The current schema contains:
 | `search_terms` | Multiple active keyword terms per profile. |
 | `ingestion_runs` | Operational ingestion lineage. |
 | `raw_jobs` | Source-preserving Bronze records. |
+| `job_observations` | Repeated sightings of source-local jobs over time. |
 | `silver_jobs` | First normalized Silver representation. |
 
 ---
@@ -188,6 +189,74 @@ Examples of semantic duplicates:
 - the same job on an ATS board such as Greenhouse
 
 Semantic deduplication belongs to a later Silver or Gold layer.
+
+---
+
+# Table: job_observations
+
+## Purpose
+
+`job_observations` tracks when a source-local job was observed during ingestion.
+
+It is used to build a historical view of job availability over time.
+
+Unlike `raw_jobs`, which stores one source-preserving Bronze record per technical job identity, `job_observations` stores repeated sightings of the same job across ingestion runs.
+
+This enables future analysis such as:
+
+- first seen date
+- last seen date
+- number of times observed
+- approximate time online
+- source activity over time
+- job market movement over time
+
+## Columns
+
+| Column | Type | Nullable | Default | Constraint / Index |
+|---|---|---:|---|---|
+| `id` | `bigint` | no | sequence | Primary key |
+| `source_name` | `text` | no |  | Indexed with `external_job_id` |
+| `external_job_id` | `text` | yes |  | Indexed with `source_name` |
+| `source_url` | `text` | yes |  |  |
+| `ingestion_run_id` | `bigint` | yes |  | Foreign key |
+| `raw_job_id` | `bigint` | yes |  | Foreign key |
+| `observed_at` | `timestamp with time zone` | no | `now()` | Indexed |
+| `is_seen` | `boolean` | no | `true` |  |
+
+## Constraints and Indexes
+
+| Name | Type | Columns | Purpose |
+|---|---|---|---|
+| `job_observations_pkey` | Primary key | `id` | Internal observation identifier. |
+| `job_observations_ingestion_run_id_fkey` | Foreign key | `ingestion_run_id` | Links an observation to the ingestion run in which it occurred. |
+| `job_observations_raw_job_id_fkey` | Foreign key | `raw_job_id` | Links an observation to the canonical raw job record when available. |
+| `idx_job_observations_source_external_id` | Index | `source_name`, `external_job_id` | Supports source-local job history analysis. |
+| `idx_job_observations_observed_at` | Index | `observed_at` | Supports time-based observation analysis. |
+| `idx_job_observations_ingestion_run_id` | Index | `ingestion_run_id` | Supports ingestion-run lineage queries. |
+| `idx_job_observations_raw_job_id` | Index | `raw_job_id` | Supports raw-job based observation history. |
+
+## Relationship to raw_jobs
+
+`raw_jobs` stores the source-preserving Bronze record.
+
+`job_observations` stores each time that job was observed during ingestion.
+
+For newly inserted raw jobs, `raw_job_id` is known immediately.
+
+For duplicate jobs, the ingestion logic looks up the existing `raw_jobs.id` and stores it in `job_observations.raw_job_id`.
+
+This keeps repeated sightings linked to the same raw job identity.
+
+## Current Limitation
+
+The table currently records positive sightings only.
+
+It does not yet record explicit disappearance events.
+
+A job can currently be considered "last seen" based on the maximum `observed_at` value for a given `source_name` and `external_job_id`.
+
+Future iterations may add explicit not-seen tracking or run-level source snapshots to detect removals more precisely.
 
 ---
 
