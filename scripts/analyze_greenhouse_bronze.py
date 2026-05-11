@@ -1,45 +1,14 @@
-import psycopg
 from collections import Counter
 
+import psycopg
+
 from src.config import get_database_config
-
-
-ROLE_TERMS = (
-    "data",
-    "analytics",
-    "insights",
-    "business intelligence",
-    "bi",
-    "backend",
-    "api",
-    "platform",
-    "developer experience",
-    "cloud",
-    "infrastructure",
-    "machine learning",
-    "ai",
-    "security",
+from src.silver.relevance import (
+    get_accessibility_matches,
+    get_role_matches,
+    get_skill_matches,
 )
 
-SKILL_TERMS = (
-    "sql",
-    "python",
-    "etl",
-    "elt",
-    "data pipeline",
-    "data warehouse",
-    "data lake",
-    "azure",
-    "aws",
-    "gcp",
-    "databricks",
-    "snowflake",
-    "dbt",
-    "airflow",
-    "docker",
-    "kubernetes",
-    "api",
-)
 
 REMOTE_TERMS = (
     "remote",
@@ -79,10 +48,6 @@ def contains_any(text: str, terms: tuple[str, ...]) -> bool:
     return any(term in text for term in terms)
 
 
-def matching_terms(text: str, terms: tuple[str, ...]) -> list[str]:
-    return [term for term in terms if term in text]
-
-
 def classify_location(location: str) -> str:
     location_text = normalize(location)
 
@@ -95,10 +60,31 @@ def classify_location(location: str) -> str:
     if contains_any(location_text, EUROPE_TERMS):
         return "europe_or_germany"
 
-    if any(term in location_text for term in ("united states", " us", "usa", "san francisco", "seattle", "new york", "toronto", "canada")):
+    if any(
+        term in location_text
+        for term in (
+            "united states",
+            " us",
+            "usa",
+            "san francisco",
+            "seattle",
+            "new york",
+            "toronto",
+            "canada",
+        )
+    ):
         return "north_america"
 
-    if any(term in location_text for term in ("singapore", "bengaluru", "india", "mexico", "japan")):
+    if any(
+        term in location_text
+        for term in (
+            "singapore",
+            "bengaluru",
+            "india",
+            "mexico",
+            "japan",
+        )
+    ):
         return "outside_europe"
 
     if location_text in ("n/a", "na", "none"):
@@ -145,20 +131,20 @@ def main() -> None:
 
         job = raw_data.get("job", {})
         title = job.get("title", "")
-        company_name = job.get("company_name", "")
         location = (job.get("location") or {}).get("name", "")
 
-        text = " ".join(
-            [
-                normalize(title),
-                normalize(company_name),
-                normalize(location),
-                normalize(source_url),
-            ]
-        )
+        raw_job = {
+            "id": raw_job_id,
+            "source_name": source_name,
+            "external_job_id": external_job_id,
+            "source_url": source_url,
+            "raw_data": raw_data,
+        }
 
-        role_matches = matching_terms(text, ROLE_TERMS)
-        skill_matches = matching_terms(text, SKILL_TERMS)
+        role_matches = get_role_matches(raw_job)
+        skill_matches = get_skill_matches(raw_job)
+        accessibility_matches = get_accessibility_matches(raw_job)
+
         location_class = classify_location(location)
 
         location_counter[location_class] += 1
@@ -171,7 +157,7 @@ def main() -> None:
 
         has_role_signal = bool(role_matches)
         has_skill_signal = len(skill_matches) >= 1
-        has_plausible_location = location_class in ("remote", "europe_or_germany", "unknown")
+        has_plausible_location = bool(accessibility_matches)
 
         if has_role_signal:
             role_relevant += 1
