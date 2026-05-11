@@ -420,9 +420,6 @@ Current implemented examples:
 | Bundesagentur für Arbeit | yes | yes | yes | yes | no |
 | Greenhouse | no | no | no | no | yes |
 
-
-## Repository Structure
-
 ## Repository Structure
 
 ```
