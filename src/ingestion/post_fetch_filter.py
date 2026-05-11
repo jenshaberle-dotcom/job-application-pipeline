@@ -59,7 +59,7 @@ def build_search_text(record: RawJobRecord) -> str:
 def job_matches_search_term(record: RawJobRecord, search_term: str) -> bool:
     normalized_search_term = normalize_text(search_term)
 
-    if not normalized_search_term:
+    if not normalized_search_term or normalized_search_term == "*":
         return True
 
     search_text = build_search_text(record)
@@ -70,7 +70,6 @@ def job_matches_search_term(record: RawJobRecord, search_term: str) -> bool:
     tokens = normalized_search_term.split()
 
     return all(token in search_text for token in tokens)
-
 
 def apply_keyword_filter(
     records: list[RawJobRecord],
