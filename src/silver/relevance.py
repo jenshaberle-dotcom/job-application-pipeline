@@ -169,3 +169,22 @@ def is_relevant_for_silver(raw_job: dict) -> bool:
         return True
 
     return False
+
+def get_silver_decision_reason(raw_job: dict) -> str:
+    role_matches = get_role_matches(raw_job)
+    skill_matches = get_skill_matches(raw_job)
+    accessibility_matches = get_accessibility_matches(raw_job)
+
+    if role_matches and accessibility_matches:
+        return "relevant_role_and_accessibility"
+
+    if len(skill_matches) >= 2 and accessibility_matches:
+        return "relevant_skills_and_accessibility"
+
+    if not role_matches and len(skill_matches) < 2:
+        return "missing_role_or_skill_signal"
+
+    if not accessibility_matches:
+        return "missing_accessibility_signal"
+
+    return "not_relevant_for_silver"

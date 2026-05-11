@@ -2,6 +2,7 @@ from src.silver.relevance import (
     get_accessibility_matches,
     get_role_matches,
     get_skill_matches,
+    get_silver_decision_reason,
     is_relevant_for_silver,
 )
 from src.silver.repository import SilverJobRepository
@@ -35,7 +36,7 @@ def main() -> None:
             repository.record_processing_decision(
                 raw_job_id=raw_job["id"],
                 decision="skipped",
-                reason="not_relevant_for_silver",
+		reason=get_silver_decision_reason(raw_job),
                 role_matches=role_matches,
                 skill_matches=skill_matches,
                 accessibility_matches=accessibility_matches,
