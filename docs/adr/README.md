@@ -45,6 +45,8 @@ The ADRs intentionally reflect this evolution.
 | 016 | Define ingestion scope and relevance boundaries | Accepted |
 | 017 | Prepare API-first dashboard architecture | Proposed |
 | 018 | Preserve existing migration ordering | Accepted |
+| 019 | Separate source heartbeat from ingestion runs | Proposed |
+| 020 | Introduce role family classification | Proposed |
 
 ---
 
