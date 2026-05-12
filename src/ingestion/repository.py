@@ -100,7 +100,7 @@ class JobIngestionRepository:
         self,
         source_name: str,
         search_profile_id: int,
-        requested_url: str,
+        requested_url: str | None = None,
     ) -> int:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
@@ -117,6 +117,25 @@ class JobIngestionRepository:
                     (source_name, search_profile_id, requested_url),
                 )
                 return cur.fetchone()[0]
+
+    def update_ingestion_run_requested_url(
+        self,
+        ingestion_run_id: int,
+        requested_url: str,
+    ) -> None:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE ingestion_runs
+                    SET requested_url = %s
+                    WHERE id = %s;
+                    """,
+                    (
+                        requested_url,
+                        ingestion_run_id,
+                    ),
+                )
 
     def save_raw_job(
         self,
@@ -248,6 +267,28 @@ class JobIngestionRepository:
                         total_loaded,
                         inserted_count,
                         duplicate_count,
+                        ingestion_run_id,
+                    ),
+                )
+
+    def fail_ingestion_run(
+        self,
+        ingestion_run_id: int,
+        error_message: str,
+    ) -> None:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE ingestion_runs
+                    SET
+                        finished_at = NOW(),
+                        status = 'failed',
+                        error_message = %s
+                    WHERE id = %s;
+                    """,
+                    (
+                        error_message,
                         ingestion_run_id,
                     ),
                 )

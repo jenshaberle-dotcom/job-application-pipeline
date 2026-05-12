@@ -25,11 +25,22 @@ CREATE TABLE IF NOT EXISTS ingestion_runs (
     error_message TEXT
 );
 
-ALTER TABLE raw_jobs
-ADD COLUMN IF NOT EXISTS ingestion_run_id BIGINT REFERENCES ingestion_runs(id);
+CREATE TABLE IF NOT EXISTS raw_jobs (
+    id BIGSERIAL PRIMARY KEY,
+    source_name TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    external_job_id TEXT,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    raw_data JSONB NOT NULL,
+    content_hash TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ingestion_run_id BIGINT REFERENCES ingestion_runs(id),
+    search_profile_id BIGINT REFERENCES search_profiles(id)
+);
 
-ALTER TABLE raw_jobs
-ADD COLUMN IF NOT EXISTS search_profile_id BIGINT REFERENCES search_profiles(id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_jobs_source_external_id
+ON raw_jobs (source_name, external_job_id)
+WHERE external_job_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_raw_jobs_ingestion_run_id
 ON raw_jobs (ingestion_run_id);
