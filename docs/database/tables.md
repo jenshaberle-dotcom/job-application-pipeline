@@ -163,6 +163,43 @@ It provides operational lineage, requested URL information and ingestion statist
 |---|---|---|
 | `raw_jobs` | `raw_jobs_ingestion_run_id_fkey` | One ingestion run can produce many raw jobs. |
 
+## Derived View: dashboard_new_relevant_jobs
+
+`dashboard_new_relevant_jobs` summarizes newly inserted raw jobs per ingestion run and shows their current Silver relevance processing status.
+
+It is intended as a dashboard-oriented Gold-style view for answering questions such as:
+
+- how many new raw jobs were inserted by a run
+- how many of those new jobs are relevant
+- how many were skipped by relevance processing
+- how many are still unprocessed by the Silver layer
+
+Current fields:
+
+| Field | Meaning |
+|---|---|
+| `ingestion_run_id` | Ingestion run identifier. |
+| `source_name` | Source that produced the ingestion run. |
+| `profile_name` | Search profile used for the run. |
+| `started_at` | Start timestamp of the ingestion run. |
+| `finished_at` | Finish timestamp of the ingestion run. |
+| `status` | Ingestion run status. |
+| `total_loaded` | Records loaded by the ingestion run after source/local filtering. |
+| `inserted_count` | Number of newly inserted raw jobs reported by ingestion. |
+| `duplicate_count` | Number of duplicate raw jobs reported by ingestion. |
+| `new_raw_jobs` | Number of raw jobs newly linked to this ingestion run. |
+| `new_relevant_jobs` | Number of new raw jobs included in Silver processing or already present in `silver_jobs`. |
+| `new_skipped_jobs` | Number of new raw jobs skipped by Silver relevance processing. |
+| `new_unprocessed_jobs` | Number of new raw jobs without Silver processing decision and without Silver job record. |
+
+Important semantics:
+
+`new_raw_jobs` counts only records newly inserted into `raw_jobs` during the ingestion run.
+
+Repeated observations of already known source-local jobs are not counted as new raw jobs in this view.
+
+This is intentional because duplicate sightings are tracked through `job_observations`, while this view focuses on newly discovered raw job records.
+
 ---
 
 # Table: raw_jobs
