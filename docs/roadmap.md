@@ -126,7 +126,8 @@ Goals:
 ## Phase 6 — Gold Layer & Analytics
 
 - [ ] Dashboard-oriented Gold views
-- [ ] Source health monitoring
+- [x] Initial source heartbeat view
+- [ ] Expanded source health monitoring
 - [ ] Historical job lifecycle analytics
 - [ ] Daily job review datasets
 - [ ] Role-family aggregation

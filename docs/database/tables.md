@@ -95,6 +95,38 @@ This avoids duplicating location, radius and source configuration for each role 
 
 # Table: ingestion_runs
 
+## Derived View: source_heartbeat
+
+`source_heartbeat` derives the latest operational status per ingestion source.
+
+It is intended as the first dashboard-oriented monitoring view.
+
+Current fields:
+
+| Field | Meaning |
+|---|---|
+| `source_name` | Source identifier. |
+| `last_ingestion_run_id` | Most recent ingestion run for this source. |
+| `last_started_at` | Start timestamp of the latest run. |
+| `last_finished_at` | Finish timestamp of the latest run. |
+| `last_status` | Raw ingestion run status. |
+| `last_total_loaded` | Jobs loaded during the latest run. |
+| `last_inserted_count` | Newly inserted raw jobs during the latest run. |
+| `last_duplicate_count` | Duplicate jobs skipped during the latest run. |
+| `last_error_message` | Error message if the latest run failed. |
+| `heartbeat_status` | Dashboard-oriented source status. |
+
+Current heartbeat status values:
+
+| Status | Meaning |
+|---|---|
+| `healthy` | Latest run completed successfully. |
+| `running` | Latest run is currently marked as running. |
+| `failed` | Latest run failed. |
+| `unknown` | Latest run has an unexpected status. |
+
+Future iterations may add stale detection based on time since the last successful run.
+
 ## Purpose
 
 `ingestion_runs` stores one row per ingestion execution.
