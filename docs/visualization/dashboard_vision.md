@@ -45,11 +45,19 @@ Example indicators:
 - red: last run failed
 - grey: source inactive
 
-Potential data basis:
+Current data basis:
 
+- `dashboard_source_processing_summary`
+- `dashboard_new_relevant_jobs`
+- `source_heartbeat`
 - `ingestion_runs`
 - `search_profiles`
-- future source configuration metadata
+
+Future data basis:
+
+- dedicated heartbeat checks
+- source health snapshots
+- source configuration metadata
 
 Suggested metrics:
 

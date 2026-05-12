@@ -200,6 +200,41 @@ Repeated observations of already known source-local jobs are not counted as new 
 
 This is intentional because duplicate sightings are tracked through `job_observations`, while this view focuses on newly discovered raw job records.
 
+## Derived View: dashboard_source_processing_summary
+
+`dashboard_source_processing_summary` summarizes ingestion and relevance processing metrics per source.
+
+It is intended as a dashboard-oriented Gold-style view for comparing source behavior and processing status across sources.
+
+Current fields:
+
+| Field | Meaning |
+|---|---|
+| `source_name` | Source identifier. |
+| `ingestion_run_count` | Number of ingestion runs for the source. |
+| `successful_run_count` | Number of successful ingestion runs for the source. |
+| `failed_run_count` | Number of failed ingestion runs for the source. |
+| `latest_ingestion_at` | Latest ingestion start timestamp for the source. |
+| `latest_successful_ingestion_at` | Latest successful ingestion finish timestamp for the source. |
+| `total_loaded_jobs` | Total records loaded by ingestion runs for the source. |
+| `total_inserted_jobs` | Total newly inserted raw jobs reported by ingestion. |
+| `total_duplicate_jobs` | Total duplicate jobs reported by ingestion. |
+| `total_new_raw_jobs` | Total raw jobs newly linked to ingestion runs for the source. |
+| `total_new_relevant_jobs` | Total new raw jobs considered relevant for Silver. |
+| `total_new_skipped_jobs` | Total new raw jobs skipped by Silver relevance processing. |
+| `total_new_unprocessed_jobs` | Total new raw jobs without Silver processing decision and without Silver job record. |
+| `has_unprocessed_jobs` | Indicates whether the source still has unprocessed new raw jobs. |
+| `duplicate_rate` | Duplicate share among all loaded jobs. |
+| `new_relevance_rate` | Relevance share among newly inserted raw jobs. |
+
+Important semantics:
+
+This view aggregates source-level processing metrics from `dashboard_new_relevant_jobs`.
+
+It compares source behavior, but it does not replace source health monitoring.
+
+Operational source health should later combine ingestion runs with dedicated heartbeat checks.
+
 ---
 
 # Table: raw_jobs

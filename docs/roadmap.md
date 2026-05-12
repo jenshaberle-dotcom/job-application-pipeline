@@ -129,6 +129,7 @@ Goals:
 - [~] Dashboard-oriented Gold views
 - [x] Initial source heartbeat view
 - [x] New relevant jobs dashboard view
+- [x] Source processing summary dashboard view
 - [ ] Expanded source health monitoring
 - [ ] Dedicated heartbeat/source health architecture
 - [ ] Historical job lifecycle analytics

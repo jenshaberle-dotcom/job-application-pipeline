@@ -421,6 +421,8 @@ Current implemented examples:
 
 ## Repository Structure
 
+Note: Some early migration prefixes are duplicated as historical artifacts of early project evolution. They are intentionally preserved instead of retroactively renumbered. See ADR 018.
+
 ```text
 job-application-pipeline/
 ├── db/
@@ -434,7 +436,8 @@ job-application-pipeline/
 │   │   ├── 006_job_lifecycle_view.sql
 │   │   ├── 006_job_observations_run_level_unique.sql
 │   │   ├── 007_source_heartbeat_view.sql
-│   │   └── 008_dashboard_new_relevant_jobs_view.sql
+│   │   ├── 008_dashboard_new_relevant_jobs_view.sql
+│   │   └── 009_dashboard_source_processing_summary_view.sql
 │   │
 │   └── queries/
 │
@@ -458,7 +461,12 @@ job-application-pipeline/
 │   │   ├── 015_use_canonical_search_intent_and_source_capabilities.md
 │   │   ├── 016_define_ingestion_scope_and_relevance_boundaries.md
 │   │   ├── 017_prepare_api_first_dashboard_architecture.md
-│   │   └── 018_preserve_existing_migration_ordering.md
+│   │   ├── 018_preserve_existing_migration_ordering.md
+│   │   ├── 019_separate_source_heartbeat_from_ingestion_runs.md
+│   │   └── 020_introduce_role_family_classification.md
+│   │
+│   ├── classification/
+│   │   └── role_family_classification.md
 │   │
 │   ├── data_sources/
 │   │   └── source_capabilities.md
@@ -469,6 +477,9 @@ job-application-pipeline/
 │   ├── diagrams/
 │   │   ├── architecture.md
 │   │   └── bronze_data_model.md
+│   │
+│   ├── observability/
+│   │   └── source_health_and_heartbeat.md
 │   │
 │   ├── relevance/
 │   │   └── relevance_strategy.md
