@@ -433,7 +433,8 @@ job-application-pipeline/
 │   │   ├── 005_job_observations.sql
 │   │   ├── 006_job_lifecycle_view.sql
 │   │   ├── 006_job_observations_run_level_unique.sql
-│   │   └── 007_source_heartbeat_view.sql
+│   │   ├── 007_source_heartbeat_view.sql
+│   │   └── 008_dashboard_new_relevant_jobs_view.sql
 │   │
 │   └── queries/
 │

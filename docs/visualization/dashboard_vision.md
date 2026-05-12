@@ -108,12 +108,23 @@ Goal:
 
 Show how many new potentially relevant jobs were found since the last ingestion run.
 
-Potential data basis:
+Current data basis:
+
+- `dashboard_new_relevant_jobs`
+
+Underlying tables:
 
 - `ingestion_runs`
 - `raw_jobs`
 - `silver_jobs`
 - `silver_processing_decisions`
+
+Supported metrics:
+
+- new raw jobs per ingestion run
+- new relevant jobs per ingestion run
+- skipped jobs per ingestion run
+- unprocessed new jobs per ingestion run
 
 Potential visualization:
 
