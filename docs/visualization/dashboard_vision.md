@@ -19,11 +19,24 @@ PostgreSQL
 
 ## Dashboard Areas
 
+Future dashboard maturity should distinguish operational monitoring from semantic job enrichment:
+
+- source health should combine ingestion runs and dedicated heartbeat checks
+- role distribution should be based on explicit role family classification
+
 ### 1. Source Health Monitoring
 
 Goal:
 
 Show whether each source is active and working.
+
+Current state:
+
+Source health is initially derived from ingestion run data.
+
+Future state:
+
+Source health should combine productive ingestion runs with dedicated lightweight heartbeat checks.
 
 Example indicators:
 
@@ -162,6 +175,14 @@ It does not necessarily mean the original publication date.
 Goal:
 
 Show how many relevant jobs come from each source and role family.
+
+Current state:
+
+Source distribution can be derived from existing ingestion and Silver data.
+
+Future state:
+
+Role distribution should be based on explicit role family classification instead of raw title keyword aggregation.
 
 Potential visualization:
 

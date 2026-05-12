@@ -91,6 +91,7 @@ Goals:
 - [ ] Location normalization
 - [ ] Company normalization
 - [ ] Role-family classification
+- [ ] Rule-based role family classification planning
 - [ ] Skill extraction
 - [ ] Semantic duplicate consolidation
 - [ ] Structured metadata extraction
@@ -129,6 +130,7 @@ Goals:
 - [x] Initial source heartbeat view
 - [x] New relevant jobs dashboard view
 - [ ] Expanded source health monitoring
+- [ ] Dedicated heartbeat/source health architecture
 - [ ] Historical job lifecycle analytics
 - [ ] Daily job review datasets
 - [ ] Role-family aggregation
