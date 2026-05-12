@@ -431,13 +431,13 @@ job-application-pipeline/
 │   │   ├── 002_search_terms_model.sql
 │   │   ├── 003_silver_jobs_model.sql
 │   │   ├── 004_make_search_profiles_source_agnostic.sql
-│   │   ├── 004_silver_processing_decisions.sql
-│   │   ├── 005_job_observations.sql
-│   │   ├── 006_job_lifecycle_view.sql
-│   │   ├── 006_job_observations_run_level_unique.sql
-│   │   ├── 007_source_heartbeat_view.sql
-│   │   ├── 008_dashboard_new_relevant_jobs_view.sql
-│   │   └── 009_dashboard_source_processing_summary_view.sql
+│   │   ├── 005_silver_processing_decisions.sql
+│   │   ├── 006_job_observations.sql
+│   │   ├── 007_job_observations_run_level_unique.sql
+│   │   ├── 008_job_lifecycle_view.sql
+│   │   ├── 009_source_heartbeat_view.sql
+│   │   ├── 010_dashboard_new_relevant_jobs_view.sql
+│   │   └── 011_dashboard_source_processing_summary_view.sql
 │   │
 │   └── queries/
 │
