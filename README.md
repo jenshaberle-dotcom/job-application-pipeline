@@ -219,7 +219,7 @@ Planned capabilities:
 
 ### In Progress
 
-- [ ] Job lifecycle view
+- [x] Job lifecycle view
 - [ ] Observation granularity refinement
 - [ ] Dashboard-oriented documentation
 - [ ] Gold-layer preparation
@@ -412,7 +412,6 @@ The ingestion layer therefore separates:
 - local post-fetch filtering
 - source capability metadata
 
-
 Current implemented examples:
 
 | Source | Keyword | Location | Radius | Pagination | Full Fetch |
@@ -426,11 +425,15 @@ Current implemented examples:
 job-application-pipeline/
 ├── db/
 │   ├── migrations/
-│   │   ├── 001_initial_schema.sql
-│   │   ├── 002_search_terms.sql
-│   │   ├── 003_silver_jobs.sql
+│   │   ├── 001_bronze_ingestion_model.sql
+│   │   ├── 002_search_terms_model.sql
+│   │   ├── 003_silver_jobs_model.sql
+│   │   ├── 004_make_search_profiles_source_agnostic.sql
 │   │   ├── 004_silver_processing_decisions.sql
-│   │   └── 005_job_observations.sql
+│   │   ├── 005_job_observations.sql
+│   │   ├── 006_job_lifecycle_view.sql
+│   │   ├── 006_job_observations_run_level_unique.sql
+│   │   └── 007_source_heartbeat_view.sql
 │   │
 │   └── queries/
 │
@@ -453,16 +456,14 @@ job-application-pipeline/
 │   │   ├── 014_document_database_schema_and_constraints.md
 │   │   ├── 015_use_canonical_search_intent_and_source_capabilities.md
 │   │   ├── 016_define_ingestion_scope_and_relevance_boundaries.md
-│   │   └── 017_prepare_visualization_and_api_first_architecture.md
-│   │
-│   ├── architecture/
-│   │   └── frontend_backend_data_flow.md
-│   │
-│   ├── database/
-│   │   └── tables.md
+│   │   ├── 017_prepare_api_first_dashboard_architecture.md
+│   │   └── 018_preserve_existing_migration_ordering.md
 │   │
 │   ├── data_sources/
 │   │   └── source_capabilities.md
+│   │
+│   ├── database/
+│   │   └── tables.md
 │   │
 │   ├── diagrams/
 │   │   ├── architecture.md
@@ -472,41 +473,53 @@ job-application-pipeline/
 │   │   └── relevance_strategy.md
 │   │
 │   ├── source_analysis/
-│   │   └── greenhouse.md
+│   │   ├── greenhouse.md
+│   │   └── greenhouse_api_examples.md
 │   │
-│   └── roadmap.md
+│   ├── visualization/
+│   │   └── dashboard_vision.md
+│   │
+│   ├── glossary.md
+│   ├── roadmap.md
+│   └── source_evaluation.md
 │
 ├── scripts/
+│   ├── __init__.py
 │   └── analyze_greenhouse_bronze.py
 │
 ├── src/
 │   ├── connectors/
+│   │   ├── __init__.py
 │   │   ├── base.py
 │   │   ├── bundesagentur.py
-│   │   └── greenhouse.py
+│   │   ├── capabilities.py
+│   │   ├── greenhouse.py
+│   │   └── stepstone.py
 │   │
 │   ├── ingestion/
+│   │   ├── __init__.py
 │   │   ├── post_fetch_filter.py
 │   │   ├── repository.py
 │   │   └── runner.py
 │   │
 │   ├── silver/
+│   │   ├── __init__.py
 │   │   ├── relevance.py
 │   │   ├── repository.py
 │   │   └── transformer.py
 │   │
 │   ├── config.py
-│   │
 │   ├── ingest_jobs.py
-│   ├── run_silver_jobs.py
 │   ├── main.py
+│   └── run_silver_jobs.py
 │
-├── .env
+├── .env.example
 ├── .gitignore
 ├── docker-compose.yml
 ├── README.md
 └── requirements.txt
 ```
+
 ---
 
 ## Documentation
@@ -522,6 +535,8 @@ Detailed project documentation is available in:
 | Source evaluations | `docs/source_analysis/` |
 | Relevance strategy | `docs/relevance/` |
 | Project roadmap | `docs/roadmap.md` |
+| Dashboard vision | `docs/visualization/` |
+| Glossary | `docs/glossary.md` |
 
 ---
 

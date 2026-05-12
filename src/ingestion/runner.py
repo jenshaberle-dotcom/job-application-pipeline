@@ -23,7 +23,25 @@ class JobIngestionRunner:
         duplicate_count_all = 0
 
         for profile, search_term in search_terms:
-            records, requested_url = self.connector.fetch_jobs(profile, search_term)
+            ingestion_run_id = self.repository.create_ingestion_run(
+                source_name=self.connector.source_name,
+                search_profile_id=profile.id,
+            )
+
+            try:
+                records, requested_url = self.connector.fetch_jobs(profile, search_term)
+            except Exception as exc:
+                self.repository.fail_ingestion_run(
+                    ingestion_run_id=ingestion_run_id,
+                    error_message=f"{type(exc).__name__}: {exc}",
+                )
+                raise
+
+            self.repository.update_ingestion_run_requested_url(
+                ingestion_run_id=ingestion_run_id,
+                requested_url=requested_url,
+            )
+
             loaded_before_local_filter = len(records)
 
             if not self.connector.capabilities.supports_keyword:
@@ -31,12 +49,6 @@ class JobIngestionRunner:
                     records=records,
                     search_term=search_term.search_term,
                 )
-
-            ingestion_run_id = self.repository.create_ingestion_run(
-                source_name=self.connector.source_name,
-                search_profile_id=profile.id,
-                requested_url=requested_url,
-            )
 
             inserted_count = 0
             duplicate_count = 0
