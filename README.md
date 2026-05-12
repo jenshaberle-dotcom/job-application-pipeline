@@ -463,7 +463,8 @@ job-application-pipeline/
 │   │   ├── 017_prepare_api_first_dashboard_architecture.md
 │   │   ├── 018_preserve_existing_migration_ordering.md
 │   │   ├── 019_separate_source_heartbeat_from_ingestion_runs.md
-│   │   └── 020_introduce_role_family_classification.md
+│   │   ├── 020_introduce_role_family_classification.md
+│   │   └── 021_expand_source_capability_model_before_complex_sources.md
 │   │
 │   ├── classification/
 │   │   └── role_family_classification.md

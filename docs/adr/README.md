@@ -47,6 +47,7 @@ The ADRs intentionally reflect this evolution.
 | 018 | Normalize migration prefixes | Accepted |
 | 019 | Separate source heartbeat from ingestion runs | Proposed |
 | 020 | Introduce role family classification | Proposed |
+| 021 | Expand source capability model before complex sources | Accepted |
 
 ---
 
