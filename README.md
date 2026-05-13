@@ -487,7 +487,8 @@ job-application-pipeline/
 │   │
 │   ├── source_analysis/
 │   │   ├── greenhouse.md
-│   │   └── greenhouse_api_examples.md
+│   │   ├── greenhouse_api_examples.md
+│   │   └── stepstone.md
 │   │
 │   ├── visualization/
 │   │   └── dashboard_vision.md

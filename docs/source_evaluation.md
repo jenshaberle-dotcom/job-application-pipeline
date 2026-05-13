@@ -167,7 +167,7 @@ Commercial job platform
 
 ### Current Status
 
-Prepared for evaluation.
+Initial source analysis in progress. See `docs/source_analysis/stepstone.md`.
 
 ### Expected Advantages
 
@@ -190,7 +190,7 @@ Prepared for evaluation.
 
 ### Required Next Step
 
-Create a dedicated StepStone source analysis before implementing a connector.
+Complete and review the dedicated StepStone source analysis before implementing a connector.
 
 The analysis should determine:
 
