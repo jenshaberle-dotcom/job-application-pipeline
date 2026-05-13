@@ -27,7 +27,7 @@ They are not only used for connector implementation, but also for:
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|
 | Bundesagentur für Arbeit | Public job API | yes | yes | yes | yes | no | yes | no | implemented |
 | Greenhouse | ATS job board | no | no | no | no | no | no | yes | implemented |
-| StepStone | Commercial job portal | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | prepared |
+| StepStone | Commercial job portal | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | under evaluation |
 | Workday | Enterprise ATS | limited | limited | no | limited | unclear | yes | no/limited | candidate |
 | Personio | ATS / company career system | limited | limited | no | limited | unclear | limited | yes/limited | candidate |
 | Lever | ATS job board | no/limited | limited | no | no | no | no/limited | yes | candidate |
@@ -251,7 +251,7 @@ Current profile:
 
 Summary:
 
-StepStone is prepared as a future source candidate but has not yet been evaluated in detail.
+StepStone is under initial source evaluation and has not yet been implemented as a production connector.
 
 Before implementing a production connector, the project should create a dedicated source analysis document and perform a limited technical spike.
 
