@@ -402,6 +402,53 @@ A production connector would require:
 
 ---
 
+## Limited Probe Results
+
+A limited technical probe was executed with `scripts/analyze_stepstone_source.py`.
+
+Scope:
+
+- two single search-page requests
+- no crawling
+- no pagination
+- no database writes
+- no mass detail-page fetching
+
+Tested URLs:
+
+- `https://www.stepstone.de/jobs/data-engineer/in-hannover`
+- `https://www.stepstone.de/jobs/data-scientist/in-hannover`
+
+Observed results:
+
+| Signal | Observation |
+|---|---|
+| HTTP status | `200` for both tested URLs |
+| Consent or bot block | Not observed during the limited probe |
+| Content type | `text/html; charset=utf-8` |
+| HTML size | Approximately 1.18 MB to 1.23 MB |
+| Page title | Contains search term, result count, location and date |
+| Meta robots | `index,follow` observed |
+| StepStone links | More than 150 links per tested page |
+| Candidate job detail links | 25 candidate detail links per tested page |
+| Candidate numeric IDs | 25 candidate IDs per tested page |
+
+Important interpretation:
+
+The probe confirms that candidate StepStone detail links and numeric ID candidates can be extracted from public search result HTML.
+
+However, the number of extracted candidate detail links does not necessarily match the result count shown in the page title.
+
+For example, the `data-scientist` search title showed 10 jobs, while the probe extracted 25 candidate detail links.
+
+This means the current extraction logic identifies candidate job links, but does not yet distinguish primary search results from related, recommended or otherwise embedded job links.
+
+Connector implication:
+
+A production connector must not simply ingest every detected detail link from the page.
+
+A future spike must identify stable result-card boundaries or structured page data before deciding whether a reliable connector is feasible.
+
 ## Current Decision
 
 StepStone should not be implemented as a production connector yet.

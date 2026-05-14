@@ -499,7 +499,8 @@ job-application-pipeline/
 │
 ├── scripts/
 │   ├── __init__.py
-│   └── analyze_greenhouse_bronze.py
+│   ├── analyze_greenhouse_bronze.py
+│   └── analyze_stepstone_source.py
 │
 ├── src/
 │   ├── connectors/
