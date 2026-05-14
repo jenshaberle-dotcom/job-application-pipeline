@@ -449,6 +449,55 @@ A production connector must not simply ingest every detected detail link from th
 
 A future spike must identify stable result-card boundaries or structured page data before deciding whether a reliable connector is feasible.
 
+---
+
+## Result Card Boundary Probe
+
+A follow-up probe inspected whether extracted candidate job links can be mapped to stable search-result card boundaries.
+
+Tested URL:
+
+- `https://www.stepstone.de/jobs/data-engineer/in-hannover`
+
+Observed boundary signals:
+
+| Signal | Count |
+|---|---:|
+| Candidate job detail links | 25 |
+| Candidate numeric IDs | 25 |
+| `article` elements with `id="job-item-..."` and `data-testid="job-item"` | 25 |
+| Title links with `data-testid="job-item-title"` | 25 |
+
+No mismatches were found between extracted candidate IDs, article IDs and title-link IDs.
+
+Current interpretation:
+
+The tested page exposes a stable result-card boundary candidate:
+
+~~~text
+article[data-testid="job-item"]
+└── a[data-testid="job-item-title"]
+~~~
+
+The numeric StepStone job ID appears consistently in both:
+
+- the article element ID: `job-item-{id}`
+- the job detail URL: `--{id}-inline.html`
+
+Connector implication:
+
+A future StepStone connector should prefer extracting primary results from explicit `article[data-testid="job-item"]` containers instead of collecting all matching detail links globally from the page.
+
+This reduces the risk of ingesting unrelated embedded, recommended or duplicate job links.
+
+Remaining limitation:
+
+This finding is based on a limited single-page probe.
+
+Before implementing production ingestion, the boundary should be tested across additional search terms, result counts and pagination states.
+
+---
+
 ## Current Decision
 
 StepStone should not be implemented as a production connector yet.
