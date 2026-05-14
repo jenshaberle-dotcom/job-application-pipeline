@@ -501,7 +501,8 @@ job-application-pipeline/
 │   ├── __init__.py
 │   ├── analyze_greenhouse_bronze.py
 │   ├── analyze_stepstone_result_boundaries.py
-│   └── analyze_stepstone_source.py
+│   ├── analyze_stepstone_source.py
+│   └── analyze_stepstone_structured_cards.py
 │
 ├── src/
 │   ├── connectors/
