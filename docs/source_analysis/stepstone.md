@@ -498,6 +498,88 @@ Before implementing production ingestion, the boundary should be tested across a
 
 ---
 
+---
+
+## Structured Card Extraction Probe
+
+A follow-up probe tested whether the stable result-card boundary can be used to extract structured card-level fields without opening detail pages.
+
+Script:
+
+- `scripts/analyze_stepstone_structured_cards.py`
+
+Tested URL:
+
+- `https://www.stepstone.de/jobs/data-engineer/in-hannover`
+
+Observed structured card signals:
+
+| Signal | Count |
+|---|---:|
+| Structured cards | 25 |
+| Cards with title | 25 |
+| Cards with company | 25 |
+| Cards with location | 25 |
+| Cards with detail URL | 25 |
+| Cards where title URL ID matches article ID | 25 |
+
+Observed quality rates:
+
+| Metric | Rate |
+|---|---:|
+| Title coverage | 1.0000 |
+| Company coverage | 1.0000 |
+| Location coverage | 1.0000 |
+| Detail URL coverage | 1.0000 |
+| ID match rate | 1.0000 |
+
+Extracted card-level fields:
+
+- external job ID
+- title
+- company
+- location
+- detail URL
+- raw href
+- card HTML size
+- title/article ID consistency
+- selected `data-at` field values
+
+Current interpretation:
+
+The tested StepStone search page exposes enough structured card-level signals to extract a useful first search-result snapshot from `article[data-testid="job-item"]` containers.
+
+The most reliable fields in the limited probe are:
+
+- external job ID
+- title
+- company
+- location
+- detail URL
+
+The card text and snippet-like fields are available, but should be treated as noisy raw evidence. Several fields contain duplicated text, promotional labels or mixed metadata such as badges, salary prompts, home-office labels and time-ago values.
+
+Connector implication:
+
+A future StepStone connector spike can use the structured card extraction approach as a safer next step than global link extraction.
+
+The connector should:
+
+- iterate only over `article[data-testid="job-item"]`
+- extract title from `data-at="job-item-title"`
+- extract company from `data-at="job-item-company-name"`
+- extract location from `data-at="job-item-location"`
+- extract the detail URL from the title link
+- validate that the article ID matches the URL ID
+- store noisy card text only as raw source evidence, not as trusted canonical fields
+
+Remaining limitation:
+
+This finding is still based on a limited single-page probe.
+
+Before implementing production ingestion, the approach should be tested across additional search terms, result counts, empty-result pages and pagination states.
+
+
 ## Current Decision
 
 StepStone should not be implemented as a production connector yet.
