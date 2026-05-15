@@ -6,6 +6,12 @@ The project intentionally evaluates multiple real-world job data sources instead
 
 The goal is not only to ingest job postings, but also to understand the architectural, operational and data-quality implications of different source types.
 
+## Terminology Alignment
+
+Source evaluations use the shared project terminology from `docs/glossary.md` and ADR-022.
+
+Observed provider-specific structures should be described as source signals and then mapped to canonical project concepts such as source, connector, search intent, result card, detail page, external job ID, Bronze record and canonical job.
+
 The project therefore intentionally includes:
 
 - structured APIs

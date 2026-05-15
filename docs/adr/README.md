@@ -56,3 +56,4 @@ The ADRs intentionally reflect this evolution.
 The ADR structure intentionally stays lightweight.
 
 The project is still evolving and the ADR process is meant to support architectural clarity rather than heavyweight governance.
+- [ADR-022: Define shared source and layer terminology](022_define_shared_source_and_layer_terminology.md)
