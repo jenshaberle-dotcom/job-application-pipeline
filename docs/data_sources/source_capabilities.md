@@ -27,6 +27,22 @@ They are not only used for connector implementation, but also for:
 - dashboard interpretation
 - future source prioritization
 
+They are not only used for connector implementation, but also for:
+
+- source evaluation
+- ingestion strategy decisions
+- local filtering decisions
+- heartbeat strategy planning
+- dashboard interpretation
+- future source prioritization
+
+For search-result-oriented sources, connector output should follow the documented search result connector contract.
+
+See also:
+
+- `docs/data_sources/search_result_connector_contract.md`
+- `docs/adr/023_define_search_result_connector_contract.md`
+
 ---
 
 ## Capability Matrix
