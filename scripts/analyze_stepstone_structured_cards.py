@@ -416,8 +416,6 @@ def print_quality_summary(
 
     printed_cards = min(total, max_printed_cards)
 
-    printed_cards = min(total, max_printed_cards)
-
     print(f"result_cards: {total}")
     print(f"printed_result_cards: {printed_cards}")
     print(f"max_printed_result_cards: {max_printed_cards}")
