@@ -21,7 +21,7 @@ USER_AGENT = (
 
 
 @dataclass(frozen=True)
-class ArticleBlock:
+class ResultCardBlock:
     external_job_id: str
     raw_html: str
     start_position: int
@@ -29,7 +29,7 @@ class ArticleBlock:
 
 
 @dataclass(frozen=True)
-class StructuredCard:
+class ResultCardFields:
     index: int
     external_job_id: str
     title: str | None
@@ -212,8 +212,8 @@ def extract_stepstone_id_from_url(url: str | None) -> str | None:
     return match.group(1)
 
 
-def iter_article_blocks(raw_html: str) -> list[ArticleBlock]:
-    blocks: list[ArticleBlock] = []
+def iter_article_blocks(raw_html: str) -> list[ResultCardBlock]:
+    blocks: list[ResultCardBlock] = []
 
     for match in re.finditer(r"<article\b[^>]*>", raw_html, flags=re.IGNORECASE | re.DOTALL):
         opening_tag = match.group(0)
@@ -240,7 +240,7 @@ def iter_article_blocks(raw_html: str) -> list[ArticleBlock]:
         end_position = close_position + len("</article>")
 
         blocks.append(
-            ArticleBlock(
+            ResultCardBlock(
                 external_job_id=id_match.group(1),
                 raw_html=raw_html[match.start():end_position],
                 start_position=match.start(),
@@ -329,15 +329,14 @@ def extract_location(fields: dict[str, str]) -> str | None:
     )
 
 
-def extract_structured_cards(
+def extract_result_card_fields(
     raw_html: str,
     final_url: str,
-    max_cards: int,
-) -> list[StructuredCard]:
+) -> list[ResultCardFields]:
     article_blocks = iter_article_blocks(raw_html)
-    cards: list[StructuredCard] = []
+    cards: list[ResultCardFields] = []
 
-    for index, article in enumerate(article_blocks[:max_cards], start=1):
+    for index, article in enumerate(article_blocks, start=1):
         parser = CardParser()
         parser.feed(article.raw_html)
 
@@ -352,7 +351,7 @@ def extract_structured_cards(
         title_job_id = extract_stepstone_id_from_url(detail_url)
 
         cards.append(
-            StructuredCard(
+            ResultCardFields(
                 index=index,
                 external_job_id=article.external_job_id,
                 title=parser.title,
@@ -374,12 +373,15 @@ def print_section(title: str) -> None:
     print(f"## {title}")
 
 
-def print_cards(cards: list[StructuredCard]) -> None:
+def print_result_card_fields(
+    cards: list[ResultCardFields],
+    max_printed_cards: int,
+) -> None:
     if not cards:
         print("<no structured cards detected>")
         return
 
-    for card in cards:
+    for card in cards[:max_printed_cards]:
         print()
         print(f"### Card {card.index:02d}")
         print(f"external_job_id: {card.external_job_id}")
@@ -400,7 +402,10 @@ def print_cards(cards: list[StructuredCard]) -> None:
             print("- <none>")
 
 
-def print_quality_summary(cards: list[StructuredCard]) -> None:
+def print_quality_summary(
+    cards: list[ResultCardFields],
+    max_printed_cards: int,
+) -> None:
     total = len(cards)
 
     with_title = sum(1 for card in cards if card.title)
@@ -409,7 +414,13 @@ def print_quality_summary(cards: list[StructuredCard]) -> None:
     with_detail_url = sum(1 for card in cards if card.detail_url)
     matching_ids = sum(1 for card in cards if card.title_id_matches_article_id)
 
-    print(f"structured_cards: {total}")
+    printed_cards = min(total, max_printed_cards)
+
+    printed_cards = min(total, max_printed_cards)
+
+    print(f"result_cards: {total}")
+    print(f"printed_result_cards: {printed_cards}")
+    print(f"max_printed_result_cards: {max_printed_cards}")
     print(f"with_title: {with_title}")
     print(f"with_company: {with_company}")
     print(f"with_location: {with_location}")
@@ -427,7 +438,7 @@ def print_quality_summary(cards: list[StructuredCard]) -> None:
 def main() -> None:
     argument_parser = argparse.ArgumentParser(
         description=(
-            "Limited StepStone structured card probe. "
+            "Limited StepStone result card field extraction probe. "
             "Fetches exactly one search page and extracts structured fields from "
             "article[data-testid='job-item'] result cards. "
             "No crawling, no pagination, no detail pages, no database writes."
@@ -462,17 +473,16 @@ def main() -> None:
     print(f"Response bytes: {len(response.content)}")
     print(f"Elapsed seconds: {response.elapsed.total_seconds():.3f}")
 
-    cards = extract_structured_cards(
+    cards = extract_result_card_fields(
         raw_html=raw_html,
         final_url=response.url,
-        max_cards=args.max_cards,
     )
 
-    print_section("Structured Card Quality Summary")
-    print_quality_summary(cards)
+    print_section("Result Card Field Quality Summary")
+    print_quality_summary(cards, max_printed_cards=args.max_cards)
 
-    print_section("Structured Cards")
-    print_cards(cards)
+    print_section("Result Card Fields")
+    print_result_card_fields(cards, max_printed_cards=args.max_cards)
 
     print_section("Assessment Reminder")
     print("This script inspects only one search page.")
@@ -480,7 +490,7 @@ def main() -> None:
     print("It does not open detail pages.")
     print("It does not paginate.")
     print("It does not write to the database.")
-    print("Use the output to decide whether StepStone search cards are stable enough for a connector spike.")
+    print("Use the output to decide whether StepStone result cards expose stable enough fields for a connector spike.")
 
 
 if __name__ == "__main__":
