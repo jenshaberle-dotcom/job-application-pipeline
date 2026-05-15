@@ -27,13 +27,26 @@ Core terms:
 | Canonical job | Source-independent Silver-layer representation of a job posting. |
 | Source-specific metadata | Fields that are useful but not part of the canonical model. |
 
-Layer rule:
+Layer rules:
 
 - Bronze preserves source evidence.
 - Silver normalizes into canonical project terminology.
 - Gold uses business-facing metrics and should not depend on source-specific structures.
 
-See also: [ADR-022](adr/022_define_shared_source_and_layer_terminology.md).
+See also:
+
+- [ADR-022](adr/022_define_shared_source_and_layer_terminology.md)
+- [ADR-023](adr/023_define_search_result_connector_contract.md)
+- [Search Result Connector Contract](data_sources/search_result_connector_contract.md)
+
+Additional connector contract terms:
+
+| Term | Meaning |
+|---|---|
+| Source result ID | Source-specific result-card identifier before it is validated as a stable external job ID. |
+| Detail URL | Source URL pointing to a fuller job detail page. |
+| Raw data | Code-level field used by `RawJobRecord` for source-specific payload. |
+| Raw payload | Architecture term for source-preserving data; currently stored as `raw_data`. |
 
 ---
 
