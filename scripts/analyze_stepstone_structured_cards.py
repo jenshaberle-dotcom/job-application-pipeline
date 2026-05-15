@@ -378,7 +378,7 @@ def print_result_card_fields(
     max_printed_cards: int,
 ) -> None:
     if not cards:
-        print("<no structured cards detected>")
+        print("<no result cards detected>")
         return
 
     for card in cards[:max_printed_cards]:

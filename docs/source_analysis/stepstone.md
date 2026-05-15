@@ -430,18 +430,18 @@ Observed results:
 | Page title | Contains search term, result count, location and date |
 | Meta robots | `index,follow` observed |
 | StepStone links | More than 150 links per tested page |
-| Candidate job detail links | 25 candidate detail links per tested page |
+| Globally extracted detail links | 25 detail links per tested page |
 | Candidate numeric IDs | 25 candidate IDs per tested page |
 
 Important interpretation:
 
 The probe confirms that candidate StepStone detail links and numeric ID candidates can be extracted from public search result HTML.
 
-However, the number of extracted candidate detail links does not necessarily match the result count shown in the page title.
+However, the number of globally extracted detail links does not necessarily match the result count shown in the page title.
 
-For example, the `data-scientist` search title showed 10 jobs, while the probe extracted 25 candidate detail links.
+For example, the `data-scientist` search title showed 10 jobs, while the global link extraction probe extracted 25 detail links.
 
-This means the current extraction logic identifies candidate job links, but does not yet distinguish primary search results from related, recommended or otherwise embedded job links.
+This means the global link extraction logic identifies possible detail links, but does not yet distinguish primary result cards from related, recommended or otherwise embedded job links.
 
 Connector implication:
 
@@ -453,7 +453,7 @@ A future spike must identify stable result-card boundaries or structured page da
 
 ## Result Card Boundary Probe
 
-A follow-up probe inspected whether extracted candidate job links can be mapped to stable search-result card boundaries.
+A follow-up probe inspected whether globally extracted detail links can be mapped to stable result-card boundaries.
 
 Tested URL:
 
@@ -502,7 +502,7 @@ Before implementing production ingestion, the boundary should be tested across a
 
 ## Structured Card Extraction Probe
 
-A follow-up probe tested whether the stable result-card boundary can be used to extract structured card-level fields without opening detail pages.
+A follow-up probe tested whether the stable result-card boundary can be used to extract result-card fields without opening detail pages.
 
 Script:
 
@@ -512,7 +512,7 @@ Tested URL:
 
 - `https://www.stepstone.de/jobs/data-engineer/in-hannover`
 
-Observed structured card signals:
+Observed result-card field signals:
 
 | Signal | Count |
 |---|---:|
@@ -547,7 +547,7 @@ Extracted card-level fields:
 
 Current interpretation:
 
-The tested StepStone search page exposes enough structured card-level signals to extract a useful first search-result snapshot from `article[data-testid="job-item"]` containers.
+The tested StepStone search page exposes enough result-card field signals to extract a useful first search-result snapshot from `article[data-testid="job-item"]` containers.
 
 The most reliable fields in the limited probe are:
 
@@ -561,7 +561,7 @@ The card text and snippet-like fields are available, but should be treated as no
 
 Connector implication:
 
-A future StepStone connector spike can use the structured card extraction approach as a safer next step than global link extraction.
+A future StepStone connector spike can use the result-card field extraction approach as a safer next step than global link extraction.
 
 The connector should:
 

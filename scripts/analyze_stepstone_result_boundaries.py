@@ -285,7 +285,7 @@ def main() -> None:
         description=(
             "Limited StepStone result boundary probe. "
             "Fetches exactly one search page and inspects HTML context around "
-            "candidate job detail links. No crawling, no pagination, no database writes."
+            "globally extracted detail links. No crawling, no pagination, no database writes."
         )
     )
     argument_parser.add_argument(
