@@ -580,6 +580,14 @@ This finding is still based on a limited single-page probe.
 Before implementing production ingestion, the approach should be tested across additional search terms, result counts, empty-result pages and pagination states.
 
 
+## Terminology Alignment
+
+This source analysis uses the shared project terminology from `docs/glossary.md` and ADR-022.
+
+StepStone-specific HTML markers such as `article[data-testid="job-item"]` and `a[data-testid="job-item-title"]` are treated as observed source signals for **result cards** and title links. They are not canonical entities outside the StepStone source analysis.
+
+The StepStone numeric ID extracted from URLs or article IDs is treated as an **external job ID** candidate. A later Silver-layer model must still map source-specific observations into the canonical job model.
+
 ## Current Decision
 
 StepStone should not be implemented as a production connector yet.

@@ -8,6 +8,14 @@ The goal is not to force all sources into the same technical behavior.
 
 The goal is to make source differences explicit, comparable and visible in the connector architecture.
 
+## Terminology Alignment
+
+This document uses the shared terminology from `docs/glossary.md` and ADR-022.
+
+Source-specific differences should be captured as source capabilities or mappings to canonical concepts. They should not introduce separate terminology for each source.
+
+For example, a StepStone `article[data-testid="job-item"]` is documented as an observed source signal for a **result card**. It is not a new canonical project entity.
+
 Source capabilities describe what a source can support technically and operationally.
 
 They are not only used for connector implementation, but also for:

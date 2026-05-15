@@ -4,6 +4,37 @@ This glossary explains recurring technical terms, abbreviations, and architectur
 
 The goal is not to provide academic definitions, but practical project-oriented explanations.
 
+## Shared source and layer terminology
+
+The project uses one shared terminology across all sources and all lakehouse-style layers.
+
+Source-specific differences are documented as mappings, capabilities or source-specific metadata. They should not create separate project vocabularies per connector.
+
+Core terms:
+
+| Term | Meaning |
+|---|---|
+| Source | External system or website family that can provide job data. |
+| Connector | Project code responsible for accessing one source and converting source data into project records. |
+| Search intent | Source-independent description of what the project wants to find, for example role keywords and location. |
+| Source query | Source-specific translation of a search intent into URL parameters, API parameters or form inputs. |
+| Source capability | Documented property of a source, for example search support, stable identifiers, pagination or detail availability. |
+| Raw source payload | Source-preserving response material, for example HTML, JSON or text received from a source. |
+| Result card | One search-result item shown by a source before opening a detail page. |
+| Detail page | Source page or endpoint containing a fuller job description. |
+| External job ID | Identifier assigned by the source or extracted from source URLs or source markup. |
+| Bronze record | Persisted source-preserving record, including provenance and raw/source-specific payload. |
+| Canonical job | Source-independent Silver-layer representation of a job posting. |
+| Source-specific metadata | Fields that are useful but not part of the canonical model. |
+
+Layer rule:
+
+- Bronze preserves source evidence.
+- Silver normalizes into canonical project terminology.
+- Gold uses business-facing metrics and should not depend on source-specific structures.
+
+See also: [ADR-022](adr/022_define_shared_source_and_layer_terminology.md).
+
 ---
 
 # A
