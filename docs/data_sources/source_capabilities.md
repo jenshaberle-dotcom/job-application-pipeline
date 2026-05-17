@@ -10,22 +10,13 @@ The goal is to make source differences explicit, comparable and visible in the c
 
 ## Terminology Alignment
 
-This document uses the shared terminology from `docs/glossary.md` and ADR-022.
+This document uses the shared terminology from `docs/glossary.md`, ADR-022 and ADR-023.
 
 Source-specific differences should be captured as source capabilities or mappings to canonical concepts. They should not introduce separate terminology for each source.
 
 For example, a StepStone `article[data-testid="job-item"]` is documented as an observed source signal for a **result card**. It is not a new canonical project entity.
 
 Source capabilities describe what a source can support technically and operationally.
-
-They are not only used for connector implementation, but also for:
-
-- source evaluation
-- ingestion strategy decisions
-- local filtering decisions
-- heartbeat strategy planning
-- dashboard interpretation
-- future source prioritization
 
 They are not only used for connector implementation, but also for:
 
@@ -51,7 +42,7 @@ See also:
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|
 | Bundesagentur für Arbeit | Public job API | yes | yes | yes | yes | no | yes | no | implemented |
 | Greenhouse | ATS job board | no | no | no | no | no | no | yes | implemented |
-| StepStone | Commercial job portal | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | to evaluate | under evaluation |
+| StepStone | Commercial job portal | observed | observed | unknown | unknown | unknown | not evaluated | no | limited connector candidate |
 | Workday | Enterprise ATS | limited | limited | no | limited | unclear | yes | no/limited | candidate |
 | Personio | ATS / company career system | limited | limited | no | limited | unclear | limited | yes/limited | candidate |
 | Lever | ATS job board | no/limited | limited | no | no | no | no/limited | yes | candidate |
@@ -192,6 +183,7 @@ Allowed values:
 | `full_fetch` | Fetch all jobs from a source or board |
 | `company_board_fetch` | Fetch one company-specific ATS board |
 | `experimental_spike` | Limited exploration before production use |
+| `limited_result_card_fetch` | Fetch search-result cards only without detail-page crawling or broad pagination |
 | `deferred` | Not planned for implementation yet |
 
 ---
@@ -256,38 +248,53 @@ This source is useful because it introduces realistic ATS behavior, incomplete m
 
 ### StepStone
 
+Current status: `limited_connector_candidate`
+
 Current profile:
 
 | Dimension | Value |
 |---|---|
-| Access model | `unknown` |
-| Filtering capability | `unknown` |
-| Identifier quality | `unknown` |
+| Access model | `html_pages` |
+| Filtering capability | `partial` |
+| Identifier quality | `derived` |
 | Publication date quality | `unknown` |
 | Pagination model | `unknown` |
 | Rate limit risk | `unknown` |
-| Blocking risk | `unknown` |
-| Layout change risk | `unknown` |
-| Maintenance effort | `unknown` |
-| Legal / ethical risk | `unknown` |
+| Blocking risk | `medium` |
+| Layout change risk | `high` |
+| Maintenance effort | `high` |
+| Legal / ethical risk | `high` |
 | Heartbeat strategy | `not_defined` |
-| Ingestion strategy | `experimental_spike` |
+| Ingestion strategy | `limited_result_card_fetch` |
+
+Observed StepStone-specific capabilities:
+
+| Capability | Current Assessment |
+|---|---|
+| Search URL filtering | Keyword and location observed |
+| Result boundary | `article[data-testid="job-item"]` observed |
+| Result-card fields | Title, company, location and detail URL observed |
+| External ID | Derived candidate from article ID and detail URL |
+| ID confidence | Promising in sample, not long-term validated |
+| Detail pages | Not evaluated |
+| Pagination | Not evaluated |
+| Database ingestion | Not implemented |
+| Connector status | Candidate for limited result-card connector |
+| Operational risk | Medium to high |
+| Maintenance risk | High |
+| Recommended strategy | Limited result-card connector, no aggressive crawling |
 
 Summary:
 
-StepStone is under initial source evaluation and has not yet been implemented as a production connector.
+StepStone is no longer an unknown source.
 
-Before implementing a production connector, the project should create a dedicated source analysis document and perform a limited technical spike.
+Source analysis and limited result-card probes showed that StepStone can provide useful search-result-level records from public HTML result pages.
 
-The first StepStone work should answer:
+The next appropriate implementation step is a limited result-card connector.
 
-- how search URLs are structured
-- whether job IDs are stable
-- whether relevant metadata is available in HTML or embedded JSON
-- how pagination works
-- whether requests trigger blocking or consent hurdles
-- whether a lightweight heartbeat strategy is feasible
-- whether implementation is legally and ethically acceptable
+This does not mean broad crawling, detail-page fetching, pagination traversal or full production-scale ingestion.
+
+StepStone should remain marked as operationally sensitive and higher maintenance than API-based or ATS-board sources.
 
 ---
 
@@ -347,7 +354,7 @@ Each connector declares which filters it can apply server-side.
 
 Unsupported filters are applied locally where feasible.
 
-Sources with unknown or high operational risk should first be implemented as spikes, not as production connectors.
+Sources with unknown or high operational risk should first be evaluated through source analysis and limited probes before production ingestion.
 
 Commercial job portals require explicit source evaluation before production ingestion.
 
