@@ -2,19 +2,23 @@
 
 ## Status
 
-Initial source analysis in progress.
+StepStone source analysis has reached connector-decision stage.
 
-No production connector has been implemented yet.
+Limited probes showed that StepStone exposes usable search-result card structures for the evaluated search page.
+
+A full production connector has not been implemented yet.
+
+The next implementation step is a limited result-card connector, not a broad crawler.
 
 ## Purpose
 
 This document evaluates StepStone as a potential job data source for the job application pipeline.
 
-The goal is to understand whether StepStone can be integrated responsibly and technically cleanly before implementing a connector.
+The goal is not to build a one-off scraper.
 
-This is intentionally not a connector implementation document.
+The goal is to evaluate whether a complex HTML-based source can be integrated through the shared connector architecture while preserving source-specific evidence in the Bronze layer.
 
-It documents source behavior, risks, open questions and a possible connector path.
+StepStone should also act as a practical reference case for future result-card-based HTML sources.
 
 ---
 
@@ -22,7 +26,7 @@ It documents source behavior, risks, open questions and a possible connector pat
 
 A StepStone connector skeleton exists in `src/connectors/stepstone.py`.
 
-The connector is intentionally not implemented yet.
+The full connector is not implemented yet.
 
 Current behavior:
 
@@ -34,9 +38,10 @@ Current behavior:
 This matches the intended architecture path:
 
 1. source analysis
-2. limited technical spike
+2. completed source probes
 3. connector decision
-4. production connector only if justified
+4. limited result-card connector
+5. broader connector scope only after the limited connector has proven stable and useful
 
 ---
 
@@ -47,9 +52,9 @@ This matches the intended architecture path:
 | Source category | Commercial job portal |
 | Market relevance | High |
 | Geographic relevance | High for German job market |
-| Current implementation status | Prepared connector skeleton only |
-| Recommended next step | Limited technical spike after evaluation |
-| Production connector readiness | Not ready |
+| Current implementation status | Source analysis, result-card probes and preview skeleton exist |
+| Recommended next step | Limited result-card connector |
+| Production connector readiness | Ready for limited result-card connector, not ready for broad production crawling |
 
 ---
 
@@ -64,6 +69,10 @@ This analysis should clarify whether StepStone is suitable for:
 - rejection
 
 The evaluation should focus on technical feasibility, data quality, operational risk and responsible usage.
+
+The current conclusion is limited ingestion through a cautious result-card connector.
+
+This does not mean broad crawling, detail-page fetching or pagination traversal.
 
 ---
 
@@ -308,97 +317,62 @@ A StepStone heartbeat should not be implemented before source evaluation and res
 
 ---
 
-## Candidate Connector Path
+## Connector Path Assessment
 
-### Stage 1: Source Analysis
+The original candidate path has now been partially completed.
 
-Document:
+Completed stages:
 
-- URL path patterns
-- visible fields
-- identifier candidates
-- pagination behavior
-- metadata availability
-- responsible-use constraints
-- heartbeat feasibility
+1. source analysis
+2. limited technical probes
+3. result-card boundary evaluation
+4. structured result-card field evaluation
+5. connector decision
 
-Status:
+Current decision:
 
-`in progress`
+`limited_connector`
 
-### Stage 2: Limited Technical Spike
+Meaning:
 
-Possible branch:
+StepStone should be implemented as a limited result-card connector.
 
-`spike/stepstone-source-probe`
+The connector should use the shared connector architecture and produce `RawJobRecord` records.
 
-Possible script:
+It should not be treated as a broad production crawler.
 
-`scripts/analyze_stepstone_source.py`
+The first connector implementation should deliberately exclude:
 
-Scope constraints:
+- pagination traversal
+- detail-page fetching
+- browser automation
+- database schema changes
+- production-scale crawling
 
-- one keyword
-- one location
-- one search result page
-- no broad pagination
-- no mass detail-page fetching
-- no persistence into production tables
-- output only local analysis artifacts or console summary
-
-The spike should answer:
-
-- Can search result cards be extracted reliably?
-- Can detail links be extracted reliably?
-- Can stable identifiers be extracted?
-- Is one detail page enough to map core fields?
-- Does the HTML contain stable enough markers?
-- Is a non-browser HTTP request sufficient?
-- Are there blocking or consent issues?
-
-### Stage 3: Connector Decision
-
-Only after Stage 2 should the project decide between:
-
-| Option | Meaning |
-|---|---|
-| `production_connector` | Implement StepStone as normal connector |
-| `limited_connector` | Implement with strict limits and warnings |
-| `discovery_only` | Use only to identify employer-side sources manually |
-| `defer` | Do not implement for now |
-| `reject` | Do not implement due to risk or instability |
-
-### Stage 4: Production Connector
-
-A production connector would require:
-
-- explicit capability profile
-- stable external ID strategy
-- cautious request strategy
-- error handling
-- source-specific tests
-- documentation updates
-- dashboard interpretation notes
-- heartbeat decision
+A broader production connector should only be considered after the limited connector has proven stable and useful.
 
 ---
 
-## Initial Capability Profile
+## Current Capability Profile
 
 | Dimension | Current Assessment |
 |---|---|
-| Access model | `html_pages` / to evaluate |
-| Filtering capability | `unknown` |
-| Identifier quality | `unknown` |
-| Publication date quality | `unknown` |
-| Pagination model | `unknown` |
-| Rate limit risk | `unknown` |
-| Blocking risk | `medium` to `high` |
-| Layout change risk | `medium` to `high` |
-| Maintenance effort | `high` |
-| Legal / ethical risk | `high` until clarified |
-| Heartbeat strategy | `not_defined` |
-| Ingestion strategy | `experimental_spike` |
+| Access model | Public HTML search-result page observed |
+| Filtering capability | Search URL based, observed for keyword and location |
+| Result boundary | `article[data-testid="job-item"]` observed |
+| Result-card fields | Title, company, location and detail URL observed |
+| External ID | Derived candidate from article ID and detail URL |
+| ID confidence | Promising in sample, not long-term validated |
+| Publication date quality | Unknown or noisy |
+| Detail pages | Not evaluated |
+| Pagination | Not evaluated |
+| Rate limit risk | Unknown |
+| Blocking risk | Medium to high |
+| Layout change risk | High |
+| Maintenance effort | High |
+| Legal / ethical risk | Requires careful review |
+| Heartbeat strategy | Not defined |
+| Recommended ingestion strategy | Limited result-card connector |
 
 ---
 
@@ -582,22 +556,74 @@ Before implementing production ingestion, the approach should be tested across a
 
 ## Terminology Alignment
 
-This source analysis uses the shared project terminology from `docs/glossary.md` and ADR-022.
+This source analysis uses the shared project terminology from `docs/glossary.md`, ADR-022 and ADR-023.
 
 StepStone-specific HTML markers such as `article[data-testid="job-item"]` and `a[data-testid="job-item-title"]` are treated as observed source signals for **result cards** and title links. They are not canonical entities outside the StepStone source analysis.
 
 The StepStone numeric ID extracted from URLs or article IDs is treated as an **external job ID** candidate. A later Silver-layer model must still map source-specific observations into the canonical job model.
 
+## Connector Position After Spikes
+
+StepStone is no longer treated as an unknown source.
+
+The current probes show that StepStone exposes search-result-level structures that can be interpreted as result cards.
+
+The observed `article[data-testid="job-item"]` boundary provides a usable extraction boundary for the evaluated search page.
+
+The structured result-card analysis found usable fields for:
+
+- title
+- company
+- location
+- detail URL
+- external job ID candidate
+
+The observed external job ID candidate matched between article ID and detail URL in the evaluated sample.
+
+This does not prove long-term stability across all searches, result counts or layout variants.
+
+However, it is sufficient to justify a limited connector implementation.
+
+## Connector Direction
+
+StepStone should be implemented as a limited HTML result-card connector.
+
+The first connector implementation should focus on search-result cards only.
+
+It should not fetch detail pages, traverse pagination or attempt broad crawling.
+
+The connector should produce `RawJobRecord` records and preserve all source-specific evidence in `raw_data`.
+
+## Intended Role
+
+StepStone represents a more complex commercial HTML source with high market relevance in the German job market.
+
+The connector should therefore serve two purposes:
+
+1. provide access to a broad and relevant job source
+2. act as a practical template for future result-card-based HTML sources
+
+The implementation should avoid StepStone-specific architecture leakage.
+
+Reusable patterns should only be extracted when at least one further similar source creates the same need.
+
+## Remaining Risks
+
+- HTML structure may change
+- blocking or rate limiting behavior is not fully evaluated
+- legal and ethical boundaries require careful handling
+- pagination behavior is not evaluated
+- detail-page extraction is not evaluated
+- long-term external ID stability is not proven
+
 ## Current Decision
 
-StepStone should not be implemented as a production connector yet.
+Proceed with a limited StepStone result-card connector.
 
-The next appropriate step is a limited technical spike after this source analysis is reviewed.
+The connector should be implemented as a cautious first version based on search-result cards only.
 
-The spike should be used to decide whether StepStone is suitable for:
+The connector should not implement pagination, detail-page fetching or production-scale crawling in its first version.
 
-- production ingestion
-- limited ingestion
-- discovery-only usage
-- deferral
-- rejection
+StepStone should remain marked as operationally sensitive and higher maintenance than API-based or ATS-board sources.
+
+The implementation should validate whether the search result connector contract can be applied in real connector code without leaking StepStone-specific concepts into the shared architecture.
