@@ -199,7 +199,7 @@ The numeric ID should only be promoted from candidate to `external_job_id` after
 Current StepStone status:
 
 ```text
-experimental spike only
+limited result-card connector implemented
 ```
 
 ---
@@ -217,3 +217,8 @@ This contract does not yet define:
 - database migration changes
 
 These topics should be handled in later, smaller decisions.
+
+StepStone now provides the first implemented example of this contract through a limited result-card connector.
+
+The connector remains intentionally limited to search-result cards and does not implement detail-page fetching, pagination traversal or broad crawling.
+

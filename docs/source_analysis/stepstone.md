@@ -52,9 +52,9 @@ This matches the intended architecture path:
 | Source category | Commercial job portal |
 | Market relevance | High |
 | Geographic relevance | High for German job market |
-| Current implementation status | Source analysis, result-card probes, reusable parser and fixture tests exist |
-| Recommended next step | Limited result-card connector |
-| Production connector readiness | Ready for limited result-card connector, not ready for broad production crawling |
+| Current implementation status | Source analysis, reusable parser, fixture tests and limited result-card connector exist |
+| Recommended next step | Controlled search profile and ingestion integration |
+| Production connector readiness | Limited result-card connector implemented; not ready for broad production crawling |
 
 ---
 
@@ -640,6 +640,36 @@ Reusable patterns should only be extracted when at least one further similar sou
 - pagination behavior is not evaluated
 - detail-page extraction is not evaluated
 - long-term external ID stability is not proven
+
+## Limited Connector Implementation
+
+The limited StepStone result-card connector has been implemented in:
+
+- `src/connectors/stepstone.py`
+
+The connector uses the reusable result-card parser from:
+
+- `src/connectors/stepstone_result_cards.py`
+
+The connector intentionally remains limited:
+
+- one search-result page per request
+- result-card extraction only
+- no detail-page fetching
+- no pagination traversal
+- no broad crawling
+- no database schema changes
+
+It produces `RawJobRecord` records with source-preserving `raw_data` sections for:
+
+- `search_profile`
+- `search_context`
+- `result_card`
+- `source_specific`
+- `extraction`
+- `quality_signals`
+
+The connector only promotes `external_job_id` when the result-card article ID and detail URL ID match.
 
 ## Current Decision
 
