@@ -635,6 +635,18 @@ Run Silver normalization:
 
     python -m src.run_silver_jobs
 
+Install development and test dependencies:
+
+    python -m pip install -r requirements-dev.txt
+
+Testing details:
+
+    docs/development/testing.md
+
+Run tests:
+
+    python -m pytest -q
+
 ---
 
 ## Disclaimer

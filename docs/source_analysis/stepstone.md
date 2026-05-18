@@ -52,7 +52,7 @@ This matches the intended architecture path:
 | Source category | Commercial job portal |
 | Market relevance | High |
 | Geographic relevance | High for German job market |
-| Current implementation status | Source analysis, result-card probes and preview skeleton exist |
+| Current implementation status | Source analysis, result-card probes, reusable parser and fixture tests exist |
 | Recommended next step | Limited result-card connector |
 | Production connector readiness | Ready for limited result-card connector, not ready for broad production crawling |
 
@@ -474,7 +474,7 @@ Before implementing production ingestion, the boundary should be tested across a
 
 ---
 
-## Structured Card Extraction Probe
+## Result Card Field Extraction Probe
 
 A follow-up probe tested whether the stable result-card boundary can be used to extract result-card fields without opening detail pages.
 
@@ -490,7 +490,7 @@ Observed result-card field signals:
 
 | Signal | Count |
 |---|---:|
-| Structured cards | 25 |
+| Result cards | 25 |
 | Cards with title | 25 |
 | Cards with company | 25 |
 | Cards with location | 25 |
@@ -553,6 +553,31 @@ This finding is still based on a limited single-page probe.
 
 Before implementing production ingestion, the approach should be tested across additional search terms, result counts, empty-result pages and pagination states.
 
+
+## Parser Extraction
+
+The StepStone result-card parsing logic has been moved from the analysis script into a reusable parser module:
+
+- `src/connectors/stepstone_result_cards.py`
+
+The analysis and preview scripts now reuse this parser instead of carrying separate parsing logic.
+
+The parser is covered by a small fixture-based test suite:
+
+- `tests/fixtures/stepstone_result_cards_sample.html`
+- `tests/test_stepstone_result_cards.py`
+
+The fixture tests validate that:
+
+- only `article[data-testid="job-item"]` containers are parsed as result cards
+- global detail links outside result cards are ignored
+- title, company, location and detail URL are extracted
+- article IDs and detail URL IDs are compared
+- noisy source-specific fields remain raw evidence
+- salary UI prompts are not treated as salary amounts
+- publication, remote and employment-type hints are preserved as raw hints
+
+This keeps the StepStone connector path testable without relying on live StepStone requests in unit tests.
 
 ## Terminology Alignment
 

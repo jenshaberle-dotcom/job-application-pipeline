@@ -274,6 +274,7 @@ Observed StepStone-specific capabilities:
 | Search URL filtering | Keyword and location observed |
 | Result boundary | `article[data-testid="job-item"]` observed |
 | Result-card fields | Title, company, location and detail URL observed |
+| Result-card parser | Reusable parser module implemented and fixture-tested |
 | External ID | Derived candidate from article ID and detail URL |
 | ID confidence | Promising in sample, not long-term validated |
 | Detail pages | Not evaluated |
@@ -289,6 +290,8 @@ Summary:
 StepStone is no longer an unknown source.
 
 Source analysis and limited result-card probes showed that StepStone can provide useful search-result-level records from public HTML result pages.
+
+A reusable result-card parser now exists and is covered by fixture-based tests.
 
 The next appropriate implementation step is a limited result-card connector.
 
