@@ -66,6 +66,7 @@ class JobIngestionRepository:
                         sp.search_radius_km,
                         sp.offer_type,
                         sp.page_size,
+                        st.id,
                         st.search_term
                     FROM search_profiles sp
                     JOIN search_terms st
@@ -91,7 +92,10 @@ class JobIngestionRepository:
                     offer_type=row[5],
                     page_size=row[6],
                 ),
-                SearchTerm(search_term=row[7]),
+                SearchTerm(
+                    id=row[7],
+                    search_term=row[8],
+                ),
             )
             for row in rows
         ]
@@ -100,6 +104,8 @@ class JobIngestionRepository:
         self,
         source_name: str,
         search_profile_id: int,
+        search_term_id: int | None = None,
+        search_term: str | None = None,
         requested_url: str | None = None,
     ) -> int:
         with self.get_connection() as conn:
@@ -109,12 +115,20 @@ class JobIngestionRepository:
                     INSERT INTO ingestion_runs (
                         source_name,
                         search_profile_id,
+                        search_term_id,
+                        search_term,
                         requested_url
                     )
-                    VALUES (%s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s)
                     RETURNING id;
                     """,
-                    (source_name, search_profile_id, requested_url),
+                    (
+                        source_name,
+                        search_profile_id,
+                        search_term_id,
+                        search_term,
+                        requested_url,
+                    ),
                 )
                 return cur.fetchone()[0]
 

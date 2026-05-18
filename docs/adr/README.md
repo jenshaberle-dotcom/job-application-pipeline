@@ -51,6 +51,7 @@ The ADRs intentionally reflect this evolution.
 | 022 | Define shared source and layer terminology | Accepted |
 | 023 | Define search result connector contract | Accepted |
 | 024 | Define search quality and relevance evaluation boundary | Accepted |
+| 025 | Preserve search-term lineage for quality evaluation | Accepted |
 
 ---
 

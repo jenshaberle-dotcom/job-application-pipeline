@@ -131,7 +131,7 @@ Future iterations may add stale detection based on time since the last successfu
 
 `ingestion_runs` stores one row per ingestion execution.
 
-It provides operational lineage, requested URL information and ingestion statistics.
+It provides operational lineage, requested URL information, search-term lineage and ingestion statistics.
 
 ## Columns
 
@@ -144,6 +144,8 @@ It provides operational lineage, requested URL information and ingestion statist
 | `finished_at` | `timestamp with time zone` | yes |  |  |
 | `status` | `text` | no | `'running'` |  |
 | `requested_url` | `text` | yes |  |  |
+| `search_term_id` | `bigint` | yes |  | Foreign key to `search_terms`. |
+| `search_term` | `text` | yes |  | Historical term snapshot used by the run. |
 | `total_loaded` | `integer` | no | `0` |  |
 | `inserted_count` | `integer` | no | `0` |  |
 | `duplicate_count` | `integer` | no | `0` |  |
@@ -156,6 +158,8 @@ It provides operational lineage, requested URL information and ingestion statist
 | `ingestion_runs_pkey` | Primary key | `id` | Internal ingestion run identifier. |
 | `ingestion_runs_search_profile_id_fkey` | Foreign key | `search_profile_id` | Links a run to the profile used. |
 | `idx_ingestion_runs_search_profile_id` | Index | `search_profile_id` | Supports profile-based run analysis. |
+| `idx_ingestion_runs_search_term_id` | Index | `search_term_id` | Supports search-term quality analysis. |
+| `idx_ingestion_runs_search_term` | Index | `search_term` | Supports historical term-snapshot analysis. |
 
 ## Referenced By
 

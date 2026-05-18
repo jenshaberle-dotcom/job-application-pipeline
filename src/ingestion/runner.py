@@ -73,6 +73,8 @@ class JobIngestionRunner:
             ingestion_run_id = self.repository.create_ingestion_run(
                 source_name=self.connector.source_name,
                 search_profile_id=profile.id,
+                search_term_id=search_term.id,
+                search_term=search_term.search_term,
             )
 
             try:

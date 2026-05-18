@@ -18,6 +18,7 @@ class SearchProfile:
 @dataclass(frozen=True)
 class SearchTerm:
     search_term: str
+    id: int | None = None
 
 
 @dataclass(frozen=True)
