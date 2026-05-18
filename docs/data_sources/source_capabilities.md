@@ -279,11 +279,11 @@ Observed StepStone-specific capabilities:
 | ID confidence | Promising in sample, not long-term validated |
 | Detail pages | Not evaluated |
 | Pagination | Not evaluated |
-| Database ingestion | Not implemented |
-| Connector status | Limited result-card connector implemented |
+| Database ingestion | Controlled profile validated |
+| Connector status | Limited result-card connector implemented and validated through controlled profile |
 | Operational risk | Medium to high |
 | Maintenance risk | High |
-| Recommended strategy | Limited result-card connector, no detail pages, no pagination, no aggressive crawling |
+| Recommended strategy | Controlled multi-term result-card ingestion, no detail pages, no pagination, no aggressive crawling |
 
 Summary:
 
@@ -298,6 +298,13 @@ The limited result-card connector is implemented in `src/connectors/stepstone.py
 This does not mean broad crawling, detail-page fetching, pagination traversal or full production-scale ingestion.
 
 StepStone should remain marked as operationally sensitive and higher maintenance than API-based or ATS-board sources. The implemented connector remains intentionally limited to result-card extraction.
+
+A controlled multi-term ingestion run validated that StepStone can be executed through the normal ingestion runner.
+
+The run produced 175 observations, 109 new raw jobs and 66 duplicate observations across seven search terms.
+
+The result also showed broad source-side matching behavior, so downstream relevance scoring and search-term quality evaluation are required before using StepStone results for candidate-facing recommendations.
+
 
 ---
 
