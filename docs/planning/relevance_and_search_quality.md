@@ -16,6 +16,18 @@ The current Silver relevance logic answers whether a raw job is eligible for Sil
 Candidate-fit scoring and search-term quality evaluation are separate later concerns.
 
 
+## Required Lineage Foundation
+
+Search-quality metrics require reliable search-term lineage.
+
+An ingestion run should preserve the specific search term that triggered it, not only the broader search profile. Without this, multiple search terms inside one profile cannot be compared safely.
+
+The intended lineage path is:
+
+`search_terms` → `ingestion_runs` → `job_observations` → `raw_jobs`
+
+This allows later analysis of term usefulness, duplicate rates, overlap and unique discoveries without adding scoring logic to connectors.
+
 ## Purpose
 
 This document captures future work around job relevance, candidate fit scoring and search-term quality evaluation.
