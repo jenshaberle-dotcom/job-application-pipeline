@@ -1,6 +1,53 @@
-from src.connectors.base import JobSourceConnector
+from typing import Any
+
+from src.connectors.base import JobSourceConnector, RawJobRecord
 from src.ingestion.post_fetch_filter import apply_keyword_filter
 from src.ingestion.repository import JobIngestionRepository
+
+
+MISSING_DISPLAY_VALUE = "<missing>"
+
+
+def get_nested_value(
+    data: dict[str, Any],
+    path: tuple[str, ...],
+) -> str | None:
+    current: Any = data
+
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+
+        current = current.get(key)
+
+    if current is None:
+        return None
+
+    value = str(current).strip()
+
+    if not value:
+        return None
+
+    return value
+
+
+def get_record_display_title(record: RawJobRecord) -> str:
+    return (
+        get_nested_value(record.raw_data, ("result_card", "title"))
+        or get_nested_value(record.raw_data, ("job", "titel"))
+        or get_nested_value(record.raw_data, ("job", "title"))
+        or MISSING_DISPLAY_VALUE
+    )
+
+
+def get_record_display_company(record: RawJobRecord) -> str:
+    return (
+        get_nested_value(record.raw_data, ("result_card", "company_name"))
+        or get_nested_value(record.raw_data, ("job", "arbeitgeber"))
+        or get_nested_value(record.raw_data, ("job", "company_name"))
+        or get_nested_value(record.raw_data, ("job", "company"))
+        or MISSING_DISPLAY_VALUE
+    )
 
 
 class JobIngestionRunner:
@@ -83,21 +130,22 @@ class JobIngestionRunner:
                     raw_job_id=raw_job_id,
                 )
 
-                job = record.raw_data.get("job", {})
+                display_title = get_record_display_title(record)
+                display_company = get_record_display_company(record)
 
                 if new_id is None:
                     duplicate_count += 1
                     print(
-                        f"Bereits vorhanden: {job.get('titel')} | "
-                        f"{job.get('arbeitgeber')}"
+                        f"Bereits vorhanden: {display_title} | "
+                        f"{display_company}"
                     )
                     continue
 
                 inserted_count += 1
                 print(
                     f"Gespeichert: ID={new_id} | "
-                    f"{job.get('titel')} | "
-                    f"{job.get('arbeitgeber')}"
+                    f"{display_title} | "
+                    f"{display_company}"
                 )
 
             self.repository.finish_ingestion_run(

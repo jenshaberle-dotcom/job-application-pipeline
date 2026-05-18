@@ -671,6 +671,65 @@ It produces `RawJobRecord` records with source-preserving `raw_data` sections fo
 
 The connector only promotes `external_job_id` when the result-card article ID and detail URL ID match.
 
+## Controlled Ingestion Validation
+
+A controlled StepStone search profile has been added:
+
+- `stepstone_data_engineer_hannover`
+
+The profile intentionally uses multiple search terms to validate whether the connector and schema work beyond a single `Data Engineer` search:
+
+- `Data Engineer`
+- `Analytics Engineer`
+- `ETL`
+- `Data Platform`
+- `Data Warehouse`
+- `Big Data`
+- `Python SQL`
+
+Initial controlled ingestion result:
+
+| Metric | Value |
+|---|---:|
+| Search terms executed | 7 |
+| Result cards loaded | 175 |
+| New raw jobs stored | 109 |
+| Existing raw jobs observed again | 66 |
+| StepStone ingestion runs | 7 |
+| Successful StepStone ingestion runs | 7 |
+| StepStone job observations | 175 |
+
+Interpretation:
+
+- the limited connector works with multiple search terms
+- the shared ingestion runner can execute StepStone through the normal connector flow
+- StepStone result-card records can be stored as `raw_jobs`
+- duplicate detection works through `source_name` and `external_job_id`
+- multiple search terms intentionally create overlapping observations
+- the terminal output is now source-neutral and no longer assumes Bundesagentur-specific raw fields
+
+The run also showed that StepStone search results can be broad and noisy.
+
+Examples include jobs that are technically adjacent, only loosely related to Data Engineering, or matched because of broad source-side search behavior.
+
+This is not a connector defect.
+
+It indicates that relevance scoring, profile matching and search-term quality evaluation should be handled after raw ingestion.
+
+Potential later work:
+
+- relevance or confidence scoring against a candidate profile
+- false-positive analysis for broad source search behavior
+- false-negative analysis for missing or weak search terms
+- search-term discovery based on high-quality matched jobs
+- source-specific search quality comparison across Bundesagentur, Greenhouse and StepStone
+
+These topics should not be implemented inside the StepStone connector.
+
+Further planning notes are captured in:
+
+- `docs/planning/relevance_and_search_quality.md`
+
 ## Current Decision
 
 Proceed with a limited StepStone result-card connector.
