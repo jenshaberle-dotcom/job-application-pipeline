@@ -42,7 +42,7 @@ See also:
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|
 | Bundesagentur für Arbeit | Public job API | yes | yes | yes | yes | no | yes | no | implemented |
 | Greenhouse | ATS job board | no | no | no | no | no | no | yes | implemented |
-| StepStone | Commercial job portal | observed | observed | unknown | unknown | unknown | not evaluated | no | limited connector candidate |
+| StepStone | Commercial job portal | observed | observed | unknown | unknown | unknown | not evaluated | no | limited result-card connector |
 | Workday | Enterprise ATS | limited | limited | no | limited | unclear | yes | no/limited | candidate |
 | Personio | ATS / company career system | limited | limited | no | limited | unclear | limited | yes/limited | candidate |
 | Lever | ATS job board | no/limited | limited | no | no | no | no/limited | yes | candidate |
@@ -248,7 +248,7 @@ This source is useful because it introduces realistic ATS behavior, incomplete m
 
 ### StepStone
 
-Current status: `limited_connector_candidate`
+Current status: `limited_result_card_connector`
 
 Current profile:
 
@@ -280,10 +280,10 @@ Observed StepStone-specific capabilities:
 | Detail pages | Not evaluated |
 | Pagination | Not evaluated |
 | Database ingestion | Not implemented |
-| Connector status | Candidate for limited result-card connector |
+| Connector status | Limited result-card connector implemented |
 | Operational risk | Medium to high |
 | Maintenance risk | High |
-| Recommended strategy | Limited result-card connector, no aggressive crawling |
+| Recommended strategy | Limited result-card connector, no detail pages, no pagination, no aggressive crawling |
 
 Summary:
 
@@ -293,11 +293,11 @@ Source analysis and limited result-card probes showed that StepStone can provide
 
 A reusable result-card parser now exists and is covered by fixture-based tests.
 
-The next appropriate implementation step is a limited result-card connector.
+The limited result-card connector is implemented in `src/connectors/stepstone.py`.
 
 This does not mean broad crawling, detail-page fetching, pagination traversal or full production-scale ingestion.
 
-StepStone should remain marked as operationally sensitive and higher maintenance than API-based or ATS-board sources.
+StepStone should remain marked as operationally sensitive and higher maintenance than API-based or ATS-board sources. The implemented connector remains intentionally limited to result-card extraction.
 
 ---
 
