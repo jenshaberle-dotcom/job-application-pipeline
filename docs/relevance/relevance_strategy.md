@@ -149,3 +149,27 @@ Bronze may be broad, but must be bounded.
 Silver should be relevant.
 
 Gold should score and rank.
+
+## Boundary to Search Quality and Candidate-Fit Evaluation
+The current relevance strategy defines whether Bronze records are eligible for Silver normalization.
+
+This is not the same as search-term quality evaluation, false-negative analysis or candidate-fit scoring.
+
+Silver relevance answers:
+
+- Is this raw job potentially relevant enough for canonical normalization?
+
+Search quality later answers:
+
+- Which search terms produce useful jobs?
+- Which search terms mostly produce noise?
+- Which terms uniquely discover relevant jobs?
+- Where might current profiles miss valuable jobs?
+
+Candidate-fit scoring later answers:
+
+- How well does this normalized job match a candidate profile?
+- How strong is the match?
+- Which skills, role signals or accessibility constraints support or weaken the match?
+
+These later topics are defined as separate responsibilities in ADR-024.

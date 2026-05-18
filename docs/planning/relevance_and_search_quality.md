@@ -1,5 +1,21 @@
 # Relevance and Search Quality Planning
 
+## Relationship to Existing Relevance Logic
+
+This planning document extends, but does not replace, the existing relevance boundary.
+
+See also:
+
+- `docs/adr/016_define_ingestion_scope_and_relevance_boundaries.md`
+- `docs/adr/024_define_search_quality_and_relevance_evaluation_boundary.md`
+- `docs/relevance/relevance_strategy.md`
+- `src/silver/relevance.py`
+
+The current Silver relevance logic answers whether a raw job is eligible for Silver normalization.
+
+Candidate-fit scoring and search-term quality evaluation are separate later concerns.
+
+
 ## Purpose
 
 This document captures future work around job relevance, candidate fit scoring and search-term quality evaluation.
@@ -129,3 +145,59 @@ Gold / Dashboard:
 Do not implement relevance scoring in connectors.
 
 Treat relevance, search-term quality and candidate fit scoring as a later dedicated topic after controlled multi-source ingestion is stable.
+
+## Continuous Search Profile Calibration
+
+Search profiles should not be treated as static forever.
+
+Job-market terminology changes over time.
+
+Skill focus inside a profile can also shift over time.
+
+A profile that works well today may miss valuable jobs later if new role titles, skill clusters or source-specific terminology appear.
+
+The project should therefore support recurring search-profile calibration.
+
+Calibration should be based on evidence from loaded jobs, observations, duplicate patterns, Silver eligibility, later candidate-fit signals and controlled discovery checks.
+
+Important questions:
+
+- Which search terms still produce useful jobs?
+- Which terms mostly produce noise?
+- Which terms uniquely discover valuable jobs?
+- Which valuable jobs are only found by indirect or exploratory terms?
+- Which relevant role titles or skills are missing from the current profile scope?
+- How do these patterns differ across Bundesagentur, Greenhouse and StepStone?
+
+## Controlled Discovery Checks
+
+A controlled discovery check is a bounded analysis run.
+
+It is designed to detect potential false negatives without turning the project into broad crawling.
+
+Discovery checks may use:
+
+- broader role terms
+- alternative source-specific terminology
+- adjacent skill terms
+- emerging market terms
+- one-off exploratory search profiles
+
+Discovery results should be compared against regular profile results.
+
+A useful discovery finding is not merely a larger result set.
+
+A useful discovery finding is evidence that a valuable job or recurring valuable term is missed by the regular profile.
+
+Potential outputs:
+
+- candidate search terms to add
+- noisy search terms to narrow or remove
+- profile scope changes to review
+- source-specific terminology differences
+- dashboard indicators for search-profile drift
+
+Discovery checks should create reviewable evidence.
+
+They should not automatically rewrite productive search profiles.
+

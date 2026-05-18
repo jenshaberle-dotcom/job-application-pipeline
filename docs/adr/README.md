@@ -50,6 +50,7 @@ The ADRs intentionally reflect this evolution.
 | 021 | Expand source capability model before complex sources | Accepted |
 | 022 | Define shared source and layer terminology | Accepted |
 | 023 | Define search result connector contract | Accepted |
+| 024 | Define search quality and relevance evaluation boundary | Accepted |
 
 ---
 
