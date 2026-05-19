@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workzag-jobs>
+  <position>
+    <id>2498694</id>
+    <name>Data Engineer (m/w/d)</name>
+    <office>Hannover</office>
+    <department>Data &amp; Analytics</department>
+    <subcompany>Schlütersche Verlagsgesellschaft mbH &amp; Co. KG</subcompany>
+    <employmentType>Permanent</employmentType>
+    <schedule>Full-time</schedule>
+    <jobDescriptions>
+      <jobDescription>
+        <name>Deine Aufgaben</name>
+        <value>Du arbeitest mit ETL, Data Warehouse und Python SQL.</value>
+      </jobDescription>
+    </jobDescriptions>
+  </position>
+  <position>
+    <id>1234567</id>
+    <name>Online Marketing Manager (m/w/d)</name>
+    <office>Hannover</office>
+    <department>Marketing</department>
+    <subcompany>Schlütersche Verlagsgesellschaft mbH &amp; Co. KG</subcompany>
+    <employmentType>Permanent</employmentType>
+    <schedule>Full-time</schedule>
+  </position>
+</workzag-jobs>
