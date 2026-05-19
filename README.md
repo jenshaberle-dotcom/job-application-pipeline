@@ -666,13 +666,23 @@ Start PostgreSQL using Docker:
 
 ### Example Commands
 
-Run Bundesagentur ingestion:
+Run all active ingestion profiles:
 
     python -m src.ingest_jobs
 
-Run Greenhouse ingestion:
+Run all active profiles for one source family:
 
-    python -m src.ingest_jobs greenhouse_stripe
+    python -m src.ingest_jobs --source bundesagentur_fuer_arbeit
+    python -m src.ingest_jobs --source greenhouse
+
+Run one specific search profile:
+
+    python -m src.ingest_jobs --profile ba_data_engineer_30629_50km
+    python -m src.ingest_jobs --profile greenhouse_stripe
+
+List active search profiles:
+
+    python -m src.ingest_jobs --list-profiles
 
 Run Silver normalization:
 
