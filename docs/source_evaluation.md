@@ -27,11 +27,28 @@ Commercial aggregation platforms can be useful, but their value must be proven.
 
 The long-term goal is not to maximize raw source count. The goal is to build a reliable, explainable and useful personal job-market intelligence system.
 
+## Source Role Strategy
+
+The project distinguishes source roles when evaluating acquisition strategy.
+
+| Source role | Preferred usage | Canonical-source expectation |
+|---|---|---|
+| Official API source | Primary ingestion and stable market baseline | Strong canonical-source candidate |
+| ATS or company-board source | Employer-near acquisition through company or ATS boards | Strong canonical-source candidate |
+| Company career page | Employer-origin acquisition when technically and responsibly feasible | Strong canonical-source candidate |
+| Commercial aggregator or job portal | Discovery, exploration, source-value comparison and candidate-source discovery | Not canonical by default |
+
+Commercial aggregators can help discover relevant employers, roles and market signals.
+
+They should not be treated as preferred canonical sources when an employer-origin, ATS or official source is available.
+
+This distinction supports the long-term strategy of using commercial platforms defensively while preferring employer-near sources for canonical job evidence.
+
 ## Terminology Alignment
 
-Source evaluations use the shared project terminology from `docs/glossary.md` and ADR-022.
+Source evaluations use the shared project terminology from `docs/glossary.md`, ADR-022, ADR-026 and ADR-027.
 
-Observed provider-specific structures should be described as source signals and then mapped to canonical project concepts such as source, connector, search intent, result card, detail page, external job ID, Bronze record and canonical job.
+Observed provider-specific structures should be described as source signals and then mapped to canonical project concepts such as source, source target, connector, search intent, result card, detail page, external job ID, Bronze record and canonical job.
 
 The project therefore intentionally includes:
 
@@ -139,7 +156,7 @@ However, the project architecture should not become overly optimized for this so
 
 ### Type
 
-ATS platform
+ATS / company-board source
 
 ### Evaluation Summary
 
@@ -163,6 +180,7 @@ ATS platform
 - Structured but company-specific source behavior
 - Good candidate for canonical normalization testing
 - Useful for validating full-fetch plus local filtering behavior
+- Employer-near source target model for later canonical-source evaluation
 
 ### Challenges
 
@@ -182,9 +200,11 @@ It validates that the connector architecture can handle sources that do not supp
 
 Implemented.
 
+Greenhouse boards should be treated as source targets within the Greenhouse source family, not as separate search profiles.
+
 ---
 
-# Candidate Sources
+# Current Discovery and Candidate Sources
 
 ## StepStone
 
@@ -194,7 +214,7 @@ Commercial job platform
 
 ### Current Status
 
-Initial source analysis in progress. See `docs/source_analysis/stepstone.md`.
+Limited result-card connector implemented. See `docs/source_analysis/stepstone.md`.
 
 ### Expected Advantages
 
@@ -217,25 +237,20 @@ Initial source analysis in progress. See `docs/source_analysis/stepstone.md`.
 
 ### Required Next Step
 
-Complete and review the dedicated StepStone source analysis before implementing a connector.
+Do not expand StepStone into broad crawling.
 
-The analysis should determine:
+Next steps should focus on:
 
-- access model
-- search URL structure
-- filter behavior
-- pagination model
-- identifier stability
-- metadata availability
-- publication date availability
-- blocking or consent behavior
-- legal and ethical feasibility
-- heartbeat strategy
-- whether a limited spike is justified
+- source-value evaluation
+- search-quality analysis
+- controlled source-target lineage
+- canonical-source discovery from employer or ATS links where feasible
+- maintaining explicit acquisition boundaries
+- avoiding detail-page fetching and uncontrolled pagination
 
 ### Portfolio Value
 
-High, if implemented responsibly and with clear documentation of constraints.
+High, if kept as a bounded discovery and aggregator source with clear documentation of constraints.
 
 ---
 
@@ -346,14 +361,15 @@ Very High
 
 ## Current Direction
 
-The project currently has two implemented source categories:
+The project currently has three implemented source categories:
 
 - search-capable public API
 - full-fetch ATS board
+- limited commercial aggregator discovery source
 
-The next source expansion should intentionally introduce more architectural complexity than the Bundesagentur für Arbeit API while remaining responsibly scoped.
+The next source expansion should improve source-target lineage and then add controlled ATS or company-board targets before expanding commercial portal acquisition.
 
-Before implementing StepStone or similar commercial job portals, the project should first expand source capability documentation and create a dedicated source analysis.
+Commercial platforms such as StepStone should remain bounded discovery sources unless source-value analysis justifies continued controlled use.
 
 The goal is to validate:
 

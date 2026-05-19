@@ -17,10 +17,12 @@
 
 - [x] Bundesagentur für Arbeit connector
 - [x] Greenhouse connector
+- [x] Limited StepStone result-card connector
 - [x] Connector-based ingestion architecture
 - [x] Source capability abstraction
 - [x] Configurable search profiles
 - [x] Multi-term search strategy
+- [x] Search-term lineage on ingestion runs
 - [x] Repository-based persistence
 - [x] Ingestion runner orchestration
 - [x] Ingestion run tracking
@@ -33,12 +35,15 @@
 
 - [~] Multi-source architecture validation
 - [~] Observation granularity refinement
+- [~] Source-target lineage design
 
-- [ ] StepStone connector
-- [ ] LinkedIn Jobs evaluation
-- [ ] Workday connector
-- [ ] Company career page ingestion
-- [ ] Anti-bot handling strategy
+- [ ] Explicit source-target lineage implementation
+- [ ] Controlled Greenhouse source-target expansion
+- [ ] Additional ATS source-target evaluation
+- [ ] Personio evaluation
+- [ ] Softgarden evaluation
+- [ ] SmartRecruiters evaluation
+- [ ] Workday / SAP SuccessFactors exploration
 - [ ] Content hash strategy
 - [ ] Source change detection
 
@@ -57,7 +62,11 @@ Goals:
 
 - [x] Initial source evaluation strategy
 - [x] Greenhouse source analysis
+- [x] StepStone source analysis
 - [x] Capability-based source abstraction
+- [x] Search result connector contract
+- [x] Source acquisition scope and source value strategy
+- [x] Source target acquisition model
 
 - [ ] Evaluate additional ATS providers
 - [ ] Compare structured vs. semi-structured sources
@@ -72,6 +81,7 @@ Goals:
 - Compare ingestion complexity
 - Compare data quality
 - Compare operational complexity
+- Avoid uncontrolled or aggressive acquisition patterns
 
 ---
 
@@ -83,15 +93,22 @@ Goals:
 - [x] Initial relevance filtering
 - [x] Processing decision tracking
 - [x] Token-aware relevance matching
+- [x] Greenhouse Silver transformation
+- [x] First Canonicalization Layer
+- [x] Normalized title, company and location fields
+- [x] Canonical key candidate generation
+- [x] Canonicalization backfill script
+- [x] Silver source value exploration script
 
 - [~] Lifecycle-oriented Silver preparation
+- [~] Source value and overlap exploration
 
 - [ ] Expanded normalization
 - [ ] Unified cross-source job representation
 - [ ] Location normalization
 - [ ] Company normalization
 - [ ] Role-family classification
-- [ ] Rule-based role family classification planning
+- [ ] Rule-based role family classification implementation
 - [ ] Skill extraction
 - [ ] Semantic duplicate consolidation
 - [ ] Structured metadata extraction
@@ -102,6 +119,7 @@ Goals:
 - Separate ingestion from analytical datasets
 - Prepare lifecycle-aware job intelligence
 - Prepare future Gold analytics
+- Prepare source-value and overlap analysis without premature canonical merging
 
 ---
 
@@ -138,6 +156,8 @@ Goals:
 - [ ] Skill trend analytics
 - [ ] Search profile effectiveness metrics
 - [ ] Search term effectiveness metrics
+- [ ] Source value metrics
+- [ ] Source-target quality metrics
 - [ ] KPI generation
 - [ ] Trend analysis
 - [ ] Application workflow tracking

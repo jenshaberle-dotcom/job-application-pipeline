@@ -42,6 +42,14 @@ Layer terminology rules:
 - **Gold** uses business-facing terms and must not depend on source-specific selectors, HTML structures or provider vocabulary.
 - **Documentation** must distinguish observed source signals from project-level canonical fields.
 
+## Later Terminology Extension
+
+ADR-027 extends the shared terminology with `Source target`, `Acquisition mode` and `Acquisition policy`.
+
+This does not replace the terminology defined here.
+
+It adds acquisition-lineage concepts needed for ATS boards, company career pages and controlled discovery sources.
+
 ## Consequences
 
 This creates a stable language for future connectors and transformations.

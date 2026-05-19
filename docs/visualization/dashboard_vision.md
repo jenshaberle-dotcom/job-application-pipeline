@@ -162,7 +162,7 @@ Show how the observed job market develops over time.
 Potential data basis:
 
 - `job_observations`
-- future `job_lifecycle` view
+- `job_lifecycle` view
 
 Potential metrics:
 

@@ -13,7 +13,12 @@ classDiagram
         +fetch_jobs(profile, search_term)
     }
 
-    class FutureConnector {
+    class GreenhouseConnector {
+        +source_name
+        +fetch_jobs(profile, search_term)
+    }
+
+    class StepStoneConnector {
         +source_name
         +fetch_jobs(profile, search_term)
     }
@@ -63,12 +68,15 @@ classDiagram
     }
 
     class silver_jobs {
-        <<Silver Layer v0>>
+        <<Silver Layer>>
         +raw_job_id
         +title
         +company_name
         +city
         +publication_date
+        +normalized_title
+        +normalized_company_name
+        +canonical_key_candidate
     }
 
     class matching_scores {
@@ -76,7 +84,8 @@ classDiagram
     }
 
     JobSourceConnector <|.. BundesagenturConnector
-    JobSourceConnector <|.. FutureConnector
+    JobSourceConnector <|.. GreenhouseConnector
+    JobSourceConnector <|.. StepStoneConnector
 
     JobIngestionRunner --> JobSourceConnector : executes
     JobIngestionRunner --> JobIngestionRepository : persists via
@@ -86,7 +95,8 @@ classDiagram
     JobIngestionRepository --> raw_jobs
 
     BundesagenturConnector --> RawJobRecord : returns
-    FutureConnector --> RawJobRecord : returns
+    GreenhouseConnector --> RawJobRecord : returns
+    StepStoneConnector --> RawJobRecord : returns
 
     RawJobRecord --> raw_jobs : source-preserving storage
 
@@ -110,4 +120,4 @@ They do not perform business-level interpretation such as:
 
 The Bronze layer stores source-preserving raw records.
 
-The Silver layer starts with a pragmatic canonical representation and will evolve as additional sources such as Greenhouse are added.
+The Silver layer provides a pragmatic canonical representation and now includes first-stage canonicalization fields for duplicate-candidate and source-value analysis.
