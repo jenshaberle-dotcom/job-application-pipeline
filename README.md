@@ -674,6 +674,7 @@ Run all active profiles for one source family:
 
     python -m src.ingest_jobs --source bundesagentur_fuer_arbeit
     python -m src.ingest_jobs --source greenhouse
+    python -m src.ingest_jobs --source personio
 
 Run one specific search profile:
 

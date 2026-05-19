@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from src.connectors.base import SearchProfile
 from src.connectors.bundesagentur import BundesagenturConnector
 from src.connectors.greenhouse import GreenhouseConnector
+from src.connectors.personio import PersonioConnector
 from src.connectors.stepstone import StepStoneConnector
 from src.ingestion.repository import JobIngestionRepository
 from src.ingestion.runner import JobIngestionRunner
@@ -19,6 +20,10 @@ def create_connector(source_name: str):
     if source_name.startswith("greenhouse:"):
         board_token = source_name.split(":", 1)[1]
         return GreenhouseConnector(board_token=board_token)
+
+    if source_name.startswith("personio:"):
+        target_key = source_name.split(":", 1)[1]
+        return PersonioConnector(target_key=target_key)
 
     if source_name == "stepstone":
         return StepStoneConnector()
