@@ -63,6 +63,65 @@ These dimensions help decide whether a source should be implemented as:
 - a documentation-only candidate
 - a deferred source
 
+### Source Role
+
+Describes the intended architectural role of a source.
+
+Allowed values:
+
+| Value | Meaning |
+|---|---|
+| `official_api_source` | Official or explicitly intended machine-readable API source. |
+| `canonical_source` | Employer or ATS-near source preferred for canonical job identity. |
+| `discovery_source` | Source used to discover that an opportunity may exist. |
+| `aggregator_source` | Source aggregating postings from multiple employers or recruiters. |
+| `fallback_source` | Source used when no stronger canonical source can be resolved. |
+| `observation_source` | Source providing evidence that a job was seen at a specific time. |
+
+### Acquisition Mode
+
+Describes how broadly the source should be queried.
+
+Allowed values:
+
+| Value | Meaning |
+|---|---|
+| `official_api_ingestion` | Systematic ingestion through an official API. |
+| `company_board_ingestion` | Fetching jobs from a company or ATS board. |
+| `limited_probe` | Bounded sample used for source and connector validation. |
+| `controlled_sampling` | Bounded recurring sampling with explicit caps and stop conditions. |
+| `unsupported_full_crawl` | Broad collection mode that should not be implemented. |
+
+### Recall Claim Level
+
+Describes what kind of coverage claim the project may make for the source.
+
+Allowed values:
+
+| Value | Meaning |
+|---|---|
+| `full_or_high_confidence` | Broad coverage can be claimed for the configured source scope. |
+| `bounded_sample` | Results represent a documented bounded sample. |
+| `sample_only` | Results are useful for probing and exploration only. |
+| `none` | No recall claim should be made. |
+| `unknown` | Not evaluated yet. |
+
+### Source Value Evaluation
+
+Describes whether the source must prove continued value through later metrics.
+
+Relevant value dimensions:
+
+| Dimension | Meaning |
+|---|---|
+| `coverage_gain` | Additional jobs or companies discovered compared with existing sources. |
+| `unique_job_rate` | Share of jobs not already observed through other sources. |
+| `unique_company_rate` | Share of companies not already observed through other sources. |
+| `canonical_match_rate` | Share of discovered jobs that can be resolved to a canonical company or ATS source. |
+| `early_discovery_value` | Whether the source discovers opportunities earlier than other sources. |
+| `risk_penalty` | Legal, terms-of-service, blocking or responsible-use sensitivity. |
+| `maintenance_penalty` | Expected parser, connector and operational maintenance cost. |
+
 ### Access Model
 
 Describes how the source can be accessed.
@@ -271,6 +330,15 @@ Observed StepStone-specific capabilities:
 
 | Capability | Current Assessment |
 |---|---|
+| Source role | `discovery_source`, `aggregator_source`, `observation_source` |
+| Canonical source preference | Prefer company or ATS source when resolvable |
+| Fallback source usage | Allowed, but fallback records must remain distinguishable from verified canonical sources |
+| Current acquisition mode | `limited_probe` |
+| Target acquisition mode candidate | `controlled_sampling` |
+| Recall claim level | `sample_only` |
+| Full crawl support | Explicitly out of scope |
+| Detail-page strategy | Disabled unless explicitly justified later |
+| Source value evaluation | Required before expanding long-term strategic usage |
 | Search URL filtering | Keyword and location observed |
 | Result boundary | `article[data-testid="job-item"]` observed |
 | Result-card fields | Title, company, location and detail URL observed |

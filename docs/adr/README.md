@@ -52,6 +52,7 @@ The ADRs intentionally reflect this evolution.
 | 023 | Define search result connector contract | Accepted |
 | 024 | Define search quality and relevance evaluation boundary | Accepted |
 | 025 | Preserve search-term lineage for quality evaluation | Accepted |
+| 026 | Define source acquisition scope, canonical source strategy and source value evaluation | Accepted |
 
 ---
 
