@@ -6,6 +6,27 @@ The project intentionally evaluates multiple real-world job data sources instead
 
 The goal is not only to ingest job postings, but also to understand the architectural, operational and data-quality implications of different source types.
 
+## Strategic Source Evaluation Principles
+
+The project does not treat every available source as automatically valuable.
+
+A source must justify its continued use through the additional value it provides compared with its operational, technical and legal or terms-of-service related risk.
+
+The project therefore follows these principles:
+
+1. Prefer official APIs and canonical employer or ATS sources where feasible.
+2. Use commercial aggregation platforms primarily as discovery sources.
+3. Do not build an alternative public job platform or mirror third-party job advertisements.
+4. Do not republish complete third-party job advertisements.
+5. Use controlled sampling for sensitive HTML sources.
+6. Require explicit acquisition boundaries before expanding pagination or collection depth.
+7. Evaluate risky or fragile sources with a Source Value Score before treating them as long-term strategic sources.
+8. Downgrade, limit or remove sources whose incremental value does not justify their risk and maintenance cost.
+
+Commercial aggregation platforms can be useful, but their value must be proven.
+
+The long-term goal is not to maximize raw source count. The goal is to build a reliable, explainable and useful personal job-market intelligence system.
+
 ## Terminology Alignment
 
 Source evaluations use the shared project terminology from `docs/glossary.md` and ADR-022.

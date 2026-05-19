@@ -6,9 +6,9 @@ StepStone source analysis has reached connector-decision stage.
 
 Limited probes showed that StepStone exposes usable search-result card structures for the evaluated search page.
 
-A full production connector has not been implemented yet.
+A limited result-card connector has been implemented, but broad production crawling is intentionally not supported.
 
-The next implementation step is a limited result-card connector, not a broad crawler.
+The next strategic step is controlled discovery sampling with explicit acquisition boundaries, not broad crawling.
 
 ## Purpose
 
@@ -26,14 +26,14 @@ StepStone should also act as a practical reference case for future result-card-b
 
 A StepStone connector skeleton exists in `src/connectors/stepstone.py`.
 
-The full connector is not implemented yet.
+A limited result-card connector exists, but broad crawling and detail-page ingestion are intentionally not implemented.
 
 Current behavior:
 
 - the connector can be imported
-- `fetch_jobs()` is not implemented
-- calling the connector raises `NotImplementedError`
-- no production StepStone ingestion exists yet
+- `fetch_jobs()` performs limited result-card extraction
+- result-card ingestion has been validated through a controlled search profile
+- no broad production StepStone crawling exists
 
 This matches the intended architecture path:
 
@@ -58,11 +58,71 @@ This matches the intended architecture path:
 
 ---
 
+## Strategic Role
+
+StepStone is currently treated as:
+
+- a `discovery_source`
+- an `aggregator_source`
+- an `observation_source`
+
+StepStone is currently not treated as a preferred canonical job source.
+
+The project prefers employer or ATS-near sources whenever a stronger canonical source can be identified.
+
+Examples:
+
+- Greenhouse
+- Workday
+- SAP SuccessFactors
+- SmartRecruiters
+- Lever
+- Personio
+- Ashby
+- direct company career pages
+
+StepStone remains useful because it can:
+
+- expose opportunities that may not yet exist in known canonical sources
+- expose companies relevant for later ATS discovery
+- support search-term quality evaluation
+- support source overlap analysis
+- provide discovery observations for Bronze lineage
+
+The current project strategy is:
+
+1. use StepStone conservatively as a discovery mechanism
+2. preserve source observations in Bronze
+3. attempt canonical source identification later in Silver
+4. avoid turning StepStone into a full replicated job database
+
+The project therefore distinguishes between:
+
+- discovering a potential opportunity
+- identifying a canonical source
+- preserving source observations
+- evaluating long-term source value
+
+StepStone should remain operationally bounded and strategically defensive.
+
+This means:
+
+- no broad crawling
+- no aggressive pagination
+- no anti-bot bypass behavior
+- no complete HTML archival
+- no alternative public job board behavior
+- no hidden source attribution
+
+Continued StepStone usage should later be justified through Source Value evaluation.
+
+---
+
 ## Evaluation Scope
 
 This analysis should clarify whether StepStone is suitable for:
 
-- production ingestion
+- controlled discovery ingestion
 - limited ingestion
 - discovery-only usage
 - deferral
@@ -73,6 +133,66 @@ The evaluation should focus on technical feasibility, data quality, operational 
 The current conclusion is limited ingestion through a cautious result-card connector.
 
 This does not mean broad crawling, detail-page fetching or pagination traversal.
+
+---
+
+## Controlled Sampling Boundary
+
+The project currently treats StepStone as a controlled discovery source, not as a broad crawling target.
+
+This distinction is important because uncontrolled pagination expansion can silently transform a limited discovery workflow into broad commercial platform crawling.
+
+The current intended acquisition boundary is:
+
+- first result pages only during limited probes
+- no detail-page fetching
+- no broad pagination traversal
+- no hidden anti-bot behavior
+- no login or captcha bypassing
+- no broad HTML archival
+- no full market recall claim
+
+A possible future controlled-sampling mode may later allow carefully bounded pagination.
+
+However, any future pagination expansion requires:
+
+- explicit acquisition caps
+- reviewed URL patterns
+- stop conditions
+- source-value justification
+- responsible request pacing
+- defensive operational behavior
+
+Before pagination can be enabled in connector code, the following implementation gates must be satisfied:
+
+- the exact pagination URL pattern is documented
+- the documented URL pattern is reviewed against public source-policy signals such as robots.txt where applicable
+- the connector refuses URLs outside the documented allowed pattern
+- maximum pages per term are configured
+- maximum results per term are configured
+- request pacing is configured
+- pagination stop reasons are represented explicitly
+- unexpected HTML, redirects, blocking, consent pages and repeated page signatures stop pagination
+- page number and rank metadata are preserved in extracted records or raw metadata
+- the source remains classified as controlled sampling, not full crawl
+
+Broad crawling is explicitly out of scope.
+
+---
+
+## Fail-Closed URL Policy
+
+Pagination URLs must not be generated freely.
+
+The connector may only request URLs that match explicitly reviewed and documented URL patterns.
+
+If a generated URL falls outside reviewed URL boundaries, the request must not be executed.
+
+This is especially important for commercial HTML sources whose robots.txt or usage rules distinguish between allowed and disallowed URL structures.
+
+The project should not rely on uncontrolled trial-and-error crawling to discover acceptable URL behavior.
+
+Unexpected redirects, repeated result pages, blocking behavior, consent pages or unknown URL structures must terminate pagination attempts immediately.
 
 ---
 
