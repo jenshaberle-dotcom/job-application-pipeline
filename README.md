@@ -668,7 +668,7 @@ Start PostgreSQL using Docker:
 
 Run Bundesagentur ingestion:
 
-    python -m src.ingest_jobs bundesagentur_data_jobs
+    python -m src.ingest_jobs
 
 Run Greenhouse ingestion:
 
