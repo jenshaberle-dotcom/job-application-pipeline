@@ -50,6 +50,40 @@ class JobIngestionRepository:
             page_size=row[6],
         )
 
+    def load_active_search_profiles(self) -> list[SearchProfile]:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        profile_name,
+                        source_name,
+                        search_location,
+                        search_radius_km,
+                        offer_type,
+                        page_size
+                    FROM search_profiles
+                    WHERE is_active = TRUE
+                    ORDER BY source_name, profile_name;
+                    """
+                )
+
+                rows = cur.fetchall()
+
+        return [
+            SearchProfile(
+                id=row[0],
+                profile_name=row[1],
+                source_name=row[2],
+                search_location=row[3],
+                search_radius_km=row[4],
+                offer_type=row[5],
+                page_size=row[6],
+            )
+            for row in rows
+        ]
+
     def load_active_search_terms(
         self,
         profile_name: str,
