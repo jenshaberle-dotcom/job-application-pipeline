@@ -10,7 +10,7 @@ The goal is to make source differences explicit, comparable and visible in the c
 
 ## Terminology Alignment
 
-This document uses the shared terminology from `docs/glossary.md`, ADR-022 and ADR-023.
+This document uses the shared terminology from `docs/glossary.md`, ADR-022, ADR-023, ADR-026 and ADR-027.
 
 Source-specific differences should be captured as source capabilities or mappings to canonical concepts. They should not introduce separate terminology for each source.
 
@@ -33,6 +33,8 @@ See also:
 
 - `docs/data_sources/search_result_connector_contract.md`
 - `docs/adr/023_define_search_result_connector_contract.md`
+- `docs/adr/026_define_source_acquisition_scope_and_canonical_source_strategy.md`
+- `docs/adr/027_define_source_target_acquisition_model.md`
 
 ## Search Intent and Source Targets
 
@@ -113,6 +115,25 @@ Allowed values:
 | `limited_probe` | Bounded sample used for source and connector validation. |
 | `controlled_sampling` | Bounded recurring sampling with explicit caps and stop conditions. |
 | `unsupported_full_crawl` | Broad collection mode that should not be implemented. |
+
+### Acquisition Policy
+
+Describes the operational and responsible-use boundaries for a source target or acquisition strategy.
+
+Policy aspects include:
+
+| Policy aspect | Meaning |
+|---|---|
+| `max_jobs_per_board` | Optional cap for board-based sources. |
+| `max_pages` | Maximum number of result pages to acquire. |
+| `timeout_seconds` | Request timeout boundary. |
+| `no_detail_pages` | Whether detail-page fetching is explicitly disabled. |
+| `pagination_enabled` | Whether pagination is allowed at all. |
+| `pagination_cap` | Maximum pagination depth when pagination is allowed. |
+| `fail_closed_url_policy` | Unknown or unsafe URL patterns are rejected by default. |
+| `active` | Whether the source target is currently enabled. |
+
+Acquisition policy is especially important for commercial aggregators, HTML-based sources and discovery sources.
 
 ### Recall Claim Level
 

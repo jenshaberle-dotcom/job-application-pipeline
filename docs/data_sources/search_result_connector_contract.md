@@ -16,6 +16,19 @@ See also:
 - `docs/adr/010_define_canonical_job_model_for_silver_layer.md`
 - `docs/adr/022_define_shared_source_and_layer_terminology.md`
 - `docs/adr/023_define_search_result_connector_contract.md`
+- `docs/adr/027_define_source_target_acquisition_model.md`
+
+---
+
+## Boundary to Source Targets
+
+This contract describes the shape and semantics of records returned by search-result-oriented connectors.
+
+Source targets describe where and how acquisition is performed, for example a Greenhouse board, ATS tenant, company career page or controlled discovery query.
+
+Source target, acquisition mode and acquisition policy are acquisition-lineage concepts.
+
+They are intentionally not part of the current `RawJobRecord` structure unless a future implementation explicitly adds source-target lineage to ingestion runs or source target configuration.
 
 ---
 

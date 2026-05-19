@@ -20,6 +20,10 @@ Core terms:
 | Source query | Source-specific translation of a search intent into URL parameters, API parameters or form inputs. |
 | Source target | Concrete source-specific acquisition target, for example a Greenhouse board, ATS tenant, company career page or controlled discovery query. Source targets are not search profiles. |
 | Source capability | Documented property of a source, for example search support, stable identifiers, pagination or detail availability. |
+| Source role | Architectural role of a source, for example official API source, ATS/company-board source, discovery source, aggregator source or fallback source. |
+| Acquisition mode | Description of how a source target is queried, for example API search, company-board fetch, limited probe or controlled sampling. |
+| Acquisition policy | Operational and responsible-use boundaries for acquisition, for example page caps, detail-page restrictions, timeouts or fail-closed URL rules. |
+| Canonical source candidate | Source or source target that may be suitable as preferred evidence for a canonical job identity. |
 | Raw source payload | Source-preserving response material, for example HTML, JSON or text received from a source. |
 | Result card | One search-result item shown by a source before opening a detail page. |
 | Detail page | Source page or endpoint containing a fuller job description. |
@@ -38,6 +42,7 @@ Related terminology and contracts:
 
 - [ADR-022](adr/022_define_shared_source_and_layer_terminology.md)
 - [ADR-023](adr/023_define_search_result_connector_contract.md)
+- [ADR-026](adr/026_define_source_acquisition_scope_and_canonical_source_strategy.md)
 - [ADR-027](adr/027_define_source_target_acquisition_model.md)
 - [Search Result Connector Contract](data_sources/search_result_connector_contract.md)
 

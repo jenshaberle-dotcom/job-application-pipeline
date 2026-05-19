@@ -22,9 +22,9 @@ Greenhouse job pages are typically company-specific but follow similar structura
 
 ---
 
-# Expected Architectural Impact
+# Architectural Impact
 
-Greenhouse is expected to challenge several assumptions currently shaped by the Bundesagentur für Arbeit API:
+Greenhouse challenges several assumptions shaped by the Bundesagentur für Arbeit API:
 
 - field naming differences
 - optional metadata
@@ -45,7 +45,7 @@ This source is intentionally selected to validate:
 
 # Access Pattern
 
-## Expected Access Method
+## Current Access Method
 
 Public JSON endpoints.
 
@@ -55,9 +55,27 @@ https://boards-api.greenhouse.io/v1/boards/{company}/jobs
 
 Potential detail endpoints may also exist depending on the company implementation.
 
+The current project usage should prefer board-level acquisition and local filtering before considering detail endpoints.
+
 ---
 
-# Expected Challenges
+# Source Target Model
+
+Greenhouse boards should be treated as source targets within the Greenhouse source family.
+
+Examples:
+
+- `greenhouse:stripe`
+- `greenhouse:metronome`
+- `greenhouse:teachable`
+
+These source targets should not become separate search profiles.
+
+A stable search profile such as `data_engineering_hannover` can use multiple Greenhouse source targets with the acquisition mode `full_board_with_local_keyword_filter`.
+
+---
+
+# Challenges
 
 ## Data Variability
 
@@ -95,7 +113,7 @@ without overfitting to Greenhouse-specific semantics.
 
 ---
 
-# Expected Bronze Strategy
+# Bronze Strategy
 
 The Bronze layer should:
 
@@ -104,7 +122,7 @@ The Bronze layer should:
 - avoid premature normalization
 - preserve source identifiers
 
-The connector should focus only on:
+The connector focuses on:
 
 - retrieval
 - transport mapping
@@ -112,9 +130,9 @@ The connector should focus only on:
 
 ---
 
-# Expected Silver Strategy
+# Silver Strategy
 
-The Silver layer should later:
+The Silver layer should:
 
 - normalize titles
 - normalize locations

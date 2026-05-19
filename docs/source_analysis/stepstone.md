@@ -701,7 +701,7 @@ This keeps the StepStone connector path testable without relying on live StepSto
 
 ## Terminology Alignment
 
-This source analysis uses the shared project terminology from `docs/glossary.md`, ADR-022 and ADR-023.
+This source analysis uses the shared project terminology from `docs/glossary.md`, ADR-022, ADR-023, ADR-026 and ADR-027.
 
 StepStone-specific HTML markers such as `article[data-testid="job-item"]` and `a[data-testid="job-item-title"]` are treated as observed source signals for **result cards** and title links. They are not canonical entities outside the StepStone source analysis.
 
@@ -852,12 +852,12 @@ Further planning notes are captured in:
 
 ## Current Decision
 
-Proceed with a limited StepStone result-card connector.
+Continue with the implemented limited StepStone result-card connector.
 
-The connector should be implemented as a cautious first version based on search-result cards only.
+StepStone should remain a defensive discovery and aggregator source, not a preferred canonical job source.
 
-The connector should not implement pagination, detail-page fetching or production-scale crawling in its first version.
+The connector must remain bounded to search-result cards unless a later ADR explicitly expands the acquisition policy.
 
-StepStone should remain marked as operationally sensitive and higher maintenance than API-based or ATS-board sources.
+No detail-page fetching, uncontrolled pagination or production-scale crawling should be added as part of normal connector evolution.
 
-The implementation should validate whether the search result connector contract can be applied in real connector code without leaking StepStone-specific concepts into the shared architecture.
+The next strategic step is source-value and search-quality evaluation, combined with source-target lineage, so that StepStone can help discover employer-near or ATS-near canonical source candidates without becoming the canonical source itself.

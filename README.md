@@ -183,15 +183,18 @@ Planned capabilities:
 - [x] Real-world job ingestion pipeline
 - [x] Raw job ingestion from the German Federal Employment Agency job search
 - [x] Greenhouse ATS ingestion
+- [x] Limited StepStone result-card ingestion
 - [x] Database-level duplicate protection
 - [x] Idempotent ingestion behavior using PostgreSQL constraints
 - [x] Search profile driven ingestion
 - [x] Multi-term search strategy
+- [x] Search-term lineage on ingestion runs
 - [x] Ingestion run tracking
 - [x] Connector-based ingestion architecture
 - [x] Source-specific connector isolation
 - [x] Explicit source capability modeling
 - [x] Canonical search intent architecture
+- [x] Source target acquisition model
 - [x] Local post-fetch filtering for non-search-capable sources
 - [x] Repository-based Bronze-layer persistence
 - [x] Ingestion runner orchestration
@@ -200,9 +203,12 @@ Planned capabilities:
 - [x] Initial Silver-layer table
 - [x] Initial Bronze-to-Silver transformation
 - [x] Greenhouse Silver transformation
+- [x] First Canonicalization Layer for Silver jobs
+- [x] Canonical key candidate generation
 - [x] Relevance filtering for Silver candidates
 - [x] Token-aware relevance matching
 - [x] Silver processing decision tracking
+- [x] Silver source value exploration script
 - [x] Separation of technical duplicate protection and semantic deduplication
 - [x] Detailed PostgreSQL schema documentation
 - [x] Constraint and index documentation
@@ -210,6 +216,8 @@ Planned capabilities:
 - [x] Connector capability comparison documentation
 - [x] Source evaluation documentation
 - [x] Greenhouse source analysis
+- [x] StepStone source analysis
+- [x] Search result connector contract documentation
 - [x] Relevance strategy documentation
 - [x] API-first dashboard architecture planning
 - [x] Visualization vision documentation
@@ -219,16 +227,21 @@ Planned capabilities:
 
 ### In Progress
 
-- [x] Job lifecycle view
-- [ ] Observation granularity refinement
-- [ ] Dashboard-oriented documentation
-- [ ] Gold-layer preparation
-- [ ] Additional connector evaluation
+- [~] Documentation consistency review
+- [~] Source target lineage design
+- [~] Observation granularity refinement
+- [~] Gold-layer preparation
+- [~] Source value and search quality evaluation
 
 ### Planned
 
-- [ ] StepStone connector
-- [ ] Additional ATS connectors
+- [ ] Explicit source-target lineage in ingestion runs
+- [ ] Controlled Greenhouse source-target expansion
+- [ ] Additional ATS and company-board source evaluation
+- [ ] Personio evaluation
+- [ ] Softgarden evaluation
+- [ ] SmartRecruiters evaluation
+- [ ] Workday and SAP SuccessFactors exploration
 - [ ] Expanded Silver layer normalization
 - [ ] Role-family classification
 - [ ] Skill extraction
@@ -421,7 +434,7 @@ Current implemented examples:
 
 ## Repository Structure
 
-Note: Some early migration prefixes are duplicated as historical artifacts of early project evolution. They are intentionally preserved instead of retroactively renumbered. See ADR 018.
+Migration prefixes have been normalized. See ADR-018.
 
 ```text
 job-application-pipeline/
@@ -437,7 +450,10 @@ job-application-pipeline/
 │   │   ├── 008_job_lifecycle_view.sql
 │   │   ├── 009_source_heartbeat_view.sql
 │   │   ├── 010_dashboard_new_relevant_jobs_view.sql
-│   │   └── 011_dashboard_source_processing_summary_view.sql
+│   │   ├── 011_dashboard_source_processing_summary_view.sql
+│   │   ├── 012_add_stepstone_search_profile.sql
+│   │   ├── 013_add_search_term_lineage_to_ingestion_runs.sql
+│   │   └── 014_extend_silver_jobs_for_canonicalization.sql
 │   │
 │   └── queries/
 │
@@ -464,16 +480,27 @@ job-application-pipeline/
 │   │   ├── 018_preserve_existing_migration_ordering.md
 │   │   ├── 019_separate_source_heartbeat_from_ingestion_runs.md
 │   │   ├── 020_introduce_role_family_classification.md
-│   │   └── 021_expand_source_capability_model_before_complex_sources.md
+│   │   ├── 021_expand_source_capability_model_before_complex_sources.md
+│   │   ├── 022_define_shared_source_and_layer_terminology.md
+│   │   ├── 023_define_search_result_connector_contract.md
+│   │   ├── 024_define_search_quality_and_relevance_evaluation_boundary.md
+│   │   ├── 025_preserve_search_term_lineage_for_quality_evaluation.md
+│   │   ├── 026_define_source_acquisition_scope_and_canonical_source_strategy.md
+│   │   └── 027_define_source_target_acquisition_model.md
 │   │
 │   ├── classification/
 │   │   └── role_family_classification.md
 │   │
 │   ├── data_sources/
+│   │   ├── search_result_connector_contract.md
 │   │   └── source_capabilities.md
 │   │
 │   ├── database/
 │   │   └── tables.md
+│   │
+│   ├── development/
+│   │   ├── documentation_consistency_review.md
+│   │   └── testing.md
 │   │
 │   ├── diagrams/
 │   │   ├── architecture.md
@@ -481,6 +508,9 @@ job-application-pipeline/
 │   │
 │   ├── observability/
 │   │   └── source_health_and_heartbeat.md
+│   │
+│   ├── planning/
+│   │   └── relevance_and_search_quality.md
 │   │
 │   ├── relevance/
 │   │   └── relevance_strategy.md
@@ -502,7 +532,10 @@ job-application-pipeline/
 │   ├── analyze_greenhouse_bronze.py
 │   ├── analyze_stepstone_result_boundaries.py
 │   ├── analyze_stepstone_source.py
-│   └── analyze_stepstone_structured_cards.py
+│   ├── analyze_stepstone_structured_cards.py
+│   ├── backfill_silver_canonicalization_fields.py
+│   ├── explore_silver_source_value.py
+│   └── preview_stepstone_result_card_records.py
 │
 ├── src/
 │   ├── connectors/
@@ -511,7 +544,8 @@ job-application-pipeline/
 │   │   ├── bundesagentur.py
 │   │   ├── capabilities.py
 │   │   ├── greenhouse.py
-│   │   └── stepstone.py
+│   │   ├── stepstone.py
+│   │   └── stepstone_result_cards.py
 │   │
 │   ├── ingestion/
 │   │   ├── __init__.py
@@ -532,8 +566,17 @@ job-application-pipeline/
 │
 ├── .env.example
 ├── .gitignore
+├── tests/
+│   ├── fixtures/
+│   ├── test_ingestion_runner_display.py
+│   ├── test_silver_transformer_canonicalization.py
+│   ├── test_stepstone_connector.py
+│   └── test_stepstone_result_cards.py
+│
 ├── docker-compose.yml
+├── pytest.ini
 ├── README.md
+├── requirements-dev.txt
 └── requirements.txt
 ```
 

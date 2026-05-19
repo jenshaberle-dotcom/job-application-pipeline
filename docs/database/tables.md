@@ -19,6 +19,7 @@ The current schema contains:
 | `ingestion_runs` | Operational ingestion lineage. |
 | `raw_jobs` | Source-preserving Bronze records. |
 | `job_observations` | Repeated sightings of source-local jobs over time. |
+| `silver_processing_decisions` | Silver relevance processing decisions for raw jobs. |
 | `silver_jobs` | First normalized Silver representation. |
 
 ---
@@ -398,6 +399,49 @@ True publication or availability duration requires additional source metadata su
 
 ---
 
+# Table: silver_processing_decisions
+
+## Purpose
+
+`silver_processing_decisions` stores why a raw job was included in or skipped by Silver processing.
+
+It preserves relevance-processing evidence without forcing every raw job into `silver_jobs`.
+
+This keeps Silver transformation transparent and supports later analysis of false positives, false negatives and search-term quality.
+
+## Columns
+
+| Column | Type | Nullable | Default | Constraint / Index |
+|---|---|---:|---|---|
+| `id` | `bigint` | no | sequence | Primary key |
+| `raw_job_id` | `bigint` | no |  | Unique foreign key |
+| `decision` | `text` | no |  | Indexed |
+| `reason` | `text` | yes |  |  |
+| `role_matches` | `jsonb` | yes |  |  |
+| `skill_matches` | `jsonb` | yes |  |  |
+| `accessibility_matches` | `jsonb` | yes |  |  |
+| `decided_at` | `timestamp with time zone` | no | `now()` |  |
+
+## Constraints and Indexes
+
+| Name | Type | Columns | Purpose |
+|---|---|---|---|
+| `silver_processing_decisions_pkey` | Primary key | `id` | Internal processing-decision identifier. |
+| `silver_processing_decisions_raw_job_id_key` | Unique constraint | `raw_job_id` | Ensures at most one processing decision per raw job. |
+| `silver_processing_decisions_raw_job_id_fkey` | Foreign key | `raw_job_id` | Preserves traceability to the raw source record. |
+| `idx_silver_processing_decisions_decision` | Index | `decision` | Supports relevance-processing analysis. |
+
+## Relationship to silver_jobs
+
+`silver_processing_decisions` and `silver_jobs` serve different purposes.
+
+- `silver_processing_decisions` records whether and why a raw job was included or skipped.
+- `silver_jobs` stores the normalized Silver representation for included jobs.
+
+A raw job may have a processing decision without having a Silver job row.
+
+---
+
 # Table: silver_jobs
 
 ## Purpose
@@ -501,11 +545,11 @@ Future semantic matching should consider:
 - description similarity
 - original employer career page if available
 
-## Filter Application Tracking
+## Filter Application and Source-Target Lineage
 
-Not persisted in the database yet.
+Per-run filter application details are not fully persisted in the database yet.
 
-The next step introduces source capability metadata in code.
+Source capability metadata exists in code and documentation, while explicit source-target lineage remains future work.
 
 Potential future fields:
 
