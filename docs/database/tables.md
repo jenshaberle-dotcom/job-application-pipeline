@@ -406,6 +406,26 @@ True publication or availability duration requires additional source metadata su
 
 It stores normalized fields for analysis while preserving traceability to the original raw record.
 
+`silver_jobs` now also acts as the first canonicalization candidate layer.
+
+The table no longer represents only a normalized projection of Bronze fields.
+
+It now additionally stores first-stage canonicalization metadata and overlap-preparation fields.
+
+Important boundary:
+
+`silver_jobs` does not yet represent final cross-source canonical job entities.
+
+Cross-source duplicate resolution, canonical source selection and semantic job clustering remain future responsibilities.
+
+Current canonicalization support includes:
+
+- normalized text fields
+- canonical candidate status
+- canonical source typing
+- canonical key candidates for overlap analysis
+- preparation for future source-value evaluation
+
 ## Columns
 
 | Column | Type | Nullable | Default | Constraint / Index |
@@ -421,6 +441,12 @@ It stores normalized fields for analysis while preserving traceability to the or
 | `postal_code` | `text` | yes |  |  |
 | `country` | `text` | yes |  |  |
 | `publication_date` | `date` | yes |  | Indexed |
+| `normalized_title` | `text` | yes |  | Indexed |
+| `normalized_company_name` | `text` | yes |  | Indexed |
+| `normalized_location` | `text` | yes |  |  |
+| `canonical_status` | `text` | yes |  | Indexed |
+| `canonical_source_type` | `text` | yes |  |  |
+| `canonical_key_candidate` | `text` | yes |  | Indexed |
 | `normalized_at` | `timestamp with time zone` | no | `now()` |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
@@ -437,6 +463,10 @@ It stores normalized fields for analysis while preserving traceability to the or
 | `idx_silver_jobs_company_name` | Index | `company_name` | Supports employer analysis. |
 | `idx_silver_jobs_city` | Index | `city` | Supports location analysis. |
 | `idx_silver_jobs_publication_date` | Index | `publication_date` | Supports time-based analysis. |
+| `idx_silver_jobs_normalized_company_name` | Index | `normalized_company_name` | Supports canonical employer matching preparation. |
+| `idx_silver_jobs_normalized_title` | Index | `normalized_title` | Supports canonical title matching preparation. |
+| `idx_silver_jobs_canonical_status` | Index | `canonical_status` | Supports canonicalization state analysis. |
+| `idx_silver_jobs_canonical_key_candidate` | Index | `canonical_key_candidate` | Supports duplicate-candidate and overlap analysis. |
 
 ---
 

@@ -80,7 +80,13 @@ class SilverJobRepository:
                         city,
                         postal_code,
                         country,
-                        publication_date
+                        publication_date,
+                        normalized_title,
+                        normalized_company_name,
+                        normalized_location,
+                        canonical_status,
+                        canonical_source_type,
+                        canonical_key_candidate
                     )
                     VALUES (
                         %(raw_job_id)s,
@@ -92,7 +98,13 @@ class SilverJobRepository:
                         %(city)s,
                         %(postal_code)s,
                         %(country)s,
-                        %(publication_date)s
+                        %(publication_date)s,
+                        %(normalized_title)s,
+                        %(normalized_company_name)s,
+                        %(normalized_location)s,
+                        %(canonical_status)s,
+                        %(canonical_source_type)s,
+                        %(canonical_key_candidate)s
                     )
                     ON CONFLICT (raw_job_id)
                     DO UPDATE SET
@@ -105,6 +117,12 @@ class SilverJobRepository:
                         postal_code = EXCLUDED.postal_code,
                         country = EXCLUDED.country,
                         publication_date = EXCLUDED.publication_date,
+                        normalized_title = EXCLUDED.normalized_title,
+                        normalized_company_name = EXCLUDED.normalized_company_name,
+                        normalized_location = EXCLUDED.normalized_location,
+                        canonical_status = EXCLUDED.canonical_status,
+                        canonical_source_type = EXCLUDED.canonical_source_type,
+                        canonical_key_candidate = EXCLUDED.canonical_key_candidate,
                         normalized_at = NOW(),
                         updated_at = NOW();
                     """,
@@ -112,6 +130,59 @@ class SilverJobRepository:
                 )
 
             conn.commit()
+
+    def backfill_canonicalization_fields(self) -> int:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE silver_jobs
+                    SET
+                        normalized_title = NULLIF(
+                            regexp_replace(lower(trim(COALESCE(title, ''))), '\\s+', ' ', 'g'),
+                            ''
+                        ),
+                        normalized_company_name = NULLIF(
+                            regexp_replace(lower(trim(COALESCE(company_name, ''))), '\\s+', ' ', 'g'),
+                            ''
+                        ),
+                        normalized_location = NULLIF(
+                            concat_ws(
+                                ' | ',
+                                NULLIF(regexp_replace(lower(trim(COALESCE(city, ''))), '\\s+', ' ', 'g'), ''),
+                                NULLIF(regexp_replace(lower(trim(COALESCE(postal_code, ''))), '\\s+', ' ', 'g'), ''),
+                                NULLIF(regexp_replace(lower(trim(COALESCE(country, ''))), '\\s+', ' ', 'g'), '')
+                            ),
+                            ''
+                        ),
+                        canonical_status = COALESCE(canonical_status, 'discovery_only'),
+                        canonical_source_type = COALESCE(canonical_source_type, 'unknown'),
+                        canonical_key_candidate = NULLIF(
+                            concat_ws(
+                                ' :: ',
+                                NULLIF(regexp_replace(lower(trim(COALESCE(company_name, ''))), '\\s+', ' ', 'g'), ''),
+                                NULLIF(regexp_replace(lower(trim(COALESCE(title, ''))), '\\s+', ' ', 'g'), ''),
+                                NULLIF(
+                                    concat_ws(
+                                        ' | ',
+                                        NULLIF(regexp_replace(lower(trim(COALESCE(city, ''))), '\\s+', ' ', 'g'), ''),
+                                        NULLIF(regexp_replace(lower(trim(COALESCE(postal_code, ''))), '\\s+', ' ', 'g'), ''),
+                                        NULLIF(regexp_replace(lower(trim(COALESCE(country, ''))), '\\s+', ' ', 'g'), '')
+                                    ),
+                                    ''
+                                )
+                            ),
+                            ''
+                        ),
+                        updated_at = NOW()
+                    WHERE canonical_key_candidate IS NULL;
+                    """
+                )
+                updated_count = cur.rowcount
+
+            conn.commit()
+
+        return updated_count
 
     def record_processing_decision(
         self,
