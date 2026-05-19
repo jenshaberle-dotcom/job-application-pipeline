@@ -672,7 +672,7 @@ Run Bundesagentur ingestion:
 
 Run Greenhouse ingestion:
 
-    python -m src.ingest_jobs greenhouse_stripe_jobs
+    python -m src.ingest_jobs greenhouse_stripe
 
 Run Silver normalization:
 
