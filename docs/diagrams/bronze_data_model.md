@@ -66,7 +66,7 @@ erDiagram
 
     silver_processing_decisions {
         BIGINT id PK
-        BIGINT raw_job_id FK_UK
+        BIGINT raw_job_id FK
         TEXT decision
         TEXT reason
         JSONB role_matches
@@ -77,7 +77,7 @@ erDiagram
 
     silver_jobs {
         BIGINT id PK
-        BIGINT raw_job_id FK_UK
+        BIGINT raw_job_id FK
         TEXT source_name
         TEXT external_job_id
         TEXT source_url
