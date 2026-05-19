@@ -34,6 +34,28 @@ See also:
 - `docs/data_sources/search_result_connector_contract.md`
 - `docs/adr/023_define_search_result_connector_contract.md`
 
+## Search Intent and Source Targets
+
+Search profiles and search terms describe the source-independent search intent.
+
+Source targets describe concrete acquisition targets inside a source.
+
+| Concept | Example |
+|---|---|
+| Search profile | `data_engineering_hannover` |
+| Search term | `Data Engineer` |
+| Source | `greenhouse` |
+| Source target | `greenhouse:stripe` |
+| Acquisition mode | `full_board_with_local_keyword_filter` |
+
+This distinction prevents the project from modelling every ATS board or company career site as a separate search profile.
+
+For example, `greenhouse:stripe` should be treated as a Greenhouse source target used for a search profile, not as a separate search intent.
+
+See also:
+
+- `docs/adr/027_define_source_target_acquisition_model.md`
+
 ---
 
 ## Capability Matrix
