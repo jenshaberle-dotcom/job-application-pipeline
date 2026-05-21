@@ -144,6 +144,46 @@ def transform_greenhouse_raw_job(raw_job: dict) -> dict:
     )
 
 
+def transform_personio_raw_job(raw_job: dict) -> dict:
+    raw_data = raw_job["raw_data"]
+    job_data = raw_data.get("job", {})
+
+    return add_canonicalization_fields(
+        {
+            "raw_job_id": raw_job["id"],
+            "source_name": raw_job["source_name"],
+            "external_job_id": raw_job["external_job_id"],
+            "source_url": job_data.get("source_url") or raw_job["source_url"],
+            "title": job_data.get("title"),
+            "company_name": job_data.get("company_name"),
+            "city": job_data.get("location"),
+            "postal_code": None,
+            "country": None,
+            "publication_date": None,
+        }
+    )
+
+
+def transform_stepstone_raw_job(raw_job: dict) -> dict:
+    raw_data = raw_job["raw_data"]
+    result_card = raw_data.get("result_card", {})
+
+    return add_canonicalization_fields(
+        {
+            "raw_job_id": raw_job["id"],
+            "source_name": raw_job["source_name"],
+            "external_job_id": raw_job["external_job_id"],
+            "source_url": result_card.get("detail_url") or raw_job["source_url"],
+            "title": result_card.get("title"),
+            "company_name": result_card.get("company_name"),
+            "city": result_card.get("location"),
+            "postal_code": None,
+            "country": None,
+            "publication_date": None,
+        }
+    )
+
+
 def transform_raw_job_to_silver(raw_job: dict) -> dict:
     source_name = raw_job["source_name"]
 
@@ -153,6 +193,12 @@ def transform_raw_job_to_silver(raw_job: dict) -> dict:
     if source_name.startswith("greenhouse:"):
         return transform_greenhouse_raw_job(raw_job)
 
+    if source_name.startswith("personio:"):
+        return transform_personio_raw_job(raw_job)
+
+    if source_name == "stepstone":
+        return transform_stepstone_raw_job(raw_job)
+
     raise ValueError(f"No Silver transformer implemented for source: {source_name}")
 
 
@@ -160,4 +206,6 @@ def get_supported_source_patterns() -> list[str]:
     return [
         "bundesagentur_fuer_arbeit",
         "greenhouse:%",
+        "personio:%",
+        "stepstone",
     ]
