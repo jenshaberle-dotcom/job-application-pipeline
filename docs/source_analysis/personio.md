@@ -109,19 +109,42 @@ However, Personio has not yet passed source-value validation.
 
 The current dataset is too small to determine whether Personio contributes meaningful additional jobs, companies or canonical candidates compared with Bundesagentur, Greenhouse or StepStone.
 
+## Batch 1 Candidate Selection
+
+The current dataset is too small for meaningful source-value evaluation.
+
+A controlled Batch 1 expansion has therefore been selected.
+
+### Selected Targets
+
+- `personio:eraneos` (multiple Data, Analytics and AI-related matches with remote-friendly positions)
+- `personio:1komma5grad` (large employer-near feed with several relevant Data and Analytics positions)
+- `personio:it-p` (Hannover relevance and mobile-working opportunities)
+- `personio:otl-akademie` (small feed but direct remote Data Engineer and Data Migration relevance)
+
+### Rejected Targets
+
+- `personio:loyos-bi` (public XML endpoint returned HTTP 404 during evaluation)
+
+### Deferred Targets
+
+- `personio:xibix-solutions-gmbh` (technically reachable but currently lower geographic relevance for the target search domain)
+
+## Evaluation Questions
+
+The following questions will be used to evaluate the source value of Personio Batch 1:
+
+- How many jobs does each selected target expose?
+- How many relevant jobs reach Bronze and Silver?
+- Which companies are new compared with existing sources?
+- Which jobs overlap with Bundesagentur, Greenhouse or StepStone?
+- Does Personio provide employer-near evidence for aggregator findings?
+- Does Personio justify further expansion?
+
 ## Next Step
 
-Run a controlled Personio Batch 1 with 3–5 additional validated source targets.
+Run a controlled Personio Batch 1 with the selected targets.
 
 The objective is not broad acquisition.
 
-The objective is to determine whether Personio contributes measurable value for the target search domain.
-
-Evaluation questions:
-
-- How many jobs does each target expose?
-- How many relevant jobs reach Silver?
-- Which companies are new?
-- Which jobs overlap with BA, StepStone or Greenhouse?
-- Does Personio provide employer-near evidence for aggregator findings?
-- Does Personio justify further expansion?
+Instead, the goal is to determine whether Personio contributes measurable value for the target search domain based on the evaluation questions defined above.
