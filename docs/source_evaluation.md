@@ -559,3 +559,30 @@ Below defined thresholds, or when hard gates fail, a source may be limited, move
 Persisted source-value metrics are required because source quality and source risk can only be evaluated meaningfully over time.
 
 This is the conceptual foundation for future source lifecycle decisions and connector recommendation logic.
+
+### Source-Value Snapshot Window Semantics
+
+Initial source-value snapshots may use the complete currently available local history.
+
+This is useful as a baseline, but it must not be treated as a stable lifecycle score.
+
+Historic totals can be distorted by earlier connector semantics, old search-term behavior, local test runs or one-time exploration spikes.
+
+Future source-value snapshots should therefore support explicit evaluation windows, for example:
+
+- `--window-hours 24`
+- `--window-days 7`
+- `--window-days 30`
+
+Lifecycle decisions should be based on windowed trends, not only on all-time cumulative totals.
+
+Examples:
+
+- a source may have high all-time volume but low current matched value
+- a source may have been reliable historically but start failing recently
+- a source may have many old duplicates but still provide new current employer-origin evidence
+- a source may have low total volume but high value in a specific recent window
+
+The current all-time snapshot should therefore be interpreted as an initial historical baseline.
+
+Future lifecycle decisions such as `active_limited`, `manual_watch`, `paused`, `deprecated` or `do_not_build` should use explicit time windows and trends.
