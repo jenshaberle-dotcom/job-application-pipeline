@@ -402,3 +402,89 @@ The goal is to validate:
 - responsible source usage
 
 Learning architectural differences between source types is more important than maximizing ingestion volume.
+
+## Block D Source Value Findings
+
+Block D moved the project from simple source expansion toward source-value evaluation.
+
+The main finding is that raw acquisition volume is not sufficient to evaluate a source. A source must be evaluated by the number of jobs fetched before filtering, the number of jobs matched after local search-intent filtering, the number of jobs reaching Silver, company diversity, canonical candidate diversity, overlap with other sources and the ability to confirm known jobs at employer-origin sources.
+
+### Personio Batch 1
+
+Personio confirmed that source targets without server-side keyword search should not be queried once per search term.
+
+The better pattern is:
+
+- fetch one source target once
+- match locally against all active search terms
+- preserve or display matched terms
+- record one ingestion run per source target
+
+This reduces duplicate run semantics and makes source-target value easier to evaluate.
+
+### Greenhouse Search Intent
+
+Greenhouse showed that full-board volume can be misleading.
+
+A large board snapshot can look valuable by raw volume, but its source value is much lower when only a small subset matches the active search intent. For Greenhouse-style boards, the project should distinguish:
+
+- fetched jobs before filtering
+- matched jobs after filtering
+- Silver jobs
+- distinct companies
+- distinct canonical candidates
+- cross-source overlap
+
+This prevents treating broad board snapshots as high-value source evidence.
+
+### Employer-Origin Evidence Validation
+
+Employer-origin validation should not only ask whether a career site is reachable.
+
+The stronger question is:
+
+- A job is already known from Bronze or Silver.
+- Can the employer-origin source confirm that exact job?
+
+If the job is confirmed at the employer source, it becomes stronger evidence for the canonical job candidate.
+
+If the job is not confirmed, the result is still useful and may indicate:
+
+- expired or no longer visible job
+- parser or source-target gap
+- vocabulary gap
+- aggregator-only posting
+- manual review needed
+
+### Current Evidence Classification
+
+Initial origin evidence validation produced the following interpretation:
+
+- Rossmann: origin evidence confirmed for at least one known Data Engineer-style job. This indicates that the earlier landing-page smoke was too coarse and that the origin source needs better target/result-page handling.
+- Finanz Informatik: origin evidence confirmed for Data Integration & Governance-style roles. This indicates a likely vocabulary gap around terms such as Data Integration, Governance, Analytics and Reporting.
+- WERTGARANTIE: origin evidence confirmed for Analytics & Audience Manager. This weakens the aggregator-only hypothesis for that specific known job, but the source still needs cautious evaluation.
+- HDI: Tech & Data and Data role families are clearly present, but exact known-job confirmation still needs manual or better target-specific validation. This is currently a manual-review or parser-target-gap case, not evidence that no relevant jobs exist.
+
+### Block D Conclusion
+
+Block D confirms that the project needs source-value metrics before broad expansion.
+
+Good candidate metrics are:
+
+- fetched_jobs_before_filter
+- matched_jobs_after_filter
+- matched_rate_pct
+- silver_jobs
+- distinct_companies
+- distinct_candidate_keys
+- cross_source_overlap
+- new_companies
+- origin_confirmed_jobs
+- parser_or_target_gap_candidates
+- vocabulary_gap_candidates
+- aggregator_only_candidates
+
+The next implementation step should not be a dashboard yet.
+
+The next implementation step should be to persist enough acquisition and matching evidence so these metrics can be computed reliably instead of being inferred from ad-hoc script output.
+
