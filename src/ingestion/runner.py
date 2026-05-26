@@ -1,11 +1,20 @@
+import logging
+import sys
 from typing import Any
 
 from src.connectors.base import JobSourceConnector, RawJobRecord
+from src.ingestion.diagnostics import (
+    classify_exception,
+    format_ingestion_failure,
+)
 from src.ingestion.post_fetch_filter import apply_keyword_filter
 from src.ingestion.repository import JobIngestionRepository
 
 
 MISSING_DISPLAY_VALUE = "<missing>"
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_nested_value(
@@ -80,10 +89,33 @@ class JobIngestionRunner:
             try:
                 records, requested_url = self.connector.fetch_jobs(profile, search_term)
             except Exception as exc:
+                diagnostic = classify_exception(
+                    exc=exc,
+                    error_stage="source_request",
+                )
+
                 self.repository.fail_ingestion_run(
                     ingestion_run_id=ingestion_run_id,
-                    error_message=f"{type(exc).__name__}: {exc}",
+                    error_message=diagnostic.error_message,
+                    error_type=diagnostic.error_type,
+                    error_stage=diagnostic.error_stage,
                 )
+
+                logger.exception(
+                    "Ingestion failed for profile '%s' and search term '%s'.",
+                    profile.profile_name,
+                    search_term.search_term,
+                )
+
+                print(
+                    format_ingestion_failure(
+                        profile_name=profile.profile_name,
+                        source_name=self.connector.source_name,
+                        diagnostic=diagnostic,
+                    ),
+                    file=sys.stderr,
+                )
+
                 raise
 
             self.repository.update_ingestion_run_requested_url(
