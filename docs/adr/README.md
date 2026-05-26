@@ -54,6 +54,7 @@ The ADRs intentionally reflect this evolution.
 | 025 | Preserve search-term lineage for quality evaluation | Accepted |
 | 026 | Define source acquisition scope, canonical source strategy and source value evaluation | Accepted |
 | 027 | Define source target acquisition model | Accepted |
+| 028 | Separate source family, source target and source type | Accepted |
 
 ---
 
