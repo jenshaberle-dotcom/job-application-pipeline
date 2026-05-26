@@ -323,6 +323,8 @@ class JobIngestionRepository:
         self,
         ingestion_run_id: int,
         error_message: str,
+        error_type: str | None = None,
+        error_stage: str | None = None,
     ) -> None:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
@@ -332,10 +334,14 @@ class JobIngestionRepository:
                     SET
                         finished_at = NOW(),
                         status = 'failed',
+                        error_type = %s,
+                        error_stage = %s,
                         error_message = %s
                     WHERE id = %s;
                     """,
                     (
+                        error_type,
+                        error_stage,
                         error_message,
                         ingestion_run_id,
                     ),

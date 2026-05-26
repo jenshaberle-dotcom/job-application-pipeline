@@ -146,3 +146,88 @@ def test_runner_persists_search_term_lineage_on_ingestion_run() -> None:
             "requested_url": None,
         }
     ]
+
+
+def test_runner_persists_failure_diagnostics_on_fetch_error() -> None:
+    import pytest
+    import requests
+
+    from src.connectors.base import SearchProfile, SearchTerm
+    from src.connectors.capabilities import SourceCapabilities
+    from src.ingestion.runner import JobIngestionRunner
+
+    class FakeRepository:
+        def __init__(self) -> None:
+            self.failed_runs = []
+
+        def load_active_search_terms(self, profile_name):
+            return [
+                (
+                    SearchProfile(
+                        id=1,
+                        profile_name=profile_name,
+                        source_name="test_source",
+                        search_location="Hannover",
+                        search_radius_km=None,
+                        offer_type=None,
+                        page_size=25,
+                    ),
+                    SearchTerm(id=42, search_term="Data Engineer"),
+                )
+            ]
+
+        def create_ingestion_run(
+            self,
+            source_name,
+            search_profile_id,
+            search_term_id=None,
+            search_term=None,
+            requested_url=None,
+        ):
+            return 100
+
+        def fail_ingestion_run(
+            self,
+            ingestion_run_id,
+            error_message,
+            error_type=None,
+            error_stage=None,
+        ):
+            self.failed_runs.append(
+                {
+                    "ingestion_run_id": ingestion_run_id,
+                    "error_message": error_message,
+                    "error_type": error_type,
+                    "error_stage": error_stage,
+                }
+            )
+
+    class FakeConnector:
+        source_name = "test_source"
+        capabilities = SourceCapabilities(
+            supports_keyword=True,
+            supports_location=True,
+            supports_radius=False,
+            supports_employment_type=False,
+            supports_remote_filter=False,
+            supports_pagination=False,
+            supports_full_fetch=False,
+        )
+
+        def fetch_jobs(self, profile, search_term):
+            raise requests.Timeout("request timed out")
+
+    repository = FakeRepository()
+    runner = JobIngestionRunner(repository=repository, connector=FakeConnector())
+
+    with pytest.raises(requests.Timeout):
+        runner.run("test_profile")
+
+    assert repository.failed_runs == [
+        {
+            "ingestion_run_id": 100,
+            "error_message": "Timeout: request timed out",
+            "error_type": "network_timeout",
+            "error_stage": "source_request",
+        }
+    ]
