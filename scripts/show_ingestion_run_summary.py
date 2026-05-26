@@ -41,8 +41,28 @@ class ProfileRunSummary:
     last_finished_at: Any
 
 
+@dataclass(frozen=True)
+class FailedRunDiagnostic:
+    profile_name: str
+    source_name: str
+    status: str
+    error_type: str
+    error_stage: str
+    error_message: str
+    finished_at: Any
+
+
 def source_family(source_name: str) -> str:
     return source_name.split(":", 1)[0]
+
+
+def shorten_text(value: str, max_length: int = 120) -> str:
+    normalized = " ".join(value.split())
+
+    if len(normalized) <= max_length:
+        return normalized
+
+    return normalized[: max_length - 3] + "..."
 
 
 def load_active_profiles(connection: psycopg.Connection) -> list[ActiveProfile]:
@@ -123,6 +143,52 @@ def load_recent_run_summaries(
         ]
 
 
+def load_recent_failed_runs(
+    connection: psycopg.Connection,
+    hours: int,
+    limit: int,
+) -> list[FailedRunDiagnostic]:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                COALESCE(sp.profile_name, '<unknown>') AS profile_name,
+                ir.source_name,
+                ir.status,
+                COALESCE(ir.error_type, '<none>') AS error_type,
+                COALESCE(ir.error_stage, '<none>') AS error_stage,
+                COALESCE(ir.error_message, '<none>') AS error_message,
+                ir.finished_at
+            FROM ingestion_runs ir
+            LEFT JOIN search_profiles sp
+                ON sp.id = ir.search_profile_id
+            WHERE ir.started_at >= NOW() - (%s * INTERVAL '1 hour')
+              AND ir.status <> 'success'
+            ORDER BY
+                ir.finished_at DESC NULLS LAST,
+                ir.started_at DESC
+            LIMIT %s;
+            """,
+            (
+                hours,
+                limit,
+            ),
+        )
+
+        return [
+            FailedRunDiagnostic(
+                profile_name=row[0],
+                source_name=row[1],
+                status=row[2],
+                error_type=row[3],
+                error_stage=row[4],
+                error_message=row[5],
+                finished_at=row[6],
+            )
+            for row in cursor.fetchall()
+        ]
+
+
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
     widths = [
         max(len(str(value)) for value in [header] + [row[index] for row in rows])
@@ -136,7 +202,7 @@ def print_table(headers: list[str], rows: list[list[str]]) -> None:
         print(" | ".join(str(value).ljust(widths[index]) for index, value in enumerate(row)))
 
 
-def print_summary(hours: int) -> None:
+def print_summary(hours: int, failed_limit: int) -> None:
     config = get_database_config()
 
     with psycopg.connect(**config) as connection:
@@ -144,6 +210,11 @@ def print_summary(hours: int) -> None:
         summaries = load_recent_run_summaries(
             connection=connection,
             hours=hours,
+        )
+        failed_runs = load_recent_failed_runs(
+            connection=connection,
+            hours=hours,
+            limit=failed_limit,
         )
 
     active_profile_names = {profile.profile_name for profile in active_profiles}
@@ -205,6 +276,35 @@ def print_summary(hours: int) -> None:
         rows=rows,
     )
 
+    if failed_runs:
+        print()
+        print("=== Recent Failed Runs ===")
+        print()
+
+        print_table(
+            headers=[
+                "profile",
+                "source",
+                "status",
+                "error_type",
+                "error_stage",
+                "error_message",
+                "finished_at",
+            ],
+            rows=[
+                [
+                    failed.profile_name,
+                    failed.source_name,
+                    failed.status,
+                    failed.error_type,
+                    failed.error_stage,
+                    shorten_text(failed.error_message),
+                    str(failed.finished_at),
+                ]
+                for failed in failed_runs
+            ],
+        )
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -214,12 +314,21 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="Time window in hours for recent ingestion runs.",
     )
+    parser.add_argument(
+        "--failed-limit",
+        type=int,
+        default=10,
+        help="Maximum number of failed ingestion runs to show.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    print_summary(hours=args.hours)
+    print_summary(
+        hours=args.hours,
+        failed_limit=args.failed_limit,
+    )
 
 
 if __name__ == "__main__":
