@@ -8,7 +8,7 @@
 #
 # Usage:
 #   python -m scripts.preview_personio_xml_targets --list-profiles
-#   python -m scripts.preview_personio_xml_targets --profile-id <ID> --use-candidate-targets
+#   python -m scripts.preview_personio_xml_targets --profile-id 9 --use-candidate-targets
 
 from __future__ import annotations
 
