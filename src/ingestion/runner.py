@@ -2,12 +2,15 @@ import logging
 import sys
 from typing import Any
 
-from src.connectors.base import JobSourceConnector, RawJobRecord
+from src.connectors.base import JobSourceConnector, RawJobRecord, SearchTerm
 from src.ingestion.diagnostics import (
     classify_exception,
     format_ingestion_failure,
 )
-from src.ingestion.post_fetch_filter import apply_keyword_filter
+from src.ingestion.post_fetch_filter import (
+    apply_keyword_filter,
+    apply_multi_term_keyword_filter,
+)
 from src.ingestion.repository import JobIngestionRepository
 
 
@@ -73,6 +76,13 @@ class JobIngestionRunner:
 
         if not search_terms:
             raise ValueError(f"No active search terms found for profile: {profile_name}")
+
+        if (
+            self.connector.capabilities.supports_full_fetch
+            and not self.connector.capabilities.supports_keyword
+        ):
+            self.run_full_fetch_with_local_matching(search_terms)
+            return
 
         total_loaded_all = 0
         inserted_count_all = 0
@@ -197,7 +207,140 @@ class JobIngestionRunner:
             print(f"Neue Jobs gespeichert: {inserted_count}")
             print(f"Bereits vorhandene Jobs übersprungen: {duplicate_count}")
 
+    def run_full_fetch_with_local_matching(
+        self,
+        search_terms: list[tuple[Any, SearchTerm]],
+    ) -> None:
+        profile = search_terms[0][0]
+        active_terms = [search_term for _, search_term in search_terms]
+
+        ingestion_run_id = self.repository.create_ingestion_run(
+            source_name=self.connector.source_name,
+            search_profile_id=profile.id,
+            search_term_id=None,
+            search_term=None,
+        )
+
+        try:
+            records, requested_url = self.connector.fetch_jobs(
+                profile,
+                SearchTerm(search_term="*", id=None),
+            )
+        except Exception as exc:
+            diagnostic = classify_exception(
+                exc=exc,
+                error_stage="source_request",
+            )
+
+            self.repository.fail_ingestion_run(
+                ingestion_run_id=ingestion_run_id,
+                error_message=diagnostic.error_message,
+                error_type=diagnostic.error_type,
+                error_stage=diagnostic.error_stage,
+            )
+
+            logger.exception(
+                "Full-fetch ingestion failed for profile '%s'.",
+                profile.profile_name,
+            )
+
+            print(
+                format_ingestion_failure(
+                    profile_name=profile.profile_name,
+                    source_name=self.connector.source_name,
+                    diagnostic=diagnostic,
+                ),
+                file=sys.stderr,
+            )
+
+            raise
+
+        self.repository.update_ingestion_run_requested_url(
+            ingestion_run_id=ingestion_run_id,
+            requested_url=requested_url,
+        )
+
+        loaded_before_local_filter = len(records)
+        records = apply_multi_term_keyword_filter(
+            records=records,
+            search_terms=active_terms,
+        )
+        loaded_after_local_filter = len(records)
+
+        if profile.page_size and profile.page_size > 0:
+            records = records[: profile.page_size]
+
+        inserted_count = 0
+        duplicate_count = 0
+
+        print("---")
+        print(f"Profile: {profile.profile_name}")
+        print("Search terms: " + ", ".join(term.search_term for term in active_terms))
+        print(f"Final URL: {requested_url}")
+        print(f"{loaded_before_local_filter} Jobs geladen vor lokaler Filterung")
+        print(f"{loaded_after_local_filter} Jobs nach lokaler Multi-Term-Filterung")
+        if profile.page_size and profile.page_size > 0:
+            print(f"{len(records)} Jobs nach page_size-Begrenzung")
+
+        for record in records:
+            new_id = self.repository.save_raw_job(
+                record=record,
+                ingestion_run_id=ingestion_run_id,
+                search_profile_id=profile.id,
+            )
+
+            raw_job_id = new_id
+
+            if raw_job_id is None:
+                raw_job_id = self.repository.find_existing_raw_job_id(
+                    source_name=record.source_name,
+                    external_job_id=record.external_job_id,
+                )
+
+            self.repository.save_job_observation(
+                record=record,
+                ingestion_run_id=ingestion_run_id,
+                raw_job_id=raw_job_id,
+            )
+
+            display_title = get_record_display_title(record)
+            display_company = get_record_display_company(record)
+            matched_terms = (
+                record.raw_data
+                .get("matching", {})
+                .get("matched_terms", [])
+            )
+
+            matched_terms_display = ", ".join(matched_terms) or "<none>"
+
+            if new_id is None:
+                duplicate_count += 1
+                print(
+                    f"Bereits vorhanden: {display_title} | "
+                    f"{display_company} | "
+                    f"matched_terms: {matched_terms_display}"
+                )
+                continue
+
+            inserted_count += 1
+            print(
+                f"Gespeichert: ID={new_id} | "
+                f"{display_title} | "
+                f"{display_company} | "
+                f"matched_terms: {matched_terms_display}"
+            )
+
+        self.repository.finish_ingestion_run(
+            ingestion_run_id=ingestion_run_id,
+            total_loaded=len(records),
+            inserted_count=inserted_count,
+            duplicate_count=duplicate_count,
+        )
+
+        print(f"Ingestion Run ID: {ingestion_run_id}")
+        print(f"Neue Jobs gespeichert: {inserted_count}")
+        print(f"Bereits vorhandene Jobs übersprungen: {duplicate_count}")
         print("===")
-        print(f"Gesamt geladen: {total_loaded_all}")
-        print(f"Gesamt neu gespeichert: {inserted_count_all}")
-        print(f"Gesamt bereits vorhanden: {duplicate_count_all}")
+        print(f"Gesamt geladen: {len(records)}")
+        print(f"Gesamt neu gespeichert: {inserted_count}")
+        print(f"Gesamt bereits vorhanden: {duplicate_count}")

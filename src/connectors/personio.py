@@ -23,10 +23,10 @@ class PersonioConnector(JobSourceConnector):
     """Minimal public Personio XML connector.
 
     Defensive acquisition policy:
-    - one XML request per configured source target and search term
+    - one XML request per configured source target
     - no detail pages
     - no pagination
-    - local keyword filtering before RawJobRecord creation
+    - local keyword matching is handled after RawJobRecord creation
     """
 
     capabilities = SourceCapabilities(
@@ -68,14 +68,6 @@ class PersonioConnector(JobSourceConnector):
         observed_at_utc = datetime.now(UTC).isoformat()
 
         positions = extract_positions(response.content)
-        positions = [
-            position
-            for position in positions
-            if search_term_matches(position=position, search_term=search_term)
-        ]
-
-        if profile.page_size and profile.page_size > 0:
-            positions = positions[: profile.page_size]
 
         records = [
             build_raw_job_record(
@@ -247,7 +239,7 @@ def build_raw_job_record(
                 "extracted_from": "public_xml_feed",
                 "detail_page_fetched": False,
                 "pagination_used": False,
-                "local_keyword_filtering_used": True,
+                "local_keyword_filtering_used": False,
                 "connector_mode": "personio_public_xml_feed",
                 "observed_at_utc": observed_at_utc,
                 "requested_url": requested_url,
