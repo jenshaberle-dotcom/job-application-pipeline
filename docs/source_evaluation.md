@@ -46,9 +46,19 @@ This distinction supports the long-term strategy of using commercial platforms d
 
 ## Terminology Alignment
 
-Source evaluations use the shared project terminology from `docs/glossary.md`, ADR-022, ADR-026 and ADR-027.
+Source evaluations use the shared project terminology from `docs/glossary.md`, ADR-022, ADR-026, ADR-027 and ADR-028.
 
-Observed provider-specific structures should be described as source signals and then mapped to canonical project concepts such as source, source target, connector, search intent, result card, detail page, external job ID, Bronze record and canonical job.
+Observed provider-specific structures should be described as source signals and then mapped to canonical project concepts such as source family, source target, source type, connector, search intent, result card, detail page, external job ID, Bronze record and canonical job.
+
+Source evaluation must not collapse these levels:
+
+| Level | Meaning | Example |
+|---|---|---|
+| Source family | Provider or platform family | `personio`, `greenhouse`, `stepstone` |
+| Source target | Concrete acquisition target within that family | `personio:eraneos`, `greenhouse:stripe` |
+| Source type | Strategic role or classification | ATS board, commercial aggregator, official API |
+
+This distinction is required for Source Value, Source Health and later employer-origin acquisition decisions.
 
 The project therefore intentionally includes:
 
@@ -288,6 +298,14 @@ Very High
 
 ATS / company career system
 
+### Current Status
+
+Personio is technically integrated for selected public XML source targets.
+
+The current implementation supports Bronze ingestion, Silver normalization and controlled Batch 1 source-target evaluation.
+
+Personio has not yet passed source-value validation. Its continued expansion depends on whether Batch 1 contributes measurable additional jobs, companies or canonical candidates compared with Bundesagentur, Greenhouse and StepStone.
+
 ### Expected Advantages
 
 - Common in European companies
@@ -361,13 +379,14 @@ Very High
 
 ## Current Direction
 
-The project currently has three implemented source categories:
+The project currently has four active source categories:
 
 - search-capable public API
 - full-fetch ATS board
+- controlled public XML ATS/company-board targets
 - limited commercial aggregator discovery source
 
-The next source expansion should improve source-target lineage and then add controlled ATS or company-board targets before expanding commercial portal acquisition.
+The next source expansion should use controlled source targets, evaluate source value, and avoid mixing source family, source target and source type in one ambiguous analytical level.
 
 Commercial platforms such as StepStone should remain bounded discovery sources unless source-value analysis justifies continued controlled use.
 

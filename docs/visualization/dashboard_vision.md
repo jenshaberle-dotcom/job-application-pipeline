@@ -66,6 +66,8 @@ Suggested metrics:
 - jobs loaded
 - new jobs inserted
 - duplicates skipped
+- error type
+- error stage
 - error message
 
 ### 2. Daily Job Review
@@ -182,7 +184,7 @@ It does not necessarily mean the original publication date.
 
 Goal:
 
-Show how many relevant jobs come from each source and role family.
+Show how many relevant jobs come from each source family, source target, source type and role family.
 
 Current state:
 
@@ -194,7 +196,7 @@ Role distribution should be based on explicit role family classification instead
 
 Potential visualization:
 
-- stacked bar chart by source
+- stacked bar chart by source family or source target
 - role family as stacked segments
 - Pareto-style chart for source contribution
 

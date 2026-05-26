@@ -10,7 +10,7 @@ The goal is to make source differences explicit, comparable and visible in the c
 
 ## Terminology Alignment
 
-This document uses the shared terminology from `docs/glossary.md`, ADR-022, ADR-023, ADR-026 and ADR-027.
+This document uses the shared terminology from `docs/glossary.md`, ADR-022, ADR-023, ADR-026, ADR-027 and ADR-028.
 
 Source-specific differences should be captured as source capabilities or mappings to canonical concepts. They should not introduce separate terminology for each source.
 
@@ -35,6 +35,7 @@ See also:
 - `docs/adr/023_define_search_result_connector_contract.md`
 - `docs/adr/026_define_source_acquisition_scope_and_canonical_source_strategy.md`
 - `docs/adr/027_define_source_target_acquisition_model.md`
+- `docs/adr/028_separate_source_family_target_and_type.md`
 
 ## Search Intent and Source Targets
 
@@ -46,17 +47,16 @@ Source targets describe concrete acquisition targets inside a source.
 |---|---|
 | Search profile | `data_engineering_hannover` |
 | Search term | `Data Engineer` |
-| Source | `greenhouse` |
+| Source family | `greenhouse` |
 | Source target | `greenhouse:stripe` |
+| Source type | `ats_board` |
 | Acquisition mode | `full_board_with_local_keyword_filter` |
 
-This distinction prevents the project from modelling every ATS board or company career site as a separate search profile.
+This distinction prevents the project from modelling every ATS board, Personio tenant or company career site as a separate search profile or as a separate source family.
 
 For example, `greenhouse:stripe` should be treated as a Greenhouse source target used for a search profile, not as a separate search intent.
 
-See also:
-
-- `docs/adr/027_define_source_target_acquisition_model.md`
+ADR-028 is especially relevant for Source Value and Source Health analysis because it prevents metrics from mixing provider-level, target-level and strategic-role-level signals.
 
 ---
 
@@ -68,7 +68,7 @@ See also:
 | Greenhouse | ATS job board | no | no | no | no | no | no | yes | implemented |
 | StepStone | Commercial job portal | observed | observed | unknown | unknown | unknown | not evaluated | no | limited result-card connector |
 | Workday | Enterprise ATS | limited | limited | no | limited | unclear | yes | no/limited | candidate |
-| Personio | ATS / company career system | limited | limited | no | limited | unclear | limited | yes/limited | candidate |
+| Personio | ATS / company career system | limited | limited | no | limited | unclear | none | yes | implemented for selected targets; Batch 1 validation pending |
 | Lever | ATS job board | no/limited | limited | no | no | no | no/limited | yes | candidate |
 | Company career pages | Direct employer source | variable | variable | variable | variable | variable | variable | variable | candidate |
 
@@ -348,6 +348,35 @@ The connector therefore fetches a company board and applies local filtering wher
 
 This source is useful because it introduces realistic ATS behavior, incomplete metadata and source-specific normalization needs.
 
+### Personio
+
+Current status: `selected_public_xml_targets_implemented`
+
+Current profile:
+
+| Dimension | Value |
+|---|---|
+| Access model | `ats_board` / `public_xml` |
+| Filtering capability | `none` server-side, local keyword filtering in project |
+| Identifier quality | `stable` for observed job IDs |
+| Publication date quality | `missing` / source-dependent |
+| Pagination model | `none` for observed XML feeds |
+| Rate limit risk | `low` for controlled target set |
+| Blocking risk | `low` for controlled target set |
+| Layout change risk | `medium` |
+| Maintenance effort | `medium` |
+| Legal / ethical risk | `low` to `medium`, depending on target and acquisition volume |
+| Heartbeat strategy | `board_metadata_check` or lightweight XML check later |
+| Ingestion strategy | `company_board_fetch` with local keyword filtering |
+
+Summary:
+
+Personio is implemented for selected public XML source targets and supports Bronze ingestion and Silver normalization.
+
+It is currently a source-value validation candidate, not yet a proven high-value source family.
+
+The immediate decision point is controlled Batch 1 evaluation: Personio should either prove measurable additional value or remain limited to selected high-signal targets.
+
 ### StepStone
 
 Current status: `limited_result_card_connector`
@@ -433,9 +462,10 @@ Example:
 
 These sources expose all jobs for one company or board.
 
-Example:
+Examples:
 
 - Greenhouse
+- Personio selected XML targets
 
 These require local filtering if the project wants only jobs matching a role term such as `Data Engineer`.
 
@@ -451,7 +481,7 @@ Examples:
 
 They should be isolated behind connector boundaries and implemented cautiously.
 
-Commercial job portals should be evaluated before implementation.
+Commercial job portals should be evaluated before implementation and should remain discovery or fallback sources unless source-value evidence justifies more usage.
 
 ### Direct employer career pages
 
