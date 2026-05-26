@@ -141,3 +141,15 @@ def test_select_profiles_unknown_source_lists_available_source_filters() -> None
     assert "Available source filters:" in message
     assert "personio" in message
     assert "greenhouse" in message
+
+
+def test_build_parser_accepts_log_level() -> None:
+    from src.ingest_jobs import build_parser, normalize_arguments
+
+    parser = build_parser()
+    args = normalize_arguments(
+        parser=parser,
+        args=parser.parse_args(["--log-level", "DEBUG"]),
+    )
+
+    assert args.log_level == "DEBUG"

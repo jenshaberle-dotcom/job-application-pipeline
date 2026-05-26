@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections.abc import Sequence
 
@@ -29,6 +30,17 @@ def create_connector(source_name: str):
         return StepStoneConnector()
 
     raise ValueError(f"No connector configured for source: {source_name}")
+
+
+LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+
+
+def configure_logging(log_level: str) -> None:
+    logging.basicConfig(
+        level=getattr(logging, log_level),
+        format=LOG_FORMAT,
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
 
 def source_matches(source_name: str, source_filter: str) -> bool:
@@ -83,6 +95,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--list-profiles",
         action="store_true",
         help="List active search profiles and terms without running ingestion.",
+    )
+
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="WARNING",
+        help="Logging level for ingestion diagnostics.",
     )
 
     parser.add_argument(
@@ -238,6 +257,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         parser=parser,
         args=parser.parse_args(argv),
     )
+    configure_logging(args.log_level)
 
     repository = JobIngestionRepository()
 
