@@ -35,6 +35,36 @@ def source_matches(source_name: str, source_filter: str) -> bool:
     return source_name == source_filter or source_name.startswith(f"{source_filter}:")
 
 
+def source_family(source_name: str) -> str:
+    return source_name.split(":", 1)[0]
+
+
+def format_available_profiles(profiles: Sequence[SearchProfile]) -> str:
+    if not profiles:
+        return "No active profiles are available."
+
+    source_filters = sorted(
+        {profile.source_name for profile in profiles}
+        | {source_family(profile.source_name) for profile in profiles}
+    )
+
+    lines = ["Available active profiles:"]
+
+    for profile in profiles:
+        lines.append(
+            f"- {profile.profile_name} "
+            f"(source={profile.source_name}, family={source_family(profile.source_name)})"
+        )
+
+    lines.append("")
+    lines.append("Available source filters:")
+
+    for source_filter in source_filters:
+        lines.append(f"- {source_filter}")
+
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run job ingestion for all active profiles, a source family, or one profile."
@@ -82,13 +112,25 @@ def select_profiles(
     profile_name: str | None,
     source_filter: str | None,
 ) -> list[SearchProfile]:
-    if profile_name:
-        return [repository.load_search_profile(profile_name=profile_name)]
-
     profiles = repository.load_active_search_profiles()
 
+    if profile_name:
+        selected_profiles = [
+            profile
+            for profile in profiles
+            if profile.profile_name == profile_name
+        ]
+
+        if selected_profiles:
+            return selected_profiles
+
+        raise ValueError(
+            f"No active search profile found: {profile_name}\n\n"
+            f"{format_available_profiles(profiles)}"
+        )
+
     if source_filter:
-        profiles = [
+        selected_profiles = [
             profile
             for profile in profiles
             if source_matches(
@@ -97,10 +139,15 @@ def select_profiles(
             )
         ]
 
-    if not profiles:
-        if source_filter:
-            raise ValueError(f"No active search profiles found for source: {source_filter}")
+        if selected_profiles:
+            return selected_profiles
 
+        raise ValueError(
+            f"No active search profiles found for source: {source_filter}\n\n"
+            f"{format_available_profiles(profiles)}"
+        )
+
+    if not profiles:
         raise ValueError("No active search profiles found.")
 
     return profiles
@@ -198,11 +245,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         print_profiles(repository)
         return
 
-    profiles = select_profiles(
-        repository=repository,
-        profile_name=args.profile,
-        source_filter=args.source,
-    )
+    try:
+        profiles = select_profiles(
+            repository=repository,
+            profile_name=args.profile,
+            source_filter=args.source,
+        )
+    except ValueError as exc:
+        parser.exit(
+            status=2,
+            message=f"Error: {exc}\n\nHint: python -m src.ingest_jobs --list-profiles\n",
+        )
 
     exit_code = run_profiles(
         repository=repository,

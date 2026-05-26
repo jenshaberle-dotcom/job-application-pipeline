@@ -74,8 +74,11 @@ def test_select_profiles_by_source_family() -> None:
 
 def test_select_profiles_by_exact_profile_name() -> None:
     class FakeRepository:
-        def load_search_profile(self, profile_name):
-            return make_profile(profile_name, "bundesagentur_fuer_arbeit")
+        def load_active_search_profiles(self):
+            return [
+                make_profile("ba_data_engineer_30629_50km", "bundesagentur_fuer_arbeit"),
+                make_profile("greenhouse_stripe", "greenhouse:stripe"),
+            ]
 
     selected = select_profiles(
         repository=FakeRepository(),
@@ -86,3 +89,55 @@ def test_select_profiles_by_exact_profile_name() -> None:
     assert [profile.profile_name for profile in selected] == [
         "ba_data_engineer_30629_50km"
     ]
+
+
+def test_select_profiles_unknown_profile_lists_available_profiles() -> None:
+    class FakeRepository:
+        def load_active_search_profiles(self):
+            return [
+                make_profile("ba_data_engineer_30629_50km", "bundesagentur_fuer_arbeit"),
+                make_profile("greenhouse_stripe", "greenhouse:stripe"),
+            ]
+
+    try:
+        select_profiles(
+            repository=FakeRepository(),
+            profile_name="missing_profile",
+            source_filter=None,
+        )
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
+
+    assert "No active search profile found: missing_profile" in message
+    assert "Available active profiles:" in message
+    assert "ba_data_engineer_30629_50km" in message
+    assert "Available source filters:" in message
+    assert "greenhouse" in message
+
+
+def test_select_profiles_unknown_source_lists_available_source_filters() -> None:
+    class FakeRepository:
+        def load_active_search_profiles(self):
+            return [
+                make_profile("ba_data_engineer_30629_50km", "bundesagentur_fuer_arbeit"),
+                make_profile("greenhouse_stripe", "greenhouse:stripe"),
+                make_profile("personio_eraneos_data_engineer_remote", "personio:eraneos"),
+            ]
+
+    try:
+        select_profiles(
+            repository=FakeRepository(),
+            profile_name=None,
+            source_filter="personoi",
+        )
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
+
+    assert "No active search profiles found for source: personoi" in message
+    assert "Available source filters:" in message
+    assert "personio" in message
+    assert "greenhouse" in message
