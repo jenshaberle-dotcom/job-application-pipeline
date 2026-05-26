@@ -150,7 +150,9 @@ It provides operational lineage, requested URL information, search-term lineage 
 | `total_loaded` | `integer` | no | `0` |  |
 | `inserted_count` | `integer` | no | `0` |  |
 | `duplicate_count` | `integer` | no | `0` |  |
-| `error_message` | `text` | yes |  |  |
+| `error_message` | `text` | yes |  | Human-readable failure detail. |
+| `error_type` | `text` | yes |  | Classified failure type for operational diagnostics. |
+| `error_stage` | `text` | yes |  | Pipeline stage where a failure occurred. |
 
 ## Constraints and Indexes
 
@@ -161,6 +163,8 @@ It provides operational lineage, requested URL information, search-term lineage 
 | `idx_ingestion_runs_search_profile_id` | Index | `search_profile_id` | Supports profile-based run analysis. |
 | `idx_ingestion_runs_search_term_id` | Index | `search_term_id` | Supports search-term quality analysis. |
 | `idx_ingestion_runs_search_term` | Index | `search_term` | Supports historical term-snapshot analysis. |
+| `idx_ingestion_runs_status_error_type` | Index | `status`, `error_type` | Supports failed-run diagnostics by failure category. |
+| `idx_ingestion_runs_error_stage` | Partial index | `error_stage` where `status = 'failed'` | Supports failed-run diagnostics by pipeline stage. |
 
 ## Referenced By
 
@@ -239,6 +243,8 @@ This view aggregates source-level processing metrics from `dashboard_new_relevan
 It compares source behavior, but it does not replace source health monitoring.
 
 Operational source health should later combine ingestion runs with dedicated heartbeat checks.
+
+Note: `ingestion_runs.error_type` and `ingestion_runs.error_stage` provide the first persisted diagnostics surface for failed productive ingestion runs. They do not replace a future dedicated heartbeat or source-health model.
 
 ---
 
