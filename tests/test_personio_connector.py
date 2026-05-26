@@ -73,7 +73,7 @@ def test_personio_connector_capabilities_are_defensive() -> None:
     assert connector.capabilities.supports_full_fetch is True
 
 
-def test_fetch_jobs_filters_records_by_search_term(monkeypatch) -> None:
+def test_fetch_jobs_returns_source_target_records_without_term_filtering(monkeypatch) -> None:
     fixture = FIXTURE_PATH.read_bytes()
     monkeypatch.setattr(
         "src.connectors.personio.requests.get",
@@ -91,7 +91,7 @@ def test_fetch_jobs_filters_records_by_search_term(monkeypatch) -> None:
         "https://schluetersche-mediengruppe.jobs.personio.de"
         "/xml?language=de"
     )
-    assert len(records) == 1
+    assert len(records) == 2
 
     first = records[0]
 
@@ -112,7 +112,7 @@ def test_fetch_jobs_filters_records_by_search_term(monkeypatch) -> None:
     assert first.raw_data["job"]["location"] == "Hannover"
     assert first.raw_data["extraction"]["detail_page_fetched"] is False
     assert first.raw_data["extraction"]["pagination_used"] is False
-    assert first.raw_data["extraction"]["local_keyword_filtering_used"] is True
+    assert first.raw_data["extraction"]["local_keyword_filtering_used"] is False
     assert first.raw_data["quality_signals"]["has_external_job_id"] is True
 
 
@@ -133,7 +133,7 @@ def test_fetch_jobs_allows_wildcard_search_term(monkeypatch) -> None:
     assert len(records) == 2
 
 
-def test_fetch_jobs_respects_profile_page_size_after_filtering(monkeypatch) -> None:
+def test_fetch_jobs_does_not_apply_page_size_before_local_matching(monkeypatch) -> None:
     fixture = FIXTURE_PATH.read_bytes()
     monkeypatch.setattr(
         "src.connectors.personio.requests.get",
@@ -147,4 +147,4 @@ def test_fetch_jobs_respects_profile_page_size_after_filtering(monkeypatch) -> N
         search_term=SearchTerm(id=1, search_term="*"),
     )
 
-    assert len(records) == 1
+    assert len(records) == 2
