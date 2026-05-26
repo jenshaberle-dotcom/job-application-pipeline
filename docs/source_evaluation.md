@@ -488,3 +488,101 @@ The next implementation step should not be a dashboard yet.
 
 The next implementation step should be to persist enough acquisition and matching evidence so these metrics can be computed reliably instead of being inferred from ad-hoc script output.
 
+## Future Source Lifecycle and Connector Recommendation Logic
+
+Source Value is not a static property of a source.
+
+A source may be valuable during one period and lose value later because of changing job availability, degraded data quality, increased duplicate rates, technical instability, changed acquisition rules, operational limits, legal risk or increasing maintenance cost.
+
+Therefore, source evaluation must be treated as a lifecycle process, not as a one-time connector-build decision.
+
+Future source evaluation should support both:
+
+- evaluating new source candidates before connector implementation
+- continuously evaluating existing active sources after implementation
+
+The intended lifecycle logic is:
+
+- discover a potential source candidate from Bronze, Silver or source-value analysis
+- evaluate the candidate defensively
+- estimate source value, risk and implementation complexity
+- produce a recommendation
+- let a human decide whether to build, limit, pause, deprecate or disable a connector
+
+The system should not automatically create or remove connectors.
+
+Potential future recommendation or lifecycle states include:
+
+- `candidate`
+- `under_evaluation`
+- `connector_candidate`
+- `active`
+- `active_limited`
+- `manual_watch`
+- `paused`
+- `deprecated`
+- `disabled`
+- `do_not_build`
+
+Hard gates should override scoring.
+
+Examples of hard gates are:
+
+- high legal or operational risk
+- unclear or problematic acquisition conditions
+- login, authentication bypass or non-defensive access requirements
+- persistent technical failures
+- blocking or rate-limit signals
+- no defensible acquisition policy
+
+A source with high risk should not become a connector candidate only because it exposes many jobs.
+
+Source-value scoring should consider at least:
+
+- relevant jobs after filtering
+- Silver jobs
+- distinct companies
+- distinct canonical candidates
+- cross-source overlap
+- origin-confirmed jobs
+- new jobs or new companies contributed
+- duplicate rate
+- matched rate
+- failure rate
+- operational risk
+- legal risk
+- maintenance cost
+- strategic relevance for the target search domain
+
+Below defined thresholds, or when hard gates fail, a source may be limited, moved to watchlist, paused, deprecated, disabled or excluded from connector consideration.
+
+Persisted source-value metrics are required because source quality and source risk can only be evaluated meaningfully over time.
+
+This is the conceptual foundation for future source lifecycle decisions and connector recommendation logic.
+
+### Source-Value Snapshot Window Semantics
+
+Initial source-value snapshots may use the complete currently available local history.
+
+This is useful as a baseline, but it must not be treated as a stable lifecycle score.
+
+Historic totals can be distorted by earlier connector semantics, old search-term behavior, local test runs or one-time exploration spikes.
+
+Future source-value snapshots should therefore support explicit evaluation windows, for example:
+
+- `--window-hours 24`
+- `--window-days 7`
+- `--window-days 30`
+
+Lifecycle decisions should be based on windowed trends, not only on all-time cumulative totals.
+
+Examples:
+
+- a source may have high all-time volume but low current matched value
+- a source may have been reliable historically but start failing recently
+- a source may have many old duplicates but still provide new current employer-origin evidence
+- a source may have low total volume but high value in a specific recent window
+
+The current all-time snapshot should therefore be interpreted as an initial historical baseline.
+
+Future lifecycle decisions such as `active_limited`, `manual_watch`, `paused`, `deprecated` or `do_not_build` should use explicit time windows and trends.
