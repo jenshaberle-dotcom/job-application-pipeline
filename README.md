@@ -184,6 +184,7 @@ Planned capabilities:
 - [x] Raw job ingestion from the German Federal Employment Agency job search
 - [x] Greenhouse ATS ingestion
 - [x] Limited StepStone result-card ingestion
+- [x] Personio XML ingestion
 - [x] Database-level duplicate protection
 - [x] Idempotent ingestion behavior using PostgreSQL constraints
 - [x] Search profile driven ingestion
@@ -203,12 +204,17 @@ Planned capabilities:
 - [x] Initial Silver-layer table
 - [x] Initial Bronze-to-Silver transformation
 - [x] Greenhouse Silver transformation
+- [x] Personio Silver transformation
+- [x] StepStone Silver transformation
 - [x] First Canonicalization Layer for Silver jobs
 - [x] Canonical key candidate generation
 - [x] Relevance filtering for Silver candidates
 - [x] Token-aware relevance matching
 - [x] Silver processing decision tracking
 - [x] Silver source value exploration script
+- [x] Ingestion failure diagnostics
+- [x] Minimal ingestion logging baseline
+- [x] Source family, source target and source type decision
 - [x] Separation of technical duplicate protection and semantic deduplication
 - [x] Detailed PostgreSQL schema documentation
 - [x] Constraint and index documentation
@@ -217,6 +223,7 @@ Planned capabilities:
 - [x] Source evaluation documentation
 - [x] Greenhouse source analysis
 - [x] StepStone source analysis
+- [x] Personio source analysis
 - [x] Search result connector contract documentation
 - [x] Relevance strategy documentation
 - [x] API-first dashboard architecture planning
@@ -238,7 +245,7 @@ Planned capabilities:
 - [ ] Explicit source-target lineage in ingestion runs
 - [ ] Controlled Greenhouse source-target expansion
 - [ ] Additional ATS and company-board source evaluation
-- [ ] Personio evaluation
+- [~] Controlled Personio Batch 1 source-value validation
 - [ ] Softgarden evaluation
 - [ ] SmartRecruiters evaluation
 - [ ] Workday and SAP SuccessFactors exploration
@@ -378,14 +385,21 @@ Current implemented sources:
 
 - [x] Bundesagentur für Arbeit
 - [x] Greenhouse ATS
+- [x] Limited StepStone result-card ingestion
+- [x] Personio XML ingestion
+
+Current source-value validation focus:
+
+- [~] Controlled Personio Batch 1 evaluation
+- [~] Source overlap and company coverage comparison
 
 Prepared or planned sources:
 
-- [ ] StepStone
-- [ ] LinkedIn Jobs evaluation
-- [ ] Workday-based career systems
-- [ ] additional ATS providers
-- [ ] company career pages
+- [ ] Controlled Greenhouse source-target expansion
+- [ ] Softgarden evaluation
+- [ ] SmartRecruiters evaluation
+- [ ] Workday and SAP SuccessFactors exploration
+- [ ] direct company career pages
 
 Reasons for this decision:
 
@@ -427,10 +441,12 @@ The ingestion layer therefore separates:
 
 Current implemented examples:
 
-| Source | Keyword | Location | Radius | Pagination | Full Fetch |
-|---|---:|---:|---:|---:|---:|
-| Bundesagentur für Arbeit | yes | yes | yes | yes | no |
-| Greenhouse | no | no | no | no | yes |
+| Source family | Keyword | Location | Radius | Pagination | Full Fetch | Local Filter |
+|---|---:|---:|---:|---:|---:|---:|
+| Bundesagentur für Arbeit | yes | yes | yes | yes | no | no |
+| Greenhouse | no | no | no | no | yes | yes |
+| StepStone | yes | yes | no | limited | no | yes |
+| Personio | no | no | no | no | yes | yes |
 
 ## Repository Structure
 
@@ -453,7 +469,10 @@ job-application-pipeline/
 │   │   ├── 011_dashboard_source_processing_summary_view.sql
 │   │   ├── 012_add_stepstone_search_profile.sql
 │   │   ├── 013_add_search_term_lineage_to_ingestion_runs.sql
-│   │   └── 014_extend_silver_jobs_for_canonicalization.sql
+│   │   ├── 014_extend_silver_jobs_for_canonicalization.sql
+│   │   ├── 015_add_personio_schluetersche_search_profile.sql
+│   │   ├── 016_add_personio_batch_1_search_profiles.sql
+│   │   └── 017_add_ingestion_run_diagnostics.sql
 │   │
 │   └── queries/
 │
@@ -519,6 +538,7 @@ job-application-pipeline/
 │   ├── source_analysis/
 │   │   ├── greenhouse.md
 │   │   ├── greenhouse_api_examples.md
+│   │   ├── personio.md
 │   │   └── stepstone.md
 │   │
 │   ├── visualization/
@@ -536,7 +556,10 @@ job-application-pipeline/
 │   ├── analyze_stepstone_structured_cards.py
 │   ├── backfill_silver_canonicalization_fields.py
 │   ├── explore_silver_source_value.py
-│   └── preview_stepstone_result_card_records.py
+│   ├── inspect_personio_pipeline_state.py
+│   ├── preview_personio_xml_targets.py
+│   ├── preview_stepstone_result_card_records.py
+│   └── show_ingestion_run_summary.py
 │
 ├── src/
 │   ├── connectors/
@@ -545,11 +568,13 @@ job-application-pipeline/
 │   │   ├── bundesagentur.py
 │   │   ├── capabilities.py
 │   │   ├── greenhouse.py
+│   │   ├── personio.py
 │   │   ├── stepstone.py
 │   │   └── stepstone_result_cards.py
 │   │
 │   ├── ingestion/
 │   │   ├── __init__.py
+│   │   ├── diagnostics.py
 │   │   ├── post_fetch_filter.py
 │   │   ├── repository.py
 │   │   └── runner.py
@@ -569,7 +594,10 @@ job-application-pipeline/
 ├── .gitignore
 ├── tests/
 │   ├── fixtures/
+│   ├── test_ingest_jobs_cli.py
+│   ├── test_ingestion_diagnostics.py
 │   ├── test_ingestion_runner_display.py
+│   ├── test_personio_connector.py
 │   ├── test_silver_transformer_canonicalization.py
 │   ├── test_stepstone_connector.py
 │   └── test_stepstone_result_cards.py
@@ -619,9 +647,10 @@ The architecture explicitly models differences between heterogeneous real-world 
 
 Current engineering focus areas include:
 
-- expanding multi-source ingestion
-- improving Silver-layer normalization
-- preparing lifecycle-aware analytics
+- validating source value with controlled Personio Batch 1 data
+- expanding source coverage defensively and with explicit source-target boundaries
+- improving Silver-layer normalization and source overlap analysis
+- preparing lifecycle-aware analytics and Gold datasets
 - enabling future dashboard and API layers
 - preparing semantic matching and deduplication
 

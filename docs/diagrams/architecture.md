@@ -23,6 +23,18 @@ classDiagram
         +fetch_jobs(profile, search_term)
     }
 
+    class PersonioConnector {
+        +source_name
+        +fetch_jobs(profile, search_term)
+    }
+
+    class IngestionFailureDiagnostic {
+        +error_type
+        +error_stage
+        +error_message
+        +suggested_action
+    }
+
     class JobIngestionRunner {
         +run(profile_name)
     }
@@ -32,6 +44,7 @@ classDiagram
         +create_ingestion_run(...)
         +save_raw_job(...)
         +finish_ingestion_run(...)
+        +fail_ingestion_run(...)
     }
 
     class SilverJobRepository {
@@ -67,6 +80,15 @@ classDiagram
         +raw_data
     }
 
+    class ingestion_runs {
+        <<Operational Lineage>>
+        +source_name
+        +status
+        +error_type
+        +error_stage
+        +error_message
+    }
+
     class silver_jobs {
         <<Silver Layer>>
         +raw_job_id
@@ -86,17 +108,21 @@ classDiagram
     JobSourceConnector <|.. BundesagenturConnector
     JobSourceConnector <|.. GreenhouseConnector
     JobSourceConnector <|.. StepStoneConnector
+    JobSourceConnector <|.. PersonioConnector
 
     JobIngestionRunner --> JobSourceConnector : executes
     JobIngestionRunner --> JobIngestionRepository : persists via
+    JobIngestionRunner --> IngestionFailureDiagnostic : classifies failures
 
     JobIngestionRepository --> SearchProfile
     JobIngestionRepository --> SearchTerm
     JobIngestionRepository --> raw_jobs
+    JobIngestionRepository --> ingestion_runs
 
     BundesagenturConnector --> RawJobRecord : returns
     GreenhouseConnector --> RawJobRecord : returns
     StepStoneConnector --> RawJobRecord : returns
+    PersonioConnector --> RawJobRecord : returns
 
     RawJobRecord --> raw_jobs : source-preserving storage
 
@@ -121,3 +147,5 @@ They do not perform business-level interpretation such as:
 The Bronze layer stores source-preserving raw records.
 
 The Silver layer provides a pragmatic canonical representation and now includes first-stage canonicalization fields for duplicate-candidate and source-value analysis.
+
+Ingestion failures are classified into persisted diagnostics on `ingestion_runs`. This keeps runtime errors visible without introducing a separate event-log table yet.

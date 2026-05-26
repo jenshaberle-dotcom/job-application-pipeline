@@ -19,6 +19,7 @@ Current behavior:
 - source health is derived from ingestion runs
 - ingestion runs represent productive data acquisition
 - failed ingestion runs can indicate operational issues
+- failed ingestion runs now persist `error_type`, `error_stage` and `error_message`
 - successful ingestion runs provide useful freshness information
 - source reachability is not checked independently
 
@@ -99,6 +100,7 @@ Potential inputs:
 - latest successful ingestion run
 - failed heartbeat count
 - failed ingestion count
+- source-specific error type and stage diagnostics
 - source-specific error messages
 - freshness thresholds
 - data availability expectations
@@ -125,6 +127,8 @@ Possible fields:
 | `status` | Result status, for example `success` or `failed` |
 | `response_status_code` | HTTP status code if available |
 | `response_time_ms` | Approximate response latency |
+| `error_type` | Classified heartbeat failure type |
+| `error_stage` | Heartbeat stage where the failure occurred |
 | `error_message` | Error details if the heartbeat failed |
 | `checked_url` | Endpoint or URL used for the heartbeat |
 | `connector_name` | Connector implementation used for the check |
@@ -145,6 +149,8 @@ Possible fields:
 | `health_status` | Dashboard status such as `healthy`, `warning`, `critical`, `unknown` |
 | `last_successful_heartbeat_at` | Latest successful heartbeat timestamp |
 | `last_successful_ingestion_at` | Latest successful ingestion timestamp |
+| `latest_error_type` | Latest classified operational error type |
+| `latest_error_stage` | Latest operational stage where a failure occurred |
 | `latest_error_message` | Latest relevant operational error |
 | `reason` | Human-readable explanation for the health status |
 
@@ -177,6 +183,6 @@ The heartbeat process should be:
 
 The current ingestion-derived heartbeat view remains useful as an initial dashboard indicator.
 
-It should not be treated as the final heartbeat architecture.
+The ingestion diagnostics fields on `ingestion_runs` improve failed-run explainability, but they should not be treated as the final heartbeat architecture.
 
 A later implementation should introduce a dedicated heartbeat process and evolve the current dashboard source heartbeat view into a broader source health summary.

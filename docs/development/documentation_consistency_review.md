@@ -2,121 +2,143 @@
 
 ## Purpose
 
-This review tracks consistency, completeness, freshness and redundancy across the project documentation after ADR-027.
+This document defines how documentation consistency reviews are performed in this project.
 
-The goal is not to rewrite all documentation.
+A documentation review is not only a textual consistency pass.
 
-The goal is to identify documentation drift and then apply small, reviewable corrections.
+A documentation review is an executable validation against the current repository and, where relevant, the current local database state.
+
+The goal is to keep documentation:
+
+- current
+- correct
+- linked
+- non-redundant
+- useful
+
+The guiding principle is:
+
+> as extensive as necessary, as small as possible
 
 ## Review Scope
 
-- README.md
-- docs/roadmap.md
-- docs/adr/
-- docs/glossary.md
-- docs/data_sources/
-- docs/database/tables.md
-- docs/diagrams/
-- docs/source_evaluation.md
-- docs/source_analysis/
-- docs/relevance/
-- docs/planning/
-- docs/observability/
-- docs/visualization/
+A full documentation review may include:
+
+- `README.md`
+- `docs/roadmap.md`
+- `docs/adr/`
+- `docs/glossary.md`
+- `docs/data_sources/`
+- `docs/database/tables.md`
+- `docs/diagrams/`
+- `docs/source_evaluation.md`
+- `docs/source_analysis/`
+- `docs/relevance/`
+- `docs/planning/`
+- `docs/observability/`
+- `docs/visualization/`
+
+The review should not create new documents unless the existing structure cannot hold the information cleanly.
 
 ## Review Dimensions
 
-- Consistency: terms are used with the same meaning across documents.
-- Completeness: current implemented features are documented in the expected places.
-- Freshness: documentation reflects the current repository, schema, scripts and source status.
-- Redundancy: duplicated explanations do not contradict each other.
-- Boundaries: ADR decisions, source analyses, database docs and diagrams do not blur layer responsibilities.
+| Dimension | Review question |
+|---|---|
+| Consistency | Are terms used with the same meaning across documents? |
+| Completeness | Are implemented features documented in the expected places? |
+| Freshness | Does documentation reflect current repository, schema, scripts and source status? |
+| Correctness | Are commands, profile names, migrations, tables and diagrams factually correct? |
+| Links | Are ADRs, source analyses and capability documents connected where needed? |
+| Redundancy | Do duplicated explanations create contradictions or unnecessary maintenance burden? |
+| Boundaries | Are Bronze, Silver, Gold, connector and source-evaluation responsibilities kept separate? |
 
-## Initial Findings
+## Executable Validation
 
-### README.md
+Documentation claims should be validated with commands whenever feasible.
 
-- README.md needs a focused freshness review.
-- Repository structure, migration list, ADR list, scripts, tests and current source status should be checked against the repository.
-- StepStone should be described as limited result-card acquisition, not as a generic planned connector.
-- First Canonicalization Layer and Silver Source Value Exploration should be reflected if missing or outdated.
+Typical checks:
 
-### docs/roadmap.md
+- `git status --short`
+- `git diff --check`
+- `python -m compileall scripts src`
+- `pytest`
+- `find docs -maxdepth ...`
+- `grep -RIn ...`
+- database introspection through `psql`
+- source-specific scripts such as `show_ingestion_run_summary` or `explore_silver_source_value`
 
-- Roadmap should reflect completed StepStone limited connector work.
-- Roadmap should include First Canonicalization Layer as completed.
-- Roadmap should include Source Value Exploration and Source Target Acquisition Model.
-- Future work should distinguish source-target lineage from broader source expansion.
+Examples of claims that should be validated instead of guessed:
 
-### docs/database/tables.md
+- migration numbers and file names
+- current connector files
+- available scripts
+- active search profiles
+- database tables and columns
+- implemented source families and source targets
+- Mermaid diagram field names
+- README example commands
 
-- Verify that all current migrations are reflected.
-- Verify that silver_jobs canonicalization fields from migration 014 are documented.
-- Verify whether silver_processing_decisions is documented as a table.
-- Check dashboard view column documentation for duplicate or outdated entries.
+## ADR Rule
 
-### docs/diagrams/
+ADRs record decisions at the time they were made.
 
-- Architecture diagram should reflect current connectors instead of placeholder-only connector naming.
-- Bronze/Silver data model should reflect ingestion run search-term lineage.
-- Bronze/Silver data model should reflect job observations and Silver processing decisions if missing.
-- Silver canonicalization fields should be considered for diagram representation without overcrowding it.
+Historical ADRs should not be rewritten just because the project has advanced.
 
-### docs/source_evaluation.md
+Exceptions:
 
-- StepStone status should be updated from exploratory candidate to limited defensive discovery source if outdated.
-- Greenhouse should be positioned as implemented ATS/company-board source.
-- Source value evaluation should align with ADR-026 and the Silver source value exploration script.
+- hard factual errors
+- broken links
+- terminology that contradicts a later accepted ADR and would mislead readers
 
-### docs/source_analysis/greenhouse.md
+Current-state documents such as README, roadmap, database docs, diagrams, source analyses and source evaluation pages carry the latest operational truth.
 
-- Check whether expected fields and implementation status still read like pre-implementation notes.
-- Align with current Greenhouse connector and Silver transformation status.
-- Avoid presenting isolated boards as search profiles.
+## Source Terminology Rule
 
-### docs/source_analysis/stepstone.md
+Source documentation must distinguish:
 
-- Check for mixed language between planned connector and existing limited result-card connector.
-- Ensure defensive boundaries remain explicit: no full crawl, no detail pages, no uncontrolled pagination.
-- Align recommended next step with Source Target Lineage and Source Value analysis.
+- search profile
+- search term
+- source family
+- source target
+- source type
+- source capability
+- acquisition mode
+- acquisition policy
 
-### docs/glossary.md and docs/data_sources/source_capabilities.md
+This is required by ADR-027 and ADR-028.
 
-- Ensure Search Profile, Search Term, Source, Source Query, Source Target, Acquisition Mode and Acquisition Policy are clearly separated.
-- Avoid making Source Target look like only a connector-contract term.
-- Ensure terminology aligns with ADR-015, ADR-022, ADR-023, ADR-026 and ADR-027.
+Compound operational values such as `greenhouse:stripe` or `personio:eraneos` may remain valid short-term identifiers, but documentation must not treat them as the final analytical model.
 
-### docs/visualization/dashboard_vision.md
+## Documentation Structure Rule
 
-- Check whether existing views are still described as future views.
-- Align dashboard vision with current lifecycle, source heartbeat, source value and Silver processing documentation.
+The documentation tree should stay compact.
 
-## Patch Plan
+A new document or directory is justified only when it:
 
-### Patch A1: README and Roadmap
+- has a clear owner topic
+- avoids overloading an existing page
+- will remain useful beyond one implementation step
+- reduces confusion more than it adds navigation cost
 
-- Update only stale status and structure sections.
-- Avoid large README rewrite.
-- Keep current writing style where possible.
+Short-lived notes should usually be folded into an existing source analysis, roadmap, ADR or development document.
 
-### Patch A2: Database Tables and Diagrams
+## Current Review Baseline
 
-- Align tables.md with current schema and migrations.
-- Update diagrams carefully without overcrowding them.
+The current review baseline after ADR-028 and ingestion diagnostics work is:
 
-### Patch A3: Source Evaluation and Source Analyses
+- README and roadmap reflect the current implemented source and diagnostics status.
+- Database and diagram docs include persisted ingestion failure diagnostics.
+- Source terminology is aligned with source family, source target and source type separation.
+- Personio is documented as technically integrated but still pending source-value validation.
+- StepStone is documented as a limited defensive discovery and aggregator source, not a preferred canonical source.
+- Future source health work should build on ADR-028 instead of relying only on compound `source_name` values.
 
-- Align Greenhouse and StepStone status.
-- Align Source Evaluation with current source roles and acquisition boundaries.
+## Open Review Focus
 
-### Patch A4: Terminology and Redundancy Pass
+Future reviews should pay special attention to:
 
-- Review glossary, source capabilities and connector contract together.
-- Remove or clarify redundant wording only where it creates ambiguity.
-
-## Review Rule
-
-ADRs should not be rewritten historically unless they contain a hard inconsistency.
-
-Current-state documentation such as README.md, roadmap, database docs, diagrams and source analyses should carry the latest operational truth.
-
+- whether Personio Batch 1 results justify further expansion
+- whether Greenhouse expansion remains source-target based
+- whether direct employer sources require explicit source-target metadata before scaling
+- whether Gold/dashboard documentation reflects the actual implemented views
+- whether source health metrics separate source family, source target and source type

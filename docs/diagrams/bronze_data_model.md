@@ -36,6 +36,8 @@ erDiagram
         INTEGER inserted_count
         INTEGER duplicate_count
         TEXT error_message
+        TEXT error_type
+        TEXT error_stage
         BIGINT search_term_id FK
         TEXT search_term
     }
@@ -143,7 +145,7 @@ erDiagram
 
 `search_terms` define the active keyword intent per profile.
 
-`ingestion_runs` provide operational lineage, search-term lineage and ingestion statistics.
+`ingestion_runs` provide operational lineage, search-term lineage, ingestion statistics and persisted failure diagnostics.
 
 `job_observations` preserve repeated sightings of source-local jobs across ingestion runs.
 
@@ -155,4 +157,4 @@ The database currently tracks profile, search-term and ingestion lineage.
 
 It does not yet explicitly persist source-target lineage, acquisition mode or acquisition policy per run.
 
-Those concepts are defined in ADR-027 and are planned as a future implementation step.
+Those concepts are defined in ADR-027 and refined by ADR-028. They are planned as a future implementation step, especially before larger source-family and source-target expansion.

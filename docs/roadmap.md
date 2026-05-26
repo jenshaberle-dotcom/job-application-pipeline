@@ -18,6 +18,7 @@
 - [x] Bundesagentur für Arbeit connector
 - [x] Greenhouse connector
 - [x] Limited StepStone result-card connector
+- [x] Personio XML connector
 - [x] Connector-based ingestion architecture
 - [x] Source capability abstraction
 - [x] Configurable search profiles
@@ -26,6 +27,8 @@
 - [x] Repository-based persistence
 - [x] Ingestion runner orchestration
 - [x] Ingestion run tracking
+- [x] Ingestion failure diagnostics
+- [x] Minimal ingestion logging baseline
 - [x] Raw JSON Bronze storage
 - [x] Database-level duplicate protection
 - [x] Idempotent ingestion behavior
@@ -36,11 +39,12 @@
 - [~] Multi-source architecture validation
 - [~] Observation granularity refinement
 - [~] Source-target lineage design
+- [~] Controlled Personio Batch 1 source-value validation
 
 - [ ] Explicit source-target lineage implementation
 - [ ] Controlled Greenhouse source-target expansion
 - [ ] Additional ATS source-target evaluation
-- [ ] Personio evaluation
+- [ ] Additional Personio source-target expansion after Batch 1 decision
 - [ ] Softgarden evaluation
 - [ ] SmartRecruiters evaluation
 - [ ] Workday / SAP SuccessFactors exploration
@@ -67,7 +71,10 @@ Goals:
 - [x] Search result connector contract
 - [x] Source acquisition scope and source value strategy
 - [x] Source target acquisition model
+- [x] Source family, source target and source type separation
+- [x] Personio source analysis
 
+- [~] Evaluate Personio Batch 1 source value
 - [ ] Evaluate additional ATS providers
 - [ ] Compare structured vs. semi-structured sources
 - [ ] Evaluate anti-bot complexity
@@ -94,6 +101,8 @@ Goals:
 - [x] Processing decision tracking
 - [x] Token-aware relevance matching
 - [x] Greenhouse Silver transformation
+- [x] Personio Silver transformation
+- [x] StepStone Silver transformation
 - [x] First Canonicalization Layer
 - [x] Normalized title, company and location fields
 - [x] Canonical key candidate generation

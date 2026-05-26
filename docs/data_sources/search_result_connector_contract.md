@@ -17,6 +17,7 @@ See also:
 - `docs/adr/022_define_shared_source_and_layer_terminology.md`
 - `docs/adr/023_define_search_result_connector_contract.md`
 - `docs/adr/027_define_source_target_acquisition_model.md`
+- `docs/adr/028_separate_source_family_target_and_type.md`
 
 ---
 
@@ -24,7 +25,9 @@ See also:
 
 This contract describes the shape and semantics of records returned by search-result-oriented connectors.
 
-Source targets describe where and how acquisition is performed, for example a Greenhouse board, ATS tenant, company career page or controlled discovery query.
+Source targets describe where and how acquisition is performed, for example a Greenhouse board, Personio tenant, company career page or controlled discovery query.
+
+ADR-028 separates `source_family`, `source_target` and `source_type`. The current `source_name` field may still contain compound values such as `personio:eraneos`, but those values should not be mistaken for the long-term analytical model.
 
 Source target, acquisition mode and acquisition policy are acquisition-lineage concepts.
 
@@ -103,9 +106,12 @@ Stable name used by the project to identify the source.
 
 Examples:
 
-- `bundesagentur`
-- `greenhouse`
+- `bundesagentur_fuer_arbeit`
+- `greenhouse:stripe`
+- `personio:eraneos`
 - `stepstone`
+
+Compound values are acceptable as current operational identifiers. Future source-target lineage may split these into explicit family and target fields.
 
 The value should be stable enough for database constraints, dashboards and source-level metrics.
 
