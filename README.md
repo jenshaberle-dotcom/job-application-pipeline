@@ -486,7 +486,8 @@ job-application-pipeline/
 │   │   ├── 024_define_search_quality_and_relevance_evaluation_boundary.md
 │   │   ├── 025_preserve_search_term_lineage_for_quality_evaluation.md
 │   │   ├── 026_define_source_acquisition_scope_and_canonical_source_strategy.md
-│   │   └── 027_define_source_target_acquisition_model.md
+│   │   ├── 027_define_source_target_acquisition_model.md
+│   │   └── 028_separate_source_family_target_and_type.md
 │   │
 │   ├── classification/
 │   │   └── role_family_classification.md
