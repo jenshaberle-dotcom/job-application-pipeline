@@ -53,6 +53,26 @@ EXECUTE_CONFIRMATION_ACTION = "delete_reviewed_test_data_from_hot_store"
 TEST_DATA_CLEANUP_PLAN_FILENAME = "reviewed_test_data_cleanup_plan.csv"
 TEST_DATA_CLEANUP_MANIFEST_FILENAME = "reviewed_test_data_cleanup_manifest.json"
 
+TEST_DATA_CLEANUP_PLAN_FIELDNAMES = [
+    "raw_job_id",
+    "source_name",
+    "burden_category",
+    "retention_track",
+    "review_action",
+    "eligible_now",
+    "plan_status",
+    "external_job_id",
+    "source_url",
+    "fetched_at",
+    "initial_profile_name",
+    "initial_search_term_snapshot",
+    "has_silver_job",
+    "processing_decision",
+    "raw_data_bytes",
+    "title_preview",
+    "company_preview",
+]
+
 
 @dataclass(frozen=True)
 class ConfirmationSettings:
@@ -165,15 +185,15 @@ def candidate_row(candidate: ReviewedTestDataCleanupCandidate) -> dict[str, Any]
     }
 
 
-def write_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
+def write_csv(
+    path: Path,
+    rows: Sequence[dict[str, Any]],
+    fieldnames: Sequence[str],
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    if not rows:
-        path.write_text("", encoding="utf-8")
-        return
-
     with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(csv_file, fieldnames=list(fieldnames))
         writer.writeheader()
         writer.writerows(rows)
 
@@ -351,6 +371,7 @@ def build_manifest(
             }
         },
         "executed_cleanup": removal_result is not None,
+        "cleanup_result_status": "executed" if removal_result is not None else "not_executed",
         "cleanup_result": (
             {
                 "requested_raw_job_ids": removal_result.requested_raw_job_ids,
@@ -371,6 +392,13 @@ def build_manifest(
     }
 
 
+def format_counter_for_console(counter: Counter[str]) -> str:
+    if not counter:
+        return "<none>"
+
+    return str(dict(counter))
+
+
 def print_summary(
     *,
     execute: bool,
@@ -388,8 +416,12 @@ def print_summary(
     print("Candidate rows:", len(candidates))
     print("Eligible now:", eligible_count)
     print("Blocked now:", len(candidates) - eligible_count)
-    print("Source counts:", dict(source_counts))
-    print("Plan status counts:", dict(status_counts))
+    print("Source counts:", format_counter_for_console(source_counts))
+    print("Plan status counts:", format_counter_for_console(status_counts))
+    print(
+        "Cleanup result:",
+        "not executed" if removal_result is None else "executed",
+    )
 
     if removal_result is not None:
         print("Deleted raw_jobs:", removal_result.deleted_raw_jobs)
@@ -422,7 +454,11 @@ def run_cleanup(
             )
 
         plan_path = output_dir / TEST_DATA_CLEANUP_PLAN_FILENAME
-        write_csv(plan_path, [candidate_row(candidate) for candidate in cleanup_candidates])
+        write_csv(
+            plan_path,
+            [candidate_row(candidate) for candidate in cleanup_candidates],
+            TEST_DATA_CLEANUP_PLAN_FIELDNAMES,
+        )
         plan_sha256 = compute_sha256(plan_path)
 
         eligible_candidates = [
