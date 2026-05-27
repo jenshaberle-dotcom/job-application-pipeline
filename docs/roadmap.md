@@ -181,6 +181,9 @@ Goals:
 - [~] Windowed trend analysis
 - [x] Read-only source-value window preview
 - [x] Source-value trend maturity interpretation
+- [x] Trend-eligible metric boundary
+- [x] Source-coverage change interpretation boundary
+- [ ] Controlled source coverage expansion before serious Gold/dashboard interpretation
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets

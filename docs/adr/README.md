@@ -56,6 +56,7 @@ The ADRs intentionally reflect this evolution.
 | 027 | Define source target acquisition model | Accepted |
 | 028 | Separate source family, source target and source type | Accepted |
 | 029 | Define historical burden retention strategy | Accepted |
+| 030 | Define trend eligibility and source coverage boundary | Accepted |
 
 ---
 
