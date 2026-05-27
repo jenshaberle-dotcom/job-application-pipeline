@@ -173,15 +173,17 @@ python -m scripts.review_historical_burden_candidates --detail-limit 0 --export-
 python -m scripts.export_historical_burden_archive --export-dir exports/historical_burden_archive
 python -m scripts.prepare_historical_burden_hot_store_removal --archive-dir exports/historical_burden_archive --export-dir exports/historical_burden_hot_store_removal_review
 python -m scripts.remove_historical_burden_from_hot_store --review-dir exports/historical_burden_hot_store_removal_review --output-dir exports/historical_burden_hot_store_removal_execution
+python -m scripts.cleanup_reviewed_test_data --output-dir exports/reviewed_test_data_cleanup
 ```
 
-The implemented workflow separates five concerns:
+The implemented workflow separates six concerns:
 
 1. read-only diagnosis of historical burden
 2. dry-run retention review and candidate export
 3. local archive artifact generation for `archive_before_hot_store_removal_candidate` rows
 4. hot-store removal dry-run after archive validation
 5. guarded hot-store removal planning with dry-run mode as the default
+6. separate reviewed cleanup for `delete_candidate_after_review` test/transient rows
 
 The archive, dry-run and guarded-removal planning steps do not delete, update or archive rows in a remote store unless the guarded removal command is run explicitly in execute mode. They create review artifacts, verify checksums and verify that no Silver-backed rows are included.
 
@@ -198,6 +200,9 @@ Current H2 result:
 | Guarded removal dry-run planned candidates | 752 |
 | Guarded removal dry-run blocked rows | 0 |
 | Guarded removal executed | No |
+| Reviewed test/transient cleanup candidates | 2 |
+| Reviewed test/transient cleanup deleted `raw_jobs` rows | 2 |
+| Remaining reviewed test/transient cleanup candidates | 0 |
 
 The guarded removal command now exists, but dry-run mode remains the default. Execute mode is intentionally noisy and requires hard confirmation: manifest validation, checksum validation, the exact expected candidate count, the exact candidates CSV SHA-256, the expected cleanup action, the expected retention track and the exact allowed source set.
 
@@ -214,6 +219,8 @@ Current execute-mode confirmations would have to include all of the following be
 ```
 
 This is deliberately different from test-data cleanup. Rows classified as `delete_candidate_after_review` require a separate reviewed cleanup path and should not be mixed into the historical-burden hot-store removal workflow.
+
+The reviewed test/transient cleanup path has now been executed once in the local development database. It removed exactly two `raw_jobs` rows from sources `manual_test` and `test`. It did not touch `archive_before_hot_store_removal_candidate` rows and did not remove any Silver-backed rows. A post-execute dry-run reported zero remaining reviewed test-data cleanup candidates.
 
 Cleanup and retention are platform lifecycle concerns, not connector behavior.
 

@@ -738,3 +738,31 @@ Execute mode is intentionally not a normal command path. It requires all of thes
 The exact source allow-list is part of the safety model. The command should fail if candidate sources differ from the reviewed source set.
 
 This command is not the cleanup path for `delete_candidate_after_review` rows. Test/transient cleanup should be designed separately, because deleting true test data is a different policy from removing already archived historical burden from a hot operational store.
+
+### Reviewed Test/Transient Cleanup
+
+Reviewed test/transient cleanup is intentionally separate from historical-burden hot-store removal.
+
+The cleanup workflow targets only rows classified as:
+
+```text
+delete_candidate_after_review
+```
+
+The first local execute run removed exactly two reviewed test/transient `raw_jobs` rows from sources `manual_test` and `test`.
+
+Current result:
+
+| Metric | Value |
+|---|---:|
+| Candidate rows before execute | 2 |
+| Eligible rows before execute | 2 |
+| Blocked rows before execute | 0 |
+| Deleted `raw_jobs` rows | 2 |
+| Deleted `job_observations` rows | 0 |
+| Deleted `silver_processing_decisions` rows | 0 |
+| Remaining cleanup candidates after execute | 0 |
+
+This cleanup does not change the treatment of historical burden rows. The 752 `archive_before_hot_store_removal_candidate` rows remain governed by the archive/export and guarded hot-store-removal workflow.
+
+The distinction is part of the source-value safety model: true test/transient rows can be removed after explicit review, while historically noisy but explanatory source records must be archived, documented and reviewed before any hot-store removal.
