@@ -644,7 +644,8 @@ Important separation:
 
 - retained evidence is data that remains useful for audit, debugging or historical source analysis
 - trend-eligible evidence is data that may safely contribute to future 24h, 7d or 30d lifecycle metrics
-- archive candidates are valuable but operationally noisy records that may later move out of the hot database
+- archive candidates are valuable or explanatory but operationally noisy records that may later move out of the hot database
+- `archive_before_hot_store_removal_candidate` is the preferred review track for historical noise that should be exported and documented before any cloud hot-store migration
 - deletion candidates are limited to clearly transient, test or invalid records after explicit review
 
 Default interpretation for current burden categories:
@@ -652,12 +653,31 @@ Default interpretation for current burden categories:
 | Category | Default retention interpretation |
 |---|---|
 | `ordinary_operational_history` | Keep and allow for future trend use when lineage is sufficient. |
-| `commercial_aggregator_history` | Keep for discovery and overlap analysis; exclude from employer-origin trend scoring by default. |
-| `greenhouse_without_current_matching_metadata` | Keep initially as legacy source evidence; exclude from current source-value trends by default. |
-| `greenhouse_legacy_wildcard` | Treat as legacy broad-match history; exclude from current trend scoring by default. |
+| `commercial_aggregator_history` | Treat as `archive_before_hot_store_removal_candidate` unless rows provide Silver-backed evidence; exclude from employer-origin trend scoring by default. |
+| `greenhouse_without_current_matching_metadata` | Treat as `archive_before_hot_store_removal_candidate` unless rows provide Silver-backed evidence; keep locally for H2 review/export, but do not migrate blindly into a cloud hot store. |
+| `greenhouse_legacy_wildcard` | Treat as `archive_before_hot_store_removal_candidate` unless rows provide Silver-backed evidence; this is legacy broad-match history, not a current trend signal. |
 | `personio_without_current_matching_metadata` | Review after local multi-term semantics; keep until source-target value is understood. |
 | `missing_lineage` | Review manually; exclude from trend scoring and consider test/transient cleanup if origin is clear. |
 
 This keeps Bronze raw-first while preventing old exploratory history from distorting future lifecycle scoring.
 
 The next implementation step should be a dry-run review/export workflow, not a destructive cleanup command.
+
+### Current H2 Retention Review Semantics
+
+The dry-run retention review workflow classifies records into review tracks rather than cleanup commands.
+
+The intended tracks are:
+
+| Review track | Meaning | Default next step |
+|---|---|---|
+| `retain_as_silver_evidence` | Raw row has Silver-backed evidence. | Keep in the operational database. |
+| `retain_operational_history` | Normal operational history with sufficient current relevance. | Keep in the operational database unless a later policy changes. |
+| `archive_before_hot_store_removal_candidate` | Historical burden with explanatory or archival value, but low long-term hot-store value. | Export, document, exclude from Trend/Gold calculations, and review before cloud hot-store migration. |
+| `delete_candidate_after_review` | Clearly transient, test or invalid data after explicit review. | Delete only through explicit reviewed cleanup workflow. |
+
+This distinction is important for legacy `greenhouse:stripe` history. The project does not classify all Greenhouse data as noise. Greenhouse rows with Silver evidence remain retained evidence. The historical burden concern is limited to old full-fetch or wildcard rows without Silver evidence.
+
+The project story should preserve the learning value: early broad Greenhouse ingestion created volume and helped expose the difference between data volume and data value. That lesson is valuable. The individual noisy raw rows, however, do not automatically deserve long-term operational cloud hot-store retention once the review and export evidence exists.
+
+See also `docs/source_analysis/historical_burden.md`.
