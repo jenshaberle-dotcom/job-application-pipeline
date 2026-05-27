@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -7,12 +8,15 @@ import pytest
 from scripts.cleanup_reviewed_test_data import (
     DELETE_RETENTION_TRACK,
     EXECUTE_CONFIRMATION_ACTION,
+    TEST_DATA_CLEANUP_PLAN_FIELDNAMES,
     ConfirmationSettings,
     ReviewedTestDataCleanupCandidate,
     build_manifest,
     candidate_row,
+    format_counter_for_console,
     select_reviewed_test_data_candidates,
     validate_execution_confirmations,
+    write_csv,
 )
 from scripts.review_historical_burden_candidates import HistoricalBurdenCandidate
 
@@ -222,6 +226,42 @@ def test_build_manifest_keeps_dry_run_non_mutating(tmp_path: Path) -> None:
     assert manifest["candidate_count"] == 1
     assert manifest["eligible_now_count"] == 1
     assert manifest["executed_cleanup"] is False
+    assert manifest["cleanup_result_status"] == "not_executed"
+    assert manifest["cleanup_result"] is None
     assert manifest["interpretation_boundary"][0].startswith(
         "This workflow is for reviewed test/transient rows"
     )
+
+
+def test_empty_manifest_has_explicit_not_executed_status(tmp_path: Path) -> None:
+    plan_path = tmp_path / "reviewed_test_data_cleanup_plan.csv"
+    write_csv(plan_path, [], TEST_DATA_CLEANUP_PLAN_FIELDNAMES)
+
+    manifest = build_manifest(
+        execute=False,
+        candidates=[],
+        plan_path=plan_path,
+        plan_sha256="abc123",
+        removal_result=None,
+    )
+
+    assert manifest["candidate_count"] == 0
+    assert manifest["source_counts"] == {}
+    assert manifest["plan_status_counts"] == {}
+    assert manifest["cleanup_result_status"] == "not_executed"
+    assert manifest["cleanup_result"] is None
+
+
+def test_empty_cleanup_plan_csv_keeps_header(tmp_path: Path) -> None:
+    plan_path = tmp_path / "reviewed_test_data_cleanup_plan.csv"
+
+    write_csv(plan_path, [], TEST_DATA_CLEANUP_PLAN_FIELDNAMES)
+
+    lines = plan_path.read_text(encoding="utf-8").splitlines()
+
+    assert len(lines) == 1
+    assert lines[0].split(",") == TEST_DATA_CLEANUP_PLAN_FIELDNAMES
+
+
+def test_format_counter_for_console_uses_none_for_empty_counts() -> None:
+    assert format_counter_for_console(Counter()) == "<none>"
