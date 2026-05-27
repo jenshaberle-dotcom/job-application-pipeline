@@ -171,7 +171,9 @@ Goals:
 - [x] Historical burden retention dry-run workflow
 - [x] Historical archive/export workflow
 - [x] Historical burden hot-store removal dry-run review
-- [ ] Guarded historical burden hot-store removal command
+- [x] Guarded historical burden hot-store removal command
+- [ ] Reviewed execution decision for historical burden hot-store removal
+- [ ] Separate test/transient data cleanup workflow
 - [ ] Source value metrics
 - [ ] Source-target quality metrics
 - [ ] KPI generation

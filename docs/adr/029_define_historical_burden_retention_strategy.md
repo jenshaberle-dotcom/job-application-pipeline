@@ -172,16 +172,18 @@ python -m scripts.analyze_historical_burden --limit 30
 python -m scripts.review_historical_burden_candidates --detail-limit 0 --export-dir exports/historical_burden_review
 python -m scripts.export_historical_burden_archive --export-dir exports/historical_burden_archive
 python -m scripts.prepare_historical_burden_hot_store_removal --archive-dir exports/historical_burden_archive --export-dir exports/historical_burden_hot_store_removal_review
+python -m scripts.remove_historical_burden_from_hot_store --review-dir exports/historical_burden_hot_store_removal_review --output-dir exports/historical_burden_hot_store_removal_execution
 ```
 
-The implemented workflow separates four concerns:
+The implemented workflow separates five concerns:
 
 1. read-only diagnosis of historical burden
 2. dry-run retention review and candidate export
 3. local archive artifact generation for `archive_before_hot_store_removal_candidate` rows
 4. hot-store removal dry-run after archive validation
+5. guarded hot-store removal planning with dry-run mode as the default
 
-The archive and dry-run steps still do not delete, update or archive rows in a remote store. They create review artifacts and verify that no Silver-backed rows are included.
+The archive, dry-run and guarded-removal planning steps do not delete, update or archive rows in a remote store unless the guarded removal command is run explicitly in execute mode. They create review artifacts, verify checksums and verify that no Silver-backed rows are included.
 
 Current H2 result:
 
@@ -193,8 +195,25 @@ Current H2 result:
 | Silver-backed rows in archive | 0 |
 | Rows eligible in removal dry-run | 752 |
 | Blocked or non-actionable rows in removal dry-run | 0 |
+| Guarded removal dry-run planned candidates | 752 |
+| Guarded removal dry-run blocked rows | 0 |
+| Guarded removal executed | No |
 
-A future explicit removal command, if implemented, must remain separate from these review/export scripts and require hard confirmation such as manifest validation, checksum validation, expected row counts and an explicit execute flag.
+The guarded removal command now exists, but dry-run mode remains the default. Execute mode is intentionally noisy and requires hard confirmation: manifest validation, checksum validation, the exact expected candidate count, the exact candidates CSV SHA-256, the expected cleanup action, the expected retention track and the exact allowed source set.
+
+Current execute-mode confirmations would have to include all of the following before any hot-store rows can be removed:
+
+```bash
+--execute
+--confirm-retention-track archive_before_hot_store_removal_candidate
+--confirm-candidate-count 752
+--confirm-candidates-sha256 <validated-removal-candidates-csv-sha256>
+--confirm-cleanup-action remove_archived_historical_burden_from_hot_store
+--allow-source greenhouse:stripe
+--allow-source stepstone
+```
+
+This is deliberately different from test-data cleanup. Rows classified as `delete_candidate_after_review` require a separate reviewed cleanup path and should not be mixed into the historical-burden hot-store removal workflow.
 
 Cleanup and retention are platform lifecycle concerns, not connector behavior.
 
