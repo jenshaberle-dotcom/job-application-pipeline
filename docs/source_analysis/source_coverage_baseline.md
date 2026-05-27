@@ -182,16 +182,14 @@ The first windows after adding new targets must be interpreted as coverage-affec
 
 ## Next Step
 
-The next S1 step should create a source-target selection matrix.
+The next S1 step is defined in `docs/source_analysis/source_target_selection_matrix.md`.
 
-That matrix should classify candidate targets as one of:
+The matrix carries known candidates such as HDI, Rossmann, Finanz Informatik and WERTGARANTIE forward explicitly instead of rediscovering them ad hoc.
 
-- `candidate`
-- `manual_review_needed`
-- `parser_or_target_gap`
-- `defer`
-- `active`
-- `watchlist`
-- `do_not_build`
+The preferred next implementation block is:
 
-Known candidates such as HDI, Rossmann, Finanz Informatik and WERTGARANTIE should be carried into that matrix instead of being rediscovered ad hoc.
+```text
+S1C — Validate selected Greenhouse board candidates defensively
+```
+
+Validation should happen before activating a larger set of new source targets.
