@@ -178,7 +178,8 @@ Goals:
 - [ ] Source value metrics
 - [ ] Source-target quality metrics
 - [ ] KPI generation
-- [ ] Windowed trend analysis
+- [~] Windowed trend analysis
+- [x] Read-only source-value window preview
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets
