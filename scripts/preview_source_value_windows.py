@@ -31,6 +31,8 @@ DEFAULT_WINDOW_SPECS: tuple[tuple[str, int], ...] = (
     ("30d", 30 * 24 * 60 * 60),
 )
 
+MIN_SNAPSHOTS_FOR_MATURE_TREND = 3
+
 WINDOW_PREVIEW_FIELDNAMES = [
     "window_label",
     "window_start",
@@ -40,6 +42,11 @@ WINDOW_PREVIEW_FIELDNAMES = [
     "source_target",
     "source_type",
     "snapshot_count",
+    "requested_window_hours",
+    "observed_window_hours",
+    "observed_window_coverage_pct",
+    "trend_maturity",
+    "interpretation_warning",
     "first_snapshot_at",
     "latest_snapshot_at",
     "first_snapshot_reason",
@@ -268,6 +275,117 @@ def numeric_delta(
     return latest_value - first_value
 
 
+def calculate_observed_window_hours(
+    first_snapshot_at: datetime | None,
+    latest_snapshot_at: datetime | None,
+) -> float | None:
+    if first_snapshot_at is None or latest_snapshot_at is None:
+        return None
+
+    observed_seconds = max(
+        0.0,
+        (latest_snapshot_at - first_snapshot_at).total_seconds(),
+    )
+    return round(observed_seconds / 3600, 2)
+
+
+def calculate_observed_window_coverage_pct(
+    observed_window_hours: float | None,
+    requested_window_hours: float,
+) -> float | None:
+    if observed_window_hours is None or requested_window_hours <= 0:
+        return None
+
+    return round((observed_window_hours / requested_window_hours) * 100, 2)
+
+
+def classify_trend_maturity(
+    snapshot_count: int,
+    observed_window_coverage_pct: float | None,
+) -> str:
+    if snapshot_count <= 0:
+        return "no_snapshots"
+
+    if snapshot_count == 1:
+        return "single_snapshot_only"
+
+    if snapshot_count < MIN_SNAPSHOTS_FOR_MATURE_TREND:
+        return "low_snapshot_count"
+
+    if observed_window_coverage_pct is None:
+        return "unknown_window_coverage"
+
+    if observed_window_coverage_pct < 50:
+        return "low_window_coverage"
+
+    if observed_window_coverage_pct < 100:
+        return "partial_window_coverage"
+
+    return "mature_window"
+
+
+def build_interpretation_warning(
+    trend_maturity: str,
+    snapshot_count: int,
+    observed_window_coverage_pct: float | None,
+) -> str:
+    if trend_maturity == "mature_window":
+        return ""
+
+    if trend_maturity == "no_snapshots":
+        return "No snapshots available for this source/window."
+
+    if trend_maturity == "single_snapshot_only":
+        return "Only one snapshot is available; deltas are not trend evidence."
+
+    if trend_maturity == "low_snapshot_count":
+        return (
+            f"Only {snapshot_count} snapshots are available; use as mechanics preview, "
+            "not lifecycle trend."
+        )
+
+    if observed_window_coverage_pct is None:
+        return "Window coverage is unknown; do not use as mature trend evidence."
+
+    return (
+        f"Observed history covers {observed_window_coverage_pct}% of the requested "
+        "window; trend maturity is limited."
+    )
+
+
+def enrich_window_row(row: dict[str, Any], window_spec: WindowSpec) -> dict[str, Any]:
+    requested_window_hours = round(window_spec.seconds / 3600, 2)
+    observed_window_hours = calculate_observed_window_hours(
+        first_snapshot_at=row.get("first_snapshot_at"),
+        latest_snapshot_at=row.get("latest_snapshot_at"),
+    )
+    observed_window_coverage_pct = calculate_observed_window_coverage_pct(
+        observed_window_hours=observed_window_hours,
+        requested_window_hours=requested_window_hours,
+    )
+    snapshot_count = int(row.get("snapshot_count") or 0)
+    trend_maturity = classify_trend_maturity(
+        snapshot_count=snapshot_count,
+        observed_window_coverage_pct=observed_window_coverage_pct,
+    )
+
+    enriched = dict(row)
+    enriched.update(
+        {
+            "requested_window_hours": requested_window_hours,
+            "observed_window_hours": observed_window_hours,
+            "observed_window_coverage_pct": observed_window_coverage_pct,
+            "trend_maturity": trend_maturity,
+            "interpretation_warning": build_interpretation_warning(
+                trend_maturity=trend_maturity,
+                snapshot_count=snapshot_count,
+                observed_window_coverage_pct=observed_window_coverage_pct,
+            ),
+        }
+    )
+    return enriched
+
+
 def format_value(value: Any) -> str:
     if value is None:
         return ""
@@ -331,7 +449,10 @@ def load_window_rows(window_specs: Sequence[WindowSpec]) -> list[dict[str, Any]]
                         window_end=window_end,
                     ),
                 )
-                rows.extend(dict(row) for row in cursor.fetchall())
+                rows.extend(
+                    enrich_window_row(row=dict(row), window_spec=window_spec)
+                    for row in cursor.fetchall()
+                )
 
     return rows
 
@@ -366,6 +487,8 @@ def print_window_preview(rows: list[dict[str, Any]]) -> None:
                 row["window_label"],
                 row["source_name"],
                 row["snapshot_count"],
+                row["observed_window_coverage_pct"],
+                row["trend_maturity"],
                 row["first_snapshot_at"],
                 row["latest_snapshot_at"],
                 row["latest_raw_jobs"],
@@ -386,6 +509,8 @@ def print_window_preview(rows: list[dict[str, Any]]) -> None:
             "window",
             "source_name",
             "snapshots",
+            "coverage_pct",
+            "trend_maturity",
             "first_snapshot_at",
             "latest_snapshot_at",
             "latest_raw",
@@ -407,6 +532,7 @@ def print_window_preview(rows: list[dict[str, Any]]) -> None:
     print("- This preview uses persisted source_value_snapshots only.")
     print("- It does not create Gold views, lifecycle scores or recommendations.")
     print("- Historical burden tracks must still be excluded in later Trend/Gold semantics.")
+    print("- Rows marked low maturity are mechanics previews, not lifecycle decisions.")
 
 
 def parse_args() -> argparse.Namespace:

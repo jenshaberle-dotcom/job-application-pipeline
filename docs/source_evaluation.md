@@ -585,7 +585,19 @@ python -m scripts.preview_source_value_windows --all-default-windows
 
 This preview uses SQL window functions over `source_value_snapshots`. It does not create Gold views, lifecycle scores or recommendations yet.
 
-Lifecycle decisions should be based on windowed trends, not only on all-time cumulative totals.
+The preview also reports explicit trend-maturity fields:
+
+- `requested_window_hours`
+- `observed_window_hours`
+- `observed_window_coverage_pct`
+- `trend_maturity`
+- `interpretation_warning`
+
+These fields prevent 24h, 7d or 30d windows from looking more mature than the available snapshot history supports.
+
+For example, if only two snapshots exist inside a 30d window, the row is a mechanics preview and not a lifecycle decision signal.
+
+Lifecycle decisions should be based on mature windowed trends, not only on all-time cumulative totals or immature preview windows.
 
 Examples:
 

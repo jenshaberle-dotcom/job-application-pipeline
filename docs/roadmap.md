@@ -180,6 +180,7 @@ Goals:
 - [ ] KPI generation
 - [~] Windowed trend analysis
 - [x] Read-only source-value window preview
+- [x] Source-value trend maturity interpretation
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets
