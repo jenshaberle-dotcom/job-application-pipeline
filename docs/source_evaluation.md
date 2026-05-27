@@ -610,6 +610,46 @@ The current all-time snapshot should therefore be interpreted as an initial hist
 
 Future lifecycle decisions such as `active_limited`, `manual_watch`, `paused`, `deprecated` or `do_not_build` should use explicit time windows and trends.
 
+### Trend-Eligible Metric Boundary
+
+Windowed source-value output is not one single signal. Different metrics answer different questions.
+
+The project therefore separates trend interpretation into metric classes:
+
+| Metric family | Interpretation | Default trend status |
+|---|---|---|
+| `silver_jobs_delta` | New canonical evidence created by the pipeline. | Stronger value signal when transformation coverage and source coverage are stable. |
+| `raw_jobs_delta` | New unique Bronze hot-store records. | Support signal; not standalone market growth evidence. |
+| `matched_jobs_after_filter_delta` | Source activity, repeated matching or post-filter throughput. | Activity signal; not automatically new market value. |
+| `duplicate_rate_delta_pct` | Duplicate pressure, overlap and source/pipeline behavior. | Source-quality signal; not market growth evidence. |
+| `failure_rate_delta_pct` | Operational reliability and source health. | Health trend signal; not job-market value. |
+| `latest_lifecycle_state` / `latest_recommendation` | Current source lifecycle interpretation. | Decision support only after mature windows and coverage context. |
+| all-time raw totals | Historical baseline. | Not a Gold trend without burden and retention interpretation. |
+
+This distinction is important before Gold views and dashboards. A technically valid 7d delta may still be only a source-activity signal. It should not be presented as market movement unless the metric, window maturity and source coverage all support that interpretation.
+
+### Source-Coverage Change Boundary
+
+A window can change because the market changed, but it can also change because the observed source universe changed.
+
+The project therefore treats the following as coverage-affecting events:
+
+- adding a new source
+- adding a new source target, for example another Greenhouse board or Personio feed
+- removing, pausing or deprecating a source target
+- materially changing active search terms
+- materially changing local post-fetch filtering
+- changing source-family, source-target or lineage semantics
+- excluding or removing historical burden from the hot store
+
+Coverage-affected windows are still useful, but they must be interpreted as pipeline/source-coverage movement, not as pure market movement.
+
+This boundary is especially relevant before controlled source expansion. Adding several targeted Greenhouse or Personio boards may increase `raw_jobs_delta`, `matched_jobs_after_filter_delta` or even `silver_jobs_delta`. That increase is valuable, but it is not automatically evidence that the market itself grew.
+
+Controlled source expansion should therefore happen before serious Gold/dashboard interpretation, while the first windows after expansion remain explicitly marked as coverage-affected or analytically immature.
+
+See also ADR-030.
+
 ## Historical Burden Analysis Before Windowed Trends
 
 Historical source-value metrics must be interpreted before implementing window functions or lifecycle trend views.
