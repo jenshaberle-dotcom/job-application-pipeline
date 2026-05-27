@@ -672,6 +672,26 @@ Important baseline caveats:
 
 This baseline must be considered before comparing source-value trends or selecting new targets for controlled expansion.
 
+
+### Source Target Selection Matrix
+
+Controlled source coverage expansion now uses a documented selection matrix before new targets are activated.
+
+See `docs/source_analysis/source_target_selection_matrix.md`.
+
+The first S1 expansion should remain intentionally small:
+
+```text
+2-3 Greenhouse boards
+1-2 Personio/ATS or employer-origin boards
+optionally 1 highly relevant employer-specific board
+```
+
+The matrix separates active targets, candidates, manual-review cases, parser gaps, reserves and watchlist sources. This prevents HDI, Rossmann, Finanz Informatik or WERTGARANTIE from being rediscovered ad hoc and prevents new Greenhouse boards from being added as uncontrolled raw-volume sources.
+
+The next preferred implementation block is a defensive validation step for selected Greenhouse board candidates before adding new active profiles.
+
+
 ## Historical Burden Analysis Before Windowed Trends
 
 Historical source-value metrics must be interpreted before implementing window functions or lifecycle trend views.

@@ -184,7 +184,8 @@ Goals:
 - [x] Trend-eligible metric boundary
 - [x] Source-coverage change interpretation boundary
 - [x] Controlled source coverage baseline before expansion
-- [ ] Source-target selection matrix for controlled expansion
+- [x] Source-target selection matrix for controlled expansion
+- [ ] Validate selected Greenhouse board candidates defensively
 - [ ] Controlled source coverage expansion before serious Gold/dashboard interpretation
 - [ ] Application workflow tracking
 - [ ] Application status model
