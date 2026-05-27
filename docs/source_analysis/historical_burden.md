@@ -120,6 +120,40 @@ This document does not claim that execute mode has been run. It documents that t
 
 This workflow is separate from test-data cleanup. The two `delete_candidate_after_review` rows are better handled by a dedicated test/transient cleanup workflow, not by the archive-before-hot-store-removal path.
 
+## Reviewed Test-Data Cleanup Result
+
+After adding the separate reviewed test/transient cleanup workflow, the project executed the first intentionally destructive cleanup against the local development database.
+
+Scope:
+
+| Metric | Value |
+|---|---:|
+| Retention track | `delete_candidate_after_review` |
+| Candidate rows before execute | 2 |
+| Eligible rows before execute | 2 |
+| Blocked rows before execute | 0 |
+| Deleted `raw_jobs` rows | 2 |
+| Deleted `job_observations` rows | 0 |
+| Deleted `silver_processing_decisions` rows | 0 |
+| Candidate sources | `manual_test`, `test` |
+
+The execute run used explicit confirmations for retention track, candidate count, cleanup-plan checksum, cleanup action and source allow-list.
+
+Post-execute validation showed no remaining reviewed test-data cleanup candidates:
+
+| Metric | Value |
+|---|---:|
+| Remaining cleanup candidates | 0 |
+| Remaining eligible rows | 0 |
+| Remaining blocked rows | 0 |
+
+This cleanup does not affect the 752 rows classified as `archive_before_hot_store_removal_candidate`. Those rows remain governed by the archive/export and guarded hot-store-removal workflow.
+
+The cleanup distinction is intentional:
+
+- `delete_candidate_after_review` means reviewed test/transient data that can be removed after explicit confirmation.
+- `archive_before_hot_store_removal_candidate` means historical burden with explanatory value that must be archived and reviewed separately before any hot-store removal.
+
 ## Greenhouse Stripe Interpretation
 
 Legacy `greenhouse:stripe` history is the main example of differentiated historical burden.

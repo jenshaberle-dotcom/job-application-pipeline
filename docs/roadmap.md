@@ -173,7 +173,8 @@ Goals:
 - [x] Historical burden hot-store removal dry-run review
 - [x] Guarded historical burden hot-store removal command
 - [ ] Reviewed execution decision for historical burden hot-store removal
-- [ ] Separate test/transient data cleanup workflow
+- [x] Separate test/transient data cleanup workflow
+- [x] Reviewed test/transient cleanup executed locally
 - [ ] Source value metrics
 - [ ] Source-target quality metrics
 - [ ] KPI generation
