@@ -60,9 +60,9 @@ Historical data should be classified into categories such as:
 |---|---|---|
 | `high_value_historical` | Historical evidence with clear analytical value and sufficient lineage. | Keep in the operational database and allow for trend or lifecycle analysis when appropriate. |
 | `ordinary_operational_history` | Normal source history produced by current or mostly stable semantics. | Keep in the operational database. |
-| `analysis_only_history` | Useful for source evaluation, debugging or methodology review, but risky for direct trend scoring. | Keep initially, but exclude from lifecycle scoring by default. |
+| `analysis_only_history` | Useful for source evaluation, debugging or methodology review, but risky for direct trend scoring. | Keep for review/export, but exclude from lifecycle scoring by default. |
 | `aggregator_noise` | Aggregator-derived history with high duplicate pressure or weak origin confidence. | Keep for review and overlap analysis; exclude from canonical source-value trends unless explicitly included. |
-| `legacy_broad_match` | Records from old broad-board or wildcard semantics that would be filtered differently today. | Keep as evidence initially; exclude from current source-value trends by default. |
+| `legacy_broad_match` | Records from old broad-board or wildcard semantics that would be filtered differently today. | Keep as evidence during H2 review; exclude from current source-value trends and consider archive before hot-store removal. |
 | `missing_lineage` | Records without sufficient profile, run, source-target or search-term lineage. | Review manually; usually exclude from trend scoring. |
 | `transient` | Short-lived operational data that has no long-term analytical value. | Candidate for deletion after review. |
 | `test_data` | Manual tests, smoke checks or early local experiments. | Candidate for deletion after review. |
@@ -92,6 +92,30 @@ Future Gold and source-value views should therefore be able to distinguish at le
 - excluded historical evidence
 - archive candidates
 - deletion candidates
+
+## Hot-Store Boundary for Historical Burden
+
+Historical burden can be useful evidence without being suitable for long-term operational storage.
+
+The project therefore distinguishes between local review value, archival value and cloud hot-store value.
+
+Legacy Greenhouse full-fetch or wildcard records without Silver evidence are the main example: they document an important learning step in the project, but their long-term value is explanatory rather than operational. They should not be treated as immediate delete candidates, because they explain pipeline evolution and source-value lessons. However, before cloud migration they should be exported, documented and considered for removal from the operational hot database.
+
+The preferred review-track name for such data is:
+
+```text
+archive_before_hot_store_removal_candidate
+```
+
+This track means:
+
+- keep locally while H2 review, export and documentation are incomplete
+- exclude from current Trend and Gold calculations by default
+- preserve enough evidence to explain the project evolution and source evaluation decision
+- export to an archival artifact or cold-storage option before removal from the hot operational database
+- do not treat as `delete_candidate_after_review` unless a later review proves the rows are true test, transient or invalid data
+
+Greenhouse rows with Silver evidence are not part of this hot-store removal candidate class. Silver-backed rows remain retained evidence.
 
 ## Cleanup Safety Rules
 
