@@ -689,6 +689,22 @@ optionally 1 highly relevant employer-specific board
 
 The matrix separates active targets, candidates, manual-review cases, parser gaps, reserves and watchlist sources. This prevents HDI, Rossmann, Finanz Informatik or WERTGARANTIE from being rediscovered ad hoc and prevents new Greenhouse boards from being added as uncontrolled raw-volume sources.
 
+### Defensive Greenhouse Board Validation
+
+Before activating additional Greenhouse boards, the project validates selected board candidates with `scripts.validate_greenhouse_board_candidates`.
+
+The validation step is intentionally read-only:
+
+- one boards API request per selected Greenhouse board token
+- no database writes
+- no profile activation
+- no detail-page fetching
+- local matching against the current Data Engineering search-term set
+
+The default validation set contains the two primary Greenhouse Batch 1 candidates, `contentful` and `commercetools`. The reserve candidate `celonis` must be included explicitly.
+
+Validation output is activation evidence, not long-term source value evidence. Source value still requires scheduled ingestion, source-value snapshots, Silver processing and review after several runs.
+
 The next preferred implementation block is a defensive validation step for selected Greenhouse board candidates before adding new active profiles.
 
 
