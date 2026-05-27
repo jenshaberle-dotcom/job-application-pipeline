@@ -33,6 +33,56 @@ The current dry-run export produced the following totals:
 
 The detail export and the summary export intentionally cover the same total row count.
 
+## Archive Export Result
+
+The local archive export workflow preserves rows classified as:
+
+```text
+archive_before_hot_store_removal_candidate
+```
+
+The current archive manifest produced these totals:
+
+| Metric | Value |
+|---|---:|
+| Archive record count | 752 |
+| Silver-backed rows in archive | 0 |
+| Raw-data payload size | 674.8 kB |
+| `greenhouse:stripe` rows | 589 |
+| `stepstone` rows | 163 |
+
+Burden category split:
+
+| Burden category | Rows |
+|---|---:|
+| `greenhouse_without_current_matching_metadata` | 482 |
+| `greenhouse_legacy_wildcard` | 107 |
+| `commercial_aggregator_history` | 163 |
+
+The archive workflow writes JSONL records, a summary CSV and a manifest with checksums. It does not delete or update database rows. The archive proves that explanatory evidence exists before any later hot-store removal step is considered.
+
+## Hot-Store Removal Dry-Run Result
+
+After creating the local archive artifact, the hot-store removal dry-run validates the archive manifest and checksum, compares archived `raw_job_id` values against the current database state and exports a review list.
+
+The current dry-run produced:
+
+| Metric | Value |
+|---|---:|
+| Candidate rows | 752 |
+| Eligible for future removal after archive review | 752 |
+| Blocked or non-actionable rows | 0 |
+| Silver-backed rows now | 0 |
+
+Source split:
+
+| Source | Rows |
+|---|---:|
+| `greenhouse:stripe` | 589 |
+| `stepstone` | 163 |
+
+This is still not a cleanup action. It is a review artifact that answers: "which archived rows would be eligible if the project later introduces an explicit removal command?"
+
 ## Greenhouse Stripe Interpretation
 
 Legacy `greenhouse:stripe` history is the main example of differentiated historical burden.
@@ -84,5 +134,7 @@ This review does not treat Greenhouse as globally low value. It distinguishes Si
 
 - `scripts.analyze_historical_burden`
 - `scripts.review_historical_burden_candidates`
+- `scripts.export_historical_burden_archive`
+- `scripts.prepare_historical_burden_hot_store_removal`
 - ADR-029: Define Historical Burden Retention Strategy
 - `docs/source_evaluation.md`

@@ -681,3 +681,27 @@ This distinction is important for legacy `greenhouse:stripe` history. The projec
 The project story should preserve the learning value: early broad Greenhouse ingestion created volume and helped expose the difference between data volume and data value. That lesson is valuable. The individual noisy raw rows, however, do not automatically deserve long-term operational cloud hot-store retention once the review and export evidence exists.
 
 See also `docs/source_analysis/historical_burden.md`.
+
+### Archive Export and Hot-Store Removal Dry-Run
+
+The H2 workflow now includes two additional safety steps after retention review:
+
+```bash
+python -m scripts.export_historical_burden_archive --export-dir exports/historical_burden_archive
+python -m scripts.prepare_historical_burden_hot_store_removal --archive-dir exports/historical_burden_archive --export-dir exports/historical_burden_hot_store_removal_review
+```
+
+The archive export preserves the rows classified as `archive_before_hot_store_removal_candidate` in local JSONL/CSV/manifest artifacts. The hot-store removal dry-run then validates the archive and produces a review list of rows that would be eligible for a future explicit removal command.
+
+Current result:
+
+| Metric | Value |
+|---|---:|
+| Archived rows | 752 |
+| `greenhouse:stripe` archived rows | 589 |
+| `stepstone` archived rows | 163 |
+| Silver-backed rows in archive | 0 |
+| Dry-run eligible rows | 752 |
+| Dry-run blocked rows | 0 |
+
+This does not authorize deletion. It documents that the project can preserve explanatory evidence while avoiding long-term cloud hot-store retention for historical burden without Silver-backed value.
