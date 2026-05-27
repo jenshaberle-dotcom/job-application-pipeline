@@ -574,6 +574,17 @@ Future source-value snapshots should therefore support explicit evaluation windo
 - `--window-days 7`
 - `--window-days 30`
 
+The first G1 implementation is a read-only preview over persisted snapshots:
+
+```bash
+python -m scripts.preview_source_value_windows --window-hours 24
+python -m scripts.preview_source_value_windows --window-days 7
+python -m scripts.preview_source_value_windows --window-days 30
+python -m scripts.preview_source_value_windows --all-default-windows
+```
+
+This preview uses SQL window functions over `source_value_snapshots`. It does not create Gold views, lifecycle scores or recommendations yet.
+
 Lifecycle decisions should be based on windowed trends, not only on all-time cumulative totals.
 
 Examples:
