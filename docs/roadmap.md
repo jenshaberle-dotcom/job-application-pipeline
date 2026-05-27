@@ -183,6 +183,8 @@ Goals:
 - [x] Source-value trend maturity interpretation
 - [x] Trend-eligible metric boundary
 - [x] Source-coverage change interpretation boundary
+- [x] Controlled source coverage baseline before expansion
+- [ ] Source-target selection matrix for controlled expansion
 - [ ] Controlled source coverage expansion before serious Gold/dashboard interpretation
 - [ ] Application workflow tracking
 - [ ] Application status model
