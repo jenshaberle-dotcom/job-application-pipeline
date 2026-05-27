@@ -151,14 +151,49 @@ After 2-3 scheduled runs, review:
 
 A target should not remain active only because it produces many raw rows.
 
+## S1C Greenhouse Board Validation Preview
+
+S1C introduces a defensive validation script before new Greenhouse boards are activated:
+
+```bash
+python -m scripts.validate_greenhouse_board_candidates \
+  --export-dir exports/greenhouse_board_candidate_validation
+```
+
+Default validation covers only the two primary Batch 1 Greenhouse candidates:
+
+```text
+contentful
+commercetools
+```
+
+The reserve candidate can be included explicitly:
+
+```bash
+python -m scripts.validate_greenhouse_board_candidates \
+  --include-reserve \
+  --export-dir exports/greenhouse_board_candidate_validation_with_reserve
+```
+
+The script is intentionally read-only:
+
+- one Greenhouse boards API request per selected board token
+- no database writes
+- no `raw_jobs` inserts
+- no source profile activation
+- no detail-page fetching
+- local matching against the current Data Engineering search-term set
+
+The validation output should be interpreted as activation evidence only. It is not long-term source value evidence yet. Long-term value still requires scheduled runs, source-value snapshots, Silver processing and post-activation review.
+
 ## Next Step
 
-The next S1 step is implementation planning for a small validation/activation path.
+The next S1 step after Greenhouse candidate validation is controlled activation planning.
 
 Preferred next implementation block:
 
 ```text
-S1C — Validate selected Greenhouse board candidates defensively
+S1D — Add selected Greenhouse source profiles after validation
 ```
 
-That block should not yet add a large list of active profiles. It should first validate whether the selected Greenhouse candidates can be fetched through the existing connector contract and whether local multi-term filtering produces relevant matched evidence.
+That block should add at most the validated primary boards that produce relevant matched evidence. The reserve candidate should only be activated if one primary board fails or if the validation evidence clearly justifies adding a third Greenhouse board.
