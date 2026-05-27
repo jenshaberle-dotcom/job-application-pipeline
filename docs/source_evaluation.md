@@ -661,8 +661,6 @@ Default interpretation for current burden categories:
 
 This keeps Bronze raw-first while preventing old exploratory history from distorting future lifecycle scoring.
 
-The next implementation step should be a dry-run review/export workflow, not a destructive cleanup command.
-
 ### Current H2 Retention Review Semantics
 
 The dry-run retention review workflow classifies records into review tracks rather than cleanup commands.
@@ -705,3 +703,38 @@ Current result:
 | Dry-run blocked rows | 0 |
 
 This does not authorize deletion. It documents that the project can preserve explanatory evidence while avoiding long-term cloud hot-store retention for historical burden without Silver-backed value.
+
+
+### Guarded Hot-Store Removal Command
+
+The project now has a guarded command for historical-burden hot-store removal planning:
+
+```bash
+python -m scripts.remove_historical_burden_from_hot_store --review-dir exports/historical_burden_hot_store_removal_review --output-dir exports/historical_burden_hot_store_removal_execution
+```
+
+This command defaults to dry-run mode and writes an execution plan plus manifest. In dry-run mode it must report `database_cleanup_action: none` and `executed_removal: false`.
+
+The current dry-run plan produced:
+
+| Metric | Value |
+|---|---:|
+| Planned candidates | 752 |
+| Eligible now | 752 |
+| Blocked now | 0 |
+| `greenhouse:stripe` candidates | 589 |
+| `stepstone` candidates | 163 |
+
+Execute mode is intentionally not a normal command path. It requires all of these confirmations:
+
+- `--execute`
+- `--confirm-retention-track archive_before_hot_store_removal_candidate`
+- `--confirm-candidate-count 752`
+- `--confirm-candidates-sha256 <validated-removal-candidates-csv-sha256>`
+- `--confirm-cleanup-action remove_archived_historical_burden_from_hot_store`
+- `--allow-source greenhouse:stripe`
+- `--allow-source stepstone`
+
+The exact source allow-list is part of the safety model. The command should fail if candidate sources differ from the reviewed source set.
+
+This command is not the cleanup path for `delete_candidate_after_review` rows. Test/transient cleanup should be designed separately, because deleting true test data is a different policy from removing already archived historical burden from a hot operational store.

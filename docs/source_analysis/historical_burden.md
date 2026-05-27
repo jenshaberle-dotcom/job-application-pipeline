@@ -83,6 +83,43 @@ Source split:
 
 This is still not a cleanup action. It is a review artifact that answers: "which archived rows would be eligible if the project later introduces an explicit removal command?"
 
+## Guarded Hot-Store Removal Command
+
+After archive export and dry-run review, the project now has a guarded command that can prepare a hot-store removal execution plan:
+
+```bash
+python -m scripts.remove_historical_burden_from_hot_store \
+  --review-dir exports/historical_burden_hot_store_removal_review \
+  --output-dir exports/historical_burden_hot_store_removal_execution
+```
+
+The command defaults to dry-run mode. The current dry-run result was:
+
+| Metric | Value |
+|---|---:|
+| Planned candidates | 752 |
+| Eligible now | 752 |
+| Blocked now | 0 |
+| Executed removal | false |
+
+The command validates the prior review manifest and candidates CSV checksum, re-checks current database state and blocks rows whose source, classification or Silver-evidence status changed.
+
+Execute mode is intentionally noisy. It requires all of the following confirmations before it can mutate the hot store:
+
+```bash
+--execute
+--confirm-retention-track archive_before_hot_store_removal_candidate
+--confirm-candidate-count 752
+--confirm-candidates-sha256 <validated-removal-candidates-csv-sha256>
+--confirm-cleanup-action remove_archived_historical_burden_from_hot_store
+--allow-source greenhouse:stripe
+--allow-source stepstone
+```
+
+This document does not claim that execute mode has been run. It documents that the project now has a guarded path from historical-burden classification to archive evidence, dry-run review and optional future hot-store removal.
+
+This workflow is separate from test-data cleanup. The two `delete_candidate_after_review` rows are better handled by a dedicated test/transient cleanup workflow, not by the archive-before-hot-store-removal path.
+
 ## Greenhouse Stripe Interpretation
 
 Legacy `greenhouse:stripe` history is the main example of differentiated historical burden.
@@ -124,11 +161,13 @@ This is a deliberate data-engineering maturity step, not a failed experiment.
 
 This review does not change Bronze ingestion behavior. Bronze remains tolerant and raw-first.
 
-This review does not delete rows. It prepares review tracks and export evidence.
+This review does not delete rows. It prepares review tracks, export evidence and guarded execution plans.
 
 This review does not make all historical data ineligible for trends. Trend eligibility depends on lineage, evidence quality and retention track.
 
 This review does not treat Greenhouse as globally low value. It distinguishes Silver-backed evidence from old broad-match or wildcard history without current evidence.
+
+The guarded removal command exists, but execute mode is a separate operational decision. Until execute mode is run deliberately, the affected rows remain in the local hot-store database.
 
 ## Related Artifacts
 
@@ -136,5 +175,6 @@ This review does not treat Greenhouse as globally low value. It distinguishes Si
 - `scripts.review_historical_burden_candidates`
 - `scripts.export_historical_burden_archive`
 - `scripts.prepare_historical_burden_hot_store_removal`
+- `scripts.remove_historical_burden_from_hot_store`
 - ADR-029: Define Historical Burden Retention Strategy
 - `docs/source_evaluation.md`
