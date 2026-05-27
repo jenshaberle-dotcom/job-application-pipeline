@@ -167,7 +167,9 @@ Goals:
 - [ ] Search term effectiveness metrics
 - [x] Source value snapshot persistence
 - [x] Historical burden baseline analysis
-- [~] Cleanup and retention strategy
+- [x] Cleanup and retention strategy definition
+- [ ] Historical burden retention dry-run workflow
+- [ ] Historical archive/export workflow
 - [ ] Source value metrics
 - [ ] Source-target quality metrics
 - [ ] KPI generation
