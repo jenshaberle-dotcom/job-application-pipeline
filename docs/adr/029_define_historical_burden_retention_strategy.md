@@ -165,30 +165,36 @@ This is especially relevant before any cloud deployment, where storage, indexing
 
 ## Implementation Notes
 
-The current read-only script remains the baseline diagnostic tool:
+The current H2 workflow is intentionally staged and defensive:
 
 ```bash
 python -m scripts.analyze_historical_burden --limit 30
+python -m scripts.review_historical_burden_candidates --detail-limit 0 --export-dir exports/historical_burden_review
+python -m scripts.export_historical_burden_archive --export-dir exports/historical_burden_archive
+python -m scripts.prepare_historical_burden_hot_store_removal --archive-dir exports/historical_burden_archive --export-dir exports/historical_burden_hot_store_removal_review
 ```
 
-Future implementation should add a dry-run cleanup or review script before any destructive action.
+The implemented workflow separates four concerns:
 
-A likely next script could produce a candidate table or export with fields such as:
+1. read-only diagnosis of historical burden
+2. dry-run retention review and candidate export
+3. local archive artifact generation for `archive_before_hot_store_removal_candidate` rows
+4. hot-store removal dry-run after archive validation
 
-- `burden_category`
-- `source_name`
-- `profile_name`
-- `search_term_snapshot`
-- `raw_job_count`
-- `observation_count`
-- `silver_job_count`
-- `first_seen_at`
-- `latest_seen_at`
-- `trend_eligible`
-- `recommended_retention_action`
-- `review_reason`
+The archive and dry-run steps still do not delete, update or archive rows in a remote store. They create review artifacts and verify that no Silver-backed rows are included.
 
-This should remain separate from the ingestion runner.
+Current H2 result:
+
+| Result | Count |
+|---|---:|
+| Archive records | 752 |
+| `greenhouse:stripe` archive records | 589 |
+| `stepstone` archive records | 163 |
+| Silver-backed rows in archive | 0 |
+| Rows eligible in removal dry-run | 752 |
+| Blocked or non-actionable rows in removal dry-run | 0 |
+
+A future explicit removal command, if implemented, must remain separate from these review/export scripts and require hard confirmation such as manifest validation, checksum validation, expected row counts and an explicit execute flag.
 
 Cleanup and retention are platform lifecycle concerns, not connector behavior.
 

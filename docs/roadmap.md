@@ -169,8 +169,9 @@ Goals:
 - [x] Historical burden baseline analysis
 - [x] Cleanup and retention strategy definition
 - [x] Historical burden retention dry-run workflow
-- [ ] Historical archive/export workflow
-- [ ] Historical burden hot-store removal review
+- [x] Historical archive/export workflow
+- [x] Historical burden hot-store removal dry-run review
+- [ ] Guarded historical burden hot-store removal command
 - [ ] Source value metrics
 - [ ] Source-target quality metrics
 - [ ] KPI generation
