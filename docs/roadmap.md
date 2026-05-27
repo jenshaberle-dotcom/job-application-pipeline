@@ -165,10 +165,13 @@ Goals:
 - [ ] Skill trend analytics
 - [ ] Search profile effectiveness metrics
 - [ ] Search term effectiveness metrics
+- [x] Source value snapshot persistence
+- [x] Historical burden baseline analysis
+- [~] Cleanup and retention strategy
 - [ ] Source value metrics
 - [ ] Source-target quality metrics
 - [ ] KPI generation
-- [ ] Trend analysis
+- [ ] Windowed trend analysis
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets

@@ -586,3 +586,50 @@ Examples:
 The current all-time snapshot should therefore be interpreted as an initial historical baseline.
 
 Future lifecycle decisions such as `active_limited`, `manual_watch`, `paused`, `deprecated` or `do_not_build` should use explicit time windows and trends.
+
+## Historical Burden Analysis Before Windowed Trends
+
+Historical source-value metrics must be interpreted before implementing window functions or lifecycle trend views.
+
+Window functions over distorted history can produce technically correct but misleading trend signals.
+
+Known historical distortion candidates include:
+
+- broad Greenhouse board snapshots before refined local filtering semantics
+- wildcard or exploratory runs
+- commercial aggregator history with high duplicate pressure
+- local test data and missing-lineage records
+- runs created before search-term and source-target semantics stabilized
+
+The project therefore treats Historical Burden Analysis as a required bridge between persisted source-value snapshots and future Gold trend views.
+
+The current read-only baseline script is:
+
+```bash
+python -m scripts.analyze_historical_burden --limit 30
+```
+
+The script is intentionally diagnostic only. It identifies review candidates and burden categories, but it does not delete, archive or reclassify records.
+
+Important interpretation boundaries:
+
+- Bronze remains tolerant and raw-first.
+- False positives in Bronze are acceptable when they preserve evidence and reduce false negatives.
+- Historical records should not be deleted only because they are noisy.
+- Cleanup candidates must be separated from retention and archival policy decisions.
+- Source lifecycle decisions should wait for explicit 24h, 7d or 30d window semantics.
+
+Initial review categories may include:
+
+| Category | Meaning |
+|---|---|
+| `ordinary_operational_history` | Normal historical evidence that should remain available for analysis. |
+| `commercial_aggregator_history` | Aggregator-derived history that may be valuable for discovery but risky as canonical market signal. |
+| `greenhouse_without_current_matching_metadata` | Older broad-board Greenhouse records without current local matching evidence. |
+| `greenhouse_legacy_wildcard` | Wildcard or broad Greenhouse runs that can inflate volume and duplicate metrics. |
+| `personio_without_current_matching_metadata` | Records from early Personio semantics that may need re-interpretation after local multi-term matching. |
+| `missing_lineage` | Records without sufficient profile or run lineage, often created by tests or early manual exploration. |
+
+These categories are not deletion rules.
+
+They prepare the later H2 Cleanup / Retention Strategy, where the project can decide whether specific historical subsets should remain operational, be excluded from trend scoring, be archived, or be removed from local development data.
