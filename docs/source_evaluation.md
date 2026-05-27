@@ -650,6 +650,28 @@ Controlled source expansion should therefore happen before serious Gold/dashboar
 
 See also ADR-030.
 
+
+### Current Source Coverage Baseline
+
+Before expanding additional source targets, the project records a current source-coverage baseline in `docs/source_analysis/source_coverage_baseline.md`.
+
+The baseline establishes that the current system has four active connector/source families and eight active search profiles/source targets:
+
+- Bundesagentur
+- Greenhouse
+- StepStone
+- Personio
+
+Important baseline caveats:
+
+- `greenhouse:stripe` contains substantial historical burden and must not be read as clean market volume.
+- Bundesagentur was the first source and has a time/tenure advantage; it also has 10 early raw rows without run/profile lineage from the bootstrap phase.
+- StepStone intentionally fetches one complete result page of 25 entries and does not perform full-fetch acquisition due to defensive risk assessment.
+- Personio currently has low volume but provides employer-near ATS signals.
+- `ingestion_runs`, `raw_jobs`, `silver_jobs` and `source_value_snapshots` answer different questions and must not be blindly equated.
+
+This baseline must be considered before comparing source-value trends or selecting new targets for controlled expansion.
+
 ## Historical Burden Analysis Before Windowed Trends
 
 Historical source-value metrics must be interpreted before implementing window functions or lifecycle trend views.
