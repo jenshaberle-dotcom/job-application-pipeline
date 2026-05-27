@@ -633,3 +633,31 @@ Initial review categories may include:
 These categories are not deletion rules.
 
 They prepare the later H2 Cleanup / Retention Strategy, where the project can decide whether specific historical subsets should remain operational, be excluded from trend scoring, be archived, or be removed from local development data.
+
+## Cleanup and Retention Strategy
+
+Historical Burden Analysis does not directly produce deletion rules.
+
+The project follows ADR-029 and treats cleanup as a retention and trend-eligibility decision.
+
+Important separation:
+
+- retained evidence is data that remains useful for audit, debugging or historical source analysis
+- trend-eligible evidence is data that may safely contribute to future 24h, 7d or 30d lifecycle metrics
+- archive candidates are valuable but operationally noisy records that may later move out of the hot database
+- deletion candidates are limited to clearly transient, test or invalid records after explicit review
+
+Default interpretation for current burden categories:
+
+| Category | Default retention interpretation |
+|---|---|
+| `ordinary_operational_history` | Keep and allow for future trend use when lineage is sufficient. |
+| `commercial_aggregator_history` | Keep for discovery and overlap analysis; exclude from employer-origin trend scoring by default. |
+| `greenhouse_without_current_matching_metadata` | Keep initially as legacy source evidence; exclude from current source-value trends by default. |
+| `greenhouse_legacy_wildcard` | Treat as legacy broad-match history; exclude from current trend scoring by default. |
+| `personio_without_current_matching_metadata` | Review after local multi-term semantics; keep until source-target value is understood. |
+| `missing_lineage` | Review manually; exclude from trend scoring and consider test/transient cleanup if origin is clear. |
+
+This keeps Bronze raw-first while preventing old exploratory history from distorting future lifecycle scoring.
+
+The next implementation step should be a dry-run review/export workflow, not a destructive cleanup command.
