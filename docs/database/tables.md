@@ -19,6 +19,7 @@ The current schema contains:
 | `ingestion_runs` | Operational ingestion lineage. |
 | `raw_jobs` | Source-preserving Bronze records. |
 | `job_observations` | Repeated sightings of source-local jobs over time. |
+| `source_value_snapshots` | Historical source-value metrics for source families, targets and operational source names. |
 | `silver_processing_decisions` | Silver relevance processing decisions for raw jobs. |
 | `silver_jobs` | First normalized Silver representation. |
 
@@ -402,6 +403,77 @@ True publication or availability duration requires additional source metadata su
 - `first_published`
 - `posted_at`
 - `application_deadline`
+
+---
+
+# Table: source_value_snapshots
+
+## Purpose
+
+`source_value_snapshots` stores historical source-value metrics for source families, concrete source targets and operational source names.
+
+It is used to persist source evaluation evidence over time instead of relying only on ad-hoc script output or one-time manual interpretation.
+
+The table supports later lifecycle decisions such as limiting, pausing, deprecating or continuing a source, but it does not make those decisions automatically.
+
+## Columns
+
+| Column | Type | Nullable | Default | Constraint / Index |
+|---|---|---:|---|---|
+| `id` | `bigint` | no | sequence | Primary key |
+| `snapshot_at` | `timestamp with time zone` | no | `now()` | Indexed with source fields |
+| `snapshot_reason` | `text` | no | `'manual'` | Describes why the snapshot was created. |
+| `source_name` | `text` | no |  | Indexed with `snapshot_at` |
+| `source_family` | `text` | no |  | Indexed with `snapshot_at` |
+| `source_target` | `text` | yes |  | Indexed |
+| `source_type` | `text` | yes |  | Strategic source type. |
+| `evaluation_window_started_at` | `timestamp with time zone` | yes |  | Future explicit window start. |
+| `evaluation_window_finished_at` | `timestamp with time zone` | yes |  | Future explicit window end. |
+| `ingestion_runs` | `integer` | no | `0` |  |
+| `successful_runs` | `integer` | no | `0` |  |
+| `failed_runs` | `integer` | no | `0` |  |
+| `fetched_jobs_before_filter` | `integer` | yes |  | Future metric for source records before local filtering. |
+| `matched_jobs_after_filter` | `integer` | no | `0` | Current matched/loaded run semantics. |
+| `inserted_jobs` | `integer` | no | `0` | Newly inserted Bronze jobs. |
+| `duplicate_jobs` | `integer` | no | `0` | Duplicate records reported by ingestion. |
+| `raw_jobs` | `integer` | no | `0` | Current raw jobs for the source. |
+| `silver_jobs` | `integer` | no | `0` | Current Silver jobs for the source. |
+| `distinct_companies` | `integer` | no | `0` | Diversity signal. |
+| `distinct_candidate_keys` | `integer` | no | `0` | Canonical-candidate diversity signal. |
+| `rows_in_duplicate_candidate_groups` | `integer` | no | `0` | Rows belonging to same-source candidate duplicate groups. |
+| `rows_in_cross_source_candidate_groups` | `integer` | no | `0` | Rows belonging to cross-source candidate groups. |
+| `cross_source_candidate_keys` | `integer` | no | `0` | Candidate keys observed across sources. |
+| `title_completeness_pct` | `numeric(5,2)` | yes |  | Data quality metric. |
+| `company_completeness_pct` | `numeric(5,2)` | yes |  | Data quality metric. |
+| `location_completeness_pct` | `numeric(5,2)` | yes |  | Data quality metric. |
+| `publication_date_completeness_pct` | `numeric(5,2)` | yes |  | Data quality metric. |
+| `matched_rate_pct` | `numeric(5,2)` | yes |  | Search-intent fit metric. |
+| `duplicate_rate_pct` | `numeric(5,2)` | yes |  | Technical duplicate burden metric. |
+| `failure_rate_pct` | `numeric(5,2)` | yes |  | Operational reliability metric. |
+| `source_value_score` | `numeric(6,2)` | yes |  | Future score; not authoritative by itself. |
+| `lifecycle_state` | `text` | yes |  | Future lifecycle state; indexed. |
+| `recommendation` | `text` | yes |  | Future human-review recommendation. |
+| `notes` | `text` | yes |  | Human-readable interpretation notes. |
+| `metrics` | `jsonb` | no | `'{}'::jsonb` | Extensible metric payload. |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |
+
+## Constraints and Indexes
+
+| Name | Type | Columns | Purpose |
+|---|---|---|---|
+| `source_value_snapshots_pkey` | Primary key | `id` | Internal snapshot identifier. |
+| `idx_source_value_snapshots_source_name_snapshot_at` | Index | `source_name`, `snapshot_at DESC` | Supports source-local snapshot history. |
+| `idx_source_value_snapshots_source_family_snapshot_at` | Index | `source_family`, `snapshot_at DESC` | Supports source-family level trend analysis. |
+| `idx_source_value_snapshots_source_target` | Index | `source_target` | Supports source-target evaluation. |
+| `idx_source_value_snapshots_lifecycle_state` | Index | `lifecycle_state` | Supports lifecycle-state filtering. |
+
+## Interpretation Boundary
+
+Initial snapshots currently use all locally available history unless an explicit evaluation window is provided by future tooling.
+
+All-time values are useful as a baseline, but they can be distorted by historical broad-match runs, old search-term semantics, exploration spikes and local test data.
+
+Lifecycle decisions should therefore not rely on a single all-time snapshot. Future 24h, 7d and 30d windows should be used for trend-aware source lifecycle evaluation.
 
 ---
 
