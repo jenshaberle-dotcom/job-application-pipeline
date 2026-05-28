@@ -66,10 +66,18 @@ Greenhouse boards should be treated as source targets within the Greenhouse sour
 Examples:
 
 - `greenhouse:stripe`
+- `greenhouse:contentful`
 - `greenhouse:metronome`
 - `greenhouse:teachable`
 
-These source targets should not become separate search profiles.
+Current active Greenhouse source targets:
+
+| Source target | Status | Interpretation |
+|---|---|---|
+| `greenhouse:stripe` | active | Existing Greenhouse target with retained Silver evidence, but also substantial legacy broad-fetch history. Do not treat legacy raw volume as clean market signal. |
+| `greenhouse:contentful` | active | First controlled S1 Greenhouse expansion target. Activation is based on defensive validation and must be reviewed after scheduled runs and Silver processing. |
+
+These source targets should not be interpreted as proof that every Greenhouse board is valuable.
 
 A stable search profile such as `data_engineering_hannover` can use multiple Greenhouse source targets with the acquisition mode `full_board_with_local_keyword_filter`.
 
