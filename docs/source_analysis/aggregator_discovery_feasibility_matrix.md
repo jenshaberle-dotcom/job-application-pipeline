@@ -86,30 +86,32 @@ This matrix is an initial S2C classification. It does not implement access, crea
 
 The next step should not be a connector implementation.
 
-Recommended next move:
+S2D is implemented as a bounded source-family evaluation workflow:
 
 ```text
-S2D — Aggregator source-research log / candidate employer discovery
+S2D — Aggregator discovery candidate evaluation
 ```
 
-S2D should test whether time-boxed aggregator source research actually finds better employer-origin or ATS candidates than the current shortlist.
+See `docs/source_analysis/aggregator_discovery_candidate_evaluation.md`.
 
-Minimum output:
+S2D evaluates hard-gated commercial aggregators and API-friendlier discovery candidates in one run. LinkedIn, XING, Indeed and Glassdoor remain research-only/reference-only unless a suitable approved access path exists. Arbeitnow, Adzuna, Jooble and Remotive are evaluated as bounded discovery-probe candidates, with no database writes and minimal evidence export only.
 
-- candidate employer names
-- aggregator where observed
+The expected output is not raw aggregator ingestion. The expected output is evidence for deciding whether to:
+
+1. validate one employer-origin candidate,
+2. create or reject a tiny bounded API probe for an API-friendlier aggregator,
+3. expand an existing ATS source family,
+4. pause source expansion and improve search-intent quality first.
+
+Minimum useful S2D evidence:
+
+- source-family hard-gate status
+- platform-level recommendation
+- candidate employer names, if probe matches exist
 - search query used
 - Hannover / remote Germany signal
 - role / skill signal
-- direct career page or ATS board candidate
-- recommendation: validate, watchlist, ignore or already covered
-
-Only after that should the project decide whether to:
-
-1. validate one employer-origin candidate,
-2. create a tiny bounded API probe for Arbeitnow, Adzuna, Jooble or Remotive,
-3. expand an existing ATS source family, or
-4. pause source expansion and improve search-intent quality first.
+- direct career page or ATS board candidate for follow-up, if derivable later
 
 ## Non-Goals
 
