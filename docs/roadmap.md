@@ -199,7 +199,8 @@ Goals:
 - [x] Employer-origin source candidate validation workflow after S2E review
 - [x] Select next active source target after S2F review
 - [x] Manually validate Finanz Informatik origin path before connector work
-- [ ] Design bounded Finanz Informatik source-target spike with relevance gates
+- [x] Design bounded Finanz Informatik source-target spike with relevance gates
+- [ ] Implement Finanz Informatik export-first source-target spike
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
 - [ ] Application status model

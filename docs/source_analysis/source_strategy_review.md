@@ -182,9 +182,13 @@ S2H has been documented in `docs/source_analysis/finanz_informatik_origin_path_r
 
 It confirms that the Finanz Informatik origin path appears technically viable enough for a later bounded source-target spike. The main finding is not duplicate noise, but relevance and scope control. Any future spike must apply strict relevance gates before ingestion, especially for training, dual-study, working-student, trainee and non-target-location roles.
 
+S2I has been documented in `docs/source_analysis/finanz_informatik_bounded_source_target_spike_design.md`.
+
+It defines the Finanz Informatik spike as read-only, export-first and relevance-gated. The design explicitly prevents broad all-job ingestion and requires URL gates, exclusion gates, request boundaries and stop conditions before any connector or Bronze persistence decision.
+
 The next implementation decision after S2G should select one of these moves:
 
-- design a bounded Finanz Informatik source-target spike only if relevance gates and stop conditions are explicit
+- implement a Finanz Informatik export-first spike only within the S2I relevance gates and stop conditions
 - activate one Finanz Informatik employer-origin or ATS-near source target only if manual review supports it
 - defer implementation if the path requires broad crawling, browser automation or unclear data usage rights
 - adjust search-intent / term-set handling if missing candidates appear to be vocabulary-driven
