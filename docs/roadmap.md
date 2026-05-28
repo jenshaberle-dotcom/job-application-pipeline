@@ -42,7 +42,9 @@
 - [~] Controlled Personio Batch 1 source-value validation
 
 - [ ] Explicit source-target lineage implementation
-- [ ] Controlled Greenhouse source-target expansion
+- [ ] Evaluate shared search-intent / term-set model for repeated profile search terms
+- [~] Controlled Greenhouse source-target expansion
+- [x] First controlled Greenhouse source target activation: Contentful
 - [ ] Additional ATS source-target evaluation
 - [ ] Additional Personio source-target expansion after Batch 1 decision
 - [ ] Softgarden evaluation
@@ -186,7 +188,10 @@ Goals:
 - [x] Controlled source coverage baseline before expansion
 - [x] Source-target selection matrix for controlled expansion
 - [x] Validate selected Greenhouse board candidates defensively
-- [ ] Controlled source coverage expansion before serious Gold/dashboard interpretation
+- [~] Controlled source coverage expansion before serious Gold/dashboard interpretation
+- [x] Activate first controlled Greenhouse expansion target after validation
+- [ ] Source strategy review before further Greenhouse/Personio/Aggregator expansion
+- [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets

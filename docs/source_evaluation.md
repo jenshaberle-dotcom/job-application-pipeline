@@ -705,7 +705,21 @@ The default validation set contains the two primary Greenhouse Batch 1 candidate
 
 Validation output is activation evidence, not long-term source value evidence. Source value still requires scheduled ingestion, source-value snapshots, Silver processing and review after several runs.
 
-The next preferred implementation block is a defensive validation step for selected Greenhouse board candidates before adding new active profiles.
+### S1D Controlled Contentful Activation
+
+S1D activates `greenhouse:contentful` as the first controlled Greenhouse expansion target after defensive validation.
+
+Validation evidence used for the decision:
+
+| Board | Status | Total jobs | Matching jobs | Decision |
+|---|---|---:|---:|---|
+| `contentful` | reachable | 89 | 2 | Activate as first controlled Greenhouse expansion target. |
+| `commercetools` | reachable | 11 | 0 | Do not activate now. |
+| `celonis` | reachable | 189 | 1 | Keep as reserve. |
+
+The activation is intentionally limited to one company board. The first 24h/7d/30d windows after activation are `coverage_changed` and must not be interpreted as pure market movement.
+
+After the first Contentful runs, the next strategic step is a source strategy review before additional expansion. That review should reassess Greenhouse and Personio value for Hannover or remote-in-Germany relevance and evaluate aggregators such as LinkedIn, XING, Indeed and Glassdoor as a separate discovery-oriented source family.
 
 
 ## Historical Burden Analysis Before Windowed Trends

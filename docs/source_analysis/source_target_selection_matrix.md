@@ -61,6 +61,7 @@ These targets are already active and are not new S1 expansion candidates.
 |---|---|---|---|
 | `bundesagentur_fuer_arbeit` | Bundesagentur | `active` | Strong official baseline, but first-source time advantage. |
 | `greenhouse:stripe` | Greenhouse | `active` | Existing Greenhouse target; keep retained Silver evidence but do not generalize from legacy raw volume. |
+| `greenhouse:contentful` | Greenhouse | `active` | First controlled S1 Greenhouse expansion target. Treat first 24h/7d/30d windows as `coverage_changed` until enough post-activation history exists. |
 | `stepstone` | StepStone | `active` | Useful commercial-market signal; intentionally limited to one complete result page. |
 | `personio:eraneos` | Personio | `active` | Low-volume employer-near signal. |
 | `personio:1komma5grad` | Personio | `active` | Low-volume employer-near signal. |
@@ -74,7 +75,7 @@ Greenhouse expansion must be controlled by board, not by wildcard/full-fetch hab
 
 | Candidate target | Proposed source target | Status | Rationale | Main caveat | S1 decision |
 |---|---|---|---|---|---|
-| Contentful | `greenhouse:contentful` | `batch_1_candidate` | Technology platform with visible engineering/data-adjacent roles and Germany/Berlin relevance. Useful contrast to Stripe because it is another Greenhouse board but with a different company/domain profile. | Board API slug and local match yield must be validated before activation. | Validate first, then add if the board produces relevant matched terms without excessive burden. |
+| Contentful | `greenhouse:contentful` | `active` | Technology platform with visible engineering/data-adjacent roles and Germany/Berlin relevance. Useful contrast to Stripe because it is another Greenhouse board but with a different company/domain profile. | First windows after activation are coverage-affected; value must be reviewed after scheduled runs and Silver processing. | Activated in S1D as the first controlled Greenhouse expansion target after defensive validation showed 89 total jobs and 2 matched jobs. |
 | commercetools | `greenhouse:commercetools` | `batch_1_candidate` | Technology/product-platform employer with Germany/Berlin relevance. Useful for controlled Greenhouse breadth without adding many boards. | Board API slug and extraction stability must be verified. | Validate first, then add if matched yield and source-value evidence are acceptable. |
 | Celonis | `greenhouse:celonis` | `batch_1_reserve` | Strong data/process-intelligence domain fit and German market relevance. | Public careers page and Greenhouse job-board access may not map cleanly to the existing board API contract; validate before relying on it. | Use as reserve if one primary Greenhouse board fails validation. |
 | Additional Greenhouse board from ad-hoc search | n/a | `defer` | More boards would increase coverage. | More boards also increase coverage-change noise and historical burden risk. | Do not add until Batch 1 has been measured. |
@@ -111,7 +112,7 @@ Proposed Batch 1 shortlist:
 
 | Slot | Candidate | Reason | Required pre-check |
 |---|---|---|---|
-| Greenhouse primary 1 | Contentful | Greenhouse board, tech/data-adjacent, Germany/Berlin relevance. | Validate board API slug, matched terms and row shape. |
+| Greenhouse primary 1 | Contentful | Greenhouse board, tech/data-adjacent, Germany/Berlin relevance. | Activated in S1D after validation; review post-activation source value before adding more Greenhouse boards. |
 | Greenhouse primary 2 | commercetools | Greenhouse board, Germany/Berlin relevance, different company/domain from Stripe. | Validate board API slug, matched terms and row shape. |
 | Greenhouse reserve | Celonis | Strong data-domain fit. | Validate whether existing Greenhouse connector can access the board reliably. |
 | Employer/ATS candidate 1 | Finanz Informatik | Strong IT/data domain fit and regional relevance. | Validate target URL and vocabulary gap before connector work. |
@@ -186,14 +187,47 @@ The script is intentionally read-only:
 
 The validation output should be interpreted as activation evidence only. It is not long-term source value evidence yet. Long-term value still requires scheduled runs, source-value snapshots, Silver processing and post-activation review.
 
+## S1D Activation Decision
+
+S1D activates only one new Greenhouse board: `greenhouse:contentful`.
+
+Validation evidence from S1C:
+
+| Board | Status | Total jobs | Matching jobs | Decision |
+|---|---|---:|---:|---|
+| `contentful` | reachable | 89 | 2 | Activate as first controlled Greenhouse expansion target. |
+| `commercetools` | reachable | 11 | 0 | Do not activate now; keep as validation evidence only. |
+| `celonis` | reachable | 189 | 1 | Keep as reserve; do not activate in the same step as Contentful. |
+
+This keeps the coverage change measurable. It avoids repeating the earlier broad Greenhouse expansion pattern and creates a clean before/after boundary for source-value snapshots.
+
+## Search-Term Duplication Boundary
+
+The repeated data-engineering search terms across `greenhouse:stripe` and `greenhouse:contentful` are intentional at the current profile level.
+
+Each Greenhouse board is modeled as a separate source target. This is necessary because each board has its own requested URL, ingestion history, duplicate profile, source-value snapshots and operational behavior. Applying the same search intent to multiple boards is therefore semantically correct.
+
+S1D also confirmed that this is not currently a fetch-volume issue: `greenhouse:contentful` produced exactly one ingestion run for the board and did not fan out into one request per search term.
+
+However, the current implementation stores repeated terms separately per search profile. This creates maintainability debt. Changing the default data-engineering search intent currently requires updating multiple profile-specific `search_terms` rows across BA, StepStone, Greenhouse and selected Personio targets.
+
+A later cleanup should evaluate a shared search-intent or term-set model, for example:
+
+- `search_intents`
+- `search_intent_terms`
+- profile-to-intent assignment
+- explicit per-source overrides where needed
+
+Until then, profile-specific search terms remain acceptable as long as each source target remains separately observable and is fetched once per profile run.
+
 ## Next Step
 
-The next S1 step after Greenhouse candidate validation is controlled activation planning.
+After the first Contentful ingestion and source-value snapshot, the next S1 step is not another automatic Greenhouse expansion.
 
 Preferred next implementation block:
 
 ```text
-S1D — Add selected Greenhouse source profiles after validation
+S2 — Source Strategy Review before additional source expansion
 ```
 
-That block should add at most the validated primary boards that produce relevant matched evidence. The reserve candidate should only be activated if one primary board fails or if the validation evidence clearly justifies adding a third Greenhouse board.
+The review should reassess whether Greenhouse and Personio targets are the best next value sources for Hannover or remote-in-Germany relevance. It should also evaluate commercial aggregators such as LinkedIn, XING, Indeed and Glassdoor as a separate source family, primarily as employer and role discovery signals before any ingestion commitment.

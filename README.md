@@ -710,6 +710,7 @@ Run one specific search profile:
 
     python -m src.ingest_jobs --profile ba_data_engineer_30629_50km
     python -m src.ingest_jobs --profile greenhouse_stripe
+    python -m src.ingest_jobs --profile greenhouse_contentful
 
 List active search profiles:
 
