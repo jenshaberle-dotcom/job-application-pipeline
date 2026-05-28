@@ -166,10 +166,18 @@ S2C has been documented in `docs/source_analysis/aggregator_discovery_feasibilit
 
 It adds hard gates before any aggregator can become an automated probe or connector. Legal / terms risk is treated as a blocker, not as a soft implementation concern. A technically possible acquisition path is rejected when it relies on unclear scraping, login automation, browser automation, non-official third-party data or storage rights that do not fit the project.
 
-The next S2 implementation decision should select one of these moves:
+After S2D, the next S2 move is S2E: quantify employer-candidate visibility and false-negative risk before selecting another active source target.
 
-- run the bounded S2D aggregator discovery candidate evaluation and inspect whether it surfaces better employer-origin/ATS candidates
-- create a aggregator source-research log only if the evaluation results need human follow-up and do not become recurring manual monitoring
-- validate one employer-origin candidate such as HDI, Finanz Informatik or ROSSMANN
+S2E should include both groups:
+
+- strategic expected employers such as HDI, ROSSMANN, Finanz Informatik, WERTGARANTIE, VHV and Talanx
+- aggregator-discovered candidates such as SumUp, Cordes & Graefe KG, Quantum-Systems and the already-active 1KOMMA5 control case
+
+The goal is not to prove that missing employers have no jobs. The goal is to detect whether the current pipeline misses expected market candidates because of source coverage, search terms, fetch limits or Silver relevance filters.
+
+The next implementation decision after S2E should select one of these moves:
+
+- validate one employer-origin candidate if a high-priority employer is missing or only weakly visible
 - add one additional already validated ATS target only if it clearly improves German/remote relevance
-- pause source expansion and normalize shared search-intent / term-set handling first
+- adjust search-intent / term-set handling if missing candidates appear to be vocabulary-driven
+- keep using aggregators as bounded discovery aids, not as broad automated coverage replacements

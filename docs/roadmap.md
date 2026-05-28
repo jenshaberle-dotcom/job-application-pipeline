@@ -195,8 +195,8 @@ Goals:
 - [x] Aggregator / discovery source family assessment
 - [x] Aggregator discovery feasibility matrix and hard-gate definition
 - [x] Bounded aggregator discovery candidate evaluation workflow
-- [ ] Aggregator source-research log / candidate employer discovery
-- [ ] Select next source expansion candidate after S2D evaluation
+- [x] Employer candidate and false-negative review workflow
+- [ ] Select next source expansion candidate after S2E review
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
 - [ ] Application status model
