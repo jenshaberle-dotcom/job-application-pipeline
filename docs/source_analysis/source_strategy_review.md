@@ -174,9 +174,14 @@ S2F has been documented in `docs/source_analysis/employer_origin_source_candidat
 
 It validates a small set of employer-origin / ATS-near candidate paths with one bounded request per employer target. S2F is not a connector and does not make source activation automatic. It exists to decide whether a candidate is worth manual review before controlled source-target activation.
 
-The next implementation decision after S2F should select one of these moves:
+S2G has been documented in `docs/source_analysis/active_source_target_decision_after_s2f.md`.
 
-- activate one employer-origin or ATS-near source target only if S2F and manual review support it
-- add one additional already validated ATS target only if it clearly improves German/remote relevance
+It selects Finanz Informatik as the next manual source-target validation candidate after S2F. This is not a connector decision yet. It is a controlled decision to inspect one promising employer-origin path before any implementation.
+
+The next implementation decision after S2G should select one of these moves:
+
+- manually validate the Finanz Informatik origin path and identify whether a clean bounded acquisition path exists
+- activate one Finanz Informatik employer-origin or ATS-near source target only if manual review supports it
+- defer implementation if the path requires broad crawling, browser automation or unclear data usage rights
 - adjust search-intent / term-set handling if missing candidates appear to be vocabulary-driven
 - keep using aggregators as bounded discovery aids, not as broad automated coverage replacements
