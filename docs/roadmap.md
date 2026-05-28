@@ -190,7 +190,10 @@ Goals:
 - [x] Validate selected Greenhouse board candidates defensively
 - [~] Controlled source coverage expansion before serious Gold/dashboard interpretation
 - [x] Activate first controlled Greenhouse expansion target after validation
-- [ ] Source strategy review before further Greenhouse/Personio/Aggregator expansion
+- [x] Document source strategy review boundary after S1D
+- [~] Source strategy review before further Greenhouse/Personio/Aggregator expansion
+- [ ] Aggregator / discovery source family assessment
+- [ ] Select next source expansion candidate after S2 review
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
 - [ ] Application status model
