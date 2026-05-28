@@ -197,7 +197,8 @@ Goals:
 - [x] Bounded aggregator discovery candidate evaluation workflow
 - [x] Employer candidate and false-negative review workflow
 - [x] Employer-origin source candidate validation workflow after S2E review
-- [ ] Select next active source target after S2F review
+- [x] Select next active source target after S2F review
+- [ ] Manually validate Finanz Informatik origin path before connector work
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
 - [ ] Application status model
