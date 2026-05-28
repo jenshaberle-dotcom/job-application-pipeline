@@ -162,9 +162,14 @@ S2B has been documented in `docs/source_analysis/aggregator_discovery_assessment
 
 Its current conclusion is that LinkedIn, XING, Indeed and Glassdoor should be treated as discovery sources first, not as direct automated Bronze ingestion sources. Aggregators may help discover employers, role vocabulary and false-negative candidates, but persistent ingestion should still prefer employer-origin or ATS-near sources when possible.
 
+S2C has been documented in `docs/source_analysis/aggregator_discovery_feasibility_matrix.md`.
+
+It adds hard gates before any aggregator can become an automated probe or connector. Legal / terms risk is treated as a blocker, not as a soft implementation concern. A technically possible acquisition path is rejected when it relies on unclear scraping, login automation, browser automation, non-official third-party data or storage rights that do not fit the project.
+
 The next S2 implementation decision should select one of these moves:
 
+- create a aggregator source-research log to identify or challenge employer-origin candidates
 - validate one employer-origin candidate such as HDI, Finanz Informatik or ROSSMANN
-- create a manual aggregator discovery log before adding more ingestion sources
+- run a tiny API/documentation review for an automation-friendlier aggregator such as Arbeitnow, Adzuna, Jooble or Remotive
 - add one additional already validated ATS target only if it clearly improves German/remote relevance
 - pause source expansion and normalize shared search-intent / term-set handling first

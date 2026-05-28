@@ -31,7 +31,7 @@ A bounded `market_signal_sampler` may be considered later. A direct ingestion co
 | Aggregator | Likely value | Acquisition / policy risk | Recommended project role | Current decision |
 |---|---|---|---|---|
 | LinkedIn | Very high employer and recruiter discovery value; strong signal for current market language. | High for automation. LinkedIn Jobs terms restrict automated scraping/data extraction unless expressly authorized. | Manual or human-in-the-loop discovery; candidate employer and vocabulary discovery. | Do not build automated ingestion now. |
-| XING | High DACH relevance; useful for German employer discovery and alternative role titles. | Medium to high. Available official XING job integration API is employer/vendor posting-oriented, not a general job-search ingestion API. | Manual discovery and employer shortlist support. | Do not build automated ingestion now. |
+| XING | High DACH relevance; useful for German employer discovery and alternative role titles. | Medium to high. Available official XING job integration API is employer/vendor posting-oriented, not a general job-search ingestion API. | Research-only discovery and employer shortlist support. | Do not build automated ingestion now. |
 | Indeed | Broad job-market visibility and useful duplicate/coverage comparison potential. | High for uncontrolled ingestion. Official APIs are partner/integration oriented and require approved use; developer terms constrain database building and scraping-style use. | Discovery-only unless an approved/defensible integration path exists. | Do not build automated ingestion now. |
 | Glassdoor | Employer context, salary/review context and company discovery. Lower primary job-feed value. | High for automation. Terms restrict automated agents and scraping/mining without written permission. | Manual employer/context enrichment only. | Do not build automated ingestion now. |
 
@@ -141,7 +141,7 @@ Boundary:
 Recommended use:
 
 ```text
-manual_context_source
+reference_only
 ```
 
 ## Discovery Workflow Candidate
@@ -151,7 +151,7 @@ The next implementation should not be an aggregator connector.
 A better next building block is a small, reviewable discovery workflow:
 
 ```text
-manual aggregator observation -> candidate employer/source target -> validation -> optional ingestion target
+time-boxed aggregator source research -> candidate employer/source target -> validation -> optional ingestion target
 ```
 
 Possible lightweight artifacts:
@@ -161,7 +161,7 @@ Possible lightweight artifacts:
 - a small CSV template for manually captured discovery evidence
 - later, a table such as `source_discovery_observations` if manual evidence becomes frequent enough
 
-Minimum useful fields for manual discovery evidence:
+Minimum useful fields for research-only discovery evidence:
 
 | Field | Meaning |
 |---|---|
@@ -179,14 +179,19 @@ This keeps the project explainable: aggregators help discover, but the platform 
 
 ## Decision Gate for S2C
 
+S2C has been documented in `docs/source_analysis/aggregator_discovery_feasibility_matrix.md`.
+
+The key refinement is that legal / terms risk is a hard gate. A source can have high discovery value and still be unsuitable for automated acquisition when reading, storing, reproducing or documenting the access path is not defensible enough for the project.
+
 S2C should select the next source move from these options:
 
-1. validate one employer-origin candidate, preferably HDI, Finanz Informatik or ROSSMANN
-2. add one more already validated ATS/Greenhouse candidate only if it clearly improves German/remote relevance
-3. create a manual aggregator discovery log before adding any more ingestion sources
-4. pause source expansion and improve search-intent / term-set normalization first
+1. create a aggregator source-research log before adding any more ingestion sources
+2. validate one employer-origin candidate, preferably HDI, Finanz Informatik or ROSSMANN
+3. run a tiny API/documentation review for an automation-friendlier aggregator such as Arbeitnow, Adzuna, Jooble or Remotive
+4. add one more already validated ATS/Greenhouse candidate only if it clearly improves German/remote relevance
+5. pause source expansion and improve search-intent / term-set normalization first
 
-The preferred S2B recommendation is option 1 or option 3, not another automatic Greenhouse expansion.
+The preferred direction is option 1 first. It can discover or challenge the next employer-origin candidate without forcing any aggregator into a connector.
 
 ## References Checked
 

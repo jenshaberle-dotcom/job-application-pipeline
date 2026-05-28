@@ -44,6 +44,14 @@ They should not be treated as preferred canonical sources when an employer-origi
 
 This distinction supports the long-term strategy of using commercial platforms defensively while preferring employer-near sources for canonical job evidence.
 
+### Aggregator Hard-Gate Principle
+
+Commercial aggregator evaluation uses hard gates before implementation scoring.
+
+Legal / terms risk is one of the most important gates. The project must not implement a source only because it is technically possible. If the acquisition path requires unclear scraping, login automation, browser automation, non-official third-party data, aggressive request behavior or storage that cannot be justified, the source remains research-only discovery, reference-only or out of scope.
+
+This principle is documented for S2C in `docs/source_analysis/aggregator_discovery_feasibility_matrix.md`.
+
 ## Terminology Alignment
 
 Source evaluations use the shared project terminology from `docs/glossary.md`, ADR-022, ADR-026, ADR-027 and ADR-028.

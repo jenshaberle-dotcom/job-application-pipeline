@@ -258,6 +258,24 @@ The S1 shortlist remains useful, but S2B changes the preferred next move:
 | Another Personio/ATS board | Medium preference | Valuable if the employer target is relevant and the acquisition path is clean. |
 | Employer-origin validation | High preference | Best match for explainable Hannover/remote-in-Germany source value. |
 | Aggregator connector | Not preferred | Too much acquisition/policy risk for direct ingestion at this stage. |
-| Manual aggregator discovery log | High preference | Useful for discovering employers and vocabulary without uncontrolled crawling. |
+| Aggregator source-research log | High preference | Useful for discovering employers and vocabulary without uncontrolled crawling. |
 
 S2C should therefore select either one employer-origin validation candidate or a manual aggregator discovery-log workflow before more active ingestion targets are added.
+
+## S2C Aggregator Discovery Feasibility Matrix
+
+S2C adds explicit hard gates before any aggregator can move from discovery into automated probing or ingestion.
+
+See `docs/source_analysis/aggregator_discovery_feasibility_matrix.md`.
+
+The most important gate is legal / terms risk. Technical possibility is not enough. If a source cannot be read, stored, reproduced and documented through a defensible access path, it must remain research-only discovery, reference-only or out of scope.
+
+Initial consequence:
+
+| Source group | S2C interpretation | Preferred next action |
+|---|---|---|
+| LinkedIn, XING, Indeed, Glassdoor | High discovery value, but poor or restricted fit for automated acquisition in this project. | Research-only discovery unless a clearly approved API path exists. |
+| StepStone | Existing defensive aggregator source with deliberate one-page boundary. | Keep bounded; do not broaden without separate review. |
+| Arbeitnow, Adzuna, Jooble, Remotive | More plausible API/discovery candidates, still subject to terms and storage review. | Consider only after research-only discovery proves value or a tiny API documentation review is justified. |
+
+The preferred next move is a aggregator source-research log that tests whether aggregators actually reveal better employer-origin or ATS candidates for Hannover / remote-in-Germany relevance.
