@@ -166,18 +166,17 @@ S2C has been documented in `docs/source_analysis/aggregator_discovery_feasibilit
 
 It adds hard gates before any aggregator can become an automated probe or connector. Legal / terms risk is treated as a blocker, not as a soft implementation concern. A technically possible acquisition path is rejected when it relies on unclear scraping, login automation, browser automation, non-official third-party data or storage rights that do not fit the project.
 
-After S2D, the next S2 move is S2E: quantify employer-candidate visibility and false-negative risk before selecting another active source target.
+S2E has been documented in `docs/source_analysis/employer_candidate_false_negative_review.md`.
 
-S2E should include both groups:
+It quantifies employer-candidate visibility and false-negative risk before another active source target is selected. The goal is not to prove that missing employers have no jobs. The goal is to detect whether the current pipeline misses expected market candidates because of source coverage, search terms, fetch limits or Silver relevance filters.
 
-- strategic expected employers such as HDI, ROSSMANN, Finanz Informatik, WERTGARANTIE, VHV and Talanx
-- aggregator-discovered candidates such as SumUp, Cordes & Graefe KG, Quantum-Systems and the already-active 1KOMMA5 control case
+S2F has been documented in `docs/source_analysis/employer_origin_source_candidate_review.md`.
 
-The goal is not to prove that missing employers have no jobs. The goal is to detect whether the current pipeline misses expected market candidates because of source coverage, search terms, fetch limits or Silver relevance filters.
+It validates a small set of employer-origin / ATS-near candidate paths with one bounded request per employer target. S2F is not a connector and does not make source activation automatic. It exists to decide whether a candidate is worth manual review before controlled source-target activation.
 
-The next implementation decision after S2E should select one of these moves:
+The next implementation decision after S2F should select one of these moves:
 
-- validate one employer-origin candidate if a high-priority employer is missing or only weakly visible
+- activate one employer-origin or ATS-near source target only if S2F and manual review support it
 - add one additional already validated ATS target only if it clearly improves German/remote relevance
 - adjust search-intent / term-set handling if missing candidates appear to be vocabulary-driven
 - keep using aggregators as bounded discovery aids, not as broad automated coverage replacements
