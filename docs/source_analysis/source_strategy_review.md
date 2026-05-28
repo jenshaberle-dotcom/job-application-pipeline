@@ -197,3 +197,14 @@ The next implementation decision after S2G should select one of these moves:
 - defer implementation if the path requires broad crawling, browser automation or unclear data usage rights
 - adjust search-intent / term-set handling if missing candidates appear to be vocabulary-driven
 - keep using aggregators as bounded discovery aids, not as broad automated coverage replacements
+
+
+### S2K — Finanz Informatik Detail-Page Probe
+
+S2K has been documented in `docs/source_analysis/finanz_informatik_detail_page_probe.md`.
+
+It adds a tiny detail-page probe for only the selected S2J Hannover candidates.
+The probe remains read-only and export-first.
+It does not approve Bronze persistence, connector activation or recurring ingestion.
+It exists to decide whether Finanz Informatik provides enough detail-page evidence for a later RawJobRecord-shaped preview,
+or whether the source should remain a manual/watchlist candidate.
