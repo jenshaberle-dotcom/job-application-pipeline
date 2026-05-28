@@ -158,4 +158,13 @@ Recommended next small implementation block after this boundary document:
 S2B — Aggregator / discovery source family assessment
 ```
 
-S2B should compare aggregators and employer-origin candidates as source-strategy options before selecting the next active ingestion target.
+S2B has been documented in `docs/source_analysis/aggregator_discovery_assessment.md`.
+
+Its current conclusion is that LinkedIn, XING, Indeed and Glassdoor should be treated as discovery sources first, not as direct automated Bronze ingestion sources. Aggregators may help discover employers, role vocabulary and false-negative candidates, but persistent ingestion should still prefer employer-origin or ATS-near sources when possible.
+
+The next S2 implementation decision should select one of these moves:
+
+- validate one employer-origin candidate such as HDI, Finanz Informatik or ROSSMANN
+- create a manual aggregator discovery log before adding more ingestion sources
+- add one additional already validated ATS target only if it clearly improves German/remote relevance
+- pause source expansion and normalize shared search-intent / term-set handling first

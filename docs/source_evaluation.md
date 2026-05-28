@@ -723,7 +723,9 @@ After the first Contentful runs, the next strategic step is a source strategy re
 
 See `docs/source_analysis/source_strategy_review.md` for the S2 boundary.
 
-Until that review produces a decision, additional Greenhouse, Personio, employer-origin or aggregator targets should not be activated only because an existing connector or source pattern is available.
+S2B adds the aggregator-specific assessment in `docs/source_analysis/aggregator_discovery_assessment.md`. The current decision is that LinkedIn, XING, Indeed and Glassdoor are discovery sources first, not direct automated ingestion sources. They may inform employer/source-target selection and false-negative analysis, but they should not be used as uncontrolled Bronze volume sources.
+
+Until S2 selects the next source move, additional Greenhouse, Personio, employer-origin or aggregator targets should not be activated only because an existing connector or source pattern is available.
 
 
 ## Historical Burden Analysis Before Windowed Trends
