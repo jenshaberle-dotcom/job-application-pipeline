@@ -193,7 +193,9 @@ Goals:
 - [x] Document source strategy review boundary after S1D
 - [~] Source strategy review before further Greenhouse/Personio/Aggregator expansion
 - [x] Aggregator / discovery source family assessment
-- [ ] Select next source expansion candidate after S2B assessment
+- [x] Aggregator discovery feasibility matrix and hard-gate definition
+- [ ] Aggregator source-research log / candidate employer discovery
+- [ ] Select next source expansion candidate after S2C assessment
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
 - [ ] Application status model
