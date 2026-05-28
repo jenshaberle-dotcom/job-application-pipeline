@@ -168,8 +168,8 @@ It adds hard gates before any aggregator can become an automated probe or connec
 
 The next S2 implementation decision should select one of these moves:
 
-- create a aggregator source-research log to identify or challenge employer-origin candidates
+- run the bounded S2D aggregator discovery candidate evaluation and inspect whether it surfaces better employer-origin/ATS candidates
+- create a aggregator source-research log only if the evaluation results need human follow-up and do not become recurring manual monitoring
 - validate one employer-origin candidate such as HDI, Finanz Informatik or ROSSMANN
-- run a tiny API/documentation review for an automation-friendlier aggregator such as Arbeitnow, Adzuna, Jooble or Remotive
 - add one additional already validated ATS target only if it clearly improves German/remote relevance
 - pause source expansion and normalize shared search-intent / term-set handling first
