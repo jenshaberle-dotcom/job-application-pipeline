@@ -721,6 +721,10 @@ The activation is intentionally limited to one company board. The first 24h/7d/3
 
 After the first Contentful runs, the next strategic step is a source strategy review before additional expansion. That review should reassess Greenhouse and Personio value for Hannover or remote-in-Germany relevance and evaluate aggregators such as LinkedIn, XING, Indeed and Glassdoor as a separate discovery-oriented source family.
 
+See `docs/source_analysis/source_strategy_review.md` for the S2 boundary.
+
+Until that review produces a decision, additional Greenhouse, Personio, employer-origin or aggregator targets should not be activated only because an existing connector or source pattern is available.
+
 
 ## Historical Burden Analysis Before Windowed Trends
 

@@ -231,3 +231,5 @@ S2 — Source Strategy Review before additional source expansion
 ```
 
 The review should reassess whether Greenhouse and Personio targets are the best next value sources for Hannover or remote-in-Germany relevance. It should also evaluate commercial aggregators such as LinkedIn, XING, Indeed and Glassdoor as a separate source family, primarily as employer and role discovery signals before any ingestion commitment.
+
+See `docs/source_analysis/source_strategy_review.md`.
