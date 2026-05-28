@@ -178,9 +178,13 @@ S2G has been documented in `docs/source_analysis/active_source_target_decision_a
 
 It selects Finanz Informatik as the next manual source-target validation candidate after S2F. This is not a connector decision yet. It is a controlled decision to inspect one promising employer-origin path before any implementation.
 
+S2H has been documented in `docs/source_analysis/finanz_informatik_origin_path_review.md`.
+
+It confirms that the Finanz Informatik origin path appears technically viable enough for a later bounded source-target spike. The main finding is not duplicate noise, but relevance and scope control. Any future spike must apply strict relevance gates before ingestion, especially for training, dual-study, working-student, trainee and non-target-location roles.
+
 The next implementation decision after S2G should select one of these moves:
 
-- manually validate the Finanz Informatik origin path and identify whether a clean bounded acquisition path exists
+- design a bounded Finanz Informatik source-target spike only if relevance gates and stop conditions are explicit
 - activate one Finanz Informatik employer-origin or ATS-near source target only if manual review supports it
 - defer implementation if the path requires broad crawling, browser automation or unclear data usage rights
 - adjust search-intent / term-set handling if missing candidates appear to be vocabulary-driven
