@@ -186,9 +186,13 @@ S2I has been documented in `docs/source_analysis/finanz_informatik_bounded_sourc
 
 It defines the Finanz Informatik spike as read-only, export-first and relevance-gated. The design explicitly prevents broad all-job ingestion and requires URL gates, exclusion gates, request boundaries and stop conditions before any connector or Bronze persistence decision.
 
+S2J has been documented in `docs/source_analysis/finanz_informatik_export_first_spike.md`.
+
+It implements the Finanz Informatik spike as a read-only export-first preview script. The script extracts listing-level candidate links, applies S2I gates and writes review artifacts under `exports/`. It still does not fetch detail pages, write to Bronze, activate a source target or approve connector implementation.
+
 The next implementation decision after S2G should select one of these moves:
 
-- implement a Finanz Informatik export-first spike only within the S2I relevance gates and stop conditions
+- review the S2J Finanz Informatik export artifacts before any persistence or connector decision
 - activate one Finanz Informatik employer-origin or ATS-near source target only if manual review supports it
 - defer implementation if the path requires broad crawling, browser automation or unclear data usage rights
 - adjust search-intent / term-set handling if missing candidates appear to be vocabulary-driven

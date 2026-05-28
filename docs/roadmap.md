@@ -200,7 +200,8 @@ Goals:
 - [x] Select next active source target after S2F review
 - [x] Manually validate Finanz Informatik origin path before connector work
 - [x] Design bounded Finanz Informatik source-target spike with relevance gates
-- [ ] Implement Finanz Informatik export-first source-target spike
+- [x] Implement Finanz Informatik export-first source-target spike
+- [ ] Review Finanz Informatik S2J export artifacts before persistence decision
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
 - [ ] Application status model
