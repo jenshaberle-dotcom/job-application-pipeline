@@ -233,3 +233,31 @@ S2 — Source Strategy Review before additional source expansion
 The review should reassess whether Greenhouse and Personio targets are the best next value sources for Hannover or remote-in-Germany relevance. It should also evaluate commercial aggregators such as LinkedIn, XING, Indeed and Glassdoor as a separate source family, primarily as employer and role discovery signals before any ingestion commitment.
 
 See `docs/source_analysis/source_strategy_review.md`.
+
+## S2B Aggregator / Discovery Assessment Outcome
+
+S2B reassessed LinkedIn, XING, Indeed and Glassdoor as a separate aggregator source family.
+
+Current decision:
+
+```text
+aggregators = discovery_source first
+```
+
+They should not become broad automated Bronze ingestion sources now. Their best near-term value is discovery of employers, role-title vocabulary, missing search terms and possible false negatives. Persistent ingestion should still prefer employer-origin or ATS-near evidence when a defensible source target exists.
+
+See `docs/source_analysis/aggregator_discovery_assessment.md`.
+
+### Impact on Next Source Selection
+
+The S1 shortlist remains useful, but S2B changes the preferred next move:
+
+| Next move | Current preference | Reason |
+|---|---|---|
+| Another Greenhouse board | Lower preference | The connector exists, but Contentful should be observed first and another board may add only limited Germany/remote value. |
+| Another Personio/ATS board | Medium preference | Valuable if the employer target is relevant and the acquisition path is clean. |
+| Employer-origin validation | High preference | Best match for explainable Hannover/remote-in-Germany source value. |
+| Aggregator connector | Not preferred | Too much acquisition/policy risk for direct ingestion at this stage. |
+| Manual aggregator discovery log | High preference | Useful for discovering employers and vocabulary without uncontrolled crawling. |
+
+S2C should therefore select either one employer-origin validation candidate or a manual aggregator discovery-log workflow before more active ingestion targets are added.

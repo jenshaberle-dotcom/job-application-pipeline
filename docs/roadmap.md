@@ -192,8 +192,8 @@ Goals:
 - [x] Activate first controlled Greenhouse expansion target after validation
 - [x] Document source strategy review boundary after S1D
 - [~] Source strategy review before further Greenhouse/Personio/Aggregator expansion
-- [ ] Aggregator / discovery source family assessment
-- [ ] Select next source expansion candidate after S2 review
+- [x] Aggregator / discovery source family assessment
+- [ ] Select next source expansion candidate after S2B assessment
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
 - [ ] Application status model
