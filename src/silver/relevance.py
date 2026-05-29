@@ -27,6 +27,12 @@ ROLE_PHRASES = (
     "product platform",
     "infrastructure engineer",
     "ai security",
+    "product owner",
+    "business analyst",
+    "software engineer",
+    "software entwickler",
+    "ui entwickler",
+    "javascript entwickler",
 )
 
 SKILL_PHRASES = (
@@ -58,6 +64,13 @@ SKILL_PHRASES = (
     "api",
     "docker",
     "ci/cd",
+    "javascript",
+    "java script",
+    "typescript",
+    "ui",
+    "bi",
+    "ki",
+    "ai",
 )
 
 ACCESSIBILITY_PHRASES = (
@@ -87,7 +100,11 @@ def normalize_text(value: Any) -> str:
     if value is None:
         return ""
 
-    return str(value).lower().strip()
+    text = str(value).lower().strip()
+    text = re.sub(r"[-_/]+", " ", text)
+    text = re.sub(r"\s+", " ", text)
+
+    return text
 
 
 def flatten_value(value: Any) -> str:
@@ -137,9 +154,15 @@ def build_relevance_text(raw_job: dict) -> str:
             flatten_value(job_data.get("arbeitgeber")),
             flatten_value(job_data.get("location")),
             flatten_value(job_data.get("arbeitsort")),
+            flatten_value(job_data.get("profile_terms")),
+            flatten_value(job_data.get("matched_terms")),
+            flatten_value(job_data.get("skills")),
             flatten_value(job_data.get("metadata")),
             flatten_value(job_data.get("departments")),
             flatten_value(job_data.get("offices")),
+            flatten_value(raw_data.get("result_card")),
+            flatten_value(raw_data.get("listing_evidence")),
+            flatten_value((raw_data.get("detail_evidence") or {}).get("page_title")),
         )
         if part
     )

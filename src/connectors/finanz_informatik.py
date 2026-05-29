@@ -392,6 +392,7 @@ def build_raw_job_record(
         raw_data={
             "source_family": "finanz_informatik",
             "source_target": "hannover",
+            "source_type": "employer_origin_career_site",
             "acquisition_boundary": {
                 "listing_url": requested_listing_url,
                 "max_detail_pages": MAX_DETAIL_PAGES,

@@ -245,6 +245,9 @@ def source_type(source_name: str) -> str:
     if family in {"greenhouse", "personio"}:
         return "ats_company_board"
 
+    if family == "finanz_informatik":
+        return "employer_origin_career_site"
+
     return "unknown"
 
 

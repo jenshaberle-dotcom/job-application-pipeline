@@ -186,3 +186,42 @@ def test_transform_stepstone_raw_job_uses_result_card_fields() -> None:
 
 def test_supported_source_patterns_include_stepstone() -> None:
     assert "stepstone" in get_supported_source_patterns()
+
+
+def test_transform_finanz_informatik_raw_job_uses_bounded_connector_fields() -> None:
+    raw_job = {
+        "id": 7001,
+        "source_name": "finanz_informatik:hannover",
+        "external_job_id": "product-owner-osplus-versiegelung-m-w-d:e216499b2369",
+        "source_url": "https://www.f-i.de/de/karriere/offene-stellen",
+        "raw_data": {
+            "result_card": {
+                "title": "Product Owner OSPlus Versiegelung (m/w/d)",
+                "company_name": "Finanz Informatik GmbH & Co. KG",
+                "location": "Hannover",
+                "detail_url": "https://www.f-i.de/de/karriere/offene-stellen/hannover/product-owner-osplus-versiegelung-m-w-d",
+            },
+            "job": {
+                "title": "Product Owner OSPlus Versiegelung (m/w/d)",
+                "company_name": "Finanz Informatik GmbH & Co. KG",
+                "location": "Hannover",
+                "source_url": "https://www.f-i.de/de/karriere/offene-stellen/hannover/product-owner-osplus-versiegelung-m-w-d",
+            },
+        },
+    }
+
+    result = transform_raw_job_to_silver(raw_job)
+
+    assert result["raw_job_id"] == 7001
+    assert result["source_name"] == "finanz_informatik:hannover"
+    assert result["source_url"] == "https://www.f-i.de/de/karriere/offene-stellen/hannover/product-owner-osplus-versiegelung-m-w-d"
+    assert result["title"] == "Product Owner OSPlus Versiegelung (m/w/d)"
+    assert result["company_name"] == "Finanz Informatik GmbH & Co. KG"
+    assert result["city"] == "Hannover"
+    assert result["country"] == "DE"
+    assert result["normalized_company_name"] == "finanz informatik gmbh & co. kg"
+    assert result["normalized_location"] == "hannover | de"
+
+
+def test_supported_source_patterns_include_finanz_informatik_family() -> None:
+    assert "finanz_informatik:%" in get_supported_source_patterns()
