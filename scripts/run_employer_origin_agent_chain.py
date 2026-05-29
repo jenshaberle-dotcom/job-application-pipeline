@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -13,7 +15,10 @@ from psycopg.rows import dict_row
 
 DETAIL_EVIDENCE_GATE = "detail_evidence_gate"
 CONNECTOR_CANDIDATE_GATE = "connector_candidate_gate"
+CONNECTOR_VALIDATION_GATE = "connector_validation_gate"
+FINAL_APPROVAL_GATE = "final_approval_gate"
 SOURCE_LIFECYCLE_GATE = "source_lifecycle_tracking"
+APPROVAL_TOKEN = "approve_connector_registration"
 
 REQUIRED_CONNECTOR_ARTIFACT_GATES = (
     "company_candidate",
@@ -63,6 +68,7 @@ class SourceCandidate:
     company_key: str
     company_name: str
     source_name_candidate: str
+    source_family_candidate: str
     status: str
 
 
@@ -83,6 +89,28 @@ class ChainDecision:
     args: tuple[str, ...] = ()
 
 
+def snake_case(value: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower())
+    return re.sub(r"_+", "_", normalized).strip("_")
+
+
+def connector_module_name(source_family_candidate: str) -> str:
+    return snake_case(source_family_candidate)
+
+
+def connector_artifact_paths(source_family_candidate: str) -> tuple[Path, Path, Path]:
+    module_name = connector_module_name(source_family_candidate)
+    return (
+        Path("src/connectors") / f"{module_name}.py",
+        Path("tests") / f"test_{module_name}_connector.py",
+        Path("docs/source_analysis") / f"{module_name}_connector_candidate.md",
+    )
+
+
+def connector_artifacts_exist(source_family_candidate: str) -> bool:
+    return all(path.exists() for path in connector_artifact_paths(source_family_candidate))
+
+
 def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> SourceCandidate:
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -92,6 +120,7 @@ def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> SourceCan
                 company_key,
                 company_name,
                 source_name_candidate,
+                source_family_candidate,
                 status
             from employer_origin_source_candidates
             where company_key = %s
@@ -110,6 +139,7 @@ def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> SourceCan
         company_key=str(row["company_key"]),
         company_name=str(row["company_name"]),
         source_name_candidate=str(row["source_name_candidate"]),
+        source_family_candidate=str(row["source_family_candidate"]),
         status=str(row["status"]),
     )
 
@@ -159,6 +189,14 @@ def needs_detail_evidence_repair(gates: dict[str, GateReview]) -> bool:
 
 def connector_candidate_ready(gates: dict[str, GateReview]) -> bool:
     return gate_passed(gates.get(CONNECTOR_CANDIDATE_GATE), decision="build_connector_candidate")
+
+
+def connector_validation_ready(gates: dict[str, GateReview]) -> bool:
+    return gate_passed(gates.get(CONNECTOR_VALIDATION_GATE), decision="ready_for_final_approval")
+
+
+def final_approval_ready(gates: dict[str, GateReview]) -> bool:
+    return gate_passed(gates.get(FINAL_APPROVAL_GATE), decision=APPROVAL_TOKEN)
 
 
 def connector_candidate_spec(gates: dict[str, GateReview]) -> dict[str, Any]:
@@ -224,6 +262,28 @@ def connector_artifact_generator_args(company_key: str, write_connector: bool) -
     return tuple(args)
 
 
+def connector_validation_args(company_key: str, reviewed_by: str) -> tuple[str, ...]:
+    return ("--company-key", company_key, "--reviewed-by", reviewed_by)
+
+
+def final_approval_args(company_key: str, reviewed_by: str, approval_token: str) -> tuple[str, ...]:
+    return (
+        "--company-key",
+        company_key,
+        "--approved-by",
+        reviewed_by,
+        "--approval-token",
+        approval_token,
+    )
+
+
+def registration_execution_plan_args(company_key: str, write_registration_plan: bool) -> tuple[str, ...]:
+    args = ["--company-key", company_key]
+    if write_registration_plan:
+        args.append("--write")
+    return tuple(args)
+
+
 def active_controlled_source_completed(
     candidate: SourceCandidate,
     gates: dict[str, GateReview],
@@ -240,6 +300,7 @@ def active_controlled_source_completed(
         for gate in gates.values()
     )
 
+
 def next_decision(
     gates: dict[str, GateReview],
     *,
@@ -248,6 +309,9 @@ def next_decision(
     reviewed_by: str,
     attempt_repair: bool,
     write_connector: bool,
+    artifacts_exist: bool = False,
+    approval_token: str | None = None,
+    write_registration_plan: bool = False,
 ) -> ChainDecision:
     if needs_detail_evidence_repair(gates):
         detail_gate = gates.get(DETAIL_EVIDENCE_GATE)
@@ -284,11 +348,44 @@ def next_decision(
             args=connector_build_readiness_args(company_key),
         )
 
+    if not artifacts_exist:
+        return ChainDecision(
+            action="run_connector_artifact_generator",
+            reason="all required S4A gates are passed, but connector artifact files do not exist yet",
+            module="scripts.run_employer_origin_connector_artifact_generator",
+            args=connector_artifact_generator_args(company_key, write_connector),
+        )
+
+    if not connector_validation_ready(gates):
+        return ChainDecision(
+            action="run_connector_validation_agent",
+            reason="connector artifact files exist, but connector_validation_gate is not passed/ready_for_final_approval",
+            module="scripts.run_employer_origin_connector_validation_agent",
+            args=connector_validation_args(company_key, reviewed_by),
+        )
+
+    if not final_approval_ready(gates):
+        if approval_token == APPROVAL_TOKEN:
+            return ChainDecision(
+                action="run_final_approval_gate_agent",
+                reason="connector_validation_gate is passed and explicit approval token was provided",
+                module="scripts.run_employer_origin_final_approval_gate_agent",
+                args=final_approval_args(company_key, reviewed_by, approval_token),
+            )
+
+        return ChainDecision(
+            action="stop_explicit_approval_required",
+            reason=(
+                "connector_validation_gate is passed/ready_for_final_approval; explicit "
+                f"approval token {APPROVAL_TOKEN!r} is required before registration planning"
+            ),
+        )
+
     return ChainDecision(
-        action="run_connector_artifact_generator",
-        reason="all required S4A gates are passed and connector_candidate_gate is build_connector_candidate",
-        module="scripts.run_employer_origin_connector_artifact_generator",
-        args=connector_artifact_generator_args(company_key, write_connector),
+        action="run_registration_execution_plan_agent",
+        reason="final_approval_gate is passed; prepare non-activating connector registration execution plan",
+        module="scripts.run_employer_origin_registration_execution_plan_agent",
+        args=registration_execution_plan_args(company_key, write_registration_plan),
     )
 
 
@@ -300,6 +397,13 @@ def print_gate_summary(candidate: SourceCandidate, gates: dict[str, GateReview])
         gate = gates[gate_name]
         suffix = f" | stop_reason={gate.stop_reason}" if gate.stop_reason else ""
         print(f"- {gate.gate_name}: {gate.gate_status} / {gate.decision}{suffix}")
+
+
+def print_artifact_summary(candidate: SourceCandidate) -> None:
+    paths = connector_artifact_paths(candidate.source_family_candidate)
+    print("connector_artifacts:")
+    for path in paths:
+        print(f"- {path}: {'present' if path.exists() else 'missing'}")
 
 
 def run_child(decision: ChainDecision) -> int:
@@ -316,7 +420,7 @@ def child_exit_interpretation_lines(exit_code: int) -> list[str]:
     if exit_code == 0:
         return [
             "child_step_completed: true",
-            "NEXT: rerun this chain command to continue from refreshed DB gate state.",
+            "NEXT: rerun this chain command to continue from refreshed DB gate/file state.",
         ]
 
     if exit_code == 2:
@@ -330,12 +434,14 @@ def child_exit_interpretation_lines(exit_code: int) -> list[str]:
         f"child_exit_code: {exit_code}",
     ]
 
+
 def run_agent(args: argparse.Namespace) -> int:
     with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
         candidate = load_candidate(conn, args.company_key)
         gates = load_gate_reviews(conn, candidate.id)
 
     print_gate_summary(candidate, gates)
+    print_artifact_summary(candidate)
 
     if active_controlled_source_completed(candidate, gates):
         print("next_action: monitor_source_lifecycle")
@@ -350,6 +456,9 @@ def run_agent(args: argparse.Namespace) -> int:
         reviewed_by=args.reviewed_by,
         attempt_repair=args.attempt_repair,
         write_connector=args.write_connector,
+        artifacts_exist=connector_artifacts_exist(candidate.source_family_candidate),
+        approval_token=args.approval_token,
+        write_registration_plan=args.write_registration_plan,
     )
 
     print(f"next_action: {decision.action}")
@@ -358,7 +467,7 @@ def run_agent(args: argparse.Namespace) -> int:
     if args.plan_only or decision.module is None:
         if decision.module:
             print("planned_command:", " ".join(child_command(decision.module, decision.args)))
-        return 0 if decision.action != "stop_manual_review_required" else 2
+        return 0 if not decision.action.startswith("stop_") else 2
 
     exit_code = run_child(decision)
     for line in child_exit_interpretation_lines(exit_code):
@@ -369,8 +478,8 @@ def run_agent(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "DB-backed employer-origin agent chain driver. It inspects current gate state, "
-            "runs only the next bounded agent step, and then asks to rerun against refreshed DB state."
+            "DB-backed employer-origin agent chain driver. It inspects current gate/file state, "
+            "runs only the next bounded agent step, and then asks to rerun against refreshed state."
         )
     )
     parser.add_argument("--company-key", required=True)
@@ -378,6 +487,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewed-by", default="agent")
     parser.add_argument("--attempt-repair", action="store_true")
     parser.add_argument("--write-connector", action="store_true")
+    parser.add_argument("--approval-token")
+    parser.add_argument("--write-registration-plan", action="store_true")
     parser.add_argument("--plan-only", action="store_true")
     return parser
 

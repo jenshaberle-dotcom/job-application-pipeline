@@ -11,6 +11,7 @@ from psycopg.rows import dict_row
 from scripts.run_employer_origin_agent_chain import (
     CONNECTOR_CANDIDATE_GATE,
     GateReview,
+    connector_artifacts_exist,
     next_decision,
 )
 
@@ -24,6 +25,7 @@ class CandidateSummary:
     company_key: str
     company_name: str
     source_name_candidate: str
+    source_family_candidate: str
     status: str
     risk_level: str
     latest_gate_order: int | None
@@ -77,6 +79,7 @@ def gate_from_row(row: dict[str, Any]) -> GateReview:
         gate_status=str(row["gate_status"]),
         decision=str(row["decision"]),
         stop_reason=row["stop_reason"],
+        evidence=dict(row.get("evidence") or {}),
     )
 
 
@@ -193,10 +196,11 @@ def classify_queue_item(
         reviewed_by=reviewed_by,
         attempt_repair=allow_repair,
         write_connector=False,
+        artifacts_exist=connector_artifacts_exist(candidate.source_family_candidate),
     )
 
     command = None
-    if chain_decision.action != "stop_manual_review_required":
+    if not chain_decision.action.startswith("stop_"):
         command = build_chain_command(
             company_key=candidate.company_key,
             target_location=target_location,
@@ -206,10 +210,13 @@ def classify_queue_item(
         )
 
     priority_by_action = {
+        "run_registration_execution_plan_agent": 12,
+        "run_connector_validation_agent": 15,
         "run_connector_artifact_generator": 20,
         "run_connector_build_readiness_agent": 25,
         "run_connector_candidate_gate": 30,
         "run_detail_evidence_repair": 40,
+        "stop_explicit_approval_required": 85,
         "stop_manual_review_required": 90,
     }
 
@@ -278,6 +285,7 @@ class QueueRepository:
                     c.company_key,
                     c.company_name,
                     c.source_name_candidate,
+                    c.source_family_candidate,
                     c.status,
                     c.risk_level,
                     max(g.gate_order)::int as latest_gate_order,
@@ -297,6 +305,7 @@ class QueueRepository:
                     c.company_key,
                     c.company_name,
                     c.source_name_candidate,
+                    c.source_family_candidate,
                     c.status,
                     c.risk_level
                 order by c.company_key
@@ -310,6 +319,7 @@ class QueueRepository:
                 company_key=str(row["company_key"]),
                 company_name=str(row["company_name"]),
                 source_name_candidate=str(row["source_name_candidate"]),
+                source_family_candidate=str(row["source_family_candidate"]),
                 status=str(row["status"]),
                 risk_level=str(row["risk_level"]),
                 latest_gate_order=row["latest_gate_order"],
@@ -330,7 +340,8 @@ class QueueRepository:
                     gate_name,
                     gate_status,
                     decision,
-                    stop_reason
+                    stop_reason,
+                    evidence
                 from employer_origin_candidate_gate_reviews
                 where candidate_id = %s
                 """,

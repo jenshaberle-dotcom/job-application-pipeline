@@ -60,3 +60,19 @@ The queue reports `monitor_source_lifecycle` and does not print a connector arti
 When bounded detail-evidence repair has already been attempted and the gate stop reason states that no concrete detail pages with profile and target/remote signals were found, the queue does not propose the same repair again.
 
 The candidate is shown as `manual_review_stop` with no command. This prevents the operator loop from repeatedly running a known exhausted repair path.
+
+
+## S4D Queue Progression
+
+The queue now carries gate `evidence` into the shared chain decision logic. This is required because S4A artifact readiness depends on concrete detail URLs stored in `connector_candidate_gate.evidence.connector_candidate_spec`. Without that evidence, the queue could only see status/decision labels and would repeatedly underrate candidates that were actually artifact-ready.
+
+Queue classification also follows the post-artifact sequence:
+
+1. missing or blocked detail evidence -> repair/manual-review path
+2. incomplete S4A readiness -> build-readiness agent
+3. S4A ready but artifact files missing -> connector artifact generator
+4. artifacts present but validation not passed -> S4B connector validation
+5. validation passed but approval missing -> explicit approval stop
+6. final approval passed -> non-activating registration execution plan
+
+The queue intentionally does not provide approval tokens and therefore cannot silently approve connector registration.

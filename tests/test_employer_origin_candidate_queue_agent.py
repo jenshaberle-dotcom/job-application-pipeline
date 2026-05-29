@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scripts.run_employer_origin_agent_chain import GateReview, REQUIRED_CONNECTOR_ARTIFACT_GATES
+from scripts.run_employer_origin_agent_chain import GateReview, REQUIRED_CONNECTOR_ARTIFACT_GATES, connector_artifact_paths
 from scripts.run_employer_origin_candidate_queue_agent import (
     CONNECTOR_CANDIDATE_GATE,
     SOURCE_LIFECYCLE_GATE,
@@ -21,6 +21,7 @@ def candidate(
         company_key=company_key,
         company_name=company_key.upper(),
         source_name_candidate=f"{company_key}:hannover",
+        source_family_candidate=company_key,
         status=status,
         risk_level="low",
         latest_gate_order=None,
@@ -269,3 +270,42 @@ def test_queue_routes_incomplete_s4a_gates_to_build_readiness_before_artifacts()
 
     assert item.next_action == "run_connector_build_readiness_agent"
     assert item.command is not None
+
+
+
+def test_queue_uses_gate_evidence_to_route_s4a_ready_candidate_to_artifact_generation() -> None:
+    item = classify_queue_item(
+        candidate("rossmann"),
+        passed_artifact_gates(),
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    assert item.next_action == "run_connector_artifact_generator"
+    assert item.command is not None
+
+
+def test_queue_routes_validated_candidate_to_explicit_approval_stop(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    for path in connector_artifact_paths("rossmann"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# generated", encoding="utf-8")
+
+    gates = passed_artifact_gates()
+    gates["connector_validation_gate"] = gate(
+        "connector_validation_gate",
+        "passed",
+        "ready_for_final_approval",
+    )
+
+    item = classify_queue_item(
+        candidate("rossmann"),
+        gates,
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    assert item.next_action == "stop_explicit_approval_required"
+    assert item.command is None
