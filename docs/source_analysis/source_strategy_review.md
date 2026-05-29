@@ -313,3 +313,9 @@ The repair remains defensive: it does not activate sources, write Bronze rows, r
 S2X introduces a conservative DB-backed orchestration layer for the employer-origin agent workflow. The chain driver reads PostgreSQL gate state, chooses exactly one next bounded step and then asks the user/operator to rerun it against refreshed DB state.
 
 It can coordinate S2W detail-evidence repair, S2U connector-candidate gate evaluation and S2V connector implementation dry-runs without bypassing gates or using export artifacts as inputs.
+
+## S2Y Employer-Origin Source Lifecycle Tracking
+
+S2Y adds DB-backed lifecycle tracking for employer-origin sources and improves the agent-chain UX for controlled child exits. The lifecycle agent records `source_lifecycle_tracking` from current PostgreSQL evidence instead of leaving active controlled sources indefinitely at `not_started`.
+
+The agent only updates gate state. It does not activate sources, write Bronze rows, transform Silver rows, enable recurring ingestion or use CSV/Excel/export artifacts as inputs.
