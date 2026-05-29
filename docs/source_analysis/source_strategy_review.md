@@ -343,3 +343,9 @@ This is intentionally conservative. A failed repair remains visible as a manual-
 S3B adds a DB-backed connector build readiness check before connector implementation may be generated. S3C adds a reviewable connector registration plan with an explicit manual approval token.
 
 Together these steps move the agent workflow closer to connector construction while preserving the boundary that connector registration, source activation, Bronze persistence and recurring ingestion remain approval-gated.
+
+## S3D/S3E/S3F Validation, Final Approval and Execution Planning
+
+S3D validates generated connector candidates before final approval. S3E records explicit human approval through the `approve_connector_registration` token. S3F prepares a registration execution plan after final approval.
+
+Together these agents allow the workflow to approach connector registration while preserving hard boundaries: no source activation, no Bronze writes, no recurring ingestion and no CSV/Excel/export artifacts as inputs.
