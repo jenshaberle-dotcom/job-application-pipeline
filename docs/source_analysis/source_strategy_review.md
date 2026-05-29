@@ -267,3 +267,9 @@ S2Q defines the employer-origin connector build process in `docs/source_analysis
 The process uses the Finanz Informatik controlled activation as the reference path. It formalizes source discovery, risk gating, bounded previews, relevance filtering, detail evidence, incremental uniqueness, connector-candidate review, controlled activation, Bronze validation, Silver validation and lifecycle tracking.
 
 This is intentionally defensive. A future AI agent should execute the process gate by gate and stop at the first failed hard gate. A documented stop is a valid outcome. Aggregators remain useful for employer discovery and market exploration, while employer-origin sources should provide controlled, high-precision source targets when the gates justify them.
+
+## S2R Employer-Origin Candidate Gate-State Model
+
+S2R adds a DB-backed gate-state model for employer-origin source candidates.
+
+This follows the S2Q connector build process and prevents future scripts or agents from relying on CSV, Excel or generated review artifacts as hidden process inputs. Candidate state, gate decisions and stop reasons now have a PostgreSQL-backed target model that can later support agent-assisted connector candidate workflows.

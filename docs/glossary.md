@@ -651,3 +651,7 @@ This pattern is not acceptable for durable project architecture because it can b
 A gated process for evaluating and building employer-owned career-site connectors. The process starts with company/source discovery and proceeds through risk, reachability, scope, defensive preview, relevance, detail evidence, incremental uniqueness, connector-candidate, controlled activation, Bronze validation, Silver validation and lifecycle tracking gates.
 
 A failed hard gate must stop the process for that employer and produce a documented stop reason. This process is intended to be executable by a future AI agent, but the agent must remain bounded by the gates.
+
+## Employer-Origin Candidate Gate-State
+
+A DB-backed model for storing employer-origin source candidates, their gate reviews and gate-update events. It is the future state backbone for scripts or agents that evaluate whether a company source should proceed from discovery toward a connector candidate or controlled activation.
