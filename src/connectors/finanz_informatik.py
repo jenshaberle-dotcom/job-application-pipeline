@@ -265,7 +265,12 @@ def extract_candidate_links(html: str, base_url: str) -> list[CandidateLink]:
 
         profile_terms = find_terms(blob, PROFILE_TERMS)
         location_terms = find_terms(blob, TARGET_LOCATION_TERMS + SECONDARY_LOCATION_TERMS)
-        recommendation, reason = classify_listing_candidate(path, profile_terms, location_terms)
+        recommendation, reason = classify_listing_candidate(
+            path=path,
+            text=text,
+            profile_terms=profile_terms,
+            location_terms=location_terms,
+        )
 
         candidates.append(
             CandidateLink(
@@ -294,9 +299,17 @@ def has_secondary_location(location_terms: tuple[str, ...]) -> bool:
 
 def classify_listing_candidate(
     path: str,
+    text: str,
     profile_terms: tuple[str, ...],
     location_terms: tuple[str, ...],
 ) -> tuple[str, str]:
+    listing_scope_text = " ".join([path, text])
+    if find_terms(listing_scope_text, EXCLUSION_TERMS):
+        return (
+            "exclude_training_student_or_entry_level",
+            "Listing is training, student, internship or entry-level scoped and must not consume bounded detail-fetch capacity.",
+        )
+
     if has_secondary_location(location_terms) and not has_target_location(location_terms):
         return (
             "defer_non_target_location_without_remote_signal",
@@ -313,16 +326,20 @@ def classify_listing_candidate(
 
 
 def select_detail_candidates(candidates: list[CandidateLink], limit: int) -> list[CandidateLink]:
-    allowed = [
-        candidate
-        for candidate in candidates
-        if candidate.recommendation in {
-            "strong_listing_candidate_for_review",
-            "job_candidate_low_profile_signal",
-        }
-        and has_target_location(candidate.location_terms)
-    ]
-    return allowed[:limit]
+    priority = {
+        "strong_listing_candidate_for_review": 0,
+        "job_candidate_low_profile_signal": 1,
+    }
+    ranked: list[tuple[int, int, CandidateLink]] = []
+
+    for index, candidate in enumerate(candidates):
+        if candidate.recommendation not in priority:
+            continue
+        if not has_target_location(candidate.location_terms):
+            continue
+        ranked.append((priority[candidate.recommendation], index, candidate))
+
+    return [candidate for _, _, candidate in sorted(ranked)[:limit]]
 
 
 def parse_detail_page(url: str, final_url: str, status_code: int, html: str) -> DetailPage:

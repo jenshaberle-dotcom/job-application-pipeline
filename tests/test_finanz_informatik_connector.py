@@ -67,3 +67,17 @@ def test_connector_builds_raw_record_from_bounded_fake_pages() -> None:
     assert records[0].source_name == "finanz_informatik:hannover"
     assert records[0].raw_data["result_card"]["company_name"] == "Finanz Informatik GmbH & Co. KG"
     assert records[0].raw_data["detail_evidence"]["raw_html_persisted"] is False
+
+
+def test_select_detail_candidates_excludes_student_roles_before_bounded_limit() -> None:
+    html = '\n        <a href="/de/karriere/offene-stellen/hannover/werkstudierende-m-w-d-im-bereich-digitale-signatur-und-kasse">Werkstudierende (m/w/d) im Bereich Digitale Signatur und Kasse</a>\n        <a href="/de/karriere/offene-stellen/hannover/java-script-und-ui-entwickler-m-w-d">Java-Script und UI-Entwickler (m/w/d)</a>\n        <a href="/de/karriere/offene-stellen/hannover/werkstudierende-m-w-d-it-service-desk-1st-und-oder-2nd-level-service-institutsanbindungen">Werkstudierende (m/w/d) IT Service Desk - 1st und/oder 2nd Level Service Institutsanbindungen</a>\n        <a href="/de/karriere/offene-stellen/hannover/software-entwickler-m-w-d">Software-Entwickler (m/w/d)</a>\n        <a href="/de/karriere/offene-stellen/hannover/product-owner-osplus-versiegelung-m-w-d">Product Owner OSPlus Versiegelung (m/w/d)</a>\n    '
+
+    candidates = extract_candidate_links(html, "https://www.f-i.de/de/karriere/offene-stellen")
+    selected = select_detail_candidates(candidates, limit=3)
+
+    assert [candidate.path for candidate in selected] == [
+        "/de/karriere/offene-stellen/hannover/java-script-und-ui-entwickler-m-w-d",
+        "/de/karriere/offene-stellen/hannover/software-entwickler-m-w-d",
+        "/de/karriere/offene-stellen/hannover/product-owner-osplus-versiegelung-m-w-d",
+    ]
+    assert all("werkstudierende" not in candidate.path for candidate in selected)

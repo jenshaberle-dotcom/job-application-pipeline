@@ -204,7 +204,9 @@ Goals:
 - [x] Probe tiny Finanz Informatik detail pages for selected Hannover candidates
 - [x] Add Finanz Informatik incremental uniqueness review workflow
 - [x] Prepare disabled Finanz Informatik connector candidate
-- [ ] Decide whether Finanz Informatik adds enough incremental source value for activation
+- [x] Add DB-backed Finanz Informatik activation gate review
+- [ ] Manually review Finanz Informatik possible StepStone overlap
+- [ ] Decide controlled inactive Finanz Informatik source-target registration
 - [ ] Review Finanz Informatik S2J export artifacts before persistence decision
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking

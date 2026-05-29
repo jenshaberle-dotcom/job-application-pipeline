@@ -225,3 +225,14 @@ S2M connector candidate has been documented in `docs/source_analysis/finanz_info
 A bounded connector candidate exists in `src/connectors/finanz_informatik.py`, but it is not activated by a search profile. It is intentionally limited to one listing page, at most three detail pages, target-scope candidates and relevance-gated RawJobRecord creation.
 
 Activation remains deferred until incremental uniqueness and source value have been reviewed.
+
+
+### S2N — Finanz Informatik Activation Gate Review
+
+S2N has been documented in `docs/source_analysis/finanz_informatik_activation_gate.md`.
+
+S2N is DB-backed and connector-preview-backed. It runs the bounded Finanz Informatik connector candidate, reuses the S2L incremental-uniqueness comparison logic against current database evidence and writes generated review artifacts only after the decision has been built from live evidence.
+
+If database evidence is unavailable, S2N must fail instead of producing an activation decision.
+
+This preserves the project rule that local exports are artifacts, not durable pipeline inputs, and avoids local-artifact handoffs that would create cloud or CI migration debt.
