@@ -137,3 +137,33 @@ def test_build_connector_candidate_spec_carries_detail_and_uniqueness_evidence()
     assert spec["detail_evidence"]["detail_urls"] == ["https://careers.hdi.group/jobs/product-owner"]
     assert spec["incremental_uniqueness"]["uniqueness_counts"] == {"incrementally_unique_candidate": 1}
     assert "connector would need CSV/Excel/generated export artifacts as inputs" in spec["stop_conditions_for_implementation"]
+
+def test_concrete_job_detail_url_accepts_specific_job_pages_and_rejects_overviews() -> None:
+    from scripts.run_employer_origin_connector_candidate_agent import concrete_job_detail_url
+
+    assert concrete_job_detail_url(
+        "https://www.f-i.de/de/karriere/offene-stellen/hannover/product-owner-osplus-versiegelung-m-w-d"
+    )
+    assert concrete_job_detail_url("https://careers.example.test/jobs/product-owner-data-platform")
+
+    assert not concrete_job_detail_url("https://careers.hdi.group/de/karriere/jobs")
+    assert not concrete_job_detail_url("https://careers.hdi.group/en/your_career_opportunities")
+    assert not concrete_job_detail_url("https://careers.hdi.group/en/privacy")
+
+
+def test_connector_candidate_outcome_requires_concrete_job_detail_urls() -> None:
+    gates = make_passed_gate_set()
+    gates["detail_evidence_gate"]["evidence"] = {
+        "details": [
+            {"url": "https://careers.hdi.group/de/karriere/jobs"},
+            {"url": "https://careers.hdi.group/en/your_career_opportunities"},
+            {"url": "https://careers.hdi.group/en/privacy"},
+        ]
+    }
+
+    outcome = connector_candidate_outcome(make_candidate(), gates)
+
+    assert outcome.gate_status == "manual_review_required"
+    assert outcome.decision == "manual_review_required"
+    assert outcome.stop_reason == "detail evidence does not contain concrete job-detail URLs"
+    assert "https://careers.hdi.group/en/privacy" in outcome.evidence["rejected_detail_urls"]
