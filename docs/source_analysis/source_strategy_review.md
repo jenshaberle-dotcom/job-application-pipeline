@@ -285,3 +285,9 @@ The agent uses the S2R DB-backed gate-state model and executes the first S2Q gat
 S2T extends the employer-origin gate-agent workflow beyond early reachability and relevance gates.
 
 It reads DB-backed candidate state, fetches a bounded set of detail pages, records detail evidence and compares candidates against current raw/Silver evidence. A candidate may move to `connector_candidate` only when incremental value is plausible. The agent still does not generate connector code, activate sources, write Bronze rows or use CSV/Excel/export artifacts as inputs.
+
+## S2U Employer-Origin Connector Candidate Agent
+
+S2U adds the connector-candidate gate agent.
+
+The agent reads DB-backed gate state and only passes `connector_candidate_gate` when the earlier discovery, risk, reachability, scope, relevance, detail evidence and incremental uniqueness gates are passed. It writes the connector-candidate specification back to PostgreSQL gate evidence and may emit human-readable review outputs. It does not generate connector code, activate sources, write Bronze data or use CSV/Excel/export artifacts as inputs.
