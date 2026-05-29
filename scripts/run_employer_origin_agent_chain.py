@@ -239,6 +239,24 @@ def run_child(decision: ChainDecision) -> int:
     return int(completed.returncode)
 
 
+def child_exit_interpretation_lines(exit_code: int) -> list[str]:
+    if exit_code == 0:
+        return [
+            "child_step_completed: true",
+            "NEXT: rerun this chain command to continue from refreshed DB gate state.",
+        ]
+
+    if exit_code == 2:
+        return [
+            "child_step_completed: false",
+            "child_gate_outcome: manual_review_required",
+            "NEXT: inspect DB gate state or rerun with a different bounded option after manual review.",
+        ]
+
+    return [
+        f"child_exit_code: {exit_code}",
+    ]
+
 def run_agent(args: argparse.Namespace) -> int:
     with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
         candidate = load_candidate(conn, args.company_key)
@@ -264,13 +282,9 @@ def run_agent(args: argparse.Namespace) -> int:
         return 0 if decision.action != "stop_manual_review_required" else 2
 
     exit_code = run_child(decision)
-    if exit_code != 0:
-        print(f"child_exit_code: {exit_code}")
-        return exit_code
-
-    print("child_step_completed: true")
-    print("NEXT: rerun this chain command to continue from refreshed DB gate state.")
-    return 0
+    for line in child_exit_interpretation_lines(exit_code):
+        print(line)
+    return exit_code
 
 
 def build_parser() -> argparse.ArgumentParser:

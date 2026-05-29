@@ -150,3 +150,12 @@ def test_child_command_uses_current_python_interpreter() -> None:
 
     assert command[1:3] == ["-m", "scripts.example"]
     assert command[-2:] == ["--company-key", "hdi"]
+
+def test_child_exit_interpretation_labels_exit_code_two_as_manual_review() -> None:
+    from scripts.run_employer_origin_agent_chain import child_exit_interpretation_lines
+
+    text = "\\n".join(child_exit_interpretation_lines(2))
+
+    assert "child_step_completed: false" in text
+    assert "child_gate_outcome: manual_review_required" in text
+    assert "child_exit_code: 2" not in text
