@@ -6,6 +6,32 @@ The dashboard is intended to turn the job pipeline into an interactive job marke
 
 It should not only show ingested jobs, but also support operational monitoring, candidate review, application tracking and market trend analysis.
 
+
+## Visual Identity
+
+Future dashboard work should use the project's **Deep Ocean Intelligence** visual identity.
+
+The dashboard should look like a calm engineering and analytics console, not a generic BI report and not a gaming HUD.
+
+Dashboard labels should generally use English product terminology, for example:
+
+- `Source Health`
+- `Incremental Uniqueness`
+- `Duplicate Pressure`
+- `Historical Burden`
+- `False-Negative Risk`
+- `Silver Promotion Rate`
+- `Match Confidence`
+- `Operational Observability`
+
+The German project narrative may still explain the reasoning behind these metrics in application material and lessons-learned documents.
+
+Related design rules:
+
+- [Design and Platform Identity](../design/README.md)
+- [Visual Identity: Deep Ocean Intelligence](../design/visual_identity.md)
+- [ADR-031: Define platform visual identity and documentation design rules](../adr/031_define_platform_visual_identity.md)
+
 ## Target Architecture
 
 Preferred future architecture:

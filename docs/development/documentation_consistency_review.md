@@ -51,6 +51,7 @@ The review should not create new documents unless the existing structure cannot 
 | Links | Are ADRs, source analyses and capability documents connected where needed? |
 | Redundancy | Do duplicated explanations create contradictions or unnecessary maintenance burden? |
 | Boundaries | Are Bronze, Silver, Gold, connector and source-evaluation responsibilities kept separate? |
+| Visual identity | Do touched diagrams, dashboard concepts or visual assets follow the Deep Ocean Intelligence rules? |
 
 ## Executable Validation
 
@@ -108,6 +109,27 @@ Source documentation must distinguish:
 This is required by ADR-027 and ADR-028.
 
 Compound operational values such as `greenhouse:stripe` or `personio:eraneos` may remain valid short-term identifiers, but documentation must not treat them as the final analytical model.
+
+
+## Visual Identity Rule
+
+Documentation updates that touch diagrams, dashboard descriptions, README visuals, presentation assets or frontend plans must check the project visual identity defined in [`docs/design/`](../design/README.md).
+
+This does not mean every text-only change needs a new graphic. It means that any changed or newly introduced visual concept must remain aligned with the **Deep Ocean Intelligence** style.
+
+Minimum review questions:
+
+- Are layer colors consistent with the project visual rules?
+- Are source risk and source value shown honestly?
+- Is StepStone still marked as defensive/limited while the current acquisition policy stands?
+- Are other aggregators kept out of active-source visuals unless a later ADR changes the policy?
+- Are implemented, in-progress and vision items distinguishable?
+- Are raw internal script names avoided in polished visuals?
+- Does the visual clarify the system instead of only decorating it?
+
+Related decision:
+
+- [ADR-031: Define platform visual identity and documentation design rules](../adr/031_define_platform_visual_identity.md)
 
 ## Documentation Structure Rule
 

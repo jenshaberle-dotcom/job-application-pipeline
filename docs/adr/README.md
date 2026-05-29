@@ -57,6 +57,7 @@ The ADRs intentionally reflect this evolution.
 | 028 | Separate source family, source target and source type | Accepted |
 | 029 | Define historical burden retention strategy | Accepted |
 | 030 | Define trend eligibility and source coverage boundary | Accepted |
+| 031 | Define platform visual identity and documentation design rules | Accepted |
 
 ---
 

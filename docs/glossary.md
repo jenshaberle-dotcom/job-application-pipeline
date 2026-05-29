@@ -197,6 +197,26 @@ The project evolved from a simple ingestion script toward a lightweight data pla
 
 ---
 
+
+## Deep Ocean Intelligence
+
+The project's visual identity for dashboards, diagrams, presentations, README visuals and future frontend work.
+
+The style emphasizes calm technical competence, dark ocean-like surfaces, controlled cyan/blue accents, source governance, operational observability and analytical depth.
+
+It is documented in:
+
+- [Design and Platform Identity](design/README.md)
+- [ADR-031](adr/031_define_platform_visual_identity.md)
+
+## Design System
+
+A reusable set of visual and communication rules for project assets.
+
+In this project, the design system is intentionally lightweight. It defines colors, layer mappings, visual rules, dashboard terminology and source-risk visualization boundaries.
+
+It is not meant to turn documentation into marketing material. It is meant to make architecture and source-quality decisions easier to understand.
+
 ## Deduplication
 
 The process of identifying and handling duplicate records.
