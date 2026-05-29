@@ -214,6 +214,7 @@ Goals:
 - [ ] Review Finanz Informatik S2J export artifacts before persistence decision
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [x] Document employer-origin connector build process
+- [x] Add DB-backed employer-origin candidate gate-state model
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets
