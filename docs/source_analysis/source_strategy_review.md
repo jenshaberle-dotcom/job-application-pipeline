@@ -273,3 +273,9 @@ This is intentionally defensive. A future AI agent should execute the process ga
 S2R adds a DB-backed gate-state model for employer-origin source candidates.
 
 This follows the S2Q connector build process and prevents future scripts or agents from relying on CSV, Excel or generated review artifacts as hidden process inputs. Candidate state, gate decisions and stop reasons now have a PostgreSQL-backed target model that can later support agent-assisted connector candidate workflows.
+
+## S2S Employer-Origin Gate Agent MVP
+
+S2S introduces a bounded gate-agent MVP for employer-origin source candidates.
+
+The agent uses the S2R DB-backed gate-state model and executes the first S2Q gates up to relevance. It performs a single bounded read-only request, records decisions in PostgreSQL and stops at the first failed or manual-review gate. It does not generate connector code, activate sources, write Bronze data or rely on CSV/Excel/export artifacts as inputs.

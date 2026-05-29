@@ -215,6 +215,7 @@ Goals:
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [x] Document employer-origin connector build process
 - [x] Add DB-backed employer-origin candidate gate-state model
+- [x] Add employer-origin gate agent MVP
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets
