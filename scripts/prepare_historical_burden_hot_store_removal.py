@@ -43,10 +43,6 @@ DEFAULT_EXPORT_DIR = Path("exports/historical_burden_hot_store_removal_review")
 REVIEW_MANIFEST_FILENAME = "historical_burden_hot_store_removal_review_manifest.json"
 REVIEW_MARKDOWN_FILENAME = "historical_burden_hot_store_removal_review.md"
 
-# Compatibility names consumed by the legacy guarded removal command until Stage 2
-# refactors execution to read approved DB review batches directly.
-REMOVAL_CANDIDATES_FILENAME = "historical_burden_hot_store_removal_candidates.csv"
-REMOVAL_MANIFEST_FILENAME = "historical_burden_hot_store_removal_manifest.json"
 
 REVIEW_REASON = (
     "DB-backed historical burden hot-store removal review. "
@@ -126,42 +122,6 @@ VALUES (
 )
 RETURNING id;
 """
-
-CURRENT_HOT_STORE_STATE_SQL = """
-SELECT
-    rj.id AS raw_job_id,
-    rj.source_name,
-    COALESCE(sp.profile_name, '<missing_profile>') AS initial_profile_name,
-    COALESCE(ir.search_term, '<multi-term_or_missing>') AS initial_search_term_snapshot,
-    sj.id IS NOT NULL AS has_silver_job,
-    CASE
-        WHEN rj.source_name IN ('manual_test', 'test')
-            THEN 'test_data'
-        WHEN COALESCE(sp.profile_name, '') ILIKE '%%test%%'
-            THEN 'possible_test_data'
-        WHEN rj.ingestion_run_id IS NULL OR rj.search_profile_id IS NULL
-            THEN 'missing_lineage'
-        WHEN rj.source_name LIKE 'greenhouse:%%' AND ir.search_term = '*'
-            THEN 'greenhouse_legacy_wildcard'
-        WHEN rj.source_name LIKE 'greenhouse:%%' AND NOT (rj.raw_data ? 'matching')
-            THEN 'greenhouse_without_current_matching_metadata'
-        WHEN rj.source_name LIKE 'personio:%%' AND NOT (rj.raw_data ? 'matching')
-            THEN 'personio_without_current_matching_metadata'
-        WHEN rj.source_name = 'stepstone'
-            THEN 'commercial_aggregator_history'
-        ELSE 'ordinary_operational_history'
-    END AS current_burden_category
-FROM raw_jobs rj
-LEFT JOIN ingestion_runs ir
-    ON ir.id = rj.ingestion_run_id
-LEFT JOIN search_profiles sp
-    ON sp.id = rj.search_profile_id
-LEFT JOIN silver_jobs sj
-    ON sj.raw_job_id = rj.id
-WHERE rj.id = ANY(%s)
-ORDER BY rj.id;
-"""
-
 
 INSERT_REVIEW_ITEM_SQL = """
 INSERT INTO historical_burden_review_items (
@@ -270,43 +230,6 @@ def load_current_hot_store_candidates(
     with connection.cursor(row_factory=dict_row) as cursor:
         cursor.execute(LOAD_REVIEW_CANDIDATE_ROWS_SQL)
         return [dict(row) for row in cursor.fetchall()]
-
-
-def load_current_hot_store_state(
-    connection: psycopg.Connection,
-    raw_job_ids: Sequence[int],
-) -> dict[int, CurrentHotStoreState]:
-    """Return current DB state for legacy guarded removal revalidation.
-
-    Stage 1 introduces DB-backed review state but keeps the old guarded command
-    importable until Stage 2 replaces its file-handoff execution path.
-    """
-    if not raw_job_ids:
-        return {}
-
-    with connection.cursor(row_factory=dict_row) as cursor:
-        cursor.execute(CURRENT_HOT_STORE_STATE_SQL, (list(raw_job_ids),))
-        rows = [dict(row) for row in cursor.fetchall()]
-
-    states: dict[int, CurrentHotStoreState] = {}
-    for row in rows:
-        current_burden_category = row["current_burden_category"]
-        has_silver_job = bool(row["has_silver_job"])
-        current_retention_track = classify_retention_track(
-            burden_category=current_burden_category,
-            has_silver_job=has_silver_job,
-        )
-        states[int(row["raw_job_id"])] = CurrentHotStoreState(
-            raw_job_id=int(row["raw_job_id"]),
-            source_name=row["source_name"],
-            initial_profile_name=row["initial_profile_name"],
-            initial_search_term_snapshot=row["initial_search_term_snapshot"],
-            current_burden_category=current_burden_category,
-            current_retention_track=current_retention_track,
-            has_silver_job=has_silver_job,
-        )
-
-    return states
 
 
 def candidate_from_row(row: dict[str, Any]) -> HotStoreRemovalCandidate | None:

@@ -246,3 +246,10 @@ S2O-B has been documented in `docs/source_analysis/historical_burden_db_backed_r
 Stage 1 introduces database-backed proposed review batches for historical-burden hot-store removal. The prepare step now reads current database evidence, persists proposed review state to `historical_burden_review_batches` and `historical_burden_review_items`, and writes Markdown/JSON only as human-readable review artifacts.
 
 Stage 2 remains open: the guarded removal command must be refactored to read an approved DB batch by `batch_id` instead of local candidate/manifest files.
+
+
+### S2O-B Stage 2 — DB-Backed Historical Burden Execution
+
+The guarded historical-burden hot-store removal command now reads DB-backed review state by `batch_id`. It does not read local CSV or manifest files as execution input. Dry-run remains the default. Approval and execution require explicit command flags and exact confirmation strings.
+
+This closes the historical-burden export-as-input blocker for the hot-store removal workflow. Generated Markdown/JSON files remain human-readable reports only.

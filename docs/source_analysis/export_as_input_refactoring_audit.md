@@ -43,11 +43,11 @@ Current status:
 
 - Stage 1 has introduced DB-backed proposed review batches and review items.
 - `scripts.prepare_historical_burden_hot_store_removal` now creates review state in the database and writes Markdown/JSON as human-readable outputs only.
-- Stage 2 is still open: `scripts.remove_historical_burden_from_hot_store` must be refactored to read an approved DB batch instead of a local manifest/candidate file.
+- Stage 2 refactors `scripts.remove_historical_burden_from_hot_store` to read DB-backed review batches by `batch_id`. It no longer reads local manifests or candidate CSV files as execution input.
 
 Target state:
 
-- The removal operation should read explicitly reviewed database state, not a local CSV file path.
+- The removal operation reads explicitly reviewed database state, not a local CSV file path.
 - Human-readable exports may still document what happened, but they must not drive the operation.
 
 ## Refactoring Sequence

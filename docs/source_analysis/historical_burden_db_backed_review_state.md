@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented as Stage 1.
+Implemented as Stage 1 and Stage 2.
 
 S2O-B replaces the historical-burden hot-store removal review handoff with database-backed proposed review state.
 
@@ -44,17 +44,33 @@ does this:
 
 It does not delete, update or archive database rows.
 
-## Pending Stage 2
+## Stage 2 Execution Path
 
-The guarded removal command still needs to be refactored to read an approved DB batch by `batch_id`.
+Stage 2 refactors the guarded hot-store removal command to use DB-backed review state.
 
-Target behavior for Stage 2:
+The command now requires `--batch-id` and reads `historical_burden_review_batches` plus `historical_burden_review_items`.
 
-- dry-run by default
-- execute only with explicit approval and confirmation
-- read approved DB state, not local files
-- update the DB batch/item state after execution
-- keep Markdown/JSON outputs as reports only
+Default behavior is dry-run:
+
+```bash
+python -m scripts.remove_historical_burden_from_hot_store --batch-id <batch_id>
+```
+
+Approval is explicit and updates only database review state:
+
+```bash
+python -m scripts.remove_historical_burden_from_hot_store   --batch-id <batch_id>   --approve   --confirm approve_historical_burden_hot_store_removal_batch
+```
+
+Execution is destructive and requires an approved DB batch plus exact confirmation:
+
+```bash
+python -m scripts.remove_historical_burden_from_hot_store   --batch-id <batch_id>   --execute   --confirm remove_approved_historical_burden_from_hot_store
+```
+
+The command revalidates current hot-store state before approval and execution. It blocks rows that are missing, already processed, no longer match the stored source name, have Silver evidence, or are no longer eligible.
+
+Markdown/JSON outputs remain reports only.
 
 ## Cloud Boundary
 
