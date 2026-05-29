@@ -219,6 +219,7 @@ Goals:
 - [x] Add detail-evidence and incremental-uniqueness gate agent
 - [x] Add employer-origin connector-candidate gate agent
 - [x] Add employer-origin connector implementation agent
+- [x] Add employer-origin detail evidence repair agent
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets

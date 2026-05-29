@@ -301,3 +301,9 @@ The agent reads PostgreSQL gate evidence and writes code, tests and documentatio
 ## S2U/S2V Concrete Detail-URL Hardening
 
 The employer-origin connector agents now treat overview pages, career roots and legal pages as invalid detail evidence. A candidate must provide concrete job-detail URLs before `connector_candidate_gate` may pass or connector code may be generated. This keeps the process defensive and prevents agent-generated connector candidates from being based on weak or non-job evidence.
+
+## S2W Employer-Origin Detail Evidence Repair Agent
+
+S2W adds a bounded self-correction step to the employer-origin agent chain. When a source candidate has weak detail evidence such as career overview pages, legal pages or generic job-board roots, the agent can perform a limited same-domain repair attempt, validate concrete job-detail URLs and update the PostgreSQL `detail_evidence_gate`.
+
+The repair remains defensive: it does not activate sources, write Bronze rows, register connectors, use browser automation, persist raw HTML or use CSV/Excel/export artifacts as inputs.
