@@ -216,6 +216,7 @@ Goals:
 - [x] Document employer-origin connector build process
 - [x] Add DB-backed employer-origin candidate gate-state model
 - [x] Add employer-origin gate agent MVP
+- [x] Add detail-evidence and incremental-uniqueness gate agent
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets
