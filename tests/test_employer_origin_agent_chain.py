@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from scripts.run_employer_origin_agent_chain import (
+    APPROVAL_TOKEN,
     CONNECTOR_CANDIDATE_GATE,
+    CONNECTOR_VALIDATION_GATE,
     DETAIL_EVIDENCE_GATE,
+    FINAL_APPROVAL_GATE,
     GateReview,
-    child_command,
     REQUIRED_CONNECTOR_ARTIFACT_GATES,
+    SourceCandidate,
+    active_controlled_source_completed,
+    child_command,
+    child_exit_interpretation_lines,
     connector_artifact_generation_ready,
+    connector_artifact_paths,
+    connector_artifacts_exist,
     connector_candidate_ready,
+    connector_validation_ready,
+    final_approval_ready,
     needs_detail_evidence_repair,
     next_decision,
 )
@@ -42,6 +54,26 @@ def passed_artifact_gates() -> dict[str, GateReview]:
                 }
             }
         },
+    )
+    return gates
+
+
+def ready_for_final_approval_gates() -> dict[str, GateReview]:
+    gates = passed_artifact_gates()
+    gates[CONNECTOR_VALIDATION_GATE] = gate(
+        CONNECTOR_VALIDATION_GATE,
+        "passed",
+        "ready_for_final_approval",
+    )
+    return gates
+
+
+def final_approval_gates() -> dict[str, GateReview]:
+    gates = ready_for_final_approval_gates()
+    gates[FINAL_APPROVAL_GATE] = gate(
+        FINAL_APPROVAL_GATE,
+        "passed",
+        APPROVAL_TOKEN,
     )
     return gates
 
@@ -87,6 +119,17 @@ def test_connector_candidate_ready_requires_passed_build_connector_candidate() -
             )
         }
     )
+
+
+def test_connector_validation_and_final_approval_helpers_require_exact_decisions() -> None:
+    assert connector_validation_ready(
+        {CONNECTOR_VALIDATION_GATE: gate(CONNECTOR_VALIDATION_GATE, "passed", "ready_for_final_approval")}
+    )
+    assert not connector_validation_ready(
+        {CONNECTOR_VALIDATION_GATE: gate(CONNECTOR_VALIDATION_GATE, "passed", "connector_validation_failed")}
+    )
+    assert final_approval_ready({FINAL_APPROVAL_GATE: gate(FINAL_APPROVAL_GATE, "passed", APPROVAL_TOKEN)})
+    assert not final_approval_ready({FINAL_APPROVAL_GATE: gate(FINAL_APPROVAL_GATE, "passed", "approval_token_required")})
 
 
 def test_next_decision_stops_without_repair_flag_when_detail_gate_is_blocked() -> None:
@@ -170,7 +213,7 @@ def test_next_decision_runs_build_readiness_when_required_s4a_gates_are_incomple
     assert decision.module == "scripts.run_employer_origin_connector_build_readiness_agent"
 
 
-def test_next_decision_runs_artifact_generator_as_dry_run_when_s4a_ready() -> None:
+def test_next_decision_runs_artifact_generator_as_dry_run_when_s4a_ready_but_files_are_missing() -> None:
     decision = next_decision(
         passed_artifact_gates(),
         company_key="hdi",
@@ -178,6 +221,7 @@ def test_next_decision_runs_artifact_generator_as_dry_run_when_s4a_ready() -> No
         reviewed_by="jens",
         attempt_repair=True,
         write_connector=False,
+        artifacts_exist=False,
     )
 
     assert connector_artifact_generation_ready(passed_artifact_gates())
@@ -186,33 +230,104 @@ def test_next_decision_runs_artifact_generator_as_dry_run_when_s4a_ready() -> No
     assert "--dry-run" in decision.args
 
 
+def test_next_decision_runs_validation_after_artifacts_exist() -> None:
+    decision = next_decision(
+        passed_artifact_gates(),
+        company_key="hdi",
+        target_location="hannover",
+        reviewed_by="jens",
+        attempt_repair=True,
+        write_connector=False,
+        artifacts_exist=True,
+    )
+
+    assert decision.action == "run_connector_validation_agent"
+    assert decision.module == "scripts.run_employer_origin_connector_validation_agent"
+    assert "--reviewed-by" in decision.args
+
+
+def test_next_decision_stops_for_explicit_approval_after_validation() -> None:
+    decision = next_decision(
+        ready_for_final_approval_gates(),
+        company_key="hdi",
+        target_location="hannover",
+        reviewed_by="jens",
+        attempt_repair=True,
+        write_connector=False,
+        artifacts_exist=True,
+    )
+
+    assert decision.action == "stop_explicit_approval_required"
+    assert decision.module is None
+    assert APPROVAL_TOKEN in decision.reason
+
+
+def test_next_decision_runs_final_approval_when_token_is_provided() -> None:
+    decision = next_decision(
+        ready_for_final_approval_gates(),
+        company_key="hdi",
+        target_location="hannover",
+        reviewed_by="jens",
+        attempt_repair=True,
+        write_connector=False,
+        artifacts_exist=True,
+        approval_token=APPROVAL_TOKEN,
+    )
+
+    assert decision.action == "run_final_approval_gate_agent"
+    assert decision.module == "scripts.run_employer_origin_final_approval_gate_agent"
+    assert APPROVAL_TOKEN in decision.args
+
+
+def test_next_decision_runs_registration_execution_plan_after_final_approval() -> None:
+    decision = next_decision(
+        final_approval_gates(),
+        company_key="hdi",
+        target_location="hannover",
+        reviewed_by="jens",
+        attempt_repair=True,
+        write_connector=False,
+        artifacts_exist=True,
+        write_registration_plan=True,
+    )
+
+    assert decision.action == "run_registration_execution_plan_agent"
+    assert decision.module == "scripts.run_employer_origin_registration_execution_plan_agent"
+    assert "--write" in decision.args
+
+
+def test_connector_artifact_paths_follow_s4a_generator_contract(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    for path in connector_artifact_paths("hdi"):
+        assert isinstance(path, Path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# generated", encoding="utf-8")
+
+    assert connector_artifacts_exist("hdi")
+
+
 def test_child_command_uses_current_python_interpreter() -> None:
     command = child_command("scripts.example", ("--company-key", "hdi"))
 
     assert command[1:3] == ["-m", "scripts.example"]
     assert command[-2:] == ["--company-key", "hdi"]
 
-def test_child_exit_interpretation_labels_exit_code_two_as_manual_review() -> None:
-    from scripts.run_employer_origin_agent_chain import child_exit_interpretation_lines
 
-    text = "\\n".join(child_exit_interpretation_lines(2))
+def test_child_exit_interpretation_labels_exit_code_two_as_manual_review() -> None:
+    text = "\n".join(child_exit_interpretation_lines(2))
 
     assert "child_step_completed: false" in text
     assert "child_gate_outcome: manual_review_required" in text
     assert "child_exit_code: 2" not in text
 
-def test_active_controlled_source_completed_requires_lifecycle_and_no_open_review() -> None:
-    from scripts.run_employer_origin_agent_chain import (
-        GateReview,
-        SourceCandidate,
-        active_controlled_source_completed,
-    )
 
+def test_active_controlled_source_completed_requires_lifecycle_and_no_open_review() -> None:
     candidate = SourceCandidate(
         id=1,
         company_key="finanz_informatik",
         company_name="Finanz Informatik GmbH & Co. KG",
         source_name_candidate="finanz_informatik:hannover",
+        source_family_candidate="finanz_informatik",
         status="active_controlled",
     )
 
