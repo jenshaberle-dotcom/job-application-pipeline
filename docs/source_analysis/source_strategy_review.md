@@ -331,3 +331,9 @@ This keeps the workflow fast enough for repeated candidate work while preserving
 The candidate queue now treats fully completed `active_controlled` employer-origin sources as monitoring targets instead of implementation targets. This prevents the queue and chain driver from repeatedly suggesting connector implementation for sources whose gate model is already complete.
 
 This is a safety and operator-UX refinement only. It does not activate sources, write Bronze rows, generate connector files or loosen any gate.
+
+## S3A Repair Loop Safety
+
+S3A prevents the employer-origin candidate queue from repeatedly proposing bounded detail-evidence repair after a candidate already stopped with `bounded repair found no concrete detail pages with profile and target/remote signals`.
+
+This is intentionally conservative. A failed repair remains visible as a manual-review stop, but it is not offered as the next executable command again. This keeps the agent workflow productive and prevents hidden retry loops.

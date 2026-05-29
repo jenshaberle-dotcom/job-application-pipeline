@@ -197,3 +197,43 @@ def test_completed_active_controlled_source_is_monitor_only_and_has_no_command()
 
     assert item.next_action == "monitor_source_lifecycle"
     assert item.command is None
+
+def test_exhausted_detail_evidence_repair_is_not_repeated_even_when_repair_allowed() -> None:
+    item = classify_queue_item(
+        candidate("hdi"),
+        {
+            "detail_evidence_gate": gate(
+                "detail_evidence_gate",
+                "manual_review_required",
+                "manual_review_required",
+                "bounded repair found no concrete detail pages with profile and target/remote signals",
+            )
+        },
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    assert item.next_action == "manual_review_stop"
+    assert item.command is None
+    assert "already attempted" in item.reason
+
+
+def test_detail_evidence_repair_exhaustion_requires_specific_stop_reason() -> None:
+    item = classify_queue_item(
+        candidate("hdi"),
+        {
+            "detail_evidence_gate": gate(
+                "detail_evidence_gate",
+                "manual_review_required",
+                "manual_review_required",
+                "temporary network issue",
+            )
+        },
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    assert item.next_action == "run_detail_evidence_repair"
+    assert item.command is not None
