@@ -259,3 +259,11 @@ This closes the historical-burden export-as-input blocker for the hot-store remo
 S2P activates exactly one controlled Finanz Informatik source target: `finanz_informatik:hannover`. The activation is intentionally narrow and keeps the source in precision-source semantics: low volume is acceptable when the source adds relevant, non-duplicate employer-origin evidence.
 
 S2P also documents a local Windows scheduler watchdog. The watchdog is local-development infrastructure only; it catches up after missed days by running at logon and skipping duplicate same-day runs through an operational state marker. It is not cloud orchestration and must be replaced before production/cloud operation.
+
+## S2Q Employer-Origin Connector Build Process
+
+S2Q defines the employer-origin connector build process in `docs/source_analysis/employer_origin_connector_build_process.md`.
+
+The process uses the Finanz Informatik controlled activation as the reference path. It formalizes source discovery, risk gating, bounded previews, relevance filtering, detail evidence, incremental uniqueness, connector-candidate review, controlled activation, Bronze validation, Silver validation and lifecycle tracking.
+
+This is intentionally defensive. A future AI agent should execute the process gate by gate and stop at the first failed hard gate. A documented stop is a valid outcome. Aggregators remain useful for employer discovery and market exploration, while employer-origin sources should provide controlled, high-precision source targets when the gates justify them.

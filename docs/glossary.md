@@ -645,3 +645,9 @@ Examples may include Markdown review reports or JSON manifests that document wha
 A workflow where a generated local file from one step becomes the required input for a later automated step.
 
 This pattern is not acceptable for durable project architecture because it can become stale, local-only, hard to reproduce and fragile during cloud or tool migration. Remaining occurrences are tracked under S2O.
+
+## Employer-Origin Connector Build Process
+
+A gated process for evaluating and building employer-owned career-site connectors. The process starts with company/source discovery and proceeds through risk, reachability, scope, defensive preview, relevance, detail evidence, incremental uniqueness, connector-candidate, controlled activation, Bronze validation, Silver validation and lifecycle tracking gates.
+
+A failed hard gate must stop the process for that employer and produce a documented stop reason. This process is intended to be executable by a future AI agent, but the agent must remain bounded by the gates.

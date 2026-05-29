@@ -213,6 +213,7 @@ Goals:
 - [ ] Verify Finanz Informatik manual runner output after activation
 - [ ] Review Finanz Informatik S2J export artifacts before persistence decision
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
+- [x] Document employer-origin connector build process
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets
