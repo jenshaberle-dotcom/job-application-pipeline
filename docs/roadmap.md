@@ -204,7 +204,9 @@ Goals:
 - [x] Probe tiny Finanz Informatik detail pages for selected Hannover candidates
 - [x] Add Finanz Informatik incremental uniqueness review workflow
 - [x] Prepare disabled Finanz Informatik connector candidate
-- [ ] Decide whether Finanz Informatik adds enough incremental source value for activation
+- [x] Add DB-backed Finanz Informatik activation gate review
+- [ ] Manually review Finanz Informatik possible StepStone overlap
+- [ ] Decide controlled inactive Finanz Informatik source-target registration
 - [ ] Review Finanz Informatik S2J export artifacts before persistence decision
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
@@ -219,6 +221,16 @@ Goals:
 - Support historical market analysis
 - Support interactive job review workflows
 - Support future API consumption
+
+---
+
+
+## S2O — Export-as-Input Refactoring Audit
+
+- [x] Document remaining export-as-input refactoring scope
+- [ ] Refactor or retire Finanz Informatik legacy S2J/S2K export handoff
+- [ ] Replace historical-burden hot-store removal file handoff with DB-backed reviewed state
+- [ ] Add regression guard against new export-as-input workflows before cloud/CI productionization
 
 ---
 

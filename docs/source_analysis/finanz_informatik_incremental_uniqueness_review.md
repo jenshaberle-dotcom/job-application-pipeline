@@ -2,7 +2,7 @@
 
 ## Purpose
 
-S2L checks whether the selected Finanz Informatik candidates from S2K add incremental source value compared with existing raw and Silver evidence.
+S2L checks whether the bounded Finanz Informatik connector-candidate preview adds incremental source value compared with existing raw and Silver evidence.
 
 This is a read-only review. It does not write to the database, activate a source target or approve a connector.
 
@@ -14,13 +14,11 @@ BA remains the broad-volume source so far. Employer-origin sources are precision
 
 ## Workflow
 
-Run the S2K detail-page probe first so that the candidate CSV exists:
-
-    python -m scripts.preview_finanz_informatik_detail_page_probe
-
-Then run:
+Set DB environment variables and run:
 
     python -m scripts.review_finanz_informatik_incremental_uniqueness
+
+The review builds its candidate set from the bounded Finanz Informatik connector-candidate preview and checks it against current database evidence.
 
 The review writes artifacts to:
 
@@ -28,7 +26,6 @@ The review writes artifacts to:
 
 ## Outputs
 
-- `finanz_informatik_incremental_uniqueness.csv`
 - `finanz_informatik_incremental_uniqueness_review.md`
 - `finanz_informatik_incremental_uniqueness_manifest.json`
 
@@ -46,4 +43,4 @@ Possible decisions:
 
 S2L does not approve Bronze persistence or connector activation.
 
-It only answers whether the S2K candidates appear to add incremental source value.
+It only answers whether the bounded Finanz Informatik connector-candidate preview appears to add incremental source value.

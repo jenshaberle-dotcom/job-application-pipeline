@@ -2,6 +2,7 @@ from scripts.review_finanz_informatik_incremental_uniqueness import (
     Candidate,
     EvidenceRecord,
     build_uniqueness_rows,
+    candidate_from_raw_record,
     classify_uniqueness,
     token_similarity,
 )
@@ -65,3 +66,32 @@ def test_db_unavailable_requires_manual_review() -> None:
 
     assert decision == "manual_review_db_unavailable"
     assert "no dsn" in reason
+
+
+def test_candidate_from_raw_record_uses_connector_preview_data() -> None:
+    from src.connectors.base import RawJobRecord
+
+    record = RawJobRecord(
+        source_name="finanz_informatik:hannover",
+        source_url="https://www.f-i.de/de/karriere/offene-stellen/hannover/product-owner-osplus-versiegelung-m-w-d",
+        external_job_id="product-owner-osplus-versiegelung-m-w-d:e216499b2369",
+        raw_data={
+            "job": {
+                "title": "Product Owner OSPlus Versiegelung (m/w/d)",
+                "location": "hannover",
+                "profile_terms": ["product owner", "sql"],
+            },
+            "result_card": {
+                "title": "Product Owner OSPlus Versiegelung (m/w/d)",
+                "location": "hannover",
+            },
+        },
+    )
+
+    candidate = candidate_from_raw_record(record)
+
+    assert candidate.source_candidate_url == record.source_url
+    assert candidate.page_title == "Product Owner OSPlus Versiegelung (m/w/d)"
+    assert candidate.recommendation == "connector_candidate_record"
+    assert candidate.matched_profile_terms == "product owner; sql"
+    assert candidate.matched_location_terms == "hannover"

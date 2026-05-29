@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import json
 import os
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-DEFAULT_CANDIDATES_CSV = Path(
-    "exports/s2k_finanz_informatik_detail_page_probe/finanz_informatik_detail_page_probe.csv"
+from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
+from src.connectors.finanz_informatik import (
+    MAX_DETAIL_PAGES as CONNECTOR_MAX_DETAIL_PAGES,
+    FinanzInformatikConnector,
 )
+
 DEFAULT_EXPORT_DIR = Path("exports/s2l_finanz_informatik_incremental_uniqueness_review")
+DEFAULT_MAX_DETAIL_PAGES = CONNECTOR_MAX_DETAIL_PAGES
 
 
 def normalize_text(value: str | None) -> str:
@@ -119,27 +122,55 @@ class UniquenessRow:
     reason: str
 
 
-def load_candidates(path: Path) -> list[Candidate]:
-    with path.open(encoding="utf-8", newline="") as file:
-        rows = list(csv.DictReader(file))
+def terms_to_text(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        return "; ".join(str(item) for item in value if str(item).strip())
+    return ""
 
-    candidates: list[Candidate] = []
-    for row in rows:
-        recommendation = row.get("recommendation", "")
-        if recommendation != "detail_candidate_supports_future_preview":
-            continue
 
-        candidates.append(
-            Candidate(
-                source_candidate_url=row.get("source_candidate_url", ""),
-                page_title=row.get("page_title", ""),
-                recommendation=recommendation,
-                matched_profile_terms=row.get("matched_profile_terms", ""),
-                matched_location_terms=row.get("matched_location_terms", ""),
-            )
-        )
+def candidate_from_raw_record(record: RawJobRecord) -> Candidate:
+    raw_data = record.raw_data or {}
+    job = raw_data.get("job", {}) if isinstance(raw_data.get("job"), dict) else {}
+    result_card = (
+        raw_data.get("result_card", {})
+        if isinstance(raw_data.get("result_card"), dict)
+        else {}
+    )
 
-    return candidates
+    title = str(
+        job.get("title") or result_card.get("title") or record.external_job_id or ""
+    ).strip()
+    location = str(job.get("location") or result_card.get("location") or "").strip()
+    profile_terms = terms_to_text(job.get("profile_terms"))
+
+    return Candidate(
+        source_candidate_url=record.source_url,
+        page_title=title,
+        recommendation="connector_candidate_record",
+        matched_profile_terms=profile_terms,
+        matched_location_terms=location,
+    )
+
+
+def load_candidates_from_connector(
+    max_detail_pages: int = DEFAULT_MAX_DETAIL_PAGES,
+) -> tuple[list[Candidate], str]:
+    connector = FinanzInformatikConnector(max_detail_pages=max_detail_pages)
+
+    profile = SearchProfile(
+        id=0,
+        profile_name="s2l_finanz_informatik_incremental_uniqueness_review",
+        source_name="finanz_informatik:hannover",
+        search_location=None,
+        search_radius_km=None,
+        offer_type=None,
+        page_size=max_detail_pages,
+    )
+
+    records, requested_url = connector.fetch_jobs(profile, SearchTerm(search_term="*"))
+    return [candidate_from_raw_record(record) for record in records], requested_url
 
 
 def fallback_dsn() -> str | None:
@@ -349,16 +380,6 @@ def build_uniqueness_rows(candidates: list[Candidate], evidence: list[EvidenceRe
     return rows
 
 
-def write_csv(path: Path, rows: list[UniquenessRow]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = list(asdict(rows[0]).keys()) if rows else list(UniquenessRow.__dataclass_fields__.keys())
-    with path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(asdict(row))
-
-
 def write_review(path: Path, rows: list[UniquenessRow], evidence_count: int, db_error: str | None) -> None:
     counts: dict[str, int] = {}
     for row in rows:
@@ -414,18 +435,20 @@ def write_review(path: Path, rows: list[UniquenessRow], evidence_count: int, db_
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run_review(candidates_csv: Path, export_dir: Path, dsn: str | None) -> dict[str, Any]:
+def run_review(
+    export_dir: Path,
+    dsn: str | None,
+    max_detail_pages: int = DEFAULT_MAX_DETAIL_PAGES,
+) -> dict[str, Any]:
     export_dir.mkdir(parents=True, exist_ok=True)
 
-    candidates = load_candidates(candidates_csv)
+    candidates, requested_url = load_candidates_from_connector(max_detail_pages=max_detail_pages)
     evidence, db_error = load_database_evidence(dsn)
     rows = build_uniqueness_rows(candidates, evidence, db_error)
 
-    csv_path = export_dir / "finanz_informatik_incremental_uniqueness.csv"
     review_path = export_dir / "finanz_informatik_incremental_uniqueness_review.md"
     manifest_path = export_dir / "finanz_informatik_incremental_uniqueness_manifest.json"
 
-    write_csv(csv_path, rows)
     write_review(review_path, rows, len(evidence), db_error)
 
     decision_counts: dict[str, int] = {}
@@ -435,7 +458,8 @@ def run_review(candidates_csv: Path, export_dir: Path, dsn: str | None) -> dict[
     manifest = {
         "mode": "s2l_finanz_informatik_incremental_uniqueness_review",
         "generated_at_utc": datetime.now(UTC).isoformat(),
-        "candidates_csv": str(candidates_csv),
+        "input_source": "live_finanz_informatik_connector_candidate_preview_and_current_database_evidence",
+        "requested_url": requested_url,
         "export_dir": str(export_dir),
         "candidate_count": len(candidates),
         "database_writes": False,
@@ -444,11 +468,9 @@ def run_review(candidates_csv: Path, export_dir: Path, dsn: str | None) -> dict[
         "evidence_count": len(evidence),
         "decision_counts": decision_counts,
         "output_files": {
-            "review_csv": str(csv_path),
             "review_md": str(review_path),
         },
         "output_sha256": {
-            "review_csv": sha256_file(csv_path),
             "review_md": sha256_file(review_path),
         },
         "interpretation_boundary": "S2L reviews incremental uniqueness only. It does not approve connector activation or Bronze persistence.",
@@ -460,16 +482,16 @@ def run_review(candidates_csv: Path, export_dir: Path, dsn: str | None) -> dict[
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Review Finanz Informatik candidates for incremental uniqueness.")
-    parser.add_argument("--candidates-csv", type=Path, default=DEFAULT_CANDIDATES_CSV)
     parser.add_argument("--export-dir", type=Path, default=DEFAULT_EXPORT_DIR)
     parser.add_argument("--dsn", default=None, help="Optional PostgreSQL DSN. Defaults to JOB_PIPELINE_DATABASE_URL / DATABASE_URL / PG* env vars.")
+    parser.add_argument("--max-detail-pages", type=int, default=DEFAULT_MAX_DETAIL_PAGES)
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
     dsn = args.dsn or fallback_dsn()
-    manifest = run_review(args.candidates_csv, args.export_dir, dsn)
+    manifest = run_review(args.export_dir, dsn, args.max_detail_pages)
 
     print("S2L Finanz Informatik incremental uniqueness review")
     print(f"candidate_count: {manifest['candidate_count']}")

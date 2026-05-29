@@ -629,3 +629,19 @@ This enables:
 * Docker integration
 * Python development
 * realistic local development workflows
+
+---
+
+## Review Artifact
+
+A generated file used for human inspection, audit, documentation or local review.
+
+Review artifacts may explain a decision, but they must not become hidden sources of truth for pipeline execution, activation gates, destructive operations or cloud/CI migration steps.
+
+Examples may include Markdown review reports or JSON manifests that document what a DB-backed script produced.
+
+## Export-as-Input Workflow
+
+A workflow where a generated local file from one step becomes the required input for a later automated step.
+
+This pattern is not acceptable for durable project architecture because it can become stale, local-only, hard to reproduce and fragile during cloud or tool migration. Remaining occurrences are tracked under S2O.
