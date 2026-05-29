@@ -307,3 +307,9 @@ The employer-origin connector agents now treat overview pages, career roots and 
 S2W adds a bounded self-correction step to the employer-origin agent chain. When a source candidate has weak detail evidence such as career overview pages, legal pages or generic job-board roots, the agent can perform a limited same-domain repair attempt, validate concrete job-detail URLs and update the PostgreSQL `detail_evidence_gate`.
 
 The repair remains defensive: it does not activate sources, write Bronze rows, register connectors, use browser automation, persist raw HTML or use CSV/Excel/export artifacts as inputs.
+
+## S2X Employer-Origin Agent Chain Driver
+
+S2X introduces a conservative DB-backed orchestration layer for the employer-origin agent workflow. The chain driver reads PostgreSQL gate state, chooses exactly one next bounded step and then asks the user/operator to rerun it against refreshed DB state.
+
+It can coordinate S2W detail-evidence repair, S2U connector-candidate gate evaluation and S2V connector implementation dry-runs without bypassing gates or using export artifacts as inputs.
