@@ -39,14 +39,14 @@ Observed files:
 - `tests/test_historical_burden_hot_store_guarded_removal.py`
 - `tests/test_historical_burden_hot_store_removal.py`
 
-Current issue:
+Current status:
 
-- The guarded removal flow uses a generated removal-candidates file and a manifest as an operation handoff.
-- This was a cautious local safety pattern for destructive work, but it is not cloud-ready architecture.
+- Stage 1 has introduced DB-backed proposed review batches and review items.
+- `scripts.prepare_historical_burden_hot_store_removal` now creates review state in the database and writes Markdown/JSON as human-readable outputs only.
+- Stage 2 is still open: `scripts.remove_historical_burden_from_hot_store` must be refactored to read an approved DB batch instead of a local manifest/candidate file.
 
 Target state:
 
-- Replace local file handoff with a DB-backed review/batch state before any production-like or cloud migration step.
 - The removal operation should read explicitly reviewed database state, not a local CSV file path.
 - Human-readable exports may still document what happened, but they must not drive the operation.
 
@@ -54,7 +54,7 @@ Target state:
 
 1. Classify all remaining export-as-input occurrences as historical spike, review artifact or operational blocker.
 2. Retire the Finanz Informatik legacy S2J/S2K local handoff. Done in S2O-A1.
-3. Design and implement a DB-backed historical-burden removal review state.
+3. Design and implement a DB-backed historical-burden removal review state. Stage 1 done: proposed DB batches/items exist.
 4. Add a regression check or documented review command that catches new export-as-input patterns before they enter production-facing code.
 5. Update source-analysis and roadmap documentation after each refactor step.
 

@@ -1,180 +1,122 @@
 from __future__ import annotations
 
-import csv
 import json
+from datetime import datetime, timezone
 from pathlib import Path
-
-import pytest
 
 from scripts.export_historical_burden_archive import ARCHIVE_RETENTION_TRACK
 from scripts.prepare_historical_burden_hot_store_removal import (
-    ArchiveRecordReference,
-    CurrentHotStoreState,
+    HotStoreRemovalCandidate,
     build_manifest,
     build_removal_candidates,
-    compute_sha256,
-    export_review,
-    load_archive_records,
-    validate_archive_manifest,
+    build_review_summary,
+    candidate_to_db_row,
+    write_review_artifacts,
 )
 
 
-def make_archive_record(raw_job_id: int = 1) -> ArchiveRecordReference:
-    return ArchiveRecordReference(
-        raw_job_id=raw_job_id,
-        source_name="greenhouse:stripe",
-        burden_category="greenhouse_without_current_matching_metadata",
-        retention_track=ARCHIVE_RETENTION_TRACK,
-        has_silver_job=False,
-        external_job_id=f"job-{raw_job_id}",
-        source_url=f"https://example.com/jobs/{raw_job_id}",
-        fetched_at="2026-05-27T08:00:00+00:00",
-        initial_profile_name="greenhouse_stripe",
-        initial_search_term_snapshot="<multi-term_or_missing>",
-        raw_data_bytes=100,
-    )
-
-
-def make_current_state(
+def make_db_row(
     raw_job_id: int = 1,
-    current_retention_track: str = ARCHIVE_RETENTION_TRACK,
+    source_name: str = "greenhouse:stripe",
+    burden_category: str = "greenhouse_without_current_matching_metadata",
     has_silver_job: bool = False,
-) -> CurrentHotStoreState:
-    return CurrentHotStoreState(
-        raw_job_id=raw_job_id,
-        source_name="greenhouse:stripe",
-        initial_profile_name="greenhouse_stripe",
-        initial_search_term_snapshot="<multi-term_or_missing>",
-        current_burden_category="greenhouse_without_current_matching_metadata",
-        current_retention_track=current_retention_track,
-        has_silver_job=has_silver_job,
-    )
+) -> dict[str, object]:
+    return {
+        "raw_job_id": raw_job_id,
+        "source_name": source_name,
+        "external_job_id": f"job-{raw_job_id}",
+        "source_url": f"https://example.com/jobs/{raw_job_id}",
+        "fetched_at": datetime(2026, 5, 27, 8, 0, tzinfo=timezone.utc),
+        "ingestion_run_id": 10,
+        "search_profile_id": 20,
+        "initial_profile_name": "greenhouse_stripe",
+        "initial_search_term_snapshot": "<multi-term_or_missing>",
+        "raw_data_bytes": 100,
+        "has_silver_job": has_silver_job,
+        "burden_category": burden_category,
+    }
 
 
-def test_build_removal_candidates_marks_matching_archive_rows_as_eligible() -> None:
-    archive_record = make_archive_record(1)
-    current_states = {1: make_current_state(1)}
-
-    candidates = build_removal_candidates([archive_record], current_states)
-
+def make_candidate(raw_job_id: int = 1) -> HotStoreRemovalCandidate:
+    candidates = build_removal_candidates([make_db_row(raw_job_id=raw_job_id)])
     assert len(candidates) == 1
+    return candidates[0]
+
+
+def test_build_removal_candidates_filters_to_archive_retention_track() -> None:
+    rows = [
+        make_db_row(1),
+        make_db_row(2, source_name="bundesagentur_fuer_arbeit", burden_category="ordinary_operational_history"),
+        make_db_row(3, has_silver_job=True),
+    ]
+
+    candidates = build_removal_candidates(rows)
+
+    assert [candidate.raw_job_id for candidate in candidates] == [1]
+    assert candidates[0].retention_track == ARCHIVE_RETENTION_TRACK
+    assert candidates[0].review_status == "eligible_after_db_review"
     assert candidates[0].eligible_for_future_removal is True
-    assert candidates[0].review_status == "eligible_after_archive_review"
 
 
-def test_build_removal_candidates_blocks_rows_that_now_have_silver_evidence() -> None:
-    archive_record = make_archive_record(1)
-    current_states = {1: make_current_state(1, has_silver_job=True)}
+def test_build_review_summary_counts_candidates() -> None:
+    candidates = [make_candidate(1), make_candidate(2)]
 
-    candidates = build_removal_candidates([archive_record], current_states)
+    summary = build_review_summary(candidates)
 
-    assert candidates[0].eligible_for_future_removal is False
-    assert candidates[0].review_status == "blocked_silver_evidence_now_exists"
-
-
-def test_build_removal_candidates_marks_absent_rows_as_non_actionable() -> None:
-    archive_record = make_archive_record(1)
-
-    candidates = build_removal_candidates([archive_record], current_states={})
-
-    assert candidates[0].eligible_for_future_removal is False
-    assert candidates[0].review_status == "already_absent_from_hot_store"
+    assert summary["candidate_count"] == 2
+    assert summary["eligible_for_removal_count"] == 2
+    assert summary["blocked_or_non_actionable_count"] == 0
+    assert summary["silver_backed_rows"] == 0
+    assert summary["source_counts"] == {"greenhouse:stripe": 2}
+    assert summary["review_status_counts"] == {"eligible_after_db_review": 2}
 
 
-def test_load_archive_records_rejects_silver_backed_rows(tmp_path: Path) -> None:
-    records_path = tmp_path / "records.jsonl"
-    records_path.write_text(
-        json.dumps(
-            {
-                "raw_job_id": 1,
-                "source_name": "greenhouse:stripe",
-                "burden_category": "greenhouse_without_current_matching_metadata",
-                "retention_track": ARCHIVE_RETENTION_TRACK,
-                "has_silver_job": True,
-                "raw_data_bytes": 100,
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="Silver-backed"):
-        load_archive_records(records_path)
-
-
-def test_validate_archive_manifest_rejects_checksum_mismatch(tmp_path: Path) -> None:
-    records_path = tmp_path / "historical_burden_archive_records.jsonl"
-    records_path.write_text("{}\n", encoding="utf-8")
-
-    manifest_path = tmp_path / "historical_burden_archive_manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "database_cleanup_action": "none",
-                "retention_track": ARCHIVE_RETENTION_TRACK,
-                "silver_backed_rows": 0,
-                "exports": {
-                    "records_jsonl": {
-                        "path": str(records_path),
-                        "sha256": "not-the-real-hash",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="checksum mismatch"):
-        validate_archive_manifest(manifest_path)
-
-
-def test_export_review_writes_candidates_and_manifest(tmp_path: Path) -> None:
-    archive_record = make_archive_record(1)
-    current_states = {1: make_current_state(1)}
-    candidates = build_removal_candidates([archive_record], current_states)
-    archive_manifest = {
-        "generated_at_utc": "2026-05-27T09:55:52+00:00",
-        "record_count": 1,
-    }
-
-    candidates_path, manifest_path = export_review(candidates, archive_manifest, tmp_path)
-
-    assert candidates_path.exists()
-    assert manifest_path.exists()
-
-    with candidates_path.open(newline="", encoding="utf-8") as csv_file:
-        rows = list(csv.DictReader(csv_file))
-
-    assert rows[0]["review_status"] == "eligible_after_archive_review"
-    assert rows[0]["eligible_for_future_removal"] == "True"
-
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest["database_cleanup_action"] == "none"
-    assert manifest["mode"] == "hot_store_removal_dry_run_only"
-    assert manifest["candidate_count"] == 1
-    assert manifest["eligible_for_future_removal_count"] == 1
-    assert manifest["silver_backed_rows_now"] == 0
-    assert manifest["exports"]["removal_candidates_csv"]["sha256"] == compute_sha256(candidates_path)
-
-
-def test_build_manifest_counts_blocked_rows() -> None:
-    archive_records = [make_archive_record(1), make_archive_record(2)]
-    current_states = {
-        1: make_current_state(1),
-        2: make_current_state(2, has_silver_job=True),
-    }
-    candidates = build_removal_candidates(archive_records, current_states)
-    csv_path = Path(__file__)
+def test_build_manifest_is_output_only_and_references_batch_id() -> None:
+    candidates = [make_candidate(1)]
 
     manifest = build_manifest(
+        batch_id=42,
         candidates=candidates,
-        archive_manifest={"generated_at_utc": "2026-05-27T09:55:52+00:00", "record_count": 2},
-        candidates_path=csv_path,
+        review_reason="unit test",
     )
 
-    assert manifest["candidate_count"] == 2
-    assert manifest["eligible_for_future_removal_count"] == 1
-    assert manifest["blocked_or_non_actionable_count"] == 1
-    assert manifest["silver_backed_rows_now"] == 1
-    assert manifest["review_status_counts"]["eligible_after_archive_review"] == 1
-    assert manifest["review_status_counts"]["blocked_silver_evidence_now_exists"] == 1
+    assert manifest["mode"] == "db_backed_hot_store_removal_review"
+    assert manifest["database_cleanup_action"] == "none"
+    assert manifest["batch_id"] == 42
+    assert "exports" not in manifest
+    assert "removal_candidates_csv" not in json.dumps(manifest)
+    assert "not a destructive-operation input" in " ".join(manifest["output_boundary"])
+
+
+def test_candidate_to_db_row_keeps_snapshot_without_requiring_raw_jobs_fk() -> None:
+    candidate = make_candidate(1)
+
+    row = candidate_to_db_row(batch_id=42, candidate=candidate)
+
+    assert row["batch_id"] == 42
+    assert row["raw_job_id"] == 1
+    assert row["review_status"] == "eligible_after_db_review"
+    assert row["eligible_for_future_removal"] is True
+    assert row["item_snapshot"].obj["raw_job_id"] == 1
+
+
+def test_write_review_artifacts_writes_markdown_and_json_without_csv(tmp_path: Path) -> None:
+    candidates = [make_candidate(1)]
+
+    markdown_path, manifest_path = write_review_artifacts(
+        export_dir=tmp_path,
+        batch_id=42,
+        candidates=candidates,
+        review_reason="unit test",
+    )
+
+    assert markdown_path.exists()
+    assert manifest_path.exists()
+    assert not list(tmp_path.glob("*.csv"))
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    markdown = markdown_path.read_text(encoding="utf-8")
+
+    assert manifest["batch_id"] == 42
+    assert "removal_candidates_csv" not in manifest_path.read_text(encoding="utf-8")
+    assert "must not be used as pipeline inputs" in markdown

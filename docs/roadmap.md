@@ -173,7 +173,9 @@ Goals:
 - [x] Historical burden retention dry-run workflow
 - [x] Historical archive/export workflow
 - [x] Historical burden hot-store removal dry-run review
+- [x] Add DB-backed historical-burden review batch state
 - [x] Guarded historical burden hot-store removal command
+- [ ] Refactor guarded hot-store removal command to read approved DB batch
 - [ ] Reviewed execution decision for historical burden hot-store removal
 - [x] Separate test/transient data cleanup workflow
 - [x] Reviewed test/transient cleanup executed locally
@@ -229,7 +231,7 @@ Goals:
 
 - [x] Document remaining export-as-input refactoring scope
 - [x] Retire Finanz Informatik legacy S2J/S2K local handoff
-- [ ] Replace historical-burden hot-store removal file handoff with DB-backed reviewed state
+- [~] Replace historical-burden hot-store removal file handoff with DB-backed reviewed state
 - [ ] Add regression guard against new export-as-input workflows before cloud/CI productionization
 
 ---

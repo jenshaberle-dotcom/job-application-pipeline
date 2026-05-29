@@ -237,3 +237,12 @@ S2O-A1 has been documented in `docs/source_analysis/finanz_informatik_legacy_spi
 It removes the old Finanz Informatik S2J/S2K local handoff scripts from the active codebase. The project keeps the bounded-source lessons, but future Finanz Informatik decisions must use the connector-preview-backed and DB-backed S2L/S2N path.
 
 This keeps local review artifacts out of activation and persistence decisions and avoids carrying obsolete handoff logic into cloud/CI work.
+
+
+### S2O-B — Historical Burden DB-Backed Review State
+
+S2O-B has been documented in `docs/source_analysis/historical_burden_db_backed_review_state.md`.
+
+Stage 1 introduces database-backed proposed review batches for historical-burden hot-store removal. The prepare step now reads current database evidence, persists proposed review state to `historical_burden_review_batches` and `historical_burden_review_items`, and writes Markdown/JSON only as human-readable review artifacts.
+
+Stage 2 remains open: the guarded removal command must be refactored to read an approved DB batch by `batch_id` instead of local candidate/manifest files.
