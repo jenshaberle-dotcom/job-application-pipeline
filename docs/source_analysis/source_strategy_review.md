@@ -208,3 +208,20 @@ The probe remains read-only and export-first.
 It does not approve Bronze persistence, connector activation or recurring ingestion.
 It exists to decide whether Finanz Informatik provides enough detail-page evidence for a later RawJobRecord-shaped preview,
 or whether the source should remain a manual/watchlist candidate.
+
+### S2L — Finanz Informatik Incremental Uniqueness Review
+
+S2L has been documented in `docs/source_analysis/finanz_informatik_incremental_uniqueness_review.md`.
+
+It evaluates Finanz Informatik as a precision source instead of a broad-volume source. The review checks whether the selected S2K candidates add incremental value compared with existing raw and Silver evidence.
+
+The key question is not whether Finanz Informatik produces many jobs. The key question is whether it produces relevant, non-duplicate jobs that are not already visible from BA or other sources.
+
+
+### S2M Preparation — Finanz Informatik Connector Candidate
+
+S2M connector candidate has been documented in `docs/source_analysis/finanz_informatik_connector_candidate.md`.
+
+A bounded connector candidate exists in `src/connectors/finanz_informatik.py`, but it is not activated by a search profile. It is intentionally limited to one listing page, at most three detail pages, target-scope candidates and relevance-gated RawJobRecord creation.
+
+Activation remains deferred until incremental uniqueness and source value have been reviewed.

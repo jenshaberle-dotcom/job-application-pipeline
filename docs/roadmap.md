@@ -202,7 +202,9 @@ Goals:
 - [x] Design bounded Finanz Informatik source-target spike with relevance gates
 - [x] Implement Finanz Informatik export-first source-target spike
 - [x] Probe tiny Finanz Informatik detail pages for selected Hannover candidates
-- [ ] Evaluate Finanz Informatik incremental uniqueness before connector decision
+- [x] Add Finanz Informatik incremental uniqueness review workflow
+- [x] Prepare disabled Finanz Informatik connector candidate
+- [ ] Decide whether Finanz Informatik adds enough incremental source value for activation
 - [ ] Review Finanz Informatik S2J export artifacts before persistence decision
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking
