@@ -24,6 +24,30 @@ The focus is intentionally placed on:
 - lifecycle-aware job observations
 - future dashboard and workflow readiness
 
+
+---
+
+## Platform Identity
+
+The project uses a defined visual and communication style named **Deep Ocean Intelligence**.
+
+The style is intended to make project diagrams, dashboard mockups, presentation assets and future frontend work feel like one coherent data platform product.
+
+Core principles:
+
+- calm technical competence
+- source value over raw volume
+- defensive and transparent source acquisition
+- clear distinction between implemented features, active work and future vision
+- consistent visual treatment of Sources, Bronze, Silver, Gold and API/UI layers
+- dashboard language in English, reflective project narrative in German where useful
+
+Visual and documentation rules are tracked in:
+
+- [`docs/design/README.md`](docs/design/README.md)
+- [`docs/design/visual_identity.md`](docs/design/visual_identity.md)
+- [`docs/adr/031_define_platform_visual_identity.md`](docs/adr/031_define_platform_visual_identity.md)
+
 ---
 
 ## Architecture
