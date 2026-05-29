@@ -129,6 +129,17 @@ def completed_active_controlled_source(
         for gate in gates.values()
     )
 
+def detail_evidence_repair_exhausted(gates: dict[str, GateReview]) -> bool:
+    detail_gate = gates.get("detail_evidence_gate")
+    if detail_gate is None:
+        return False
+
+    stop_reason = (detail_gate.stop_reason or "").lower()
+    return (
+        detail_gate.gate_status == "manual_review_required"
+        and "bounded repair found no concrete detail pages" in stop_reason
+    )
+
 def lifecycle_gate_missing_or_not_passed(gates: dict[str, GateReview]) -> bool:
     lifecycle = gates.get(SOURCE_LIFECYCLE_GATE)
     return lifecycle is None or lifecycle.gate_status != "passed"
@@ -161,6 +172,18 @@ def classify_queue_item(
                 company_key=candidate.company_key,
                 reviewed_by=reviewed_by,
             ),
+        )
+
+    if detail_evidence_repair_exhausted(gates):
+        return QueueItem(
+            candidate=candidate,
+            next_action="manual_review_stop",
+            reason=(
+                "detail evidence repair was already attempted and found no concrete "
+                "detail pages with profile and target/remote signals"
+            ),
+            priority=95,
+            command=None,
         )
 
     chain_decision = next_decision(
