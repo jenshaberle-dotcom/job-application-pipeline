@@ -36,3 +36,7 @@
 ## Boundary
 
 This is an execution plan only. It does not modify connector registration, activation, Bronze persistence or scheduler state.
+
+## Current Interpretation
+
+HDI is already represented as a candidate and already has a registration execution plan artifact. The plan remains blocked because final approval is not passed. This is not a discovery gap; it is a gate-evidence and approval boundary.

@@ -41,3 +41,9 @@
 ## Boundary
 
 This plan is a repository review artifact. It does not register, activate, ingest or schedule anything by itself.
+
+## Current Interpretation
+
+HDI is already a known employer-origin candidate in the DB-backed workflow. It must not be rediscovered as a new candidate.
+
+Current interpretation: keep HDI as a strategic candidate, but do not generate, register or activate a connector until the DB-backed gates provide concrete job-detail evidence and the required S4A/S4B/S4C checks pass.

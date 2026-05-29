@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import inspect
 import json
 import os
 import subprocess
@@ -84,6 +85,90 @@ def module_import_path_for(candidate: SourceCandidate) -> str:
     return f"src.connectors.{snake_case(candidate.source_family_candidate)}"
 
 
+def pascal_case(value: str) -> str:
+    return "".join(part.capitalize() for part in snake_case(value).split("_") if part)
+
+
+def class_name_for(candidate: SourceCandidate) -> str:
+    return f"{pascal_case(candidate.source_family_candidate)}Connector"
+
+
+def bounded_connector_preview(import_path: str, class_name: str) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "attempted": True,
+        "import_path": import_path,
+        "class_name": class_name,
+        "class_found": False,
+        "instantiated": False,
+        "fetch_jobs_present": False,
+        "safe_fetcher_used": False,
+        "method_invoked": False,
+        "record_count": None,
+        "source_url": None,
+        "error": None,
+    }
+
+    try:
+        module = importlib.import_module(import_path)
+        connector_class = getattr(module, class_name, None)
+        if connector_class is None:
+            result["error"] = "connector class not found"
+            return result
+
+        result["class_found"] = True
+        result["fetch_jobs_present"] = callable(getattr(connector_class, "fetch_jobs", None))
+
+        init_signature = inspect.signature(connector_class)
+        kwargs: dict[str, Any] = {}
+
+        if "fetcher" in init_signature.parameters:
+            result["safe_fetcher_used"] = True
+
+            def fake_fetcher(url: str) -> tuple[str, str, int]:
+                html = (
+                    "<html><head><title>Product Owner Data Platform - Test</title></head>"
+                    "<body>"
+                    "<a href='/jobs/product-owner-data-platform'>"
+                    "Product Owner Data Platform Hannover Data Analytics"
+                    "</a>"
+                    "Product Owner Data Platform Hannover Data Analytics Python SQL"
+                    "</body></html>"
+                )
+                return html, url, 200
+
+            kwargs["fetcher"] = fake_fetcher
+
+        if "max_detail_pages" in init_signature.parameters:
+            kwargs["max_detail_pages"] = 1
+
+        connector = connector_class(**kwargs)
+        result["instantiated"] = True
+
+        if result["safe_fetcher_used"] and result["fetch_jobs_present"]:
+            from src.connectors.base import SearchProfile, SearchTerm
+
+            records, source_url = connector.fetch_jobs(
+                SearchProfile(
+                    id=0,
+                    profile_name="validation_smoke",
+                    source_name=getattr(connector, "source_name", "validation"),
+                    search_location="hannover",
+                    search_radius_km=None,
+                    offer_type=None,
+                    page_size=1,
+                ),
+                SearchTerm(search_term="data", id=0),
+            )
+            result["method_invoked"] = True
+            result["record_count"] = len(records)
+            result["source_url"] = source_url
+
+    except Exception as exc:  # noqa: BLE001 - validation must report smoke failures.
+        result["error"] = f"{type(exc).__name__}: {exc}"
+
+    return result
+
+
 def run_command(command: list[str]) -> dict[str, Any]:
     completed = subprocess.run(
         command,
@@ -111,7 +196,7 @@ def import_connector_module(import_path: str) -> tuple[bool, str | None]:
 def evaluate_connector_validation(candidate: SourceCandidate, *, run_pytest: bool) -> ValidationResult:
     if candidate.status == "active_controlled":
         evidence = {
-            "agent": "s3d_connector_validation_agent",
+            "agent": "s4b_connector_validation_agent",
             "generated_at_utc": datetime.now(UTC).isoformat(),
             "candidate": {
                 "candidate_id": candidate.id,
@@ -146,8 +231,12 @@ def evaluate_connector_validation(candidate: SourceCandidate, *, run_pytest: boo
     import_ok = False
     import_error = None
 
+    bounded_preview: dict[str, Any] = {"attempted": False}
+
     if module_exists:
         import_ok, import_error = import_connector_module(import_path)
+        if import_ok:
+            bounded_preview = bounded_connector_preview(import_path, class_name_for(candidate))
 
     commands: list[dict[str, Any]] = []
     commands.append(run_command([sys.executable, "-m", "compileall", "src", "scripts", "tests"]))
@@ -160,7 +249,7 @@ def evaluate_connector_validation(candidate: SourceCandidate, *, run_pytest: boo
     failed_commands = [command for command in commands if command["returncode"] != 0]
 
     evidence = {
-        "agent": "s3d_connector_validation_agent",
+        "agent": "s4b_connector_validation_agent",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "candidate": {
             "candidate_id": candidate.id,
@@ -178,6 +267,7 @@ def evaluate_connector_validation(candidate: SourceCandidate, *, run_pytest: boo
             "import_path": import_path,
             "import_ok": import_ok,
             "import_error": import_error,
+            "bounded_preview": bounded_preview,
         },
         "commands": commands,
         "boundary": {
@@ -211,6 +301,14 @@ def evaluate_connector_validation(candidate: SourceCandidate, *, run_pytest: boo
             gate_status="manual_review_required",
             decision="connector_validation_failed",
             stop_reason="connector module import failed",
+            evidence=evidence,
+        )
+
+    if bounded_preview.get("error"):
+        return ValidationResult(
+            gate_status="manual_review_required",
+            decision="connector_validation_failed",
+            stop_reason="bounded connector preview failed",
             evidence=evidence,
         )
 

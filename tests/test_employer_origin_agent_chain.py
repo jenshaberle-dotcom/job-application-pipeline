@@ -5,19 +5,45 @@ from scripts.run_employer_origin_agent_chain import (
     DETAIL_EVIDENCE_GATE,
     GateReview,
     child_command,
+    REQUIRED_CONNECTOR_ARTIFACT_GATES,
+    connector_artifact_generation_ready,
     connector_candidate_ready,
     needs_detail_evidence_repair,
     next_decision,
 )
 
 
-def gate(name: str, status: str, decision: str, stop_reason: str | None = None) -> GateReview:
+def gate(
+    name: str,
+    status: str,
+    decision: str,
+    stop_reason: str | None = None,
+    evidence: dict | None = None,
+) -> GateReview:
     return GateReview(
         gate_name=name,
         gate_status=status,
         decision=decision,
         stop_reason=stop_reason,
+        evidence=evidence or {},
     )
+
+
+def passed_artifact_gates() -> dict[str, GateReview]:
+    gates = {name: gate(name, "passed", "continue") for name in REQUIRED_CONNECTOR_ARTIFACT_GATES}
+    gates[CONNECTOR_CANDIDATE_GATE] = gate(
+        CONNECTOR_CANDIDATE_GATE,
+        "passed",
+        "build_connector_candidate",
+        evidence={
+            "connector_candidate_spec": {
+                "detail_evidence": {
+                    "detail_urls": ["https://careers.hdi.group/jobs/product-owner-data-platform"]
+                }
+            }
+        },
+    )
+    return gates
 
 
 def test_needs_detail_evidence_repair_when_detail_gate_is_missing_or_not_passed() -> None:
@@ -123,7 +149,7 @@ def test_next_decision_runs_connector_candidate_after_detail_gate_passes() -> No
     assert decision.module == "scripts.run_employer_origin_connector_candidate_agent"
 
 
-def test_next_decision_runs_connector_implementation_as_dry_run_by_default() -> None:
+def test_next_decision_runs_build_readiness_when_required_s4a_gates_are_incomplete() -> None:
     decision = next_decision(
         {
             DETAIL_EVIDENCE_GATE: gate(DETAIL_EVIDENCE_GATE, "passed", "continue"),
@@ -140,8 +166,23 @@ def test_next_decision_runs_connector_implementation_as_dry_run_by_default() -> 
         write_connector=False,
     )
 
-    assert decision.action == "run_connector_implementation_agent"
-    assert decision.module == "scripts.run_employer_origin_connector_implementation_agent"
+    assert decision.action == "run_connector_build_readiness_agent"
+    assert decision.module == "scripts.run_employer_origin_connector_build_readiness_agent"
+
+
+def test_next_decision_runs_artifact_generator_as_dry_run_when_s4a_ready() -> None:
+    decision = next_decision(
+        passed_artifact_gates(),
+        company_key="hdi",
+        target_location="hannover",
+        reviewed_by="jens",
+        attempt_repair=True,
+        write_connector=False,
+    )
+
+    assert connector_artifact_generation_ready(passed_artifact_gates())
+    assert decision.action == "run_connector_artifact_generator"
+    assert decision.module == "scripts.run_employer_origin_connector_artifact_generator"
     assert "--dry-run" in decision.args
 
 

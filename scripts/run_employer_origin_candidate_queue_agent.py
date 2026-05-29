@@ -206,7 +206,8 @@ def classify_queue_item(
         )
 
     priority_by_action = {
-        "run_connector_implementation_agent": 20,
+        "run_connector_artifact_generator": 20,
+        "run_connector_build_readiness_agent": 25,
         "run_connector_candidate_gate": 30,
         "run_detail_evidence_repair": 40,
         "stop_manual_review_required": 90,

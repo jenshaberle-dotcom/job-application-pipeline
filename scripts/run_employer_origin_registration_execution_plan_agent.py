@@ -128,7 +128,7 @@ def build_execution_plan(candidate: SourceCandidate, gates: dict[str, GateReview
     )
 
     evidence = {
-        "agent": "s3f_registration_execution_plan_agent",
+        "agent": "s4c_registration_execution_plan_agent",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "allowed": allowed,
         "reason": reason,

@@ -15,6 +15,19 @@ DETAIL_EVIDENCE_GATE = "detail_evidence_gate"
 CONNECTOR_CANDIDATE_GATE = "connector_candidate_gate"
 SOURCE_LIFECYCLE_GATE = "source_lifecycle_tracking"
 
+REQUIRED_CONNECTOR_ARTIFACT_GATES = (
+    "company_candidate",
+    "source_discovery",
+    "risk_gate",
+    "technical_reachability_gate",
+    "scope_gate",
+    "defensive_preview_gate",
+    "relevance_gate",
+    "detail_evidence_gate",
+    "incremental_uniqueness_gate",
+    "connector_candidate_gate",
+)
+
 
 @dataclass(frozen=True)
 class DatabaseConfig:
@@ -59,6 +72,7 @@ class GateReview:
     gate_status: str
     decision: str
     stop_reason: str | None
+    evidence: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -108,7 +122,8 @@ def load_gate_reviews(conn: psycopg.Connection[Any], candidate_id: int) -> dict[
                 gate_name,
                 gate_status,
                 decision,
-                stop_reason
+                stop_reason,
+                evidence
             from employer_origin_candidate_gate_reviews
             where candidate_id = %s
             """,
@@ -122,6 +137,7 @@ def load_gate_reviews(conn: psycopg.Connection[Any], candidate_id: int) -> dict[
             gate_status=str(row["gate_status"]),
             decision=str(row["decision"]),
             stop_reason=row["stop_reason"],
+            evidence=dict(row["evidence"] or {}),
         )
         for row in rows
     }
@@ -143,6 +159,34 @@ def needs_detail_evidence_repair(gates: dict[str, GateReview]) -> bool:
 
 def connector_candidate_ready(gates: dict[str, GateReview]) -> bool:
     return gate_passed(gates.get(CONNECTOR_CANDIDATE_GATE), decision="build_connector_candidate")
+
+
+def connector_candidate_spec(gates: dict[str, GateReview]) -> dict[str, Any]:
+    gate = gates.get(CONNECTOR_CANDIDATE_GATE)
+    if gate is None:
+        return {}
+    evidence = gate.evidence or {}
+    spec = evidence.get("connector_candidate_spec") or {}
+    return spec if isinstance(spec, dict) else {}
+
+
+def connector_candidate_has_detail_urls(gates: dict[str, GateReview]) -> bool:
+    spec = connector_candidate_spec(gates)
+    detail = spec.get("detail_evidence") or {}
+    urls = detail.get("detail_urls") or []
+    return any(str(url).startswith(("http://", "https://")) for url in urls)
+
+
+def connector_artifact_generation_ready(gates: dict[str, GateReview]) -> bool:
+    for gate_name in REQUIRED_CONNECTOR_ARTIFACT_GATES:
+        gate = gates.get(gate_name)
+        if gate is None or gate.gate_status != "passed":
+            return False
+
+    if not connector_candidate_ready(gates):
+        return False
+
+    return connector_candidate_has_detail_urls(gates)
 
 
 def child_command(module: str, args: tuple[str, ...]) -> list[str]:
@@ -169,7 +213,11 @@ def connector_candidate_args(company_key: str, reviewed_by: str) -> tuple[str, .
     )
 
 
-def connector_implementation_args(company_key: str, write_connector: bool) -> tuple[str, ...]:
+def connector_build_readiness_args(company_key: str) -> tuple[str, ...]:
+    return ("--company-key", company_key)
+
+
+def connector_artifact_generator_args(company_key: str, write_connector: bool) -> tuple[str, ...]:
     args = ["--company-key", company_key]
     if not write_connector:
         args.append("--dry-run")
@@ -228,11 +276,19 @@ def next_decision(
             args=connector_candidate_args(company_key, reviewed_by),
         )
 
+    if not connector_artifact_generation_ready(gates):
+        return ChainDecision(
+            action="run_connector_build_readiness_agent",
+            reason="connector_candidate_gate is passed, but full S4A artifact-generation readiness is not satisfied",
+            module="scripts.run_employer_origin_connector_build_readiness_agent",
+            args=connector_build_readiness_args(company_key),
+        )
+
     return ChainDecision(
-        action="run_connector_implementation_agent",
-        reason="connector_candidate_gate is passed/build_connector_candidate",
-        module="scripts.run_employer_origin_connector_implementation_agent",
-        args=connector_implementation_args(company_key, write_connector),
+        action="run_connector_artifact_generator",
+        reason="all required S4A gates are passed and connector_candidate_gate is build_connector_candidate",
+        module="scripts.run_employer_origin_connector_artifact_generator",
+        args=connector_artifact_generator_args(company_key, write_connector),
     )
 
 

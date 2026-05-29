@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scripts.run_employer_origin_agent_chain import GateReview
+from scripts.run_employer_origin_agent_chain import GateReview, REQUIRED_CONNECTOR_ARTIFACT_GATES
 from scripts.run_employer_origin_candidate_queue_agent import (
     CONNECTOR_CANDIDATE_GATE,
     SOURCE_LIFECYCLE_GATE,
@@ -37,13 +37,32 @@ def gate(
     status: str,
     decision: str,
     stop_reason: str | None = None,
+    evidence: dict | None = None,
 ) -> GateReview:
     return GateReview(
         gate_name=name,
         gate_status=status,
         decision=decision,
         stop_reason=stop_reason,
+        evidence=evidence or {},
     )
+
+
+def passed_artifact_gates() -> dict[str, GateReview]:
+    gates = {name: gate(name, "passed", "continue") for name in REQUIRED_CONNECTOR_ARTIFACT_GATES}
+    gates[CONNECTOR_CANDIDATE_GATE] = gate(
+        CONNECTOR_CANDIDATE_GATE,
+        "passed",
+        "build_connector_candidate",
+        evidence={
+            "connector_candidate_spec": {
+                "detail_evidence": {
+                    "detail_urls": ["https://careers.hdi.group/jobs/product-owner-data-platform"]
+                }
+            }
+        },
+    )
+    return gates
 
 
 def test_active_controlled_candidate_prioritizes_missing_lifecycle_tracking() -> None:
@@ -136,14 +155,7 @@ def test_queue_sorting_prioritizes_lifecycle_then_implementation_then_repair() -
                 )
             },
             2: {},
-            3: {
-                "detail_evidence_gate": gate("detail_evidence_gate", "passed", "continue"),
-                CONNECTOR_CANDIDATE_GATE: gate(
-                    CONNECTOR_CANDIDATE_GATE,
-                    "passed",
-                    "build_connector_candidate",
-                ),
-            },
+            3: passed_artifact_gates(),
         },
         target_location="hannover",
         reviewed_by="jens",
@@ -152,7 +164,7 @@ def test_queue_sorting_prioritizes_lifecycle_then_implementation_then_repair() -
 
     assert [item.next_action for item in items] == [
         "run_source_lifecycle_tracking",
-        "run_connector_implementation_agent",
+        "run_connector_artifact_generator",
         "run_detail_evidence_repair",
     ]
 
@@ -236,4 +248,24 @@ def test_detail_evidence_repair_exhaustion_requires_specific_stop_reason() -> No
     )
 
     assert item.next_action == "run_detail_evidence_repair"
+    assert item.command is not None
+
+
+def test_queue_routes_incomplete_s4a_gates_to_build_readiness_before_artifacts() -> None:
+    item = classify_queue_item(
+        candidate("hdi"),
+        {
+            "detail_evidence_gate": gate("detail_evidence_gate", "passed", "continue"),
+            CONNECTOR_CANDIDATE_GATE: gate(
+                CONNECTOR_CANDIDATE_GATE,
+                "passed",
+                "build_connector_candidate",
+            ),
+        },
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    assert item.next_action == "run_connector_build_readiness_agent"
     assert item.command is not None

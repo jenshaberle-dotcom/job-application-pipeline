@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented as S3D candidate workflow.
+Implemented as S4B automated connector validation workflow.
 
 ## Purpose
 

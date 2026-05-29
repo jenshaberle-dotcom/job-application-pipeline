@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented as S2X candidate workflow.
+Implemented as S4A/S4B/S4C candidate workflow driver.
 
 ## Purpose
 
@@ -10,10 +10,11 @@ The agent chain driver coordinates the employer-origin agent steps against Postg
 
 It does not replace the individual gates. It reads the current DB-backed gate state and runs only the next bounded step:
 
-1. if `detail_evidence_gate` is not passed, optionally run the S2W detail-evidence repair agent
-2. if detail evidence is passed but `connector_candidate_gate` is not ready, run the S2U connector-candidate gate agent
-3. if `connector_candidate_gate` is passed with `build_connector_candidate`, run the S2V connector implementation agent
-4. by default, S2V is run as dry-run only
+1. if `detail_evidence_gate` is not passed, optionally run bounded detail-evidence repair
+2. if detail evidence is passed but `connector_candidate_gate` is not ready, run the connector-candidate gate agent
+3. if `connector_candidate_gate` is passed but full S4A readiness is incomplete, run the connector-build-readiness agent
+4. if all required S4A gates and concrete detail evidence are present, run the S4A connector artifact generator
+5. by default, artifact generation is dry-run only
 
 ## Boundary
 
@@ -27,7 +28,7 @@ It does not:
 - activate sources
 - enable recurring ingestion
 - use CSV/Excel/export artifacts as inputs
-- generate connector files unless `--write-connector` is explicitly used and the DB gate state supports it
+- generate connector artifact files unless `--write-connector` is explicitly used and the DB gate state supports it
 
 ## Example
 
@@ -62,4 +63,4 @@ python -m scripts.run_employer_origin_agent_chain \
 
 ## Interpretation
 
-S2X is the first small orchestration layer for the employer-origin connector-building workflow. It keeps the agent process DB-backed and repeatable while avoiding broad automation leaps.
+The chain is the bounded orchestration layer for the S4A/S4B/S4C employer-origin connector-building workflow. It keeps the agent process DB-backed and repeatable while avoiding broad automation leaps.

@@ -61,6 +61,7 @@ def test_final_approval_passes_with_validation_and_token() -> None:
     assert outcome.gate_status == "passed"
     assert outcome.decision == "approve_connector_registration"
     assert outcome.evidence["boundary"]["bronze_persistence_allowed"] is False
+    assert outcome.evidence["agent"] == "s4c_final_approval_gate_agent"
 
 def test_final_approval_is_not_applicable_for_active_controlled_source() -> None:
     active = SourceCandidate(

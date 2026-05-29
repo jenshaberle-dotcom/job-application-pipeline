@@ -219,6 +219,7 @@ Goals:
 - [x] Add detail-evidence and incremental-uniqueness gate agent
 - [x] Add employer-origin connector-candidate gate agent
 - [x] Add employer-origin connector implementation agent
+- [x] Add S4A employer-origin connector artifact generator
 - [x] Add employer-origin detail evidence repair agent
 - [x] Add employer-origin agent chain driver
 - [x] Add employer-origin source lifecycle tracking agent
@@ -229,6 +230,7 @@ Goals:
 - [x] Add employer-origin connector validation agent
 - [x] Add employer-origin final approval gate
 - [x] Add employer-origin registration execution plan
+- [x] Align S4 gate vocabulary with DB constraints
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets

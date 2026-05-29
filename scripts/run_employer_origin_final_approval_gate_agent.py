@@ -81,7 +81,7 @@ def evaluate_final_approval(
 ) -> ApprovalOutcome:
     if candidate.status == "active_controlled":
         evidence = {
-            "agent": "s3e_final_approval_gate_agent",
+            "agent": "s4c_final_approval_gate_agent",
             "generated_at_utc": datetime.now(UTC).isoformat(),
             "candidate": {
                 "candidate_id": candidate.id,
@@ -108,7 +108,7 @@ def evaluate_final_approval(
         )
 
     evidence = {
-        "agent": "s3e_final_approval_gate_agent",
+        "agent": "s4c_final_approval_gate_agent",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "candidate": {
             "candidate_id": candidate.id,

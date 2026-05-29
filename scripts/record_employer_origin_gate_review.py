@@ -35,6 +35,7 @@ VALID_GATE_STATUSES = {
     "deferred",
     "manual_review_required",
     "skipped",
+    "not_applicable",
 }
 
 VALID_DECISIONS = {
@@ -45,6 +46,14 @@ VALID_DECISIONS = {
     "build_connector_candidate",
     "activate_controlled",
     "disable_or_deprecate",
+    "connector_validation_failed",
+    "ready_for_final_approval",
+    "approval_blocked",
+    "approval_token_required",
+    "approve_connector_registration",
+    "monitor_existing_source",
+    "stop_before_connector_generation",
+    "connector_generation_allowed_before_final_approval",
 }
 
 
