@@ -222,6 +222,7 @@ Goals:
 - [x] Add employer-origin detail evidence repair agent
 - [x] Add employer-origin agent chain driver
 - [x] Add employer-origin source lifecycle tracking agent
+- [x] Add employer-origin candidate queue agent
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets

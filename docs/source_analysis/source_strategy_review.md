@@ -319,3 +319,15 @@ It can coordinate S2W detail-evidence repair, S2U connector-candidate gate evalu
 S2Y adds DB-backed lifecycle tracking for employer-origin sources and improves the agent-chain UX for controlled child exits. The lifecycle agent records `source_lifecycle_tracking` from current PostgreSQL evidence instead of leaving active controlled sources indefinitely at `not_started`.
 
 The agent only updates gate state. It does not activate sources, write Bronze rows, transform Silver rows, enable recurring ingestion or use CSV/Excel/export artifacts as inputs.
+
+## S2Z Employer-Origin Candidate Queue Agent
+
+S2Z adds a DB-backed operator queue for employer-origin candidates. The queue agent reads current PostgreSQL gate state, classifies the next safe bounded action per candidate and prints actionable commands without executing them.
+
+This keeps the workflow fast enough for repeated candidate work while preserving explicit operator control, gate discipline and the no CSV/Excel-as-input rule.
+
+## S2Z Queue Safety Refinement
+
+The candidate queue now treats fully completed `active_controlled` employer-origin sources as monitoring targets instead of implementation targets. This prevents the queue and chain driver from repeatedly suggesting connector implementation for sources whose gate model is already complete.
+
+This is a safety and operator-UX refinement only. It does not activate sources, write Bronze rows, generate connector files or loosen any gate.

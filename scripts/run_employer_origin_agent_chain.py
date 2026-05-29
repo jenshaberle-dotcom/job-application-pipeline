@@ -13,6 +13,7 @@ from psycopg.rows import dict_row
 
 DETAIL_EVIDENCE_GATE = "detail_evidence_gate"
 CONNECTOR_CANDIDATE_GATE = "connector_candidate_gate"
+SOURCE_LIFECYCLE_GATE = "source_lifecycle_tracking"
 
 
 @dataclass(frozen=True)
@@ -175,6 +176,22 @@ def connector_implementation_args(company_key: str, write_connector: bool) -> tu
     return tuple(args)
 
 
+def active_controlled_source_completed(
+    candidate: SourceCandidate,
+    gates: dict[str, GateReview],
+) -> bool:
+    if candidate.status != "active_controlled":
+        return False
+
+    lifecycle_gate = gates.get(SOURCE_LIFECYCLE_GATE)
+    if lifecycle_gate is None or lifecycle_gate.gate_status != "passed":
+        return False
+
+    return all(
+        gate.gate_status not in {"blocked", "manual_review_required"}
+        for gate in gates.values()
+    )
+
 def next_decision(
     gates: dict[str, GateReview],
     *,
@@ -263,6 +280,12 @@ def run_agent(args: argparse.Namespace) -> int:
         gates = load_gate_reviews(conn, candidate.id)
 
     print_gate_summary(candidate, gates)
+
+    if active_controlled_source_completed(candidate, gates):
+        print("next_action: monitor_source_lifecycle")
+        print("reason: source is active_controlled and all tracked gates are passed")
+        print("No connector candidate files were written.")
+        return 0
 
     decision = next_decision(
         gates,

@@ -159,3 +159,54 @@ def test_child_exit_interpretation_labels_exit_code_two_as_manual_review() -> No
     assert "child_step_completed: false" in text
     assert "child_gate_outcome: manual_review_required" in text
     assert "child_exit_code: 2" not in text
+
+def test_active_controlled_source_completed_requires_lifecycle_and_no_open_review() -> None:
+    from scripts.run_employer_origin_agent_chain import (
+        GateReview,
+        SourceCandidate,
+        active_controlled_source_completed,
+    )
+
+    candidate = SourceCandidate(
+        id=1,
+        company_key="finanz_informatik",
+        company_name="Finanz Informatik GmbH & Co. KG",
+        source_name_candidate="finanz_informatik:hannover",
+        status="active_controlled",
+    )
+
+    assert active_controlled_source_completed(
+        candidate,
+        {
+            "source_lifecycle_tracking": GateReview(
+                gate_name="source_lifecycle_tracking",
+                gate_status="passed",
+                decision="continue",
+                stop_reason=None,
+            ),
+            "connector_candidate_gate": GateReview(
+                gate_name="connector_candidate_gate",
+                gate_status="passed",
+                decision="build_connector_candidate",
+                stop_reason=None,
+            ),
+        },
+    )
+
+    assert not active_controlled_source_completed(
+        candidate,
+        {
+            "source_lifecycle_tracking": GateReview(
+                gate_name="source_lifecycle_tracking",
+                gate_status="passed",
+                decision="continue",
+                stop_reason=None,
+            ),
+            "detail_evidence_gate": GateReview(
+                gate_name="detail_evidence_gate",
+                gate_status="manual_review_required",
+                decision="manual_review_required",
+                stop_reason="still needs review",
+            ),
+        },
+    )
