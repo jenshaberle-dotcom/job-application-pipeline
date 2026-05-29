@@ -224,6 +224,8 @@ Goals:
 - [x] Add employer-origin source lifecycle tracking agent
 - [x] Add employer-origin candidate queue agent
 - [x] Add employer-origin repair loop safety
+- [x] Add employer-origin connector build readiness agent
+- [x] Add employer-origin connector registration plan agent
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets

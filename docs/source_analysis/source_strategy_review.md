@@ -337,3 +337,9 @@ This is a safety and operator-UX refinement only. It does not activate sources, 
 S3A prevents the employer-origin candidate queue from repeatedly proposing bounded detail-evidence repair after a candidate already stopped with `bounded repair found no concrete detail pages with profile and target/remote signals`.
 
 This is intentionally conservative. A failed repair remains visible as a manual-review stop, but it is not offered as the next executable command again. This keeps the agent workflow productive and prevents hidden retry loops.
+
+## S3B/S3C Connector Readiness and Registration Plan
+
+S3B adds a DB-backed connector build readiness check before connector implementation may be generated. S3C adds a reviewable connector registration plan with an explicit manual approval token.
+
+Together these steps move the agent workflow closer to connector construction while preserving the boundary that connector registration, source activation, Bronze persistence and recurring ingestion remain approval-gated.
