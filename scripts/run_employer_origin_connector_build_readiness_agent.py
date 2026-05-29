@@ -156,7 +156,7 @@ def detail_url_count_from_spec(spec: dict[str, Any]) -> int:
 
 def evaluate_readiness(candidate: SourceCandidate, gates: dict[str, GateReview]) -> ReadinessOutcome:
     evidence: dict[str, Any] = {
-        "agent": "s3b_connector_build_readiness_agent",
+        "agent": "s4a_connector_build_readiness_agent",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "candidate": {
             "candidate_id": candidate.id,

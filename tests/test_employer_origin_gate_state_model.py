@@ -95,4 +95,7 @@ def test_decision_vocabulary_contains_documented_stop_and_activation_outcomes() 
     assert "abort_documented" in VALID_DECISIONS
     assert "activate_controlled" in VALID_DECISIONS
     assert "manual_review_required" in VALID_DECISIONS
+    assert "ready_for_final_approval" in VALID_DECISIONS
+    assert "approve_connector_registration" in VALID_DECISIONS
+    assert "connector_validation_failed" in VALID_DECISIONS
     assert "risk_gate" in VALID_GATE_NAMES

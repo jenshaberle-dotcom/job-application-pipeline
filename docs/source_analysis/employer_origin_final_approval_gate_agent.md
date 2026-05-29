@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented as S3E candidate workflow.
+Implemented as S4C human approval workflow.
 
 ## Purpose
 

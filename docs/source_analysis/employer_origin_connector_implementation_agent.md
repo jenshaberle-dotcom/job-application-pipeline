@@ -2,58 +2,18 @@
 
 ## Status
 
-Proposed for S2V implementation.
+Compatibility wrapper for S4A.
 
 ## Purpose
 
-S2V turns a passed DB-backed `connector_candidate_gate` into a bounded connector implementation candidate.
+The former implementation-agent entry point remains available for existing local habits, tests and documentation references. The canonical S4A workflow is now:
 
-The agent reads PostgreSQL gate state and writes reviewed repository files directly:
+```bash
+python -m scripts.run_employer_origin_connector_artifact_generator --company-key hdi --dry-run
+```
 
-- `src/connectors/<source_family>.py`
-- `tests/test_<source_family>_connector.py`
-- `docs/source_analysis/<source_family>_connector_candidate_implementation.md`
-
-This is intentionally not an export-as-input workflow. The database gate state is the source of truth, and the generated repository files are normal code review inputs in the branch.
+The wrapper delegates to `scripts.run_employer_origin_connector_artifact_generator`.
 
 ## Boundary
 
-The generated connector candidate still does not:
-
-- register itself in the ingestion CLI
-- activate a search profile
-- write Bronze rows by itself
-- approve recurring ingestion
-- use browser automation
-- use CSV/Excel/export artifacts as inputs
-- persist raw HTML
-
-Activation remains a separate controlled gate.
-
-## Example
-
-```bash
-python -m scripts.run_employer_origin_connector_implementation_agent \
-  --company-key hdi
-```
-
-Use `--dry-run` to inspect planned paths without writing files.
-
-## Interpretation
-
-A successful S2V run means connector implementation work has been materialized into reviewable repository files. It still needs tests, manual review and a separate controlled activation decision.
-
-## Concrete Job-Detail URL Rule
-
-Overview pages, legal pages and career-root pages are not valid detail evidence.
-
-Examples that must not pass as concrete job-detail evidence:
-
-- `/privacy`
-- `/datenschutz`
-- `/your_career_opportunities`
-- `/karriere/jobs`
-- `/jobs`
-- `/job_board`
-
-A connector-candidate gate may only pass when the detail evidence contains concrete job-detail URLs with specific job-like slugs. If only overview or legal URLs are available, the agent must stop with manual review instead of generating connector code.
+The wrapper does not change the S4A boundary: no connector registration, no source activation, no Bronze persistence, no scheduler changes and no CSV/Excel/export artifacts as pipeline inputs.

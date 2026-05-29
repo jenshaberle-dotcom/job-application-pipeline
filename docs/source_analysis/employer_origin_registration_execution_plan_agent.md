@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented as S3F candidate workflow.
+Implemented as S4C registration-readiness planning workflow.
 
 ## Purpose
 

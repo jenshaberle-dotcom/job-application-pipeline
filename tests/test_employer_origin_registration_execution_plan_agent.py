@@ -43,6 +43,7 @@ def test_execution_plan_allowed_after_final_approval_and_remains_non_activating(
     assert plan.allowed is True
     assert any("Do not write Bronze" in item for item in plan.forbidden)
     assert plan.evidence["boundary"]["source_activation_allowed"] is False
+    assert plan.evidence["agent"] == "s4c_registration_execution_plan_agent"
 
 
 def test_execution_plan_markdown_contains_boundary() -> None:

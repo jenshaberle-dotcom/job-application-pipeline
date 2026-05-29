@@ -29,10 +29,11 @@ It is a DB-backed queue and prioritization view only.
 The queue prioritizes:
 
 1. active controlled sources without passed lifecycle tracking
-2. connector implementation dry-run candidates
-3. connector-candidate gate evaluation
-4. detail-evidence repair when explicitly allowed
-5. manual-review stops
+2. S4A connector artifact dry-run candidates
+3. S4A connector-build-readiness checks
+4. connector-candidate gate evaluation
+5. detail-evidence repair when explicitly allowed
+6. manual-review stops
 
 ## Example
 
@@ -52,7 +53,7 @@ S2Z makes the agent workflow easier to operate without turning it into uncontrol
 
 A candidate with status `active_controlled`, a passed `source_lifecycle_tracking` gate and no blocked or manual-review gates is treated as completed for the connector-building queue.
 
-The queue reports `monitor_source_lifecycle` and does not print a connector implementation command. This prevents already-active sources such as Finanz Informatik from being presented as if connector implementation were still the next action.
+The queue reports `monitor_source_lifecycle` and does not print a connector artifact generation command. This prevents already-active sources such as Finanz Informatik from being presented as if connector implementation were still the next action.
 
 ## Repair Loop Safety
 

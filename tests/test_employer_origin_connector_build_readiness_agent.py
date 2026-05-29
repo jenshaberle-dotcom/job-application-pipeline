@@ -56,6 +56,7 @@ def test_readiness_is_ready_when_required_gates_and_spec_are_present() -> None:
     assert outcome.decision == "connector_generation_allowed_before_final_approval"
     assert outcome.evidence["boundary"]["connector_registration_allowed"] is False
     assert outcome.evidence["boundary"]["bronze_persistence_allowed"] is False
+    assert outcome.evidence["agent"] == "s4a_connector_build_readiness_agent"
 
 
 def test_readiness_stops_when_candidate_is_active_controlled() -> None:
