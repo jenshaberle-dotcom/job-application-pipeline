@@ -253,3 +253,9 @@ Stage 2 remains open: the guarded removal command must be refactored to read an 
 The guarded historical-burden hot-store removal command now reads DB-backed review state by `batch_id`. It does not read local CSV or manifest files as execution input. Dry-run remains the default. Approval and execution require explicit command flags and exact confirmation strings.
 
 This closes the historical-burden export-as-input blocker for the hot-store removal workflow. Generated Markdown/JSON files remain human-readable reports only.
+
+### S2P — Finanz Informatik Controlled Activation and Scheduler Watchdog
+
+S2P activates exactly one controlled Finanz Informatik source target: `finanz_informatik:hannover`. The activation is intentionally narrow and keeps the source in precision-source semantics: low volume is acceptable when the source adds relevant, non-duplicate employer-origin evidence.
+
+S2P also documents a local Windows scheduler watchdog. The watchdog is local-development infrastructure only; it catches up after missed days by running at logon and skipping duplicate same-day runs through an operational state marker. It is not cloud orchestration and must be replaced before production/cloud operation.

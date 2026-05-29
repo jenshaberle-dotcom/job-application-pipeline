@@ -7,6 +7,7 @@ from collections.abc import Sequence
 
 from src.connectors.base import SearchProfile
 from src.connectors.bundesagentur import BundesagenturConnector
+from src.connectors.finanz_informatik import FinanzInformatikConnector
 from src.connectors.greenhouse import GreenhouseConnector
 from src.connectors.personio import PersonioConnector
 from src.connectors.stepstone import StepStoneConnector
@@ -25,6 +26,9 @@ def create_connector(source_name: str):
     if source_name.startswith("personio:"):
         target_key = source_name.split(":", 1)[1]
         return PersonioConnector(target_key=target_key)
+
+    if source_name == "finanz_informatik:hannover":
+        return FinanzInformatikConnector()
 
     if source_name == "stepstone":
         return StepStoneConnector()

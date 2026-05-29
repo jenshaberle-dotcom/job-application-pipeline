@@ -208,7 +208,9 @@ Goals:
 - [x] Prepare disabled Finanz Informatik connector candidate
 - [x] Add DB-backed Finanz Informatik activation gate review
 - [ ] Manually review Finanz Informatik possible StepStone overlap
-- [ ] Decide controlled inactive Finanz Informatik source-target registration
+- [x] Decide controlled inactive Finanz Informatik source-target registration
+- [x] Activate controlled Finanz Informatik Hannover source target
+- [ ] Verify Finanz Informatik manual runner output after activation
 - [ ] Review Finanz Informatik S2J export artifacts before persistence decision
 - [ ] Search-intent / term-set normalization cleanup after S1D observation
 - [ ] Application workflow tracking

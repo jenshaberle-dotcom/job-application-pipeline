@@ -68,6 +68,13 @@ def build_canonical_key_candidate(
     return " :: ".join(key_parts)
 
 
+def canonical_source_type(source_name: object) -> str:
+    if isinstance(source_name, str) and source_name.startswith("finanz_informatik:"):
+        return "employer_origin_career_site"
+
+    return "unknown"
+
+
 def add_canonicalization_fields(job: dict) -> dict:
     normalized_title = normalize_text(job.get("title"))
     normalized_company_name = normalize_text(job.get("company_name"))
@@ -81,7 +88,7 @@ def add_canonicalization_fields(job: dict) -> dict:
     job["normalized_company_name"] = normalized_company_name
     job["normalized_location"] = normalized_location
     job["canonical_status"] = "discovery_only"
-    job["canonical_source_type"] = "unknown"
+    job["canonical_source_type"] = canonical_source_type(job.get("source_name"))
     job["canonical_key_candidate"] = build_canonical_key_candidate(
         normalized_company_name,
         normalized_title,
@@ -164,6 +171,35 @@ def transform_personio_raw_job(raw_job: dict) -> dict:
     )
 
 
+def transform_finanz_informatik_raw_job(raw_job: dict) -> dict:
+    raw_data = raw_job["raw_data"]
+    job_data = raw_data.get("job", {})
+    result_card = raw_data.get("result_card", {})
+
+    return add_canonicalization_fields(
+        {
+            "raw_job_id": raw_job["id"],
+            "source_name": raw_job["source_name"],
+            "external_job_id": raw_job["external_job_id"],
+            "source_url": (
+                job_data.get("source_url")
+                or result_card.get("detail_url")
+                or raw_job["source_url"]
+            ),
+            "title": job_data.get("title") or result_card.get("title"),
+            "company_name": (
+                job_data.get("company_name")
+                or result_card.get("company_name")
+                or "Finanz Informatik GmbH & Co. KG"
+            ),
+            "city": job_data.get("location") or result_card.get("location"),
+            "postal_code": None,
+            "country": "DE",
+            "publication_date": None,
+        }
+    )
+
+
 def transform_stepstone_raw_job(raw_job: dict) -> dict:
     raw_data = raw_job["raw_data"]
     result_card = raw_data.get("result_card", {})
@@ -196,6 +232,9 @@ def transform_raw_job_to_silver(raw_job: dict) -> dict:
     if source_name.startswith("personio:"):
         return transform_personio_raw_job(raw_job)
 
+    if source_name.startswith("finanz_informatik:"):
+        return transform_finanz_informatik_raw_job(raw_job)
+
     if source_name == "stepstone":
         return transform_stepstone_raw_job(raw_job)
 
@@ -207,5 +246,6 @@ def get_supported_source_patterns() -> list[str]:
         "bundesagentur_fuer_arbeit",
         "greenhouse:%",
         "personio:%",
+        "finanz_informatik:%",
         "stepstone",
     ]

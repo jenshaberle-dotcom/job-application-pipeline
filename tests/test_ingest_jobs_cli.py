@@ -1,5 +1,5 @@
 from src.connectors.base import SearchProfile
-from src.ingest_jobs import select_profiles, source_matches
+from src.ingest_jobs import create_connector, select_profiles, source_matches
 
 
 def make_profile(profile_name: str, source_name: str) -> SearchProfile:
@@ -153,3 +153,9 @@ def test_build_parser_accepts_log_level() -> None:
     )
 
     assert args.log_level == "DEBUG"
+
+
+def test_create_connector_supports_finanz_informatik_hannover() -> None:
+    connector = create_connector("finanz_informatik:hannover")
+
+    assert connector.source_name == "finanz_informatik:hannover"
