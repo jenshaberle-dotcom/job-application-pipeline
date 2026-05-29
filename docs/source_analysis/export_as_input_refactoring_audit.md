@@ -20,22 +20,15 @@ S2O does not reopen that decision. It tracks remaining legacy workflows that sti
 
 ### Finanz Informatik legacy S2J/S2K handoff
 
-Observed files:
+Status: resolved by S2O-A1.
 
-- `scripts/preview_finanz_informatik_source_target_spike.py`
-- `scripts/preview_finanz_informatik_detail_page_probe.py`
-- `tests/test_finanz_informatik_detail_page_probe.py`
+The active S2J/S2K local handoff scripts were retired from the repository. Finanz Informatik review and activation decisions now use bounded connector-candidate preview logic and current database evidence.
 
-Current issue:
+Historical design lessons are preserved in:
 
-- The source-target spike writes candidate artifacts.
-- The detail-page probe can read candidates from a previous local export.
-- That pattern is not suitable for durable pipeline or activation-gate logic.
+- `docs/source_analysis/finanz_informatik_bounded_source_target_spike_design.md`
+- `docs/source_analysis/finanz_informatik_legacy_spikes_retirement.md`
 
-Target state:
-
-- Either refactor the detail-page probe to build candidates from bounded connector-preview logic, or freeze it as historical spike documentation that is not used by future gates.
-- No future activation or persistence decision may depend on this export handoff.
 
 ### Historical burden hot-store removal
 
@@ -46,22 +39,22 @@ Observed files:
 - `tests/test_historical_burden_hot_store_guarded_removal.py`
 - `tests/test_historical_burden_hot_store_removal.py`
 
-Current issue:
+Current status:
 
-- The guarded removal flow uses a generated removal-candidates file and a manifest as an operation handoff.
-- This was a cautious local safety pattern for destructive work, but it is not cloud-ready architecture.
+- Stage 1 has introduced DB-backed proposed review batches and review items.
+- `scripts.prepare_historical_burden_hot_store_removal` now creates review state in the database and writes Markdown/JSON as human-readable outputs only.
+- Stage 2 refactors `scripts.remove_historical_burden_from_hot_store` to read DB-backed review batches by `batch_id`. It no longer reads local manifests or candidate CSV files as execution input.
 
 Target state:
 
-- Replace local file handoff with a DB-backed review/batch state before any production-like or cloud migration step.
-- The removal operation should read explicitly reviewed database state, not a local CSV file path.
+- The removal operation reads explicitly reviewed database state, not a local CSV file path.
 - Human-readable exports may still document what happened, but they must not drive the operation.
 
 ## Refactoring Sequence
 
 1. Classify all remaining export-as-input occurrences as historical spike, review artifact or operational blocker.
-2. Refactor or retire the Finanz Informatik legacy S2J/S2K export handoff.
-3. Design and implement a DB-backed historical-burden removal review state.
+2. Retire the Finanz Informatik legacy S2J/S2K local handoff. Done in S2O-A1.
+3. Design and implement a DB-backed historical-burden removal review state. Stage 1 done: proposed DB batches/items exist.
 4. Add a regression check or documented review command that catches new export-as-input patterns before they enter production-facing code.
 5. Update source-analysis and roadmap documentation after each refactor step.
 

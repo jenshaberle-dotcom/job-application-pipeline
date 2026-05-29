@@ -637,3 +637,36 @@ Potential future fields:
 | `local_filter_applied` | Filter was applied after fetching. |
 | `unsupported_filter_ignored` | Filter could not be applied reliably. |
 | `filter_notes` | Human-readable explanation. |
+
+
+## historical_burden_review_batches
+
+DB-backed review batches for historical-burden hot-store removal decisions.
+
+Generated Markdown/JSON files may summarize these batches for human review, but execution must use approved DB state.
+
+Key fields:
+
+- `id` — review batch identifier
+- `status` — `proposed`, `reviewed`, `approved`, `executed` or `cancelled`
+- `review_reason` — human-readable reason for the batch
+- `retention_track` — retention policy track represented by the batch
+- `candidate_count`, `eligible_for_removal_count`, `blocked_or_non_actionable_count` — review counters
+- `source_counts`, `burden_category_counts`, `review_status_counts` — JSONB summaries
+- `metadata` — non-operational context for audit/review
+
+## historical_burden_review_items
+
+Per-raw-job review items belonging to a historical-burden review batch.
+
+`raw_job_id` is intentionally stored as a value rather than as a foreign key to `raw_jobs`, so the review item remains auditable after a later approved hot-store removal.
+
+Key fields:
+
+- `batch_id` — owning review batch
+- `raw_job_id` — raw job identifier snapshot
+- `source_name`, `external_job_id`, `source_url`, `fetched_at` — source evidence snapshot
+- `burden_category`, `retention_track`, `review_status` — review classification
+- `eligible_for_future_removal` — candidate flag; not an execution approval
+- `execution_status` — later execution result state
+- `item_snapshot` — JSONB item snapshot for auditability

@@ -1,759 +1,757 @@
-"""Guarded hot-store removal command for archived historical burden.
+"""Guarded DB-backed hot-store removal for reviewed historical burden.
 
-This is the first workflow that can remove historical burden rows from the
-local hot-store database, but only when explicitly executed with multiple
-confirmations. By default it runs as a dry-run and writes a local execution-plan
-artifact.
+This command operates only on DB-backed historical-burden review batches. It does
+not read local CSV files, manifest files or review artifacts as execution input.
 
-The command consumes the review artifact produced by:
+Default mode is dry-run. Destructive hot-store removal requires:
 
-    python -m scripts.prepare_historical_burden_hot_store_removal
+1. a DB-backed review batch with status `approved`
+2. explicit `--execute`
+3. exact confirmation text
 
-Safety model:
-- default mode performs no database mutation
-- execute mode requires explicit confirmation flags
-- only archive_before_hot_store_removal_candidate rows are eligible
-- only rows with eligible_after_archive_review are eligible
-- rows that now have Silver evidence are blocked
-- rows whose current classification changed are blocked
-- dependent Bronze-side review evidence is removed before raw_jobs
+Approval is also explicit and updates only database review state. Generated
+Markdown/JSON files are human-readable reports only.
 
 Usage:
-    python -m scripts.remove_historical_burden_from_hot_store
+    python -m scripts.remove_historical_burden_from_hot_store --batch-id 2
 
     python -m scripts.remove_historical_burden_from_hot_store \
-      --review-dir exports/historical_burden_hot_store_removal_review \
-      --output-dir exports/historical_burden_hot_store_removal_execution
+      --batch-id 2 \
+      --approve \
+      --confirm approve_historical_burden_hot_store_removal_batch
 
-Execute mode intentionally requires noisy confirmations. Do not run execute mode
-until the dry-run output has been reviewed and committed documentation exists.
+    python -m scripts.remove_historical_burden_from_hot_store \
+      --batch-id 2 \
+      --execute \
+      --confirm remove_approved_historical_burden_from_hot_store
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
-from scripts.export_historical_burden_archive import (
-    ARCHIVE_RETENTION_TRACK,
-    json_default,
-)
-from scripts.prepare_historical_burden_hot_store_removal import (
-    REMOVAL_CANDIDATES_FILENAME,
-    REMOVAL_MANIFEST_FILENAME,
-    compute_sha256,
-    load_current_hot_store_state,
-)
+from scripts.export_historical_burden_archive import ARCHIVE_RETENTION_TRACK
 from scripts.review_historical_burden_candidates import format_bytes
 from src.config import get_database_config
 
 
-DEFAULT_REVIEW_DIR = Path("exports/historical_burden_hot_store_removal_review")
 DEFAULT_OUTPUT_DIR = Path("exports/historical_burden_hot_store_removal_execution")
+EXECUTION_REPORT_FILENAME = "historical_burden_hot_store_removal_execution_report.md"
+EXECUTION_MANIFEST_FILENAME = "historical_burden_hot_store_removal_execution_manifest.json"
 
-REMOVAL_PLAN_FILENAME = "historical_burden_hot_store_removal_execution_plan.csv"
-REMOVAL_EXECUTION_MANIFEST_FILENAME = (
-    "historical_burden_hot_store_removal_execution_manifest.json"
-)
+APPROVE_CONFIRMATION_ACTION = "approve_historical_burden_hot_store_removal_batch"
+EXECUTE_CONFIRMATION_ACTION = "remove_approved_historical_burden_from_hot_store"
 
-EXECUTE_CONFIRMATION_ACTION = "remove_archived_historical_burden_from_hot_store"
-ELIGIBLE_REVIEW_STATUS = "eligible_after_archive_review"
+ELIGIBLE_REVIEW_STATUS = "eligible_after_db_review"
+READY_EXECUTION_STATUS = "ready_for_hot_store_removal"
+
+LOAD_BATCH_SQL = """
+SELECT
+    id,
+    created_at,
+    updated_at,
+    status,
+    review_reason,
+    retention_track,
+    candidate_count,
+    eligible_for_removal_count,
+    blocked_or_non_actionable_count,
+    silver_backed_rows,
+    source_counts,
+    burden_category_counts,
+    review_status_counts,
+    raw_data_bytes,
+    metadata,
+    decision_note,
+    approved_at,
+    executed_at,
+    cancelled_at
+FROM historical_burden_review_batches
+WHERE id = %s;
+"""
+
+LOAD_REVIEW_ITEM_STATE_SQL = """
+SELECT
+    hbi.id AS review_item_id,
+    hbi.batch_id,
+    hbi.raw_job_id,
+    hbi.source_name,
+    hbi.external_job_id,
+    hbi.source_url,
+    hbi.fetched_at,
+    hbi.ingestion_run_id,
+    hbi.search_profile_id,
+    hbi.initial_profile_name,
+    hbi.initial_search_term_snapshot,
+    hbi.burden_category,
+    hbi.retention_track,
+    hbi.exists_in_hot_store AS review_exists_in_hot_store,
+    hbi.has_silver_job_now AS review_has_silver_job_now,
+    hbi.still_archive_candidate,
+    hbi.eligible_for_future_removal,
+    hbi.review_status,
+    hbi.raw_data_bytes,
+    hbi.execution_status,
+    rj.id IS NOT NULL AS current_exists_in_hot_store,
+    rj.source_name AS current_source_name,
+    sj.id IS NOT NULL AS current_has_silver_job
+FROM historical_burden_review_items hbi
+LEFT JOIN raw_jobs rj
+    ON rj.id = hbi.raw_job_id
+LEFT JOIN silver_jobs sj
+    ON sj.raw_job_id = hbi.raw_job_id
+WHERE hbi.batch_id = %s
+ORDER BY hbi.raw_job_id;
+"""
+
+APPROVE_BATCH_SQL = """
+UPDATE historical_burden_review_batches
+SET
+    status = 'approved',
+    approved_at = COALESCE(approved_at, now()),
+    updated_at = now(),
+    decision_note = %s
+WHERE id = %s
+  AND status IN ('proposed', 'reviewed')
+RETURNING id;
+"""
+
+DELETE_JOB_OBSERVATIONS_SQL = """
+DELETE FROM job_observations
+WHERE raw_job_id = ANY(%s);
+"""
+
+DELETE_SILVER_PROCESSING_DECISIONS_SQL = """
+DELETE FROM silver_processing_decisions
+WHERE raw_job_id = ANY(%s);
+"""
+
+DELETE_RAW_JOBS_SQL = """
+DELETE FROM raw_jobs
+WHERE id = ANY(%s)
+RETURNING id;
+"""
+
+MARK_ITEMS_REMOVED_SQL = """
+UPDATE historical_burden_review_items
+SET
+    exists_in_hot_store = false,
+    execution_status = 'removed_from_hot_store',
+    executed_at = now(),
+    execution_note = %s
+WHERE batch_id = %s
+  AND raw_job_id = ANY(%s);
+"""
+
+MARK_BATCH_EXECUTED_SQL = """
+UPDATE historical_burden_review_batches
+SET
+    status = 'executed',
+    executed_at = now(),
+    updated_at = now(),
+    metadata = metadata || %s::jsonb
+WHERE id = %s;
+"""
 
 
 @dataclass(frozen=True)
-class RemovalReviewCandidate:
+class RemovalPlanItem:
+    review_item_id: int
     raw_job_id: int
     source_name: str
-    archived_burden_category: str
-    current_burden_category: str
+    burden_category: str
     retention_track: str
-    exists_in_hot_store: bool
-    has_silver_job_now: bool
-    still_archive_candidate: bool
-    eligible_for_future_removal: bool
     review_status: str
-    external_job_id: str | None
+    execution_status: str
+    eligible_for_future_removal: bool
+    current_exists_in_hot_store: bool
+    current_has_silver_job: bool
+    current_source_name: str | None
+    block_reason: str | None
     source_url: str | None
-    fetched_at: str | None
-    initial_profile_name: str
-    initial_search_term_snapshot: str
     raw_data_bytes: int
 
 
 @dataclass(frozen=True)
-class CurrentEligibilityResult:
-    candidate: RemovalReviewCandidate
-    eligible_now: bool
-    status: str
+class RemovalPlan:
+    batch_id: int
+    batch_status: str
+    review_reason: str
+    retention_track: str
+    candidate_count: int
+    eligible_count: int
+    blocked_count: int
+    raw_data_bytes: int
+    items: list[RemovalPlanItem]
 
 
 @dataclass(frozen=True)
-class ConfirmationSettings:
-    confirm_retention_track: str | None
-    confirm_candidate_count: int | None
-    confirm_candidates_sha256: str | None
-    confirm_cleanup_action: str | None
-    allow_sources: frozenset[str]
+class RemovalExecutionResult:
+    job_observations_deleted: int
+    silver_processing_decisions_deleted: int
+    raw_jobs_deleted: int
+    deleted_raw_job_ids: list[int]
 
 
-@dataclass(frozen=True)
-class HotStoreRemovalResult:
-    requested_raw_job_ids: int
-    deleted_job_observations: int
-    deleted_silver_processing_decisions: int
-    deleted_raw_jobs: int
+def json_default(value: Any) -> str | int | float:
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, date):
+        return value.isoformat()
+
+    if isinstance(value, Decimal):
+        return float(value)
+
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
-def parse_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-
-    normalized = str(value).strip().lower()
-    if normalized in {"true", "t", "1", "yes", "y"}:
-        return True
-    if normalized in {"false", "f", "0", "no", "n"}:
-        return False
-
-    raise ValueError(f"Cannot parse boolean value: {value!r}")
+def make_json_safe(value: Any) -> Any:
+    return json.loads(json.dumps(value, default=json_default))
 
 
-def read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+def load_review_batch(
+    connection: psycopg.Connection,
+    batch_id: int,
+) -> dict[str, Any]:
+    with connection.cursor(row_factory=dict_row) as cursor:
+        cursor.execute(LOAD_BATCH_SQL, (batch_id,))
+        batch = cursor.fetchone()
+
+    if batch is None:
+        raise ValueError(f"Historical-burden review batch does not exist: {batch_id}")
+
+    return dict(batch)
 
 
-def resolve_manifest_path(manifest_path: Path, path_from_manifest: str) -> Path:
-    candidate = Path(path_from_manifest)
-
-    if candidate.exists():
-        return candidate
-
-    relative_to_manifest = manifest_path.parent / candidate.name
-    if relative_to_manifest.exists():
-        return relative_to_manifest
-
-    return candidate
+def load_review_item_states(
+    connection: psycopg.Connection,
+    batch_id: int,
+) -> list[dict[str, Any]]:
+    with connection.cursor(row_factory=dict_row) as cursor:
+        cursor.execute(LOAD_REVIEW_ITEM_STATE_SQL, (batch_id,))
+        return [dict(row) for row in cursor.fetchall()]
 
 
-def validate_removal_review_manifest(
-    manifest_path: Path,
-) -> tuple[dict[str, Any], Path]:
-    manifest = read_json(manifest_path)
+def block_reason_for_row(row: dict[str, Any]) -> str | None:
+    if row["execution_status"] != "not_executed":
+        return "review_item_already_executed"
 
-    if manifest.get("database_cleanup_action") != "none":
-        raise ValueError("Removal review manifest must prove database_cleanup_action=none")
+    if row["retention_track"] != ARCHIVE_RETENTION_TRACK:
+        return "non_archive_retention_track"
 
-    if manifest.get("mode") != "hot_store_removal_dry_run_only":
-        raise ValueError("Removal review manifest must come from dry-run-only mode")
+    if row["review_status"] != ELIGIBLE_REVIEW_STATUS:
+        return "review_status_not_eligible"
 
-    if manifest.get("retention_track") != ARCHIVE_RETENTION_TRACK:
+    if not row["eligible_for_future_removal"]:
+        return "item_not_eligible_for_future_removal"
+
+    if not row["current_exists_in_hot_store"]:
+        return "raw_job_missing_from_hot_store"
+
+    if row["current_source_name"] != row["source_name"]:
+        return "source_name_changed"
+
+    if row["current_has_silver_job"]:
+        return "silver_job_now_exists"
+
+    return None
+
+
+def plan_item_from_row(row: dict[str, Any]) -> RemovalPlanItem:
+    block_reason = block_reason_for_row(row)
+    execution_status = READY_EXECUTION_STATUS if block_reason is None else "blocked"
+
+    return RemovalPlanItem(
+        review_item_id=int(row["review_item_id"]),
+        raw_job_id=int(row["raw_job_id"]),
+        source_name=row["source_name"],
+        burden_category=row["burden_category"],
+        retention_track=row["retention_track"],
+        review_status=row["review_status"],
+        execution_status=execution_status,
+        eligible_for_future_removal=bool(row["eligible_for_future_removal"]),
+        current_exists_in_hot_store=bool(row["current_exists_in_hot_store"]),
+        current_has_silver_job=bool(row["current_has_silver_job"]),
+        current_source_name=row.get("current_source_name"),
+        block_reason=block_reason,
+        source_url=row.get("source_url"),
+        raw_data_bytes=int(row.get("raw_data_bytes") or 0),
+    )
+
+
+def build_removal_plan(
+    batch: dict[str, Any],
+    rows: Sequence[dict[str, Any]],
+) -> RemovalPlan:
+    items = [plan_item_from_row(row) for row in rows]
+    eligible_count = sum(item.execution_status == READY_EXECUTION_STATUS for item in items)
+    blocked_count = len(items) - eligible_count
+    raw_data_bytes = sum(item.raw_data_bytes for item in items)
+
+    return RemovalPlan(
+        batch_id=int(batch["id"]),
+        batch_status=batch["status"],
+        review_reason=batch["review_reason"],
+        retention_track=batch["retention_track"],
+        candidate_count=len(items),
+        eligible_count=eligible_count,
+        blocked_count=blocked_count,
+        raw_data_bytes=raw_data_bytes,
+        items=items,
+    )
+
+
+def validate_batch_integrity(batch: dict[str, Any], plan: RemovalPlan) -> None:
+    if batch["retention_track"] != ARCHIVE_RETENTION_TRACK:
         raise ValueError(
-            "Removal review manifest retention_track must be "
-            f"{ARCHIVE_RETENTION_TRACK!r}"
+            "Review batch retention_track must be "
+            f"{ARCHIVE_RETENTION_TRACK!r}, got {batch['retention_track']!r}"
         )
 
-    if manifest.get("silver_backed_rows_now") != 0:
-        raise ValueError("Removal review manifest must not include Silver-backed rows")
-
-    candidates_export = manifest.get("exports", {}).get("removal_candidates_csv", {})
-    candidates_path_value = candidates_export.get("path")
-    expected_sha256 = candidates_export.get("sha256")
-
-    if not candidates_path_value or not expected_sha256:
+    if int(batch["candidate_count"]) != plan.candidate_count:
         raise ValueError(
-            "Removal review manifest must include removal_candidates_csv path and sha256"
+            "Review batch candidate_count does not match review items: "
+            f"{batch['candidate_count']} != {plan.candidate_count}"
         )
 
-    candidates_path = resolve_manifest_path(manifest_path, candidates_path_value)
-    if not candidates_path.exists():
-        raise FileNotFoundError(f"Removal candidates CSV not found: {candidates_path}")
+    if int(batch["silver_backed_rows"]) != 0:
+        raise ValueError("Review batch must not include Silver-backed rows")
 
-    actual_sha256 = compute_sha256(candidates_path)
-    if actual_sha256 != expected_sha256:
+
+def validate_plan_for_approval(batch: dict[str, Any], plan: RemovalPlan) -> None:
+    validate_batch_integrity(batch, plan)
+
+    if batch["status"] not in {"proposed", "reviewed"}:
         raise ValueError(
-            "Removal candidates checksum mismatch: "
-            f"expected {expected_sha256}, got {actual_sha256}"
+            "Only proposed or reviewed batches can be approved; "
+            f"current status is {batch['status']!r}"
         )
 
-    return manifest, candidates_path
+    if plan.candidate_count == 0:
+        raise ValueError("Review batch has no candidates to approve")
 
-
-def load_removal_review_candidates(path: Path) -> list[RemovalReviewCandidate]:
-    with path.open(newline="", encoding="utf-8") as csv_file:
-        rows = list(csv.DictReader(csv_file))
-
-    candidates: list[RemovalReviewCandidate] = []
-
-    for row in rows:
-        candidates.append(
-            RemovalReviewCandidate(
-                raw_job_id=int(row["raw_job_id"]),
-                source_name=row["source_name"],
-                archived_burden_category=row["archived_burden_category"],
-                current_burden_category=row["current_burden_category"],
-                retention_track=row["retention_track"],
-                exists_in_hot_store=parse_bool(row["exists_in_hot_store"]),
-                has_silver_job_now=parse_bool(row["has_silver_job_now"]),
-                still_archive_candidate=parse_bool(row["still_archive_candidate"]),
-                eligible_for_future_removal=parse_bool(
-                    row["eligible_for_future_removal"]
-                ),
-                review_status=row["review_status"],
-                external_job_id=row.get("external_job_id") or None,
-                source_url=row.get("source_url") or None,
-                fetched_at=row.get("fetched_at") or None,
-                initial_profile_name=row["initial_profile_name"],
-                initial_search_term_snapshot=row["initial_search_term_snapshot"],
-                raw_data_bytes=int(row.get("raw_data_bytes") or 0),
-            )
+    if plan.blocked_count:
+        raise ValueError(
+            "Review batch cannot be approved while revalidation has blocked rows"
         )
 
-    return candidates
+
+def validate_plan_for_execution(batch: dict[str, Any], plan: RemovalPlan) -> None:
+    validate_batch_integrity(batch, plan)
+
+    if batch["status"] != "approved":
+        raise ValueError(
+            "Hot-store removal requires an approved DB review batch; "
+            f"current status is {batch['status']!r}"
+        )
+
+    if plan.candidate_count == 0:
+        raise ValueError("Review batch has no candidates to execute")
+
+    if plan.blocked_count:
+        raise ValueError(
+            "Hot-store removal cannot execute while revalidation has blocked rows"
+        )
+
+    if plan.eligible_count == 0:
+        raise ValueError("No rows are eligible for hot-store removal")
 
 
-def select_eligible_review_candidates(
-    candidates: Sequence[RemovalReviewCandidate],
-) -> list[RemovalReviewCandidate]:
-    return [
-        candidate
-        for candidate in candidates
-        if candidate.eligible_for_future_removal
-        and candidate.review_status == ELIGIBLE_REVIEW_STATUS
-        and candidate.retention_track == ARCHIVE_RETENTION_TRACK
-        and candidate.exists_in_hot_store
-        and not candidate.has_silver_job_now
-        and candidate.still_archive_candidate
-    ]
-
-
-def validate_candidate_set(
-    candidates: Sequence[RemovalReviewCandidate],
-    eligible_candidates: Sequence[RemovalReviewCandidate],
-    manifest: dict[str, Any],
+def approve_review_batch(
+    connection: psycopg.Connection,
+    batch: dict[str, Any],
+    plan: RemovalPlan,
+    decision_note: str,
 ) -> None:
-    if manifest.get("candidate_count") != len(candidates):
-        raise ValueError(
-            "Removal review manifest candidate_count does not match CSV: "
-            f"{manifest.get('candidate_count')} != {len(candidates)}"
-        )
-
-    if manifest.get("eligible_for_future_removal_count") != len(eligible_candidates):
-        raise ValueError(
-            "Removal review manifest eligible count does not match CSV: "
-            f"{manifest.get('eligible_for_future_removal_count')} "
-            f"!= {len(eligible_candidates)}"
-        )
-
-    non_archive_tracks = {
-        candidate.retention_track
-        for candidate in eligible_candidates
-        if candidate.retention_track != ARCHIVE_RETENTION_TRACK
-    }
-    if non_archive_tracks:
-        raise ValueError(
-            "Eligible candidates contain unexpected retention tracks: "
-            f"{sorted(non_archive_tracks)}"
-        )
-
-    duplicate_ids = [
-        raw_job_id
-        for raw_job_id, count in Counter(
-            candidate.raw_job_id for candidate in eligible_candidates
-        ).items()
-        if count > 1
-    ]
-    if duplicate_ids:
-        raise ValueError(f"Duplicate eligible raw_job_id values: {duplicate_ids[:10]}")
-
-
-def validate_execution_confirmations(
-    *,
-    execute: bool,
-    settings: ConfirmationSettings,
-    eligible_candidates: Sequence[RemovalReviewCandidate],
-    candidates_sha256: str,
-) -> None:
-    if not execute:
-        return
-
-    if settings.confirm_retention_track != ARCHIVE_RETENTION_TRACK:
-        raise ValueError(
-            "Execute mode requires --confirm-retention-track "
-            f"{ARCHIVE_RETENTION_TRACK}"
-        )
-
-    if settings.confirm_candidate_count != len(eligible_candidates):
-        raise ValueError(
-            "Execute mode requires --confirm-candidate-count to match the "
-            f"eligible candidate count ({len(eligible_candidates)})"
-        )
-
-    if settings.confirm_candidates_sha256 != candidates_sha256:
-        raise ValueError(
-            "Execute mode requires --confirm-candidates-sha256 to match the "
-            "validated removal candidates CSV checksum"
-        )
-
-    if settings.confirm_cleanup_action != EXECUTE_CONFIRMATION_ACTION:
-        raise ValueError(
-            "Execute mode requires --confirm-cleanup-action "
-            f"{EXECUTE_CONFIRMATION_ACTION}"
-        )
-
-    candidate_sources = {candidate.source_name for candidate in eligible_candidates}
-    if not settings.allow_sources:
-        raise ValueError("Execute mode requires at least one --allow-source value")
-
-    if settings.allow_sources != candidate_sources:
-        raise ValueError(
-            "Execute mode --allow-source values must exactly match candidate sources: "
-            f"expected {sorted(candidate_sources)}, got {sorted(settings.allow_sources)}"
-        )
-
-
-def validate_current_eligibility(
-    candidates: Sequence[RemovalReviewCandidate],
-    current_states: dict[int, Any],
-) -> list[CurrentEligibilityResult]:
-    results: list[CurrentEligibilityResult] = []
-
-    for candidate in candidates:
-        current_state = current_states.get(candidate.raw_job_id)
-
-        if current_state is None:
-            results.append(
-                CurrentEligibilityResult(
-                    candidate=candidate,
-                    eligible_now=False,
-                    status="blocked_missing_from_hot_store_now",
-                )
-            )
-            continue
-
-        if current_state.source_name != candidate.source_name:
-            results.append(
-                CurrentEligibilityResult(
-                    candidate=candidate,
-                    eligible_now=False,
-                    status="blocked_source_mismatch_now",
-                )
-            )
-            continue
-
-        if current_state.has_silver_job:
-            results.append(
-                CurrentEligibilityResult(
-                    candidate=candidate,
-                    eligible_now=False,
-                    status="blocked_silver_evidence_now_exists",
-                )
-            )
-            continue
-
-        if current_state.current_retention_track != ARCHIVE_RETENTION_TRACK:
-            results.append(
-                CurrentEligibilityResult(
-                    candidate=candidate,
-                    eligible_now=False,
-                    status="blocked_current_classification_changed",
-                )
-            )
-            continue
-
-        results.append(
-            CurrentEligibilityResult(
-                candidate=candidate,
-                eligible_now=True,
-                status="eligible_for_guarded_hot_store_removal",
-            )
-        )
-
-    return results
-
-
-def plan_row(result: CurrentEligibilityResult) -> dict[str, Any]:
-    candidate = result.candidate
-    return {
-        "raw_job_id": candidate.raw_job_id,
-        "source_name": candidate.source_name,
-        "archived_burden_category": candidate.archived_burden_category,
-        "current_burden_category": candidate.current_burden_category,
-        "retention_track": candidate.retention_track,
-        "eligible_now": result.eligible_now,
-        "plan_status": result.status,
-        "external_job_id": candidate.external_job_id,
-        "source_url": candidate.source_url,
-        "fetched_at": candidate.fetched_at,
-        "initial_profile_name": candidate.initial_profile_name,
-        "initial_search_term_snapshot": candidate.initial_search_term_snapshot,
-        "raw_data_bytes": candidate.raw_data_bytes,
-    }
-
-
-def write_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    if not rows:
-        path.write_text("", encoding="utf-8")
-        return
-
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def count_silver_jobs(connection: psycopg.Connection, raw_job_ids: Sequence[int]) -> int:
-    if not raw_job_ids:
-        return 0
+    validate_plan_for_approval(batch, plan)
 
     with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT COUNT(*) FROM silver_jobs WHERE raw_job_id = ANY(%s);",
-            (list(raw_job_ids),),
-        )
-        value = cursor.fetchone()[0]
+        cursor.execute(APPROVE_BATCH_SQL, (decision_note, plan.batch_id))
+        approved = cursor.fetchone()
 
-    return int(value)
+    if approved is None:
+        raise ValueError(
+            "Review batch approval did not update a row. "
+            "Reload the batch and check its current status."
+        )
 
 
 def execute_hot_store_removal(
     connection: psycopg.Connection,
-    raw_job_ids: Sequence[int],
-) -> HotStoreRemovalResult:
-    if not raw_job_ids:
-        return HotStoreRemovalResult(
-            requested_raw_job_ids=0,
-            deleted_job_observations=0,
-            deleted_silver_processing_decisions=0,
-            deleted_raw_jobs=0,
-        )
+    batch: dict[str, Any],
+    plan: RemovalPlan,
+    execution_note: str,
+) -> RemovalExecutionResult:
+    validate_plan_for_execution(batch, plan)
 
-    silver_count = count_silver_jobs(connection, raw_job_ids)
-    if silver_count:
-        raise ValueError(
-            "Refusing hot-store removal because Silver-backed rows exist: "
-            f"{silver_count}"
-        )
+    raw_job_ids = [
+        item.raw_job_id
+        for item in plan.items
+        if item.execution_status == READY_EXECUTION_STATUS
+    ]
 
-    with connection.cursor(row_factory=dict_row) as cursor:
-        cursor.execute(
-            """
-            WITH candidate_ids AS (
-                SELECT unnest(%s::bigint[]) AS raw_job_id
+    with connection.cursor() as cursor:
+        cursor.execute(DELETE_JOB_OBSERVATIONS_SQL, (raw_job_ids,))
+        job_observations_deleted = cursor.rowcount
+
+        cursor.execute(DELETE_SILVER_PROCESSING_DECISIONS_SQL, (raw_job_ids,))
+        silver_processing_decisions_deleted = cursor.rowcount
+
+        cursor.execute(DELETE_RAW_JOBS_SQL, (raw_job_ids,))
+        deleted_raw_job_ids = sorted(int(row[0]) for row in cursor.fetchall())
+
+        if deleted_raw_job_ids != sorted(raw_job_ids):
+            raise ValueError(
+                "Deleted raw_jobs do not match approved DB review items. "
+                f"expected={sorted(raw_job_ids)}, actual={deleted_raw_job_ids}"
             )
-            DELETE FROM job_observations jo
-            USING candidate_ids c
-            WHERE jo.raw_job_id = c.raw_job_id
-            RETURNING jo.id;
-            """,
-            (list(raw_job_ids),),
-        )
-        deleted_observations = len(cursor.fetchall())
 
         cursor.execute(
-            """
-            WITH candidate_ids AS (
-                SELECT unnest(%s::bigint[]) AS raw_job_id
-            )
-            DELETE FROM silver_processing_decisions spd
-            USING candidate_ids c
-            WHERE spd.raw_job_id = c.raw_job_id
-            RETURNING spd.id;
-            """,
-            (list(raw_job_ids),),
+            MARK_ITEMS_REMOVED_SQL,
+            (execution_note, plan.batch_id, raw_job_ids),
         )
-        deleted_decisions = len(cursor.fetchall())
 
         cursor.execute(
-            """
-            WITH candidate_ids AS (
-                SELECT unnest(%s::bigint[]) AS raw_job_id
-            )
-            DELETE FROM raw_jobs rj
-            USING candidate_ids c
-            WHERE rj.id = c.raw_job_id
-            RETURNING rj.id;
-            """,
-            (list(raw_job_ids),),
-        )
-        deleted_raw_jobs = len(cursor.fetchall())
-
-    if deleted_raw_jobs != len(raw_job_ids):
-        raise ValueError(
-            "Deleted raw_jobs count does not match requested ids: "
-            f"{deleted_raw_jobs} != {len(raw_job_ids)}"
+            MARK_BATCH_EXECUTED_SQL,
+            (
+                Jsonb(
+                    {
+                        "last_execution": {
+                            "executed_at_utc": datetime.now(timezone.utc).isoformat(),
+                            "raw_jobs_deleted": len(deleted_raw_job_ids),
+                            "job_observations_deleted": job_observations_deleted,
+                            "silver_processing_decisions_deleted": silver_processing_decisions_deleted,
+                        }
+                    }
+                ),
+                plan.batch_id,
+            ),
         )
 
-    return HotStoreRemovalResult(
-        requested_raw_job_ids=len(raw_job_ids),
-        deleted_job_observations=deleted_observations,
-        deleted_silver_processing_decisions=deleted_decisions,
-        deleted_raw_jobs=deleted_raw_jobs,
+    return RemovalExecutionResult(
+        job_observations_deleted=job_observations_deleted,
+        silver_processing_decisions_deleted=silver_processing_decisions_deleted,
+        raw_jobs_deleted=len(deleted_raw_job_ids),
+        deleted_raw_job_ids=deleted_raw_job_ids,
     )
 
 
-def build_execution_manifest(
-    *,
-    execute: bool,
-    manifest: dict[str, Any],
-    review_candidates_sha256: str,
-    current_results: Sequence[CurrentEligibilityResult],
-    plan_path: Path,
-    removal_result: HotStoreRemovalResult | None,
-) -> dict[str, Any]:
-    status_counts = Counter(result.status for result in current_results)
-    source_counts = Counter(result.candidate.source_name for result in current_results)
-    category_counts = Counter(
-        result.candidate.archived_burden_category for result in current_results
+def plan_summary(plan: RemovalPlan) -> dict[str, Any]:
+    source_counts = Counter(item.source_name for item in plan.items)
+    burden_counts = Counter(item.burden_category for item in plan.items)
+    execution_status_counts = Counter(item.execution_status for item in plan.items)
+    block_reason_counts = Counter(
+        item.block_reason or "ready"
+        for item in plan.items
     )
-    eligible_now_count = sum(int(result.eligible_now) for result in current_results)
-    raw_data_bytes = sum(result.candidate.raw_data_bytes for result in current_results)
 
     return {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "mode": "execute_guarded_hot_store_removal" if execute else "dry_run_only",
-        "database_cleanup_action": (
-            EXECUTE_CONFIRMATION_ACTION if execute else "none"
-        ),
-        "retention_track": ARCHIVE_RETENTION_TRACK,
-        "source_review_manifest_generated_at_utc": manifest.get("generated_at_utc"),
-        "source_review_candidate_count": manifest.get("candidate_count"),
-        "source_review_candidates_sha256": review_candidates_sha256,
-        "planned_candidate_count": len(current_results),
-        "eligible_now_count": eligible_now_count,
-        "blocked_now_count": len(current_results) - eligible_now_count,
-        "plan_status_counts": dict(status_counts),
+        "batch_id": plan.batch_id,
+        "batch_status": plan.batch_status,
+        "candidate_count": plan.candidate_count,
+        "eligible_count": plan.eligible_count,
+        "blocked_count": plan.blocked_count,
+        "raw_data_bytes": plan.raw_data_bytes,
+        "raw_data_size": format_bytes(plan.raw_data_bytes),
         "source_counts": dict(source_counts),
-        "archived_burden_category_counts": dict(category_counts),
-        "raw_data_bytes": raw_data_bytes,
-        "raw_data_size": format_bytes(raw_data_bytes),
-        "executed_removal": removal_result is not None,
-        "removal_result": (
-            {
-                "requested_raw_job_ids": removal_result.requested_raw_job_ids,
-                "deleted_job_observations": removal_result.deleted_job_observations,
-                "deleted_silver_processing_decisions": (
-                    removal_result.deleted_silver_processing_decisions
-                ),
-                "deleted_raw_jobs": removal_result.deleted_raw_jobs,
-            }
-            if removal_result is not None
-            else None
-        ),
-        "exports": {
-            "execution_plan_csv": {
-                "path": str(plan_path),
-                "size_bytes": plan_path.stat().st_size,
-                "sha256": compute_sha256(plan_path),
-            }
-        },
-        "interpretation_boundary": [
-            "Dry-run mode performs no database mutation.",
-            "Execute mode requires explicit confirmation flags and validated review artifacts.",
-            "Silver-backed rows and changed classifications are blocked before removal.",
-            "This workflow removes only hot-store rows and their dependent Bronze-side review evidence; archive artifacts remain separate.",
-        ],
+        "burden_category_counts": dict(burden_counts),
+        "execution_status_counts": dict(execution_status_counts),
+        "block_reason_counts": dict(block_reason_counts),
     }
 
 
-def write_manifest(path: Path, manifest: dict[str, Any]) -> None:
+def build_execution_manifest(
+    plan: RemovalPlan,
+    mode: str,
+    database_cleanup_action: str,
+    result: RemovalExecutionResult | None = None,
+) -> dict[str, Any]:
+    summary = plan_summary(plan)
+    manifest: dict[str, Any] = {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "mode": mode,
+        "database_cleanup_action": database_cleanup_action,
+        "input_source": "approved_db_review_batch" if mode == "execute" else "db_review_batch",
+        "batch_id": plan.batch_id,
+        "batch_status": plan.batch_status,
+        **summary,
+        "output_boundary": [
+            "This manifest is a human-readable report artifact.",
+            "It is not a pipeline input.",
+            "It is not an activation gate input.",
+            "It is not a destructive-operation input.",
+            "Execution decisions are read from database review state by batch_id.",
+        ],
+    }
+
+    if result is not None:
+        manifest["execution_result"] = asdict(result)
+
+    return manifest
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True, default=json_default) + "\n",
+        json.dumps(
+            make_json_safe(payload),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
 
 
-def print_summary(
-    *,
-    execute: bool,
-    current_results: Sequence[CurrentEligibilityResult],
-    removal_result: HotStoreRemovalResult | None,
+def write_markdown_report(
+    path: Path,
+    plan: RemovalPlan,
+    mode: str,
+    database_cleanup_action: str,
+    result: RemovalExecutionResult | None = None,
 ) -> None:
-    status_counts = Counter(result.status for result in current_results)
-    source_counts = Counter(result.candidate.source_name for result in current_results)
-    eligible_now_count = sum(int(result.eligible_now) for result in current_results)
+    summary = plan_summary(plan)
 
-    print()
-    print("Historical Burden Guarded Hot-Store Removal")
-    print(f"Mode: {'EXECUTE' if execute else 'dry-run only'}")
-    print(
-        "Database cleanup action: "
-        f"{EXECUTE_CONFIRMATION_ACTION if execute else 'none'}"
+    lines = [
+        "# Historical Burden Hot-Store Removal Execution Report",
+        "",
+        "## Boundary",
+        "",
+        "This report is generated from DB-backed review state.",
+        "",
+        "It is a human-readable report artifact only. It must not be used as a pipeline input, activation gate, destructive-operation input, migration input or cloud dependency.",
+        "",
+        "## Mode",
+        "",
+        f"- mode: `{mode}`",
+        f"- database_cleanup_action: `{database_cleanup_action}`",
+        f"- batch_id: `{plan.batch_id}`",
+        f"- batch_status_at_load: `{plan.batch_status}`",
+        "",
+        "## Counts",
+        "",
+        f"- candidate_count: {summary['candidate_count']}",
+        f"- eligible_count: {summary['eligible_count']}",
+        f"- blocked_count: {summary['blocked_count']}",
+        f"- raw_data_size: {summary['raw_data_size']}",
+        "",
+        "## Execution Status Counts",
+        "",
+    ]
+
+    for status, count in sorted(summary["execution_status_counts"].items()):
+        lines.append(f"- {status}: {count}")
+
+    lines += ["", "## Block Reason Counts", ""]
+    for reason, count in sorted(summary["block_reason_counts"].items()):
+        lines.append(f"- {reason}: {count}")
+
+    lines += ["", "## Source Counts", ""]
+    for source_name, count in sorted(summary["source_counts"].items()):
+        lines.append(f"- {source_name}: {count}")
+
+    if result is not None:
+        lines += [
+            "",
+            "## Execution Result",
+            "",
+            f"- raw_jobs_deleted: {result.raw_jobs_deleted}",
+            f"- job_observations_deleted: {result.job_observations_deleted}",
+            f"- silver_processing_decisions_deleted: {result.silver_processing_decisions_deleted}",
+        ]
+
+    lines += ["", "## Candidate Samples", ""]
+    for item in plan.items[:25]:
+        lines.append(f"- `{item.execution_status}` — raw_jobs {item.raw_job_id} — {item.source_name}")
+        lines.append(f"  - burden_category: {item.burden_category}")
+        lines.append(f"  - block_reason: {item.block_reason or '-'}")
+        lines.append(f"  - source_url: {item.source_url or '-'}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def write_report_artifacts(
+    output_dir: Path,
+    plan: RemovalPlan,
+    mode: str,
+    database_cleanup_action: str,
+    result: RemovalExecutionResult | None = None,
+) -> tuple[Path, Path]:
+    report_path = output_dir / EXECUTION_REPORT_FILENAME
+    manifest_path = output_dir / EXECUTION_MANIFEST_FILENAME
+
+    write_markdown_report(
+        report_path,
+        plan=plan,
+        mode=mode,
+        database_cleanup_action=database_cleanup_action,
+        result=result,
     )
-    print(f"Retention track: {ARCHIVE_RETENTION_TRACK}")
-    print(f"Planned candidates: {len(current_results)}")
-    print(f"Eligible now: {eligible_now_count}")
-    print(f"Blocked now: {len(current_results) - eligible_now_count}")
-    print()
-    print("Rows by source:")
-    for source_name, count in source_counts.most_common():
-        print(f"- {source_name}: {count}")
-    print()
-    print("Rows by plan status:")
-    for status, count in status_counts.most_common():
-        print(f"- {status}: {count}")
+    write_json(
+        manifest_path,
+        build_execution_manifest(
+            plan=plan,
+            mode=mode,
+            database_cleanup_action=database_cleanup_action,
+            result=result,
+        ),
+    )
 
-    if removal_result is not None:
-        print()
-        print("Executed removal:")
-        print(f"- raw_jobs: {removal_result.deleted_raw_jobs}")
-        print(f"- job_observations: {removal_result.deleted_job_observations}")
-        print(
-            "- silver_processing_decisions: "
-            f"{removal_result.deleted_silver_processing_decisions}"
+    return report_path, manifest_path
+
+
+def load_plan(connection: psycopg.Connection, batch_id: int) -> tuple[dict[str, Any], RemovalPlan]:
+    batch = load_review_batch(connection, batch_id)
+    rows = load_review_item_states(connection, batch_id)
+    plan = build_removal_plan(batch, rows)
+    validate_batch_integrity(batch, plan)
+    return batch, plan
+
+
+def run_db_backed_removal(
+    batch_id: int,
+    output_dir: Path,
+    approve: bool = False,
+    execute: bool = False,
+    confirmation: str | None = None,
+    decision_note: str | None = None,
+) -> tuple[RemovalPlan, RemovalExecutionResult | None, tuple[Path, Path]]:
+    if approve and execute:
+        raise ValueError("Choose either approve or execute, not both.")
+
+    if approve and confirmation != APPROVE_CONFIRMATION_ACTION:
+        raise ValueError(
+            "Approval requires exact confirmation: "
+            f"{APPROVE_CONFIRMATION_ACTION}"
         )
 
-
-def run_guarded_removal(
-    *,
-    review_dir: Path,
-    output_dir: Path,
-    execute: bool,
-    confirmation_settings: ConfirmationSettings,
-) -> None:
-    manifest_path = review_dir / REMOVAL_MANIFEST_FILENAME
-    manifest, candidates_path = validate_removal_review_manifest(manifest_path)
-    review_candidates_sha256 = compute_sha256(candidates_path)
-
-    candidates = load_removal_review_candidates(candidates_path)
-    eligible_candidates = select_eligible_review_candidates(candidates)
-    validate_candidate_set(candidates, eligible_candidates, manifest)
-
-    validate_execution_confirmations(
-        execute=execute,
-        settings=confirmation_settings,
-        eligible_candidates=eligible_candidates,
-        candidates_sha256=review_candidates_sha256,
-    )
-
-    raw_job_ids = [candidate.raw_job_id for candidate in eligible_candidates]
+    if execute and confirmation != EXECUTE_CONFIRMATION_ACTION:
+        raise ValueError(
+            "Execution requires exact confirmation: "
+            f"{EXECUTE_CONFIRMATION_ACTION}"
+        )
 
     with psycopg.connect(**get_database_config()) as connection:
-        current_states = load_current_hot_store_state(connection, raw_job_ids)
-        current_results = validate_current_eligibility(
-            eligible_candidates,
-            current_states,
+        batch, plan = load_plan(connection, batch_id)
+
+        if approve:
+            approve_review_batch(
+                connection,
+                batch=batch,
+                plan=plan,
+                decision_note=decision_note or "Approved via DB-backed guarded removal command.",
+            )
+            mode = "approve"
+            database_cleanup_action = "none"
+            result = None
+        elif execute:
+            result = execute_hot_store_removal(
+                connection,
+                batch=batch,
+                plan=plan,
+                execution_note=decision_note or "Executed via DB-backed guarded removal command.",
+            )
+            mode = "execute"
+            database_cleanup_action = "delete_hot_store_rows"
+        else:
+            mode = "dry_run"
+            database_cleanup_action = "none"
+            result = None
+
+    artifacts = write_report_artifacts(
+        output_dir=output_dir,
+        plan=plan,
+        mode=mode,
+        database_cleanup_action=database_cleanup_action,
+        result=result,
+    )
+
+    return plan, result, artifacts
+
+
+def print_summary(
+    plan: RemovalPlan,
+    result: RemovalExecutionResult | None,
+    artifacts: tuple[Path, Path],
+) -> None:
+    summary = plan_summary(plan)
+
+    print("Historical Burden Hot-Store Removal")
+    print(f"batch_id: {plan.batch_id}")
+    print(f"batch_status_at_load: {plan.batch_status}")
+    print(f"candidate_count: {summary['candidate_count']}")
+    print(f"eligible_count: {summary['eligible_count']}")
+    print(f"blocked_count: {summary['blocked_count']}")
+    print(f"raw_data_size: {summary['raw_data_size']}")
+
+    if result is not None:
+        print(f"raw_jobs_deleted: {result.raw_jobs_deleted}")
+        print(f"job_observations_deleted: {result.job_observations_deleted}")
+        print(
+            "silver_processing_decisions_deleted: "
+            f"{result.silver_processing_decisions_deleted}"
         )
 
-        blocked_now_count = sum(int(not result.eligible_now) for result in current_results)
-        if execute and blocked_now_count:
-            raise ValueError(
-                "Refusing execute mode because current eligibility changed; "
-                f"blocked_now_count={blocked_now_count}"
-            )
-
-        plan_path = output_dir / REMOVAL_PLAN_FILENAME
-        write_csv(plan_path, [plan_row(result) for result in current_results])
-
-        removal_result: HotStoreRemovalResult | None = None
-        if execute:
-            removal_result = execute_hot_store_removal(connection, raw_job_ids)
-            connection.commit()
-
-    execution_manifest = build_execution_manifest(
-        execute=execute,
-        manifest=manifest,
-        review_candidates_sha256=review_candidates_sha256,
-        current_results=current_results,
-        plan_path=plan_path,
-        removal_result=removal_result,
-    )
-    execution_manifest_path = output_dir / REMOVAL_EXECUTION_MANIFEST_FILENAME
-    write_manifest(execution_manifest_path, execution_manifest)
-
-    print_summary(
-        execute=execute,
-        current_results=current_results,
-        removal_result=removal_result,
-    )
-    print()
-    print("Exported guarded hot-store removal files:")
-    print(f"- {plan_path}")
-    print(f"- {execution_manifest_path}")
-    print()
-    print("Interpretation boundary:")
-    if execute:
-        print("- Execute mode removed eligible rows from the hot-store database.")
-        print("- Archive evidence remains in the previously generated archive artifacts.")
-    else:
-        print("- Dry-run mode did not remove rows from the database.")
-        print("- Re-run with explicit execute confirmations only after review.")
+    print("Exported report artifacts:")
+    for path in artifacts:
+        print(f"- {path}")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--review-dir",
-        type=Path,
-        default=DEFAULT_REVIEW_DIR,
-        help="Directory containing the hot-store removal dry-run review manifest and CSV.",
-    )
+    parser.add_argument("--batch-id", type=int, required=True)
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT_DIR,
-        help="Local output directory for guarded removal plan/execution artifacts.",
+        help="Local output directory for human-readable report artifacts only.",
+    )
+    parser.add_argument(
+        "--approve",
+        action="store_true",
+        help="Approve a proposed/reviewed DB batch without deleting rows.",
     )
     parser.add_argument(
         "--execute",
         action="store_true",
-        help="Actually remove eligible rows from the hot store. Requires confirmation flags.",
+        help="Execute hot-store removal for an approved DB batch.",
     )
     parser.add_argument(
-        "--confirm-retention-track",
-        help="Required in execute mode. Must equal archive_before_hot_store_removal_candidate.",
+        "--confirm",
+        help="Required exact confirmation text for approve or execute mode.",
     )
     parser.add_argument(
-        "--confirm-candidate-count",
-        type=int,
-        help="Required in execute mode. Must match the current eligible candidate count.",
-    )
-    parser.add_argument(
-        "--confirm-candidates-sha256",
-        help="Required in execute mode. Must match the validated candidates CSV sha256.",
-    )
-    parser.add_argument(
-        "--confirm-cleanup-action",
-        help=(
-            "Required in execute mode. Must equal "
-            f"{EXECUTE_CONFIRMATION_ACTION}."
-        ),
-    )
-    parser.add_argument(
-        "--allow-source",
-        action="append",
-        default=[],
-        help="Required in execute mode. Repeat once per expected candidate source.",
+        "--decision-note",
+        help="Optional approval/execution note stored in the database.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    confirmation_settings = ConfirmationSettings(
-        confirm_retention_track=args.confirm_retention_track,
-        confirm_candidate_count=args.confirm_candidate_count,
-        confirm_candidates_sha256=args.confirm_candidates_sha256,
-        confirm_cleanup_action=args.confirm_cleanup_action,
-        allow_sources=frozenset(args.allow_source),
-    )
-    run_guarded_removal(
-        review_dir=args.review_dir,
+    plan, result, artifacts = run_db_backed_removal(
+        batch_id=args.batch_id,
         output_dir=args.output_dir,
+        approve=args.approve,
         execute=args.execute,
-        confirmation_settings=confirmation_settings,
+        confirmation=args.confirm,
+        decision_note=args.decision_note,
     )
+    print_summary(plan, result, artifacts)
 
 
 if __name__ == "__main__":

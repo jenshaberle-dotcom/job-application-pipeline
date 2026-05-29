@@ -1,8 +1,8 @@
 """Export historical burden candidates for archival review.
 
-This script supports the H2 cleanup/retention phase after the dry-run review
-workflow has classified historical burden. It creates local archive artifacts for
-rows that are candidates for archival before hot-store removal.
+This script creates local archive artifacts for historical-burden review.
+The artifacts are human-readable/evidence outputs only and must not become
+inputs for hot-store removal execution.
 
 It never deletes, updates, archives or reclassifies database rows. The only side
 effect is writing local files to the chosen export directory.
@@ -372,7 +372,7 @@ def run_export(export_dir: Path) -> None:
     print()
     print("Interpretation boundary:")
     print("- This script does not remove rows from the database.")
-    print("- This export is a prerequisite for future reviewed hot-store removal.")
+    print("- This export is a review artifact only; DB-backed review state is required for future hot-store removal.")
     print("- Silver-backed rows are excluded from this archive candidate set.")
 
 
