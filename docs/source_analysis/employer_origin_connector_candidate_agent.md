@@ -68,3 +68,18 @@ connector_candidate_gate: passed / build_connector_candidate
 ```
 
 It means a connector implementation PR is justified. It does not mean the source is active.
+
+## Concrete Job-Detail URL Rule
+
+Overview pages, legal pages and career-root pages are not valid detail evidence.
+
+Examples that must not pass as concrete job-detail evidence:
+
+- `/privacy`
+- `/datenschutz`
+- `/your_career_opportunities`
+- `/karriere/jobs`
+- `/jobs`
+- `/job_board`
+
+A connector-candidate gate may only pass when the detail evidence contains concrete job-detail URLs with specific job-like slugs. If only overview or legal URLs are available, the agent must stop with manual review instead of generating connector code.

@@ -291,3 +291,13 @@ It reads DB-backed candidate state, fetches a bounded set of detail pages, recor
 S2U adds the connector-candidate gate agent.
 
 The agent reads DB-backed gate state and only passes `connector_candidate_gate` when the earlier discovery, risk, reachability, scope, relevance, detail evidence and incremental uniqueness gates are passed. It writes the connector-candidate specification back to PostgreSQL gate evidence and may emit human-readable review outputs. It does not generate connector code, activate sources, write Bronze data or use CSV/Excel/export artifacts as inputs.
+
+## S2V Employer-Origin Connector Implementation Agent
+
+S2V materializes a passed DB-backed `connector_candidate_gate` into bounded repository files for a connector implementation candidate.
+
+The agent reads PostgreSQL gate evidence and writes code, tests and documentation directly into the branch. This avoids CSV/Excel/export-as-input handoffs. The generated connector candidate is still inactive: registration, search-profile activation, Bronze persistence and recurring ingestion remain separate controlled gates.
+
+## S2U/S2V Concrete Detail-URL Hardening
+
+The employer-origin connector agents now treat overview pages, career roots and legal pages as invalid detail evidence. A candidate must provide concrete job-detail URLs before `connector_candidate_gate` may pass or connector code may be generated. This keeps the process defensive and prevents agent-generated connector candidates from being based on weak or non-job evidence.

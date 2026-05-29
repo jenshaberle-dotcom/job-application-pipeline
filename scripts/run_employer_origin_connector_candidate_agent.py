@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -123,7 +124,68 @@ def missing_or_unpassed_preconditions(gates: dict[str, dict[str, Any]]) -> list[
     return missing
 
 
-def detail_urls_from_gate_evidence(gates: dict[str, dict[str, Any]]) -> list[str]:
+NON_JOB_DETAIL_URL_FRAGMENTS = (
+    "/privacy",
+    "/datenschutz",
+    "/impressum",
+    "/imprint",
+    "/cookie",
+    "/kontakt",
+    "/contact",
+    "/faq",
+    "/your_career_opportunities",
+)
+
+GENERIC_DETAIL_LAST_SEGMENTS = (
+    "career",
+    "careers",
+    "karriere",
+    "job",
+    "jobs",
+    "job_board",
+    "stellen",
+    "stellenangebote",
+    "offene-stellen",
+    "stellen-finden",
+)
+
+JOB_DETAIL_PATH_MARKERS = (
+    "/jobs/",
+    "/job/",
+    "/stellenangebote/",
+    "/offene-stellen/",
+    "/stellen-finden/",
+    "/karriere/offene-stellen/",
+    "/karriere/jobs/",
+)
+
+
+def concrete_job_detail_url(url: str) -> bool:
+    """Return True only for concrete job-detail URLs, not career roots or legal pages."""
+    if not url.startswith(("http://", "https://")):
+        return False
+
+    parsed = urlparse(url)
+    path = re.sub(r"/+", "/", parsed.path.casefold()).rstrip("/")
+    if not path:
+        return False
+
+    if any(fragment in path for fragment in NON_JOB_DETAIL_URL_FRAGMENTS):
+        return False
+
+    last_segment = path.rsplit("/", 1)[-1]
+    if last_segment in GENERIC_DETAIL_LAST_SEGMENTS:
+        return False
+
+    if not any(marker in f"{path}/" for marker in JOB_DETAIL_PATH_MARKERS):
+        return False
+
+    if len(last_segment) < 6:
+        return False
+
+    return "-" in last_segment or "_" in last_segment or any(ch.isdigit() for ch in last_segment)
+
+def raw_detail_urls_from_gate_evidence(gates: dict[str, dict[str, Any]]) -> list[str]:
     detail_gate = gates.get("detail_evidence_gate") or {}
     evidence = detail_gate.get("evidence") or {}
     details = evidence.get("details") or []
@@ -143,6 +205,14 @@ def detail_urls_from_gate_evidence(gates: dict[str, dict[str, Any]]) -> list[str
         urls.append(url)
 
     return urls
+
+
+def detail_urls_from_gate_evidence(gates: dict[str, dict[str, Any]]) -> list[str]:
+    return [url for url in raw_detail_urls_from_gate_evidence(gates) if concrete_job_detail_url(url)]
+
+
+def rejected_detail_urls_from_gate_evidence(gates: dict[str, dict[str, Any]]) -> list[str]:
+    return [url for url in raw_detail_urls_from_gate_evidence(gates) if not concrete_job_detail_url(url)]
 
 
 def uniqueness_summary_from_gate_evidence(gates: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -257,6 +327,22 @@ def connector_candidate_outcome(
             stop_reason="candidate source type is not an employer-origin source type",
             evidence={
                 "source_type_candidate": candidate.source_type_candidate,
+                "gate_state_summary": summarize_gate_state(gates),
+            },
+        )
+
+
+    valid_detail_urls = detail_urls_from_gate_evidence(gates)
+    rejected_detail_urls = rejected_detail_urls_from_gate_evidence(gates)
+    if not valid_detail_urls:
+        return GateOutcome(
+            gate_name=CONNECTOR_CANDIDATE_GATE,
+            gate_status="manual_review_required",
+            decision="manual_review_required",
+            stop_reason="detail evidence does not contain concrete job-detail URLs",
+            evidence={
+                "raw_detail_urls": raw_detail_urls_from_gate_evidence(gates),
+                "rejected_detail_urls": rejected_detail_urls,
                 "gate_state_summary": summarize_gate_state(gates),
             },
         )
