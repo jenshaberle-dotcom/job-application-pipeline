@@ -220,6 +220,7 @@ Goals:
 - [x] Add employer-origin connector-candidate gate agent
 - [x] Add employer-origin connector implementation agent
 - [x] Add employer-origin detail evidence repair agent
+- [x] Add employer-origin agent chain driver
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets
