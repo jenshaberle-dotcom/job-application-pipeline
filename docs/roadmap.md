@@ -228,7 +228,7 @@ Goals:
 ## S2O — Export-as-Input Refactoring Audit
 
 - [x] Document remaining export-as-input refactoring scope
-- [ ] Refactor or retire Finanz Informatik legacy S2J/S2K export handoff
+- [x] Retire Finanz Informatik legacy S2J/S2K local handoff
 - [ ] Replace historical-burden hot-store removal file handoff with DB-backed reviewed state
 - [ ] Add regression guard against new export-as-input workflows before cloud/CI productionization
 

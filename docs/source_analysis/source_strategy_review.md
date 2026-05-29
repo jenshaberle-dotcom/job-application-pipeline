@@ -186,28 +186,11 @@ S2I has been documented in `docs/source_analysis/finanz_informatik_bounded_sourc
 
 It defines the Finanz Informatik spike as read-only, export-first and relevance-gated. The design explicitly prevents broad all-job ingestion and requires URL gates, exclusion gates, request boundaries and stop conditions before any connector or Bronze persistence decision.
 
-S2J has been documented in `docs/source_analysis/finanz_informatik_export_first_spike.md`.
-
-It implements the Finanz Informatik spike as a read-only export-first preview script. The script extracts listing-level candidate links, applies S2I gates and writes review artifacts under `exports/`. It still does not fetch detail pages, write to Bronze, activate a source target or approve connector implementation.
-
-The next implementation decision after S2G should select one of these moves:
-
-- review the S2J Finanz Informatik export artifacts before any persistence or connector decision
-- activate one Finanz Informatik employer-origin or ATS-near source target only if manual review supports it
-- defer implementation if the path requires broad crawling, browser automation or unclear data usage rights
-- adjust search-intent / term-set handling if missing candidates appear to be vocabulary-driven
-- keep using aggregators as bounded discovery aids, not as broad automated coverage replacements
-
+S2J was an early Finanz Informatik source-target spike. In S2O-A1, its active script path was retired because the project now uses bounded connector-candidate preview logic instead of local handoff artifacts.
 
 ### S2K — Finanz Informatik Detail-Page Probe
 
-S2K has been documented in `docs/source_analysis/finanz_informatik_detail_page_probe.md`.
-
-It adds a tiny detail-page probe for only the selected S2J Hannover candidates.
-The probe remains read-only and export-first.
-It does not approve Bronze persistence, connector activation or recurring ingestion.
-It exists to decide whether Finanz Informatik provides enough detail-page evidence for a later RawJobRecord-shaped preview,
-or whether the source should remain a manual/watchlist candidate.
+S2K was an early tiny detail-page probe. In S2O-A1, its active script path was retired because S2L/S2N now use live connector-candidate preview data and current database evidence.
 
 ### S2L — Finanz Informatik Incremental Uniqueness Review
 
@@ -244,4 +227,13 @@ S2O has been documented in `docs/source_analysis/export_as_input_refactoring_aud
 
 It captures the remaining local export-as-input workflows that must be refactored before cloud migration or production-like operation. Generated files may remain useful as human-readable review artifacts, but they must not become hidden pipeline inputs, activation gates, destructive-operation inputs or migration dependencies.
 
-Known follow-ups include the legacy Finanz Informatik S2J/S2K handoff and the historical-burden hot-store removal handoff. S2L and S2N are already refactored to use live connector-candidate preview data and current database evidence instead of local export files.
+Known follow-ups now focus on the historical-burden hot-store removal handoff and a regression guard against new export-as-input workflows. The legacy Finanz Informatik S2J/S2K local handoff has been retired in S2O-A1. S2L and S2N are already refactored to use live connector-candidate preview data and current database evidence instead of local export files.
+
+
+### S2O-A1 — Finanz Informatik Legacy Spike Retirement
+
+S2O-A1 has been documented in `docs/source_analysis/finanz_informatik_legacy_spikes_retirement.md`.
+
+It removes the old Finanz Informatik S2J/S2K local handoff scripts from the active codebase. The project keeps the bounded-source lessons, but future Finanz Informatik decisions must use the connector-preview-backed and DB-backed S2L/S2N path.
+
+This keeps local review artifacts out of activation and persistence decisions and avoids carrying obsolete handoff logic into cloud/CI work.
