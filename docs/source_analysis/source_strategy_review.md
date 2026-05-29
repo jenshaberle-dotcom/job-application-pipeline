@@ -279,3 +279,9 @@ This follows the S2Q connector build process and prevents future scripts or agen
 S2S introduces a bounded gate-agent MVP for employer-origin source candidates.
 
 The agent uses the S2R DB-backed gate-state model and executes the first S2Q gates up to relevance. It performs a single bounded read-only request, records decisions in PostgreSQL and stops at the first failed or manual-review gate. It does not generate connector code, activate sources, write Bronze data or rely on CSV/Excel/export artifacts as inputs.
+
+## S2T Employer-Origin Detail Evidence and Incremental Uniqueness Agent
+
+S2T extends the employer-origin gate-agent workflow beyond early reachability and relevance gates.
+
+It reads DB-backed candidate state, fetches a bounded set of detail pages, records detail evidence and compares candidates against current raw/Silver evidence. A candidate may move to `connector_candidate` only when incremental value is plausible. The agent still does not generate connector code, activate sources, write Bronze rows or use CSV/Excel/export artifacts as inputs.
