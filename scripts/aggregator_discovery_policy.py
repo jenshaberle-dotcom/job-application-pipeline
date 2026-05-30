@@ -8,11 +8,13 @@ employer-origin lifecycle/queue instead.
 
 from __future__ import annotations
 
-import re
-import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+
+from src.normalization.company_keys import (
+    company_key_matches,
+    normalize_company_key,
+)
 
 
 RECHECK_INTERVAL_DAYS = 30
@@ -64,29 +66,6 @@ NON_RECHECKABLE_REASON_PATTERNS = (
     "irrelevant industry",
 )
 
-LEGAL_SUFFIX_TOKENS = {
-    "ag",
-    "se",
-    "gmbh",
-    "kg",
-    "kgaa",
-    "ohg",
-    "ug",
-    "eg",
-    "mbh",
-    "co",
-    "company",
-    "group",
-    "holding",
-    "holdings",
-    "und",
-    "inc",
-    "ltd",
-    "llc",
-    "plc",
-}
-
-
 @dataclass(frozen=True)
 class KnownEmployerCandidate:
     candidate_id: int
@@ -103,11 +82,30 @@ class KnownEmployerCandidate:
 
 
 @dataclass(frozen=True)
+class AggregatorCompanySignal:
+    """One company signal from an aggregator/discovery source.
+
+    StepStone is currently the main producer for this path. The signal is derived
+    from Silver rows, not from live HTTP or export files.
+    """
+
+    source_name: str
+    company: str
+    silver_job_count: int
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
+
+
+@dataclass(frozen=True)
 class AggregatorSuppressionDecision:
     company: str
     normalized_company_key: str
     decision: str
     reason: str
+    aggregator_source_name: str | None = None
+    silver_job_count: int = 0
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
     known_candidate_id: int | None = None
     known_candidate_status: str | None = None
     known_candidate_source_name: str | None = None
@@ -118,24 +116,14 @@ class AggregatorSuppressionDecision:
     def suppressed(self) -> bool:
         return self.decision.startswith("suppress_")
 
+    @property
+    def handoff_action(self) -> str:
+        if self.recheck_eligible:
+            return "queue_employer_origin_recheck"
+        if self.suppressed:
+            return "suppress_from_aggregator_discovery"
+        return "keep_for_new_candidate_discovery"
 
-def normalize_company_key(value: Any) -> str:
-    """Normalize company names into a stable comparison key.
-
-    This is intentionally conservative. It removes legal suffix noise, but it does
-    not try to solve all identity-resolution cases. Later canonical-source matching
-    can replace this with a stronger model/table.
-    """
-
-    if value is None:
-        return ""
-
-    text = unicodedata.normalize("NFKD", str(value))
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = text.lower().replace("&", " und ")
-    text = re.sub(r"[^a-z0-9]+", " ", text)
-    tokens = [token for token in text.split() if token and token not in LEGAL_SUFFIX_TOKENS]
-    return "_".join(tokens)
 
 
 def reason_text(gate_name: str | None, stop_reason: str | None, evidence: dict[str, Any] | None = None) -> str:
@@ -231,6 +219,52 @@ def build_known_candidate_index(
     return index
 
 
+def find_known_candidate_for_company_key(
+    normalized_company_key: str,
+    known_candidates: list[KnownEmployerCandidate],
+) -> KnownEmployerCandidate | None:
+    index = build_known_candidate_index(known_candidates)
+
+    exact = index.get(normalized_company_key)
+    if exact is not None:
+        return exact
+
+    for candidate_key in sorted(index, key=len, reverse=True):
+        if company_key_matches(normalized_company_key, candidate_key):
+            return index[candidate_key]
+
+    return None
+
+
+def suppress_aggregator_signal(
+    signal: AggregatorCompanySignal,
+    known_candidates: list[KnownEmployerCandidate],
+    *,
+    now: datetime | None = None,
+) -> AggregatorSuppressionDecision:
+    decision = suppress_aggregator_company(
+        signal.company,
+        known_candidates,
+        now=now,
+    )
+
+    return AggregatorSuppressionDecision(
+        company=decision.company,
+        normalized_company_key=decision.normalized_company_key,
+        decision=decision.decision,
+        reason=decision.reason,
+        aggregator_source_name=signal.source_name,
+        silver_job_count=signal.silver_job_count,
+        first_seen_at=signal.first_seen_at,
+        last_seen_at=signal.last_seen_at,
+        known_candidate_id=decision.known_candidate_id,
+        known_candidate_status=decision.known_candidate_status,
+        known_candidate_source_name=decision.known_candidate_source_name,
+        recheck_eligible=decision.recheck_eligible,
+        recheck_reason=decision.recheck_reason,
+    )
+
+
 def suppress_aggregator_company(
     company: str,
     known_candidates: list[KnownEmployerCandidate],
@@ -246,7 +280,7 @@ def suppress_aggregator_company(
             reason="company name is empty or not normalizable",
         )
 
-    candidate = build_known_candidate_index(known_candidates).get(normalized)
+    candidate = find_known_candidate_for_company_key(normalized, known_candidates)
     if candidate is None:
         return AggregatorSuppressionDecision(
             company=company,

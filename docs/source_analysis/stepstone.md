@@ -861,3 +861,28 @@ The connector must remain bounded to search-result cards unless a later ADR expl
 No detail-page fetching, uncontrolled pagination or production-scale crawling should be added as part of normal connector evolution.
 
 The next strategic step is source-value and search-quality evaluation, combined with source-target lineage, so that StepStone can help discover employer-near or ATS-near canonical source candidates without becoming the canonical source itself.
+
+## S4F Feedback Loop Update
+
+StepStone discovery now uses DB-backed suppression review state for known employer-origin candidates. Repeated StepStone visibility for a company that is already present in `employer_origin_source_candidates` is no longer treated as new discovery value. It is suppressed from the aggregator discovery path and, where policy allows, handed over as an employer-origin lifecycle recheck signal.
+
+This reinforces the current StepStone boundary: bounded discovery signal, not broad crawl, not canonical source and not lifecycle owner for known employer-origin candidates.
+
+See `docs/source_analysis/aggregator_discovery_feedback_loop.md`.
+
+## Feed-Forward Known-Candidate Suppression
+
+StepStone discovery is not only reviewed after ingestion. The ingestion path now
+uses DB-backed employer-origin candidate company keys as a local suppression filter
+for the next bounded StepStone run.
+
+The StepStone connector still fetches exactly one search-result page and does not
+paginate. After parsing result cards, the ingestion runner suppresses cards whose
+company normalizes to an existing `employer_origin_source_candidates` entry or a
+token-bound employer-group variant before
+Bronze persistence. If all visible cards are known candidates, the run can complete
+with zero persisted StepStone jobs.
+
+This is intentionally a local pre-persistence filter, not an assumed StepStone
+server-side exclusion feature. A server-side exclusion syntax must not be added
+without a separate bounded evidence probe.

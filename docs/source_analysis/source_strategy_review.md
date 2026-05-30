@@ -365,3 +365,5 @@ Known active company -> monitor through source lifecycle tracking
 
 The rule prevents aggregator loops while preserving source-value learning. It also keeps future AI agents from treating recurring StepStone visibility as permission to repeatedly create the same connector candidate.
 
+S4F adds DB-backed suppression review snapshots for this feedback loop. The snapshot tables persist review evidence and handoff actions such as `keep_for_new_candidate_discovery`, `suppress_from_aggregator_discovery` and `queue_employer_origin_recheck` without activating sources or writing Bronze rows.
+

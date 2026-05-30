@@ -670,3 +670,46 @@ Key fields:
 - `eligible_for_future_removal` — candidate flag; not an execution approval
 - `execution_status` — later execution result state
 - `item_snapshot` — JSONB item snapshot for auditability
+
+---
+
+## aggregator_discovery_suppression_batches
+
+DB-backed review batches for aggregator-discovery suppression decisions.
+
+The table supports the StepStone feedback loop where aggregator-origin company
+signals are compared against known employer-origin candidates.
+
+Key fields:
+
+- `id` — review batch identifier
+- `decision_scope` — currently `stepstone_known_candidate_suppression`
+- `aggregator_sources` — source names inspected, currently usually `stepstone`
+- `company_count`, `suppressed_count`, `kept_for_discovery_review_count`, `recheck_eligible_known_candidate_count` — review counters
+- `reviewed_by` — human or agent label that persisted the snapshot
+- `evidence` — JSONB boundary and summary evidence
+
+Boundary:
+
+These batches are review state only. They do not activate sources, register
+connectors, write Bronze rows, modify schedules or approve destructive operations.
+
+## aggregator_discovery_suppression_items
+
+Per-company suppression decisions belonging to an aggregator-discovery suppression
+batch.
+
+Key fields:
+
+- `batch_id` — owning suppression batch
+- `aggregator_source_name` — source that produced the company signal, for example `stepstone`
+- `company_name` and `normalized_company_key` — company signal used for matching
+- `silver_job_count`, `first_seen_at`, `last_seen_at` — current Silver observation evidence
+- `decision` — suppression decision such as `keep_for_discovery_review` or `suppress_known_connector_candidate`
+- `handoff_action` — review handoff such as `keep_for_new_candidate_discovery`, `suppress_from_aggregator_discovery` or `queue_employer_origin_recheck`
+- `known_candidate_id`, `known_candidate_status`, `known_candidate_source_name` — employer-origin lifecycle reference when matched
+- `recheck_eligible`, `recheck_reason` — lifecycle recheck indicator and reason
+- `evidence` — JSONB decision snapshot
+
+The handoff action is advisory review state. It does not enqueue, approve or execute
+connector work by itself.

@@ -104,3 +104,66 @@ def test_temporary_technical_issue_keeps_repair_semantics() -> None:
         stop_reason="temporary network issue",
     )
 
+
+
+def test_stepstone_signal_carries_handoff_metadata() -> None:
+    from scripts.aggregator_discovery_policy import (
+        AggregatorCompanySignal,
+        suppress_aggregator_signal,
+    )
+
+    signal = AggregatorCompanySignal(
+        source_name="stepstone",
+        company="Finanz Informatik GmbH & Co. KG",
+        silver_job_count=3,
+        first_seen_at="2026-05-01T00:00:00+00:00",
+        last_seen_at="2026-05-30T00:00:00+00:00",
+    )
+
+    decision = suppress_aggregator_signal(signal, [known_candidate()])
+
+    assert decision.aggregator_source_name == "stepstone"
+    assert decision.silver_job_count == 3
+    assert decision.decision == "suppress_known_connector_candidate"
+    assert decision.handoff_action == "queue_employer_origin_recheck"
+
+
+def test_active_signal_is_suppressed_without_recheck_handoff() -> None:
+    from scripts.aggregator_discovery_policy import (
+        AggregatorCompanySignal,
+        suppress_aggregator_signal,
+    )
+
+    signal = AggregatorCompanySignal(
+        source_name="stepstone",
+        company="Finanz Informatik GmbH & Co. KG",
+        silver_job_count=1,
+    )
+
+    decision = suppress_aggregator_signal(
+        signal,
+        [known_candidate(status="active_controlled")],
+    )
+
+    assert decision.decision == "suppress_active_connector_candidate"
+    assert decision.recheck_eligible is False
+    assert decision.handoff_action == "suppress_from_aggregator_discovery"
+
+def test_suppresses_employer_group_variant_for_known_candidate() -> None:
+    candidate = KnownEmployerCandidate(
+        candidate_id=2,
+        company_key="hdi",
+        company_name="HDI AG",
+        source_name_candidate="hdi:hannover",
+        source_family_candidate="hdi",
+        status="manual_review_required",
+        risk_level="medium",
+        latest_gate_name="detail_evidence_gate",
+        latest_stop_reason="missing detail evidence",
+    )
+
+    decision = suppress_aggregator_company("HDI Global", [candidate])
+
+    assert decision.decision == "suppress_known_connector_candidate"
+    assert decision.known_candidate_id == 2
+    assert decision.known_candidate_source_name == "hdi:hannover"

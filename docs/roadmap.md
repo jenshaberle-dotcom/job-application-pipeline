@@ -233,6 +233,8 @@ Goals:
 - [x] Align S4 gate vocabulary with DB constraints
 - [x] Add S4 post-artifact chain and queue orchestration
 - [x] Add connector registry foundation for non-activating registration preparation
+- [x] Add DB-backed aggregator discovery suppression snapshots for StepStone feedback loop
+- [x] Add feed-forward StepStone known-candidate suppression before Bronze persistence
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets
