@@ -6,34 +6,13 @@ import sys
 from collections.abc import Sequence
 
 from src.connectors.base import SearchProfile
-from src.connectors.bundesagentur import BundesagenturConnector
-from src.connectors.finanz_informatik import FinanzInformatikConnector
-from src.connectors.greenhouse import GreenhouseConnector
-from src.connectors.personio import PersonioConnector
-from src.connectors.stepstone import StepStoneConnector
+from src.connectors.registry import create_connector as registry_create_connector
 from src.ingestion.repository import JobIngestionRepository
 from src.ingestion.runner import JobIngestionRunner
 
 
 def create_connector(source_name: str):
-    if source_name == "bundesagentur_fuer_arbeit":
-        return BundesagenturConnector()
-
-    if source_name.startswith("greenhouse:"):
-        board_token = source_name.split(":", 1)[1]
-        return GreenhouseConnector(board_token=board_token)
-
-    if source_name.startswith("personio:"):
-        target_key = source_name.split(":", 1)[1]
-        return PersonioConnector(target_key=target_key)
-
-    if source_name == "finanz_informatik:hannover":
-        return FinanzInformatikConnector()
-
-    if source_name == "stepstone":
-        return StepStoneConnector()
-
-    raise ValueError(f"No connector configured for source: {source_name}")
+    return registry_create_connector(source_name)
 
 
 LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"

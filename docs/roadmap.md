@@ -232,6 +232,7 @@ Goals:
 - [x] Add employer-origin registration execution plan
 - [x] Align S4 gate vocabulary with DB constraints
 - [x] Add S4 post-artifact chain and queue orchestration
+- [x] Add connector registry foundation for non-activating registration preparation
 - [ ] Application workflow tracking
 - [ ] Application status model
 - [ ] API-oriented analytical datasets

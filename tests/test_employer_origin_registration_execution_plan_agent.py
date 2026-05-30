@@ -44,6 +44,7 @@ def test_execution_plan_allowed_after_final_approval_and_remains_non_activating(
     assert any("Do not write Bronze" in item for item in plan.forbidden)
     assert plan.evidence["boundary"]["source_activation_allowed"] is False
     assert plan.evidence["agent"] == "s4c_registration_execution_plan_agent"
+    assert plan.evidence["boundary"]["registration_target"] == "src.connectors.registry / src.connectors.employer_origin_registry"
 
 
 def test_execution_plan_markdown_contains_boundary() -> None:
@@ -52,6 +53,7 @@ def test_execution_plan_markdown_contains_boundary() -> None:
     assert "Registration Execution Plan" in markdown
     assert "Forbidden Actions" in markdown
     assert "does not modify connector registration" in markdown
+    assert "code-backed connector registry" in markdown
 
 def test_execution_plan_is_not_allowed_for_active_controlled_source() -> None:
     active = SourceCandidate(
