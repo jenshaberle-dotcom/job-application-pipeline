@@ -134,6 +134,36 @@ class JobIngestionRepository:
             for row in rows
         ]
 
+    def load_employer_origin_candidate_company_keys(self) -> set[str]:
+        """Load DB-backed employer-origin company keys for aggregator suppression.
+
+        Aggregator discovery sources such as StepStone should not repeatedly spend
+        their bounded result-card budget on employers that are already known as
+        employer-origin candidates. This method returns raw company identifiers;
+        normalization is intentionally performed in the ingestion filter so tests
+        and non-DB call sites can use the same policy.
+        """
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT company_key, company_name, source_family_candidate
+                    FROM employer_origin_source_candidates
+                    ORDER BY company_key, id;
+                    """
+                )
+
+                rows = cur.fetchall()
+
+        values: set[str] = set()
+        for row in rows:
+            for value in row:
+                if value is not None and str(value).strip():
+                    values.add(str(value))
+
+        return values
+
     def create_ingestion_run(
         self,
         source_name: str,

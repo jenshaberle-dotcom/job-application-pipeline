@@ -160,3 +160,41 @@ Boundary:
 
 This keeps StepStone useful as a bounded company-discovery signal without repeatedly rediscovering companies that are already managed by the employer-origin candidate lifecycle.
 
+## S4F Update: DB-backed Suppression Review State
+
+The StepStone feedback loop now has optional DB-backed review snapshots.
+
+The suppression agent still defaults to read-only preview mode:
+
+```bash
+python -m scripts.run_aggregator_discovery_suppression_agent --limit 50
+```
+
+After manual inspection it can persist review-state only:
+
+```bash
+python -m scripts.run_aggregator_discovery_suppression_agent \
+  --limit 50 \
+  --write-snapshot \
+  --reviewed-by manual
+```
+
+This writes only the displayed/selected review set. Omit `--limit` for a full-source snapshot.
+
+This writes suppression review batches/items, not Bronze rows. It does not activate
+sources, register connectors, call external websites, change scheduler behavior or
+use exports as process inputs.
+
+See `docs/source_analysis/aggregator_discovery_feedback_loop.md`.
+
+## Feed-Forward Suppression Boundary
+
+The suppression policy is now used in two places:
+
+1. review snapshots from existing Silver StepStone company signals
+2. ingestion-time local suppression before new StepStone result cards are persisted
+
+This means known employer-origin candidates should no longer create additional
+StepStone discovery rows just because they remain visible on the first bounded
+StepStone page. The first page may therefore produce fewer than 25 accepted records
+or no records at all.

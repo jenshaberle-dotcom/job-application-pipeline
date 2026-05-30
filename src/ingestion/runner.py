@@ -3,6 +3,10 @@ import sys
 from typing import Any
 
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchTerm
+from src.ingestion.aggregator_discovery_filter import (
+    filter_known_employer_origin_candidates,
+    normalize_exclusion_keys,
+)
 from src.ingestion.diagnostics import (
     classify_exception,
     format_ingestion_failure,
@@ -60,6 +64,18 @@ def get_record_display_company(record: RawJobRecord) -> str:
         or get_nested_value(record.raw_data, ("job", "company"))
         or MISSING_DISPLAY_VALUE
     )
+
+
+def load_aggregator_discovery_exclusion_keys(repository: JobIngestionRepository) -> set[str]:
+    loader = getattr(repository, "load_employer_origin_candidate_company_keys", None)
+    if loader is None:
+        return set()
+
+    return normalize_exclusion_keys(loader())
+
+
+def should_apply_aggregator_discovery_suppression(source_name: str) -> bool:
+    return source_name == "stepstone"
 
 
 class JobIngestionRunner:
@@ -141,6 +157,17 @@ class JobIngestionRunner:
                     search_term=search_term.search_term,
                 )
 
+            suppressed_aggregator_records = []
+            if should_apply_aggregator_discovery_suppression(self.connector.source_name):
+                filter_result = filter_known_employer_origin_candidates(
+                    records=records,
+                    excluded_company_keys=load_aggregator_discovery_exclusion_keys(
+                        self.repository
+                    ),
+                )
+                records = filter_result.kept_records
+                suppressed_aggregator_records = filter_result.suppressed_records
+
             inserted_count = 0
             duplicate_count = 0
 
@@ -152,6 +179,18 @@ class JobIngestionRunner:
 
             if not self.connector.capabilities.supports_keyword:
                 print(f"{len(records)} Jobs nach lokaler Keyword-Filterung")
+
+            if suppressed_aggregator_records:
+                print(
+                    f"{len(suppressed_aggregator_records)} StepStone-Ergebnisse "
+                    "wegen bekannter Employer-Origin-Kandidaten unterdrückt"
+                )
+                for suppressed_record in suppressed_aggregator_records:
+                    print(
+                        "Unterdrückt: "
+                        f"{suppressed_record.title or MISSING_DISPLAY_VALUE} | "
+                        f"{suppressed_record.company_name}"
+                    )
 
             for record in records:
                 new_id = self.repository.save_raw_job(
