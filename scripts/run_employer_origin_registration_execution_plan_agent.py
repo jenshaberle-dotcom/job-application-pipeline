@@ -100,8 +100,8 @@ def build_execution_plan(candidate: SourceCandidate, gates: dict[str, GateReview
         )
 
     steps = (
-        f"Register `{candidate.source_name_candidate}` in ingestion CLI/runner connector mapping.",
-        f"Import `src.connectors.{module_name}` and its connector class.",
+        f"Register `{candidate.source_name_candidate}` in the code-backed connector registry, not directly in CLI control flow.",
+        f"Import `src.connectors.{module_name}` and its connector class from the employer-origin registry extension.",
         "Run connector-specific tests and full test suite.",
         "Run a bounded manual ingestion preview if supported.",
         "Prepare a separate controlled activation migration/search-profile change.",
@@ -115,7 +115,7 @@ def build_execution_plan(candidate: SourceCandidate, gates: dict[str, GateReview
     )
 
     rollback = (
-        "Remove connector mapping from ingestion CLI/runner.",
+        "Remove connector mapping from the code-backed connector registry.",
         "Revert source-profile activation migration if created in a later activation PR.",
         "Keep raw_jobs unchanged unless a later controlled activation wrote new rows.",
     )
@@ -141,6 +141,7 @@ def build_execution_plan(candidate: SourceCandidate, gates: dict[str, GateReview
         },
         "boundary": {
             "connector_registration_plan_only": True,
+            "registration_target": "src.connectors.registry / src.connectors.employer_origin_registry",
             "source_activation_allowed": False,
             "bronze_persistence_allowed": False,
             "recurring_ingestion_allowed": False,

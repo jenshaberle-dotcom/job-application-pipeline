@@ -13,7 +13,7 @@ The workflow now supports a bounded progression from DB-backed gates to reposito
 1. S4A generates connector candidate artifacts only after the required gates and concrete job-detail evidence are present.
 2. S4B validates existing connector artifacts through compile/import/test/safe-preview evidence.
 3. S4C final approval requires the exact token `approve_connector_registration`.
-4. Registration planning remains non-activating and does not alter runner, scheduler or Bronze persistence behavior.
+4. Registration planning remains non-activating and targets the code-backed connector registry instead of direct CLI branches.
 
 ## Architecture Boundary
 
@@ -35,3 +35,7 @@ This orchestration does not:
 A passed `connector_validation_gate` only means the connector candidate is ready for human final approval. Registration planning remains blocked until `final_approval_gate` is passed with decision `approve_connector_registration`.
 
 The candidate queue intentionally has no approval-token path. It can surface the stop condition, but it cannot approve.
+
+## S4E Registry Foundation
+
+The post-artifact workflow now has a code-backed connector registry foundation. This allows future registration preparation to add connector factories in one explicit registry extension while keeping source activation, Bronze writes and scheduler changes separate.
