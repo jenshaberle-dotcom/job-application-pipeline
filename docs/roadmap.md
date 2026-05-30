@@ -297,3 +297,5 @@ Goals:
 - Improve operational robustness
 - Support scalable deployment
 - Prepare production-style operations
+
+- S4G: Employer-Origin Approval Workspace for local browser-based gate/action review and explicit implementation/registration approvals.
