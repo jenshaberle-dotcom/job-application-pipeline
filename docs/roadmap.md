@@ -298,4 +298,5 @@ Goals:
 - Support scalable deployment
 - Prepare production-style operations
 
-- S4G: Employer-Origin Approval Workspace for local browser-based gate/action review and explicit implementation/registration approvals.
+- S4G: Employer-Origin Approval Workspace for local browser-based gate/action review, explicit implementation/registration approvals and 05A Balanced Intelligence UI alignment.
+- S4H: Approval Workspace Candidate Scaling with queue tabs, candidate search and compact 40+-candidate review navigation.

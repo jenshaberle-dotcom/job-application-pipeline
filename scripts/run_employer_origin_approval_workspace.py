@@ -5,7 +5,7 @@ import os
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 from typing import Any
 
 import psycopg
@@ -82,7 +82,7 @@ def run_approved_command(command: tuple[str, ...]) -> str:
 
 
 class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
-    server_version = "EmployerOriginApprovalWorkspace/0.1"
+    server_version = "EmployerOriginApprovalWorkspace/0.2"
 
     @property
     def workspace_state(self) -> WorkspaceState:
@@ -97,14 +97,19 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
-        if self.path == "/favicon.ico":
+        parsed = urlparse(self.path)
+        if parsed.path == "/favicon.ico":
             self.send_response(204)
             self.end_headers()
             return
 
-        if self.path not in {"/", "/index.html"}:
+        if parsed.path not in {"/", "/index.html"}:
             self.send_error(404)
             return
+
+        fields = parse_qs(parsed.query)
+        selected_view = fields.get("view", ["all"])[0]
+        search_query = fields.get("q", [""])[0]
 
         queue_items, gates_by_candidate_id = load_queue_state(self.workspace_state)
         html = render_workspace_html(
@@ -114,6 +119,8 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
             reviewed_by=self.workspace_state.reviewed_by,
             write_actions_enabled=self.workspace_state.allow_write_actions,
             flash_message=self.workspace_state.flash_message,
+            selected_view=selected_view,
+            search_query=search_query,
         )
         self.workspace_state.flash_message = None
         self.send_html(html)
@@ -123,7 +130,8 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
             self.workspace_state.flash_message = "Workspace shutdown requested from browser."
             self.send_html(
                 "<!doctype html><html><head><meta charset='utf-8'><title>Workspace stopped</title></head>"
-                "<body><main><h1>Employer-Origin Approval Workspace stopped</h1>"
+                "<body style='font-family: system-ui; background: #07111f; color: #e6f3ff; padding: 2rem;'>"
+                "<main><h1>Employer-Origin Approval Workspace stopped</h1>"
                 "<p>You can close this browser tab now.</p></main></body></html>"
             )
             threading.Thread(target=self.server.shutdown, daemon=True).start()  # type: ignore[attr-defined]
@@ -200,15 +208,15 @@ def run_server(args: argparse.Namespace) -> None:
     server = ThreadingHTTPServer((args.host, args.port), ApprovalWorkspaceHandler)
     server.workspace_state = state  # type: ignore[attr-defined]
     mode = "write-enabled" if args.allow_write_actions else "read-only"
-    print(f"Job-Pipeline Approval Workspace running at http://{args.host}:{args.port}/ ({mode})")
+    print(f"Employer-Origin Approval Workspace running at http://{args.host}:{args.port}/ ({mode})")
     print("Boundary: no source activation, no Bronze writes, no scheduler changes.")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nJob-Pipeline Approval Workspace stopped by user.")
+        print("\nEmployer-Origin Approval Workspace stopped by user.")
     finally:
         server.server_close()
-        print("Job-Pipeline Approval Workspace stopped.")
+        print("Employer-Origin Approval Workspace stopped.")
 
 
 def main() -> None:
