@@ -68,6 +68,20 @@ That keeps the console workflow and browser workflow aligned:
 - the user only approves implementation/registration boundary crossings
 - controlled activation remains a later, separate step
 
+## Candidate Scaling UX
+
+S4H adds first scaling controls for a larger employer-origin candidate set. The workspace keeps compact cards as
+the default representation and adds browser-side navigation backed by the same DB queue state:
+
+- view tabs for all candidates, review-required candidates, approval-required candidates, ready/next-step candidates and active sources
+- text search across company name, company key, source candidate, status, next action and current reason
+- visible result counts so the user can see how much of the queue is currently filtered
+- empty-state messaging instead of a blank candidate list
+
+This is intentionally still server-rendered HTML. There is no frontend build step and no JavaScript dependency.
+That keeps the local approval surface easy to run, test and review while moving it closer to the intended product
+experience for 40+ employer-origin candidates.
+
 ## StepStone / Aggregator Interaction
 
 This workspace does not change StepStone acquisition behavior.
@@ -77,18 +91,16 @@ candidates before Bronze persistence.
 The workspace may show candidates that were discovered through aggregator signals, but it does not read StepStone,
 change StepStone filters, or write discovery snapshots by itself.
 
+## Visual Design Alignment
 
-## 05A Clean & Balanced Design Alignment
+The workspace follows the project dashboard direction **05A Sweet Spot — Balanced Intelligence**:
 
-The workspace follows the project's **Sweet Spot — Balanced Intelligence** direction, specifically the cleaner 05A dashboard variant rather than the more cinematic 05B variant.
+- deep-ocean / navy background with restrained cyan accents
+- compact metric cards instead of large raw debug blocks
+- human-readable approval language in the primary UI
+- machine-state names only in details or tooltips
+- progress bars and lifecycle phases instead of raw gate ratios as the primary signal
+- no cinematic hero treatment or gaming-style visual overload
 
-Design rules for this approval surface:
-
-- use a deep-ocean/navy background with restrained cyan accents
-- prefer compact scan-first cards over large raw developer output blocks
-- expose human-readable labels such as `Review required`, `Monitoring` and `Ready to build` before raw machine state
-- show gate progress as a progress bar and chips instead of only `passed/manual/blocked/total` counters
-- keep raw gate evidence collapsed until the user actively reviews a candidate
-- preserve a boring, robust local HTML implementation without a frontend framework until the approval workflow justifies one
-
-The UI is intentionally close to the intended dashboard language so product feel can be judged early while the backend gates are still evolving.
+The UI should stay close enough to the intended dashboard product that it can be used for early product-feel review,
+while still remaining a small local approval surface and not a production frontend.

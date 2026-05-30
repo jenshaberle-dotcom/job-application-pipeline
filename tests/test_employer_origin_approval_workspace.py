@@ -6,8 +6,10 @@ from scripts.employer_origin_approval_workspace import (
     IMPLEMENTATION_APPROVAL_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     evaluate_workspace_action,
+    filter_workspace_items,
     render_workspace_html,
     workspace_action_for_item,
+    workspace_view_counts,
 )
 
 
@@ -143,44 +145,74 @@ def test_workspace_html_renders_read_only_dashboard_and_gate_summary() -> None:
         write_actions_enabled=False,
     )
 
-    assert "Job-Pipeline Approval Workspace" in html
-    assert "Sweet Spot — Balanced Intelligence" in html
-    assert "Candidate Landscape" in html
+    assert "Employer-Origin Approval Workspace" in html
     assert "read-only" in html
     assert "Approve connector implementation" in html
     assert "--allow-write-actions" in html
 
 
-def test_workspace_html_uses_human_status_labels_and_progress() -> None:
-    blocked_item = item("manual_review_stop")
+def test_workspace_html_follows_balanced_intelligence_dashboard_language() -> None:
     html = render_workspace_html(
-        [blocked_item],
+        [item("manual_review_stop")],
         gates_by_candidate_id={},
         target_location="hannover",
         reviewed_by="jens",
         write_actions_enabled=False,
     )
 
-    assert "Review required" in html
-    assert "manual_review_stop" in html
-    assert "10 of 10 gates passed" in html
-    assert "No bounded UI action available" not in html
-    assert "This candidate is intentionally paused" in html
-    assert "phase-tracker" in html
-    assert "Gate progress" in html
+    assert "Sweet Spot — Balanced Intelligence" in html
+    assert "Approval Control Surface" in html
+    assert "Candidate Landscape" in html
+    assert "Connector lifecycle phase" in html
+    assert "StepStone remains a bounded discovery signal" in html
 
 
-def test_workspace_html_uses_05a_balanced_intelligence_language() -> None:
+def test_workspace_filters_items_by_view_and_search_query() -> None:
+    review_item = item("manual_review_stop")
+    active_item = QueueItem(
+        candidate=CandidateSummary(
+            candidate_id=2,
+            company_key="finanz_informatik",
+            company_name="Finanz Informatik",
+            source_name_candidate="finanz_informatik:hannover",
+            source_family_candidate="finanz_informatik",
+            status="active_controlled",
+            risk_level="low",
+            latest_gate_order=None,
+            latest_gate_name=None,
+            blocked_gate_count=0,
+            manual_review_gate_count=0,
+            passed_gate_count=14,
+            total_gate_count=14,
+        ),
+        next_action="monitor_source_lifecycle",
+        reason="active",
+        priority=1,
+        command=None,
+    )
+
+    counts = workspace_view_counts([review_item, active_item])
+    assert counts["all"] == 2
+    assert counts["review_required"] == 1
+    assert counts["active"] == 1
+
+    assert filter_workspace_items([review_item, active_item], selected_view="active") == [active_item]
+    assert filter_workspace_items([review_item, active_item], search_query="finanz") == [active_item]
+
+
+def test_workspace_html_renders_candidate_scaling_controls() -> None:
     html = render_workspace_html(
-        [item("monitor_source_lifecycle")],
+        [item("manual_review_stop")],
         gates_by_candidate_id={},
         target_location="hannover",
         reviewed_by="jens",
-        write_actions_enabled=True,
+        write_actions_enabled=False,
+        selected_view="review_required",
+        search_query="hdi",
     )
 
-    assert "Job-Pipeline Approval Workspace" in html
-    assert "Employer-Origin Agents · Sweet Spot — Balanced Intelligence" in html
-    assert "Candidate Landscape" in html
-    assert "Intelligence by design" in html
-    assert "Active controlled" in html
+    assert "Candidate status filters" in html
+    assert "Review required" in html
+    assert "Search candidates" in html
+    assert "Showing 1 of 1 candidates" in html
+    assert "Clear filters" in html
