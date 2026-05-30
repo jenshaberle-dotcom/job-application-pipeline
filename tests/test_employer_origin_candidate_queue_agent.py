@@ -309,3 +309,24 @@ def test_queue_routes_validated_candidate_to_explicit_approval_stop(tmp_path, mo
 
     assert item.next_action == "stop_explicit_approval_required"
     assert item.command is None
+
+
+def test_queue_routes_recheckable_inactive_candidate_before_repair_loop() -> None:
+    item = classify_queue_item(
+        candidate("hdi", status="manual_review_required"),
+        {
+            "professional_relevance_gate": gate(
+                "professional_relevance_gate",
+                "manual_review_required",
+                "manual_review_required",
+                "fehlende fachliche Relevanz im aktuellen Stellenbestand",
+            )
+        },
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=False,
+    )
+
+    assert item.next_action == "run_employer_origin_recheck"
+    assert item.command is not None
+    assert "run_employer_origin_agent_chain" in item.command

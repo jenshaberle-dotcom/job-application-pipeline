@@ -8,6 +8,10 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from scripts.aggregator_discovery_policy import (
+    KnownEmployerCandidate,
+    candidate_recheck_decision,
+)
 from scripts.run_employer_origin_agent_chain import (
     CONNECTOR_CANDIDATE_GATE,
     GateReview,
@@ -34,6 +38,9 @@ class CandidateSummary:
     manual_review_gate_count: int
     passed_gate_count: int
     total_gate_count: int
+    latest_gate_status: str | None = None
+    latest_stop_reason: str | None = None
+    latest_reviewed_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -148,6 +155,43 @@ def lifecycle_gate_missing_or_not_passed(gates: dict[str, GateReview]) -> bool:
     return lifecycle is None or lifecycle.gate_status != "passed"
 
 
+def recheck_gate_fallback(gates: dict[str, GateReview]) -> GateReview | None:
+    """Pick a lifecycle-relevant gate for recheck classification when the DB
+    summary does not already contain latest gate metadata.
+
+    The database query provides latest_* fields for real queue runs. Unit tests and
+    direct function calls may pass only a gate dictionary. The fallback keeps the
+    recheck policy based on actual gate evidence instead of silently stopping at
+    the generic chain decision.
+    """
+
+    for gate in gates.values():
+        if gate.gate_status in {"manual_review_required", "blocked"}:
+            return gate
+    return None
+
+
+def known_candidate_from_summary(
+    candidate: CandidateSummary,
+    gates: dict[str, GateReview] | None = None,
+) -> KnownEmployerCandidate:
+    fallback = recheck_gate_fallback(gates or {})
+
+    return KnownEmployerCandidate(
+        candidate_id=candidate.candidate_id,
+        company_key=candidate.company_key,
+        company_name=candidate.company_name,
+        source_name_candidate=candidate.source_name_candidate,
+        source_family_candidate=candidate.source_family_candidate,
+        status=candidate.status,
+        risk_level=candidate.risk_level,
+        latest_gate_name=candidate.latest_gate_name or (fallback.gate_name if fallback else None),
+        latest_gate_status=candidate.latest_gate_status or (fallback.gate_status if fallback else None),
+        latest_stop_reason=candidate.latest_stop_reason or (fallback.stop_reason if fallback else None),
+        latest_reviewed_at=candidate.latest_reviewed_at,
+    )
+
+
 def classify_queue_item(
     candidate: CandidateSummary,
     gates: dict[str, GateReview],
@@ -189,6 +233,24 @@ def classify_queue_item(
             command=None,
         )
 
+    recheck_eligible, recheck_reason = candidate_recheck_decision(
+        known_candidate_from_summary(candidate, gates)
+    )
+    if recheck_eligible:
+        return QueueItem(
+            candidate=candidate,
+            next_action="run_employer_origin_recheck",
+            reason=recheck_reason or "candidate is eligible for recheck",
+            priority=35,
+            command=build_chain_command(
+                company_key=candidate.company_key,
+                target_location=target_location,
+                reviewed_by=reviewed_by,
+                attempt_repair=allow_repair,
+                write_connector=False,
+            ),
+        )
+
     chain_decision = next_decision(
         gates,
         company_key=candidate.company_key,
@@ -215,6 +277,7 @@ def classify_queue_item(
         "run_connector_artifact_generator": 20,
         "run_connector_build_readiness_agent": 25,
         "run_connector_candidate_gate": 30,
+        "run_employer_origin_recheck": 35,
         "run_detail_evidence_repair": 40,
         "stop_explicit_approval_required": 85,
         "stop_manual_review_required": 90,
@@ -290,9 +353,21 @@ class QueueRepository:
                     c.risk_level,
                     max(g.gate_order)::int as latest_gate_order,
                     (
-                        array_agg(g.gate_name order by g.gate_order desc)
+                        array_agg(g.gate_name order by g.gate_order desc, g.updated_at desc, g.id desc)
                         filter (where g.gate_name is not null)
                     )[1] as latest_gate_name,
+                    (
+                        array_agg(g.gate_status order by g.gate_order desc, g.updated_at desc, g.id desc)
+                        filter (where g.gate_status is not null)
+                    )[1] as latest_gate_status,
+                    (
+                        array_agg(g.stop_reason order by g.gate_order desc, g.updated_at desc, g.id desc)
+                        filter (where g.stop_reason is not null)
+                    )[1] as latest_stop_reason,
+                    (
+                        array_agg(g.reviewed_at::text order by g.gate_order desc, g.updated_at desc, g.id desc)
+                        filter (where g.reviewed_at is not null)
+                    )[1] as latest_reviewed_at,
                     count(*) filter (where g.gate_status = 'blocked')::int as blocked_gate_count,
                     count(*) filter (where g.gate_status = 'manual_review_required')::int as manual_review_gate_count,
                     count(*) filter (where g.gate_status = 'passed')::int as passed_gate_count,
@@ -324,6 +399,9 @@ class QueueRepository:
                 risk_level=str(row["risk_level"]),
                 latest_gate_order=row["latest_gate_order"],
                 latest_gate_name=row["latest_gate_name"],
+                latest_gate_status=row["latest_gate_status"],
+                latest_stop_reason=row["latest_stop_reason"],
+                latest_reviewed_at=row["latest_reviewed_at"],
                 blocked_gate_count=int(row["blocked_gate_count"]),
                 manual_review_gate_count=int(row["manual_review_gate_count"]),
                 passed_gate_count=int(row["passed_gate_count"]),

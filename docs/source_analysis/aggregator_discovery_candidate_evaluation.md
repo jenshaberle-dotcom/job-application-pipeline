@@ -131,3 +131,32 @@ S2D does not authorize scraping, browser automation, login automation, account a
 S2D does not turn aggregator content into canonical job evidence.
 
 S2D does not persist aggregator descriptions as raw job records.
+
+## S4E Update: Known Candidate Suppression
+
+Aggregator discovery is now treated as a new-candidate discovery path, not as a lifecycle owner for already known employers. When an aggregator match contains a company that is already present in `employer_origin_source_candidates`, the match should be suppressed from the aggregator discovery path with an explicit suppression reason.
+
+Current suppression reasons are policy-level semantics and are intentionally shared by scripts and agents:
+
+- `suppress_known_connector_candidate`: the company is already known as an employer-origin candidate.
+- `suppress_active_connector_candidate`: the company already has an `active_controlled` employer-origin source and belongs to lifecycle monitoring.
+- `suppress_known_hard_stop_candidate`: the company is already known with a hard-stop lifecycle state such as `deprecated`, `disabled` or `abort_documented`.
+- `keep_for_discovery_review`: the company is not known and can still create discovery value.
+
+The DB-backed preview agent is:
+
+```bash
+python -m scripts.run_aggregator_discovery_suppression_agent --limit 50
+```
+
+Boundary:
+
+- reads `employer_origin_source_candidates` and latest gate reviews from PostgreSQL
+- reads aggregator-origin company signals from `silver_jobs`
+- defaults to `source_name = stepstone`
+- performs no HTTP requests
+- performs no database writes
+- does not use CSV/export files as process inputs
+
+This keeps StepStone useful as a bounded company-discovery signal without repeatedly rediscovering companies that are already managed by the employer-origin candidate lifecycle.
+

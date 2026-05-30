@@ -349,3 +349,19 @@ Together these steps move the agent workflow closer to connector construction wh
 S3D validates generated connector candidates before final approval. S3E records explicit human approval through the `approve_connector_registration` token. S3F prepares a registration execution plan after final approval.
 
 Together these agents allow the workflow to approach connector registration while preserving hard boundaries: no source activation, no Bronze writes, no recurring ingestion and no CSV/Excel/export artifacts as inputs.
+
+## S4E Aggregator Feedback Loop Rule
+
+Aggregators are discovery sources for new employer-origin candidates. Once an employer is known in `employer_origin_source_candidates`, repeated aggregator sightings are no longer treated as new exploration value. They are suppressed from the aggregator discovery path and handed over to the employer-origin candidate lifecycle.
+
+This distinction matters for StepStone in particular:
+
+```text
+StepStone finds company -> company is not known -> discovery value
+StepStone finds company -> company is already known -> suppress in discovery path
+Known inactive company -> evaluate through candidate recheck/lifecycle path
+Known active company -> monitor through source lifecycle tracking
+```
+
+The rule prevents aggregator loops while preserving source-value learning. It also keeps future AI agents from treating recurring StepStone visibility as permission to repeatedly create the same connector candidate.
+

@@ -76,3 +76,25 @@ Queue classification also follows the post-artifact sequence:
 6. final approval passed -> non-activating registration execution plan
 
 The queue intentionally does not provide approval tokens and therefore cannot silently approve connector registration.
+
+## S4E Update: Recheck Semantics for Suppressed Aggregator Candidates
+
+Known candidates that are suppressed from aggregator discovery are not forgotten. The queue now has a shared policy hook for recheck eligibility. This keeps aggregator suppression separate from candidate lifecycle management.
+
+A candidate can become recheck-eligible when all of the following are true:
+
+- it has no active controlled connector
+- its status is part of the inactive candidate lifecycle, for example `candidate`, `discovery`, `deferred`, `manual_review_required`, `connector_candidate`, `watchlist` or `degraded`
+- its latest gate or stop reason is recheckable, for example missing or unclear fachliche/professional relevance, missing detail evidence, temporary lack of matching jobs or temporary technical reachability problems
+- it was not reviewed recently according to the shared policy interval
+
+Hard-stop states such as `deprecated`, `disabled` and `abort_documented` are not automatically rechecked. Blocked risk level is also not automatically rechecked.
+
+Queue action:
+
+```text
+run_employer_origin_recheck
+```
+
+This action intentionally routes through the existing bounded employer-origin agent chain instead of reviving the aggregator path.
+
