@@ -308,3 +308,10 @@ Goals:
   - rule-based false-negative risk engine
   - search-term gap foundation
   - Approval Workspace false-negative risk section
+
+
+- [x] S5B Search Term Learning and Reassessment Queue
+  - DB-backed search-term suggestions
+  - reassessment queue for unresolved false-negative risks
+  - preview/write agent for converting S5A risks into review work
+  - Approval Workspace reassessment tab and compact worklist
