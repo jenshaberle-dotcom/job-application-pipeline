@@ -325,3 +325,8 @@ Track validation outcomes for suggested search terms and derive confidence snaps
 ## S5E Guardrailed Search Strategy Adaptation
 
 Create guardrailed, reviewable search-strategy recommendations from validated search-intelligence signals. Recommendations do not mutate active search profiles yet.
+
+
+## S5F — Controlled Trial Search Terms
+
+Add bounded, expiring trial terms from guardrailed strategy recommendations without permanent search-profile mutation.

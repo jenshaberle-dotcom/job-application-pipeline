@@ -15,6 +15,7 @@ from scripts.employer_origin_approval_workspace import (
     WorkspaceReassessmentItem,
     WorkspaceSearchTermConfidence,
     WorkspaceSearchStrategyRecommendation,
+    WorkspaceTrialTerm,
     evaluate_workspace_action,
     render_workspace_html,
 )
@@ -263,6 +264,54 @@ def load_search_strategy_recommendations() -> list[WorkspaceSearchStrategyRecomm
 
 
 
+
+def load_trial_terms() -> list[WorkspaceTrialTerm]:
+    try:
+        with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select
+                        id,
+                        company_key,
+                        source_family_candidate,
+                        suggested_term,
+                        trial_status,
+                        autonomy_level,
+                        guardrail_decision,
+                        trial_expires_at::text,
+                        max_result_volume,
+                        max_noise_rate::text,
+                        applied_by,
+                        updated_at::text
+                    from search_strategy_trial_terms
+                    where trial_status = 'active'
+                    order by trial_expires_at asc, updated_at desc
+                    """
+                )
+                rows = cur.fetchall()
+    except Exception:
+        return []
+
+    return [
+        WorkspaceTrialTerm(
+            trial_id=int(row[0]),
+            company_key=str(row[1]),
+            source_family_candidate=row[2],
+            suggested_term=str(row[3]),
+            trial_status=str(row[4]),
+            autonomy_level=str(row[5]),
+            guardrail_decision=str(row[6]),
+            trial_expires_at=row[7],
+            max_result_volume=int(row[8] or 0),
+            max_noise_rate=str(row[9]),
+            applied_by=str(row[10]),
+            updated_at=row[11],
+        )
+        for row in rows
+    ]
+
+
 class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
     server_version = "EmployerOriginApprovalWorkspace/0.2"
 
@@ -307,6 +356,7 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
             reassessment_items=load_reassessment_items(),
             confidence_items=load_search_term_confidence_items(),
             strategy_recommendations=load_search_strategy_recommendations(),
+            trial_terms=load_trial_terms(),
         )
         self.workspace_state.flash_message = None
         self.send_html(html)
