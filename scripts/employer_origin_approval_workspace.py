@@ -58,6 +58,7 @@ WORKSPACE_VIEWS = (
     ("reassessment", "Reassessment"),
     ("learning", "Learning"),
     ("strategy", "Strategy"),
+    ("trials", "Trials"),
     ("active", "Active"),
 )
 
@@ -108,6 +109,22 @@ class WorkspaceSearchStrategyRecommendation:
     false_negative_sighting_count: int
     guardrail_decision: str
     reason: str
+    updated_at: str | None
+
+
+@dataclass(frozen=True)
+class WorkspaceTrialTerm:
+    trial_id: int
+    company_key: str
+    source_family_candidate: str | None
+    suggested_term: str
+    trial_status: str
+    autonomy_level: str
+    guardrail_decision: str
+    trial_expires_at: str | None
+    max_result_volume: int
+    max_noise_rate: str
+    applied_by: str
     updated_at: str | None
 
 
@@ -846,6 +863,46 @@ def render_search_strategy_recommendation_section(
     )
 
 
+def render_trial_terms_section(
+    trial_terms: list[WorkspaceTrialTerm] | None,
+) -> str:
+    items = trial_terms or []
+    active_items = [item for item in items if item.trial_status == "active"]
+    if not active_items:
+        return ""
+
+    rows: list[str] = []
+    for item in active_items[:8]:
+        source_family = item.source_family_candidate or item.company_key
+        rows.append(
+            "<article class='reassessment-row'>"
+            "<div>"
+            f"<strong>{h(item.company_key)} · {h(item.suggested_term)}</strong>"
+            f"<p class='muted'>bounded trial for source family: {h(source_family)}</p>"
+            "</div>"
+            "<div class='risk-row-facts'>"
+            f"<span>status: {h(humanize_state(item.trial_status))}</span>"
+            f"<span>guardrail: {h(humanize_identifier(item.guardrail_decision))}</span>"
+            f"<span>max volume: {h(item.max_result_volume)}</span>"
+            f"<span>max noise: {h(item.max_noise_rate)}</span>"
+            f"<span>expires: {h(humanize_timestamp(item.trial_expires_at))}</span>"
+            "</div>"
+            "</article>"
+        )
+
+    return (
+        "<section class='risk-section compact-risk panel'>"
+        "<div class='section-heading'>"
+        "<div><span class='eyebrow'>Search Intelligence</span>"
+        "<h3>Controlled Trials</h3></div>"
+        f"<span class='status-pill warn'>{h(len(active_items))} active</span>"
+        "</div>"
+        "<p class='muted'>Approved strategy recommendations become bounded trial terms here. They are scoped, expiring and not permanent search-profile mutations.</p>"
+        f"<div class='risk-list'>{''.join(rows)}</div>"
+        "</section>"
+    )
+
+
 def render_workspace_html(
     queue_items: list[Any],
     gates_by_candidate_id: Mapping[int, Mapping[str, object]],
@@ -860,6 +917,7 @@ def render_workspace_html(
     reassessment_items: list[WorkspaceReassessmentItem] | None = None,
     confidence_items: list[WorkspaceSearchTermConfidence] | None = None,
     strategy_recommendations: list[WorkspaceSearchStrategyRecommendation] | None = None,
+    trial_terms: list[WorkspaceTrialTerm] | None = None,
 ) -> str:
     selected = normalize_view(selected_view)
     filtered_items = filter_workspace_items(
@@ -872,6 +930,8 @@ def render_workspace_html(
     view_counts["reassessment"] = len([item for item in (reassessment_items or []) if item.status == "open"])
     view_counts["learning"] = len(confidence_items or [])
     view_counts["strategy"] = len([item for item in (strategy_recommendations or []) if item.recommendation_status in {"pending_review", "auto_eligible"}])
+    view_counts["trials"] = len([item for item in (trial_terms or []) if item.trial_status == "active"])
+    view_counts["trials"] = len([item for item in (trial_terms or []) if item.trial_status == "active"])
 
     needs_approval = sum(1 for item in queue_items if workspace_action_for_item(item, target_location=target_location, reviewed_by=reviewed_by))
     actionable = sum(1 for item in queue_items if item.command)
@@ -904,6 +964,20 @@ def render_workspace_html(
             "<div class='empty-state'>"
             "<strong>Strategy recommendation mode.</strong>"
             "<p>The strategy recommendation worklist above is the primary view here. Search profiles are not changed automatically in this mode.</p>"
+            "</div>"
+        )
+    elif selected == "trials":
+        candidate_cards = (
+            "<div class='empty-state'>"
+            "<strong>Controlled trial mode.</strong>"
+            "<p>The active trial list above is the primary view here. Trials expire and remain separate from permanent search profiles.</p>"
+            "</div>"
+        )
+    elif selected == "trials":
+        candidate_cards = (
+            "<div class='empty-state'>"
+            "<strong>Controlled trial mode.</strong>"
+            "<p>The active trial list above is the primary view here. Trials expire and remain separate from permanent search profiles.</p>"
             "</div>"
         )
     else:
@@ -1093,6 +1167,7 @@ code {{ color: #d7f4ff; }}
   {render_reassessment_queue_section(reassessment_items)}
   {render_search_intelligence_learning_section(confidence_items)}
   {render_search_strategy_recommendation_section(strategy_recommendations)}
+  {render_trial_terms_section(trial_terms)}
 
   {render_view_controls(selected_view=selected, search_query=search_query, counts=view_counts, visible_count=len(filtered_items), total_count=len(queue_items))}
 
