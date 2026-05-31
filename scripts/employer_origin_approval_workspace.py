@@ -56,6 +56,8 @@ WORKSPACE_VIEWS = (
     ("ready", "Ready / next step"),
     ("false_negative", "False negative risk"),
     ("reassessment", "Reassessment"),
+    ("learning", "Learning"),
+    ("strategy", "Strategy"),
     ("active", "Active"),
 )
 
@@ -87,6 +89,39 @@ class WorkspaceReassessmentItem:
     suggested_search_terms: tuple[str, ...]
     status: str
     updated_at: str | None
+
+
+
+@dataclass(frozen=True)
+class WorkspaceSearchStrategyRecommendation:
+    recommendation_id: int
+    company_key: str
+    source_family_candidate: str | None
+    suggested_term: str
+    recommendation_type: str
+    recommendation_status: str
+    autonomy_level: str
+    confidence_score: str
+    confidence_level: str
+    sample_size: int
+    false_negative_risk_level: str | None
+    false_negative_sighting_count: int
+    guardrail_decision: str
+    reason: str
+    updated_at: str | None
+
+
+@dataclass(frozen=True)
+class WorkspaceSearchTermConfidence:
+    suggested_term: str
+    source_family_candidate: str | None
+    sample_size: int
+    success_count: int
+    failure_count: int
+    noise_count: int
+    confidence_score: str
+    confidence_level: str
+    created_at: str | None
 
 
 @dataclass(frozen=True)
@@ -730,6 +765,87 @@ def render_reassessment_queue_section(
     )
 
 
+def render_search_intelligence_learning_section(
+    confidence_items: list[WorkspaceSearchTermConfidence] | None,
+) -> str:
+    items = confidence_items or []
+    if not items:
+        return ""
+
+    rows: list[str] = []
+    for item in items[:8]:
+        source_family = item.source_family_candidate or "all sources"
+        rows.append(
+            "<article class='reassessment-row'>"
+            "<div>"
+            f"<strong>{h(item.suggested_term)}</strong>"
+            f"<p class='muted'>source family: {h(source_family)}</p>"
+            "</div>"
+            "<div class='risk-row-facts'>"
+            f"<span>confidence: {h(item.confidence_score)}%</span>"
+            f"<span>level: {h(item.confidence_level.title())}</span>"
+            f"<span>sample: {h(item.sample_size)}</span>"
+            f"<span>success: {h(item.success_count)}</span>"
+            f"<span>failed/noisy: {h(item.failure_count + item.noise_count)}</span>"
+            "</div>"
+            "</article>"
+        )
+
+    return (
+        "<section class='risk-section compact-risk panel'>"
+        "<div class='section-heading'>"
+        "<div><span class='eyebrow'>Search Intelligence</span>"
+        "<h3>Learning Loop</h3></div>"
+        f"<span class='status-pill warn'>{h(len(items))} learned term(s)</span>"
+        "</div>"
+        "<p class='muted'>Validated suggestions turn into source-specific confidence. This is review state only; active search profiles are not changed automatically.</p>"
+        f"<div class='risk-list'>{''.join(rows)}</div>"
+        "</section>"
+    )
+
+
+def render_search_strategy_recommendation_section(
+    recommendations: list[WorkspaceSearchStrategyRecommendation] | None,
+) -> str:
+    items = recommendations or []
+    open_items = [item for item in items if item.recommendation_status in {"pending_review", "auto_eligible"}]
+    if not open_items:
+        return ""
+
+    rows: list[str] = []
+    for item in open_items[:8]:
+        fn_risk = item.false_negative_risk_level.upper() if item.false_negative_risk_level else "-"
+        rows.append(
+            "<article class='reassessment-row'>"
+            "<div>"
+            f"<strong>{h(item.company_key)} · {h(item.suggested_term)}</strong>"
+            f"<p class='muted'>{h(item.reason)}</p>"
+            "</div>"
+            "<div class='risk-row-facts'>"
+            f"<span>{h(humanize_identifier(item.recommendation_type))}</span>"
+            f"<span>status: {h(humanize_state(item.recommendation_status))}</span>"
+            f"<span>guardrail: {h(humanize_identifier(item.guardrail_decision))}</span>"
+            f"<span>confidence: {h(item.confidence_score)}%</span>"
+            f"<span>sample: {h(item.sample_size)}</span>"
+            f"<span>false-negative: {h(fn_risk)}</span>"
+            "</div>"
+            "</article>"
+        )
+
+    auto_count = sum(1 for item in open_items if item.recommendation_status == "auto_eligible")
+    return (
+        "<section class='risk-section compact-risk panel'>"
+        "<div class='section-heading'>"
+        "<div><span class='eyebrow'>Search Intelligence</span>"
+        "<h3>Strategy Recommendations</h3></div>"
+        f"<span class='status-pill warn'>{h(len(open_items))} open · {h(auto_count)} auto-eligible</span>"
+        "</div>"
+        "<p class='muted'>Guardrailed recommendations turn validated learning into controlled search-strategy adaptation. They do not mutate search profiles yet.</p>"
+        f"<div class='risk-list'>{''.join(rows)}</div>"
+        "</section>"
+    )
+
+
 def render_workspace_html(
     queue_items: list[Any],
     gates_by_candidate_id: Mapping[int, Mapping[str, object]],
@@ -742,6 +858,8 @@ def render_workspace_html(
     search_query: str = "",
     false_negative_risks: list[WorkspaceFalseNegativeRisk] | None = None,
     reassessment_items: list[WorkspaceReassessmentItem] | None = None,
+    confidence_items: list[WorkspaceSearchTermConfidence] | None = None,
+    strategy_recommendations: list[WorkspaceSearchStrategyRecommendation] | None = None,
 ) -> str:
     selected = normalize_view(selected_view)
     filtered_items = filter_workspace_items(
@@ -752,6 +870,8 @@ def render_workspace_html(
     view_counts = workspace_view_counts(queue_items)
     view_counts["false_negative"] = len([risk for risk in (false_negative_risks or []) if risk.risk_level in {"critical", "high", "medium"}])
     view_counts["reassessment"] = len([item for item in (reassessment_items or []) if item.status == "open"])
+    view_counts["learning"] = len(confidence_items or [])
+    view_counts["strategy"] = len([item for item in (strategy_recommendations or []) if item.recommendation_status in {"pending_review", "auto_eligible"}])
 
     needs_approval = sum(1 for item in queue_items if workspace_action_for_item(item, target_location=target_location, reviewed_by=reviewed_by))
     actionable = sum(1 for item in queue_items if item.command)
@@ -770,6 +890,20 @@ def render_workspace_html(
             "<div class='empty-state'>"
             "<strong>Reassessment worklist mode.</strong>"
             "<p>The reassessment queue above is the primary view here. Use the suggested terms to guide bounded source/profile review.</p>"
+            "</div>"
+        )
+    elif selected == "learning":
+        candidate_cards = (
+            "<div class='empty-state'>"
+            "<strong>Learning loop mode.</strong>"
+            "<p>The learning summary above is the primary view here. Suggestions remain review artifacts until explicitly validated and accepted.</p>"
+            "</div>"
+        )
+    elif selected == "strategy":
+        candidate_cards = (
+            "<div class='empty-state'>"
+            "<strong>Strategy recommendation mode.</strong>"
+            "<p>The strategy recommendation worklist above is the primary view here. Search profiles are not changed automatically in this mode.</p>"
             "</div>"
         )
     else:
@@ -957,6 +1091,8 @@ code {{ color: #d7f4ff; }}
   {render_false_negative_risk_section(false_negative_risks)}
 
   {render_reassessment_queue_section(reassessment_items)}
+  {render_search_intelligence_learning_section(confidence_items)}
+  {render_search_strategy_recommendation_section(strategy_recommendations)}
 
   {render_view_controls(selected_view=selected, search_query=search_query, counts=view_counts, visible_count=len(filtered_items), total_count=len(queue_items))}
 

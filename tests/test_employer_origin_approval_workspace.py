@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from scripts.employer_origin_approval_workspace import (
     IMPLEMENTATION_APPROVAL_TOKEN,
     WorkspaceReassessmentItem,
+    WorkspaceSearchStrategyRecommendation,
     REGISTRATION_APPROVAL_TOKEN,
     evaluate_workspace_action,
     filter_workspace_items,
@@ -274,3 +275,71 @@ def test_workspace_counts_reassessment_view_items() -> None:
 
     assert "Reassessment" in html
     assert "1</strong></a>" in html
+
+
+
+def test_workspace_html_renders_learning_loop_section() -> None:
+    from scripts.employer_origin_approval_workspace import WorkspaceSearchTermConfidence
+
+    html = render_workspace_html(
+        [item('manual_review_stop')],
+        gates_by_candidate_id={},
+        target_location='hannover',
+        reviewed_by='jens',
+        write_actions_enabled=False,
+        selected_view='learning',
+        confidence_items=[
+            WorkspaceSearchTermConfidence(
+                suggested_term='analytics',
+                source_family_candidate='hdi',
+                sample_size=4,
+                success_count=3,
+                failure_count=1,
+                noise_count=0,
+                confidence_score='75.00',
+                confidence_level='high',
+                created_at='2026-05-31',
+            )
+        ],
+    )
+
+    assert 'Learning Loop' in html
+    assert 'analytics' in html
+    assert 'confidence: 75.00%' in html
+    assert 'Learning loop mode' in html
+
+
+
+def test_workspace_html_renders_strategy_recommendations() -> None:
+    html = render_workspace_html(
+        [item("manual_review_stop")],
+        gates_by_candidate_id={},
+        target_location="hannover",
+        reviewed_by="jens",
+        write_actions_enabled=False,
+        selected_view="strategy",
+        strategy_recommendations=[
+            WorkspaceSearchStrategyRecommendation(
+                recommendation_id=1,
+                company_key="hdi",
+                source_family_candidate="hdi",
+                suggested_term="analytics",
+                recommendation_type="ADD_TRIAL_TERM",
+                recommendation_status="pending_review",
+                autonomy_level="manual_approval_required",
+                confidence_score="100.00",
+                confidence_level="low",
+                sample_size=1,
+                false_negative_risk_level="high",
+                false_negative_sighting_count=2,
+                guardrail_decision="bounded_trial_recommended",
+                reason="High false-negative risk with validation evidence.",
+                updated_at="2026-05-31 12:00:00+00",
+            )
+        ],
+    )
+
+    assert "Strategy Recommendations" in html
+    assert "analytics" in html
+    assert "Add trial term" in html
+    assert "Search profiles are not changed automatically" in html

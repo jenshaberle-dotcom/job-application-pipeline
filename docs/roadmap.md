@@ -315,3 +315,13 @@ Goals:
   - reassessment queue for unresolved false-negative risks
   - preview/write agent for converting S5A risks into review work
   - Approval Workspace reassessment tab and compact worklist
+
+
+## S5C/D Search Intelligence Learning Loop
+
+Track validation outcomes for suggested search terms and derive confidence snapshots before any automatic search-profile mutation is considered.
+
+
+## S5E Guardrailed Search Strategy Adaptation
+
+Create guardrailed, reviewable search-strategy recommendations from validated search-intelligence signals. Recommendations do not mutate active search profiles yet.
