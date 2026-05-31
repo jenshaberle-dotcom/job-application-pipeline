@@ -13,6 +13,8 @@ import psycopg
 from scripts.employer_origin_approval_workspace import (
     WorkspaceFalseNegativeRisk,
     WorkspaceReassessmentItem,
+    WorkspaceSearchTermConfidence,
+    WorkspaceSearchStrategyRecommendation,
     evaluate_workspace_action,
     render_workspace_html,
 )
@@ -161,6 +163,105 @@ def load_reassessment_items() -> list[WorkspaceReassessmentItem]:
         for row in rows
     ]
 
+def load_search_term_confidence_items() -> list[WorkspaceSearchTermConfidence]:
+    try:
+        with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select distinct on (suggested_term, coalesce(source_family_candidate, ''))
+                        suggested_term,
+                        source_family_candidate,
+                        sample_size,
+                        success_count,
+                        failure_count,
+                        noise_count,
+                        confidence_score::text,
+                        confidence_level,
+                        created_at::text
+                    from search_term_confidence_snapshots
+                    order by suggested_term, coalesce(source_family_candidate, ''), created_at desc
+                    """
+                )
+                rows = cur.fetchall()
+    except Exception:
+        return []
+
+    return [
+        WorkspaceSearchTermConfidence(
+            suggested_term=str(row[0]),
+            source_family_candidate=row[1],
+            sample_size=int(row[2]),
+            success_count=int(row[3]),
+            failure_count=int(row[4]),
+            noise_count=int(row[5]),
+            confidence_score=str(row[6]),
+            confidence_level=str(row[7]),
+            created_at=row[8],
+        )
+        for row in rows
+    ]
+
+def load_search_strategy_recommendations() -> list[WorkspaceSearchStrategyRecommendation]:
+    try:
+        with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select
+                        id,
+                        company_key,
+                        source_family_candidate,
+                        suggested_term,
+                        recommendation_type,
+                        recommendation_status,
+                        autonomy_level,
+                        confidence_score::text,
+                        confidence_level,
+                        sample_size,
+                        false_negative_risk_level,
+                        false_negative_sighting_count,
+                        guardrail_decision,
+                        reason,
+                        updated_at::text
+                    from search_strategy_recommendations
+                    order by
+                        case recommendation_status
+                            when 'auto_eligible' then 1
+                            when 'pending_review' then 2
+                            else 3
+                        end,
+                        confidence_score desc,
+                        sample_size desc,
+                        updated_at desc
+                    """
+                )
+                rows = cur.fetchall()
+    except Exception:
+        return []
+
+    return [
+        WorkspaceSearchStrategyRecommendation(
+            recommendation_id=int(row[0]),
+            company_key=str(row[1]),
+            source_family_candidate=row[2],
+            suggested_term=str(row[3]),
+            recommendation_type=str(row[4]),
+            recommendation_status=str(row[5]),
+            autonomy_level=str(row[6]),
+            confidence_score=str(row[7]),
+            confidence_level=str(row[8]),
+            sample_size=int(row[9]),
+            false_negative_risk_level=row[10],
+            false_negative_sighting_count=int(row[11] or 0),
+            guardrail_decision=str(row[12]),
+            reason=str(row[13]),
+            updated_at=row[14],
+        )
+        for row in rows
+    ]
+
+
 
 class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
     server_version = "EmployerOriginApprovalWorkspace/0.2"
@@ -204,6 +305,8 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
             search_query=search_query,
             false_negative_risks=load_false_negative_risks(),
             reassessment_items=load_reassessment_items(),
+            confidence_items=load_search_term_confidence_items(),
+            strategy_recommendations=load_search_strategy_recommendations(),
         )
         self.workspace_state.flash_message = None
         self.send_html(html)
