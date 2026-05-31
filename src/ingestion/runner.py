@@ -67,11 +67,57 @@ def get_record_display_company(record: RawJobRecord) -> str:
 
 
 def load_aggregator_discovery_exclusion_keys(repository: JobIngestionRepository) -> set[str]:
-    loader = getattr(repository, "load_employer_origin_candidate_company_keys", None)
+    loader = getattr(repository, "load_aggregator_discovery_suppression_company_keys", None)
+    if loader is None:
+        loader = getattr(repository, "load_employer_origin_candidate_company_keys", None)
     if loader is None:
         return set()
 
     return normalize_exclusion_keys(loader())
+
+
+def record_market_evidence_for_aggregator_records(
+    repository: JobIngestionRepository,
+    *,
+    source_name: str,
+    records: list[RawJobRecord],
+    profile_name: str,
+    search_term: str | None,
+    ingestion_run_id: int,
+) -> int:
+    recorder = getattr(repository, "save_market_evidence", None)
+    if recorder is None:
+        return 0
+
+    written = 0
+    for record in records:
+        company_name = get_record_display_company(record)
+        title = get_record_display_title(record)
+        if company_name == MISSING_DISPLAY_VALUE or title == MISSING_DISPLAY_VALUE:
+            continue
+        evidence_id = recorder(
+            evidence_source="aggregator_ingestion",
+            evidence_kind="aggregator_sighting",
+            source_name=source_name,
+            company_name=company_name,
+            title=title,
+            evidence_url=record.source_url,
+            search_profile_name=profile_name,
+            search_term=search_term,
+            ingestion_run_id=ingestion_run_id,
+            raw_job_external_id=record.external_job_id,
+            evidence={
+                "boundary": {
+                    "market_evidence_only": True,
+                    "bronze_write": False,
+                    "source_activation": False,
+                    "scheduler_change": False,
+                }
+            },
+        )
+        if evidence_id is not None:
+            written += 1
+    return written
 
 
 def should_apply_aggregator_discovery_suppression(source_name: str) -> bool:
@@ -151,6 +197,17 @@ class JobIngestionRunner:
 
             loaded_before_local_filter = len(records)
 
+            market_evidence_written = 0
+            if should_apply_aggregator_discovery_suppression(self.connector.source_name):
+                market_evidence_written = record_market_evidence_for_aggregator_records(
+                    self.repository,
+                    source_name=self.connector.source_name,
+                    records=records,
+                    profile_name=profile.profile_name,
+                    search_term=search_term.search_term,
+                    ingestion_run_id=ingestion_run_id,
+                )
+
             if not self.connector.capabilities.supports_keyword:
                 records = apply_keyword_filter(
                     records=records,
@@ -176,6 +233,9 @@ class JobIngestionRunner:
             print(f"Search term: {search_term.search_term}")
             print(f"Final URL: {requested_url}")
             print(f"{loaded_before_local_filter} Jobs geladen vor lokaler Filterung")
+
+            if market_evidence_written:
+                print(f"Market Evidence Beobachtungen gespeichert: {market_evidence_written}")
 
             if not self.connector.capabilities.supports_keyword:
                 print(f"{len(records)} Jobs nach lokaler Keyword-Filterung")

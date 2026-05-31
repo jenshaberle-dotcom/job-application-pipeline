@@ -117,11 +117,17 @@ class AggregatorSuppressionDecision:
         return self.decision.startswith("suppress_")
 
     @property
+    def observed(self) -> bool:
+        return self.decision.startswith("observe_")
+
+    @property
     def handoff_action(self) -> str:
         if self.recheck_eligible:
             return "queue_employer_origin_recheck"
         if self.suppressed:
             return "suppress_from_aggregator_discovery"
+        if self.observed:
+            return "observe_as_market_evidence"
         return "keep_for_new_candidate_discovery"
 
 
@@ -298,8 +304,11 @@ def suppress_aggregator_company(
         decision = "suppress_known_hard_stop_candidate"
         reason = "company is already known with a hard-stop lifecycle status"
     else:
-        decision = "suppress_known_connector_candidate"
-        reason = "company is already known as employer-origin connector candidate"
+        decision = "observe_known_connector_candidate"
+        reason = (
+            "company is already known but not sufficiently controlled; keep aggregator "
+            "sightings as market evidence for false-negative risk review"
+        )
 
     return AggregatorSuppressionDecision(
         company=company,

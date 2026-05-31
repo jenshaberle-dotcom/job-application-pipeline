@@ -36,13 +36,13 @@ def test_company_key_normalization_removes_legal_suffix_noise() -> None:
     assert normalize_company_key("HDI Group") == "hdi"
 
 
-def test_known_candidate_is_suppressed_from_aggregator_discovery() -> None:
+def test_unresolved_known_candidate_is_observed_as_market_evidence() -> None:
     decision = suppress_aggregator_company(
         "Finanz Informatik GmbH & Co. KG",
         [known_candidate()],
     )
 
-    assert decision.decision == "suppress_known_connector_candidate"
+    assert decision.decision == "observe_known_connector_candidate"
     assert decision.known_candidate_id == 7
     assert decision.recheck_eligible is True
 
@@ -124,7 +124,7 @@ def test_stepstone_signal_carries_handoff_metadata() -> None:
 
     assert decision.aggregator_source_name == "stepstone"
     assert decision.silver_job_count == 3
-    assert decision.decision == "suppress_known_connector_candidate"
+    assert decision.decision == "observe_known_connector_candidate"
     assert decision.handoff_action == "queue_employer_origin_recheck"
 
 
@@ -164,6 +164,6 @@ def test_suppresses_employer_group_variant_for_known_candidate() -> None:
 
     decision = suppress_aggregator_company("HDI Global", [candidate])
 
-    assert decision.decision == "suppress_known_connector_candidate"
+    assert decision.decision == "observe_known_connector_candidate"
     assert decision.known_candidate_id == 2
     assert decision.known_candidate_source_name == "hdi:hannover"

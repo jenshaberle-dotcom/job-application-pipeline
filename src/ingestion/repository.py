@@ -3,6 +3,7 @@ import psycopg
 
 from src.config import get_database_config
 from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
+from src.normalization.company_keys import normalize_company_key
 
 
 class JobIngestionRepository:
@@ -163,6 +164,103 @@ class JobIngestionRepository:
                     values.add(str(value))
 
         return values
+
+    def load_aggregator_discovery_suppression_company_keys(self) -> set[str]:
+        """Load company keys that should be suppressed from bounded aggregator discovery.
+
+        S5A makes suppression lifecycle-aware: active controlled and hard-stop
+        candidates can be suppressed from StepStone persistence, but unresolved
+        candidates such as manual_review_required must remain observable as market
+        evidence so false-negative risk can be detected.
+        """
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT company_key, company_name, source_family_candidate
+                    FROM employer_origin_source_candidates
+                    WHERE status IN (
+                        'active_controlled',
+                        'deprecated',
+                        'disabled',
+                        'abort_documented',
+                        'not_actionable'
+                    )
+                    ORDER BY company_key, id;
+                    """
+                )
+
+                rows = cur.fetchall()
+
+        values: set[str] = set()
+        for row in rows:
+            for value in row:
+                if value is not None and str(value).strip():
+                    values.add(str(value))
+
+        return values
+
+    def save_market_evidence(
+        self,
+        *,
+        evidence_source: str,
+        evidence_kind: str,
+        source_name: str,
+        company_name: str,
+        title: str,
+        evidence_url: str | None,
+        search_profile_name: str | None = None,
+        search_term: str | None = None,
+        ingestion_run_id: int | None = None,
+        raw_job_external_id: str | None = None,
+        evidence: dict | None = None,
+    ) -> int | None:
+        normalized_company_key = normalize_company_key(company_name)
+        if not normalized_company_key or not title.strip():
+            return None
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO market_evidence (
+                        evidence_source,
+                        evidence_kind,
+                        source_name,
+                        normalized_company_key,
+                        company_name,
+                        title,
+                        evidence_url,
+                        search_profile_name,
+                        search_term,
+                        ingestion_run_id,
+                        raw_job_external_id,
+                        evidence
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s::jsonb
+                    )
+                    ON CONFLICT DO NOTHING
+                    RETURNING id;
+                    """,
+                    (
+                        evidence_source,
+                        evidence_kind,
+                        source_name,
+                        normalized_company_key,
+                        company_name,
+                        title,
+                        evidence_url,
+                        search_profile_name,
+                        search_term,
+                        ingestion_run_id,
+                        raw_job_external_id,
+                        json.dumps(evidence or {}, ensure_ascii=False),
+                    ),
+                )
+                result = cur.fetchone()
+                return None if result is None else result[0]
 
     def create_ingestion_run(
         self,

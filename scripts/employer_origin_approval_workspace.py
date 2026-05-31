@@ -61,6 +61,19 @@ VIEW_ALIASES = {key for key, _label in WORKSPACE_VIEWS}
 
 
 @dataclass(frozen=True)
+class WorkspaceFalseNegativeRisk:
+    candidate_id: int
+    company_key: str
+    company_name: str
+    risk_level: str
+    sighting_count: int
+    recent_sighting_count: int
+    last_observed_at: str | None
+    suggested_search_terms: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True)
 class WorkspaceActionPlan:
     action: str
     label: str
@@ -555,6 +568,57 @@ def render_candidate_card(
     )
 
 
+def risk_badge_class(risk_level: str) -> str:
+    if risk_level in {"critical", "high"}:
+        return "bad"
+    if risk_level == "medium":
+        return "warn"
+    return "ok"
+
+
+def render_false_negative_risk_section(
+    false_negative_risks: list[WorkspaceFalseNegativeRisk] | None,
+) -> str:
+    risks = false_negative_risks or []
+    visible = [risk for risk in risks if risk.risk_level in {"critical", "high", "medium"} and risk.sighting_count > 0]
+    if not visible:
+        return (
+            "<section class='risk-section panel'>"
+            "<div class='section-heading'><div><span class='eyebrow'>Search Intelligence</span>"
+            "<h3>False Negative Risk</h3></div><span class='status-pill'>No elevated risk</span></div>"
+            "<p class='muted'>No unresolved candidate currently has enough market evidence to question the latest employer-origin decision.</p>"
+            "</section>"
+        )
+
+    cards: list[str] = []
+    for risk in visible[:8]:
+        terms = ", ".join(risk.suggested_search_terms) if risk.suggested_search_terms else "No term gap suggestion yet"
+        cards.append(
+            "<article class='risk-card'>"
+            "<div>"
+            f"<h4>{h(risk.company_name)}</h4>"
+            f"<p class='muted'>{h(risk.reason)}</p>"
+            "</div>"
+            f"<span class='risk-badge {h(risk_badge_class(risk.risk_level))}'>{h(risk.risk_level.upper())}</span>"
+            "<div class='risk-facts'>"
+            f"<span>{h(risk.sighting_count)} sightings</span>"
+            f"<span>{h(risk.recent_sighting_count)} recent</span>"
+            f"<span>last: {h(risk.last_observed_at or '-')}</span>"
+            "</div>"
+            f"<p><span class='label'>Suggested terms</span><strong>{h(terms)}</strong></p>"
+            "</article>"
+        )
+
+    return (
+        "<section class='risk-section panel'>"
+        "<div class='section-heading'><div><span class='eyebrow'>Search Intelligence</span>"
+        "<h3>False Negative Risk</h3></div><span class='status-pill warn'>Market evidence conflicts</span></div>"
+        "<p class='muted'>Known candidates that still appear in aggregator evidence are monitored here so blocked or unresolved origin-source decisions do not hide real opportunities.</p>"
+        f"<div class='risk-grid'>{''.join(cards)}</div>"
+        "</section>"
+    )
+
+
 def render_workspace_html(
     queue_items: list[Any],
     gates_by_candidate_id: Mapping[int, Mapping[str, object]],
@@ -565,6 +629,7 @@ def render_workspace_html(
     flash_message: str | None = None,
     selected_view: str = "all",
     search_query: str = "",
+    false_negative_risks: list[WorkspaceFalseNegativeRisk] | None = None,
 ) -> str:
     selected = normalize_view(selected_view)
     filtered_items = filter_workspace_items(
@@ -706,6 +771,18 @@ code {{ color: #d7f4ff; }}
 @media (max-width: 1000px) {{ .view-tabs {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
 @media (max-width: 900px) {{ .summary {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} .hero, .brandbar {{ grid-template-columns: 1fr; display: block; }} .mode-panel {{ justify-content: flex-start; margin-top: .8rem; }} }}
 @media (max-width: 680px) {{ main {{ padding: .9rem; }} .summary, .candidate-grid, .view-tabs {{ grid-template-columns: 1fr; }} .candidate-header {{ flex-direction: column; }} .phase-tracker {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} input {{ min-width: 100%; }} }}
+.risk-section {{ margin: 1rem 0; }}
+.section-heading {{ display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: .75rem; }}
+.section-heading h3 {{ margin: .15rem 0 0; }}
+.risk-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .8rem; }}
+.risk-card {{ border: 1px solid var(--line); border-radius: 18px; padding: .85rem; background: rgba(245, 182, 66, .06); }}
+.risk-card h4 {{ margin: 0 0 .2rem; }}
+.risk-badge {{ display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: .28rem .58rem; font-size: .78rem; font-weight: 800; }}
+.risk-badge.bad {{ color: var(--red); border-color: rgba(255, 93, 93, .58); }}
+.risk-badge.warn {{ color: var(--amber); border-color: rgba(245, 182, 66, .62); }}
+.risk-badge.ok {{ color: var(--green); border-color: rgba(112, 227, 107, .55); }}
+.risk-facts {{ display: flex; flex-wrap: wrap; gap: .4rem; margin: .65rem 0; }}
+.risk-facts span {{ border: 1px solid var(--line); border-radius: 999px; padding: .2rem .5rem; color: var(--muted); font-size: .78rem; }}
 </style>
 </head>
 <body>
