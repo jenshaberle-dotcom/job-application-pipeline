@@ -85,3 +85,8 @@ S5A does not:
 - use CSV/Excel/export files as pipeline inputs
 
 S5A does write DB-backed market evidence during bounded StepStone ingestion and when manually requested through `record_market_evidence.py`. These writes are observational review state, not Bronze job persistence.
+
+
+## Follow-up: S5B
+
+S5B builds on this foundation by converting high/medium false-negative risk into proposed search terms and reassessment queue items. S5B remains review-only: it does not mutate active search profiles automatically.

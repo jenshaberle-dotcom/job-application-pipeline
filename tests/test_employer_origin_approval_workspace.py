@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from scripts.employer_origin_approval_workspace import (
     IMPLEMENTATION_APPROVAL_TOKEN,
+    WorkspaceReassessmentItem,
     REGISTRATION_APPROVAL_TOKEN,
     evaluate_workspace_action,
     filter_workspace_items,
@@ -216,3 +217,60 @@ def test_workspace_html_renders_candidate_scaling_controls() -> None:
     assert "Search candidates" in html
     assert "Showing 1 of 1 candidates" in html
     assert "Clear filters" in html
+
+
+def test_render_workspace_shows_reassessment_queue_section() -> None:
+    html = render_workspace_html(
+        [item("manual_review_stop")],
+        {},
+        target_location="hannover",
+        reviewed_by="jens",
+        write_actions_enabled=False,
+        selected_view="reassessment",
+        reassessment_items=[
+            WorkspaceReassessmentItem(
+                queue_id=1,
+                candidate_id=2,
+                company_key="hdi",
+                company_name="HDI Group",
+                risk_level="high",
+                priority=77,
+                trigger_reason="unresolved employer-origin candidate still appears in market evidence",
+                suggested_search_terms=("analytics",),
+                status="open",
+                updated_at="2026-05-31 07:01:21+00",
+            )
+        ],
+    )
+
+    assert "Reassessment Queue" in html
+    assert "HDI Group" in html
+    assert "terms: analytics" in html
+    assert "Reassessment worklist mode" in html
+
+
+def test_workspace_counts_reassessment_view_items() -> None:
+    html = render_workspace_html(
+        [item("manual_review_stop")],
+        {},
+        target_location="hannover",
+        reviewed_by="jens",
+        write_actions_enabled=False,
+        reassessment_items=[
+            WorkspaceReassessmentItem(
+                queue_id=1,
+                candidate_id=2,
+                company_key="hdi",
+                company_name="HDI Group",
+                risk_level="high",
+                priority=77,
+                trigger_reason="reason",
+                suggested_search_terms=("analytics",),
+                status="open",
+                updated_at=None,
+            )
+        ],
+    )
+
+    assert "Reassessment" in html
+    assert "1</strong></a>" in html

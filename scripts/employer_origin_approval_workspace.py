@@ -54,6 +54,8 @@ WORKSPACE_VIEWS = (
     ("review_required", "Review required"),
     ("approval_required", "Approval required"),
     ("ready", "Ready / next step"),
+    ("false_negative", "False negative risk"),
+    ("reassessment", "Reassessment"),
     ("active", "Active"),
 )
 
@@ -71,6 +73,20 @@ class WorkspaceFalseNegativeRisk:
     last_observed_at: str | None
     suggested_search_terms: tuple[str, ...]
     reason: str
+
+
+@dataclass(frozen=True)
+class WorkspaceReassessmentItem:
+    queue_id: int
+    candidate_id: int
+    company_key: str
+    company_name: str
+    risk_level: str
+    priority: int
+    trigger_reason: str
+    suggested_search_terms: tuple[str, ...]
+    status: str
+    updated_at: str | None
 
 
 @dataclass(frozen=True)
@@ -675,6 +691,45 @@ def render_false_negative_risk_section(
     )
 
 
+def render_reassessment_queue_section(
+    reassessment_items: list[WorkspaceReassessmentItem] | None,
+) -> str:
+    items = reassessment_items or []
+    open_items = [item for item in items if item.status == "open"]
+    if not open_items:
+        return ""
+
+    rows: list[str] = []
+    for item in open_items[:8]:
+        terms = ", ".join(item.suggested_search_terms[:4]) if item.suggested_search_terms else "-"
+        rows.append(
+            "<article class='reassessment-row'>"
+            "<div>"
+            f"<strong>{h(item.company_name)}</strong>"
+            f"<p class='muted'>{h(item.trigger_reason)}</p>"
+            "</div>"
+            "<div class='risk-row-facts'>"
+            f"<span>risk: {h(item.risk_level.upper())}</span>"
+            f"<span>priority: {h(item.priority)}</span>"
+            f"<span>terms: {h(terms)}</span>"
+            f"<span>updated: {h(humanize_timestamp(item.updated_at))}</span>"
+            "</div>"
+            "</article>"
+        )
+
+    return (
+        "<section class='risk-section compact-risk panel'>"
+        "<div class='section-heading'>"
+        "<div><span class='eyebrow'>Search Intelligence</span>"
+        "<h3>Reassessment Queue</h3></div>"
+        f"<span class='status-pill warn'>{h(len(open_items))} open</span>"
+        "</div>"
+        "<p class='muted'>False-negative findings that need source/profile reassessment before more connector expansion.</p>"
+        f"<div class='risk-list'>{''.join(rows)}</div>"
+        "</section>"
+    )
+
+
 def render_workspace_html(
     queue_items: list[Any],
     gates_by_candidate_id: Mapping[int, Mapping[str, object]],
@@ -686,6 +741,7 @@ def render_workspace_html(
     selected_view: str = "all",
     search_query: str = "",
     false_negative_risks: list[WorkspaceFalseNegativeRisk] | None = None,
+    reassessment_items: list[WorkspaceReassessmentItem] | None = None,
 ) -> str:
     selected = normalize_view(selected_view)
     filtered_items = filter_workspace_items(
@@ -694,6 +750,8 @@ def render_workspace_html(
         search_query=search_query,
     )
     view_counts = workspace_view_counts(queue_items)
+    view_counts["false_negative"] = len([risk for risk in (false_negative_risks or []) if risk.risk_level in {"critical", "high", "medium"}])
+    view_counts["reassessment"] = len([item for item in (reassessment_items or []) if item.status == "open"])
 
     needs_approval = sum(1 for item in queue_items if workspace_action_for_item(item, target_location=target_location, reviewed_by=reviewed_by))
     actionable = sum(1 for item in queue_items if item.command)
@@ -705,6 +763,13 @@ def render_workspace_html(
             "<div class='empty-state'>"
             "<strong>False-negative worklist mode.</strong>"
             "<p>The risk worklist above is the primary view here. Switch to Review required for full candidate gate details.</p>"
+            "</div>"
+        )
+    elif selected == "reassessment":
+        candidate_cards = (
+            "<div class='empty-state'>"
+            "<strong>Reassessment worklist mode.</strong>"
+            "<p>The reassessment queue above is the primary view here. Use the suggested terms to guide bounded source/profile review.</p>"
             "</div>"
         )
     else:
@@ -774,7 +839,7 @@ h1 {{ margin: 0; font-size: clamp(1.25rem, 2.4vw, 1.9rem); letter-spacing: .02em
 .section-title h3 {{ margin: 0; text-transform: uppercase; letter-spacing: .08em; color: #bfeaff; font-size: .9rem; }}
 .section-title p {{ margin: 0; color: var(--muted); font-size: .86rem; }}
 .workspace-controls {{ display: grid; gap: .75rem; margin: .75rem 0 1rem; }}
-.view-tabs {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .55rem; }}
+.view-tabs {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .55rem; }}
 .view-tab {{ display: flex; justify-content: space-between; align-items: center; gap: .5rem; color: var(--muted); text-decoration: none; border: 1px solid var(--line); background: rgba(4, 14, 25, .44); border-radius: 12px; padding: .55rem .65rem; }}
 .view-tab strong {{ color: var(--text); }}
 .view-tab.active {{ color: var(--cyan); border-color: var(--line-strong); background: var(--cyan-soft); }}
@@ -839,9 +904,10 @@ code {{ color: #d7f4ff; }}
 .section-heading {{ display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: .75rem; }}
 .section-heading h3 {{ margin: .15rem 0 0; }}
 .risk-list {{ display: grid; gap: .45rem; }}
-.risk-row {{ display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(280px, 1.4fr); gap: .75rem; align-items: center; border: 1px solid rgba(99, 159, 199, .24); border-radius: 14px; padding: .65rem .75rem; background: rgba(245, 182, 66, .045); }}
+.risk-row, .reassessment-row {{ display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(280px, 1.4fr); gap: .75rem; align-items: center; border: 1px solid rgba(99, 159, 199, .24); border-radius: 14px; padding: .65rem .75rem; background: rgba(245, 182, 66, .045); }}
 .risk-row strong {{ display: inline-block; margin-left: .45rem; }}
-.risk-row p {{ margin: .28rem 0 0; }}
+.reassessment-row strong {{ display: inline-block; }}
+.risk-row p, .reassessment-row p {{ margin: .28rem 0 0; }}
 .risk-row-facts {{ display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }}
 .risk-badge {{ display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: .28rem .58rem; font-size: .78rem; font-weight: 800; }}
 .risk-badge.bad {{ color: var(--red); border-color: rgba(255, 93, 93, .58); }}
@@ -889,6 +955,8 @@ code {{ color: #d7f4ff; }}
   </section>
 
   {render_false_negative_risk_section(false_negative_risks)}
+
+  {render_reassessment_queue_section(reassessment_items)}
 
   {render_view_controls(selected_view=selected, search_query=search_query, counts=view_counts, visible_count=len(filtered_items), total_count=len(queue_items))}
 

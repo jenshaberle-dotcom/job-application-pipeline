@@ -12,6 +12,7 @@ import psycopg
 
 from scripts.employer_origin_approval_workspace import (
     WorkspaceFalseNegativeRisk,
+    WorkspaceReassessmentItem,
     evaluate_workspace_action,
     render_workspace_html,
 )
@@ -117,29 +118,48 @@ def load_false_negative_risks() -> list[WorkspaceFalseNegativeRisk]:
     ]
 
 
-def find_queue_item(queue_items: list[Any], company_key: str) -> Any | None:
-    for item in queue_items:
-        if item.candidate.company_key == company_key:
-            return item
-    return None
+def load_reassessment_items() -> list[WorkspaceReassessmentItem]:
+    try:
+        with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select
+                        rq.id,
+                        rq.candidate_id,
+                        rq.company_key,
+                        coalesce(c.company_name, rq.company_key) as company_name,
+                        rq.risk_level,
+                        rq.priority,
+                        rq.trigger_reason,
+                        rq.suggested_search_terms,
+                        rq.status,
+                        rq.updated_at::text as updated_at
+                    from candidate_reassessment_queue rq
+                    left join employer_origin_source_candidates c on c.id = rq.candidate_id
+                    where rq.status = 'open'
+                    order by rq.priority desc, rq.updated_at desc, company_name
+                    """
+                )
+                rows = cur.fetchall()
+    except Exception:
+        return []
 
-
-def run_approved_command(command: tuple[str, ...]) -> str:
-    completed = subprocess.run(
-        command,
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout_tail = completed.stdout[-3000:]
-    stderr_tail = completed.stderr[-3000:]
-    return (
-        f"command: {' '.join(command)}\n"
-        f"returncode: {completed.returncode}\n"
-        f"--- stdout tail ---\n{stdout_tail}\n"
-        f"--- stderr tail ---\n{stderr_tail}"
-    )
+    return [
+        WorkspaceReassessmentItem(
+            queue_id=int(row[0]),
+            candidate_id=int(row[1]),
+            company_key=str(row[2]),
+            company_name=str(row[3]),
+            risk_level=str(row[4]),
+            priority=int(row[5]),
+            trigger_reason=str(row[6]),
+            suggested_search_terms=tuple(row[7] or ()),
+            status=str(row[8]),
+            updated_at=row[9],
+        )
+        for row in rows
+    ]
 
 
 class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
@@ -183,6 +203,7 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
             selected_view=selected_view,
             search_query=search_query,
             false_negative_risks=load_false_negative_risks(),
+            reassessment_items=load_reassessment_items(),
         )
         self.workspace_state.flash_message = None
         self.send_html(html)
