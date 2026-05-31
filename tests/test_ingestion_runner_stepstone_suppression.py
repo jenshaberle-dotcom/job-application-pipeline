@@ -46,6 +46,7 @@ class FakeRepository:
     def __init__(self) -> None:
         self.saved_records = []
         self.finished_runs = []
+        self.excluded_company_keys = {"HDI AG"}
 
     def load_active_search_terms(self, profile_name):
         return [
@@ -63,8 +64,14 @@ class FakeRepository:
             )
         ]
 
+    def load_aggregator_discovery_suppression_company_keys(self):
+        return self.excluded_company_keys
+
     def load_employer_origin_candidate_company_keys(self):
         return {"HDI AG"}
+
+    def save_market_evidence(self, **kwargs):
+        return 1
 
     def create_ingestion_run(
         self,

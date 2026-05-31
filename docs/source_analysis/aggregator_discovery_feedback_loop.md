@@ -139,3 +139,7 @@ Consequences:
 
 This keeps StepStone useful as a bounded discovery signal while avoiding repeated
 rediscovery of HDI, HDI group variants, Finanz Informatik or other already-known candidates.
+
+## S5A False-Negative Extension
+
+StepStone suppression is now lifecycle-aware. Active controlled candidates can still be suppressed from bounded Bronze persistence, but unresolved candidates such as `manual_review_required` are observed as market evidence instead of disappearing from the process. This preserves the 25-result defensive boundary while allowing the system to detect false-negative risk.

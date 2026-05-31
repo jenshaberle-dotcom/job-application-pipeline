@@ -11,8 +11,13 @@ from typing import Any
 import psycopg
 
 from scripts.employer_origin_approval_workspace import (
+    WorkspaceFalseNegativeRisk,
     evaluate_workspace_action,
     render_workspace_html,
+)
+from src.search_intelligence.false_negative_risk import (
+    CandidateMarketEvidenceSummary,
+    assess_many,
 )
 from scripts.run_employer_origin_candidate_queue_agent import (
     DatabaseConfig,
@@ -54,6 +59,62 @@ def load_queue_state(state: WorkspaceState) -> tuple[list[Any], dict[int, dict[s
         allow_repair=state.allow_repair,
     )
     return queue_items, gates_by_candidate_id
+
+
+def load_false_negative_risks() -> list[WorkspaceFalseNegativeRisk]:
+    try:
+        with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select
+                        candidate_id,
+                        company_key,
+                        company_name,
+                        candidate_status,
+                        candidate_risk_level,
+                        sighting_count,
+                        recent_sighting_count,
+                        last_observed_at::text as last_observed_at,
+                        coalesce(evidence_sources, array[]::text[]) as evidence_sources,
+                        coalesce(evidence_titles, array[]::text[]) as evidence_titles
+                    from candidate_market_evidence_summary
+                    order by recent_sighting_count desc, sighting_count desc, company_name
+                    """
+                )
+                rows = cur.fetchall()
+    except Exception:
+        return []
+
+    summaries = [
+        CandidateMarketEvidenceSummary(
+            candidate_id=int(row[0]),
+            company_key=str(row[1]),
+            company_name=str(row[2]),
+            candidate_status=str(row[3]),
+            candidate_risk_level=str(row[4]),
+            sighting_count=int(row[5] or 0),
+            recent_sighting_count=int(row[6] or 0),
+            last_observed_at=row[7],
+            evidence_sources=tuple(row[8] or ()),
+            evidence_titles=tuple(row[9] or ()),
+        )
+        for row in rows
+    ]
+    return [
+        WorkspaceFalseNegativeRisk(
+            candidate_id=item.candidate_id,
+            company_key=item.company_key,
+            company_name=item.company_name,
+            risk_level=item.risk_level,
+            sighting_count=item.sighting_count,
+            recent_sighting_count=item.recent_sighting_count,
+            last_observed_at=item.last_observed_at,
+            suggested_search_terms=item.suggested_search_terms,
+            reason=item.reason,
+        )
+        for item in assess_many(summaries)
+    ]
 
 
 def find_queue_item(queue_items: list[Any], company_key: str) -> Any | None:
@@ -121,6 +182,7 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
             flash_message=self.workspace_state.flash_message,
             selected_view=selected_view,
             search_query=search_query,
+            false_negative_risks=load_false_negative_risks(),
         )
         self.workspace_state.flash_message = None
         self.send_html(html)

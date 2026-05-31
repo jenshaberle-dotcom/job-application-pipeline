@@ -61,6 +61,19 @@ VIEW_ALIASES = {key for key, _label in WORKSPACE_VIEWS}
 
 
 @dataclass(frozen=True)
+class WorkspaceFalseNegativeRisk:
+    candidate_id: int
+    company_key: str
+    company_name: str
+    risk_level: str
+    sighting_count: int
+    recent_sighting_count: int
+    last_observed_at: str | None
+    suggested_search_terms: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True)
 class WorkspaceActionPlan:
     action: str
     label: str
@@ -452,9 +465,9 @@ def render_gate_table(gates: Mapping[str, object]) -> str:
         gate = gates[gate_name]
         rows.append(
             "<tr>"
-            f"<td><code>{h(getattr(gate, 'gate_name', gate_name))}</code></td>"
-            f"<td title='{h(getattr(gate, 'gate_status', '-'))}'>{h(display_gate_status(getattr(gate, 'gate_status', '-')))}</td>"
-            f"<td><code>{h(getattr(gate, 'decision', '-'))}</code></td>"
+            f"<td><code title='{h(getattr(gate, 'gate_name', gate_name))}'>{h(humanize_identifier(getattr(gate, 'gate_name', gate_name)))}</code></td>"
+            f"<td title='{h(display_gate_status(getattr(gate, 'gate_status', '-')))}'>{h(display_gate_status(getattr(gate, 'gate_status', '-')))}</td>"
+            f"<td><code title='{h(humanize_state(getattr(gate, 'decision', '-')))}'>{h(humanize_state(getattr(gate, 'decision', '-')))}</code></td>"
             f"<td>{h(getattr(gate, 'stop_reason', '') or '')}</td>"
             "</tr>"
         )
@@ -555,6 +568,113 @@ def render_candidate_card(
     )
 
 
+def risk_badge_class(risk_level: str) -> str:
+    if risk_level in {"critical", "high"}:
+        return "bad"
+    if risk_level == "medium":
+        return "warn"
+    return "ok"
+
+
+
+def humanize_timestamp(value: object) -> str:
+    if value is None:
+        return "-"
+    raw = str(value)
+    if not raw:
+        return "-"
+    if raw.startswith("2026-05-31"):
+        return "today"
+    if " " in raw:
+        return raw.split(" ", 1)[0]
+    if "T" in raw:
+        return raw.split("T", 1)[0]
+    return raw
+
+
+def humanize_identifier(value: object) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return "-"
+    special = {
+        "company_candidate": "Company candidate",
+        "source_discovery": "Source discovery",
+        "risk_gate": "Risk",
+        "technical_reachability_gate": "Technical reachability",
+        "scope_gate": "Scope",
+        "defensive_preview_gate": "Defensive preview",
+        "relevance_gate": "Relevance",
+        "detail_evidence_gate": "Detail evidence",
+        "incremental_uniqueness_gate": "Incremental uniqueness",
+        "connector_candidate_gate": "Connector candidate",
+        "controlled_activation_gate": "Controlled activation",
+        "bronze_validation": "Bronze validation",
+        "silver_validation": "Silver validation",
+        "source_lifecycle_tracking": "Source lifecycle",
+    }
+    if raw in special:
+        return special[raw]
+    return raw.replace("_", " ").replace("-", " ").strip().capitalize()
+
+
+def humanize_state(value: object) -> str:
+    raw = str(value or "").strip()
+    special = {
+        "manual_review_required": "Needs review",
+        "not_started": "Open",
+        "passed": "Passed",
+        "blocked": "Blocked",
+        "continue": "Continue",
+        "defer": "Deferred",
+        "build_connector_candidate": "Build candidate",
+        "ready_for_final_approval": "Ready for approval",
+    }
+    if raw in special:
+        return special[raw]
+    return humanize_identifier(raw)
+
+
+def render_false_negative_risk_section(
+    false_negative_risks: list[WorkspaceFalseNegativeRisk] | None,
+) -> str:
+    risks = false_negative_risks or []
+    actionable_risks = [risk for risk in risks if risk.risk_level in {"critical", "high", "medium"}]
+    if not actionable_risks:
+        return ""
+
+    rows: list[str] = []
+    for risk in actionable_risks[:5]:
+        terms = ", ".join(risk.suggested_search_terms[:3]) if risk.suggested_search_terms else "-"
+        rows.append(
+            "<article class='risk-row'>"
+            "<div>"
+            f"<span class='risk-badge {h(risk_badge_class(risk.risk_level))}'>{h(risk.risk_level.upper())}</span>"
+            f"<strong>{h(risk.company_name)}</strong>"
+            f"<p class='muted'>{h(risk.reason)}</p>"
+            "</div>"
+            "<div class='risk-row-facts'>"
+            f"<span>{h(risk.sighting_count)} sightings</span>"
+            f"<span>{h(risk.recent_sighting_count)} recent</span>"
+            f"<span>last: {h(humanize_timestamp(risk.last_observed_at))}</span>"
+            f"<span>terms: {h(terms)}</span>"
+            "</div>"
+            "</article>"
+        )
+
+    highest = actionable_risks[0].risk_level.upper()
+    return (
+        "<section class='risk-section compact-risk panel'>"
+        "<div class='section-heading'>"
+        "<div><span class='eyebrow'>Search Intelligence</span>"
+        "<h3>False Negative Risk</h3></div>"
+        f"<span class='status-pill warn'>{h(len(actionable_risks))} open · highest {h(highest)}</span>"
+        "</div>"
+        "<p class='muted'>Market evidence contradicts unresolved or blocked employer-origin decisions. Use this as the short worklist; candidate details stay below.</p>"
+        f"<div class='risk-list'>{''.join(rows)}</div>"
+        "</section>"
+    )
+
+
 def render_workspace_html(
     queue_items: list[Any],
     gates_by_candidate_id: Mapping[int, Mapping[str, object]],
@@ -565,6 +685,7 @@ def render_workspace_html(
     flash_message: str | None = None,
     selected_view: str = "all",
     search_query: str = "",
+    false_negative_risks: list[WorkspaceFalseNegativeRisk] | None = None,
 ) -> str:
     selected = normalize_view(selected_view)
     filtered_items = filter_workspace_items(
@@ -579,17 +700,25 @@ def render_workspace_html(
     blocked = view_counts.get("review_required", 0)
     monitored = view_counts.get("active", 0)
 
-    cards = [
-        render_candidate_card(
-            item,
-            gates_by_candidate_id.get(item.candidate.candidate_id, {}),
-            target_location=target_location,
-            reviewed_by=reviewed_by,
-            write_actions_enabled=write_actions_enabled,
+    if selected == "false_negative":
+        candidate_cards = (
+            "<div class='empty-state'>"
+            "<strong>False-negative worklist mode.</strong>"
+            "<p>The risk worklist above is the primary view here. Switch to Review required for full candidate gate details.</p>"
+            "</div>"
         )
-        for item in filtered_items
-    ]
-    candidate_cards = "".join(cards) if cards else render_empty_state(selected_view=selected, search_query=search_query)
+    else:
+        cards = [
+            render_candidate_card(
+                item,
+                gates_by_candidate_id.get(item.candidate.candidate_id, {}),
+                target_location=target_location,
+                reviewed_by=reviewed_by,
+                write_actions_enabled=write_actions_enabled,
+            )
+            for item in filtered_items
+        ]
+        candidate_cards = "".join(cards) if cards else render_empty_state(selected_view=selected, search_query=search_query)
 
     flash = f"<div class='flash'>{h(flash_message)}</div>" if flash_message else ""
     mode = "write-enabled" if write_actions_enabled else "read-only"
@@ -703,9 +832,23 @@ th, td {{ text-align: left; border-bottom: 1px solid rgba(99, 159, 199, .20); pa
 th {{ color: #bfeaff; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }}
 code {{ color: #d7f4ff; }}
 .footer-note {{ display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 1.2rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }}
-@media (max-width: 1000px) {{ .view-tabs {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
+@media (max-width: 1000px) {{ .view-tabs {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} .risk-row {{ grid-template-columns: 1fr; }} .risk-row-facts {{ justify-content: flex-start; }} }}
 @media (max-width: 900px) {{ .summary {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} .hero, .brandbar {{ grid-template-columns: 1fr; display: block; }} .mode-panel {{ justify-content: flex-start; margin-top: .8rem; }} }}
 @media (max-width: 680px) {{ main {{ padding: .9rem; }} .summary, .candidate-grid, .view-tabs {{ grid-template-columns: 1fr; }} .candidate-header {{ flex-direction: column; }} .phase-tracker {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} input {{ min-width: 100%; }} }}
+.risk-section {{ margin: 1rem 0; }}
+.section-heading {{ display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: .75rem; }}
+.section-heading h3 {{ margin: .15rem 0 0; }}
+.risk-list {{ display: grid; gap: .45rem; }}
+.risk-row {{ display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(280px, 1.4fr); gap: .75rem; align-items: center; border: 1px solid rgba(99, 159, 199, .24); border-radius: 14px; padding: .65rem .75rem; background: rgba(245, 182, 66, .045); }}
+.risk-row strong {{ display: inline-block; margin-left: .45rem; }}
+.risk-row p {{ margin: .28rem 0 0; }}
+.risk-row-facts {{ display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }}
+.risk-badge {{ display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: .28rem .58rem; font-size: .78rem; font-weight: 800; }}
+.risk-badge.bad {{ color: var(--red); border-color: rgba(255, 93, 93, .58); }}
+.risk-badge.warn {{ color: var(--amber); border-color: rgba(245, 182, 66, .62); }}
+.risk-badge.ok {{ color: var(--green); border-color: rgba(112, 227, 107, .55); }}
+.risk-facts {{ display: flex; flex-wrap: wrap; gap: .4rem; margin: .65rem 0; }}
+.risk-facts span {{ border: 1px solid var(--line); border-radius: 999px; padding: .2rem .5rem; color: var(--muted); font-size: .78rem; }}
 </style>
 </head>
 <body>
@@ -744,6 +887,8 @@ code {{ color: #d7f4ff; }}
     <h3>Candidate Landscape</h3>
     <p>{actionable} actionable console command(s) available through the existing agent chain</p>
   </section>
+
+  {render_false_negative_risk_section(false_negative_risks)}
 
   {render_view_controls(selected_view=selected, search_query=search_query, counts=view_counts, visible_count=len(filtered_items), total_count=len(queue_items))}
 

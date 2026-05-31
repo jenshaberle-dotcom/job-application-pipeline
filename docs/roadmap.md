@@ -300,3 +300,11 @@ Goals:
 
 - S4G: Employer-Origin Approval Workspace for local browser-based gate/action review, explicit implementation/registration approvals and 05A Balanced Intelligence UI alignment.
 - S4H: Approval Workspace Candidate Scaling with queue tabs, candidate search and compact 40+-candidate review navigation.
+
+
+- [x] S5A False Negative Intelligence Foundation
+  - DB-backed market evidence model
+  - lifecycle-aware StepStone suppression / observation split
+  - rule-based false-negative risk engine
+  - search-term gap foundation
+  - Approval Workspace false-negative risk section
