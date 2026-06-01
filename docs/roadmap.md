@@ -434,3 +434,8 @@ Primary artifacts:
 ## S6C — Approval-Gated Connector Build Agent Foundation
 
 S6C introduces a DB-backed bridge from unresolved high-pressure employer-origin candidates to explicit-approval connector artifact generation. It is designed for candidates like HDI where repeated market evidence exists but direct detail evidence remains incomplete. The block preserves separate final approval, registration and controlled activation gates.
+
+
+## S6D — Search Intelligence Control Center UI
+
+S6D adds a local DB-backed control surface for the connector lifecycle. It shows active controlled connectors, unresolved candidates, S6C build approval requests and the full discovery-to-approval chain in one place. Approval actions remain token-gated and bounded: connector build approval can create artifacts, while registration and activation remain separate gates.
