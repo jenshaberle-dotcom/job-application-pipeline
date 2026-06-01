@@ -108,3 +108,11 @@ Evaluate through:
 - Unique Jobs
 - Data Quality
 - Operational Stability
+
+## Connector Generation Interpretation
+
+Employer-origin connector generation is driven by Source Role, not only Source Type.
+
+A career site, ATS-backed board or company platform becomes a connector-generation candidate when it can provide Ground Truth or Origin Validation value through bounded, defensively fetched job evidence.
+
+S6A generation plans therefore evaluate whether a source candidate is useful as confirmed origin evidence before any connector artifact is generated.

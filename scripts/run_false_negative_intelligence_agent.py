@@ -138,7 +138,7 @@ def print_assessments(assessments: list[FalseNegativeRiskAssessment], *, limit: 
         print("---")
         print(f"company: {assessment.company_name}")
         print(f"company_key: {assessment.company_key}")
-        print(f"risk_level: {assessment.risk_level}")
+        print(f"false_negative_risk_level: {assessment.risk_level}")
         print(f"sighting_count: {assessment.sighting_count}")
         print(f"recent_sighting_count: {assessment.recent_sighting_count}")
         print(f"last_observed_at: {assessment.last_observed_at}")
