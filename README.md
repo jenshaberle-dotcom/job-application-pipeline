@@ -769,6 +769,16 @@ Persist a reviewed aggregator novelty snapshot:
 
     python -m scripts.run_aggregator_novelty_loop_agent --source-name stepstone --days 14 --limit 500 --reviewed-by jens --write
 
+
+Start the Search Intelligence Control Center UI for active connectors, candidates, build approvals and the full discovery-to-approval chain:
+
+    python -m scripts.run_search_intelligence_control_center
+
+Enable local token-gated approval actions:
+
+    python -m scripts.run_search_intelligence_control_center --allow-write-actions --reviewed-by jens
+
+
 ---
 
 ## Disclaimer
