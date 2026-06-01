@@ -358,3 +358,8 @@ Implemented artifacts:
 - `scripts/run_candidate_profile_agent.py`
 
 Safety boundary: no search-profile mutation, no source activation, no Bronze writes and no scheduler changes.
+
+
+## S5G-C Search-Term Value Foundation
+
+S5G-C adds the first candidate-specific search-term value layer. It combines company vocabulary observations from S5G-A with the candidate profile from S5G-B. Boundaries remain unchanged: no search-profile mutation, no source activation, no Bronze writes, no scheduler changes.
