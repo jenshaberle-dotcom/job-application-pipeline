@@ -363,3 +363,15 @@ Safety boundary: no search-profile mutation, no source activation, no Bronze wri
 ## S5G-C Search-Term Value Foundation
 
 S5G-C adds the first candidate-specific search-term value layer. It combines company vocabulary observations from S5G-A with the candidate profile from S5G-B. Boundaries remain unchanged: no search-profile mutation, no source activation, no Bronze writes, no scheduler changes.
+
+
+
+### S5H — Capability Gap Foundation
+
+Status: implemented in this branch.
+
+S5H adds the first market-signal-based capability-gap layer. It uses the
+candidate profile and search-term value scores to identify growth skills such as
+Databricks, Spark, Kafka, Cloud Data Platforms or other Data Engineer transition
+gaps. This remains a review and learning-prioritization layer only: no
+search-profile mutation, no source activation and no Bronze writes.
