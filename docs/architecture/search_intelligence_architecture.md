@@ -23,6 +23,10 @@ Search-Term Value
 ↓
 Capability Gap
 ↓
+Employer-Origin Connector Generation
+↓
+Confirmed Origin Jobs / Better Market Evidence
+↓
 Future Gold Layer Analytics
 
 ---
@@ -107,6 +111,27 @@ Examples:
 - Kafka
 - Databricks
 - Cloud Data Platforms
+
+---
+
+
+## Employer-Origin Connector Generation
+
+Transforms reviewed market and gate evidence into bounded connector-generation plans for origin sources.
+
+Purpose:
+
+- increase confirmed employer-origin Ground Truth
+- reduce aggregator-only evidence dependency
+- feed better origin evidence back into Market Evidence, Search-Term Value and Capability Gap evaluation
+
+Boundary:
+
+- no auto-PR
+- no source activation
+- no Bronze writes
+- no recurring ingestion approval
+- no CSV/Excel/export artifact as process input
 
 ---
 

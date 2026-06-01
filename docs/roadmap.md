@@ -388,3 +388,22 @@ The current Search Intelligence reconciliation is documented in:
 - docs/architecture/historical_terminology.md
 - docs/planning/search_intelligence_roadmap_alignment.md
 - docs/reviews/refactoring_candidate_registry.md
+
+
+
+## S6A — Employer-Origin Connector Generation Foundation
+
+S6A introduces a DB-backed connector-generation planning layer for employer-origin source candidates.
+
+The block turns existing candidate and gate evidence into a bounded generation plan:
+
+Discovery Candidate → Source Analysis → Connector Feasibility → Connector Recommendation → Build Plan / Review Artifact.
+
+Boundary: no auto-PR, no source activation, no Bronze writes, no recurring ingestion approval and no CSV/Excel/export artifact as a pipeline input. Human-readable reports remain review outputs only; PostgreSQL stores process state.
+
+Primary artifacts:
+
+- `employer_origin_connector_generation_plans`
+- `src/search_intelligence/employer_origin_connector_generation.py`
+- `scripts/run_employer_origin_connector_generation_foundation_agent.py`
+- `docs/source_analysis/employer_origin_connector_generation_foundation.md`

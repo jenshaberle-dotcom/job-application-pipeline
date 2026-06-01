@@ -213,7 +213,7 @@ def run(args: argparse.Namespace) -> int:
             print("---")
             print(f"company: {item.company_name}")
             print(f"company_key: {item.company_key}")
-            print(f"risk_level: {item.risk_level}")
+            print(f"false_negative_risk_level: {item.risk_level}")
             print(f"priority: {item.priority}")
             print(f"suggested_terms: {terms}")
             print(f"reason: {item.trigger_reason}")

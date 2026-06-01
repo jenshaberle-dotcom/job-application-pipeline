@@ -255,6 +255,7 @@ Planned capabilities:
 - [x] Architecture documentation
 - [x] Mermaid-based architecture diagrams
 - [x] Architecture Decision Records
+- [x] Employer-origin connector generation planning foundation
 
 ### In Progress
 
@@ -297,6 +298,7 @@ The project is evolving from a job ingestion pipeline into a personal job market
 - semantic matching
 - market intelligence
 - dashboard-oriented Gold datasets
+- better Ground Truth expansion through bounded employer-origin connector generation
 - personal application workflow support
 
 The architecture is increasingly optimized for heterogeneous real-world source behavior where:

@@ -67,6 +67,10 @@ Search-Term Value
 ↓
 Capability Gap
 ↓
+Employer-Origin Connector Generation
+↓
+Confirmed Origin Jobs / Better Market Evidence
+↓
 Future Gold Layer Analytics
 
 ---
@@ -135,6 +139,15 @@ Examples:
 
 ---
 
+
+## Employer-Origin Connector Generation
+
+S6A adds a planning layer that turns DB-backed employer-origin candidate gate evidence into a connector-generation plan.
+
+This is the current Ground Truth expansion path. It prepares bounded connector artifact dry runs after source analysis and feasibility gates are satisfied, but it does not activate sources or write Bronze records.
+
+---
+
 ## Discovery Metrics
 
 Examples:
@@ -142,6 +155,7 @@ Examples:
 - New Companies Discovered
 - New Vocabulary Discovered
 - Confirmed Origin Jobs
+- Connector Generation Plans Ready
 - Search-Term Portfolio Growth
 
 ---
@@ -163,3 +177,4 @@ Examples:
 - search_intelligence_architecture.md
 - search_intelligence_terminology.md
 - historical_terminology.md
+- ../source_analysis/employer_origin_connector_generation_foundation.md
