@@ -343,3 +343,18 @@ Initial measurable improvement indicators:
 - exploration-source contribution to vocabulary
 - later origin confirmation of vocabulary-derived search terms
 - search-term portfolio growth per company
+
+
+## S5G-B Candidate Intelligence Foundation
+
+Candidate Intelligence introduces an explicit candidate profile for Search Intelligence.
+It separates current capability from desired career direction so that later vocabulary and search-term value scoring can distinguish between jobs Jens can already do and jobs that support the target transition toward Data Engineering.
+
+Implemented artifacts:
+
+- `candidate_profiles`
+- `candidate_skills`
+- `src/search_intelligence/candidate_intelligence.py`
+- `scripts/run_candidate_profile_agent.py`
+
+Safety boundary: no search-profile mutation, no source activation, no Bronze writes and no scheduler changes.
