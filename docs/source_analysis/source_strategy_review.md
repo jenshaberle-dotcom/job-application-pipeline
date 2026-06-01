@@ -43,7 +43,7 @@ The primary S2 question is:
 Which next source move creates unique, explainable value for Hannover or remote-in-Germany job search intelligence?
 ```
 
-A source move can be valuable even when it does not immediately become a production ingestion connector. For example, an aggregator may be useful as a discovery source for employers, titles or vocabulary gaps, while still being unsuitable as a broad automated ingestion source.
+A source move can be valuable even when it does not immediately become a production ingestion connector. For example, an aggregator may be useful for Company Discovery, Market Discovery, Vocabulary Discovery and Origin Validation for employers, titles or vocabulary gaps, while still being unsuitable as a broad automated ingestion source.
 
 ## Source Families Under Review
 
@@ -367,3 +367,68 @@ The rule prevents aggregator loops while preserving source-value learning. It al
 
 S4F adds DB-backed suppression review snapshots for this feedback loop. The snapshot tables persist review evidence and handoff actions such as `keep_for_new_candidate_discovery`, `suppress_from_aggregator_discovery` and `queue_employer_origin_recheck` without activating sources or writing Bronze rows.
 
+
+
+## Employer-Origin Strategy Evolution
+
+### Historical View
+
+Earlier project iterations primarily viewed aggregators as a mechanism for identifying potential employer-origin connector targets.
+
+Conceptually:
+
+Aggregator
+→ Employer-Origin Connector
+→ Jobs
+
+### Current View
+
+The Search Intelligence architecture has expanded this model.
+
+Conceptually:
+
+Aggregator
+→ Company Discovery
+→ Vocabulary Discovery
+→ Market Discovery
+→ Origin Validation
+→ Ground Truth
+
+### Implications
+
+Aggregators are not evaluated primarily by job volume.
+
+Instead they contribute to:
+
+- Company Discovery
+- Market Discovery
+- Vocabulary Discovery
+- Origin Validation
+
+### Ground Truth
+
+Employer-origin sources remain the source of truth for confirmed market evidence.
+
+Examples:
+
+- Greenhouse
+- Personio
+- Career Sites
+- Employer-Origin Connectors
+
+### Strategic Outcome
+
+The project no longer evaluates discovery-oriented sources and ground-truth sources using the same value model.
+
+Discovery-oriented sources focus on:
+
+- New Companies Discovered
+- New Vocabulary Discovered
+- Confirmed Origin Jobs
+
+Ground-truth sources focus on:
+
+- Relevant Jobs
+- Unique Jobs
+- Data Quality
+- Operational Stability

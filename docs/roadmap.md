@@ -375,3 +375,16 @@ candidate profile and search-term value scores to identify growth skills such as
 Databricks, Spark, Kafka, Cloud Data Platforms or other Data Engineer transition
 gaps. This remains a review and learning-prioritization layer only: no
 search-profile mutation, no source activation and no Bronze writes.
+
+
+## Search Intelligence Reconciliation References
+
+The current Search Intelligence reconciliation is documented in:
+
+- docs/architecture/search_intelligence_current_state.md
+- docs/architecture/search_intelligence_architecture.md
+- docs/architecture/source_taxonomy_and_source_roles.md
+- docs/architecture/search_intelligence_terminology.md
+- docs/architecture/historical_terminology.md
+- docs/planning/search_intelligence_roadmap_alignment.md
+- docs/reviews/refactoring_candidate_registry.md

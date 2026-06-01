@@ -16,6 +16,10 @@ The project therefore follows these principles:
 
 1. Prefer official APIs and canonical employer or ATS sources where feasible.
 2. Use commercial aggregation platforms primarily as discovery sources.
+
+Commercial aggregators are evaluated primarily through their contribution to Company Discovery, Market Discovery and Origin Validation rather than raw job volume alone.
+
+Ground Truth sources are evaluated differently from discovery-oriented sources. Source value depends on source role, not only technical source type.
 3. Do not build an alternative public job platform or mirror third-party job advertisements.
 4. Do not republish complete third-party job advertisements.
 5. Use controlled sampling for sensitive HTML sources.

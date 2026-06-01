@@ -1,0 +1,165 @@
+# Search Intelligence Current State
+
+## Purpose
+
+This document is the primary entry point for understanding the current Search Intelligence subsystem.
+
+It intentionally describes the current architecture rather than historical evolution.
+
+---
+
+## Mission
+
+The project has evolved from a job-search pipeline into a Personal Market Intelligence Platform.
+
+The goal is continuous improvement of:
+
+- Market Understanding
+- Discovery Coverage
+- Vocabulary Coverage
+- Candidate Understanding
+- Capability-Gap Visibility
+
+---
+
+## Source Taxonomy
+
+### Source Type
+
+Technical acquisition category.
+
+Examples:
+
+- Official API
+- ATS API
+- Career Site
+- Aggregator
+- Structured Job Board
+
+### Source Role
+
+Strategic responsibility within the system.
+
+Examples:
+
+- Company Discovery
+- Market Discovery
+- Origin Validation
+- Ground Truth
+
+See:
+
+- source_taxonomy_and_source_roles.md
+
+---
+
+## Search Intelligence Flow
+
+Exploration & Discovery Sources
+↓
+Market Evidence
+↓
+Company Vocabulary
+↓
+Candidate Intelligence
+↓
+Search-Term Value
+↓
+Capability Gap
+↓
+Future Gold Layer Analytics
+
+---
+
+## Market Evidence
+
+Observed market signals.
+
+Examples:
+
+- Companies
+- Roles
+- Technologies
+- Skill Vocabulary
+
+---
+
+## Company Vocabulary
+
+Observed terminology extracted from market evidence.
+
+Examples:
+
+- analytics
+- cloud
+- platform
+- kafka
+- databricks
+
+---
+
+## Candidate Intelligence
+
+Represents:
+
+- Current capability
+- Transition assets
+- Growth areas
+
+---
+
+## Search-Term Value
+
+Combines:
+
+- Market Evidence
+- Vocabulary Signals
+- Candidate Direction
+
+Purpose:
+
+Prioritize valuable market terminology.
+
+---
+
+## Capability Gap
+
+Identifies learning opportunities between market demand and current capability.
+
+Examples:
+
+- Spark
+- Kafka
+- Databricks
+- Cloud Data Platforms
+
+---
+
+## Discovery Metrics
+
+Examples:
+
+- New Companies Discovered
+- New Vocabulary Discovered
+- Confirmed Origin Jobs
+- Search-Term Portfolio Growth
+
+---
+
+## Ground Truth Metrics
+
+Examples:
+
+- Relevant Jobs
+- Unique Jobs
+- Data Quality
+- Operational Stability
+
+---
+
+## Related Documents
+
+- source_taxonomy_and_source_roles.md
+- search_intelligence_architecture.md
+- search_intelligence_terminology.md
+- historical_terminology.md

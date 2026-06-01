@@ -149,3 +149,8 @@ The Bronze layer stores source-preserving raw records.
 The Silver layer provides a pragmatic canonical representation and now includes first-stage canonicalization fields for duplicate-candidate and source-value analysis.
 
 Ingestion failures are classified into persisted diagnostics on `ingestion_runs`. This keeps runtime errors visible without introducing a separate event-log table yet.
+
+
+## Search Intelligence Architecture
+
+See ../architecture/search_intelligence_architecture.md

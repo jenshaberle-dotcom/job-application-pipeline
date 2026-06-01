@@ -22,7 +22,8 @@ Core terms:
 | Source query | Source-specific translation of a search intent into URL parameters, API parameters or form inputs. |
 | Source target | Concrete acquisition target inside a source family, for example a Greenhouse board, Personio tenant, company career page or controlled discovery query. Source targets are not search profiles. |
 | Source capability | Documented property of a source, for example search support, stable identifiers, pagination or detail availability. |
-| Source role | Architectural role of a source, for example official API source, ATS/company-board source, discovery source, aggregator source or fallback source. |
+| Source role | Strategic role a source fulfills within the market-intelligence system. Examples include Company Discovery, Market Discovery, Origin Validation and Ground Truth. A source may fulfill multiple roles simultaneously. |
+| Source type | Technical acquisition category of a source, for example Official API, ATS API, Career Site, Aggregator or Structured Job Board. |
 | Acquisition mode | Description of how a source target is queried, for example API search, company-board fetch, limited probe or controlled sampling. |
 | Acquisition policy | Operational and responsible-use boundaries for acquisition, for example page caps, detail-page restrictions, timeouts or fail-closed URL rules. |
 | Canonical source candidate | Source or source target that may be suitable as preferred evidence for a canonical job identity. |
@@ -655,3 +656,16 @@ A failed hard gate must stop the process for that employer and produce a documen
 ## Employer-Origin Candidate Gate-State
 
 A DB-backed model for storing employer-origin source candidates, their gate reviews and gate-update events. It is the future state backbone for scripts or agents that evaluate whether a company source should proceed from discovery toward a connector candidate or controlled activation.
+
+
+## Search Intelligence Terminology
+
+See:
+
+- docs/architecture/search_intelligence_terminology.md
+
+Key guidance:
+
+- Prefer Company Discovery, Market Discovery and Vocabulary Discovery over generic Discovery.
+- Differentiate Search Profile Terms from Observed Vocabulary.
+- Treat False Negative as historical terminology and prefer Market Discovery Gap or Coverage Gap in new design discussions.
