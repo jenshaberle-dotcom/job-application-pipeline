@@ -173,3 +173,7 @@ Potential future outcomes:
 See:
 
 - search_intelligence_current_state.md
+
+## S6C Approval-Gated Connector Build
+
+The approval-gated connector build layer sits after Aggregator Novelty and Employer-Origin Connector Generation. It resolves the state where a candidate is repeatedly observed and still unresolved by allowing a bounded connector artifact build after explicit approval. Registration, source activation and Bronze persistence remain separate gates.

@@ -430,3 +430,7 @@ Primary artifacts:
 - `src/search_intelligence/aggregator_novelty.py`
 - `scripts/run_aggregator_novelty_loop_agent.py`
 - `docs/source_analysis/aggregator_novelty_loop_foundation.md`
+
+## S6C — Approval-Gated Connector Build Agent Foundation
+
+S6C introduces a DB-backed bridge from unresolved high-pressure employer-origin candidates to explicit-approval connector artifact generation. It is designed for candidates like HDI where repeated market evidence exists but direct detail evidence remains incomplete. The block preserves separate final approval, registration and controlled activation gates.
