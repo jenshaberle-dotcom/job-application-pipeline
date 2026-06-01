@@ -193,3 +193,8 @@ Examples:
 ## S6C Current State
 
 Approval-gated connector build requests are now modeled as a separate foundation. This enables unresolved high-pressure candidates to move from repeated observation into reviewable connector artifacts without granting registration or activation automatically.
+
+
+## S6D Current State
+
+The Search Intelligence Control Center provides a browser-readable operational view for the now connected Search Intelligence chain. It brings active connectors, unresolved candidates, build approvals and registration approval opportunities into one DB-backed UI so that the project no longer depends on long console output for daily review.

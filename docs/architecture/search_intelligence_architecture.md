@@ -177,3 +177,8 @@ See:
 ## S6C Approval-Gated Connector Build
 
 The approval-gated connector build layer sits after Aggregator Novelty and Employer-Origin Connector Generation. It resolves the state where a candidate is repeatedly observed and still unresolved by allowing a bounded connector artifact build after explicit approval. Registration, source activation and Bronze persistence remain separate gates.
+
+
+## S6D Control Center UI
+
+The Search Intelligence Control Center is the product-facing control surface for the connector lifecycle. It does not introduce a new source of truth; it reads DB-backed candidates, gate reviews, reassessment signals, generation plans and build requests. Token-gated UI actions delegate to the same bounded CLI agents used by the pipeline.

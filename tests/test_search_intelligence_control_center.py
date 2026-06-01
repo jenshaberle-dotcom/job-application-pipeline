@@ -47,45 +47,82 @@ def candidate(**overrides: object) -> ControlCenterCandidate:
     return ControlCenterCandidate(**data)
 
 
-def test_control_center_renders_active_connectors_candidates_and_build_approvals() -> None:
+def candidates() -> list[ControlCenterCandidate]:
+    return [
+        candidate(),
+        candidate(
+            candidate_id=1,
+            company_key="finanz_informatik",
+            company_name="Finanz Informatik GmbH & Co. KG",
+            source_name_candidate="finanz_informatik:hannover",
+            status="active_controlled",
+            false_negative_risk_level=None,
+            reassessment_status=None,
+            build_status=None,
+            build_recommendation=None,
+            latest_blocking_gate=None,
+            latest_blocking_reason=None,
+            gate_passed_count=14,
+            gate_manual_review_count=0,
+            gate_total_count=14,
+        ),
+    ]
+
+
+def test_control_center_renders_real_sidebar_tabs_and_dashboard_only_by_default() -> None:
     html = render_control_center(
-        [
-            candidate(),
-            candidate(
-                candidate_id=1,
-                company_key="finanz_informatik",
-                company_name="Finanz Informatik GmbH & Co. KG",
-                source_name_candidate="finanz_informatik:hannover",
-                status="active_controlled",
-                false_negative_risk_level=None,
-                reassessment_status=None,
-                build_status=None,
-                build_recommendation=None,
-                latest_blocking_gate=None,
-                latest_blocking_reason=None,
-                gate_passed_count=14,
-                gate_manual_review_count=0,
-                gate_total_count=14,
-            ),
-        ],
+        candidates(),
         reviewed_by="jens",
         target_location="hannover",
         write_actions_enabled=False,
     )
 
-    assert "Search Intelligence Control Center" in html
-    assert "Active Connectors" in html
-    assert "Finanz Informatik GmbH" in html
-    assert "Connector Build & Registration Approvals" in html
-    assert "HDI Group" in html
-    assert BUILD_APPROVAL_TOKEN in html
-    assert "Discovery → Candidate → Origin Exploration → Connector → Approval" in html
-    assert "Start the UI with" in html
+    assert "Search Intelligence" in html
+    assert "<nav class='side-tabs'" in html
+    assert "<nav class='top-nav'" not in html
+    assert "href='/?tab=dashboard'" in html
+    assert "href='/?tab=health'" in html
+    assert "href='/?tab=connectors'" in html
+    assert "href='/?tab=approvals'" in html
+    assert "href='/?tab=gaps'" in html
+    assert "href='/?tab=jobs'" in html
+    assert "href='/?tab=demo-chain'" in html
+    assert "Search Intelligence Overview" in html
+    assert "System health and diagnostics" not in html
     assert "Stop UI" in html
     assert "/actions/shutdown" in html
-    assert html.count("<nav class='top-nav'>") == 1
-    assert "dashboard-grid" in html
-    assert "Show approval command" in html
+
+
+def test_control_center_renders_health_as_separate_page_not_anchor_scroll() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="health",
+    )
+
+    assert "System health and diagnostics" in html
+    assert "Connector and candidate diagnostics" in html
+    assert "Search Intelligence Overview" not in html
+    assert "Candidate backlog" not in html
+
+
+def test_control_center_renders_approvals_as_separate_workspace() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="approvals",
+    )
+
+    assert "Approval control" in html
+    assert "HDI Group" in html
+    assert BUILD_APPROVAL_TOKEN in html
+    assert "Start the UI with" in html
+    assert "Search Intelligence Overview" not in html
+    assert "Candidate backlog" not in html
 
 
 def test_control_center_renders_registration_approval_after_validation() -> None:
@@ -103,6 +140,7 @@ def test_control_center_renders_registration_approval_after_validation() -> None
         reviewed_by="jens",
         target_location="hannover",
         write_actions_enabled=True,
+        active_tab="approvals",
     )
 
     assert "Registration approval" in html
