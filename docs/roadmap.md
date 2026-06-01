@@ -330,3 +330,16 @@ Create guardrailed, reviewable search-strategy recommendations from validated se
 ## S5F — Controlled Trial Search Terms
 
 Add bounded, expiring trial terms from guardrailed strategy recommendations without permanent search-profile mutation.
+
+
+## S5G-A Company Vocabulary Foundation
+
+S5G-A introduces company vocabulary observations as a first step toward company-centered Search Intelligence. Exploration sources are treated primarily as company and vocabulary suppliers; origin sources remain the source of truth for confirmed jobs. The block derives observed company vocabulary from existing market evidence only and does not create new discovery requests, search-profile mutations, Bronze writes, source activations, connector registrations, or scheduler changes.
+
+Initial measurable improvement indicators:
+
+- new vocabulary discovered
+- vocabulary per known company
+- exploration-source contribution to vocabulary
+- later origin confirmation of vocabulary-derived search terms
+- search-term portfolio growth per company

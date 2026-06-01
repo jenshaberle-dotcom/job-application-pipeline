@@ -11,6 +11,7 @@ from typing import Any
 import psycopg
 
 from scripts.employer_origin_approval_workspace import (
+    WorkspaceCompanyVocabulary,
     WorkspaceFalseNegativeRisk,
     WorkspaceReassessmentItem,
     WorkspaceSearchTermConfidence,
@@ -163,6 +164,41 @@ def load_reassessment_items() -> list[WorkspaceReassessmentItem]:
         )
         for row in rows
     ]
+
+def load_company_vocabulary_items() -> list[WorkspaceCompanyVocabulary]:
+    try:
+        with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select
+                        company_key,
+                        company_name,
+                        observed_term,
+                        source_name,
+                        observation_count,
+                        last_seen_at::text
+                    from company_vocabulary_observations
+                    order by company_key, observation_count desc, observed_term
+                    limit 200
+                    """
+                )
+                rows = cur.fetchall()
+    except Exception:
+        return []
+
+    return [
+        WorkspaceCompanyVocabulary(
+            company_key=str(row[0]),
+            company_name=row[1],
+            observed_term=str(row[2]),
+            source_name=str(row[3]),
+            observation_count=int(row[4] or 0),
+            last_seen_at=row[5],
+        )
+        for row in rows
+    ]
+
 
 def load_search_term_confidence_items() -> list[WorkspaceSearchTermConfidence]:
     try:
@@ -357,6 +393,7 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
             confidence_items=load_search_term_confidence_items(),
             strategy_recommendations=load_search_strategy_recommendations(),
             trial_terms=load_trial_terms(),
+            vocabulary_items=load_company_vocabulary_items(),
         )
         self.workspace_state.flash_message = None
         self.send_html(html)
