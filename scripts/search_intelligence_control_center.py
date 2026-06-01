@@ -60,6 +60,43 @@ class ControlCenterCandidate:
         )
 
 
+@dataclass(frozen=True)
+class GoldMarketCoverageSummary:
+    generated_at: object | None = None
+    employer_origin_candidate_count: int = 0
+    active_origin_connector_count: int = 0
+    open_candidate_count: int = 0
+    blocked_candidate_count: int = 0
+    gate_reassessment_required_count: int = 0
+    build_approval_required_count: int = 0
+    connector_artifact_generation_allowed_count: int = 0
+    high_fn_pressure_candidate_count: int = 0
+    critical_fn_pressure_candidate_count: int = 0
+    open_search_term_suggestion_count: int = 0
+    recent_company_vocabulary_observation_count: int = 0
+    recent_unregistered_company_observation_count: int = 0
+    recent_new_vocabulary_term_observation_count: int = 0
+    saturated_scope_count: int = 0
+    actionable_novelty_scope_count: int = 0
+    latest_aggregator_novelty_snapshot_at: object | None = None
+
+
+def fallback_market_summary(candidates: list[ControlCenterCandidate]) -> GoldMarketCoverageSummary:
+    return GoldMarketCoverageSummary(
+        employer_origin_candidate_count=len(candidates),
+        active_origin_connector_count=sum(1 for item in candidates if item.is_active_connector),
+        open_candidate_count=sum(1 for item in candidates if not item.is_active_connector),
+        blocked_candidate_count=sum(1 for item in candidates if item.latest_blocking_gate),
+        build_approval_required_count=sum(1 for item in candidates if item.needs_build_approval),
+        high_fn_pressure_candidate_count=sum(
+            1 for item in candidates if item.false_negative_risk_level in {"critical", "high"}
+        ),
+        critical_fn_pressure_candidate_count=sum(
+            1 for item in candidates if item.false_negative_risk_level == "critical"
+        ),
+    )
+
+
 def h(value: object) -> str:
     return html.escape(str(value), quote=True)
 
@@ -363,14 +400,28 @@ def render_health(candidates: list[ControlCenterCandidate]) -> str:
     )
 
 
-def render_dashboard(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
+def render_dashboard(
+    candidates: list[ControlCenterCandidate],
+    *,
+    reviewed_by: str,
+    target_location: str,
+    write_actions_enabled: bool,
+    market_summary: GoldMarketCoverageSummary,
+) -> str:
     priority = sorted(candidates, key=candidate_sort_key)[:3]
     cards = [render_candidate_card(item, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled, compact=True) for item in priority]
     return (
         "<section class='tab-view' data-view='dashboard'><div class='view-head'><span class='eyebrow'>Dashboard</span><h1>Search Intelligence Overview</h1>"
         "<p class='muted'>One-page summary of market coverage, connector readiness, health blockers and approvals.</p></div>"
         "<section class='dashboard-grid'>"
-        "<div class='panel'><span class='eyebrow'>Market Coverage Funnel</span><h2>Candidate lifecycle</h2>" + render_lifecycle_bars(candidates) + "</div>"
+        "<div class='panel'><span class='eyebrow'>Gold Market Coverage</span><h2>Candidate lifecycle</h2>"
+        + render_lifecycle_bars(candidates)
+        + "<div class='facts'>"
+        + f"<span>open candidates <strong>{h(market_summary.open_candidate_count)}</strong></span>"
+        + f"<span>term suggestions <strong>{h(market_summary.open_search_term_suggestion_count)}</strong></span>"
+        + f"<span>vocabulary observations <strong>{h(market_summary.recent_company_vocabulary_observation_count)}</strong></span>"
+        + f"<span>unregistered companies <strong>{h(market_summary.recent_unregistered_company_observation_count)}</strong></span>"
+        + "</div></div>"
         "<div class='panel'><span class='eyebrow'>Needs Attention</span><h2>Priority candidates</h2>" + "".join(cards) + "</div>"
         "</section></section>"
     )
@@ -430,18 +481,26 @@ def render_control_center(
     write_actions_enabled: bool,
     flash_message: str | None = None,
     active_tab: str = "dashboard",
+    market_summary: GoldMarketCoverageSummary | None = None,
 ) -> str:
-    active_count = sum(1 for item in candidates if item.is_active_connector)
-    build_approval_count = sum(1 for item in candidates if item.needs_build_approval)
+    market_summary = market_summary or fallback_market_summary(candidates)
+    active_count = market_summary.active_origin_connector_count
+    build_approval_count = market_summary.build_approval_required_count
     registration_approval_count = sum(1 for item in candidates if item.needs_registration_approval)
-    critical_count = sum(1 for item in candidates if item.false_negative_risk_level == "critical")
+    critical_count = market_summary.critical_fn_pressure_candidate_count
     mode = "write-enabled" if write_actions_enabled else "read-only"
     flash = f"<div class='flash'>{h(flash_message)}</div>" if flash_message else ""
-    allowed_tabs = {"dashboard", "health", "connectors", "approvals", "gaps", "jobs", "demo"}
+    allowed_tabs = {"dashboard", "health", "connectors", "approvals", "gaps", "jobs", "demo-chain"}
     if active_tab not in allowed_tabs:
         active_tab = "dashboard"
     active_view_html = {
-        "dashboard": render_dashboard(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
+        "dashboard": render_dashboard(
+            candidates,
+            reviewed_by=reviewed_by,
+            target_location=target_location,
+            write_actions_enabled=write_actions_enabled,
+            market_summary=market_summary,
+        ),
         "health": render_health(candidates),
         "connectors": render_connectors_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
         "approvals": render_approvals_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),

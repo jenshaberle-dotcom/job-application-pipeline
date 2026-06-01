@@ -447,3 +447,5 @@ Status: implemented as read-only Gold views.
 Purpose: consolidate Search Intelligence signals into dashboard-ready views before further UI polish. This keeps UI rendering aligned with one product-facing interpretation of candidate lifecycle, market coverage, approval backlog, FN pressure and source health.
 
 Next: wire the Search Intelligence Control Center to these Gold views and continue the candidate-to-connector orchestration path.
+
+S7B Gold-backed Control Center: wire the tabbed Control Center to Gold market coverage and candidate lifecycle read models before additional UI polish.
