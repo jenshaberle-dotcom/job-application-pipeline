@@ -407,3 +407,26 @@ Primary artifacts:
 - `src/search_intelligence/employer_origin_connector_generation.py`
 - `scripts/run_employer_origin_connector_generation_foundation_agent.py`
 - `docs/source_analysis/employer_origin_connector_generation_foundation.md`
+
+## S6B — Aggregator Novelty Loop Foundation
+
+S6B adds the DB-backed novelty and saturation layer for bounded exploration sources such as StepStone.
+
+The block evaluates existing Market Evidence and separates:
+
+- unregistered companies vs. known employer-origin candidates
+- newly observed companies vs. repeated cycle evidence
+- new vocabulary vs. already-known company vocabulary
+- newly observed company-term pairs vs. repeated cycle evidence
+- unresolved known candidates that should trigger gate reassessment
+- saturated queries that repeat already-observed companies and company-term pairs
+
+Boundary: no pagination, no source-limit expansion, no search-profile mutation, no source activation, no Bronze writes and no scheduler changes.
+
+Primary artifacts:
+
+- `aggregator_novelty_snapshots`
+- `aggregator_novelty_items`
+- `src/search_intelligence/aggregator_novelty.py`
+- `scripts/run_aggregator_novelty_loop_agent.py`
+- `docs/source_analysis/aggregator_novelty_loop_foundation.md`

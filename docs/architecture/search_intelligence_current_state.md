@@ -140,6 +140,17 @@ Examples:
 ---
 
 
+
+
+## Aggregator Novelty Loop
+
+S6B introduces a DB-backed novelty and saturation assessment for bounded aggregator sources.
+
+It reads existing Market Evidence and compares it with known employer-origin candidates and known company vocabulary. The output is a reviewable snapshot that distinguishes unregistered candidate backlog from truly newly observed cycle evidence, and indicates whether the current bounded query is still finding new companies/terms, unresolved candidate reassessment pressure, or mostly saturated repeated evidence.
+
+This layer does not fetch additional pages, mutate profiles, activate sources or write Bronze records.
+
+---
 ## Employer-Origin Connector Generation
 
 S6A adds a planning layer that turns DB-backed employer-origin candidate gate evidence into a connector-generation plan.

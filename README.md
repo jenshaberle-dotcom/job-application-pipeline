@@ -758,6 +758,17 @@ Run tests:
 
     python -m pytest -q
 
+
+### Search Intelligence Review Commands
+
+Preview bounded StepStone / aggregator novelty from existing market evidence:
+
+    python -m scripts.run_aggregator_novelty_loop_agent --source-name stepstone --days 14 --limit 500
+
+Persist a reviewed aggregator novelty snapshot:
+
+    python -m scripts.run_aggregator_novelty_loop_agent --source-name stepstone --days 14 --limit 500 --reviewed-by jens --write
+
 ---
 
 ## Disclaimer
