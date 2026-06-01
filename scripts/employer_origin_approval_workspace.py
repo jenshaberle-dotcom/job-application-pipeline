@@ -57,12 +57,23 @@ WORKSPACE_VIEWS = (
     ("false_negative", "False negative risk"),
     ("reassessment", "Reassessment"),
     ("learning", "Learning"),
+    ("vocabulary", "Vocabulary"),
     ("strategy", "Strategy"),
     ("trials", "Trials"),
     ("active", "Active"),
 )
 
 VIEW_ALIASES = {key for key, _label in WORKSPACE_VIEWS}
+
+
+@dataclass(frozen=True)
+class WorkspaceCompanyVocabulary:
+    company_key: str
+    company_name: str | None
+    observed_term: str
+    source_name: str
+    observation_count: int
+    last_seen_at: str | None
 
 
 @dataclass(frozen=True)
@@ -702,6 +713,50 @@ def humanize_state(value: object) -> str:
     return humanize_identifier(raw)
 
 
+def render_company_vocabulary_section(
+    vocabulary_items: list[WorkspaceCompanyVocabulary] | None,
+) -> str:
+    items = vocabulary_items or []
+    if not items:
+        return ""
+
+    by_company: dict[str, list[WorkspaceCompanyVocabulary]] = {}
+    for item in items:
+        by_company.setdefault(item.company_key, []).append(item)
+
+    rows: list[str] = []
+    for company_key, company_items in list(by_company.items())[:8]:
+        company_name = next((item.company_name for item in company_items if item.company_name), company_key)
+        top_terms = ", ".join(
+            f"{item.observed_term} ({item.observation_count})"
+            for item in sorted(company_items, key=lambda x: (-x.observation_count, x.observed_term))[:6]
+        )
+        sources = ", ".join(sorted({item.source_name for item in company_items})[:3])
+        rows.append(
+            "<article class='risk-row'>"
+            "<div>"
+            f"<strong>{h(company_name)}</strong>"
+            f"<p class='muted'>{h(company_key)} · sources: {h(sources or '-')}</p>"
+            "</div>"
+            "<div class='risk-row-facts'>"
+            f"<span>terms: {h(top_terms or '-')}</span>"
+            "</div>"
+            "</article>"
+        )
+
+    return (
+        "<section class='risk-section compact-risk panel'>"
+        "<div class='section-heading'>"
+        "<div><span class='eyebrow'>Search Intelligence</span>"
+        "<h3>Company Vocabulary</h3></div>"
+        f"<span class='status-pill read'>{h(len(by_company))} companies</span>"
+        "</div>"
+        "<p class='muted'>Exploration evidence is used as vocabulary evidence first. These terms are not jobs and do not mutate search profiles.</p>"
+        f"<div class='risk-list'>{''.join(rows)}</div>"
+        "</section>"
+    )
+
+
 def render_false_negative_risk_section(
     false_negative_risks: list[WorkspaceFalseNegativeRisk] | None,
 ) -> str:
@@ -918,6 +973,7 @@ def render_workspace_html(
     confidence_items: list[WorkspaceSearchTermConfidence] | None = None,
     strategy_recommendations: list[WorkspaceSearchStrategyRecommendation] | None = None,
     trial_terms: list[WorkspaceTrialTerm] | None = None,
+    vocabulary_items: list[WorkspaceCompanyVocabulary] | None = None,
 ) -> str:
     selected = normalize_view(selected_view)
     filtered_items = filter_workspace_items(
@@ -929,8 +985,8 @@ def render_workspace_html(
     view_counts["false_negative"] = len([risk for risk in (false_negative_risks or []) if risk.risk_level in {"critical", "high", "medium"}])
     view_counts["reassessment"] = len([item for item in (reassessment_items or []) if item.status == "open"])
     view_counts["learning"] = len(confidence_items or [])
+    view_counts["vocabulary"] = len({item.company_key for item in (vocabulary_items or [])})
     view_counts["strategy"] = len([item for item in (strategy_recommendations or []) if item.recommendation_status in {"pending_review", "auto_eligible"}])
-    view_counts["trials"] = len([item for item in (trial_terms or []) if item.trial_status == "active"])
     view_counts["trials"] = len([item for item in (trial_terms or []) if item.trial_status == "active"])
 
     needs_approval = sum(1 for item in queue_items if workspace_action_for_item(item, target_location=target_location, reviewed_by=reviewed_by))
@@ -1166,6 +1222,7 @@ code {{ color: #d7f4ff; }}
 
   {render_reassessment_queue_section(reassessment_items)}
   {render_search_intelligence_learning_section(confidence_items)}
+  {render_company_vocabulary_section(vocabulary_items)}
   {render_search_strategy_recommendation_section(strategy_recommendations)}
   {render_trial_terms_section(trial_terms)}
 
