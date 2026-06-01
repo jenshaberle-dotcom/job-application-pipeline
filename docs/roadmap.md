@@ -439,3 +439,11 @@ S6C introduces a DB-backed bridge from unresolved high-pressure employer-origin 
 ## S6D — Search Intelligence Control Center UI
 
 S6D adds a local DB-backed control surface for the connector lifecycle. It shows active controlled connectors, unresolved candidates, S6C build approval requests and the full discovery-to-approval chain in one place. Approval actions remain token-gated and bounded: connector build approval can create artifacts, while registration and activation remain separate gates.
+
+## S7A Gold Market Coverage & Candidate Lifecycle Foundation
+
+Status: implemented as read-only Gold views.
+
+Purpose: consolidate Search Intelligence signals into dashboard-ready views before further UI polish. This keeps UI rendering aligned with one product-facing interpretation of candidate lifecycle, market coverage, approval backlog, FN pressure and source health.
+
+Next: wire the Search Intelligence Control Center to these Gold views and continue the candidate-to-connector orchestration path.

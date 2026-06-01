@@ -198,3 +198,14 @@ Approval-gated connector build requests are now modeled as a separate foundation
 ## S6D Current State
 
 The Search Intelligence Control Center provides a browser-readable operational view for the now connected Search Intelligence chain. It brings active connectors, unresolved candidates, build approvals and registration approval opportunities into one DB-backed UI so that the project no longer depends on long console output for daily review.
+
+## S7A Gold Market Coverage
+
+Current Search Intelligence state now includes a first Gold read-model foundation:
+
+- `gold_market_coverage_summary`
+- `gold_candidate_lifecycle_status`
+- `gold_approval_queue`
+- `gold_source_health_summary`
+
+These views are read-only and are intended to support the tabbed Control Center, daily status checks and demo-ready market coverage reporting.

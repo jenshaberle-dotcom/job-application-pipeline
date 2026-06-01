@@ -182,3 +182,9 @@ The approval-gated connector build layer sits after Aggregator Novelty and Emplo
 ## S6D Control Center UI
 
 The Search Intelligence Control Center is the product-facing control surface for the connector lifecycle. It does not introduce a new source of truth; it reads DB-backed candidates, gate reviews, reassessment signals, generation plans and build requests. Token-gated UI actions delegate to the same bounded CLI agents used by the pipeline.
+
+## S7A Gold Market Coverage
+
+S7A adds dashboard-facing Gold read models for Search Intelligence. These views consolidate candidate lifecycle state, FN pressure, connector-generation/build requests, approval queues, source health summaries and bounded aggregator novelty into UI-ready read models.
+
+The Control Center should increasingly consume these Gold views instead of re-implementing decision logic from raw Search Intelligence tables.
