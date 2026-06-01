@@ -8,12 +8,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import psycopg
+from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from scripts.search_intelligence_control_center import (
     BUILD_APPROVAL_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     ControlCenterCandidate,
+    GoldMarketCoverageSummary,
     build_approval_command,
     registration_approval_command,
     render_control_center,
@@ -28,164 +30,113 @@ class ControlCenterState:
         self.flash_message: str | None = None
 
 
-def _rows_to_candidates(rows: list[tuple[object, ...]]) -> list[ControlCenterCandidate]:
+def _value(row: object, key: str, default: object = None) -> object:
+    if isinstance(row, dict):
+        return row.get(key, default)
+    return getattr(row, key, default)
+
+
+def _rows_to_candidates(rows: list[object]) -> list[ControlCenterCandidate]:
     return [
         ControlCenterCandidate(
-            candidate_id=int(row[0]),
-            company_key=str(row[1]),
-            company_name=str(row[2]),
-            candidate_url=row[3],
-            source_name_candidate=str(row[4]),
-            source_type_candidate=str(row[5]),
-            status=str(row[6]),
-            operational_risk_level=str(row[7]),
-            false_negative_risk_level=row[8],
-            reassessment_status=row[9],
-            reassessment_reason=row[10],
-            generation_status=row[11],
-            generation_recommendation=row[12],
-            build_status=row[13],
-            build_recommendation=row[14],
-            build_mode=row[15],
-            build_next_command=row[16],
-            connector_module_path=row[17],
-            connector_test_path=row[18],
-            connector_docs_path=row[19],
-            gate_passed_count=int(row[20] or 0),
-            gate_manual_review_count=int(row[21] or 0),
-            gate_blocked_count=int(row[22] or 0),
-            gate_total_count=int(row[23] or 0),
-            latest_blocking_gate=row[24],
-            latest_blocking_reason=row[25],
-            connector_validation_status=row[26],
-            connector_validation_decision=row[27],
-            final_approval_status=row[28],
-            final_approval_decision=row[29],
+            candidate_id=int(_value(row, "candidate_id", 0) or 0),
+            company_key=str(_value(row, "company_key", "")),
+            company_name=str(_value(row, "display_company_name", "")),
+            candidate_url=_value(row, "candidate_url"),
+            source_name_candidate=str(_value(row, "source_name_candidate", "")),
+            source_type_candidate=str(_value(row, "source_type_candidate", "")),
+            status=str(_value(row, "candidate_status", "")),
+            operational_risk_level=str(_value(row, "candidate_risk_level", "")),
+            false_negative_risk_level=_value(row, "fn_pressure_level"),
+            reassessment_status=_value(row, "current_stage")
+            if _value(row, "current_stage") == "gate_reassessment_required"
+            else None,
+            reassessment_reason=_value(row, "fn_pressure_reason"),
+            generation_status=_value(row, "generation_status"),
+            generation_recommendation=_value(row, "generation_recommendation"),
+            build_status=_value(row, "build_status"),
+            build_recommendation=_value(row, "build_recommendation"),
+            build_mode=_value(row, "build_mode"),
+            build_next_command=_value(row, "debug_next_command"),
+            connector_module_path=_value(row, "connector_module_path"),
+            connector_test_path=_value(row, "connector_test_path"),
+            connector_docs_path=_value(row, "connector_docs_path"),
+            gate_passed_count=int(_value(row, "passed_gate_count", 0) or 0),
+            gate_manual_review_count=0,
+            gate_blocked_count=int(_value(row, "blocked_gate_count", 0) or 0),
+            gate_total_count=int(_value(row, "total_gate_count", 0) or 0),
+            latest_blocking_gate=_value(row, "blocking_gate"),
+            latest_blocking_reason=_value(row, "blocker_reason"),
+            connector_validation_status=None,
+            connector_validation_decision=None,
+            final_approval_status=None,
+            final_approval_decision=None,
         )
         for row in rows
     ]
 
 
+def _summary_from_row(row: object | None) -> GoldMarketCoverageSummary:
+    if row is None:
+        return GoldMarketCoverageSummary()
+    values = {
+        field: _value(row, field)
+        for field in GoldMarketCoverageSummary.__dataclass_fields__
+    }
+    return GoldMarketCoverageSummary(**values)
+
+
 def load_control_center_candidates() -> list[ControlCenterCandidate]:
-    with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                with gate_counts as (
-                    select
-                        candidate_id,
-                        count(*) filter (where gate_status = 'passed') as passed_count,
-                        count(*) filter (where gate_status = 'manual_review_required') as manual_review_count,
-                        count(*) filter (where gate_status = 'blocked') as blocked_count,
-                        count(*) as total_count
-                    from employer_origin_candidate_gate_reviews
-                    group by candidate_id
-                ),
-                latest_blocker as (
-                    select distinct on (candidate_id)
-                        candidate_id,
-                        gate_name,
-                        stop_reason
-                    from employer_origin_candidate_gate_reviews
-                    where gate_status in ('manual_review_required', 'blocked')
-                    order by candidate_id, gate_order asc, reviewed_at desc nulls last
-                ),
-                connector_validation as (
-                    select distinct on (candidate_id)
-                        candidate_id,
-                        gate_status,
-                        decision
-                    from employer_origin_candidate_gate_reviews
-                    where gate_name = 'connector_validation_gate'
-                    order by candidate_id, reviewed_at desc nulls last
-                ),
-                final_approval as (
-                    select distinct on (candidate_id)
-                        candidate_id,
-                        gate_status,
-                        decision
-                    from employer_origin_candidate_gate_reviews
-                    where gate_name = 'final_approval_gate'
-                    order by candidate_id, reviewed_at desc nulls last
-                ),
-                reassessment as (
-                    select distinct on (candidate_id)
-                        candidate_id,
-                        risk_level,
-                        status,
-                        trigger_reason
-                    from candidate_reassessment_queue
-                    order by candidate_id, updated_at desc
-                ),
-                generation_plan as (
-                    select distinct on (candidate_id)
-                        candidate_id,
-                        generation_status,
-                        recommendation
-                    from employer_origin_connector_generation_plans
-                    order by candidate_id, updated_at desc
-                ),
-                build_request as (
-                    select distinct on (candidate_id)
-                        candidate_id,
-                        build_status,
-                        recommendation,
-                        build_mode,
-                        next_command,
-                        connector_module_path,
-                        connector_test_path,
-                        connector_docs_path
-                    from employer_origin_connector_build_requests
-                    order by candidate_id, updated_at desc
-                )
                 select
-                    c.id,
-                    c.company_key,
-                    c.company_name,
-                    c.candidate_url,
-                    c.source_name_candidate,
-                    c.source_type_candidate,
-                    c.status,
-                    c.risk_level,
-                    reassessment.risk_level as false_negative_risk_level,
-                    reassessment.status as reassessment_status,
-                    reassessment.trigger_reason as reassessment_reason,
-                    generation_plan.generation_status,
-                    generation_plan.recommendation,
-                    build_request.build_status,
-                    build_request.recommendation as build_recommendation,
-                    build_request.build_mode,
-                    build_request.next_command,
-                    build_request.connector_module_path,
-                    build_request.connector_test_path,
-                    build_request.connector_docs_path,
-                    coalesce(gate_counts.passed_count, 0),
-                    coalesce(gate_counts.manual_review_count, 0),
-                    coalesce(gate_counts.blocked_count, 0),
-                    coalesce(gate_counts.total_count, 0),
-                    latest_blocker.gate_name,
-                    latest_blocker.stop_reason,
-                    connector_validation.gate_status,
-                    connector_validation.decision,
-                    final_approval.gate_status,
-                    final_approval.decision
-                from employer_origin_source_candidates c
-                left join gate_counts on gate_counts.candidate_id = c.id
-                left join latest_blocker on latest_blocker.candidate_id = c.id
-                left join connector_validation on connector_validation.candidate_id = c.id
-                left join final_approval on final_approval.candidate_id = c.id
-                left join reassessment on reassessment.candidate_id = c.id and reassessment.status = 'open'
-                left join generation_plan on generation_plan.candidate_id = c.id
-                left join build_request on build_request.candidate_id = c.id
+                    candidate_id,
+                    company_key,
+                    display_company_name,
+                    candidate_url,
+                    source_name_candidate,
+                    source_type_candidate,
+                    candidate_status,
+                    candidate_risk_level,
+                    fn_pressure_level,
+                    fn_pressure_reason,
+                    generation_status,
+                    generation_recommendation,
+                    build_status,
+                    build_recommendation,
+                    build_mode,
+                    debug_next_command,
+                    connector_module_path,
+                    connector_test_path,
+                    connector_docs_path,
+                    passed_gate_count,
+                    blocked_gate_count,
+                    total_gate_count,
+                    blocking_gate,
+                    blocker_reason,
+                    current_stage,
+                    recommended_next_action,
+                    last_signal_at
+                from gold_candidate_lifecycle_status
                 order by
-                    case when build_request.build_status = 'build_approval_required' then 0 else 1 end,
-                    case when reassessment.risk_level = 'critical' then 0 when reassessment.risk_level = 'high' then 1 else 2 end,
-                    c.status,
-                    c.company_name
+                    case when current_stage = 'build_approval_required' then 0 else 1 end,
+                    case when fn_pressure_level = 'critical' then 0 when fn_pressure_level = 'high' then 1 else 2 end,
+                    last_signal_at desc nulls last,
+                    display_company_name
                 """
             )
             rows = cur.fetchall()
     return _rows_to_candidates(rows)
+
+
+def load_market_coverage_summary() -> GoldMarketCoverageSummary:
+    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute("select * from gold_market_coverage_summary")
+            row = cur.fetchone()
+    return _summary_from_row(row)
 
 
 def run_command(command: tuple[str, ...]) -> str:
@@ -223,6 +174,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
         active_tab = query.get("tab", ["dashboard"])[0]
         try:
             candidates = load_control_center_candidates()
+            market_summary = load_market_coverage_summary()
             body = render_control_center(
                 candidates,
                 reviewed_by=self.state.reviewed_by,
@@ -230,6 +182,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
                 write_actions_enabled=self.state.allow_write_actions,
                 flash_message=self.state.flash_message,
                 active_tab=active_tab,
+                market_summary=market_summary,
             )
         except Exception as exc:  # pragma: no cover - browser diagnostics
             body = f"<html><body><h1>Control Center failed</h1><pre>{exc}</pre></body></html>"

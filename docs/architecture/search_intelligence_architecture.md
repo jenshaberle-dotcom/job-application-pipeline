@@ -188,3 +188,5 @@ The Search Intelligence Control Center is the product-facing control surface for
 S7A adds dashboard-facing Gold read models for Search Intelligence. These views consolidate candidate lifecycle state, FN pressure, connector-generation/build requests, approval queues, source health summaries and bounded aggregator novelty into UI-ready read models.
 
 The Control Center should increasingly consume these Gold views instead of re-implementing decision logic from raw Search Intelligence tables.
+
+S7B routes the Control Center through Gold read models (`gold_market_coverage_summary`, `gold_candidate_lifecycle_status`, `gold_approval_queue`, `gold_source_health_summary`) so UI tabs no longer rebuild lifecycle logic from raw gate and agent tables.

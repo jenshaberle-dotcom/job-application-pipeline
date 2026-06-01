@@ -209,3 +209,5 @@ Current Search Intelligence state now includes a first Gold read-model foundatio
 - `gold_source_health_summary`
 
 These views are read-only and are intended to support the tabbed Control Center, daily status checks and demo-ready market coverage reporting.
+
+S7B connects the Control Center to the Gold Search Intelligence views. The UI remains a functional foundation, but its KPIs and candidate lifecycle now come from dashboard-ready Gold read models instead of raw Search Intelligence tables.
