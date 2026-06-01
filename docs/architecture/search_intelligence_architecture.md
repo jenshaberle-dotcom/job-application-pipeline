@@ -61,6 +61,29 @@ Examples:
 
 ---
 
+
+## Aggregator Novelty Loop
+
+Evaluates bounded aggregator market evidence over learning cycles.
+
+Purpose:
+
+- separate unregistered companies from known employer-origin candidates
+- separate newly observed companies/terms from repeated cycle evidence
+- identify unresolved known candidates that require gate reassessment
+- detect saturation when limited result windows stop producing novelty
+
+Boundary:
+
+- no pagination
+- no source-limit circumvention
+- no search-profile mutation
+- no source activation
+- no Bronze writes
+- no scheduler changes
+
+---
+
 ## Company Vocabulary
 
 Observed terminology associated with companies and market segments.

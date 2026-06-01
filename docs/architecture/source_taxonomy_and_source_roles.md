@@ -116,3 +116,9 @@ Employer-origin connector generation is driven by Source Role, not only Source T
 A career site, ATS-backed board or company platform becomes a connector-generation candidate when it can provide Ground Truth or Origin Validation value through bounded, defensively fetched job evidence.
 
 S6A generation plans therefore evaluate whether a source candidate is useful as confirmed origin evidence before any connector artifact is generated.
+
+## Aggregator Novelty and Saturation
+
+Aggregator-role sources may be valuable even when they are not origin sources. Their value is evaluated through bounded market evidence, new-company discovery, vocabulary novelty and reassessment pressure.
+
+Known-company or known-term repetition is not automatically bad, but repeated low-novelty cycles can indicate that a query is saturated and should be paused, refined through reviewed trial terms or redirected toward gate reassessment.
