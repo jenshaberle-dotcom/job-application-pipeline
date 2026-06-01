@@ -81,15 +81,16 @@ def humanize(value: object) -> str:
         "origin_validation_ground_truth": "Origin validation / ground truth",
         "employer_origin_career_site": "Employer-origin career site",
         "employer_origin_ats_backed_career_site": "Employer-origin ATS-backed career site",
+        "detail_evidence_gate": "Detail evidence gate",
     }
     return special.get(raw, raw.replace("_", " ").replace("-", " ").strip().capitalize())
 
 
 def risk_class(value: str | None) -> str:
     raw = (value or "").lower()
-    if raw in {"critical", "high"}:
+    if raw in {"critical", "high", "blocked"}:
         return "bad"
-    if raw in {"medium", "manual_review_required"}:
+    if raw in {"medium", "manual_review_required", "build_approval_required", "open"}:
         return "warn"
     if raw in {"low", "passed", "active_controlled"}:
         return "ok"
@@ -135,21 +136,37 @@ def chain_steps(candidate: ControlCenterCandidate) -> tuple[tuple[str, str, str]
         build_state = "done"
     else:
         build_state = "open"
-
     validation_state = "done" if candidate.connector_validation_status == "passed" else "open"
     approval_state = "current" if candidate.needs_registration_approval else "done" if candidate.final_approval_decision == "approve_connector_registration" else "open"
     active_state = "done" if candidate.is_active_connector else "open"
-
     return (
         ("Discovered", "done", "Company exists as DB-backed source candidate."),
         ("Candidate", "done", humanize(candidate.status)),
         ("Learning", learning_state, humanize(candidate.false_negative_risk_level or candidate.reassessment_status or "open")),
-        ("Origin exploration", origin_state, humanize(candidate.latest_blocking_gate or "gates reviewed")),
+        ("Origin", origin_state, humanize(candidate.latest_blocking_gate or "gates reviewed")),
         ("Build", build_state, humanize(candidate.build_status or "not_started")),
         ("Validate", validation_state, humanize(candidate.connector_validation_decision or candidate.connector_validation_status or "open")),
         ("Approval", approval_state, humanize(candidate.final_approval_decision or candidate.final_approval_status or "open")),
         ("Active", active_state, humanize(candidate.status if candidate.is_active_connector else "not_active")),
     )
+
+
+def current_stage(candidate: ControlCenterCandidate) -> str:
+    if candidate.is_active_connector:
+        return "Active connector"
+    if candidate.needs_registration_approval:
+        return "Registration approval"
+    if candidate.needs_build_approval:
+        return "Build approval"
+    if candidate.latest_blocking_gate:
+        return humanize(candidate.latest_blocking_gate)
+    return humanize(candidate.status)
+
+
+def candidate_sort_key(candidate: ControlCenterCandidate) -> tuple[int, int, str]:
+    priority = 0 if candidate.needs_build_approval or candidate.needs_registration_approval else 1
+    pressure = 0 if candidate.false_negative_risk_level in {"critical", "high"} else 1
+    return (priority, pressure, candidate.company_name.lower())
 
 
 def render_chain(candidate: ControlCenterCandidate) -> str:
@@ -159,9 +176,16 @@ def render_chain(candidate: ControlCenterCandidate) -> str:
     return f"<ol class='chain' aria-label='Discovery to controlled activation chain'>{''.join(items)}</ol>"
 
 
-def render_candidate_row(candidate: ControlCenterCandidate, *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
+def render_candidate_card(
+    candidate: ControlCenterCandidate,
+    *,
+    reviewed_by: str,
+    target_location: str,
+    write_actions_enabled: bool,
+    compact: bool = False,
+) -> str:
     build_form = ""
-    if candidate.needs_build_approval:
+    if candidate.needs_build_approval and not compact:
         cmd = shlex.join(build_approval_command(candidate.company_key, reviewed_by))
         disabled = "disabled" if not write_actions_enabled else ""
         hint = "" if write_actions_enabled else "<p class='warning'>Start the UI with <code>--allow-write-actions</code> to approve builds.</p>"
@@ -169,9 +193,7 @@ def render_candidate_row(candidate: ControlCenterCandidate, *, reviewed_by: str,
             "<div class='action-panel'>"
             "<strong>Build approval</strong>"
             "<p>Allows connector artifacts only. Registration, activation, Bronze writes and scheduler changes stay blocked.</p>"
-            "<details class='command-box'><summary>Show approval command</summary>"
-            f"<pre>{h(cmd)}</pre>"
-            "</details>"
+            f"<details class='command-box'><summary>Show approval command</summary><pre>{h(cmd)}</pre></details>"
             f"{hint}"
             "<form method='post' action='/actions/approve-build'>"
             f"<input type='hidden' name='company_key' value='{h(candidate.company_key)}'>"
@@ -183,16 +205,14 @@ def render_candidate_row(candidate: ControlCenterCandidate, *, reviewed_by: str,
         )
 
     registration_form = ""
-    if candidate.needs_registration_approval:
+    if candidate.needs_registration_approval and not compact:
         cmd = shlex.join(registration_approval_command(candidate.company_key, target_location, reviewed_by))
         disabled = "disabled" if not write_actions_enabled else ""
         registration_form = (
             "<div class='action-panel registration'>"
             "<strong>Registration approval</strong>"
-            "<p>Approves registration gate only. Controlled activation remains a separate step.</p>"
-            "<details class='command-box'><summary>Show registration command</summary>"
-            f"<pre>{h(cmd)}</pre>"
-            "</details>"
+            "<p>Approves registration gate only. Controlled activation remains separate.</p>"
+            f"<details class='command-box'><summary>Show registration command</summary><pre>{h(cmd)}</pre></details>"
             "<form method='post' action='/actions/approve-registration'>"
             f"<input type='hidden' name='company_key' value='{h(candidate.company_key)}'>"
             f"<label>Approval token <input name='approval_token' placeholder='{h(REGISTRATION_APPROVAL_TOKEN)}' autocomplete='off'></label>"
@@ -207,15 +227,11 @@ def render_candidate_row(candidate: ControlCenterCandidate, *, reviewed_by: str,
         blocker = f"<p class='blocker'><strong>{h(humanize(candidate.latest_blocking_gate))}:</strong> {h(candidate.latest_blocking_reason or '-') }</p>"
 
     artifacts = ""
-    if candidate.connector_module_path or candidate.connector_test_path or candidate.connector_docs_path:
-        artifacts = (
-            "<ul class='artifacts'>"
-            f"<li>{h(candidate.connector_module_path or '-')}</li>"
-            f"<li>{h(candidate.connector_test_path or '-')}</li>"
-            f"<li>{h(candidate.connector_docs_path or '-')}</li>"
-            "</ul>"
-        )
+    artifact_items = [candidate.connector_module_path, candidate.connector_test_path, candidate.connector_docs_path]
+    if any(artifact_items) and not compact:
+        artifacts = "<ul class='artifacts'>" + "".join(f"<li>{h(item or '-')}</li>" for item in artifact_items) + "</ul>"
 
+    pressure_label = humanize(candidate.false_negative_risk_level or "-")
     return (
         f"<article class='candidate-card {h(risk_class(candidate.false_negative_risk_level or candidate.status))}'>"
         "<header>"
@@ -224,11 +240,12 @@ def render_candidate_row(candidate: ControlCenterCandidate, *, reviewed_by: str,
         "</header>"
         f"{render_chain(candidate)}"
         "<div class='facts'>"
-        f"<span>source type: <strong>{h(humanize(candidate.source_type_candidate))}</strong></span>"
-        f"<span>candidate risk: <strong>{h(humanize(candidate.operational_risk_level))}</strong></span>"
-        f"<span>false-negative risk: <strong>{h(humanize(candidate.false_negative_risk_level or '-'))}</strong></span>"
-        f"<span>gates: <strong>{h(candidate.gate_passed_count)}/{h(candidate.gate_total_count)} passed</strong></span>"
+        f"<span>stage <strong>{h(current_stage(candidate))}</strong></span>"
+        f"<span>source type <strong>{h(humanize(candidate.source_type_candidate))}</strong></span>"
+        f"<span>FN pressure <strong>{h(pressure_label)}</strong></span>"
+        f"<span>gates <strong>{h(candidate.gate_passed_count)}/{h(candidate.gate_total_count)} passed</strong></span>"
         "</div>"
+        f"<p class='next-step'>{h(next_step_text(candidate))}</p>"
         f"{blocker}"
         f"{artifacts}"
         f"{build_form}"
@@ -237,10 +254,39 @@ def render_candidate_row(candidate: ControlCenterCandidate, *, reviewed_by: str,
     )
 
 
+def next_step_text(candidate: ControlCenterCandidate) -> str:
+    if candidate.is_active_connector:
+        return "Monitor connector health and incremental source contribution."
+    if candidate.needs_registration_approval:
+        return "Review validation evidence and approve registration gate."
+    if candidate.needs_build_approval:
+        return "Review bounded investigation scope and approve connector artifact build."
+    if candidate.latest_blocking_gate:
+        return "Resolve the blocking gate before connector registration."
+    return "Continue gate review."
+
+
+def kpi(label: str, value: object, helper: str, cls: str = "neutral") -> str:
+    return f"<div class='metric {h(cls)}'><span class='eyebrow'>{h(label)}</span><strong>{h(value)}</strong><small>{h(helper)}</small></div>"
+
+
+def render_lifecycle_bars(candidates: list[ControlCenterCandidate]) -> str:
+    total = max(len(candidates), 1)
+    active = sum(1 for c in candidates if c.is_active_connector)
+    blocked = sum(1 for c in candidates if c.latest_blocking_gate)
+    approvals = sum(1 for c in candidates if c.needs_build_approval or c.needs_registration_approval)
+    rows = (("Candidates", len(candidates)), ("Active", active), ("Blocked", blocked), ("Approvals", approvals))
+    rendered = []
+    for label, value in rows:
+        width = max(6, round((value / total) * 100))
+        rendered.append(f"<div class='bar-row'><span>{h(label)}</span><div><i style='width:{h(width)}%'></i></div><b>{h(value)}</b></div>")
+    return "<div class='funnel'>" + "".join(rendered) + "</div>"
+
+
 def render_active_connectors(candidates: Iterable[ControlCenterCandidate]) -> str:
     active = [item for item in candidates if item.is_active_connector]
     if not active:
-        return "<section id='active-connectors' class='panel'><h2>Active Connectors</h2><p class='muted'>No active controlled employer-origin connector is registered yet.</p></section>"
+        return "<section class='panel'><h2>Active Connectors</h2><p class='muted'>No active controlled employer-origin connector is registered yet.</p></section>"
     rows = []
     for item in active:
         rows.append(
@@ -253,7 +299,7 @@ def render_active_connectors(candidates: Iterable[ControlCenterCandidate]) -> st
             "</tr>"
         )
     return (
-        "<section id='active-connectors' class='panel'><div class='section-head'><div><span class='eyebrow'>Operational Surface</span>"
+        "<section class='panel'><div class='section-head'><div><span class='eyebrow'>Operational Surface</span>"
         "<h2>Active Connectors</h2></div>"
         f"<span class='pill ok'>{h(len(active))} active</span></div>"
         "<table class='compact-table'><thead><tr><th>Company</th><th>Source</th><th>Type</th><th>Status</th><th>Gates</th></tr></thead>"
@@ -262,39 +308,118 @@ def render_active_connectors(candidates: Iterable[ControlCenterCandidate]) -> st
 
 
 def render_build_approvals(candidates: Iterable[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
-    items = [item for item in candidates if item.needs_build_approval or item.needs_registration_approval or item.build_status]
+    items = [item for item in candidates if item.needs_build_approval or item.needs_registration_approval]
     if not items:
-        return "<section id='approvals' class='panel'><h2>Connector Approvals</h2><p class='muted'>No connector build or registration approval is waiting.</p></section>"
-    cards = [render_candidate_row(item, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled) for item in items]
+        return "<section class='panel'><h2>Connector Approvals</h2><p class='muted'>No connector build or registration approval is waiting.</p></section>"
+    cards = [render_candidate_card(item, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled) for item in items]
     return (
-        "<section id='approvals' class='panel approvals'><div class='section-head'><div><span class='eyebrow'>Approval Control</span>"
-        "<h2>Connector Build & Registration Approvals</h2></div>"
+        "<section class='panel'><div class='section-head'><div><span class='eyebrow'>Approval Control</span>"
+        "<span class='eyebrow'>Approval control</span>"
+        "<h1>Connector Build & Registration Approvals</h2></div>"
         f"<span class='pill warn'>{h(len(items))} item(s)</span></div>"
         "<p class='muted'>Build approval may create connector artifacts only. Registration and activation remain separate gates.</p>"
-        f"<div class='card-grid'>{''.join(cards)}</div></section>"
+        f"<div class='card-grid single'>{''.join(cards)}</div></section>"
     )
 
 
 def render_candidate_chain(candidates: Iterable[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
-    items = list(candidates)
+    items = sorted(list(candidates), key=candidate_sort_key)
     if not items:
-        return "<section id='candidate-chain' class='panel'><h2>Candidate Chain</h2><p class='muted'>No employer-origin candidates found.</p></section>"
-    ordered = sorted(
-        items,
-        key=lambda item: (
-            0 if item.needs_build_approval else 1,
-            0 if item.false_negative_risk_level in {"critical", "high"} else 1,
-            item.company_name.lower(),
-        ),
-    )
-    cards = [render_candidate_row(item, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled) for item in ordered]
+        return "<section class='panel'><h2>Candidate Chain</h2><p class='muted'>No employer-origin candidates found.</p></section>"
+    cards = [render_candidate_card(item, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled, compact=True) for item in items]
     return (
-        "<section id='candidate-chain' class='panel chain-panel'><div class='section-head'><div><span class='eyebrow'>System Chain</span>"
+        "<section class='panel'><div class='section-head'><div><span class='eyebrow'>System Chain</span>"
         "<h2>Discovery → Candidate → Origin Exploration → Connector → Approval</h2></div>"
         f"<span class='pill neutral'>{h(len(items))} candidates</span></div>"
-        "<p class='muted'>This is the clean product chain: discovery creates a candidate, Search Intelligence creates pressure, agents explore the origin source, connector artifacts require explicit approval, and registration/activation remain gated.</p>"
+        "<p class='muted'>Discovery creates a candidate. Search Intelligence creates pressure. Agents explore origin sources. Connector artifacts and registration require explicit approval.</p>"
         f"<div class='card-grid'>{''.join(cards)}</div></section>"
     )
+
+
+def render_health(candidates: list[ControlCenterCandidate]) -> str:
+    blockers = [item for item in candidates if item.latest_blocking_gate]
+    critical = [item for item in candidates if item.false_negative_risk_level == "critical"]
+    rows = []
+    for item in sorted(candidates, key=candidate_sort_key):
+        diagnosis = item.latest_blocking_reason or ("Monitor connector health and source contribution." if item.is_active_connector else "No concrete blocker recorded.")
+        rows.append(
+            "<tr>"
+            f"<td><strong>{h(item.company_name)}</strong><br><span>{h(item.company_key)}</span></td>"
+            f"<td><span class='pill {h(risk_class(item.status))}'>{h(humanize(item.status))}</span></td>"
+            f"<td>{h(current_stage(item))}</td>"
+            f"<td>{h(diagnosis)}</td>"
+            "</tr>"
+        )
+    return (
+        "<section class='tab-view' data-view='health'><div class='view-head'><span class='eyebrow'>Heartbeat & Health</span><h1>System health and diagnostics</h1>"
+        "<p class='muted'>Shows not only whether something is blocked, but why and what the next useful action is.</p></div>"
+        "<section class='kpis'>"
+        f"{kpi('Blocking reasons', len(blockers), 'candidates with concrete blocker', 'warn')}"
+        f"{kpi('Critical pressure', len(critical), 'false-negative signals', 'bad')}"
+        f"{kpi('Candidates', len(candidates), 'known employer-origin candidates', 'neutral')}"
+        "</section><section class='panel'><h2>Connector and candidate diagnostics</h2>"
+        "<table><thead><tr><th>Company</th><th>Status</th><th>Current stage</th><th>Diagnosis</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table></section></section>"
+    )
+
+
+def render_dashboard(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
+    priority = sorted(candidates, key=candidate_sort_key)[:3]
+    cards = [render_candidate_card(item, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled, compact=True) for item in priority]
+    return (
+        "<section class='tab-view' data-view='dashboard'><div class='view-head'><span class='eyebrow'>Dashboard</span><h1>Search Intelligence Overview</h1>"
+        "<p class='muted'>One-page summary of market coverage, connector readiness, health blockers and approvals.</p></div>"
+        "<section class='dashboard-grid'>"
+        "<div class='panel'><span class='eyebrow'>Market Coverage Funnel</span><h2>Candidate lifecycle</h2>" + render_lifecycle_bars(candidates) + "</div>"
+        "<div class='panel'><span class='eyebrow'>Needs Attention</span><h2>Priority candidates</h2>" + "".join(cards) + "</div>"
+        "</section></section>"
+    )
+
+
+def render_connectors_tab(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
+    return (
+        "<section class='tab-view' data-view='connectors'><div class='view-head'><span class='eyebrow'>Connectors & Candidates</span><h1>Connector lifecycle workspace</h1>"
+        "<p class='muted'>Active connectors, unresolved candidates, current stage, blocker and next action in one operational view.</p></div>"
+        f"{render_active_connectors(candidates)}{render_candidate_chain(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled)}</section>"
+    )
+
+
+def render_approvals_tab(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
+    return (
+        "<section class='tab-view' data-view='approvals'><div class='view-head'><span class='eyebrow'>Approvals</span><h1>Approval workspace</h1>"
+        "<p class='muted'>Approve connector artifact builds and later registration gates from the GUI. No auto-PR, source activation, Bronze writes or scheduler changes.</p></div>"
+        f"{render_build_approvals(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled)}</section>"
+    )
+
+
+def render_gap_tab() -> str:
+    return (
+        "<section class='tab-view' data-view='gaps'><div class='view-head'><span class='eyebrow'>Gap Analysis</span><h1>Market demand and capability gaps</h1>"
+        "<p class='muted'>Gold-backed view planned next: market terms, observed skills, profile fit and concrete improvement signals.</p></div>"
+        "<section class='empty-state'><h2>Gold layer needed</h2><p>This tab should not invent analytics from raw agent output. It is intentionally waiting for the Search Intelligence Gold model.</p></section></section>"
+    )
+
+
+def render_jobs_tab() -> str:
+    return (
+        "<section class='tab-view' data-view='jobs'><div class='view-head'><span class='eyebrow'>Jobs & Applications</span><h1>New jobs and application drafts</h1>"
+        "<p class='muted'>Planned product view: new jobs, top matches and AI-assisted application drafts ready for review.</p></div>"
+        "<section class='empty-state'><h2>Application workflow placeholder</h2><p>Needs Gold job ranking plus a separate approval-safe application draft workflow.</p></section></section>"
+    )
+
+
+def render_demo_chain_tab(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
+    return (
+        "<section class='tab-view' data-view='demo'><div class='view-head'><span class='eyebrow'>Demo Chain</span><h1>Discovered company → approved connector</h1>"
+        "<p class='muted'>The end-to-end story for the demo: discovery, candidate, learning pressure, origin exploration, connector build approval and registration gate.</p></div>"
+        f"{render_candidate_chain(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled)}</section>"
+    )
+
+
+def nav_item(tab: str, label: str, count: int | None = None, *, active_tab: str = "dashboard") -> str:
+    badge = f"<b>{h(count)}</b>" if count is not None else ""
+    active = " active" if tab == active_tab else ""
+    return f"<a class='nav-link{active}' data-tab-link='{h(tab)}' href='/?tab={h(tab)}'>{h(label)}{badge}</a>"
 
 
 def render_control_center(
@@ -304,6 +429,7 @@ def render_control_center(
     target_location: str,
     write_actions_enabled: bool,
     flash_message: str | None = None,
+    active_tab: str = "dashboard",
 ) -> str:
     active_count = sum(1 for item in candidates if item.is_active_connector)
     build_approval_count = sum(1 for item in candidates if item.needs_build_approval)
@@ -311,6 +437,18 @@ def render_control_center(
     critical_count = sum(1 for item in candidates if item.false_negative_risk_level == "critical")
     mode = "write-enabled" if write_actions_enabled else "read-only"
     flash = f"<div class='flash'>{h(flash_message)}</div>" if flash_message else ""
+    allowed_tabs = {"dashboard", "health", "connectors", "approvals", "gaps", "jobs", "demo"}
+    if active_tab not in allowed_tabs:
+        active_tab = "dashboard"
+    active_view_html = {
+        "dashboard": render_dashboard(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
+        "health": render_health(candidates),
+        "connectors": render_connectors_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
+        "approvals": render_approvals_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
+        "gaps": render_gap_tab(),
+        "jobs": render_jobs_tab(),
+        "demo-chain": render_demo_chain_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
+    }[active_tab]
     return f"""<!doctype html>
 <html lang='en'>
 <head>
@@ -318,51 +456,66 @@ def render_control_center(
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <title>Search Intelligence Control Center</title>
 <style>
-:root {{ color-scheme: dark; --bg:#04101c; --panel:rgba(8,24,39,.94); --panel2:rgba(11,35,56,.78); --line:rgba(99,159,199,.28); --text:#ecf7ff; --muted:#9db8cc; --cyan:#22d3ee; --green:#70e36b; --amber:#f5b642; --red:#ff5d5d; --shadow:0 18px 52px rgba(0,0,0,.34); }}
-* {{ box-sizing:border-box; }} body {{ margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; color:var(--text); background:radial-gradient(circle at 20% 0%, rgba(34,211,238,.13), transparent 26%), linear-gradient(135deg, var(--bg), #020712 74%); }}
-main {{ width:min(1840px, calc(100vw - 2rem)); max-width:none; margin:0 auto; padding:1.25rem 1rem 2.5rem; }}
-.brand {{ display:flex; justify-content:space-between; gap:1rem; align-items:center; border-bottom:1px solid var(--line); padding-bottom:1rem; }}
-.brand-actions {{ display:flex; gap:.65rem; align-items:center; flex-wrap:wrap; justify-content:flex-end; }}
-.shutdown-form {{ margin:0; }}
-.kill-switch {{ background:rgba(255,93,93,.12); color:#ffd8d8; border:1px solid rgba(255,93,93,.48); }}
-.kill-switch:hover {{ background:rgba(255,93,93,.22); }}
-h1 {{ margin:0; font-size:clamp(1.35rem,2.4vw,2.05rem); letter-spacing:.02em; }} h2,h3 {{ margin:.1rem 0; }} p {{ line-height:1.45; }} .muted {{ color:var(--muted); }} .eyebrow {{ color:var(--cyan); text-transform:uppercase; letter-spacing:.13em; font-size:.72rem; }}
-.mode,.pill {{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:.34rem .62rem; font-size:.82rem; white-space:nowrap; }} .mode {{ color:var(--cyan); background:rgba(34,211,238,.1); }} .pill.ok {{ color:var(--green); border-color:rgba(112,227,107,.42); }} .pill.warn {{ color:var(--amber); border-color:rgba(245,182,66,.52); }} .pill.bad {{ color:var(--red); border-color:rgba(255,93,93,.50); }} .pill.neutral {{ color:var(--muted); }}
-.hero {{ padding:1.2rem 0 .8rem; display:grid; grid-template-columns:1fr auto; gap:1rem; align-items:end; }} .hero p {{ max-width:82ch; }}
-.metrics {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.85rem; margin:.75rem 0 1rem; }} .metric,.panel,.candidate-card {{ background:linear-gradient(180deg,var(--panel),rgba(5,16,29,.96)); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); }} .metric {{ padding:.85rem 1rem; }} .metric strong {{ display:block; font-size:1.45rem; }}
-.panel {{ padding:1rem; margin:1rem 0; }} .section-head {{ display:flex; justify-content:space-between; gap:1rem; align-items:start; margin-bottom:.75rem; }}
-table {{ width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px; }} th,td {{ text-align:left; padding:.7rem .65rem; border-bottom:1px solid var(--line); vertical-align:top; }} th {{ color:#c9efff; font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; }} td span {{ color:var(--muted); }}
-.card-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:.85rem; }} .candidate-card {{ padding:.9rem; border-left:4px solid var(--line); }} .candidate-card.bad {{ border-left-color:var(--red); }} .candidate-card.warn {{ border-left-color:var(--amber); }} .candidate-card.ok {{ border-left-color:var(--green); }} .candidate-card header {{ display:flex; justify-content:space-between; gap:.75rem; align-items:start; }} .candidate-card header p {{ margin:.15rem 0 0; color:var(--muted); }}
-.chain {{ list-style:none; padding:0; margin:.8rem 0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.4rem; }} .chain li {{ border:1px solid var(--line); border-radius:999px; padding:.35rem .48rem; font-size:.78rem; color:var(--muted); display:flex; gap:.36rem; align-items:center; }} .chain li span {{ width:.52rem; height:.52rem; border-radius:999px; background:var(--muted); }} .chain li.done {{ color:var(--green); border-color:rgba(112,227,107,.32); }} .chain li.done span {{ background:var(--green); }} .chain li.current {{ color:var(--amber); border-color:rgba(245,182,66,.50); }} .chain li.current span {{ background:var(--amber); }} .chain li.blocked {{ color:var(--red); border-color:rgba(255,93,93,.5); }} .chain li.blocked span {{ background:var(--red); }}
-.facts {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.45rem; margin:.65rem 0; }} .facts span {{ color:var(--muted); background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:10px; padding:.48rem; }} .facts strong {{ color:var(--text); }} .blocker {{ border-left:3px solid var(--amber); padding-left:.65rem; color:#f8ddb0; }} .artifacts {{ margin:.5rem 0; color:var(--muted); }}
-.action-panel {{ margin-top:.75rem; padding:.8rem; border:1px solid rgba(245,182,66,.38); border-radius:12px; background:rgba(245,182,66,.08); }} .action-panel.registration {{ border-color:rgba(34,211,238,.42); background:rgba(34,211,238,.08); }} pre {{ white-space:pre-wrap; overflow:auto; padding:.65rem; border-radius:10px; border:1px solid var(--line); background:#03101d; color:#d8f4ff; }} form {{ display:flex; gap:.55rem; flex-wrap:wrap; align-items:end; }} label {{ display:grid; gap:.25rem; color:var(--muted); font-size:.84rem; }} input {{ background:#061522; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:.48rem .58rem; }} button {{ background:linear-gradient(135deg,#13b7d2,#1d78c1); color:white; border:0; border-radius:10px; padding:.58rem .75rem; font-weight:700; cursor:pointer; }} button:disabled {{ opacity:.45; cursor:not-allowed; }} .warning,.flash {{ color:#ffe2a9; }} .flash {{ margin:1rem 0; padding:.8rem; border:1px solid rgba(245,182,66,.42); border-radius:12px; background:rgba(245,182,66,.09); }}
-@media (max-width:900px) {{ .metrics,.hero {{ grid-template-columns:1fr; }} .chain,.facts {{ grid-template-columns:1fr; }} .card-grid {{ grid-template-columns:1fr; }} }}
-
-.top-nav {{ position:sticky; top:0; z-index:20; margin:.9rem 0 1rem; padding:.65rem .8rem; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; background:rgba(3,11,20,.88); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:1rem; }}
-.top-nav a {{ color:var(--text); text-decoration:none; border:1px solid rgba(58,147,191,.45); background:rgba(0,181,255,.06); border-radius:999px; padding:.35rem .65rem; font-size:.78rem; }}
-.top-nav a:hover {{ background:rgba(0,181,255,.16); }}
-.dashboard-grid {{ display:grid; grid-template-columns:minmax(360px,.82fr) minmax(700px,1.55fr); gap:1rem; align-items:start; }}
-@media (max-width:1200px) {{ .dashboard-grid {{ grid-template-columns:1fr; }} }}
-.compact-table td, .compact-table th {{ padding:.65rem .5rem; }}
-details.command-box {{ margin-top:.75rem; border:1px solid var(--line); border-radius:.65rem; padding:.55rem .7rem; background:rgba(0,0,0,.16); }}
-details.command-box summary {{ cursor:pointer; color:var(--cyan); font-weight:700; }}
-
+:root {{
+  color-scheme: dark;
+  --bg:#020812; --bg2:#041321; --panel:rgba(8,24,39,.94); --panel2:rgba(12,38,60,.72);
+  --line:rgba(99,159,199,.30); --line2:rgba(99,159,199,.18); --text:#ecf7ff; --muted:#9db8cc;
+  --cyan:#22d3ee; --green:#70e36b; --amber:#f5b642; --red:#ff5d5d; --blue:#65b7ff;
+  --sidebar:244px; --radius:18px; --shadow:0 20px 70px rgba(0,0,0,.38);
+}}
+* {{ box-sizing:border-box; }}
+html, body {{ width:100%; min-height:100%; margin:0; overflow-x:hidden; }}
+body {{ font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; color:var(--text); background:radial-gradient(circle at 12% 0%, rgba(34,211,238,.16), transparent 30%), linear-gradient(135deg, var(--bg2), var(--bg) 70%); }}
+.app-shell {{ display:grid; grid-template-columns:var(--sidebar) minmax(0,1fr); min-height:100vh; width:100%; }}
+.sidebar {{ position:sticky; top:0; height:100vh; overflow-y:auto; padding:1.15rem .85rem; border-right:1px solid var(--line); background:linear-gradient(180deg, rgba(5,19,32,.98), rgba(3,11,21,.98)); }}
+.logo .eyebrow {{ display:block; margin-bottom:.35rem; }} .logo h1 {{ font-size:1.05rem; margin:.1rem 0 0; }} .logo p {{ margin:.1rem 0 1.2rem; color:var(--muted); }}
+.nav {{ display:grid; gap:.55rem; }} .nav-link {{ display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.68rem .75rem; color:var(--text); text-decoration:none; border:1px solid var(--line); border-radius:11px; background:rgba(255,255,255,.025); font-weight:700; }} .nav-link:hover,.nav-link.active {{ border-color:rgba(34,211,238,.75); background:rgba(34,211,238,.13); }} .nav-link b {{ min-width:1.45rem; height:1.45rem; display:inline-grid; place-items:center; border-radius:999px; background:var(--cyan); color:#03101d; }}
+.sidebar-footer {{ position:absolute; left:.85rem; right:.85rem; bottom:.8rem; display:grid; gap:.45rem; }}
+.content {{ min-width:0; width:100%; padding:2rem clamp(1.5rem,2.4vw,3rem) 3rem; }}
+.content-inner {{ width:100%; max-width:1480px; }}
+.view-head {{ max-width:980px; margin-bottom:1.1rem; }} h1 {{ margin:0; font-size:clamp(1.7rem,2vw,2.35rem); letter-spacing:.01em; }} h2,h3 {{ margin:.1rem 0; }} p {{ line-height:1.45; }} .muted {{ color:var(--muted); }} .eyebrow {{ color:var(--cyan); text-transform:uppercase; letter-spacing:.13em; font-size:.72rem; font-weight:800; }}
+.mode,.pill {{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:.34rem .62rem; font-size:.82rem; white-space:nowrap; }} .mode {{ color:var(--cyan); background:rgba(34,211,238,.1); }} .pill.ok {{ color:var(--green); border-color:rgba(112,227,107,.44); }} .pill.warn {{ color:var(--amber); border-color:rgba(245,182,66,.52); }} .pill.bad {{ color:var(--red); border-color:rgba(255,93,93,.50); }} .pill.neutral {{ color:var(--muted); }}
+.kpi-strip,.kpis {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; margin:0 0 1rem; }} .metric,.panel,.candidate-card,.empty-state {{ background:linear-gradient(180deg,var(--panel),rgba(5,16,29,.96)); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); }} .metric {{ padding:1rem 1.1rem; }} .metric strong {{ display:block; margin:.18rem 0; font-size:1.55rem; }} .metric small {{ color:var(--muted); }} .metric.ok {{ border-color:rgba(112,227,107,.48); }} .metric.warn {{ border-color:rgba(245,182,66,.52); }} .metric.bad {{ border-color:rgba(255,93,93,.52); }}
+.tab-view {{ display:block; }}
+.dashboard-grid {{ display:grid; grid-template-columns:minmax(360px,.72fr) minmax(620px,1.28fr); gap:1rem; align-items:start; }}
+.panel,.empty-state {{ padding:1rem; }} .section-head {{ display:flex; justify-content:space-between; gap:1rem; align-items:start; margin-bottom:.75rem; }}
+.funnel {{ display:grid; gap:.7rem; margin-top:1rem; }} .bar-row {{ display:grid; grid-template-columns:100px minmax(0,1fr) 32px; align-items:center; gap:.75rem; }} .bar-row span {{ font-weight:700; }} .bar-row div {{ height:.55rem; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:rgba(255,255,255,.03); }} .bar-row i {{ display:block; height:100%; background:linear-gradient(90deg,var(--cyan),var(--blue)); border-radius:999px; }} .bar-row b {{ text-align:right; }}
+.card-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(430px,1fr)); gap:1rem; }} .card-grid.single {{ grid-template-columns:1fr; }}
+.candidate-card {{ padding:1rem; border-left:4px solid var(--line); }} .candidate-card.bad {{ border-left-color:var(--red); }} .candidate-card.warn {{ border-left-color:var(--amber); }} .candidate-card.ok {{ border-left-color:var(--green); }} .candidate-card header {{ display:flex; justify-content:space-between; gap:.75rem; align-items:start; }} .candidate-card header p {{ margin:.15rem 0 0; color:var(--muted); }}
+.chain {{ list-style:none; padding:0; margin:.9rem 0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.45rem; }} .chain li {{ border:1px solid var(--line); border-radius:999px; padding:.37rem .48rem; font-size:.78rem; color:var(--muted); display:flex; gap:.36rem; align-items:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }} .chain li span {{ flex:0 0 .52rem; width:.52rem; height:.52rem; border-radius:999px; background:var(--muted); }} .chain li.done {{ color:var(--green); border-color:rgba(112,227,107,.32); }} .chain li.done span {{ background:var(--green); }} .chain li.current {{ color:var(--amber); border-color:rgba(245,182,66,.50); }} .chain li.current span {{ background:var(--amber); }} .chain li.blocked {{ color:var(--red); border-color:rgba(255,93,93,.5); }} .chain li.blocked span {{ background:var(--red); }}
+.facts {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; margin:.65rem 0; }} .facts span {{ color:var(--muted); background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:10px; padding:.5rem; min-width:0; overflow:hidden; text-overflow:ellipsis; }} .facts strong {{ color:var(--text); }} .next-step {{ color:#d8f4ff; }} .blocker {{ border-left:3px solid var(--amber); padding-left:.65rem; color:#f8ddb0; }} .artifacts {{ margin:.5rem 0; color:var(--muted); }}
+.action-panel {{ margin-top:.8rem; padding:.85rem; border:1px solid rgba(245,182,66,.38); border-radius:13px; background:rgba(245,182,66,.08); }} .action-panel.registration {{ border-color:rgba(34,211,238,.42); background:rgba(34,211,238,.08); }} pre {{ white-space:pre-wrap; overflow:auto; padding:.65rem; border-radius:10px; border:1px solid var(--line); background:#03101d; color:#d8f4ff; }} form {{ display:flex; gap:.55rem; flex-wrap:wrap; align-items:end; }} label {{ display:grid; gap:.25rem; color:var(--muted); font-size:.84rem; }} input {{ background:#061522; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:.48rem .58rem; }} button {{ background:linear-gradient(135deg,#13b7d2,#1d78c1); color:white; border:0; border-radius:10px; padding:.58rem .75rem; font-weight:800; cursor:pointer; }} button:disabled {{ opacity:.45; cursor:not-allowed; }} .kill-switch {{ background:rgba(255,93,93,.12); color:#ffd8d8; border:1px solid rgba(255,93,93,.48); }} .shutdown-form {{ margin:0; }} .warning,.flash {{ color:#ffe2a9; }} .flash {{ margin:0 0 1rem; padding:.8rem; border:1px solid rgba(245,182,66,.42); border-radius:12px; background:rgba(245,182,66,.09); }} details.command-box {{ margin-top:.75rem; border:1px solid var(--line); border-radius:.65rem; padding:.55rem .7rem; background:rgba(0,0,0,.16); }} details.command-box summary {{ cursor:pointer; color:var(--cyan); font-weight:800; }}
+table {{ width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px; }} th,td {{ text-align:left; padding:.75rem .65rem; border-bottom:1px solid var(--line2); vertical-align:top; overflow-wrap:anywhere; }} th {{ color:#c9efff; font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; }} td span {{ color:var(--muted); }}
+@media (min-width:1700px) {{ .content-inner {{ max-width:1560px; }} .dashboard-grid {{ grid-template-columns:minmax(430px,.72fr) minmax(760px,1.28fr); }} }}
+@media (max-width:1320px) {{ .kpi-strip,.kpis {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .dashboard-grid {{ grid-template-columns:1fr; }} .card-grid {{ grid-template-columns:1fr; }} }}
+@media (max-width:900px) {{ :root {{ --sidebar:0px; }} .app-shell {{ grid-template-columns:1fr; }} .sidebar {{ position:relative; width:100%; height:auto; }} .content {{ padding:1rem; }} .kpi-strip,.kpis,.chain,.facts {{ grid-template-columns:1fr; }} .sidebar-footer {{ position:static; margin-top:1rem; }} }}
 </style>
 </head>
-<body><main>
-<header class='brand'><div><span class='eyebrow'>Sweet Spot — Deep Ocean Intelligence</span><h1>Search Intelligence Control Center</h1><p class='muted'>From discovered company to approval-gated connector lifecycle.</p></div><div class='brand-actions'><span class='mode'>{h(mode)}</span><form class='shutdown-form' method='post' action='/actions/shutdown'><button class='kill-switch' type='submit' title='Stop local UI server'>Stop UI</button></form></div></header>
-<nav class='top-nav'><a href='#overview'>Overview</a><a href='#active-connectors'>Active connectors</a><a href='#approvals'>Approvals</a><a href='#candidate-chain'>Candidate chain</a><a href='/'>Refresh</a></nav>
-<section id='overview' class='hero'><div><h2>Operational UI for connector decisions</h2><p class='muted'>Read active connectors, candidates, build approvals and the full discovery-to-approval chain in one surface. Write actions are bounded and require explicit approval tokens.</p></div></section>
-{flash}
-<section class='metrics'>
-<div class='metric'><span class='eyebrow'>Active</span><strong>{h(active_count)}</strong><span class='muted'>controlled connectors</span></div>
-<div class='metric'><span class='eyebrow'>Build approvals</span><strong>{h(build_approval_count)}</strong><span class='muted'>waiting for token</span></div>
-<div class='metric'><span class='eyebrow'>Registration approvals</span><strong>{h(registration_approval_count)}</strong><span class='muted'>after validation</span></div>
-<div class='metric'><span class='eyebrow'>Critical FN risk</span><strong>{h(critical_count)}</strong><span class='muted'>unresolved signals</span></div>
-</section>
-<div class='dashboard-grid'>
-<div>{render_active_connectors(candidates)}</div>
-<div>{render_build_approvals(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled)}</div>
+<body>
+<div class='app-shell'>
+<aside class='sidebar'>
+  <div class='logo'><span class='eyebrow'>Sweet Spot — Deep Ocean Intelligence</span><h1>Search Intelligence</h1><p>Control Center</p></div>
+  <nav class='side-tabs' >
+    {nav_item('dashboard', 'Dashboard', active_tab=active_tab)}
+    {nav_item('health', 'Heartbeat & Health', critical_count, active_tab=active_tab)}
+    {nav_item('connectors', 'Connectors & Candidates', len(candidates), active_tab=active_tab)}
+    {nav_item('approvals', 'Approvals', build_approval_count + registration_approval_count, active_tab=active_tab)}
+    {nav_item('gaps', 'Gap Analysis', active_tab=active_tab)}
+    {nav_item('jobs', 'Jobs & Applications', active_tab=active_tab)}
+    {nav_item('demo-chain', 'Demo Chain', active_tab=active_tab)}
+  </nav>
+  <div class='sidebar-footer'><span class='mode'>{h(mode)}</span><form class='shutdown-form' method='post' action='/actions/shutdown'><button class='kill-switch' type='submit'>Stop UI</button></form></div>
+</aside>
+<main class='content'><div class='content-inner'>
+  {flash}
+  <section class='kpi-strip'>
+    {kpi('Active connectors', active_count, 'controlled origin sources', 'ok')}
+    {kpi('Build approvals', build_approval_count, 'waiting for your token', 'warn')}
+    {kpi('Registration approvals', registration_approval_count, 'after validation', 'neutral')}
+    {kpi('Critical FN pressure', critical_count, 'unresolved signals', 'bad')}
+  </section>
+  {active_view_html}
+</div></main>
 </div>
-{render_candidate_chain(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled)}
-</main></body></html>"""
+</body>
+</html>"""

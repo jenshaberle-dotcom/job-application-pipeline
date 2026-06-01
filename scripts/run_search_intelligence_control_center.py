@@ -219,6 +219,8 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
         if parsed.path not in {"/", "/index.html"}:
             self.send_error(404)
             return
+        query = parse_qs(parsed.query)
+        active_tab = query.get("tab", ["dashboard"])[0]
         try:
             candidates = load_control_center_candidates()
             body = render_control_center(
@@ -227,6 +229,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
                 target_location=self.state.target_location,
                 write_actions_enabled=self.state.allow_write_actions,
                 flash_message=self.state.flash_message,
+                active_tab=active_tab,
             )
         except Exception as exc:  # pragma: no cover - browser diagnostics
             body = f"<html><body><h1>Control Center failed</h1><pre>{exc}</pre></body></html>"
@@ -265,7 +268,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
                 )
 
         self.send_response(303)
-        self.send_header("Location", "/")
+        self.send_header("Location", "/?tab=approvals")
         self.end_headers()
 
     def log_message(self, format: str, *args: object) -> None:
