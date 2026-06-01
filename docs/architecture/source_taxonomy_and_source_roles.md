@@ -122,3 +122,7 @@ S6A generation plans therefore evaluate whether a source candidate is useful as 
 Aggregator-role sources may be valuable even when they are not origin sources. Their value is evaluated through bounded market evidence, new-company discovery, vocabulary novelty and reassessment pressure.
 
 Known-company or known-term repetition is not automatically bad, but repeated low-novelty cycles can indicate that a query is saturated and should be paused, refined through reviewed trial terms or redirected toward gate reassessment.
+
+## Approval-Gated Connector Build Boundary
+
+A source role such as `origin_validation_ground_truth` can justify connector artifact preparation, but it does not by itself authorize registration or activation. S6C keeps artifact build approval separate from connector registration and controlled activation.

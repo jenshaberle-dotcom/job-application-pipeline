@@ -189,3 +189,7 @@ Examples:
 - search_intelligence_terminology.md
 - historical_terminology.md
 - ../source_analysis/employer_origin_connector_generation_foundation.md
+
+## S6C Current State
+
+Approval-gated connector build requests are now modeled as a separate foundation. This enables unresolved high-pressure candidates to move from repeated observation into reviewable connector artifacts without granting registration or activation automatically.

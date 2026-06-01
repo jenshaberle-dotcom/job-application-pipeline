@@ -784,3 +784,7 @@ Future source integrations are evaluated individually based on:
 - architectural value
 - operational complexity
 - legal and ethical considerations
+
+### S6C Approval-Gated Connector Build
+
+S6C connects unresolved high-pressure employer-origin candidates to a controlled connector-artifact build path. It can write DB-backed build requests and, after explicit build approval, generate bounded connector candidate artifacts. It still does not register connectors, activate sources, write Bronze rows or change schedules.
