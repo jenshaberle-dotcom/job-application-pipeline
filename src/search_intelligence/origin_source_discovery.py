@@ -339,6 +339,30 @@ def decide_origin_source(
         )
 
     if rejected and not review:
+        blocking_rejections = [
+            item
+            for item in rejected
+            if item.source_type != "aggregator_job_board_evidence"
+        ]
+        if not blocking_rejections:
+            return OriginSourceDiscoveryDecision(
+                company_key=company_key,
+                company_name=company_name,
+                discovery_status="not_found",
+                decision="manual_review_required",
+                selected_origin_url=None,
+                selected_domain=None,
+                selected_source_type=None,
+                confidence_score=0.0,
+                risk_level="unknown",
+                blocker_code="market_evidence_without_origin_url",
+                reason=(
+                    "Only aggregator or market-evidence URLs were found. "
+                    "No persisted employer-origin URL evidence is available yet."
+                ),
+                alternatives=(),
+                rejected_urls=tuple(rejected),
+            )
         return OriginSourceDiscoveryDecision(
             company_key=company_key,
             company_name=company_name,
