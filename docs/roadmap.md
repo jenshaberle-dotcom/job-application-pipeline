@@ -494,3 +494,10 @@ The latest S7F orchestrator attention steps are now exposed through Gold read vi
 ## S7I Candidate Expansion from Market Observations
 
 S7I adds a review-only expansion layer from unregistered market observations to candidate-creation recommendations. It keeps candidate creation, connector registration, source activation, Bronze writes and scheduler changes out of scope.
+
+
+## S7J – Candidate Promotion Gate
+
+Status: foundation.
+
+S7J promotes candidate-expansion review evidence into a controlled employer-origin candidate creation workflow. It allows explicitly approved discovery-state candidates without pretending that an aggregator URL is an origin URL. Candidate creation is gated, reviewable and does not build connectors, register sources, activate sources, write Bronze data or change scheduler state.
