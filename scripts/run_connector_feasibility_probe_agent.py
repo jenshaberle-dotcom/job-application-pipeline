@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from dataclasses import asdict
 from typing import Sequence
 
 import psycopg
 
+from src.config import get_database_config
 from src.search_intelligence.connector_feasibility import (
     OriginCandidate,
     build_connector_feasibility_review,
@@ -17,13 +17,7 @@ BOUNDARY = "no connector build, no connector registration, no source activation,
 
 
 def connect() -> psycopg.Connection:
-    return psycopg.connect(
-        host=os.getenv("POSTGRES_HOST", "localhost"),
-        port=int(os.getenv("POSTGRES_PORT", "5432")),
-        dbname=os.getenv("POSTGRES_DB", "job_pipeline"),
-        user=os.getenv("POSTGRES_USER", "job_user"),
-        password=os.getenv("POSTGRES_PASSWORD", "job_password"),
-    )
+    return psycopg.connect(**get_database_config())
 
 
 def load_candidates(conn: psycopg.Connection, *, company_key: str | None, include_missing_url: bool) -> list[OriginCandidate]:

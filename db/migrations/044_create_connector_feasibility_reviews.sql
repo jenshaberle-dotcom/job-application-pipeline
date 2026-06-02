@@ -69,33 +69,6 @@ CREATE INDEX IF NOT EXISTS idx_connector_feasibility_items_company
 CREATE INDEX IF NOT EXISTS idx_connector_feasibility_items_status
     ON connector_feasibility_review_items (feasibility_status, created_at DESC);
 
--- S7N quality feedback extension. These ALTER statements keep the migration usable
--- for local databases where the first S7N draft table was already created during review.
-ALTER TABLE IF EXISTS connector_feasibility_review_items
-    ADD COLUMN IF NOT EXISTS url_quality_status TEXT NOT NULL DEFAULT 'not_evaluated';
-
-ALTER TABLE IF EXISTS connector_feasibility_review_items
-    ADD COLUMN IF NOT EXISTS url_quality_feedback_code TEXT;
-
-ALTER TABLE IF EXISTS connector_feasibility_review_items
-    ADD COLUMN IF NOT EXISTS url_repair_candidate_url TEXT;
-
-ALTER TABLE IF EXISTS connector_feasibility_review_items
-    ADD COLUMN IF NOT EXISTS structural_job_evidence_count INTEGER NOT NULL DEFAULT 0;
-
-ALTER TABLE IF EXISTS connector_feasibility_review_items
-    ADD CONSTRAINT chk_connector_feasibility_url_quality_status
-    CHECK (url_quality_status = ANY (ARRAY[
-        'valid_probe_ready'::text,
-        'not_reachable'::text,
-        'repair_candidate_detected'::text,
-        'asset_noise_only'::text,
-        'career_page_without_job_structure'::text,
-        'unsafe_or_aggregator_url'::text,
-        'missing_origin_url'::text,
-        'not_evaluated'::text
-    ])) NOT VALID;
-
 -- S7N structural evidence quality extension. These ALTER statements keep the
 -- migration usable for local review databases where an earlier S7N table draft
 -- may already exist.
@@ -126,6 +99,19 @@ ALTER TABLE IF EXISTS connector_feasibility_review_items
 ALTER TABLE IF EXISTS connector_feasibility_review_items
     ADD COLUMN IF NOT EXISTS evidence_classification JSONB NOT NULL DEFAULT '{}'::jsonb;
 
+UPDATE connector_feasibility_review_items
+SET url_quality_status = 'not_evaluated'
+WHERE url_quality_status IS NULL;
+
+ALTER TABLE IF EXISTS connector_feasibility_review_items
+    ALTER COLUMN url_quality_status SET DEFAULT 'not_evaluated';
+
+ALTER TABLE IF EXISTS connector_feasibility_review_items
+    ALTER COLUMN url_quality_status SET NOT NULL;
+
+ALTER TABLE IF EXISTS connector_feasibility_review_items
+    DROP CONSTRAINT IF EXISTS chk_connector_feasibility_url_quality_status;
+
 ALTER TABLE IF EXISTS connector_feasibility_review_items
     ADD CONSTRAINT chk_connector_feasibility_url_quality_status
     CHECK (url_quality_status = ANY (ARRAY[
@@ -134,6 +120,7 @@ ALTER TABLE IF EXISTS connector_feasibility_review_items
         'repair_candidate_detected'::text,
         'asset_noise_only'::text,
         'career_page_without_job_structure'::text,
+        'structural_without_detail'::text,
         'unsafe_or_aggregator_url'::text,
         'missing_origin_url'::text,
         'not_evaluated'::text
