@@ -198,11 +198,68 @@ def persist_decision(
                 "reason": decision["reason"],
                 "alternatives": json.dumps(decision["alternatives"]),
                 "rejected_urls": json.dumps(decision["rejected_urls"]),
-                "evidence": json.dumps({"boundary": decision["boundary"]}),
+                "evidence": json.dumps({
+                    "boundary": decision["boundary"],
+                    "candidate_url_auto_assignment_allowed": decision.get("candidate_url_auto_assignment_allowed", False),
+                    "candidate_url_auto_assignment_reason": decision.get("candidate_url_auto_assignment_reason"),
+                    "candidate_url_auto_assignment_result": decision.get("candidate_url_auto_assignment_result"),
+                }),
                 "reviewed_by": reviewed_by,
             },
         )
     conn.commit()
+
+
+def maybe_auto_assign_candidate_url(
+    conn: psycopg.Connection[Any],
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    reviewed_by: str,
+) -> str:
+    """Persist a trusted selected origin URL on the candidate without extra approval.
+
+    This is deliberately only URL evidence assignment. It does not approve the
+    candidate, build/register a connector, activate a source, write Bronze data or
+    change schedules. Conflicting existing candidate URLs are left untouched for
+    manual review.
+    """
+
+    if not decision.get("candidate_url_auto_assignment_allowed"):
+        return "not_allowed"
+    selected_url = decision.get("selected_origin_url")
+    if not selected_url:
+        return "not_selected"
+
+    existing_url = str(candidate.get("candidate_url") or "").strip()
+    if existing_url == selected_url:
+        return "already_set"
+    if existing_url and existing_url != selected_url:
+        return "manual_review_required_conflicting_candidate_url"
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE employer_origin_source_candidates
+            SET candidate_url = %s,
+                source_type_candidate = COALESCE(%s, source_type_candidate),
+                notes = concat_ws(
+                    ' ',
+                    nullif(notes, ''),
+                    %s
+                ),
+                updated_at = now()
+            WHERE id = %s
+              AND candidate_url IS NULL
+            """,
+            (
+                selected_url,
+                decision.get("selected_source_type"),
+                f"Origin URL auto-assigned by S7L trusted URL evidence policy; reviewed_by={reviewed_by}.",
+                candidate["id"],
+            ),
+        )
+    conn.commit()
+    return "applied"
 
 
 def run(company_key: str, reviewed_by: str, write: bool) -> dict[str, Any]:
@@ -217,11 +274,19 @@ def run(company_key: str, reviewed_by: str, write: bool) -> dict[str, Any]:
         payload = decision_to_json(decision)
         payload["candidate_id"] = candidate["id"]
         payload["candidate_status"] = candidate.get("status")
+        payload["candidate_url_before"] = candidate.get("candidate_url")
         payload["write_requested"] = write
         if write:
+            assignment_result = maybe_auto_assign_candidate_url(conn, candidate, payload, reviewed_by)
+            payload["candidate_url_auto_assignment_result"] = assignment_result
             persist_decision(conn, int(candidate["id"]), payload, reviewed_by)
             payload["persisted"] = True
         else:
+            payload["candidate_url_auto_assignment_result"] = (
+                "already_set_dry_run"
+                if payload.get("candidate_url_auto_assignment_allowed")
+                else "not_allowed"
+            )
             payload["persisted"] = False
         return payload
 
@@ -274,6 +339,8 @@ def print_single_result(result: dict[str, Any]) -> None:
         "risk_level",
         "blocker_code",
         "reason",
+        "candidate_url_auto_assignment_allowed",
+        "candidate_url_auto_assignment_result",
         "persisted",
     ):
         print(f"{key}: {result.get(key)}")
@@ -290,7 +357,7 @@ def print_single_result(result: dict[str, Any]) -> None:
 
 def print_portfolio_results(results: list[dict[str, Any]]) -> None:
     summary = summarize_portfolio_results(results)
-    print("S7H Origin Source Discovery Portfolio Probe")
+    print("S7L Origin Source URL Assignment Policy")
     print("boundary: no browsing, no connector registration, no source activation, no Bronze write, no scheduler change")
     print("---")
     for key, value in summary.items():
@@ -306,6 +373,7 @@ def print_portfolio_results(results: list[dict[str, Any]]) -> None:
             f"status={item.get('discovery_status')} | "
             f"decision={item.get('decision')} | "
             f"selected={selected} | "
+            f"url_assignment={item.get('candidate_url_auto_assignment_result')} | "
             f"blocker={blocker} | "
             f"persisted={item.get('persisted')}"
         )
