@@ -507,3 +507,9 @@ S7J promotes candidate-expansion review evidence into a controlled employer-orig
 S7K corrects the portfolio interpretation for newly promoted `discovery` candidates. If a candidate has only aggregator or market URLs, the Origin Source Discovery Gate now reports an origin-source evidence gap instead of an unsafe URL block.
 
 This keeps the system conservative without falsely classifying valid companies such as Deutsche Bahn, Rossmann, enercity, Ratiodata or adesso as unsafe merely because their employer-origin URL has not been discovered yet.
+
+### S7L – Origin Source URL Assignment Policy
+
+- Allow trusted, persisted, public HTTPS career-like origin URLs to be assigned automatically to discovery candidates.
+- Keep ambiguous, weak, conflicting or aggregator-only evidence in manual review.
+- Reduce approval noise while preserving hard gates for connector build, registration, activation, Bronze writes and scheduler changes.

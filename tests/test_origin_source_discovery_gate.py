@@ -132,3 +132,24 @@ def test_decision_routes_only_aggregator_market_evidence_to_origin_gap_not_unsaf
     assert decision.rejected_urls
     assert decision.rejected_urls[0].source_type == "aggregator_job_board_evidence"
 
+
+def test_selected_origin_url_allows_auto_assignment_only_for_low_risk_career_url() -> None:
+    decision = decide_origin_source(
+        company_key="demo",
+        company_name="Demo AG",
+        url_evidence=[CandidateUrlEvidence("https://demo.example/careers/jobs", "candidate")],
+    )
+
+    assert decision.candidate_url_auto_assignment_allowed is True
+    assert "trusted persisted HTTPS" in decision.candidate_url_auto_assignment_reason
+
+
+def test_homepage_origin_url_does_not_allow_auto_assignment() -> None:
+    decision = decide_origin_source(
+        company_key="demo",
+        company_name="Demo AG",
+        url_evidence=[CandidateUrlEvidence("https://demo.example", "candidate")],
+    )
+
+    assert decision.candidate_url_auto_assignment_allowed is False
+

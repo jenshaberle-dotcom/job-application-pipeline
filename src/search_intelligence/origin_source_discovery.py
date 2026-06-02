@@ -42,6 +42,7 @@ CAREER_PATH_MARKERS = (
     "work-with-us",
 )
 UNSAFE_SCHEMES = {"", "file", "javascript", "data", "ftp", "mailto"}
+AUTO_APPLY_MIN_CONFIDENCE = 0.80
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,8 @@ class OriginSourceDiscoveryDecision:
     reason: str
     alternatives: tuple[SourceUrlAssessment, ...]
     rejected_urls: tuple[SourceUrlAssessment, ...]
+    candidate_url_auto_assignment_allowed: bool = False
+    candidate_url_auto_assignment_reason: str = "not selected"
     boundary: tuple[str, ...] = (
         "no web browsing",
         "no connector registration",
@@ -262,6 +265,25 @@ def assess_url(evidence: CandidateUrlEvidence) -> SourceUrlAssessment:
     )
 
 
+def auto_assignment_allowed_for_assessment(assessment: SourceUrlAssessment) -> tuple[bool, str]:
+    """Return whether selected origin URL evidence may be written without human approval.
+
+    This is intentionally narrower than connector-build or activation approval:
+    it only records a safe, public, HTTPS, career-like URL that is already present
+    in the database as evidence. It never probes the URL and never activates it.
+    """
+
+    if assessment.decision != "candidate" or not assessment.normalized_url:
+        return False, "no selected origin URL candidate"
+    if assessment.risk_level != "low":
+        return False, "selected URL is not low-risk"
+    if assessment.confidence_score < AUTO_APPLY_MIN_CONFIDENCE:
+        return False, "selected URL confidence is below auto-assignment threshold"
+    if assessment.source_type not in SAFE_SOURCE_TYPES:
+        return False, "selected source type is not eligible for automatic URL assignment"
+    return True, "trusted persisted HTTPS career-like URL evidence may be assigned automatically"
+
+
 def decide_origin_source(
     *,
     company_key: str,
@@ -322,6 +344,7 @@ def decide_origin_source(
                 alternatives=tuple(usable + review),
                 rejected_urls=tuple(rejected),
             )
+        auto_allowed, auto_reason = auto_assignment_allowed_for_assessment(selected)
         return OriginSourceDiscoveryDecision(
             company_key=company_key,
             company_name=company_name,
@@ -336,6 +359,8 @@ def decide_origin_source(
             reason="A public HTTPS career-like origin URL was selected from persisted evidence.",
             alternatives=tuple(assessments),
             rejected_urls=tuple(rejected),
+            candidate_url_auto_assignment_allowed=auto_allowed,
+            candidate_url_auto_assignment_reason=auto_reason,
         )
 
     if rejected and not review:
@@ -427,5 +452,7 @@ def decision_to_json(decision: OriginSourceDiscoveryDecision) -> dict[str, Any]:
         "reason": decision.reason,
         "alternatives": [assessment_to_json(item) for item in decision.alternatives],
         "rejected_urls": [assessment_to_json(item) for item in decision.rejected_urls],
+        "candidate_url_auto_assignment_allowed": decision.candidate_url_auto_assignment_allowed,
+        "candidate_url_auto_assignment_reason": decision.candidate_url_auto_assignment_reason,
         "boundary": list(decision.boundary),
     }
