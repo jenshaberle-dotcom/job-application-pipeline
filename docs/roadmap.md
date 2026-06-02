@@ -513,3 +513,12 @@ This keeps the system conservative without falsely classifying valid companies s
 - Allow trusted, persisted, public HTTPS career-like origin URLs to be assigned automatically to discovery candidates.
 - Keep ambiguous, weak, conflicting or aggregator-only evidence in manual review.
 - Reduce approval noise while preserving hard gates for connector build, registration, activation, Bronze writes and scheduler changes.
+
+### S7M — Manual Origin URL Review Override
+
+Status: planned/implemented as a safety-preserving Human-in-the-Loop bridge. The
+Origin Source Discovery Gate must not hallucinate missing employer-origin URLs,
+but a reviewer may provide a URL manually. The provided URL is validated by the
+same HTTPS/public-domain/aggregator/career-path policy before it can be written
+to the candidate record. The block does not register connectors, activate
+sources, write Bronze data or alter schedules.
