@@ -501,3 +501,9 @@ S7I adds a review-only expansion layer from unregistered market observations to 
 Status: foundation.
 
 S7J promotes candidate-expansion review evidence into a controlled employer-origin candidate creation workflow. It allows explicitly approved discovery-state candidates without pretending that an aggregator URL is an origin URL. Candidate creation is gated, reviewable and does not build connectors, register sources, activate sources, write Bronze data or change scheduler state.
+
+## S7K – Origin Source Discovery for Promoted Candidates
+
+S7K corrects the portfolio interpretation for newly promoted `discovery` candidates. If a candidate has only aggregator or market URLs, the Origin Source Discovery Gate now reports an origin-source evidence gap instead of an unsafe URL block.
+
+This keeps the system conservative without falsely classifying valid companies such as Deutsche Bahn, Rossmann, enercity, Ratiodata or adesso as unsafe merely because their employer-origin URL has not been discovered yet.

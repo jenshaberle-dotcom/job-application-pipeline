@@ -113,3 +113,22 @@ def test_decision_selects_origin_candidate_and_rejects_aggregator_evidence() -> 
     assert decision.rejected_urls
     assert decision.rejected_urls[0].source_type == "aggregator_job_board_evidence"
 
+def test_decision_routes_only_aggregator_market_evidence_to_origin_gap_not_unsafe() -> None:
+    decision = decide_origin_source(
+        company_key="deutsche_bahn",
+        company_name="Deutsche Bahn AG",
+        url_evidence=[
+            CandidateUrlEvidence(
+                "https://www.stepstone.de/stellenangebote--Data-Engineer-Deutsche-Bahn--123-inline.html",
+                "aggregator_novelty_items.evidence_url",
+            )
+        ],
+    )
+
+    assert decision.discovery_status == "not_found"
+    assert decision.decision == "manual_review_required"
+    assert decision.blocker_code == "market_evidence_without_origin_url"
+    assert decision.selected_origin_url is None
+    assert decision.rejected_urls
+    assert decision.rejected_urls[0].source_type == "aggregator_job_board_evidence"
+
