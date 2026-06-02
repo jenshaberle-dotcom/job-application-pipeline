@@ -522,3 +522,15 @@ but a reviewer may provide a URL manually. The provided URL is validated by the
 same HTTPS/public-domain/aggregator/career-path policy before it can be written
 to the candidate record. The block does not register connectors, activate
 sources, write Bronze data or alter schedules.
+
+## S7N – Connector Feasibility + Sample Job Probe
+
+Add a bounded read-only probe that validates selected employer-origin URLs for technical reachability and sample job evidence before connector build planning. This keeps connector generation grounded in reviewed origin evidence and avoids moving directly from URL assignment to connector artifacts.
+
+## S7N Repair – URL Quality Feedback
+
+Sharpen connector-feasibility sample evidence so assets, feeds and technical endpoints are not counted as jobs. Add URL-quality feedback codes so bad or weak origin URL assignments feed back into Origin Source Discovery instead of disappearing as generic manual-review results.
+
+## S7N Repair – Structural Evidence Quality
+
+Sharpen connector-feasibility sample evidence so assets, feeds, technical endpoints, social links, press/media pages, root homepages and generic career-context links are not counted as build-ready job samples. Keep those observations as URL-quality feedback for the Origin Source Discovery loop.
