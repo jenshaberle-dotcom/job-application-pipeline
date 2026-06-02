@@ -4,7 +4,6 @@ import argparse
 import importlib
 import inspect
 import json
-import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -15,36 +14,9 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from src.config import get_database_config
 
 VALIDATION_GATE = "connector_validation_gate"
-
-
-@dataclass(frozen=True)
-class DatabaseConfig:
-    host: str
-    port: str
-    dbname: str
-    user: str
-    password: str
-
-    @classmethod
-    def from_environment(cls) -> "DatabaseConfig":
-        return cls(
-            host=os.environ.get("POSTGRES_HOST", "localhost"),
-            port=os.environ.get("POSTGRES_PORT", "5432"),
-            dbname=os.environ["POSTGRES_DB"],
-            user=os.environ["POSTGRES_USER"],
-            password=os.environ["POSTGRES_PASSWORD"],
-        )
-
-    def dsn(self) -> str:
-        return (
-            f"host={self.host} "
-            f"port={self.port} "
-            f"dbname={self.dbname} "
-            f"user={self.user} "
-            f"password={self.password}"
-        )
 
 
 @dataclass(frozen=True)
@@ -421,7 +393,7 @@ class ValidationRepository:
 
 
 def run_agent(args: argparse.Namespace) -> int:
-    with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+    with psycopg.connect(**get_database_config()) as conn:
         repo = ValidationRepository(conn)
         candidate = repo.load_candidate(candidate_id=args.candidate_id, company_key=args.company_key)
         result = evaluate_connector_validation(candidate, run_pytest=not args.no_pytest)
