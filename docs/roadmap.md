@@ -483,3 +483,10 @@ Next: review repeated orchestrator runs, then decide whether S7G should expose o
 Status: implemented.
 
 The latest S7F orchestrator attention steps are now exposed through Gold read views and displayed in the Search Intelligence Control Center. This makes `attention_required` cycle output visible in the dashboard and a dedicated Orchestrator tab without running child agents, mutating sources, activating connectors, writing Bronze records or changing scheduler configuration.
+
+### S7H — Origin Source Discovery Portfolio Probe
+
+- Extends the Origin Source Discovery Gate from single-candidate review to portfolio-wide review.
+- Supports dry-run and explicit `--write` persistence for all employer-origin candidates.
+- Keeps the existing safety boundary: no browsing, no connector registration, no activation, no Bronze write and no scheduler change.
+- Provides the next bridge toward connector feasibility and build decisions across a broader candidate mass.

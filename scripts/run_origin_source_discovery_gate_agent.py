@@ -1,4 +1,4 @@
-"""Run the S7D Origin Source Discovery Gate agent.
+"""Run the S7D/S7H Origin Source Discovery Gate agent.
 
 The agent evaluates persisted URL evidence only. It does not browse or probe the
 web and it never activates sources, registers connectors, writes Bronze data or
@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections import Counter
 from typing import Any
 
 import psycopg
@@ -50,6 +51,38 @@ def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> dict[str,
     if row is None:
         raise SystemExit(f"No employer-origin source candidate found for company_key={company_key!r}.")
     return dict(row)
+
+
+def load_candidate_keys(
+    conn: psycopg.Connection[Any],
+    *,
+    include_active: bool = False,
+    limit: int | None = None,
+) -> list[str]:
+    """Load candidate keys for portfolio-wide origin-source gate review."""
+
+    status_filter = ""
+    if not include_active:
+        status_filter = "WHERE coalesce(status, '') <> 'active_controlled'"
+
+    limit_clause = ""
+    params: list[Any] = []
+    if limit is not None:
+        limit_clause = "LIMIT %s"
+        params.append(limit)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT company_key
+            FROM employer_origin_source_candidates
+            {status_filter}
+            ORDER BY updated_at DESC NULLS LAST, id DESC
+            {limit_clause}
+            """,
+            params,
+        )
+        return [str(row["company_key"]) for row in cur.fetchall()]
 
 
 def load_url_evidence(conn: psycopg.Connection[Any], candidate: dict[str, Any]) -> list[CandidateUrlEvidence]:
@@ -193,14 +226,38 @@ def run(company_key: str, reviewed_by: str, write: bool) -> dict[str, Any]:
         return payload
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the S7D origin-source discovery gate.")
-    parser.add_argument("--company-key", required=True)
-    parser.add_argument("--reviewed-by", default="agent")
-    parser.add_argument("--write", action="store_true", help="Persist the gate result. Dry-run by default.")
-    args = parser.parse_args()
+def run_portfolio(
+    *,
+    reviewed_by: str,
+    write: bool,
+    include_active: bool = False,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """Run the discovery gate for all candidate records selected from the DB."""
 
-    result = run(args.company_key, args.reviewed_by, args.write)
+    with db_connect() as conn:
+        company_keys = load_candidate_keys(conn, include_active=include_active, limit=limit)
+    return [run(company_key, reviewed_by, write) for company_key in company_keys]
+
+
+def summarize_portfolio_results(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return stable counts for CLI output and tests."""
+
+    statuses = Counter(str(item.get("discovery_status") or "unknown") for item in results)
+    blockers = Counter(str(item.get("blocker_code") or "none") for item in results)
+    decisions = Counter(str(item.get("decision") or "unknown") for item in results)
+    return {
+        "candidate_count": len(results),
+        "status_counts": dict(sorted(statuses.items())),
+        "decision_counts": dict(sorted(decisions.items())),
+        "blocker_counts": dict(sorted(blockers.items())),
+        "selected_count": statuses.get("selected", 0),
+        "manual_review_count": decisions.get("manual_review_required", 0),
+        "blocked_count": statuses.get("blocked_unsafe_url", 0),
+    }
+
+
+def print_single_result(result: dict[str, Any]) -> None:
     print("S7D Origin Source Discovery Gate")
     print("boundary: no browsing, no connector registration, no source activation, no Bronze write, no scheduler change")
     print("---")
@@ -229,6 +286,54 @@ def main() -> None:
         print("rejected_urls:")
         for item in result["rejected_urls"]:
             print(f"- {item['input_url']} | {item['source_type']} | {', '.join(item['reasons'])}")
+
+
+def print_portfolio_results(results: list[dict[str, Any]]) -> None:
+    summary = summarize_portfolio_results(results)
+    print("S7H Origin Source Discovery Portfolio Probe")
+    print("boundary: no browsing, no connector registration, no source activation, no Bronze write, no scheduler change")
+    print("---")
+    for key, value in summary.items():
+        print(f"{key}: {value}")
+    print("---")
+    print("candidates:")
+    for item in results:
+        selected = item.get("selected_origin_url") or "-"
+        blocker = item.get("blocker_code") or "none"
+        print(
+            "- "
+            f"{item.get('company_name')} [{item.get('company_key')}] | "
+            f"status={item.get('discovery_status')} | "
+            f"decision={item.get('decision')} | "
+            f"selected={selected} | "
+            f"blocker={blocker} | "
+            f"persisted={item.get('persisted')}"
+        )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the origin-source discovery gate.")
+    scope = parser.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--company-key")
+    scope.add_argument("--all-candidates", action="store_true", help="Run the gate for all employer-origin candidates.")
+    parser.add_argument("--include-active", action="store_true", help="Include active controlled sources in portfolio mode.")
+    parser.add_argument("--limit", type=int, help="Limit candidate count in portfolio mode.")
+    parser.add_argument("--reviewed-by", default="agent")
+    parser.add_argument("--write", action="store_true", help="Persist gate result(s). Dry-run by default.")
+    args = parser.parse_args()
+
+    if args.company_key:
+        result = run(args.company_key, args.reviewed_by, args.write)
+        print_single_result(result)
+        return
+
+    results = run_portfolio(
+        reviewed_by=args.reviewed_by,
+        write=args.write,
+        include_active=args.include_active,
+        limit=args.limit,
+    )
+    print_portfolio_results(results)
 
 
 if __name__ == "__main__":
