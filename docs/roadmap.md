@@ -490,3 +490,7 @@ The latest S7F orchestrator attention steps are now exposed through Gold read vi
 - Supports dry-run and explicit `--write` persistence for all employer-origin candidates.
 - Keeps the existing safety boundary: no browsing, no connector registration, no activation, no Bronze write and no scheduler change.
 - Provides the next bridge toward connector feasibility and build decisions across a broader candidate mass.
+
+## S7I Candidate Expansion from Market Observations
+
+S7I adds a review-only expansion layer from unregistered market observations to candidate-creation recommendations. It keeps candidate creation, connector registration, source activation, Bronze writes and scheduler changes out of scope.
