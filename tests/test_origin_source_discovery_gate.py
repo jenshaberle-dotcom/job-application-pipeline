@@ -153,3 +153,39 @@ def test_homepage_origin_url_does_not_allow_auto_assignment() -> None:
 
     assert decision.candidate_url_auto_assignment_allowed is False
 
+def test_manual_origin_url_uses_same_policy_and_can_be_selected() -> None:
+    decision = decide_origin_source(
+        company_key="deutsche_bahn",
+        company_name="Deutsche Bahn AG",
+        url_evidence=[
+            CandidateUrlEvidence(
+                "https://db.jobs/de-de/jobs",
+                "manual_origin_url_review_override",
+                1,
+            )
+        ],
+    )
+
+    assert decision.discovery_status == "selected"
+    assert decision.decision == "continue_to_connector_feasibility"
+    assert decision.selected_origin_url == "https://db.jobs/de-de/jobs"
+    assert decision.candidate_url_auto_assignment_allowed is True
+
+
+def test_manual_origin_url_still_rejects_aggregator_domains() -> None:
+    decision = decide_origin_source(
+        company_key="deutsche_bahn",
+        company_name="Deutsche Bahn AG",
+        url_evidence=[
+            CandidateUrlEvidence(
+                "https://www.stepstone.de/stellenangebote--Data-Engineer-Deutsche-Bahn--123-inline.html",
+                "manual_origin_url_review_override",
+                1,
+            )
+        ],
+    )
+
+    assert decision.discovery_status == "not_found"
+    assert decision.blocker_code == "market_evidence_without_origin_url"
+    assert decision.selected_origin_url is None
+

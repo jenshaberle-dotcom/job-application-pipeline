@@ -1,8 +1,8 @@
 """Run the S7D/S7H Origin Source Discovery Gate agent.
 
-The agent evaluates persisted URL evidence only. It does not browse or probe the
-web and it never activates sources, registers connectors, writes Bronze data or
-changes scheduler state.
+The agent evaluates persisted URL evidence and optional human-provided URL
+review evidence only. It does not browse or probe the web and it never activates
+sources, registers connectors, writes Bronze data or changes scheduler state.
 """
 
 from __future__ import annotations
@@ -240,21 +240,21 @@ def maybe_auto_assign_candidate_url(
         cur.execute(
             """
             UPDATE employer_origin_source_candidates
-            SET candidate_url = %s,
-                source_type_candidate = COALESCE(%s, source_type_candidate),
+            SET candidate_url = %s::text,
+                source_type_candidate = COALESCE(%s::text, source_type_candidate),
                 notes = concat_ws(
                     ' ',
                     nullif(notes, ''),
-                    %s
+                    %s::text
                 ),
                 updated_at = now()
-            WHERE id = %s
+            WHERE id = %s::bigint
               AND candidate_url IS NULL
             """,
             (
                 selected_url,
                 decision.get("selected_source_type"),
-                f"Origin URL auto-assigned by S7L trusted URL evidence policy; reviewed_by={reviewed_by}.",
+                f"Origin URL assigned by trusted URL evidence policy; reviewed_by={reviewed_by}.",
                 candidate["id"],
             ),
         )
@@ -262,10 +262,28 @@ def maybe_auto_assign_candidate_url(
     return "applied"
 
 
-def run(company_key: str, reviewed_by: str, write: bool) -> dict[str, Any]:
+def run(
+    company_key: str,
+    reviewed_by: str,
+    write: bool,
+    manual_origin_url: str | None = None,
+) -> dict[str, Any]:
     with db_connect() as conn:
         candidate = load_candidate(conn, company_key)
         evidence = load_url_evidence(conn, candidate)
+        if manual_origin_url:
+            evidence.append(
+                CandidateUrlEvidence(
+                    url=manual_origin_url,
+                    evidence_source="manual_origin_url_review_override",
+                    source_priority=1,
+                    evidence={
+                        "reviewed_by": reviewed_by,
+                        "manual_input": True,
+                        "boundary": "same URL safety policy as automatic evidence",
+                    },
+                )
+            )
         decision = decide_origin_source(
             company_key=str(candidate["company_key"]),
             company_name=str(candidate["company_name"]),
@@ -275,6 +293,7 @@ def run(company_key: str, reviewed_by: str, write: bool) -> dict[str, Any]:
         payload["candidate_id"] = candidate["id"]
         payload["candidate_status"] = candidate.get("status")
         payload["candidate_url_before"] = candidate.get("candidate_url")
+        payload["manual_origin_url_provided"] = bool(manual_origin_url)
         payload["write_requested"] = write
         if write:
             assignment_result = maybe_auto_assign_candidate_url(conn, candidate, payload, reviewed_by)
@@ -323,7 +342,7 @@ def summarize_portfolio_results(results: list[dict[str, Any]]) -> dict[str, Any]
 
 
 def print_single_result(result: dict[str, Any]) -> None:
-    print("S7D Origin Source Discovery Gate")
+    print("S7M Manual Origin URL Review Override")
     print("boundary: no browsing, no connector registration, no source activation, no Bronze write, no scheduler change")
     print("---")
     for key in (
@@ -340,7 +359,9 @@ def print_single_result(result: dict[str, Any]) -> None:
         "blocker_code",
         "reason",
         "candidate_url_auto_assignment_allowed",
+        "candidate_url_auto_assignment_reason",
         "candidate_url_auto_assignment_result",
+        "manual_origin_url_provided",
         "persisted",
     ):
         print(f"{key}: {result.get(key)}")
@@ -387,11 +408,26 @@ def main() -> None:
     parser.add_argument("--include-active", action="store_true", help="Include active controlled sources in portfolio mode.")
     parser.add_argument("--limit", type=int, help="Limit candidate count in portfolio mode.")
     parser.add_argument("--reviewed-by", default="agent")
+    parser.add_argument(
+        "--manual-origin-url",
+        help=(
+            "Human-provided candidate origin URL for one company. The URL still runs through "
+            "the same HTTPS/public-domain/aggregator/career-path policy before it can be written."
+        ),
+    )
     parser.add_argument("--write", action="store_true", help="Persist gate result(s). Dry-run by default.")
     args = parser.parse_args()
 
+    if args.manual_origin_url and not args.company_key:
+        raise SystemExit("--manual-origin-url can only be used together with --company-key.")
+
     if args.company_key:
-        result = run(args.company_key, args.reviewed_by, args.write)
+        result = run(
+            args.company_key,
+            args.reviewed_by,
+            args.write,
+            manual_origin_url=args.manual_origin_url,
+        )
         print_single_result(result)
         return
 
