@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_gold_search_intelligence_views_migration_exists() -> None:
-    migration = Path("db/migrations/037_create_gold_search_intelligence_views.sql")
+    migration = Path("db/migrations/038_create_gold_search_intelligence_views.sql")
 
     assert migration.exists()
     text = migration.read_text(encoding="utf-8")
