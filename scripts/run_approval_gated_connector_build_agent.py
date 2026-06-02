@@ -2,18 +2,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
 
+from src.config import get_database_config
 from scripts.run_employer_origin_connector_artifact_generator import (
     SourceCandidate as ArtifactSourceCandidate,
     build_implementation,
     write_files,
 )
 from src.search_intelligence.approval_gated_connector_build import (
+    BuildQueueEvidence,
     ConnectorBuildRequest,
     GateReview,
     GenerationPlanState,
@@ -21,18 +22,6 @@ from src.search_intelligence.approval_gated_connector_build import (
     SourceCandidate,
     evaluate_connector_build_request,
 )
-
-
-class DatabaseConfig:
-    @classmethod
-    def dsn(cls) -> str:
-        return (
-            f"host={os.environ.get('POSTGRES_HOST', 'localhost')} "
-            f"port={os.environ.get('POSTGRES_PORT', '5432')} "
-            f"dbname={os.environ['POSTGRES_DB']} "
-            f"user={os.environ['POSTGRES_USER']} "
-            f"password={os.environ['POSTGRES_PASSWORD']}"
-        )
 
 
 class ApprovalGatedConnectorBuildRepository:
@@ -149,6 +138,53 @@ class ApprovalGatedConnectorBuildRepository:
             updated_at=row["updated_at"],
         )
 
+    def load_build_queue_evidence(self, candidate_id: int) -> BuildQueueEvidence | None:
+        with self.conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                select
+                    candidate_id,
+                    queue_action,
+                    queue_reason,
+                    recommended_command_or_review,
+                    candidate_url,
+                    page_type,
+                    sample_job_count,
+                    sample_job_urls,
+                    feasibility_status,
+                    feasibility_decision,
+                    url_quality_status,
+                    job_detail_candidate_evidence_count,
+                    structural_job_evidence_count,
+                    review_created_at::text as review_created_at
+                from gold_connector_build_candidate_queue
+                where candidate_id = %s
+                limit 1
+                """,
+                (candidate_id,),
+            )
+            row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return BuildQueueEvidence(
+            candidate_id=int(row["candidate_id"]),
+            queue_action=str(row["queue_action"]),
+            queue_reason=row["queue_reason"],
+            recommended_command_or_review=row["recommended_command_or_review"],
+            candidate_url=row["candidate_url"],
+            page_type=row["page_type"],
+            sample_job_count=int(row["sample_job_count"] or 0),
+            sample_job_urls=tuple(str(url) for url in (row["sample_job_urls"] or []) if url),
+            feasibility_status=row["feasibility_status"],
+            feasibility_decision=row["feasibility_decision"],
+            url_quality_status=row["url_quality_status"],
+            job_detail_candidate_evidence_count=int(row["job_detail_candidate_evidence_count"] or 0),
+            structural_job_evidence_count=int(row["structural_job_evidence_count"] or 0),
+            review_created_at=row["review_created_at"],
+        )
+
     def upsert_build_request(self, request: ConnectorBuildRequest, *, reviewed_by: str) -> None:
         with self.conn.cursor() as cur:
             cur.execute(
@@ -238,14 +274,26 @@ def connector_spec_from_gates(gates: dict[str, GateReview]) -> dict[str, Any]:
 
 
 def fallback_investigation_spec(request: ConnectorBuildRequest) -> dict[str, Any]:
+    queue = request.evidence.get("build_queue_evidence", {})
+    sample_job_urls = queue.get("sample_job_urls") or []
+
     return {
         "build_mode": request.build_mode,
         "recommended_connector": {
             "module_path": request.paths.module_path,
             "test_path": request.paths.test_path,
         },
+        "origin_source": {
+            "candidate_url": request.candidate.candidate_url,
+            "queue_candidate_url": queue.get("candidate_url"),
+            "page_type": queue.get("page_type"),
+        },
         "detail_evidence": {
-            "detail_urls": [],
+            "detail_urls": sample_job_urls,
+            "sample_job_count": queue.get("sample_job_count", 0),
+            "job_detail_candidate_evidence_count": queue.get("job_detail_candidate_evidence_count", 0),
+            "structural_job_evidence_count": queue.get("structural_job_evidence_count", 0),
+            "queue_reason": queue.get("queue_reason"),
             "fallback_reason": request.reason,
         },
         "boundary": {
@@ -280,6 +328,9 @@ def print_request(request: ConnectorBuildRequest) -> None:
     print(f"- {request.paths.module_path}")
     print(f"- {request.paths.test_path}")
     print(f"- {request.paths.docs_path}")
+    build_queue_evidence = request.evidence.get("build_queue_evidence", {})
+    if build_queue_evidence.get("present"):
+        print(f"build_queue_action: {build_queue_evidence.get('queue_action')}")
     learning_pressure = request.evidence.get("learning_pressure", {})
     if learning_pressure.get("present"):
         print(f"false_negative_risk_level: {learning_pressure.get('false_negative_risk_level')}")
@@ -288,12 +339,13 @@ def print_request(request: ConnectorBuildRequest) -> None:
 
 
 def run_agent(args: argparse.Namespace) -> int:
-    with psycopg.connect(DatabaseConfig.dsn()) as conn:
+    with psycopg.connect(**get_database_config()) as conn:
         repo = ApprovalGatedConnectorBuildRepository(conn)
         candidate = repo.load_candidate(candidate_id=args.candidate_id, company_key=args.company_key)
         gates = repo.load_gates(candidate.candidate_id)
         generation_plan = repo.load_generation_plan(candidate.candidate_id)
         learning_pressure = repo.load_learning_pressure(candidate.candidate_id)
+        build_queue_evidence = repo.load_build_queue_evidence(candidate.candidate_id)
 
         preliminary = evaluate_connector_build_request(
             candidate=candidate,
@@ -303,15 +355,19 @@ def run_agent(args: argparse.Namespace) -> int:
             artifact_files_exist=False,
             approval_provided=args.approve_build,
             reviewed_by=args.reviewed_by,
+            build_queue_evidence=build_queue_evidence,
         )
+        existing_artifacts_blocked = artifact_files_exist(preliminary) and not args.overwrite
+
         request = evaluate_connector_build_request(
             candidate=candidate,
             gates=gates,
             generation_plan=generation_plan,
             learning_pressure=learning_pressure,
-            artifact_files_exist=artifact_files_exist(preliminary),
+            artifact_files_exist=existing_artifacts_blocked,
             approval_provided=args.approve_build,
             reviewed_by=args.reviewed_by,
+            build_queue_evidence=build_queue_evidence,
         )
 
         print_request(request)

@@ -6,7 +6,7 @@ from scripts.run_employer_origin_connector_artifact_generator import (
 )
 
 
-def test_s4a_artifact_generator_uses_candidate_doc_path_and_wording() -> None:
+def test_artifact_generator_uses_candidate_doc_path_and_approval_gated_wording() -> None:
     candidate = SourceCandidate(
         id=2,
         company_key="hdi",
@@ -35,5 +35,5 @@ def test_s4a_artifact_generator_uses_candidate_doc_path_and_wording() -> None:
     implementation = build_implementation(candidate, gate)
 
     assert str(implementation.docs_path) == "docs/source_analysis/hdi_connector_candidate.md"
-    assert "S4A employer-origin connector artifact generator" in implementation.docs_content
+    assert "Generated from DB-backed approval-gated connector evidence" in implementation.docs_content
     assert "does not approve" in implementation.docs_content

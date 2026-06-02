@@ -71,6 +71,24 @@ class LearningPressure:
 
 
 @dataclass(frozen=True)
+class BuildQueueEvidence:
+    candidate_id: int
+    queue_action: str
+    queue_reason: str | None
+    recommended_command_or_review: str | None
+    feasibility_status: str | None
+    feasibility_decision: str | None
+    url_quality_status: str | None
+    job_detail_candidate_evidence_count: int
+    structural_job_evidence_count: int
+    review_created_at: str | None = None
+    candidate_url: str | None = None
+    page_type: str | None = None
+    sample_job_count: int = 0
+    sample_job_urls: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ConnectorPaths:
     module_path: str
     test_path: str
@@ -188,6 +206,23 @@ def high_false_negative_pressure(pressure: LearningPressure | None) -> bool:
     return bool(pressure and pressure.status == "open" and pressure.false_negative_risk_level in HIGH_FALSE_NEGATIVE_RISK_LEVELS)
 
 
+BUILD_QUEUE_CONNECTOR_BUILD_ACTIONS = {
+    "build_candidate_recommended",
+    "continue_existing_build_flow",
+}
+
+
+def build_queue_recommends_connector_build(queue: BuildQueueEvidence | None) -> bool:
+    return bool(
+        queue
+        and queue.queue_action in BUILD_QUEUE_CONNECTOR_BUILD_ACTIONS
+        and queue.feasibility_status == "likely_feasible"
+        and queue.feasibility_decision == "continue_to_connector_build_planning"
+        and queue.url_quality_status == "valid_probe_ready"
+        and queue.job_detail_candidate_evidence_count > 0
+    )
+
+
 def detail_evidence_repair_exhausted(gates: dict[str, GateReview]) -> bool:
     gate = gates.get(DETAIL_EVIDENCE_GATE)
     if not gate or gate.gate_status != "manual_review_required":
@@ -249,6 +284,7 @@ def evaluate_connector_build_request(
     artifact_files_exist: bool,
     approval_provided: bool,
     reviewed_by: str,
+    build_queue_evidence: BuildQueueEvidence | None = None,
 ) -> ConnectorBuildRequest:
     paths = default_connector_paths(candidate)
     boundary = build_boundary(approval_provided=approval_provided)
@@ -267,6 +303,7 @@ def evaluate_connector_build_request(
         "final_approval_passed": final_approval_passed(gates),
         "generation_plan": _generation_plan_summary(generation_plan),
         "learning_pressure": _learning_pressure_summary(learning_pressure),
+        "build_queue_evidence": _build_queue_evidence_summary(build_queue_evidence),
         "artifact_files_exist": artifact_files_exist,
     }
 
@@ -364,6 +401,21 @@ def evaluate_connector_build_request(
             paths=paths,
             reason="connector-generation gates are ready for a bounded artifact dry run",
             build_mode="connector_candidate_from_gate_evidence",
+            approval_provided=approval_provided,
+            reviewed_by=reviewed_by,
+            boundary=boundary,
+            evidence=evidence,
+        )
+
+    if build_queue_recommends_connector_build(build_queue_evidence):
+        return _approval_request(
+            candidate=candidate,
+            paths=paths,
+            reason=(
+                "S7O build candidate queue recommends or continues connector build planning based on latest "
+                "reachable origin-source and concrete job-detail evidence"
+            ),
+            build_mode="connector_candidate_from_build_queue_evidence",
             approval_provided=approval_provided,
             reviewed_by=reviewed_by,
             boundary=boundary,
@@ -511,4 +563,25 @@ def _learning_pressure_summary(pressure: LearningPressure | None) -> dict[str, A
         "trigger_reason": pressure.trigger_reason,
         "suggested_search_terms": list(pressure.suggested_search_terms),
         "updated_at": pressure.updated_at,
+    }
+
+
+def _build_queue_evidence_summary(queue: BuildQueueEvidence | None) -> dict[str, Any]:
+    if queue is None:
+        return {"present": False}
+    return {
+        "present": True,
+        "queue_action": queue.queue_action,
+        "queue_reason": queue.queue_reason,
+        "recommended_command_or_review": queue.recommended_command_or_review,
+        "feasibility_status": queue.feasibility_status,
+        "feasibility_decision": queue.feasibility_decision,
+        "url_quality_status": queue.url_quality_status,
+        "job_detail_candidate_evidence_count": queue.job_detail_candidate_evidence_count,
+        "structural_job_evidence_count": queue.structural_job_evidence_count,
+        "review_created_at": queue.review_created_at,
+        "candidate_url": queue.candidate_url,
+        "page_type": queue.page_type,
+        "sample_job_count": queue.sample_job_count,
+        "sample_job_urls": list(queue.sample_job_urls),
     }
