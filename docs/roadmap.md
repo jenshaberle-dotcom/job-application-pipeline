@@ -477,3 +477,9 @@ Status: implemented as audit-only foundation.
 Purpose: introduce an explicit Search Intelligence cycle coordinator that reads Gold-backed market coverage, candidate lifecycle, approval and origin-source discovery state, derives ordered next actions and can persist an orchestrator run audit. This does not wire a scheduler yet and does not activate sources, register connectors, write Bronze records or mutate search profiles.
 
 Next: review repeated orchestrator runs, then decide whether S7G should expose orchestrator run history in the Control Center or whether S7H should start a bounded scheduler integration design.
+
+## S7G — Orchestrator Attention in Control Center
+
+Status: implemented.
+
+The latest S7F orchestrator attention steps are now exposed through Gold read views and displayed in the Search Intelligence Control Center. This makes `attention_required` cycle output visible in the dashboard and a dedicated Orchestrator tab without running child agents, mutating sources, activating connectors, writing Bronze records or changing scheduler configuration.

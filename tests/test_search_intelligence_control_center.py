@@ -4,6 +4,7 @@ from scripts.search_intelligence_control_center import (
     BUILD_APPROVAL_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     ControlCenterCandidate,
+    OrchestratorAttentionStep,
     build_approval_command,
     registration_approval_command,
     render_control_center,
@@ -84,6 +85,7 @@ def test_control_center_renders_real_sidebar_tabs_and_dashboard_only_by_default(
     assert "href='/?tab=health'" in html
     assert "href='/?tab=connectors'" in html
     assert "href='/?tab=approvals'" in html
+    assert "href='/?tab=orchestrator'" in html
     assert "href='/?tab=gaps'" in html
     assert "href='/?tab=jobs'" in html
     assert "href='/?tab=demo-chain'" in html
@@ -123,6 +125,32 @@ def test_control_center_renders_approvals_as_separate_workspace() -> None:
     assert "Start the UI with" in html
     assert "Search Intelligence Overview" not in html
     assert "Candidate backlog" not in html
+
+
+def test_control_center_renders_orchestrator_attention_tab() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="orchestrator",
+        orchestrator_steps=[
+            OrchestratorAttentionStep(
+                run_id=7,
+                step_order=3,
+                step_name="approval_queue_review",
+                step_status="attention_required",
+                action_mode="manual_approval_required",
+                recommendation="Review explicit connector build approvals.",
+                reason="Approval queue is not empty.",
+            )
+        ],
+    )
+
+    assert "Nightly Intelligence Cycle Attention" in html
+    assert "Review explicit connector build approvals." in html
+    assert "python -m scripts.run_nightly_search_intelligence_orchestrator --reviewed-by jens --write" in html
+    assert "Search Intelligence Overview" not in html
 
 
 def test_control_center_renders_registration_approval_after_validation() -> None:

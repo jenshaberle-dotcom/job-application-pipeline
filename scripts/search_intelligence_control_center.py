@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 import shlex
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Mapping
 
 BUILD_APPROVAL_TOKEN = "approve_connector_build"
 REGISTRATION_APPROVAL_TOKEN = "approve_connector_registration"
@@ -79,6 +79,19 @@ class GoldMarketCoverageSummary:
     saturated_scope_count: int = 0
     actionable_novelty_scope_count: int = 0
     latest_aggregator_novelty_snapshot_at: object | None = None
+
+
+@dataclass(frozen=True)
+class OrchestratorAttentionStep:
+    run_id: int
+    step_order: int
+    step_name: str
+    step_status: str
+    action_mode: str
+    recommendation: str
+    reason: str | None = None
+    metrics: Mapping[str, object] | None = None
+    completed_at: object | None = None
 
 
 def fallback_market_summary(candidates: list[ControlCenterCandidate]) -> GoldMarketCoverageSummary:
@@ -400,6 +413,34 @@ def render_health(candidates: list[ControlCenterCandidate]) -> str:
     )
 
 
+def render_orchestrator_attention_summary(orchestrator_steps: list[OrchestratorAttentionStep], *, compact: bool = False) -> str:
+    if not orchestrator_steps:
+        return (
+            "<section class='panel orchestrator-panel'><div class='section-head'><div>"
+            "<span class='eyebrow'>Nightly Intelligence Cycle</span><h2>No attention steps</h2></div>"
+            "<span class='pill ok'>clear</span></div>"
+            "<p class='muted'>No latest orchestrator attention steps are visible yet. Run the S7F orchestrator with --write to persist a fresh audit.</p></section>"
+        )
+    rows = []
+    for step in orchestrator_steps[:3 if compact else 20]:
+        rows.append(
+            "<article class='attention-step'>"
+            f"<span class='pill {h(risk_class(step.step_status))}'>{h(humanize(step.step_status))}</span>"
+            f"<h3>{h(humanize(step.step_name))}</h3>"
+            f"<p>{h(step.recommendation)}</p>"
+            f"<small>mode: {h(humanize(step.action_mode))} · run #{h(step.run_id)}</small>"
+            "</article>"
+        )
+    more = len(orchestrator_steps) - len(rows)
+    more_note = f"<p class='muted'>{h(more)} more attention step(s) available in the Orchestrator tab.</p>" if more > 0 else ""
+    return (
+        "<section class='panel orchestrator-panel'><div class='section-head'><div>"
+        "<span class='eyebrow'>Nightly Intelligence Cycle</span><h2>Attention required</h2></div>"
+        f"<span class='pill warn'>{h(len(orchestrator_steps))} step(s)</span></div>"
+        f"<div class='attention-list'>{''.join(rows)}</div>{more_note}</section>"
+    )
+
+
 def render_dashboard(
     candidates: list[ControlCenterCandidate],
     *,
@@ -407,12 +448,13 @@ def render_dashboard(
     target_location: str,
     write_actions_enabled: bool,
     market_summary: GoldMarketCoverageSummary,
+    orchestrator_steps: list[OrchestratorAttentionStep],
 ) -> str:
     priority = sorted(candidates, key=candidate_sort_key)[:3]
     cards = [render_candidate_card(item, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled, compact=True) for item in priority]
     return (
         "<section class='tab-view' data-view='dashboard'><div class='view-head'><span class='eyebrow'>Dashboard</span><h1>Search Intelligence Overview</h1>"
-        "<p class='muted'>One-page summary of market coverage, connector readiness, health blockers and approvals.</p></div>"
+        "<p class='muted'>One-page summary of market coverage, connector readiness, health blockers, approvals and nightly cycle attention.</p></div>"
         "<section class='dashboard-grid'>"
         "<div class='panel'><span class='eyebrow'>Gold Market Coverage</span><h2>Candidate lifecycle</h2>"
         + render_lifecycle_bars(candidates)
@@ -423,7 +465,8 @@ def render_dashboard(
         + f"<span>unregistered companies <strong>{h(market_summary.recent_unregistered_company_observation_count)}</strong></span>"
         + "</div></div>"
         "<div class='panel'><span class='eyebrow'>Needs Attention</span><h2>Priority candidates</h2>" + "".join(cards) + "</div>"
-        "</section></section>"
+        + render_orchestrator_attention_summary(orchestrator_steps, compact=True)
+        + "</section></section>"
     )
 
 
@@ -533,6 +576,17 @@ def render_demo_rule_cycle_visual() -> str:
     )
 
 
+def render_orchestrator_tab(orchestrator_steps: list[OrchestratorAttentionStep]) -> str:
+    return (
+        "<section class='tab-view' data-view='orchestrator'><div class='view-head'><span class='eyebrow'>Orchestrator</span><h1>Nightly Intelligence Cycle Attention</h1>"
+        "<p class='muted'>Latest persisted S7F orchestrator steps that require attention before the next automated cycle.</p></div>"
+        f"{render_orchestrator_attention_summary(orchestrator_steps)}"
+        "<section class='panel'><div class='section-head'><div><span class='eyebrow'>Manual run command</span><h2>Refresh the cycle audit</h2></div><span class='pill neutral'>audit-only</span></div>"
+        "<pre>python -m scripts.run_nightly_search_intelligence_orchestrator --reviewed-by jens --write</pre>"
+        "<p class='muted'>This command persists only orchestrator run/step audit data. It does not register connectors, activate sources, write Bronze records or change scheduler configuration.</p></section></section>"
+    )
+
+
 def render_demo_chain_tab(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
     return (
         "<section class='tab-view' data-view='demo'><div class='view-head'><span class='eyebrow'>Demo Chain</span><h1>Discovered company → approved connector</h1>"
@@ -557,15 +611,17 @@ def render_control_center(
     flash_message: str | None = None,
     active_tab: str = "dashboard",
     market_summary: GoldMarketCoverageSummary | None = None,
+    orchestrator_steps: list[OrchestratorAttentionStep] | None = None,
 ) -> str:
     market_summary = market_summary or fallback_market_summary(candidates)
+    orchestrator_steps = orchestrator_steps or []
     active_count = market_summary.active_origin_connector_count
     build_approval_count = market_summary.build_approval_required_count
     registration_approval_count = sum(1 for item in candidates if item.needs_registration_approval)
     critical_count = market_summary.critical_fn_pressure_candidate_count
     mode = "write-enabled" if write_actions_enabled else "read-only"
     flash = f"<div class='flash'>{h(flash_message)}</div>" if flash_message else ""
-    allowed_tabs = {"dashboard", "health", "connectors", "approvals", "gaps", "jobs", "demo-chain"}
+    allowed_tabs = {"dashboard", "health", "connectors", "approvals", "orchestrator", "gaps", "jobs", "demo-chain"}
     if active_tab not in allowed_tabs:
         active_tab = "dashboard"
     active_view_html = {
@@ -575,10 +631,12 @@ def render_control_center(
             target_location=target_location,
             write_actions_enabled=write_actions_enabled,
             market_summary=market_summary,
+            orchestrator_steps=orchestrator_steps,
         ),
         "health": render_health(candidates),
         "connectors": render_connectors_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
         "approvals": render_approvals_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
+        "orchestrator": render_orchestrator_tab(orchestrator_steps),
         "gaps": render_gap_tab(),
         "jobs": render_jobs_tab(),
         "demo-chain": render_demo_chain_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
@@ -750,21 +808,30 @@ table {{ width:100%; border-collapse:collapse; overflow:hidden; border-radius:12
   .cycle-card:nth-child(6)::after {{ content:""; }}
 }}
 
+.attention-list {{ display:grid; gap:.75rem; }}
+.attention-step {{ border:1px solid var(--line2); background:linear-gradient(135deg, rgba(34,211,238,.08), rgba(245,182,66,.07)); border-radius:1rem; padding:.85rem; }}
+.attention-step h3 {{ margin:.45rem 0 .3rem; font-size:1rem; }}
+.attention-step p {{ margin:.2rem 0 .5rem; color:var(--text); }}
+.attention-step small {{ color:var(--muted); }}
+pre {{ white-space:pre-wrap; overflow:auto; border:1px solid var(--line2); background:rgba(0,0,0,.28); border-radius:1rem; padding:1rem; color:#d9f8ff; }}
+
 </style>
 </head>
 <body>
 <div class='app-shell'>
 <aside class='sidebar'>
   <div class='logo'><span class='eyebrow'>Sweet Spot — Deep Ocean Intelligence</span><h1>Search Intelligence</h1><p>Control Center</p></div>
-  <nav class='side-tabs' >
-    {nav_item('dashboard', 'Dashboard', active_tab=active_tab)}
-    {nav_item('health', 'Heartbeat & Health', critical_count, active_tab=active_tab)}
-    {nav_item('connectors', 'Connectors & Candidates', len(candidates), active_tab=active_tab)}
-    {nav_item('approvals', 'Approvals', build_approval_count + registration_approval_count, active_tab=active_tab)}
-    {nav_item('gaps', 'Gap Analysis', active_tab=active_tab)}
-    {nav_item('jobs', 'Jobs & Applications', active_tab=active_tab)}
-    {nav_item('demo-chain', 'Demo Chain', active_tab=active_tab)}
-  </nav>
+        <a class='brand' href='/?tab=dashboard'><strong>Search Intelligence</strong><span>Deep Ocean Control</span></a>
+        <nav class='side-tabs' aria-label='Control Center Sections'>
+            {nav_item('dashboard', 'Dashboard', critical_count, active_tab=active_tab)}
+            {nav_item('health', 'Health', critical_count, active_tab=active_tab)}
+            {nav_item('connectors', 'Connectors', active_count, active_tab=active_tab)}
+            {nav_item('approvals', 'Approvals', build_approval_count + registration_approval_count, active_tab=active_tab)}
+            {nav_item('orchestrator', 'Orchestrator', len(orchestrator_steps), active_tab=active_tab)}
+            {nav_item('gaps', 'Gap Analysis', market_summary.open_search_term_suggestion_count, active_tab=active_tab)}
+            {nav_item('jobs', 'Jobs & Applications', None, active_tab=active_tab)}
+            {nav_item('demo-chain', 'Demo Chain', None, active_tab=active_tab)}
+        </nav>
   <div class='sidebar-footer'><span class='mode'>{h(mode)}</span><form class='shutdown-form' method='post' action='/actions/shutdown'><button class='kill-switch' type='submit'>Stop UI</button></form></div>
 </aside>
 <main class='content'><div class='content-inner'>

@@ -16,6 +16,7 @@ from scripts.search_intelligence_control_center import (
     REGISTRATION_APPROVAL_TOKEN,
     ControlCenterCandidate,
     GoldMarketCoverageSummary,
+    OrchestratorAttentionStep,
     build_approval_command,
     registration_approval_command,
     render_control_center,
@@ -86,6 +87,40 @@ def _summary_from_row(row: object | None) -> GoldMarketCoverageSummary:
     return GoldMarketCoverageSummary(**values)
 
 
+def _rows_to_orchestrator_steps(rows: list[object]) -> list[OrchestratorAttentionStep]:
+    return [
+        OrchestratorAttentionStep(
+            run_id=int(_value(row, "run_id", 0) or 0),
+            step_order=int(_value(row, "step_order", 0) or 0),
+            step_name=str(_value(row, "step_name", "")),
+            step_status=str(_value(row, "step_status", "")),
+            action_mode=str(_value(row, "action_mode", "")),
+            recommendation=str(_value(row, "recommendation", "")),
+            reason=_value(row, "reason"),
+            metrics=_value(row, "metrics") if isinstance(_value(row, "metrics"), dict) else None,
+            completed_at=_value(row, "completed_at"),
+        )
+        for row in rows
+    ]
+
+
+def _db_object_exists(conn: psycopg.Connection[object], name: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            select exists (
+                select 1
+                from information_schema.tables
+                where table_schema = 'public'
+                  and table_name = %s
+            );
+            """,
+            (name,),
+        )
+        row = cur.fetchone()
+        return bool(row and _value(row, "exists"))
+
+
 def load_control_center_candidates() -> list[ControlCenterCandidate]:
     with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
@@ -139,6 +174,32 @@ def load_market_coverage_summary() -> GoldMarketCoverageSummary:
     return _summary_from_row(row)
 
 
+def load_orchestrator_attention_steps() -> list[OrchestratorAttentionStep]:
+    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+        if not _db_object_exists(conn, "gold_search_intelligence_orchestrator_attention_steps"):
+            return []
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                select
+                    run_id,
+                    step_order,
+                    step_name,
+                    step_status,
+                    action_mode,
+                    recommendation,
+                    reason,
+                    metrics,
+                    completed_at
+                from gold_search_intelligence_orchestrator_attention_steps
+                order by attention_priority, step_order
+                limit 20;
+                """
+            )
+            rows = cur.fetchall()
+    return _rows_to_orchestrator_steps(rows)
+
+
 def run_command(command: tuple[str, ...]) -> str:
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     output = (completed.stdout or completed.stderr or "").strip().splitlines()
@@ -175,6 +236,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
         try:
             candidates = load_control_center_candidates()
             market_summary = load_market_coverage_summary()
+            orchestrator_steps = load_orchestrator_attention_steps()
             body = render_control_center(
                 candidates,
                 reviewed_by=self.state.reviewed_by,
@@ -183,6 +245,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
                 flash_message=self.state.flash_message,
                 active_tab=active_tab,
                 market_summary=market_summary,
+                orchestrator_steps=orchestrator_steps,
             )
         except Exception as exc:  # pragma: no cover - browser diagnostics
             body = f"<html><body><h1>Control Center failed</h1><pre>{exc}</pre></body></html>"
