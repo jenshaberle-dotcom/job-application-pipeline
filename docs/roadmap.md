@@ -449,3 +449,8 @@ Purpose: consolidate Search Intelligence signals into dashboard-ready views befo
 Next: wire the Search Intelligence Control Center to these Gold views and continue the candidate-to-connector orchestration path.
 
 S7B Gold-backed Control Center: wire the tabbed Control Center to Gold market coverage and candidate lifecycle read models before additional UI polish.
+
+
+## S7D – Origin Source Discovery Gate Foundation
+
+Origin-source URL discovery is modeled as an explicit DB-backed gate before connector feasibility and connector artifact generation. It evaluates persisted URL evidence only and keeps browsing, activation, registration, Bronze writes and scheduler changes out of scope.
