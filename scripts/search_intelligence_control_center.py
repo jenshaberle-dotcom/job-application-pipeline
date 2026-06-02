@@ -459,10 +459,85 @@ def render_jobs_tab() -> str:
     )
 
 
+
+def render_demo_rule_cycle_visual() -> str:
+    """Render a demo-oriented Search Intelligence rule-cycle visual.
+
+    This is intentionally HTML/CSS-only: no external assets, no JavaScript,
+    no hidden pipeline side effects. It visualizes the existing control loop
+    until the Gold/UI model can provide richer dashboard-native metrics.
+    """
+    steps = [
+        (
+            "Explore",
+            "Aggregator discovery",
+            "Read bounded market signals, company sightings and term evidence without bypassing defensive limits.",
+            "StepStone / source probes",
+        ),
+        (
+            "Learn",
+            "Search Intelligence",
+            "Classify novelty, search-term value, company vocabulary and false-negative pressure.",
+            "Gold coverage metrics",
+        ),
+        (
+            "Gate",
+            "Origin Source Discovery",
+            "Select a plausible HTTPS employer-origin source or stop for manual review when ambiguous.",
+            "Discovery gate",
+        ),
+        (
+            "Build",
+            "Connector candidate",
+            "Generate bounded connector artifacts only after explicit approval; no registration or activation yet.",
+            "Approval token",
+        ),
+        (
+            "Validate",
+            "Controlled source",
+            "Validate gates, evidence, incremental uniqueness and operational health before controlled use.",
+            "Health + lifecycle",
+        ),
+        (
+            "Improve",
+            "Feedback loop",
+            "Feed misses, blockers and new vocabulary back into search profiles and market coverage analysis.",
+            "Next cycle",
+        ),
+    ]
+    cards = []
+    for index, (verb, title, body, tag) in enumerate(steps, start=1):
+        cards.append(
+            "<article class='cycle-card'>"
+            f"<div class='cycle-index'>{index:02d}</div>"
+            f"<span class='eyebrow'>{verb}</span>"
+            f"<h3>{title}</h3>"
+            f"<p>{body}</p>"
+            f"<div class='cycle-tag'>{tag}</div>"
+            "</article>"
+        )
+    return (
+        "<section class='panel demo-cycle-panel'>"
+        "<div class='cycle-header'>"
+        "<div><span class='eyebrow'>Intelligent product loop</span>"
+        "<h2>Market signal → origin source → connector → feedback</h2>"
+        "<p class='muted'>Demo framing: this is not just a crawler. It is a gated learning loop that turns market evidence into controlled connector decisions.</p>"
+        "</div>"
+        "<div class='cycle-orbit' aria-hidden='true'><span></span><strong>SI</strong></div>"
+        "</div>"
+        f"<div class='rule-cycle-grid'>{''.join(cards)}</div>"
+        "<div class='guardrail-strip'>"
+        "<span>No auto-PR</span><span>No source activation</span><span>No Bronze write</span><span>No scheduler change</span><span>Explicit approval gates</span>"
+        "</div>"
+        "</section>"
+    )
+
+
 def render_demo_chain_tab(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
     return (
         "<section class='tab-view' data-view='demo'><div class='view-head'><span class='eyebrow'>Demo Chain</span><h1>Discovered company → approved connector</h1>"
         "<p class='muted'>The end-to-end story for the demo: discovery, candidate, learning pressure, origin exploration, connector build approval and registration gate.</p></div>"
+        f"{render_demo_rule_cycle_visual()}"
         f"{render_candidate_chain(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled)}</section>"
     )
 
@@ -548,6 +623,133 @@ table {{ width:100%; border-collapse:collapse; overflow:hidden; border-radius:12
 @media (min-width:1700px) {{ .content-inner {{ max-width:1560px; }} .dashboard-grid {{ grid-template-columns:minmax(430px,.72fr) minmax(760px,1.28fr); }} }}
 @media (max-width:1320px) {{ .kpi-strip,.kpis {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .dashboard-grid {{ grid-template-columns:1fr; }} .card-grid {{ grid-template-columns:1fr; }} }}
 @media (max-width:900px) {{ :root {{ --sidebar:0px; }} .app-shell {{ grid-template-columns:1fr; }} .sidebar {{ position:relative; width:100%; height:auto; }} .content {{ padding:1rem; }} .kpi-strip,.kpis,.chain,.facts {{ grid-template-columns:1fr; }} .sidebar-footer {{ position:static; margin-top:1rem; }} }}
+
+/* S7E demo rule-cycle visual */
+.demo-cycle-panel {{
+  position:relative;
+  overflow:hidden;
+  border-color:rgba(0,181,255,.34);
+  background:
+    radial-gradient(circle at 12% 20%, rgba(0,181,255,.18), transparent 32%),
+    radial-gradient(circle at 84% 18%, rgba(112,227,107,.10), transparent 30%),
+    linear-gradient(135deg, rgba(5,29,47,.96), rgba(3,11,20,.98));
+  box-shadow:0 22px 60px rgba(0,0,0,.24);
+}}
+.demo-cycle-panel::before {{
+  content:"";
+  position:absolute;
+  inset:1.1rem;
+  border:1px solid rgba(82,211,255,.12);
+  border-radius:1.1rem;
+  pointer-events:none;
+}}
+.cycle-header {{
+  position:relative;
+  z-index:1;
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  align-items:center;
+  margin-bottom:1rem;
+}}
+.cycle-header h2 {{ margin:.25rem 0 .35rem; font-size:clamp(1.35rem, 2vw, 2rem); }}
+.cycle-orbit {{
+  flex:0 0 6.5rem;
+  width:6.5rem;
+  height:6.5rem;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  position:relative;
+  border:1px solid rgba(82,211,255,.38);
+  background:radial-gradient(circle, rgba(0,181,255,.22), rgba(0,181,255,.04) 58%, transparent 60%);
+}}
+.cycle-orbit span {{
+  position:absolute;
+  inset:.55rem;
+  border-radius:999px;
+  border:1px dashed rgba(112,227,107,.45);
+}}
+.cycle-orbit strong {{ color:var(--cyan); font-size:1.3rem; letter-spacing:.08em; }}
+.rule-cycle-grid {{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:.85rem;
+}}
+.cycle-card {{
+  min-height:10.4rem;
+  border:1px solid rgba(82,211,255,.28);
+  border-radius:1rem;
+  padding:1rem;
+  background:linear-gradient(180deg, rgba(10,37,58,.88), rgba(5,22,36,.92));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+  position:relative;
+}}
+.cycle-card::after {{
+  content:"→";
+  position:absolute;
+  right:-.75rem;
+  top:50%;
+  transform:translateY(-50%);
+  color:rgba(82,211,255,.7);
+  font-size:1.35rem;
+  z-index:2;
+}}
+.cycle-card:nth-child(3)::after,
+.cycle-card:nth-child(6)::after {{ content:""; }}
+.cycle-index {{
+  position:absolute;
+  top:.8rem;
+  right:.85rem;
+  font-size:1.35rem;
+  font-weight:800;
+  color:rgba(82,211,255,.28);
+}}
+.cycle-card h3 {{ margin:.35rem 2.3rem .5rem 0; font-size:1.08rem; }}
+.cycle-card p {{ margin:0; color:var(--muted); line-height:1.45; }}
+.cycle-tag {{
+  margin-top:.85rem;
+  display:inline-flex;
+  border:1px solid rgba(112,227,107,.32);
+  border-radius:999px;
+  padding:.25rem .55rem;
+  color:var(--green);
+  font-size:.78rem;
+  background:rgba(112,227,107,.07);
+}}
+.guardrail-strip {{
+  position:relative;
+  z-index:1;
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+  margin-top:1rem;
+}}
+.guardrail-strip span {{
+  border:1px solid rgba(245,182,66,.42);
+  color:var(--amber);
+  background:rgba(245,182,66,.07);
+  border-radius:999px;
+  padding:.3rem .65rem;
+  font-size:.78rem;
+}}
+@media (max-width:1200px) {{
+  .rule-cycle-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }}
+  .cycle-card:nth-child(3)::after {{ content:"→"; }}
+  .cycle-card:nth-child(2)::after,
+  .cycle-card:nth-child(4)::after,
+  .cycle-card:nth-child(6)::after {{ content:""; }}
+}}
+@media (max-width:760px) {{
+  .cycle-header {{ align-items:flex-start; }}
+  .cycle-orbit {{ display:none; }}
+  .rule-cycle-grid {{ grid-template-columns:1fr; }}
+  .cycle-card::after {{ content:"↓"; right:1rem; top:auto; bottom:-1rem; transform:none; }}
+  .cycle-card:nth-child(6)::after {{ content:""; }}
+}}
+
 </style>
 </head>
 <body>

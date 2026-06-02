@@ -450,6 +450,21 @@ Next: wire the Search Intelligence Control Center to these Gold views and contin
 
 S7B Gold-backed Control Center: wire the tabbed Control Center to Gold market coverage and candidate lifecycle read models before additional UI polish.
 
+## S7E — Search Intelligence Cycle Audit
+
+S7E documents the current Search Intelligence loop as an end-to-end product cycle instead of a collection of isolated agents.
+
+Primary artifact:
+
+- `docs/source_analysis/search_intelligence_cycle_audit.md`
+
+The audit maps current components, agents, DB read/write boundaries, Gold views, the current manual cycle, a proposed nightly intelligence cycle, scheduler boundaries, risk controls, known gaps and next implementation blocks.
+
+Boundary: documentation only. No source activation, no Bronze writes, no scheduler changes, no connector registration and no search-profile mutation.
+
+Next likely block: S7F Nightly Search Intelligence Orchestrator.
+
+
 
 ## S7D – Origin Source Discovery Gate Foundation
 
