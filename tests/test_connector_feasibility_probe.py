@@ -163,3 +163,24 @@ def test_missing_origin_url_defers_until_url_available() -> None:
     assert item.feasibility_status == "missing_origin_url"
     assert item.decision == "defer_until_origin_url_available"
     assert item.url_quality.status == "missing_origin_url"
+
+def test_structural_without_detail_status_is_explicit() -> None:
+    candidate = OriginCandidate(
+        candidate_id=1,
+        company_key="example",
+        company_name="Example AG",
+        origin_url="https://example.com/karriere/jobs",
+    )
+    item = evaluate_connector_feasibility(
+        candidate,
+        fetch_result=ProbeFetchResult(
+            final_url="https://example.com/karriere/jobs",
+            http_status=200,
+            body="<html><a href='/jobs'>Jobs</a></html>",
+        ),
+    )
+
+    assert item.feasibility_status == "manual_review_required"
+    assert item.url_quality.status == "structural_without_detail"
+    assert item.url_quality.code == "missing_job_detail_evidence"
+    assert item.structural_job_evidence_count == 1

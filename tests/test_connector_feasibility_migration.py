@@ -34,3 +34,13 @@ def test_connector_feasibility_migration_has_structural_evidence_columns() -> No
     assert "rejected_noise_count" in migration
     assert "evidence_classification" in migration
 
+def test_connector_feasibility_url_quality_constraint_is_single_and_complete() -> None:
+    migration = Path("db/migrations/044_create_connector_feasibility_reviews.sql").read_text(encoding="utf-8")
+
+    assert migration.count("ADD CONSTRAINT chk_connector_feasibility_url_quality_status") == 1
+    assert "DROP CONSTRAINT IF EXISTS chk_connector_feasibility_url_quality_status" in migration
+    assert "'structural_without_detail'::text" in migration
+    assert "UPDATE connector_feasibility_review_items" in migration
+    assert "ALTER COLUMN url_quality_status SET DEFAULT 'not_evaluated'" in migration
+    assert "ALTER COLUMN url_quality_status SET NOT NULL" in migration
+
