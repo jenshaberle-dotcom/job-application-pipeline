@@ -469,3 +469,11 @@ Next likely block: S7F Nightly Search Intelligence Orchestrator.
 ## S7D – Origin Source Discovery Gate Foundation
 
 Origin-source URL discovery is modeled as an explicit DB-backed gate before connector feasibility and connector artifact generation. It evaluates persisted URL evidence only and keeps browsing, activation, registration, Bronze writes and scheduler changes out of scope.
+
+## S7F — Nightly Search Intelligence Orchestrator Foundation
+
+Status: implemented as audit-only foundation.
+
+Purpose: introduce an explicit Search Intelligence cycle coordinator that reads Gold-backed market coverage, candidate lifecycle, approval and origin-source discovery state, derives ordered next actions and can persist an orchestrator run audit. This does not wire a scheduler yet and does not activate sources, register connectors, write Bronze records or mutate search profiles.
+
+Next: review repeated orchestrator runs, then decide whether S7G should expose orchestrator run history in the Control Center or whether S7H should start a bounded scheduler integration design.
