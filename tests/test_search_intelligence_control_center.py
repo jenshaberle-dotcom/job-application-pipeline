@@ -3,10 +3,12 @@ from __future__ import annotations
 from scripts.search_intelligence_control_center import (
     AgentGateReview,
     BUILD_APPROVAL_TOKEN,
+    EVIDENCE_REPAIR_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     ControlCenterCandidate,
     OrchestratorAttentionStep,
     build_approval_command,
+    evidence_repair_command,
     registration_approval_command,
     render_control_center,
 )
@@ -156,7 +158,10 @@ def test_control_center_renders_review_queue_for_human_decisions() -> None:
     assert "Active / monitor only" in html
     assert "HDI Group" in html
     assert BUILD_APPROVAL_TOKEN in html
-    assert "Prepared for S8A5 approval-safe actions" in html
+    assert "Review evidence repair action" in html
+    assert "<dialog" in html
+    assert "This action will not" in html
+    assert "Prepared for S8A5 approval-safe actions" not in html
     assert '<section class="legacy-shell">' not in html
     assert "Search Intelligence Overview" not in html
     assert "Candidate backlog" not in html
@@ -398,3 +403,74 @@ def test_control_center_routes_legacy_candidate_and_approval_tabs_to_review_queu
         assert "Human decision workspace" in html
         assert "Review Queue" in html
         assert '<section class="legacy-shell">' not in html
+
+
+
+def test_evidence_repair_command_is_bounded_to_agent_chain_repair() -> None:
+    command = evidence_repair_command("hdi", "hannover", "jens")
+
+    assert command == (
+        "python",
+        "-m",
+        "scripts.run_employer_origin_agent_chain",
+        "--company-key",
+        "hdi",
+        "--target-location",
+        "hannover",
+        "--reviewed-by",
+        "jens",
+        "--attempt-repair",
+    )
+
+
+def test_review_queue_renders_evidence_repair_action_disabled_by_default() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="review-queue",
+    )
+
+    assert "/actions/rerun-evidence-repair" in html
+    assert EVIDENCE_REPAIR_TOKEN in html
+    assert "Rerun bounded evidence repair" in html
+    assert "Start the UI with" in html
+    assert "data-dialog-target" in html
+    assert "disabled" in html
+    assert 'placeholder="run_evidence_repair"' not in html
+
+
+def test_review_queue_enables_evidence_repair_action_in_write_mode() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "/actions/rerun-evidence-repair" in html
+    assert EVIDENCE_REPAIR_TOKEN in html
+    assert "Rerun bounded evidence repair" in html
+    assert "Start the UI with <code>--allow-write-actions</code>" not in html
+    assert "data-dialog-target" in html
+    assert 'placeholder="run_evidence_repair"' not in html
+
+
+
+def test_review_queue_uses_dialog_actions_without_visible_token_inputs() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "<dialog" in html
+    assert "Review evidence repair action" in html
+    assert 'type="hidden" name="approval_token" value="run_evidence_repair"' in html
+    assert 'placeholder="run_evidence_repair"' not in html
+    assert "This action will not" in html
+    assert "Run bounded evidence repair" in html

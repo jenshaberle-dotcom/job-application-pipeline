@@ -765,6 +765,7 @@ def build_control_center_view_model(
         "flash_message": flash_message,
         "legacy_view_html": legacy_view_html,
         "mode": "write-enabled" if write_actions_enabled else "read-only",
+        "write_actions_enabled": write_actions_enabled,
         "nav_items": nav_items,
         "kpis": [
             {"label": "Active connectors", "value": active_count, "helper": "controlled employer-origin source", "tone": "ok"},
