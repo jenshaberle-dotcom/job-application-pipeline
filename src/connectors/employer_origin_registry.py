@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.connectors.enercity import EnercityConnector
 from src.connectors.finanz_informatik import FinanzInformatikConnector
 from src.connectors.registry import ConnectorRegistry
 
@@ -11,8 +12,16 @@ def finanz_informatik_hannover_factory(source_name: str) -> FinanzInformatikConn
     return FinanzInformatikConnector()
 
 
+def enercity_discovery_factory(source_name: str) -> EnercityConnector:
+    return EnercityConnector()
+
+
 def register_employer_origin_connectors(registry: ConnectorRegistry) -> None:
     registry.register_exact(
         "finanz_informatik:hannover",
         finanz_informatik_hannover_factory,
+    )
+    registry.register_exact(
+        "enercity:discovery",
+        enercity_discovery_factory,
     )

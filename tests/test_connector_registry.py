@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.connectors.enercity import EnercityConnector
 from src.connectors.finanz_informatik import FinanzInformatikConnector
 from src.connectors.greenhouse import GreenhouseConnector
 from src.connectors.personio import PersonioConnector
@@ -36,6 +37,13 @@ def test_default_registry_creates_existing_employer_origin_connector() -> None:
 
     assert isinstance(connector, FinanzInformatikConnector)
     assert connector.source_name == "finanz_informatik:hannover"
+
+
+def test_default_registry_creates_enercity_employer_origin_connector_without_activation() -> None:
+    connector = create_connector("enercity:discovery")
+
+    assert isinstance(connector, EnercityConnector)
+    assert connector.source_name == "enercity:discovery"
 
 
 def test_registry_rejects_duplicate_registration_without_replace() -> None:
