@@ -225,3 +225,49 @@ def test_transform_finanz_informatik_raw_job_uses_bounded_connector_fields() -> 
 
 def test_supported_source_patterns_include_finanz_informatik_family() -> None:
     assert "finanz_informatik:%" in get_supported_source_patterns()
+
+
+def test_transform_enercity_raw_job_uses_bounded_connector_fields() -> None:
+    raw_job = {
+        "id": 11872,
+        "source_name": "enercity:discovery",
+        "external_job_id": "cloud-infrastructure-devops-engineer-f-m-d-azure-focus-J2026011:2fabb8ff5e85",
+        "source_url": "https://www.enercity.de/karriere/jobsuche/cloud-infrastructure-devops-engineer-f-m-d-azure-focus-J2026011",
+        "raw_data": {
+            "result_card": {
+                "title": "Cloud Infrastructure & DevOps Engineer (f/m/d) – Azure Focus",
+                "company_name": "enercity AG",
+                "location": "hannover; remote; deutschland; hybrid",
+                "detail_url": "https://www.enercity.de/karriere/jobsuche/cloud-infrastructure-devops-engineer-f-m-d-azure-focus-J2026011",
+            },
+            "job": {
+                "title": "Cloud Infrastructure & DevOps Engineer (f/m/d) – Azure Focus",
+                "company_name": "enercity AG",
+                "location": "hannover; remote; deutschland; hybrid",
+                "source_url": "https://www.enercity.de/karriere/jobsuche/cloud-infrastructure-devops-engineer-f-m-d-azure-focus-J2026011",
+                "profile_terms": ["Azure", "Cloud", "DevOps"],
+            },
+        },
+    }
+
+    result = transform_raw_job_to_silver(raw_job)
+
+    assert result["raw_job_id"] == 11872
+    assert result["source_name"] == "enercity:discovery"
+    assert result["source_url"] == "https://www.enercity.de/karriere/jobsuche/cloud-infrastructure-devops-engineer-f-m-d-azure-focus-J2026011"
+    assert result["title"] == "Cloud Infrastructure & DevOps Engineer (f/m/d) – Azure Focus"
+    assert result["company_name"] == "enercity AG"
+    assert result["city"] == "hannover; remote; deutschland; hybrid"
+    assert result["country"] == "DE"
+    assert result["normalized_title"] == "cloud infrastructure & devops engineer (f/m/d) – azure focus"
+    assert result["normalized_company_name"] == "enercity ag"
+    assert result["normalized_location"] == "hannover; remote; deutschland; hybrid | de"
+    assert result["canonical_source_type"] == "employer_origin_career_site"
+    assert result["canonical_key_candidate"] == (
+        "enercity ag :: cloud infrastructure & devops engineer (f/m/d) – azure focus"
+        " :: hannover; remote; deutschland; hybrid | de"
+    )
+
+
+def test_supported_source_patterns_include_enercity_family() -> None:
+    assert "enercity:%" in get_supported_source_patterns()

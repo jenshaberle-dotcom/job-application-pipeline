@@ -1,3 +1,5 @@
+import argparse
+
 from src.silver.relevance import (
     get_accessibility_matches,
     get_role_matches,
@@ -12,12 +14,44 @@ from src.silver.transformer import (
 )
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Transform unprocessed Bronze raw_jobs into Silver jobs.")
+    parser.add_argument(
+        "--source",
+        help="Optional exact source name or source-family filter, e.g. enercity:discovery or enercity.",
+    )
+    parser.add_argument("--limit", type=int, default=100)
+    return parser
+
+
+def source_matches_pattern(source_name: str, source_filter: str) -> bool:
+    return source_name == source_filter or source_name.startswith(f"{source_filter}:")
+
+
+def resolve_source_patterns(source_filter: str | None) -> list[str]:
+    if not source_filter:
+        return get_supported_source_patterns()
+
+    supported = get_supported_source_patterns()
+
+    if source_filter in supported:
+        return [source_filter]
+
+    exact_source = source_filter if ":" in source_filter else f"{source_filter}:%"
+
+    if exact_source in supported or exact_source.endswith(":%"):
+        return [exact_source]
+
+    return [source_filter]
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
     repository = SilverJobRepository()
 
     raw_jobs = repository.load_unprocessed_raw_jobs(
-        limit=100,
-        source_patterns=get_supported_source_patterns(),
+        limit=args.limit,
+        source_patterns=resolve_source_patterns(args.source),
     )
 
     if not raw_jobs:
