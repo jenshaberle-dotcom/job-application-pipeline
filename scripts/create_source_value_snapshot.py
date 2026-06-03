@@ -22,6 +22,11 @@ from psycopg.types.json import Json
 from src.config import get_database_config
 
 
+EMPLOYER_ORIGIN_SOURCE_FAMILIES = {
+    "finanz_informatik",
+    "enercity",
+}
+
 SOURCE_VALUE_SQL = """
 WITH source_names AS (
     SELECT source_name FROM search_profiles WHERE is_active = TRUE
@@ -245,7 +250,7 @@ def source_type(source_name: str) -> str:
     if family in {"greenhouse", "personio"}:
         return "ats_company_board"
 
-    if family == "finanz_informatik":
+    if family in EMPLOYER_ORIGIN_SOURCE_FAMILIES:
         return "employer_origin_career_site"
 
     return "unknown"
