@@ -1,0 +1,38 @@
+# Registration Execution Plan — enercity
+
+## Status
+
+- allowed: `true`
+- reason: final approval gate passed
+
+## Registration Steps
+
+- Register `enercity:discovery` in the code-backed connector registry, not directly in CLI control flow.
+- Import `src.connectors.enercity` and its connector class from the employer-origin registry extension.
+- Run connector-specific tests and full test suite.
+- Run a bounded manual ingestion preview if supported.
+- Prepare a separate controlled activation migration/search-profile change.
+
+## Validation
+
+- `python -m compileall src scripts tests`
+- `pytest -q`
+- `python -m scripts.run_employer_origin_connector_validation_agent --company-key enercity`
+- `python -m scripts.run_employer_origin_agent_chain --company-key enercity --reviewed-by jens --plan-only`
+
+## Rollback
+
+- Remove connector mapping from the code-backed connector registry.
+- Revert source-profile activation migration if created in a later activation PR.
+- Keep raw_jobs unchanged unless a later controlled activation wrote new rows.
+
+## Forbidden Actions
+
+- Do not enable recurring ingestion in this execution plan.
+- Do not write Bronze rows in this execution plan.
+- Do not create or enable scheduler changes in this execution plan.
+- Do not use CSV/Excel/export artifacts as inputs.
+
+## Boundary
+
+This is an execution plan only. It does not modify connector registration, activation, Bronze persistence or scheduler state.
