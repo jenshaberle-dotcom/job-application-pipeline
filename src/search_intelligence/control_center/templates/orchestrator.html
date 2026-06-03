@@ -1,0 +1,31 @@
+<section class="workspace tab-view" data-view="orchestrator">
+  <header class="workspace-hero">
+    <span class="eyebrow">Orchestrator</span>
+    <h2>Nightly Intelligence Cycle Attention</h2>
+    <p>Latest persisted orchestrator steps that require review before the next automated cycle.</p>
+  </header>
+
+  <section class="workspace-grid orchestrator-grid">
+    {% for item in orchestrator_items %}
+      <article class="workspace-card {{ item.tone }}">
+        <header>
+          <div><span class="eyebrow">{{ item.mode }} · {{ item.run }}</span><h3>{{ item.name }}</h3></div>
+          <span class="badge {{ item.tone }}">{{ item.status }}</span>
+        </header>
+        <section class="agent-next-action"><strong>Recommendation</strong><p>{{ item.recommendation }}</p></section>
+        <section class="agent-narrative"><h4>Reason</h4><p>{{ item.reason }}</p></section>
+      </article>
+    {% else %}
+      <article class="workspace-card ok">
+        <header><div><span class="eyebrow">Nightly cycle</span><h3>No attention steps visible</h3></div><span class="badge ok">clear</span></header>
+        <p>Run the orchestrator audit to persist a fresh cycle state.</p>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="workspace-note">
+    <h3>Refresh command</h3>
+    <pre>python -m scripts.run_nightly_search_intelligence_orchestrator --reviewed-by jens --write</pre>
+    <p>This command persists orchestrator audit data only. It does not register connectors, activate sources, write Bronze records or change scheduler configuration.</p>
+  </section>
+</section>

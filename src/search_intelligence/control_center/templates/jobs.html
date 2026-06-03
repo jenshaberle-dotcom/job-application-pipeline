@@ -1,0 +1,21 @@
+<section class="workspace tab-view" data-view="jobs">
+  <header class="workspace-hero">
+    <span class="eyebrow">Jobs & Applications</span>
+    <h2>New jobs and application drafts</h2>
+    <p>Planned product view for ranked jobs, application readiness and review-safe draft workflows.</p>
+  </header>
+
+  <section class="workspace-grid">
+    {% for item in planned_job_sections %}
+      <article class="workspace-card neutral">
+        <header><div><span class="eyebrow">{{ item.status }}</span><h3>{{ item.title }}</h3></div><span class="badge neutral">planned</span></header>
+        <p>{{ item.body }}</p>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="workspace-note">
+    <h3>Application safety boundary</h3>
+    <p>Future application assistance must remain review-first. No auto-send, no hidden state mutation and no generated application without explicit review.</p>
+  </section>
+</section>

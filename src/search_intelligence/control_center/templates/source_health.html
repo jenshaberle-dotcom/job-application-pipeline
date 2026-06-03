@@ -1,0 +1,30 @@
+<section class="workspace tab-view" data-view="health">
+  <header class="workspace-hero">
+    <span class="eyebrow">Source Health</span>
+    <h2>System health and diagnostics</h2>
+    <p>Operational view for controlled sources, blocked candidates, current lifecycle stage and next useful action.</p>
+  </header>
+
+  <section class="workspace-grid health-grid">
+    {% for item in source_health_items %}
+      <article class="workspace-card {{ item.tone }}">
+        <header>
+          <div><span class="eyebrow">{{ item.stage }}</span><h3>{{ item.company }}</h3><p>{{ item.source }}</p></div>
+          <span class="badge {{ item.tone }}">{{ item.health }}</span>
+        </header>
+        <dl class="compact-facts">
+          <div><dt>Status</dt><dd>{{ item.status }}</dd></div>
+          <div><dt>FN pressure</dt><dd>{{ item.fn_pressure }}</dd></div>
+          <div><dt>Gates</dt><dd>{{ item.gate_score }}</dd></div>
+        </dl>
+        <section class="agent-narrative"><h4>Diagnosis</h4><p>{{ item.diagnosis }}</p></section>
+        <section class="agent-next-action"><strong>Next action</strong><p>{{ item.next_action }}</p></section>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="workspace-note">
+    <h3>Connector and candidate diagnostics</h3>
+    <p>This tab intentionally combines active source health and candidate blockers because employer-origin sources move through gated lifecycle states before becoming operational connectors.</p>
+  </section>
+</section>

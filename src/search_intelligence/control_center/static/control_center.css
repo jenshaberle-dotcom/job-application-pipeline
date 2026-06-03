@@ -629,6 +629,192 @@ body {
 
 
 
+
+/* S8A4 Product-quality tab workspaces */
+
+.workspace {
+  max-width:1780px;
+  margin:0 auto;
+  display:grid;
+  gap:clamp(.85rem,1vw,1.2rem);
+}
+
+.workspace-hero,
+.workspace-note,
+.workspace-section {
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:linear-gradient(180deg,rgba(9,30,50,.92),rgba(4,14,27,.96));
+  box-shadow:var(--shadow);
+  padding:clamp(1rem,1.6vw,1.6rem);
+}
+
+.workspace-hero h2 {
+  margin:.35rem 0 .55rem;
+  font-size:clamp(2rem,3vw,3.7rem);
+  line-height:.96;
+  letter-spacing:-.06em;
+}
+
+.workspace-hero p,
+.workspace-note p,
+.workspace-card p {
+  color:var(--muted);
+  line-height:1.48;
+}
+
+.workspace-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:1rem;
+}
+
+.health-grid,
+.approval-grid,
+.orchestrator-grid {
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+
+.workspace-card {
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:linear-gradient(180deg,rgba(9,30,50,.92),rgba(4,14,27,.96));
+  box-shadow:var(--shadow);
+  padding:1rem;
+  min-width:0;
+}
+
+.workspace-card.ok { border-color:rgba(114,227,109,.38); }
+.workspace-card.warn { border-color:rgba(246,184,74,.5); }
+.workspace-card.bad { border-color:rgba(255,100,112,.5); }
+
+.workspace-card header {
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  align-items:flex-start;
+  margin-bottom:.8rem;
+}
+
+.workspace-card h3,
+.workspace-section h3 {
+  margin:.18rem 0 .2rem;
+  letter-spacing:-.03em;
+}
+
+.workspace-card header p,
+.workspace-section p {
+  margin:.2rem 0 0;
+  color:var(--muted);
+}
+
+.compact-facts {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:.5rem;
+  margin:.75rem 0;
+}
+
+.compact-facts div {
+  border:1px solid rgba(126,197,242,.14);
+  border-radius:12px;
+  padding:.52rem;
+  background:rgba(255,255,255,.02);
+}
+
+.compact-facts dt {
+  color:var(--muted);
+  font-size:.68rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  font-weight:900;
+}
+
+.compact-facts dd {
+  margin:.15rem 0 0;
+  font-weight:900;
+}
+
+.candidate-workspace-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:.85rem;
+}
+
+.approval-preview-form {
+  display:grid;
+  gap:.55rem;
+  margin-top:.8rem;
+  padding-top:.8rem;
+  border-top:1px solid rgba(126,197,242,.16);
+}
+
+.approval-preview-form label {
+  display:grid;
+  gap:.25rem;
+  color:var(--muted);
+  font-size:.78rem;
+  font-weight:900;
+}
+
+.approval-preview-form input {
+  width:100%;
+  border:1px solid rgba(126,197,242,.22);
+  border-radius:12px;
+  background:rgba(255,255,255,.035);
+  color:var(--text);
+  padding:.55rem .65rem;
+}
+
+.approval-preview-form button {
+  border:1px solid rgba(126,197,242,.22);
+  border-radius:12px;
+  background:rgba(255,255,255,.035);
+  color:var(--muted);
+  padding:.65rem .75rem;
+  font-weight:900;
+}
+
+.warning {
+  color:#ffe6b8;
+  border-left:3px solid var(--amber);
+  background:rgba(246,184,74,.08);
+  border-radius:12px;
+  padding:.65rem .75rem;
+}
+
+.demo-loop {
+  margin-top:0;
+}
+
+@media (max-width:1700px) {
+  .workspace {
+    max-width:1280px;
+  }
+
+  .workspace-grid,
+  .health-grid,
+  .approval-grid,
+  .orchestrator-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media (max-width:1100px) {
+  .workspace-grid,
+  .health-grid,
+  .approval-grid,
+  .orchestrator-grid,
+  .candidate-workspace-grid {
+    grid-template-columns:1fr;
+  }
+
+  .compact-facts {
+    grid-template-columns:1fr;
+  }
+}
+
+
 /* Agent Monitor */
 
 .agent-kpis {

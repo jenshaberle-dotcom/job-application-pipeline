@@ -1,0 +1,29 @@
+<section class="workspace tab-view" data-view="demo-chain">
+  <header class="workspace-hero">
+    <span class="eyebrow">Demo Chain</span>
+    <h2>Discovered company → approved connector</h2>
+    <p>The product story: market evidence becomes gated connector decisions and controlled feedback, not blind crawling.</p>
+  </header>
+
+  <section class="loop demo-loop">
+    <div class="card-head">
+      <div><span class="eyebrow">Controlled Intelligence Loop</span><h3>Market signal → evidence → gate → connector → feedback</h3></div>
+      <span class="badge ok">demo-ready</span>
+    </div>
+    <div class="guardrails">
+      {% for guardrail in guardrails %}
+        <span>{{ guardrail }}</span>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="workspace-grid">
+    {% for item in demo_chain_sections %}
+      <article class="workspace-card {{ item.tone }}">
+        <header><div><span class="eyebrow">{{ item.title }}</span><h3>{{ item.company }}</h3></div><span class="badge {{ item.tone }}">{{ item.status }}</span></header>
+        <section class="agent-narrative"><h4>Story</h4><p>{{ item.story }}</p></section>
+        <section class="agent-next-action"><strong>Boundary</strong><p>{{ item.boundary }}</p></section>
+      </article>
+    {% endfor %}
+  </section>
+</section>
