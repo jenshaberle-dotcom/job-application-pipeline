@@ -1157,6 +1157,104 @@ body {
 }
 
 
+
+/* S8A5 Review action dialogs */
+
+.review-action-button {
+  width:100%;
+  margin-top:.75rem;
+  border:1px solid rgba(34,211,238,.45);
+  border-radius:14px;
+  background:linear-gradient(135deg,rgba(34,211,238,.16),rgba(79,156,255,.10));
+  color:var(--text);
+  padding:.78rem .9rem;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);
+}
+
+.review-action-button:hover:not(:disabled) {
+  border-color:rgba(34,211,238,.75);
+  background:linear-gradient(135deg,rgba(34,211,238,.24),rgba(79,156,255,.16));
+}
+
+.review-action-button:disabled {
+  cursor:not-allowed;
+  opacity:.48;
+}
+
+.review-dialog {
+  max-width:min(560px,92vw);
+  border:1px solid rgba(34,211,238,.35);
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(9,30,50,.98),rgba(4,14,27,.99));
+  color:var(--text);
+  padding:0;
+  box-shadow:0 30px 90px rgba(0,0,0,.55);
+}
+
+.review-dialog::backdrop {
+  background:rgba(0,8,18,.72);
+  backdrop-filter:blur(4px);
+}
+
+.review-dialog form {
+  display:grid;
+  gap:.85rem;
+  padding:1.35rem;
+}
+
+.review-dialog h3 {
+  margin:.15rem 0 0;
+  font-size:1.35rem;
+  letter-spacing:-.04em;
+}
+
+.review-dialog p {
+  color:var(--muted);
+  line-height:1.48;
+  margin:0;
+}
+
+.dialog-boundary {
+  border:1px solid rgba(126,197,242,.16);
+  border-radius:14px;
+  background:rgba(255,255,255,.025);
+  padding:.75rem;
+}
+
+.dialog-boundary h4 {
+  margin:0 0 .35rem;
+  color:var(--cyan);
+  text-transform:uppercase;
+  font-size:.72rem;
+  letter-spacing:.08em;
+}
+
+.review-dialog menu {
+  display:flex;
+  justify-content:flex-end;
+  gap:.65rem;
+  padding:0;
+  margin:.2rem 0 0;
+}
+
+.review-dialog button {
+  border:1px solid rgba(126,197,242,.26);
+  border-radius:12px;
+  background:rgba(255,255,255,.04);
+  color:var(--text);
+  padding:.65rem .9rem;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.review-dialog .danger-action {
+  border-color:rgba(246,184,74,.55);
+  background:linear-gradient(135deg,rgba(246,184,74,.22),rgba(255,100,112,.12));
+}
+
+
 /* Final Agent Monitor KPI layout override.
    Keep the four Agent Monitor status cards in one compact row on dashboard/halfscreen widths.
    This must live at the end of the file because generic .kpis media rules otherwise win by cascade order.

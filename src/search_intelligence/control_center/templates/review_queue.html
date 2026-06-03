@@ -43,12 +43,45 @@
               {% if item.hint %}
                 <p class="warning">{{ item.hint }}</p>
               {% endif %}
-              <form method="post" action="{{ item.action_path }}" class="approval-preview-form">
-                <input type="hidden" name="company_key" value="{{ item.company_key }}">
-                <label>Approval token <input name="approval_token" placeholder="{{ item.token }}" autocomplete="off"></label>
-                <label>Reviewed by <input name="reviewed_by" value="jens"></label>
-                <button type="submit" disabled>Prepared for S8A5 approval-safe actions</button>
-              </form>
+              <button
+                type="button"
+                class="review-action-button"
+                data-dialog-target="dialog-approval-{{ item.company_key }}-{{ item.token }}"
+                {% if not write_actions_enabled %}disabled{% endif %}
+              >
+                Review approval action
+              </button>
+
+              {% if not write_actions_enabled %}
+                <p class="warning">Start the UI with <code>--allow-write-actions</code> to run this approval action.</p>
+              {% endif %}
+
+              <dialog class="review-dialog" id="dialog-approval-{{ item.company_key }}-{{ item.token }}">
+                <form method="post" action="{{ item.action_path }}">
+                  <input type="hidden" name="company_key" value="{{ item.company_key }}">
+                  <input type="hidden" name="approval_token" value="{{ item.token }}">
+                  <input type="hidden" name="reviewed_by" value="jens">
+
+                  <span class="eyebrow">{{ item.kind }}</span>
+                  <h3>Run approval action for {{ item.company }}?</h3>
+                  <p>{{ item.status }}</p>
+
+                  <section class="dialog-boundary">
+                    <h4>This action may</h4>
+                    <p>{{ item.allows }}</p>
+                  </section>
+
+                  <section class="dialog-boundary">
+                    <h4>This action will not</h4>
+                    <p>{{ item.does_not_allow }}</p>
+                  </section>
+
+                  <menu>
+                    <button type="button" value="cancel" data-dialog-close>Cancel</button>
+                    <button type="submit" class="danger-action">Run approval action</button>
+                  </menu>
+                </form>
+              </dialog>
             </article>
           {% endfor %}
         </div>
@@ -74,6 +107,49 @@
               </dl>
               {% if candidate.blocker_gate %}
                 <p class="blocker"><strong>{{ candidate.blocker_gate }}:</strong> {{ candidate.blocker_reason }}</p>
+
+                <button
+                  type="button"
+                  class="review-action-button"
+                  data-dialog-target="dialog-evidence-{{ candidate.company_key }}"
+                  {% if not write_actions_enabled %}disabled{% endif %}
+                >
+                  Review evidence repair action
+                </button>
+
+                {% if not write_actions_enabled %}
+                  <p class="warning">Start the UI with <code>--allow-write-actions</code> to run this repair action.</p>
+                {% endif %}
+
+                <dialog class="review-dialog" id="dialog-evidence-{{ candidate.company_key }}">
+                  <form method="post" action="/actions/rerun-evidence-repair">
+                    <input type="hidden" name="company_key" value="{{ candidate.company_key }}">
+                    <input type="hidden" name="approval_token" value="run_evidence_repair">
+                    <input type="hidden" name="reviewed_by" value="jens">
+
+                    <span class="eyebrow">Review required</span>
+                    <h3>Rerun bounded evidence repair?</h3>
+                    <p>
+                      This will run the bounded employer-origin agent chain repair for
+                      <strong>{{ candidate.company_name }}</strong>.
+                    </p>
+
+                    <section class="dialog-boundary">
+                      <h4>This action may</h4>
+                      <p>Rerun bounded evidence repair and refresh review/gate evidence.</p>
+                    </section>
+
+                    <section class="dialog-boundary">
+                      <h4>This action will not</h4>
+                      <p>Register connectors, activate sources, write Bronze records, create scheduler changes or bypass approval gates.</p>
+                    </section>
+
+                    <menu>
+                      <button type="button" value="cancel" data-dialog-close>Cancel</button>
+                      <button type="submit" class="danger-action">Run bounded evidence repair</button>
+                    </menu>
+                  </form>
+                </dialog>
               {% endif %}
             </article>
           {% endfor %}

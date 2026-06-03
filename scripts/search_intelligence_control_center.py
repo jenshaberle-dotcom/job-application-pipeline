@@ -10,6 +10,7 @@ from src.search_intelligence.control_center.view_model import build_control_cent
 
 BUILD_APPROVAL_TOKEN = "approve_connector_build"
 REGISTRATION_APPROVAL_TOKEN = "approve_connector_registration"
+EVIDENCE_REPAIR_TOKEN = "run_evidence_repair"
 
 
 @dataclass(frozen=True)
@@ -191,6 +192,21 @@ def registration_approval_command(company_key: str, target_location: str, review
         reviewed_by,
         "--approval-token",
         REGISTRATION_APPROVAL_TOKEN,
+    )
+
+
+def evidence_repair_command(company_key: str, target_location: str, reviewed_by: str) -> tuple[str, ...]:
+    return (
+        "python",
+        "-m",
+        "scripts.run_employer_origin_agent_chain",
+        "--company-key",
+        company_key,
+        "--target-location",
+        target_location,
+        "--reviewed-by",
+        reviewed_by,
+        "--attempt-repair",
     )
 
 

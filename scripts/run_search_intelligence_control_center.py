@@ -13,12 +13,14 @@ from psycopg.rows import dict_row
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from scripts.search_intelligence_control_center import (
     BUILD_APPROVAL_TOKEN,
+    EVIDENCE_REPAIR_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     AgentGateReview,
     ControlCenterCandidate,
     GoldMarketCoverageSummary,
     OrchestratorAttentionStep,
     build_approval_command,
+    evidence_repair_command,
     registration_approval_command,
     render_control_center,
 )
@@ -319,7 +321,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
             self.send_html("<html><body><h1>Control Center stopped</h1><p>You can close this tab.</p></body></html>")
             threading.Thread(target=self.server.shutdown, daemon=True).start()  # type: ignore[attr-defined]
             return
-        if self.path not in {"/actions/approve-build", "/actions/approve-registration"}:
+        if self.path not in {"/actions/rerun-evidence-repair", "/actions/approve-build", "/actions/approve-registration"}:
             self.send_error(404)
             return
 
@@ -332,6 +334,13 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
 
         if not self.state.allow_write_actions:
             self.state.flash_message = "Action blocked: restart with --allow-write-actions."
+        elif self.path == "/actions/rerun-evidence-repair":
+            if approval_token != EVIDENCE_REPAIR_TOKEN:
+                self.state.flash_message = f"Action blocked: exact token {EVIDENCE_REPAIR_TOKEN!r} required."
+            else:
+                self.state.flash_message = run_command(
+                    evidence_repair_command(company_key, self.state.target_location, reviewed_by)
+                )
         elif self.path == "/actions/approve-build":
             if approval_token != BUILD_APPROVAL_TOKEN:
                 self.state.flash_message = f"Action blocked: exact token {BUILD_APPROVAL_TOKEN!r} required."
@@ -346,7 +355,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
                 )
 
         self.send_response(303)
-        self.send_header("Location", "/?tab=approvals")
+        self.send_header("Location", "/?tab=review-queue")
         self.end_headers()
 
     def log_message(self, format: str, *args: object) -> None:
