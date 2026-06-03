@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -10,37 +9,10 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from src.config import get_database_config
 
 FINAL_APPROVAL_GATE = "final_approval_gate"
 APPROVAL_TOKEN = "approve_connector_registration"
-
-
-@dataclass(frozen=True)
-class DatabaseConfig:
-    host: str
-    port: str
-    dbname: str
-    user: str
-    password: str
-
-    @classmethod
-    def from_environment(cls) -> "DatabaseConfig":
-        return cls(
-            host=os.environ.get("POSTGRES_HOST", "localhost"),
-            port=os.environ.get("POSTGRES_PORT", "5432"),
-            dbname=os.environ["POSTGRES_DB"],
-            user=os.environ["POSTGRES_USER"],
-            password=os.environ["POSTGRES_PASSWORD"],
-        )
-
-    def dsn(self) -> str:
-        return (
-            f"host={self.host} "
-            f"port={self.port} "
-            f"dbname={self.dbname} "
-            f"user={self.user} "
-            f"password={self.password}"
-        )
 
 
 @dataclass(frozen=True)
@@ -257,7 +229,7 @@ class ApprovalRepository:
 
 
 def run_agent(args: argparse.Namespace) -> int:
-    with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+    with psycopg.connect(**get_database_config()) as conn:
         repo = ApprovalRepository(conn)
         candidate = repo.load_candidate(candidate_id=args.candidate_id, company_key=args.company_key)
         gates = repo.load_gates(candidate.id)
