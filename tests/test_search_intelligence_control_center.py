@@ -106,8 +106,9 @@ def test_control_center_renders_real_sidebar_tabs_and_dashboard_only_by_default(
     assert "<nav class='top-nav'" not in html
     assert 'href="/?tab=dashboard"' in html
     assert 'href="/?tab=health"' in html
-    assert 'href="/?tab=connectors"' in html
-    assert 'href="/?tab=approvals"' in html
+    assert 'href="/?tab=review-queue"' in html
+    assert 'href="/?tab=connectors"' not in html
+    assert 'href="/?tab=approvals"' not in html
     assert 'href="/?tab=orchestrator"' in html
     assert 'href="/?tab=agent-monitor"' in html
     assert 'href="/?tab=gaps"' in html
@@ -140,19 +141,21 @@ def test_control_center_renders_health_as_separate_page_not_anchor_scroll() -> N
     assert "Candidate backlog" not in html
 
 
-def test_control_center_renders_approvals_as_separate_workspace() -> None:
+def test_control_center_renders_review_queue_for_human_decisions() -> None:
     html = render_control_center(
         candidates(),
         reviewed_by="jens",
         target_location="hannover",
         write_actions_enabled=False,
-        active_tab="approvals",
+        active_tab="review-queue",
     )
 
-    assert "Approval control" in html
+    assert "Human decision workspace" in html
+    assert "Evidence review required" in html
+    assert "Approval required" in html
+    assert "Active / monitor only" in html
     assert "HDI Group" in html
     assert BUILD_APPROVAL_TOKEN in html
-    assert "Start the UI with" in html
     assert "Prepared for S8A5 approval-safe actions" in html
     assert '<section class="legacy-shell">' not in html
     assert "Search Intelligence Overview" not in html
@@ -202,7 +205,7 @@ def test_control_center_renders_registration_approval_after_validation() -> None
         reviewed_by="jens",
         target_location="hannover",
         write_actions_enabled=True,
-        active_tab="approvals",
+        active_tab="review-queue",
     )
 
     assert "Registration approval" in html
@@ -340,9 +343,9 @@ def test_control_center_renders_product_quality_candidate_gap_jobs_and_demo_tabs
         write_actions_enabled=False,
         active_tab="connectors",
     )
-    assert "Connector lifecycle workspace" in candidate_html
-    assert "Needs attention" in candidate_html
-    assert "Active controlled" in candidate_html
+    assert "Human decision workspace" in candidate_html
+    assert "Evidence review required" in candidate_html
+    assert "Active / monitor only" in candidate_html
     assert '<section class="legacy-shell">' not in candidate_html
 
     gaps_html = render_control_center(
@@ -379,3 +382,19 @@ def test_control_center_renders_product_quality_candidate_gap_jobs_and_demo_tabs
     assert "not blind crawling" in demo_html
     assert "No auto-PR" in demo_html
     assert '<section class="legacy-shell">' not in demo_html
+
+
+
+def test_control_center_routes_legacy_candidate_and_approval_tabs_to_review_queue() -> None:
+    for old_tab in ("connectors", "approvals"):
+        html = render_control_center(
+            candidates(),
+            reviewed_by="jens",
+            target_location="hannover",
+            write_actions_enabled=False,
+            active_tab=old_tab,
+        )
+
+        assert "Human decision workspace" in html
+        assert "Review Queue" in html
+        assert '<section class="legacy-shell">' not in html

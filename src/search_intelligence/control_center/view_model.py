@@ -622,6 +622,78 @@ def planned_job_sections() -> list[dict[str, str]]:
 
 
 
+def review_queue_sections(
+    candidates: list[object],
+    approval_entries: list[dict[str, str]],
+) -> list[dict[str, object]]:
+    evidence_review = [
+        candidate
+        for candidate in candidates
+        if is_blocked(candidate)
+    ]
+    active_monitoring = [
+        candidate
+        for candidate in candidates
+        if is_active(candidate)
+    ]
+    backlog = [
+        candidate
+        for candidate in candidates
+        if not is_active(candidate)
+        and not is_blocked(candidate)
+        and not needs_build_approval(candidate)
+        and not needs_registration_approval(candidate)
+    ]
+
+    return [
+        {
+            "title": "Evidence review required",
+            "description": "Candidates blocked by weak or incomplete evidence. These need human review or bounded repair before any connector registration can continue.",
+            "tone": "warn",
+            "count": len(evidence_review),
+            "candidate_cards": [candidate_card(item) for item in sorted(evidence_review, key=candidate_sort_key)],
+            "approval_items": [],
+        },
+        {
+            "title": "Approval required",
+            "description": "Explicit human approval queue for build or registration gates. S8A5 will make these actions usable under strict approval boundaries.",
+            "tone": "warn" if approval_entries else "ok",
+            "count": len(approval_entries),
+            "candidate_cards": [],
+            "approval_items": approval_entries,
+        },
+        {
+            "title": "Active / monitor only",
+            "description": "Controlled sources that do not need approval right now but should remain visible for source-value and health monitoring.",
+            "tone": "ok",
+            "count": len(active_monitoring),
+            "candidate_cards": [candidate_card(item) for item in sorted(active_monitoring, key=candidate_sort_key)],
+            "approval_items": [],
+        },
+        {
+            "title": "Backlog / no immediate action",
+            "description": "Known candidates without an immediate blocker or approval request. Keep visible, but do not distract from review-required work.",
+            "tone": "neutral",
+            "count": len(backlog),
+            "candidate_cards": [candidate_card(item) for item in sorted(backlog, key=candidate_sort_key)],
+            "approval_items": [],
+        },
+    ]
+
+
+def review_queue_summary(sections: list[dict[str, object]]) -> dict[str, int]:
+    evidence = next((section for section in sections if section["title"] == "Evidence review required"), None)
+    approvals = next((section for section in sections if section["title"] == "Approval required"), None)
+    active = next((section for section in sections if section["title"] == "Active / monitor only"), None)
+    backlog = next((section for section in sections if section["title"] == "Backlog / no immediate action"), None)
+    return {
+        "evidence_review": int(evidence["count"]) if evidence else 0,
+        "approvals": int(approvals["count"]) if approvals else 0,
+        "active": int(active["count"]) if active else 0,
+        "backlog": int(backlog["count"]) if backlog else 0,
+    }
+
+
 def build_control_center_view_model(
     candidates: list[object],
     *,
@@ -658,16 +730,20 @@ def build_control_center_view_model(
     success_candidate = next((card for card in cards if card["path_state"] == "success"), None)
     blocked_candidate = next((card for card in cards if card["path_state"] == "blocked"), None)
 
+    approval_entries = approval_items(candidates, write_actions_enabled=write_actions_enabled)
+    review_sections = review_queue_sections(candidates, approval_entries)
+    review_summary = review_queue_summary(review_sections)
+    review_queue_count = review_summary["evidence_review"] + review_summary["approvals"]
+
     nav_items = [
         {"tab": "dashboard", "label": "Dashboard", "count": active_count + critical_count},
         {"tab": "health", "label": "Source Health", "count": critical_count},
-        {"tab": "connectors", "label": "Candidates", "count": len(candidates)},
-        {"tab": "approvals", "label": "Approvals", "count": build_approval_count + registration_approval_count},
+        {"tab": "review-queue", "label": "Review Queue", "count": review_queue_count},
         {"tab": "orchestrator", "label": "Orchestrator", "count": len(orchestrator_steps)},
         {"tab": "agent-monitor", "label": "Agent Monitor", "count": None},
-        {"tab": "gaps", "label": "Gap Analysis", "count": None},
+        {"tab": "gaps", "label": "Intelligence", "count": None},
         {"tab": "jobs", "label": "Jobs & Applications", "count": None},
-        {"tab": "demo-chain", "label": "Demo Chain", "count": None},
+        {"tab": "demo-chain", "label": "Demo", "count": None},
     ]
 
     agent_cards = build_agent_monitor_cards(candidates, orchestrator_steps, gate_reviews)
@@ -677,6 +753,7 @@ def build_control_center_view_model(
         "active_tab": active_tab,
         "is_dashboard": active_tab == "dashboard",
         "is_source_health": active_tab == "health",
+        "is_review_queue": active_tab == "review-queue",
         "is_candidates": active_tab == "connectors",
         "is_approvals": active_tab == "approvals",
         "is_orchestrator": active_tab == "orchestrator",
@@ -723,7 +800,9 @@ def build_control_center_view_model(
         "agent_summary": build_agent_monitor_summary(agent_cards),
         "source_health_items": source_health_items(candidates),
         "candidate_groups": candidate_groups(candidates),
-        "approval_items": approval_items(candidates, write_actions_enabled=write_actions_enabled),
+        "approval_items": approval_entries,
+        "review_queue_sections": review_sections,
+        "review_queue_summary": review_summary,
         "orchestrator_items": orchestrator_items(orchestrator_steps),
         "demo_chain_sections": demo_chain_sections(candidates),
         "planned_gap_sections": planned_gap_sections(),

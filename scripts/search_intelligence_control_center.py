@@ -635,7 +635,13 @@ def render_control_center(
     orchestrator_steps = orchestrator_steps or []
     gate_reviews = gate_reviews or []
 
-    allowed_tabs = {"dashboard", "health", "connectors", "approvals", "orchestrator", "agent-monitor", "gaps", "jobs", "demo-chain"}
+    tab_aliases = {
+        "connectors": "review-queue",
+        "approvals": "review-queue",
+    }
+    active_tab = tab_aliases.get(active_tab, active_tab)
+
+    allowed_tabs = {"dashboard", "health", "review-queue", "connectors", "approvals", "orchestrator", "agent-monitor", "gaps", "jobs", "demo-chain"}
     if active_tab not in allowed_tabs:
         active_tab = "dashboard"
 
