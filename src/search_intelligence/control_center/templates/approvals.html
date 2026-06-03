@@ -1,0 +1,43 @@
+<section class="workspace tab-view" data-view="approvals">
+  <header class="workspace-hero">
+    <span class="eyebrow">Approval control</span>
+    <h2>Approval workspace</h2>
+    <p>Review build and registration approvals without blurring boundaries. No source activation, Bronze write or scheduler change is performed by this tab.</p>
+  </header>
+
+  <section class="workspace-grid approval-grid">
+    {% for item in approval_items %}
+      <article class="workspace-card {{ item.tone }}">
+        <header>
+          <div><span class="eyebrow">{{ item.kind }}</span><h3>{{ item.company }}</h3><p>{{ item.company_key }}</p></div>
+          <span class="badge {{ item.tone }}">{{ item.status }}</span>
+        </header>
+        <dl class="compact-facts">
+          <div><dt>Token</dt><dd>{{ item.token }}</dd></div>
+          <div><dt>Action path</dt><dd>{{ item.action_path }}</dd></div>
+        </dl>
+        <section class="agent-narrative"><h4>Allows</h4><p>{{ item.allows }}</p></section>
+        <section class="agent-narrative"><h4>Does not allow</h4><p>{{ item.does_not_allow }}</p></section>
+        {% if item.hint %}
+          <p class="warning">{{ item.hint }}</p>
+        {% endif %}
+        <form method="post" action="{{ item.action_path }}" class="approval-preview-form">
+          <input type="hidden" name="company_key" value="{{ item.company_key }}">
+          <label>Approval token <input name="approval_token" placeholder="{{ item.token }}" autocomplete="off"></label>
+          <label>Reviewed by <input name="reviewed_by" value="jens"></label>
+          <button type="submit" disabled>Prepared for S8A5 approval-safe actions</button>
+        </form>
+      </article>
+    {% else %}
+      <article class="workspace-card ok">
+        <header><div><span class="eyebrow">Approval queue</span><h3>No connector build or registration approval is waiting.</h3></div><span class="badge ok">clear</span></header>
+        <p>No explicit build or registration token is currently required.</p>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="workspace-note">
+    <h3>Safety boundary</h3>
+    <p>Approval UI is prepared here as a governance workspace. S8A5 will make actions usable under explicit approval gates and audit/event writing.</p>
+  </section>
+</section>

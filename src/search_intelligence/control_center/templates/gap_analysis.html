@@ -1,0 +1,21 @@
+<section class="workspace tab-view" data-view="gaps">
+  <header class="workspace-hero">
+    <span class="eyebrow">Gap Analysis</span>
+    <h2>Market demand and capability gaps</h2>
+    <p>Planned Gold-backed view for search-term quality, market demand and candidate-fit signals. This tab intentionally avoids fake analytics.</p>
+  </header>
+
+  <section class="workspace-grid">
+    {% for item in planned_gap_sections %}
+      <article class="workspace-card neutral">
+        <header><div><span class="eyebrow">{{ item.status }}</span><h3>{{ item.title }}</h3></div><span class="badge neutral">planned</span></header>
+        <p>{{ item.body }}</p>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="workspace-note">
+    <h3>Gold model needed</h3>
+    <p>Search-term quality, skill demand and profile-fit KPIs must come from a dedicated Gold/Scoring model, not from connector-side shortcuts.</p>
+  </section>
+</section>

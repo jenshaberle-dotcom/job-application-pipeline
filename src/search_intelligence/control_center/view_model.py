@@ -426,6 +426,202 @@ def build_agent_monitor_summary(agent_cards: list[dict[str, str]]) -> dict[str, 
     }
 
 
+def source_health_items(candidates: list[object]) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for candidate in sorted(candidates, key=candidate_sort_key):
+        active = is_active(candidate)
+        blocker = _value(candidate, "latest_blocking_gate")
+        pressure = str(_value(candidate, "false_negative_risk_level", "") or "")
+        if active:
+            health = "Healthy"
+            diagnosis = "Controlled source is active. Monitor source contribution and evidence freshness."
+            tone_name = "ok"
+        elif blocker:
+            health = "Needs review"
+            diagnosis = str(_value(candidate, "latest_blocking_reason", "") or "A lifecycle gate requires review.")
+            tone_name = "warn"
+        elif pressure in {"critical", "high"}:
+            health = "Watchlist"
+            diagnosis = "False-negative pressure is elevated; continue origin/source review."
+            tone_name = "bad" if pressure == "critical" else "warn"
+        else:
+            health = "Discovery"
+            diagnosis = "No concrete blocker recorded. Continue gate review when the candidate becomes relevant."
+            tone_name = "neutral"
+
+        items.append(
+            {
+                "company": str(_value(candidate, "company_name", "")),
+                "source": str(_value(candidate, "source_name_candidate", "")),
+                "status": humanize(_value(candidate, "status")),
+                "health": health,
+                "tone": tone_name,
+                "stage": candidate_stage(candidate),
+                "diagnosis": diagnosis,
+                "next_action": next_action(candidate),
+                "fn_pressure": humanize(_value(candidate, "false_negative_risk_level")),
+                "gate_score": f"{int(_value(candidate, 'gate_passed_count', 0) or 0)}/{int(_value(candidate, 'gate_total_count', 0) or 0)}",
+            }
+        )
+    return items
+
+
+def candidate_groups(candidates: list[object]) -> list[dict[str, object]]:
+    groups = [
+        (
+            "Needs attention",
+            "Blocked or high-pressure candidates that should be reviewed first.",
+            [item for item in candidates if is_blocked(item) or str(_value(item, "false_negative_risk_level", "")) in {"critical", "high"}],
+        ),
+        (
+            "Active controlled",
+            "Sources already available as controlled employer-origin connectors.",
+            [item for item in candidates if is_active(item)],
+        ),
+        (
+            "Discovery backlog",
+            "Known candidates without an immediate blocking gate.",
+            [item for item in candidates if not is_active(item) and not is_blocked(item)],
+        ),
+    ]
+
+    return [
+        {
+            "title": title,
+            "description": description,
+            "count": len(items),
+            "cards": [candidate_card(item) for item in sorted(items, key=candidate_sort_key)],
+        }
+        for title, description, items in groups
+    ]
+
+
+def approval_items(candidates: list[object], *, write_actions_enabled: bool) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for candidate in sorted(candidates, key=candidate_sort_key):
+        if needs_build_approval(candidate):
+            items.append(
+                {
+                    "kind": "Build approval",
+                    "company": str(_value(candidate, "company_name", "")),
+                    "company_key": str(_value(candidate, "company_key", "")),
+                    "status": "Waiting for explicit build token",
+                    "tone": "warn",
+                    "token": "approve_connector_build",
+                    "action_path": "/actions/approve-build",
+                    "allows": "Connector artifact generation only.",
+                    "does_not_allow": "No registration, no activation, no Bronze write, no scheduler change.",
+                    "hint": "" if write_actions_enabled else "Start the UI with --allow-write-actions to approve builds.",
+                }
+            )
+        if needs_registration_approval(candidate):
+            items.append(
+                {
+                    "kind": "Registration approval",
+                    "company": str(_value(candidate, "company_name", "")),
+                    "company_key": str(_value(candidate, "company_key", "")),
+                    "status": "Validation passed, registration approval required",
+                    "tone": "warn",
+                    "token": "approve_connector_registration",
+                    "action_path": "/actions/approve-registration",
+                    "allows": "Registration gate approval only.",
+                    "does_not_allow": "Controlled activation remains a separate gate; no Bronze write or scheduler change.",
+                    "hint": "" if write_actions_enabled else "Start the UI with --allow-write-actions to approve registration.",
+                }
+            )
+    return items
+
+
+def orchestrator_items(orchestrator_steps: list[object]) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for step in orchestrator_steps:
+        status = str(_value(step, "step_status", ""))
+        items.append(
+            {
+                "name": humanize(_value(step, "step_name")),
+                "status": humanize(status),
+                "tone": tone(status),
+                "mode": humanize(_value(step, "action_mode")),
+                "recommendation": str(_value(step, "recommendation", "") or "No recommendation recorded."),
+                "reason": str(_value(step, "reason", "") or "No reason recorded."),
+                "run": f"run #{_value(step, 'run_id', '-')}",
+            }
+        )
+    return items
+
+
+def demo_chain_sections(candidates: list[object]) -> list[dict[str, str]]:
+    success = next((candidate for candidate in candidates if is_active(candidate)), None)
+    blocked = next((candidate for candidate in candidates if is_blocked(candidate)), None)
+    return [
+        {
+            "title": "Success path",
+            "company": str(_value(success, "company_name", "No active source yet")) if success else "No active source yet",
+            "status": "Active controlled" if success else "Missing",
+            "tone": "ok" if success else "neutral",
+            "story": "A discovered employer-origin candidate passed controlled activation and can now contribute monitored source evidence.",
+            "boundary": "Still monitored through source value and lifecycle checks.",
+        },
+        {
+            "title": "Stop path",
+            "company": str(_value(blocked, "company_name", "No blocked candidate")) if blocked else "No blocked candidate",
+            "status": humanize(_value(blocked, "latest_blocking_gate")) if blocked else "Clear",
+            "tone": "warn" if blocked else "ok",
+            "story": str(_value(blocked, "latest_blocking_reason", "")) if blocked else "No current blocker is visible.",
+            "boundary": "The system stops instead of activating weak evidence.",
+        },
+        {
+            "title": "Product claim",
+            "company": "Search Intelligence loop",
+            "status": "Controlled",
+            "tone": "ok",
+            "story": "The demo shows discovery, evidence, gated connector decisions and feedback, not a blind crawler.",
+            "boundary": "No auto-PR, no source activation, no Bronze write and no scheduler mutation without explicit gates.",
+        },
+    ]
+
+
+def planned_gap_sections() -> list[dict[str, str]]:
+    return [
+        {
+            "title": "Search-term quality",
+            "status": "Gold model needed",
+            "body": "Use market observations and loaded jobs to identify noisy terms, missed terms and false-negative pressure.",
+        },
+        {
+            "title": "Capability gap view",
+            "status": "Planned",
+            "body": "Show skill and role-family demand only after a Gold-backed model exists. Do not infer fake analytics from raw agent output.",
+        },
+        {
+            "title": "Profile-fit signals",
+            "status": "Planned",
+            "body": "Later connect job relevance, CV/profile fit and application prioritization without moving scoring into connectors.",
+        },
+    ]
+
+
+def planned_job_sections() -> list[dict[str, str]]:
+    return [
+        {
+            "title": "New relevant jobs",
+            "status": "Needs Gold ranking",
+            "body": "Will show newly loaded and ranked jobs once relevance scoring is available.",
+        },
+        {
+            "title": "Application drafts",
+            "status": "Separate approval workflow needed",
+            "body": "Application text generation must be review-first and approval-safe. It should not auto-send or mutate state blindly.",
+        },
+        {
+            "title": "Candidate-to-job trace",
+            "status": "Planned",
+            "body": "Later connect source discovery, job evidence and application readiness in one reviewable chain.",
+        },
+    ]
+
+
+
 def build_control_center_view_model(
     candidates: list[object],
     *,
@@ -480,7 +676,14 @@ def build_control_center_view_model(
         "page_title": "Search Intelligence Control Center",
         "active_tab": active_tab,
         "is_dashboard": active_tab == "dashboard",
+        "is_source_health": active_tab == "health",
+        "is_candidates": active_tab == "connectors",
+        "is_approvals": active_tab == "approvals",
+        "is_orchestrator": active_tab == "orchestrator",
         "is_agent_monitor": active_tab == "agent-monitor",
+        "is_gap_analysis": active_tab == "gaps",
+        "is_jobs": active_tab == "jobs",
+        "is_demo_chain": active_tab == "demo-chain",
         "stylesheet": stylesheet,
         "flash_message": flash_message,
         "legacy_view_html": legacy_view_html,
@@ -518,4 +721,11 @@ def build_control_center_view_model(
         ],
         "agent_cards": agent_cards,
         "agent_summary": build_agent_monitor_summary(agent_cards),
+        "source_health_items": source_health_items(candidates),
+        "candidate_groups": candidate_groups(candidates),
+        "approval_items": approval_items(candidates, write_actions_enabled=write_actions_enabled),
+        "orchestrator_items": orchestrator_items(orchestrator_steps),
+        "demo_chain_sections": demo_chain_sections(candidates),
+        "planned_gap_sections": planned_gap_sections(),
+        "planned_job_sections": planned_job_sections(),
     }

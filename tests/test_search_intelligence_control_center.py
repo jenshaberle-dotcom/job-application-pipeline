@@ -134,6 +134,8 @@ def test_control_center_renders_health_as_separate_page_not_anchor_scroll() -> N
 
     assert "System health and diagnostics" in html
     assert "Connector and candidate diagnostics" in html
+    assert "Operational view for controlled sources" in html
+    assert '<section class="legacy-shell">' not in html
     assert "Search Intelligence Overview" not in html
     assert "Candidate backlog" not in html
 
@@ -151,6 +153,8 @@ def test_control_center_renders_approvals_as_separate_workspace() -> None:
     assert "HDI Group" in html
     assert BUILD_APPROVAL_TOKEN in html
     assert "Start the UI with" in html
+    assert "Prepared for S8A5 approval-safe actions" in html
+    assert '<section class="legacy-shell">' not in html
     assert "Search Intelligence Overview" not in html
     assert "Candidate backlog" not in html
 
@@ -178,6 +182,8 @@ def test_control_center_renders_orchestrator_attention_tab() -> None:
     assert "Nightly Intelligence Cycle Attention" in html
     assert "Review explicit connector build approvals." in html
     assert "python -m scripts.run_nightly_search_intelligence_orchestrator --reviewed-by jens --write" in html
+    assert "Latest persisted orchestrator steps" in html
+    assert '<section class="legacy-shell">' not in html
     assert "Search Intelligence Overview" not in html
 
 
@@ -323,3 +329,53 @@ def test_control_center_agent_monitor_uses_gate_review_history() -> None:
     assert "Gate reviews: enercity AG" in html
     assert "No current validation signal" not in html
     assert "No current final approval signal" not in html
+
+
+
+def test_control_center_renders_product_quality_candidate_gap_jobs_and_demo_tabs() -> None:
+    candidate_html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="connectors",
+    )
+    assert "Connector lifecycle workspace" in candidate_html
+    assert "Needs attention" in candidate_html
+    assert "Active controlled" in candidate_html
+    assert '<section class="legacy-shell">' not in candidate_html
+
+    gaps_html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="gaps",
+    )
+    assert "Market demand and capability gaps" in gaps_html
+    assert "Gold model needed" in gaps_html
+    assert "intentionally avoids fake analytics" in gaps_html
+    assert '<section class="legacy-shell">' not in gaps_html
+
+    jobs_html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="jobs",
+    )
+    assert "New jobs and application drafts" in jobs_html
+    assert "Application safety boundary" in jobs_html
+    assert '<section class="legacy-shell">' not in jobs_html
+
+    demo_html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="demo-chain",
+    )
+    assert "Discovered company → approved connector" in demo_html
+    assert "not blind crawling" in demo_html
+    assert "No auto-PR" in demo_html
+    assert '<section class="legacy-shell">' not in demo_html

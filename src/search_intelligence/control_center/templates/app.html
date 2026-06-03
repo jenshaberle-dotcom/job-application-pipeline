@@ -40,8 +40,22 @@
 
     {% if is_dashboard %}
       {% include "dashboard.html" %}
+    {% elif is_source_health %}
+      {% include "source_health.html" %}
+    {% elif is_candidates %}
+      {% include "candidates.html" %}
+    {% elif is_approvals %}
+      {% include "approvals.html" %}
+    {% elif is_orchestrator %}
+      {% include "orchestrator.html" %}
     {% elif is_agent_monitor %}
       {% include "agent_monitor.html" %}
+    {% elif is_gap_analysis %}
+      {% include "gap_analysis.html" %}
+    {% elif is_jobs %}
+      {% include "jobs.html" %}
+    {% elif is_demo_chain %}
+      {% include "demo_chain.html" %}
     {% else %}
       <section class="legacy-shell">
         {{ legacy_view_html | safe }}

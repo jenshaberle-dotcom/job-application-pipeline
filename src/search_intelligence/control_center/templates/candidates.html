@@ -1,0 +1,40 @@
+<section class="workspace tab-view" data-view="connectors">
+  <header class="workspace-hero">
+    <span class="eyebrow">Candidates</span>
+    <h2>Connector lifecycle workspace</h2>
+    <p>Review employer-origin candidates by attention need, active controlled state and discovery backlog.</p>
+  </header>
+
+  {% for group in candidate_groups %}
+    <section class="workspace-section">
+      <div class="section-head">
+        <div><span class="eyebrow">{{ group.count }} candidate(s)</span><h3>{{ group.title }}</h3><p>{{ group.description }}</p></div>
+      </div>
+      <div class="candidate-workspace-grid">
+        {% for candidate in group.cards %}
+          <article class="life-card {% if candidate.path_state == 'success' %}ok{% elif candidate.path_state == 'blocked' %}warn{% endif %}">
+            <header>
+              <div><strong>{{ candidate.company_name }}</strong><small>{{ candidate.source_name }}</small></div>
+              <span class="badge {{ candidate.status_tone }}">{{ candidate.status }}</span>
+            </header>
+            <div class="pipeline">
+              {% for step in candidate.pipeline_steps %}
+                <span class="{{ step.state }}">{{ step.label }}</span>
+              {% endfor %}
+            </div>
+            <dl class="life-facts">
+              <div><dt>Stage</dt><dd>{{ candidate.stage }}</dd></div>
+              <div><dt>Gates</dt><dd>{{ candidate.gate_score }}</dd></div>
+              <div><dt>Next</dt><dd>{{ candidate.next_action }}</dd></div>
+            </dl>
+            {% if candidate.blocker_gate %}
+              <p class="blocker"><strong>{{ candidate.blocker_gate }}:</strong> {{ candidate.blocker_reason }}</p>
+            {% endif %}
+          </article>
+        {% else %}
+          <article class="empty-state"><h3>No candidates in this group</h3><p>This is good when the group represents blockers or pending reviews.</p></article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+</section>
