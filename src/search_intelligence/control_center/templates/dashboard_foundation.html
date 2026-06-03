@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="foundation-card">
+  <p class="eyebrow">{{ eyebrow }}</p>
+  <h1>{{ title }}</h1>
+  <p>{{ description }}</p>
+  <ul>
+    {% for guardrail in guardrails %}
+      <li>{{ guardrail }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
