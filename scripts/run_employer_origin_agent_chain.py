@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import subprocess
 import sys
@@ -12,6 +11,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from src.config import get_database_config
 
 DETAIL_EVIDENCE_GATE = "detail_evidence_gate"
 CONNECTOR_CANDIDATE_GATE = "connector_candidate_gate"
@@ -32,34 +32,6 @@ REQUIRED_CONNECTOR_ARTIFACT_GATES = (
     "incremental_uniqueness_gate",
     "connector_candidate_gate",
 )
-
-
-@dataclass(frozen=True)
-class DatabaseConfig:
-    host: str
-    port: str
-    dbname: str
-    user: str
-    password: str
-
-    @classmethod
-    def from_environment(cls) -> "DatabaseConfig":
-        return cls(
-            host=os.environ.get("POSTGRES_HOST", "localhost"),
-            port=os.environ.get("POSTGRES_PORT", "5432"),
-            dbname=os.environ["POSTGRES_DB"],
-            user=os.environ["POSTGRES_USER"],
-            password=os.environ["POSTGRES_PASSWORD"],
-        )
-
-    def dsn(self) -> str:
-        return (
-            f"host={self.host} "
-            f"port={self.port} "
-            f"dbname={self.dbname} "
-            f"user={self.user} "
-            f"password={self.password}"
-        )
 
 
 @dataclass(frozen=True)
@@ -436,7 +408,7 @@ def child_exit_interpretation_lines(exit_code: int) -> list[str]:
 
 
 def run_agent(args: argparse.Namespace) -> int:
-    with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+    with psycopg.connect(**get_database_config()) as conn:
         candidate = load_candidate(conn, args.company_key)
         gates = load_gate_reviews(conn, candidate.id)
 

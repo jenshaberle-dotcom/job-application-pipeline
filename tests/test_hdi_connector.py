@@ -6,6 +6,8 @@ from src.connectors.hdi import (
     SOURCE_NAME,
     SOURCE_TYPE,
     HdiConnector,
+    decode_response_text,
+    is_concrete_job_detail_url,
     extract_candidate_links,
     select_detail_candidates,
 )
@@ -13,6 +15,7 @@ from src.connectors.hdi import (
 
 LISTING_URL = 'https://careers.hdi.group/en/your_career_opportunities/job_board'
 DETAIL_URL = 'https://careers.hdi.group/jobs/product-owner-data-platform'
+PRODUCT_URL = 'https://careers.hdi.group/en/about/news/product-data-platform'
 
 
 def fake_fetcher(url: str) -> tuple[str, str, int]:
@@ -21,6 +24,8 @@ def fake_fetcher(url: str) -> tuple[str, str, int]:
             "<html><body>"
             f"<a href='{DETAIL_URL}'>Product Owner Data Platform Hannover</a>"
             "<a href='/jobs/duales-studium-data'>Duales Studium Data Hannover</a>"
+            f"<a href='{PRODUCT_URL}'>Product Data Platform News Hannover</a>"
+            f"<a href='{PRODUCT_URL}'>Product Data Platform News Hannover</a>"
             "</body></html>"
         )
         return html, LISTING_URL, 200
@@ -79,3 +84,26 @@ def test_connector_fetches_bounded_relevant_jobs() -> None:
     assert "Product Owner" in record.raw_data["result_card"]["title"]
     assert record.raw_data["acquisition_boundary"]["browser_automation_used"] is False
     assert record.raw_data["acquisition_boundary"]["raw_html_persisted"] is False
+
+
+
+class FakeResponse:
+    def __init__(self, content: bytes, encoding: str | None = None, apparent_encoding: str | None = None) -> None:
+        self.content = content
+        self.encoding = encoding
+        self.apparent_encoding = apparent_encoding
+
+
+def test_decode_response_text_prefers_utf8_over_misleading_declared_encoding() -> None:
+    response = FakeResponse(
+        "Manager:in Entschädigungsmanagement – Azure Focus".encode("utf-8"),
+        encoding="ISO-8859-1",
+        apparent_encoding="Windows-1252",
+    )
+
+    assert decode_response_text(response) == "Manager:in Entschädigungsmanagement – Azure Focus"
+
+
+def test_concrete_job_detail_url_rejects_non_job_pages() -> None:
+    assert is_concrete_job_detail_url(DETAIL_URL)
+    assert not is_concrete_job_detail_url(PRODUCT_URL)

@@ -21,6 +21,23 @@ COMPANY_NAME = 'HDI Group'
 LISTING_URL = 'https://careers.hdi.group/en/your_career_opportunities/job_board'
 ALLOWED_HOSTS = ('careers.hdi.group',)
 KNOWN_DETAIL_URLS = ()
+JOB_DETAIL_PATH_MARKERS = (
+    "/jobs/",
+    "/job/",
+    "/stellenangebote/",
+    "/karriere/",
+    "/career/",
+)
+NON_JOB_URL_PATH_MARKERS = (
+    "/privatkunden/",
+    "/produkte/",
+    "/produkt/",
+    "/presse/",
+    "/news/",
+    "/blog/",
+    "/ueber-uns/",
+    "/about/",
+)
 REQUEST_TIMEOUT_SECONDS = 20
 MAX_DETAIL_PAGES = 3
 USER_AGENT = (
@@ -189,6 +206,20 @@ class HdiConnector(JobSourceConnector):
         return records, final_url
 
 
+
+def decode_response_text(response: requests.Response) -> str:
+    try:
+        return response.content.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+
+    encoding = response.encoding or response.apparent_encoding or "utf-8"
+
+    try:
+        return response.content.decode(encoding, errors="replace")
+    except LookupError:
+        return response.content.decode("utf-8", errors="replace")
+
 def fetch_url(url: str) -> tuple[str, str, int]:
     response = requests.get(
         url,
@@ -196,7 +227,7 @@ def fetch_url(url: str) -> tuple[str, str, int]:
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
-    return response.text, response.url, response.status_code
+    return decode_response_text(response), response.url, response.status_code
 
 
 def normalize_whitespace(value: str | None) -> str:
@@ -230,6 +261,19 @@ def has_known_detail_url(url: str) -> bool:
     return url.split("#", 1)[0] in KNOWN_DETAIL_URLS
 
 
+def is_concrete_job_detail_url(url: str) -> bool:
+    clean_url = url.split("#", 1)[0]
+    path = urlparse(clean_url).path.lower().rstrip("/")
+
+    if has_known_detail_url(clean_url):
+        return True
+
+    if any(marker in f"{path}/" for marker in NON_JOB_URL_PATH_MARKERS):
+        return False
+
+    return any(marker in f"{path}/" for marker in JOB_DETAIL_PATH_MARKERS)
+
+
 def extract_candidate_links(html: str, base_url: str) -> list[CandidateLink]:
     parser = LinkExtractor(base_url)
     parser.feed(html)
@@ -244,6 +288,9 @@ def extract_candidate_links(html: str, base_url: str) -> list[CandidateLink]:
         seen.add(clean_url)
 
         if not allowed_host(clean_url):
+            continue
+
+        if not is_concrete_job_detail_url(clean_url):
             continue
 
         parsed = urlparse(clean_url)
@@ -318,6 +365,9 @@ def parse_detail_page(url: str, final_url: str, status_code: int, html: str) -> 
 
 def detail_supports_record(candidate: CandidateLink, detail: DetailPage) -> bool:
     if detail.status_code >= 400:
+        return False
+
+    if not is_concrete_job_detail_url(candidate.url):
         return False
 
     evidence_text = " ".join([candidate.url, candidate.path, candidate.text, detail.title, detail.text])

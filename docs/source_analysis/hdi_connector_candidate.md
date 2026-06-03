@@ -39,3 +39,37 @@ It does not approve:
 ## Next Gate
 
 A separate controlled activation gate must decide whether this connector candidate may be registered in the ingestion runner and activated through a search profile migration.
+
+## S7Y/S8 Revalidation Result
+
+After the enercity end-to-end path introduced stricter connector quality expectations, this HDI connector candidate was revalidated as an existing artifact candidate.
+
+### Additional Guardrails
+
+The connector candidate now includes:
+
+- UTF-8-first response decoding to avoid mojibake in generated evidence.
+- Concrete job-detail URL filtering.
+- Non-job URL rejection for product, news, blog, about and similar pages.
+- Regression tests for misleading declared response encodings.
+- Regression tests for non-job URL rejection.
+
+### Agent Chain Result
+
+The employer-origin agent chain recognizes that the HDI connector artifacts are present:
+
+- `src/connectors/hdi.py`
+- `tests/test_hdi_connector.py`
+- `docs/source_analysis/hdi_connector_candidate.md`
+
+However, the lifecycle chain currently stops before registration or activation:
+
+- `detail_evidence_gate`: `manual_review_required`
+- reason: `bounded repair found no concrete detail pages with profile and target/remote signals`
+- next action: `run_detail_evidence_repair`
+
+### Interpretation
+
+This is an intentional stop condition, not a connector activation approval.
+
+The HDI connector candidate may remain in the repository as a reviewed artifact candidate, but it must not be registered, activated, scheduled or used for Bronze persistence until the detail evidence gate is resolved by a later review.
