@@ -6,13 +6,16 @@ from src.connectors.enercity import (
     SOURCE_NAME,
     SOURCE_TYPE,
     EnercityConnector,
+    decode_response_text,
     extract_candidate_links,
+    is_concrete_job_detail_url,
     select_detail_candidates,
 )
 
 
 LISTING_URL = 'https://www.enercity.de/karriere/jobsuche'
-DETAIL_URL = 'https://www.enercity.de/jobs/product-owner-data-platform'
+DETAIL_URL = 'https://www.enercity.de/karriere/jobsuche/product-owner-data-platform-JUNIT'
+PRODUCT_URL = 'https://www.enercity.de/privatkunden/produkte/elektromobilitaet'
 
 
 def fake_fetcher(url: str) -> tuple[str, str, int]:
@@ -21,6 +24,7 @@ def fake_fetcher(url: str) -> tuple[str, str, int]:
             "<html><body>"
             f"<a href='{DETAIL_URL}'>Product Owner Data Platform Hannover</a>"
             "<a href='/jobs/duales-studium-data'>Duales Studium Data Hannover</a>"
+            f"<a href='{PRODUCT_URL}'>Elektromobilität Data Hannover Deutschland</a>"
             "</body></html>"
         )
         return html, LISTING_URL, 200
@@ -79,3 +83,34 @@ def test_connector_fetches_bounded_relevant_jobs() -> None:
     assert "Product Owner" in record.raw_data["result_card"]["title"]
     assert record.raw_data["acquisition_boundary"]["browser_automation_used"] is False
     assert record.raw_data["acquisition_boundary"]["raw_html_persisted"] is False
+
+
+def test_concrete_job_detail_url_rejects_product_pages() -> None:
+    assert is_concrete_job_detail_url(DETAIL_URL)
+    assert not is_concrete_job_detail_url(PRODUCT_URL)
+
+
+class FakeResponse:
+    def __init__(self, content: bytes, encoding: str | None = None, apparent_encoding: str | None = None) -> None:
+        self.content = content
+        self.encoding = encoding
+        self.apparent_encoding = apparent_encoding
+
+
+def test_decode_response_text_uses_response_content_with_encoding() -> None:
+    response = FakeResponse(
+        "Manager:in Trinkwasserschutz und Entschädigungsmanagement – Azure Focus".encode("utf-8"),
+        encoding="utf-8",
+    )
+
+    assert decode_response_text(response) == "Manager:in Trinkwasserschutz und Entschädigungsmanagement – Azure Focus"
+
+
+def test_decode_response_text_prefers_utf8_over_misleading_declared_encoding() -> None:
+    response = FakeResponse(
+        "Manager:in Trinkwasserschutz und Entschädigungsmanagement – Azure Focus".encode("utf-8"),
+        encoding="ISO-8859-1",
+        apparent_encoding="Windows-1252",
+    )
+
+    assert decode_response_text(response) == "Manager:in Trinkwasserschutz und Entschädigungsmanagement – Azure Focus"
