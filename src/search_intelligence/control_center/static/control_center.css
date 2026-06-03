@@ -1,0 +1,49 @@
+/*
+Search Intelligence Control Center CSS foundation.
+
+This file is intentionally lightweight in S8A1. The full executive dashboard
+redesign belongs to S8A2 after the Jinja2 architecture decision is committed.
+*/
+
+:root {
+  color-scheme: dark;
+  --bg: #020812;
+  --panel: rgba(8, 24, 39, 0.94);
+  --line: rgba(99, 159, 199, 0.30);
+  --text: #ecf7ff;
+  --muted: #9db8cc;
+  --cyan: #22d3ee;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.16), transparent 30%), var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+.control-center-shell {
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.foundation-card {
+  max-width: 920px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  padding: 1.25rem;
+}
+
+.eyebrow {
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.foundation-card p,
+.foundation-card li {
+  color: var(--muted);
+}

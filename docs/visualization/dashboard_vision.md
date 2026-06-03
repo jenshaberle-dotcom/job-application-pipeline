@@ -302,3 +302,22 @@ Preferred sequence:
 Visualization is planned but intentionally deferred.
 
 The current project should prepare the data model and documentation first, so the future UI can be built on stable concepts rather than temporary ingestion internals.
+
+## S8A Control Center Target Direction
+
+The current S8A visual target is a combined executive dashboard concept:
+
+- Deep Ocean Intelligence visual identity
+- product-cool rather than gaming
+- left navigation
+- top KPI strip
+- Source Landscape & Risk Overview
+- Dataflow Live: Bronze → Silver → Gold
+- Candidate Lifecycle with enercity as active controlled and HDI blocked by the detail evidence gate
+- Quality & Intelligence
+- Activity & Alerts
+- Controlled Intelligence Loop storyboard
+
+Implementation rule:
+
+Jinja2 is used as a server-rendered intermediate UI layer. Templates must remain presentation-only. Business, gate and lifecycle logic must stay in Gold views or Python ViewModels so a later React frontend can consume the same state through JSON/API endpoints.
