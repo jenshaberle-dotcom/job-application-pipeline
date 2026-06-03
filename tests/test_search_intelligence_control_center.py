@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from scripts.search_intelligence_control_center import (
+    AgentGateReview,
     BUILD_APPROVAL_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     ControlCenterCandidate,
@@ -70,6 +71,28 @@ def candidates() -> list[ControlCenterCandidate]:
     ]
 
 
+def gate_review(
+    *,
+    gate_name: str,
+    decision: str,
+    company_name: str = "enercity AG",
+    company_key: str = "enercity",
+    candidate_id: int = 4,
+) -> AgentGateReview:
+    return AgentGateReview(
+        candidate_id=candidate_id,
+        company_key=company_key,
+        company_name=company_name,
+        source_name_candidate=f"{company_key}:discovery",
+        gate_name=gate_name,
+        gate_status="passed",
+        decision=decision,
+        stop_reason=None,
+        reviewed_by="jens",
+        created_at=None,
+    )
+
+
 def test_control_center_renders_real_sidebar_tabs_and_dashboard_only_by_default() -> None:
     html = render_control_center(
         candidates(),
@@ -86,6 +109,7 @@ def test_control_center_renders_real_sidebar_tabs_and_dashboard_only_by_default(
     assert 'href="/?tab=connectors"' in html
     assert 'href="/?tab=approvals"' in html
     assert 'href="/?tab=orchestrator"' in html
+    assert 'href="/?tab=agent-monitor"' in html
     assert 'href="/?tab=gaps"' in html
     assert 'href="/?tab=jobs"' in html
     assert 'href="/?tab=demo-chain"' in html
@@ -235,3 +259,67 @@ def test_control_center_dashboard_shows_success_and_blocked_paths() -> None:
     assert "HDI Group" in html
     assert "Detail evidence gate" in html
     assert "Repair evidence" in html
+
+
+
+def test_control_center_renders_agent_monitor_with_real_lifecycle_signals() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="agent-monitor",
+    )
+
+    assert "Agent Health Monitor" in html
+    assert "Candidate Lifecycle Agent" in html
+    assert "Detail Evidence Repair Agent" in html
+    assert "Connector Artifact Generation Agent" in html
+    assert "Nightly Intelligence Orchestrator" in html
+    assert "HDI Group" in html
+    assert "bounded repair found no concrete detail pages with profile and target/remote signals" in html
+    assert "No source activation or Bronze persistence" in html
+    assert "Search Intelligence Overview" not in html
+
+
+def test_control_center_agent_monitor_marks_missing_signals_explicitly_without_gate_history() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="agent-monitor",
+    )
+
+    assert "No current validation signal" in html
+    assert "No persisted validation result in current view" in html
+    assert "not faked, explicitly marked" in html
+
+
+
+def test_control_center_agent_monitor_uses_gate_review_history() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+        active_tab="agent-monitor",
+        gate_reviews=[
+            gate_review(
+                gate_name="connector_validation_gate",
+                decision="ready_for_final_approval",
+            ),
+            gate_review(
+                gate_name="final_approval_gate",
+                decision="approve_connector_registration",
+            ),
+        ],
+    )
+
+    assert "Connector Validation Agent" in html
+    assert "Final Approval Gate Agent" in html
+    assert "Passed historical signal" in html
+    assert "1 persisted gate-review signal(s)" in html
+    assert "Gate reviews: enercity AG" in html
+    assert "No current validation signal" not in html
+    assert "No current final approval signal" not in html

@@ -1,0 +1,79 @@
+<section class="agent-monitor tab-view" data-view="agent-monitor">
+  <header class="hero agent-hero">
+    <section class="hero-main">
+      <span class="eyebrow">Agent Monitor</span>
+      <h2>Agent Health Monitor</h2>
+      <p>
+        Health and output quality view for Search Intelligence agents. This tab shows real lifecycle,
+        gate and orchestration signals when available and marks missing evidence explicitly.
+      </p>
+    </section>
+
+    <aside class="hero-side">
+      <span class="eyebrow">Agent Snapshot</span>
+      <div class="status-stack">
+        <div class="status-row">
+          <i class="dot ok"></i>
+          <div><strong>Healthy / usable</strong><span>Agents producing usable current output</span></div>
+          <em>{{ agent_summary.healthy }}</em>
+        </div>
+        <div class="status-row">
+          <i class="dot warn"></i>
+          <div><strong>Needs review</strong><span>Valid output, but human review or repair is required</span></div>
+          <em>{{ agent_summary.needs_review }}</em>
+        </div>
+        <div class="status-row">
+          <i class="dot neutral"></i>
+          <div><strong>No current signal</strong><span>No persisted signal in the current Control Center view</span></div>
+          <em>{{ agent_summary.no_signal }}</em>
+        </div>
+      </div>
+    </aside>
+  </header>
+
+  <section class="agent-kpis kpis" aria-label="Agent Monitor KPI strip">
+    <article class="kpi ok"><span>Total agents</span><strong>{{ agent_summary.total }}</strong><small>displayed monitor cards</small></article>
+    <article class="kpi ok"><span>Healthy</span><strong>{{ agent_summary.healthy }}</strong><small>usable output</small></article>
+    <article class="kpi warn"><span>Needs review</span><strong>{{ agent_summary.needs_review }}</strong><small>human review required</small></article>
+    <article class="kpi"><span>No signal</span><strong>{{ agent_summary.no_signal }}</strong><small>not faked, explicitly marked</small></article>
+  </section>
+
+  <section class="agent-grid">
+    {% for agent in agent_cards %}
+      <article class="agent-card {{ agent.tone }}">
+        <header>
+          <div>
+            <span class="eyebrow">{{ agent.group }}</span>
+            <h3>{{ agent.name }}</h3>
+          </div>
+          <span class="badge {{ agent.tone }}">{{ agent.status }}</span>
+        </header>
+
+        <dl class="agent-facts">
+          <div><dt>Output quality</dt><dd>{{ agent.output_quality }}</dd></div>
+          <div><dt>Latest decision</dt><dd>{{ agent.latest_decision }}</dd></div>
+          <div><dt>Affected candidates</dt><dd>{{ agent.affected_candidates }}</dd></div>
+        </dl>
+
+        <section class="agent-narrative">
+          <h4>Human-readable summary</h4>
+          <p>{{ agent.summary }}</p>
+        </section>
+
+        <section class="agent-narrative">
+          <h4>Evidence</h4>
+          <p>{{ agent.evidence }}</p>
+        </section>
+
+        <section class="agent-next-action">
+          <strong>Next action</strong>
+          <p>{{ agent.next_action }}</p>
+        </section>
+
+        <footer>
+          <span>{{ agent.boundary }}</span>
+        </footer>
+      </article>
+    {% endfor %}
+  </section>
+</section>

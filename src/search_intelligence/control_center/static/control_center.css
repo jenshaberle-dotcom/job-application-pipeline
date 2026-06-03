@@ -262,7 +262,7 @@ body {
 
 .kpis {
   display:grid;
-  grid-template-columns:repeat(6,minmax(0,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
   gap:1rem;
 }
 
@@ -628,6 +628,182 @@ body {
 }
 
 
+
+/* Agent Monitor */
+
+.agent-kpis {
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:.65rem;
+}
+
+.agent-kpis .kpi {
+  min-width:0;
+  min-height:5.6rem;
+  padding:.62rem .68rem;
+}
+
+.agent-kpis .kpi strong {
+  font-size:clamp(1.35rem,1.45vw,2rem);
+}
+
+.agent-kpis .kpi span {
+  font-size:.58rem;
+}
+
+.agent-kpis .kpi small {
+  font-size:.68rem;
+  line-height:1.2;
+}
+
+
+
+.agent-monitor {
+  max-width:1780px;
+  margin:0 auto;
+  display:grid;
+  gap:clamp(.85rem,1vw,1.2rem);
+}
+
+.agent-monitor .hero {
+  grid-template-columns:minmax(0,1.55fr) minmax(360px,.85fr);
+}
+
+.agent-monitor .hero-main {
+  min-height:12rem;
+}
+
+.agent-monitor .hero-side {
+  min-height:12rem;
+}
+
+.agent-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:1rem;
+}
+
+.agent-card {
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:linear-gradient(180deg,rgba(9,30,50,.92),rgba(4,14,27,.96));
+  box-shadow:var(--shadow);
+  padding:1rem;
+  min-width:0;
+}
+
+.agent-card.ok { border-color:rgba(114,227,109,.36); }
+.agent-card.warn { border-color:rgba(246,184,74,.48); }
+.agent-card.bad { border-color:rgba(255,100,112,.48); }
+
+.agent-card header {
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  align-items:flex-start;
+  margin-bottom:.9rem;
+}
+
+.agent-card h3 {
+  margin:.2rem 0 0;
+  font-size:1.12rem;
+  letter-spacing:-.03em;
+}
+
+.agent-facts {
+  display:grid;
+  grid-template-columns:1fr;
+  gap:.5rem;
+  margin:.85rem 0;
+}
+
+.agent-facts div,
+.agent-narrative,
+.agent-next-action {
+  border:1px solid rgba(126,197,242,.14);
+  border-radius:14px;
+  padding:.65rem;
+  background:rgba(255,255,255,.022);
+}
+
+.agent-facts dt,
+.agent-narrative h4,
+.agent-next-action strong {
+  color:var(--muted);
+  font-size:.7rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  font-weight:900;
+}
+
+.agent-facts dd {
+  margin:.18rem 0 0;
+  font-weight:900;
+  overflow-wrap:anywhere;
+}
+
+.agent-narrative {
+  margin-top:.6rem;
+}
+
+.agent-narrative h4 {
+  margin:0 0 .35rem;
+}
+
+.agent-narrative p,
+.agent-next-action p,
+.agent-card footer span {
+  color:var(--muted);
+  line-height:1.45;
+}
+
+.agent-next-action {
+  margin-top:.6rem;
+  border-left:3px solid var(--cyan);
+}
+
+.agent-next-action p {
+  margin:.3rem 0 0;
+}
+
+.agent-card footer {
+  margin-top:.8rem;
+  padding-top:.75rem;
+  border-top:1px solid rgba(126,197,242,.16);
+  font-size:.82rem;
+}
+
+@media (max-width:1700px) {
+  .agent-monitor {
+    max-width:1280px;
+  }
+
+  .agent-monitor .hero {
+    grid-template-columns:1fr;
+  }
+
+  .agent-kpis {
+    grid-template-columns:repeat(4,minmax(0,1fr));
+  }
+
+  .agent-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media (max-width:1100px) {
+  .agent-kpis {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .agent-grid {
+    grid-template-columns:1fr;
+  }
+
+  .agent-card header {
+    flex-direction:column;
+  }
+}
+
 /* Responsive layout modes
    Wide mode: executive command center.
    Medium mode: story-first review layout.
@@ -724,6 +900,10 @@ body {
     padding:.75rem;
   }
 
+  .agent-kpis {
+    grid-template-columns:1fr;
+  }
+
   .kpis,
   .nav,
   .life-facts,
@@ -748,5 +928,47 @@ body {
   .thread.active,
   .thread.blocked {
     animation:none;
+  }
+}
+
+/* Final Agent Monitor KPI layout override.
+   Keep the four Agent Monitor status cards in one compact row on dashboard/halfscreen widths.
+   This must live at the end of the file because generic .kpis media rules otherwise win by cascade order.
+*/
+.agent-monitor .agent-kpis {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:.65rem;
+}
+
+.agent-monitor .agent-kpis .kpi {
+  min-width:0;
+  min-height:5.4rem;
+  padding:.58rem .64rem;
+}
+
+.agent-monitor .agent-kpis .kpi strong {
+  font-size:clamp(1.25rem,1.35vw,1.9rem);
+}
+
+.agent-monitor .agent-kpis .kpi span {
+  font-size:.56rem;
+  line-height:1.15;
+}
+
+.agent-monitor .agent-kpis .kpi small {
+  font-size:.66rem;
+  line-height:1.18;
+}
+
+@media (max-width:720px) {
+  .agent-monitor .agent-kpis {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media (max-width:460px) {
+  .agent-monitor .agent-kpis {
+    grid-template-columns:1fr;
   }
 }

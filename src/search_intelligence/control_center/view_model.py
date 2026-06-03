@@ -189,12 +189,250 @@ def source_rows(candidates: Iterable[object]) -> list[dict[str, str]]:
     return rows
 
 
+def _candidate_names(candidates: Iterable[object]) -> str:
+    names = [str(_value(candidate, "company_name", "")).strip() for candidate in candidates]
+    names = [name for name in names if name]
+    return ", ".join(names) if names else "No candidate signal"
+
+
+def _agent_card(
+    *,
+    name: str,
+    group: str,
+    status: str,
+    output_quality: str,
+    latest_decision: str,
+    summary: str,
+    evidence: str,
+    next_action: str,
+    boundary: str,
+    tone_name: str,
+    affected_candidates: str,
+) -> dict[str, str]:
+    return {
+        "name": name,
+        "group": group,
+        "status": status,
+        "output_quality": output_quality,
+        "latest_decision": latest_decision,
+        "summary": summary,
+        "evidence": evidence,
+        "next_action": next_action,
+        "boundary": boundary,
+        "tone": tone_name,
+        "affected_candidates": affected_candidates,
+    }
+
+
+def _gate_review_matches(
+    gate_reviews: Iterable[object],
+    gate_name: str,
+    decision: str | None = None,
+) -> list[object]:
+    matches: list[object] = []
+    seen: set[tuple[str, str]] = set()
+    for review in gate_reviews:
+        if str(_value(review, "gate_name", "")) != gate_name:
+            continue
+        if str(_value(review, "gate_status", "")) != "passed":
+            continue
+        if decision is not None and str(_value(review, "decision", "")) != decision:
+            continue
+
+        key = (
+            str(_value(review, "candidate_id", "")),
+            str(_value(review, "gate_name", "")),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        matches.append(review)
+    return matches
+
+
+def _review_names(gate_reviews: Iterable[object]) -> str:
+    names = [str(_value(review, "company_name", "")).strip() for review in gate_reviews]
+    names = [name for name in names if name]
+    unique_names = list(dict.fromkeys(names))
+    return ", ".join(unique_names) if unique_names else "No persisted gate-review signal"
+
+
+def build_agent_monitor_cards(
+    candidates: list[object],
+    orchestrator_steps: list[object],
+    gate_reviews: list[object],
+) -> list[dict[str, str]]:
+    """Build display-only Agent Monitor cards from real Control Center state.
+
+    This intentionally uses existing lifecycle, gate and orchestrator signals.
+    Missing evidence is shown as "No persisted signal yet" instead of being
+    invented.
+    """
+
+    blocked_candidates = [candidate for candidate in candidates if is_blocked(candidate)]
+    active_candidates = [candidate for candidate in candidates if is_active(candidate)]
+    detail_blocked = [
+        candidate
+        for candidate in blocked_candidates
+        if str(_value(candidate, "latest_blocking_gate", "")) == "detail_evidence_gate"
+    ]
+    artifact_candidates = [
+        candidate
+        for candidate in candidates
+        if str(_value(candidate, "build_status", "")) == "artifact_generation_allowed"
+    ]
+    validation_passed = [
+        candidate
+        for candidate in candidates
+        if str(_value(candidate, "connector_validation_status", "")) == "passed"
+    ]
+    final_approval_passed = [
+        candidate
+        for candidate in candidates
+        if str(_value(candidate, "final_approval_decision", "")) == "approve_connector_registration"
+    ]
+    validation_gate_reviews = _gate_review_matches(
+        gate_reviews,
+        "connector_validation_gate",
+        "ready_for_final_approval",
+    )
+    final_approval_gate_reviews = _gate_review_matches(
+        gate_reviews,
+        "final_approval_gate",
+        "approve_connector_registration",
+    )
+
+    if detail_blocked:
+        detail_summary = str(_value(detail_blocked[0], "latest_blocking_reason", "Detail evidence requires review."))
+        detail_status = "Needs review"
+        detail_quality = "Weak evidence"
+        detail_decision = "manual_review_required"
+        detail_tone = "warn"
+        detail_next = "Review detail evidence or rerun bounded repair with adjusted options."
+    else:
+        detail_summary = "No active detail-evidence blocker is visible in the current lifecycle view."
+        detail_status = "Healthy"
+        detail_quality = "No blocker"
+        detail_decision = "no_active_blocker"
+        detail_tone = "ok"
+        detail_next = "Monitor future candidate evidence."
+
+    cards = [
+        _agent_card(
+            name="Candidate Lifecycle Agent",
+            group="Lifecycle & Gold Read Models",
+            status="Healthy" if candidates else "No signal",
+            output_quality="Usable lifecycle state" if candidates else "No persisted signal yet",
+            latest_decision=f"{len(active_candidates)} active · {len(blocked_candidates)} blocked · {len(candidates)} total candidates",
+            summary="Builds the candidate lifecycle surface used by Dashboard, Source Health and Agent Monitor.",
+            evidence=f"Current view includes {_candidate_names(candidates[:5])}.",
+            next_action="Use lifecycle state to prioritize blocked and active controlled candidates.",
+            boundary="Read-only Gold/ViewModel interpretation. No connector registration, activation or Bronze write.",
+            tone_name="ok" if candidates else "neutral",
+            affected_candidates=_candidate_names(candidates),
+        ),
+        _agent_card(
+            name="Detail Evidence Repair Agent",
+            group="Evidence & Gate Agents",
+            status=detail_status,
+            output_quality=detail_quality,
+            latest_decision=detail_decision,
+            summary=detail_summary,
+            evidence=f"Affected candidates: {_candidate_names(detail_blocked)}.",
+            next_action=detail_next,
+            boundary="May recommend repair/review only. No source activation or Bronze persistence.",
+            tone_name=detail_tone,
+            affected_candidates=_candidate_names(detail_blocked),
+        ),
+        _agent_card(
+            name="Connector Artifact Generation Agent",
+            group="Connector Agents",
+            status="Ready signal" if artifact_candidates else "No build-ready signal",
+            output_quality="Artifact generation allowed" if artifact_candidates else "No persisted build permission yet",
+            latest_decision=f"{len(artifact_candidates)} candidate(s) with artifact_generation_allowed",
+            summary="Identifies candidates where connector artifacts may be generated under approval-gated boundaries.",
+            evidence=f"Candidates: {_candidate_names(artifact_candidates)}.",
+            next_action="Generate or review connector artifacts only through the approval-gated workflow.",
+            boundary="Artifact generation is not registration, activation, scheduler change or Bronze write.",
+            tone_name="ok" if artifact_candidates else "neutral",
+            affected_candidates=_candidate_names(artifact_candidates),
+        ),
+        _agent_card(
+            name="Connector Validation Agent",
+            group="Connector Agents",
+            status="Passed historical signal" if (validation_passed or validation_gate_reviews) else "No current validation signal",
+            output_quality="Validated connector artifact" if (validation_passed or validation_gate_reviews) else "No persisted validation result in current view",
+            latest_decision=(
+                f"{len(validation_passed)} current candidate signal(s) · "
+                f"{len(validation_gate_reviews)} persisted gate-review signal(s)"
+            ),
+            summary="Checks importability, expected files, bounded preview behavior and regression tests before final approval.",
+            evidence=(
+                f"Current candidates: {_candidate_names(validation_passed)}. "
+                f"Gate reviews: {_review_names(validation_gate_reviews)}."
+            ),
+            next_action="Run or review validation before any registration approval.",
+            boundary="Validation does not register connectors, activate sources or write Bronze rows.",
+            tone_name="ok" if (validation_passed or validation_gate_reviews) else "neutral",
+            affected_candidates=_candidate_names(validation_passed) if validation_passed else _review_names(validation_gate_reviews),
+        ),
+        _agent_card(
+            name="Final Approval Gate Agent",
+            group="Approval & Governance",
+            status="Passed historical signal" if (final_approval_passed or final_approval_gate_reviews) else "No current final approval signal",
+            output_quality="Explicit approval token recorded" if (final_approval_passed or final_approval_gate_reviews) else "No final approval in current view",
+            latest_decision=(
+                f"{len(final_approval_passed)} current candidate signal(s) · "
+                f"{len(final_approval_gate_reviews)} persisted gate-review signal(s)"
+            ),
+            summary="Requires explicit human approval before connector registration can be prepared.",
+            evidence=(
+                f"Current candidates: {_candidate_names(final_approval_passed)}. "
+                f"Gate reviews: {_review_names(final_approval_gate_reviews)}."
+            ),
+            next_action="Keep registration and controlled activation as separate gates.",
+            boundary="Final approval may allow registration planning; it still does not allow source activation, recurring ingestion or Bronze writes.",
+            tone_name="ok" if (final_approval_passed or final_approval_gate_reviews) else "neutral",
+            affected_candidates=_candidate_names(final_approval_passed) if final_approval_passed else _review_names(final_approval_gate_reviews),
+        ),
+    ]
+
+    attention_count = len(orchestrator_steps)
+    cards.append(
+        _agent_card(
+            name="Nightly Intelligence Orchestrator",
+            group="Orchestration",
+            status="Needs attention" if attention_count else "No attention step in current view",
+            output_quality="Actionable attention queue" if attention_count else "No persisted attention signal passed to this render",
+            latest_decision=f"{attention_count} attention step(s)",
+            summary="Coordinates the next safe review cycle without auto-registering or auto-activating sources.",
+            evidence="Uses gold_search_intelligence_orchestrator_attention_steps when available.",
+            next_action="Review attention steps before the next cycle.",
+            boundary="Audit/control workflow only. No auto-PR, no scheduler mutation and no ingestion side effects.",
+            tone_name="warn" if attention_count else "neutral",
+            affected_candidates="System-level",
+        )
+    )
+
+    return cards
+
+
+def build_agent_monitor_summary(agent_cards: list[dict[str, str]]) -> dict[str, int]:
+    return {
+        "total": len(agent_cards),
+        "healthy": sum(1 for card in agent_cards if card["tone"] == "ok"),
+        "needs_review": sum(1 for card in agent_cards if card["tone"] == "warn"),
+        "no_signal": sum(1 for card in agent_cards if card["tone"] == "neutral"),
+    }
+
+
 def build_control_center_view_model(
     candidates: list[object],
     *,
     active_tab: str,
     market_summary: object,
     orchestrator_steps: list[object],
+    gate_reviews: list[object],
     write_actions_enabled: bool,
     legacy_view_html: str,
     stylesheet: str,
@@ -230,15 +468,19 @@ def build_control_center_view_model(
         {"tab": "connectors", "label": "Candidates", "count": len(candidates)},
         {"tab": "approvals", "label": "Approvals", "count": build_approval_count + registration_approval_count},
         {"tab": "orchestrator", "label": "Orchestrator", "count": len(orchestrator_steps)},
+        {"tab": "agent-monitor", "label": "Agent Monitor", "count": None},
         {"tab": "gaps", "label": "Gap Analysis", "count": None},
         {"tab": "jobs", "label": "Jobs & Applications", "count": None},
         {"tab": "demo-chain", "label": "Demo Chain", "count": None},
     ]
 
+    agent_cards = build_agent_monitor_cards(candidates, orchestrator_steps, gate_reviews)
+
     return {
         "page_title": "Search Intelligence Control Center",
         "active_tab": active_tab,
         "is_dashboard": active_tab == "dashboard",
+        "is_agent_monitor": active_tab == "agent-monitor",
         "stylesheet": stylesheet,
         "flash_message": flash_message,
         "legacy_view_html": legacy_view_html,
@@ -274,4 +516,6 @@ def build_control_center_view_model(
             "Explicit approval gates",
             "Responsive SVG-first visuals",
         ],
+        "agent_cards": agent_cards,
+        "agent_summary": build_agent_monitor_summary(agent_cards),
     }

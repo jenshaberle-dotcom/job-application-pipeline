@@ -14,6 +14,7 @@ from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from scripts.search_intelligence_control_center import (
     BUILD_APPROVAL_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
+    AgentGateReview,
     ControlCenterCandidate,
     GoldMarketCoverageSummary,
     OrchestratorAttentionStep,
@@ -200,6 +201,65 @@ def load_orchestrator_attention_steps() -> list[OrchestratorAttentionStep]:
     return _rows_to_orchestrator_steps(rows)
 
 
+def _rows_to_agent_gate_reviews(rows: list[object]) -> list[AgentGateReview]:
+    return [
+        AgentGateReview(
+            candidate_id=int(_value(row, "candidate_id", 0) or 0),
+            company_key=str(_value(row, "company_key", "")),
+            company_name=str(_value(row, "company_name", "")),
+            source_name_candidate=str(_value(row, "source_name_candidate", "")),
+            gate_name=str(_value(row, "gate_name", "")),
+            gate_status=str(_value(row, "gate_status", "")),
+            decision=_value(row, "decision"),
+            stop_reason=_value(row, "stop_reason"),
+            reviewed_by=_value(row, "reviewed_by"),
+            created_at=_value(row, "created_at"),
+        )
+        for row in rows
+    ]
+
+
+def load_agent_gate_reviews() -> list[AgentGateReview]:
+    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+        if not _db_object_exists(conn, "employer_origin_candidate_gate_reviews"):
+            return []
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                select
+                    r.candidate_id,
+                    coalesce(l.company_key, c.company_key, '') as company_key,
+                    coalesce(l.display_company_name, c.company_key, '') as company_name,
+                    coalesce(l.source_name_candidate, c.source_name_candidate, '') as source_name_candidate,
+                    r.gate_name,
+                    r.gate_status,
+                    r.decision,
+                    r.stop_reason,
+                    r.reviewed_by,
+                    r.created_at
+                from employer_origin_candidate_gate_reviews r
+                left join gold_candidate_lifecycle_status l
+                  on l.candidate_id = r.candidate_id
+                left join employer_origin_source_candidates c
+                  on c.id = r.candidate_id
+                where r.gate_name in (
+                    'detail_evidence_gate',
+                    'connector_candidate_gate',
+                    'connector_validation_gate',
+                    'final_approval_gate',
+                    'controlled_activation_gate',
+                    'bronze_validation',
+                    'silver_validation',
+                    'source_lifecycle_tracking'
+                )
+                order by r.created_at desc, r.gate_order desc
+                limit 80;
+                """
+            )
+            rows = cur.fetchall()
+    return _rows_to_agent_gate_reviews(rows)
+
+
 def run_command(command: tuple[str, ...]) -> str:
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     output = (completed.stdout or completed.stderr or "").strip().splitlines()
@@ -237,6 +297,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
             candidates = load_control_center_candidates()
             market_summary = load_market_coverage_summary()
             orchestrator_steps = load_orchestrator_attention_steps()
+            gate_reviews = load_agent_gate_reviews()
             body = render_control_center(
                 candidates,
                 reviewed_by=self.state.reviewed_by,
@@ -246,6 +307,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
                 active_tab=active_tab,
                 market_summary=market_summary,
                 orchestrator_steps=orchestrator_steps,
+                gate_reviews=gate_reviews,
             )
         except Exception as exc:  # pragma: no cover - browser diagnostics
             body = f"<html><body><h1>Control Center failed</h1><pre>{exc}</pre></body></html>"

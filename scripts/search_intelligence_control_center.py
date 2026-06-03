@@ -85,6 +85,20 @@ class GoldMarketCoverageSummary:
 
 
 @dataclass(frozen=True)
+class AgentGateReview:
+    candidate_id: int
+    company_key: str
+    company_name: str
+    source_name_candidate: str
+    gate_name: str
+    gate_status: str
+    decision: str | None = None
+    stop_reason: str | None = None
+    reviewed_by: str | None = None
+    created_at: object | None = None
+
+
+@dataclass(frozen=True)
 class OrchestratorAttentionStep:
     run_id: int
     step_order: int
@@ -615,11 +629,13 @@ def render_control_center(
     active_tab: str = "dashboard",
     market_summary: GoldMarketCoverageSummary | None = None,
     orchestrator_steps: list[OrchestratorAttentionStep] | None = None,
+    gate_reviews: list[AgentGateReview] | None = None,
 ) -> str:
     market_summary = market_summary or fallback_market_summary(candidates)
     orchestrator_steps = orchestrator_steps or []
+    gate_reviews = gate_reviews or []
 
-    allowed_tabs = {"dashboard", "health", "connectors", "approvals", "orchestrator", "gaps", "jobs", "demo-chain"}
+    allowed_tabs = {"dashboard", "health", "connectors", "approvals", "orchestrator", "agent-monitor", "gaps", "jobs", "demo-chain"}
     if active_tab not in allowed_tabs:
         active_tab = "dashboard"
 
@@ -661,6 +677,7 @@ def render_control_center(
             active_tab=active_tab,
             market_summary=market_summary,
             orchestrator_steps=orchestrator_steps,
+            gate_reviews=gate_reviews,
             write_actions_enabled=write_actions_enabled,
             legacy_view_html=legacy_view_html,
             stylesheet=read_static_asset("control_center.css"),
