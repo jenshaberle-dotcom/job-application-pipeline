@@ -1,0 +1,229 @@
+<section class="dashboard tab-view" data-view="dashboard">
+  <header class="hero">
+    <section class="hero-main">
+      <span class="eyebrow">Executive Dashboard</span>
+      <h2>Search Intelligence Overview</h2>
+      <p>
+        A product-facing control surface for employer-origin discovery, gated connector decisions,
+        Bronze/Silver/Gold data movement and feedback into search quality.
+      </p>
+    </section>
+
+    <aside class="hero-side">
+      <span class="eyebrow">System Snapshot</span>
+      <div class="status-stack">
+        <div class="status-row">
+          <i class="dot ok"></i>
+          <div><strong>Migration tracking</strong><span>54 tracked · 0 pending · 0 checksum mismatches</span></div>
+          <em>clean</em>
+        </div>
+        {% if success_candidate %}
+          <div class="status-row">
+            <i class="dot ok"></i>
+            <div><strong>{{ success_candidate.company_name }}</strong><span>Controlled path active from origin to Gold</span></div>
+            <em>active</em>
+          </div>
+        {% endif %}
+        {% if blocked_candidate %}
+          <div class="status-row">
+            <i class="dot warn"></i>
+            <div><strong>{{ blocked_candidate.company_name }}</strong><span>Connector artifact exists, but evidence blocks activation</span></div>
+            <em>blocked</em>
+          </div>
+        {% endif %}
+      </div>
+    </aside>
+  </header>
+
+  <section class="kpis" aria-label="Top KPI strip">
+    {% for kpi in kpis %}
+      <article class="kpi {{ kpi.tone }}">
+        <span>{{ kpi.label }}</span>
+        <strong>{{ kpi.value }}</strong>
+        <small>{{ kpi.helper }}</small>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="grid">
+    <article class="card source">
+      <div class="card-head">
+        <div><span class="eyebrow">Source Landscape & Risk Overview</span><h3>Controlled source surface</h3></div>
+        <span class="badge ok">tracked</span>
+      </div>
+
+      <div class="source-list">
+        {% for row in source_rows %}
+          <section class="source-item">
+            <header><strong>{{ row.company }}</strong><span class="badge {{ row.tone }}">{{ row.status }}</span></header>
+            <small>{{ row.source }} · {{ row.type }}</small>
+            <div class="mini-meta">
+              <span>Stage<b>{{ row.stage }}</b></span>
+              <span>Layer<b>{{ row.layer }}</b></span>
+            </div>
+          </section>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="card weave">
+      <div class="card-head">
+        <div><span class="eyebrow">Dataflow Live</span><h3>Controlled evidence threads</h3></div>
+        <span class="badge ok">SVG scalable</span>
+      </div>
+
+      <svg viewBox="0 0 980 390" role="img" aria-label="Search Intelligence dataflow from market signals to Gold dashboard">
+        <defs>
+          <linearGradient id="threadActive" x1="0" x2="1">
+            <stop offset="0%" stop-color="#22d3ee"/>
+            <stop offset="55%" stop-color="#4f9cff"/>
+            <stop offset="100%" stop-color="#72e36d"/>
+          </linearGradient>
+          <linearGradient id="threadBlocked" x1="0" x2="1">
+            <stop offset="0%" stop-color="#22d3ee"/>
+            <stop offset="58%" stop-color="#f6b84a"/>
+            <stop offset="100%" stop-color="#ff6470"/>
+          </linearGradient>
+        </defs>
+
+        <path class="thread base" d="M70 95 C250 40, 350 140, 490 120 S735 70, 900 105"/>
+        <path class="thread active" d="M70 95 C250 40, 350 140, 490 120 S735 70, 900 105"/>
+        <path class="thread base" d="M70 270 C250 330, 360 220, 500 245 S715 325, 900 278"/>
+        <path class="thread blocked" d="M70 270 C250 330, 360 220, 500 245 S715 325, 900 278"/>
+
+        <circle class="node core" cx="70" cy="95" r="25"/>
+        <circle class="node ok" cx="290" cy="78" r="25"/>
+        <circle class="node ok" cx="500" cy="120" r="28"/>
+        <circle class="node ok" cx="705" cy="92" r="25"/>
+        <circle class="node ok" cx="900" cy="105" r="28"/>
+
+        <circle class="node core" cx="70" cy="270" r="25"/>
+        <circle class="node warn" cx="290" cy="302" r="25"/>
+        <circle class="node warn" cx="500" cy="245" r="28"/>
+        <circle class="node warn" cx="705" cy="302" r="25"/>
+        <circle class="node warn" cx="900" cy="278" r="28"/>
+
+        <text class="svg-label" x="30" y="50">{{ success_candidate.company_name if success_candidate else "Success path" }}</text>
+        <text class="svg-sub" x="30" y="70">active controlled source</text>
+        <text class="svg-label" x="30" y="230">{{ blocked_candidate.company_name if blocked_candidate else "Blocked path" }}</text>
+        <text class="svg-sub" x="30" y="250">blocked at evidence gate</text>
+
+        <text class="svg-sub" x="250" y="35">Discovery</text>
+        <text class="svg-sub" x="460" y="70">Gate review</text>
+        <text class="svg-sub" x="660" y="48">Connector</text>
+        <text class="svg-sub" x="860" y="65">Gold UI</text>
+        <text class="svg-sub" x="246" y="355">Artifact exists</text>
+        <text class="svg-sub" x="440" y="215">Detail evidence</text>
+        <text class="svg-sub" x="650" y="355">No activation</text>
+        <text class="svg-sub" x="850" y="328">Manual review</text>
+      </svg>
+    </article>
+
+    <aside class="card alerts">
+      <div class="card-head">
+        <div><span class="eyebrow">Activity & Alerts</span><h3>Demo-relevant signals</h3></div>
+        <span class="badge warn">1 blocker</span>
+      </div>
+      <div class="alert-list">
+        {% for alert in alerts %}
+          <section class="alert-item">
+            <header><strong>{{ alert.title }}</strong><span class="badge {{ alert.tone }}">{{ alert.label }}</span></header>
+            <p>{{ alert.body }}</p>
+          </section>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <section class="card flow">
+      <div class="card-head">
+        <div><span class="eyebrow">Bronze · Silver · Gold</span><h3>Layer contract</h3></div>
+      </div>
+      <div class="flow-steps">
+        <article class="flow-step"><span>B</span><strong>Bronze</strong><p>Raw-first source evidence after controlled activation only.</p></article>
+        <article class="flow-step"><span>S</span><strong>Silver</strong><p>Canonical job evidence without promotion of false positives.</p></article>
+        <article class="flow-step"><span>G</span><strong>Gold</strong><p>Decision-facing health, lifecycle and coverage views.</p></article>
+      </div>
+    </section>
+
+    <section class="card lifecycle">
+      <div class="card-head">
+        <div><span class="eyebrow">Candidate Lifecycle</span><h3>Success and stop paths</h3></div>
+        <span class="badge">gate-aware</span>
+      </div>
+
+      <div class="lifecycle-list">
+        {% for candidate in candidate_cards %}
+          <article class="life-card {% if candidate.path_state == 'success' %}ok{% elif candidate.path_state == 'blocked' %}warn{% endif %}">
+            <header>
+              <div><strong>{{ candidate.company_name }}</strong><small>{{ candidate.source_name }}</small></div>
+              <span class="badge {{ candidate.status_tone }}">{{ candidate.status }}</span>
+            </header>
+            <div class="pipeline">
+              {% for step in candidate.pipeline_steps %}
+                <span class="{{ step.state }}">{{ step.label }}</span>
+              {% endfor %}
+            </div>
+            <dl class="life-facts">
+              <div><dt>Stage</dt><dd>{{ candidate.stage }}</dd></div>
+              <div><dt>Gates</dt><dd>{{ candidate.gate_score }}</dd></div>
+              <div><dt>Next</dt><dd>{{ candidate.next_action }}</dd></div>
+            </dl>
+            {% if candidate.blocker_gate %}
+              <p class="blocker"><strong>{{ candidate.blocker_gate }}:</strong> {{ candidate.blocker_reason }}</p>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <aside class="card quality">
+      <div class="card-head">
+        <div><span class="eyebrow">Quality & Intelligence</span><h3>Architecture guardrails</h3></div>
+        <span class="badge ok">clean</span>
+      </div>
+
+      <div class="quality-list">
+        {% for item in quality_items %}
+          <section class="quality-item">
+            <header><strong>{{ item.title }}</strong><span class="badge {{ item.tone }}">{{ item.value }}</span></header>
+            <p>{{ item.body }}</p>
+          </section>
+        {% endfor %}
+      </div>
+    </aside>
+  </section>
+
+  <section class="loop">
+    <div class="card-head">
+      <div><span class="eyebrow">Controlled Intelligence Loop</span><h3>Market evidence → gated connector decisions → feedback</h3></div>
+      <span class="badge ok">product story</span>
+    </div>
+
+    <svg viewBox="0 0 1200 210" role="img" aria-label="Controlled Intelligence Loop">
+      <defs>
+        <linearGradient id="loopGradient" x1="0" x2="1">
+          <stop offset="0%" stop-color="#22d3ee"/>
+          <stop offset="45%" stop-color="#4f9cff"/>
+          <stop offset="75%" stop-color="#9f7aea"/>
+          <stop offset="100%" stop-color="#72e36d"/>
+        </linearGradient>
+      </defs>
+      <path d="M80 105 C210 20, 330 20, 470 105 S730 190, 870 105 S1060 22, 1140 105" fill="none" stroke="rgba(126,197,242,.17)" stroke-width="18" stroke-linecap="round"/>
+      <path class="thread active" d="M80 105 C210 20, 330 20, 470 105 S730 190, 870 105 S1060 22, 1140 105" stroke="url(#loopGradient)" fill="none" stroke-width="10" stroke-linecap="round"/>
+      <g>
+        <circle class="node core" cx="80" cy="105" r="27"/><text class="svg-sub" x="42" y="160">Discover</text>
+        <circle class="node core" cx="275" cy="50" r="27"/><text class="svg-sub" x="238" y="105">Evaluate</text>
+        <circle class="node warn" cx="470" cy="105" r="27"/><text class="svg-sub" x="445" y="160">Gate</text>
+        <circle class="node core" cx="670" cy="160" r="27"/><text class="svg-sub" x="645" y="205">Build</text>
+        <circle class="node ok" cx="870" cy="105" r="27"/><text class="svg-sub" x="840" y="160">Activate</text>
+        <circle class="node ok" cx="1140" cy="105" r="27"/><text class="svg-sub" x="1118" y="160">Learn</text>
+      </g>
+    </svg>
+
+    <div class="guardrails">
+      {% for guardrail in guardrails %}
+        <span>{{ guardrail }}</span>
+      {% endfor %}
+    </div>
+  </section>
+</section>

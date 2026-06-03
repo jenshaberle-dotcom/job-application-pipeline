@@ -79,17 +79,21 @@ def test_control_center_renders_real_sidebar_tabs_and_dashboard_only_by_default(
     )
 
     assert "Search Intelligence" in html
-    assert "<nav class='side-tabs'" in html
+    assert "class=\"side-tabs nav\"" in html
     assert "<nav class='top-nav'" not in html
-    assert "href='/?tab=dashboard'" in html
-    assert "href='/?tab=health'" in html
-    assert "href='/?tab=connectors'" in html
-    assert "href='/?tab=approvals'" in html
-    assert "href='/?tab=orchestrator'" in html
-    assert "href='/?tab=gaps'" in html
-    assert "href='/?tab=jobs'" in html
-    assert "href='/?tab=demo-chain'" in html
+    assert 'href="/?tab=dashboard"' in html
+    assert 'href="/?tab=health"' in html
+    assert 'href="/?tab=connectors"' in html
+    assert 'href="/?tab=approvals"' in html
+    assert 'href="/?tab=orchestrator"' in html
+    assert 'href="/?tab=gaps"' in html
+    assert 'href="/?tab=jobs"' in html
+    assert 'href="/?tab=demo-chain"' in html
     assert "Search Intelligence Overview" in html
+    assert "Dataflow Live" in html
+    assert "Controlled evidence threads" in html
+    assert "Source Landscape & Risk Overview" in html
+    assert "Controlled Intelligence Loop" in html
     assert "System health and diagnostics" not in html
     assert "Stop UI" in html
     assert "/actions/shutdown" in html
@@ -198,3 +202,36 @@ def test_registration_approval_command_uses_existing_final_gate_token() -> None:
     assert "scripts.run_employer_origin_agent_chain" in command
     assert "--approval-token" in command
     assert REGISTRATION_APPROVAL_TOKEN in command
+
+
+
+def test_control_center_uses_full_jinja_shell_and_svg_first_dashboard() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+    )
+
+    assert "<style>" in html
+    assert "<svg viewBox=\"0 0 980 390\"" in html
+    assert "SVG scalable" in html
+    assert "Responsive SVG-first visuals" in html
+    assert "Jinja2 boundary" in html
+    assert "No Bronze write" in html
+    assert "No scheduler change" in html
+
+
+def test_control_center_dashboard_shows_success_and_blocked_paths() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=False,
+    )
+
+    assert "Finanz Informatik GmbH &amp; Co. KG" in html
+    assert "Active controlled" in html
+    assert "HDI Group" in html
+    assert "Detail evidence gate" in html
+    assert "Repair evidence" in html

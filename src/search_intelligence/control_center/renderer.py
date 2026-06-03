@@ -7,6 +7,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 def build_template_environment(template_dir: Path = TEMPLATE_DIR) -> Environment:
@@ -32,3 +33,10 @@ def render_template(template_name: str, context: dict[str, Any]) -> str:
     environment = build_template_environment()
     template = environment.get_template(template_name)
     return template.render(**context)
+
+
+
+def read_static_asset(asset_name: str) -> str:
+    """Read a Control Center static asset for server-rendered output."""
+
+    return (STATIC_DIR / asset_name).read_text(encoding="utf-8")

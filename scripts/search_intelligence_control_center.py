@@ -5,6 +5,9 @@ import shlex
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
+from src.search_intelligence.control_center.renderer import read_static_asset, render_template
+from src.search_intelligence.control_center.view_model import build_control_center_view_model
+
 BUILD_APPROVAL_TOKEN = "approve_connector_build"
 REGISTRATION_APPROVAL_TOKEN = "approve_connector_registration"
 
@@ -615,235 +618,52 @@ def render_control_center(
 ) -> str:
     market_summary = market_summary or fallback_market_summary(candidates)
     orchestrator_steps = orchestrator_steps or []
-    active_count = market_summary.active_origin_connector_count
-    build_approval_count = market_summary.build_approval_required_count
-    registration_approval_count = sum(1 for item in candidates if item.needs_registration_approval)
-    critical_count = market_summary.critical_fn_pressure_candidate_count
-    mode = "write-enabled" if write_actions_enabled else "read-only"
-    flash = f"<div class='flash'>{h(flash_message)}</div>" if flash_message else ""
+
     allowed_tabs = {"dashboard", "health", "connectors", "approvals", "orchestrator", "gaps", "jobs", "demo-chain"}
     if active_tab not in allowed_tabs:
         active_tab = "dashboard"
-    active_view_html = {
-        "dashboard": render_dashboard(
+
+    legacy_view_html = ""
+    if active_tab == "health":
+        legacy_view_html = render_health(candidates)
+    elif active_tab == "connectors":
+        legacy_view_html = render_connectors_tab(
             candidates,
             reviewed_by=reviewed_by,
             target_location=target_location,
             write_actions_enabled=write_actions_enabled,
+        )
+    elif active_tab == "approvals":
+        legacy_view_html = render_approvals_tab(
+            candidates,
+            reviewed_by=reviewed_by,
+            target_location=target_location,
+            write_actions_enabled=write_actions_enabled,
+        )
+    elif active_tab == "orchestrator":
+        legacy_view_html = render_orchestrator_tab(orchestrator_steps)
+    elif active_tab == "gaps":
+        legacy_view_html = render_gap_tab()
+    elif active_tab == "jobs":
+        legacy_view_html = render_jobs_tab()
+    elif active_tab == "demo-chain":
+        legacy_view_html = render_demo_chain_tab(
+            candidates,
+            reviewed_by=reviewed_by,
+            target_location=target_location,
+            write_actions_enabled=write_actions_enabled,
+        )
+
+    return render_template(
+        "app.html",
+        build_control_center_view_model(
+            candidates,
+            active_tab=active_tab,
             market_summary=market_summary,
             orchestrator_steps=orchestrator_steps,
+            write_actions_enabled=write_actions_enabled,
+            legacy_view_html=legacy_view_html,
+            stylesheet=read_static_asset("control_center.css"),
+            flash_message=flash_message,
         ),
-        "health": render_health(candidates),
-        "connectors": render_connectors_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
-        "approvals": render_approvals_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
-        "orchestrator": render_orchestrator_tab(orchestrator_steps),
-        "gaps": render_gap_tab(),
-        "jobs": render_jobs_tab(),
-        "demo-chain": render_demo_chain_tab(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled),
-    }[active_tab]
-    return f"""<!doctype html>
-<html lang='en'>
-<head>
-<meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1'>
-<title>Search Intelligence Control Center</title>
-<style>
-:root {{
-  color-scheme: dark;
-  --bg:#020812; --bg2:#041321; --panel:rgba(8,24,39,.94); --panel2:rgba(12,38,60,.72);
-  --line:rgba(99,159,199,.30); --line2:rgba(99,159,199,.18); --text:#ecf7ff; --muted:#9db8cc;
-  --cyan:#22d3ee; --green:#70e36b; --amber:#f5b642; --red:#ff5d5d; --blue:#65b7ff;
-  --sidebar:244px; --radius:18px; --shadow:0 20px 70px rgba(0,0,0,.38);
-}}
-* {{ box-sizing:border-box; }}
-html, body {{ width:100%; min-height:100%; margin:0; overflow-x:hidden; }}
-body {{ font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; color:var(--text); background:radial-gradient(circle at 12% 0%, rgba(34,211,238,.16), transparent 30%), linear-gradient(135deg, var(--bg2), var(--bg) 70%); }}
-.app-shell {{ display:grid; grid-template-columns:var(--sidebar) minmax(0,1fr); min-height:100vh; width:100%; }}
-.sidebar {{ position:sticky; top:0; height:100vh; overflow-y:auto; padding:1.15rem .85rem; border-right:1px solid var(--line); background:linear-gradient(180deg, rgba(5,19,32,.98), rgba(3,11,21,.98)); }}
-.logo .eyebrow {{ display:block; margin-bottom:.35rem; }} .logo h1 {{ font-size:1.05rem; margin:.1rem 0 0; }} .logo p {{ margin:.1rem 0 1.2rem; color:var(--muted); }}
-.nav {{ display:grid; gap:.55rem; }} .nav-link {{ display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.68rem .75rem; color:var(--text); text-decoration:none; border:1px solid var(--line); border-radius:11px; background:rgba(255,255,255,.025); font-weight:700; }} .nav-link:hover,.nav-link.active {{ border-color:rgba(34,211,238,.75); background:rgba(34,211,238,.13); }} .nav-link b {{ min-width:1.45rem; height:1.45rem; display:inline-grid; place-items:center; border-radius:999px; background:var(--cyan); color:#03101d; }}
-.sidebar-footer {{ position:absolute; left:.85rem; right:.85rem; bottom:.8rem; display:grid; gap:.45rem; }}
-.content {{ min-width:0; width:100%; padding:2rem clamp(1.5rem,2.4vw,3rem) 3rem; }}
-.content-inner {{ width:100%; max-width:1480px; }}
-.view-head {{ max-width:980px; margin-bottom:1.1rem; }} h1 {{ margin:0; font-size:clamp(1.7rem,2vw,2.35rem); letter-spacing:.01em; }} h2,h3 {{ margin:.1rem 0; }} p {{ line-height:1.45; }} .muted {{ color:var(--muted); }} .eyebrow {{ color:var(--cyan); text-transform:uppercase; letter-spacing:.13em; font-size:.72rem; font-weight:800; }}
-.mode,.pill {{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:.34rem .62rem; font-size:.82rem; white-space:nowrap; }} .mode {{ color:var(--cyan); background:rgba(34,211,238,.1); }} .pill.ok {{ color:var(--green); border-color:rgba(112,227,107,.44); }} .pill.warn {{ color:var(--amber); border-color:rgba(245,182,66,.52); }} .pill.bad {{ color:var(--red); border-color:rgba(255,93,93,.50); }} .pill.neutral {{ color:var(--muted); }}
-.kpi-strip,.kpis {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; margin:0 0 1rem; }} .metric,.panel,.candidate-card,.empty-state {{ background:linear-gradient(180deg,var(--panel),rgba(5,16,29,.96)); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); }} .metric {{ padding:1rem 1.1rem; }} .metric strong {{ display:block; margin:.18rem 0; font-size:1.55rem; }} .metric small {{ color:var(--muted); }} .metric.ok {{ border-color:rgba(112,227,107,.48); }} .metric.warn {{ border-color:rgba(245,182,66,.52); }} .metric.bad {{ border-color:rgba(255,93,93,.52); }}
-.tab-view {{ display:block; }}
-.dashboard-grid {{ display:grid; grid-template-columns:minmax(360px,.72fr) minmax(620px,1.28fr); gap:1rem; align-items:start; }}
-.panel,.empty-state {{ padding:1rem; }} .section-head {{ display:flex; justify-content:space-between; gap:1rem; align-items:start; margin-bottom:.75rem; }}
-.funnel {{ display:grid; gap:.7rem; margin-top:1rem; }} .bar-row {{ display:grid; grid-template-columns:100px minmax(0,1fr) 32px; align-items:center; gap:.75rem; }} .bar-row span {{ font-weight:700; }} .bar-row div {{ height:.55rem; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:rgba(255,255,255,.03); }} .bar-row i {{ display:block; height:100%; background:linear-gradient(90deg,var(--cyan),var(--blue)); border-radius:999px; }} .bar-row b {{ text-align:right; }}
-.card-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(430px,1fr)); gap:1rem; }} .card-grid.single {{ grid-template-columns:1fr; }}
-.candidate-card {{ padding:1rem; border-left:4px solid var(--line); }} .candidate-card.bad {{ border-left-color:var(--red); }} .candidate-card.warn {{ border-left-color:var(--amber); }} .candidate-card.ok {{ border-left-color:var(--green); }} .candidate-card header {{ display:flex; justify-content:space-between; gap:.75rem; align-items:start; }} .candidate-card header p {{ margin:.15rem 0 0; color:var(--muted); }}
-.chain {{ list-style:none; padding:0; margin:.9rem 0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.45rem; }} .chain li {{ border:1px solid var(--line); border-radius:999px; padding:.37rem .48rem; font-size:.78rem; color:var(--muted); display:flex; gap:.36rem; align-items:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }} .chain li span {{ flex:0 0 .52rem; width:.52rem; height:.52rem; border-radius:999px; background:var(--muted); }} .chain li.done {{ color:var(--green); border-color:rgba(112,227,107,.32); }} .chain li.done span {{ background:var(--green); }} .chain li.current {{ color:var(--amber); border-color:rgba(245,182,66,.50); }} .chain li.current span {{ background:var(--amber); }} .chain li.blocked {{ color:var(--red); border-color:rgba(255,93,93,.5); }} .chain li.blocked span {{ background:var(--red); }}
-.facts {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; margin:.65rem 0; }} .facts span {{ color:var(--muted); background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:10px; padding:.5rem; min-width:0; overflow:hidden; text-overflow:ellipsis; }} .facts strong {{ color:var(--text); }} .next-step {{ color:#d8f4ff; }} .blocker {{ border-left:3px solid var(--amber); padding-left:.65rem; color:#f8ddb0; }} .artifacts {{ margin:.5rem 0; color:var(--muted); }}
-.action-panel {{ margin-top:.8rem; padding:.85rem; border:1px solid rgba(245,182,66,.38); border-radius:13px; background:rgba(245,182,66,.08); }} .action-panel.registration {{ border-color:rgba(34,211,238,.42); background:rgba(34,211,238,.08); }} pre {{ white-space:pre-wrap; overflow:auto; padding:.65rem; border-radius:10px; border:1px solid var(--line); background:#03101d; color:#d8f4ff; }} form {{ display:flex; gap:.55rem; flex-wrap:wrap; align-items:end; }} label {{ display:grid; gap:.25rem; color:var(--muted); font-size:.84rem; }} input {{ background:#061522; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:.48rem .58rem; }} button {{ background:linear-gradient(135deg,#13b7d2,#1d78c1); color:white; border:0; border-radius:10px; padding:.58rem .75rem; font-weight:800; cursor:pointer; }} button:disabled {{ opacity:.45; cursor:not-allowed; }} .kill-switch {{ background:rgba(255,93,93,.12); color:#ffd8d8; border:1px solid rgba(255,93,93,.48); }} .shutdown-form {{ margin:0; }} .warning,.flash {{ color:#ffe2a9; }} .flash {{ margin:0 0 1rem; padding:.8rem; border:1px solid rgba(245,182,66,.42); border-radius:12px; background:rgba(245,182,66,.09); }} details.command-box {{ margin-top:.75rem; border:1px solid var(--line); border-radius:.65rem; padding:.55rem .7rem; background:rgba(0,0,0,.16); }} details.command-box summary {{ cursor:pointer; color:var(--cyan); font-weight:800; }}
-table {{ width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px; }} th,td {{ text-align:left; padding:.75rem .65rem; border-bottom:1px solid var(--line2); vertical-align:top; overflow-wrap:anywhere; }} th {{ color:#c9efff; font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; }} td span {{ color:var(--muted); }}
-@media (min-width:1700px) {{ .content-inner {{ max-width:1560px; }} .dashboard-grid {{ grid-template-columns:minmax(430px,.72fr) minmax(760px,1.28fr); }} }}
-@media (max-width:1320px) {{ .kpi-strip,.kpis {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .dashboard-grid {{ grid-template-columns:1fr; }} .card-grid {{ grid-template-columns:1fr; }} }}
-@media (max-width:900px) {{ :root {{ --sidebar:0px; }} .app-shell {{ grid-template-columns:1fr; }} .sidebar {{ position:relative; width:100%; height:auto; }} .content {{ padding:1rem; }} .kpi-strip,.kpis,.chain,.facts {{ grid-template-columns:1fr; }} .sidebar-footer {{ position:static; margin-top:1rem; }} }}
-
-/* S7E demo rule-cycle visual */
-.demo-cycle-panel {{
-  position:relative;
-  overflow:hidden;
-  border-color:rgba(0,181,255,.34);
-  background:
-    radial-gradient(circle at 12% 20%, rgba(0,181,255,.18), transparent 32%),
-    radial-gradient(circle at 84% 18%, rgba(112,227,107,.10), transparent 30%),
-    linear-gradient(135deg, rgba(5,29,47,.96), rgba(3,11,20,.98));
-  box-shadow:0 22px 60px rgba(0,0,0,.24);
-}}
-.demo-cycle-panel::before {{
-  content:"";
-  position:absolute;
-  inset:1.1rem;
-  border:1px solid rgba(82,211,255,.12);
-  border-radius:1.1rem;
-  pointer-events:none;
-}}
-.cycle-header {{
-  position:relative;
-  z-index:1;
-  display:flex;
-  justify-content:space-between;
-  gap:1rem;
-  align-items:center;
-  margin-bottom:1rem;
-}}
-.cycle-header h2 {{ margin:.25rem 0 .35rem; font-size:clamp(1.35rem, 2vw, 2rem); }}
-.cycle-orbit {{
-  flex:0 0 6.5rem;
-  width:6.5rem;
-  height:6.5rem;
-  border-radius:999px;
-  display:grid;
-  place-items:center;
-  position:relative;
-  border:1px solid rgba(82,211,255,.38);
-  background:radial-gradient(circle, rgba(0,181,255,.22), rgba(0,181,255,.04) 58%, transparent 60%);
-}}
-.cycle-orbit span {{
-  position:absolute;
-  inset:.55rem;
-  border-radius:999px;
-  border:1px dashed rgba(112,227,107,.45);
-}}
-.cycle-orbit strong {{ color:var(--cyan); font-size:1.3rem; letter-spacing:.08em; }}
-.rule-cycle-grid {{
-  position:relative;
-  z-index:1;
-  display:grid;
-  grid-template-columns:repeat(3, minmax(0, 1fr));
-  gap:.85rem;
-}}
-.cycle-card {{
-  min-height:10.4rem;
-  border:1px solid rgba(82,211,255,.28);
-  border-radius:1rem;
-  padding:1rem;
-  background:linear-gradient(180deg, rgba(10,37,58,.88), rgba(5,22,36,.92));
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
-  position:relative;
-}}
-.cycle-card::after {{
-  content:"→";
-  position:absolute;
-  right:-.75rem;
-  top:50%;
-  transform:translateY(-50%);
-  color:rgba(82,211,255,.7);
-  font-size:1.35rem;
-  z-index:2;
-}}
-.cycle-card:nth-child(3)::after,
-.cycle-card:nth-child(6)::after {{ content:""; }}
-.cycle-index {{
-  position:absolute;
-  top:.8rem;
-  right:.85rem;
-  font-size:1.35rem;
-  font-weight:800;
-  color:rgba(82,211,255,.28);
-}}
-.cycle-card h3 {{ margin:.35rem 2.3rem .5rem 0; font-size:1.08rem; }}
-.cycle-card p {{ margin:0; color:var(--muted); line-height:1.45; }}
-.cycle-tag {{
-  margin-top:.85rem;
-  display:inline-flex;
-  border:1px solid rgba(112,227,107,.32);
-  border-radius:999px;
-  padding:.25rem .55rem;
-  color:var(--green);
-  font-size:.78rem;
-  background:rgba(112,227,107,.07);
-}}
-.guardrail-strip {{
-  position:relative;
-  z-index:1;
-  display:flex;
-  flex-wrap:wrap;
-  gap:.5rem;
-  margin-top:1rem;
-}}
-.guardrail-strip span {{
-  border:1px solid rgba(245,182,66,.42);
-  color:var(--amber);
-  background:rgba(245,182,66,.07);
-  border-radius:999px;
-  padding:.3rem .65rem;
-  font-size:.78rem;
-}}
-@media (max-width:1200px) {{
-  .rule-cycle-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }}
-  .cycle-card:nth-child(3)::after {{ content:"→"; }}
-  .cycle-card:nth-child(2)::after,
-  .cycle-card:nth-child(4)::after,
-  .cycle-card:nth-child(6)::after {{ content:""; }}
-}}
-@media (max-width:760px) {{
-  .cycle-header {{ align-items:flex-start; }}
-  .cycle-orbit {{ display:none; }}
-  .rule-cycle-grid {{ grid-template-columns:1fr; }}
-  .cycle-card::after {{ content:"↓"; right:1rem; top:auto; bottom:-1rem; transform:none; }}
-  .cycle-card:nth-child(6)::after {{ content:""; }}
-}}
-
-.attention-list {{ display:grid; gap:.75rem; }}
-.attention-step {{ border:1px solid var(--line2); background:linear-gradient(135deg, rgba(34,211,238,.08), rgba(245,182,66,.07)); border-radius:1rem; padding:.85rem; }}
-.attention-step h3 {{ margin:.45rem 0 .3rem; font-size:1rem; }}
-.attention-step p {{ margin:.2rem 0 .5rem; color:var(--text); }}
-.attention-step small {{ color:var(--muted); }}
-pre {{ white-space:pre-wrap; overflow:auto; border:1px solid var(--line2); background:rgba(0,0,0,.28); border-radius:1rem; padding:1rem; color:#d9f8ff; }}
-
-</style>
-</head>
-<body>
-<div class='app-shell'>
-<aside class='sidebar'>
-  <div class='logo'><span class='eyebrow'>Sweet Spot — Deep Ocean Intelligence</span><h1>Search Intelligence</h1><p>Control Center</p></div>
-        <a class='brand' href='/?tab=dashboard'><strong>Search Intelligence</strong><span>Deep Ocean Control</span></a>
-        <nav class='side-tabs' aria-label='Control Center Sections'>
-            {nav_item('dashboard', 'Dashboard', critical_count, active_tab=active_tab)}
-            {nav_item('health', 'Health', critical_count, active_tab=active_tab)}
-            {nav_item('connectors', 'Connectors', active_count, active_tab=active_tab)}
-            {nav_item('approvals', 'Approvals', build_approval_count + registration_approval_count, active_tab=active_tab)}
-            {nav_item('orchestrator', 'Orchestrator', len(orchestrator_steps), active_tab=active_tab)}
-            {nav_item('gaps', 'Gap Analysis', market_summary.open_search_term_suggestion_count, active_tab=active_tab)}
-            {nav_item('jobs', 'Jobs & Applications', None, active_tab=active_tab)}
-            {nav_item('demo-chain', 'Demo Chain', None, active_tab=active_tab)}
-        </nav>
-  <div class='sidebar-footer'><span class='mode'>{h(mode)}</span><form class='shutdown-form' method='post' action='/actions/shutdown'><button class='kill-switch' type='submit'>Stop UI</button></form></div>
-</aside>
-<main class='content'><div class='content-inner'>
-  {flash}
-  <section class='kpi-strip'>
-    {kpi('Active connectors', active_count, 'controlled origin sources', 'ok')}
-    {kpi('Build approvals', build_approval_count, 'waiting for your token', 'warn')}
-    {kpi('Registration approvals', registration_approval_count, 'after validation', 'neutral')}
-    {kpi('Critical FN pressure', critical_count, 'unresolved signals', 'bad')}
-  </section>
-  {active_view_html}
-</div></main>
-</div>
-</body>
-</html>"""
+    )

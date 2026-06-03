@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }}</title>
+<style>{{ stylesheet | safe }}</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-kicker">Sweet Spot · Deep Ocean Intelligence</span>
+      <h1>Search Intelligence<br>Control Center</h1>
+      <p>Controlled source discovery, gate evidence and data-flow observability.</p>
+    </div>
+
+    <nav class="side-tabs nav" aria-label="Dashboard navigation">
+      {% for item in nav_items %}
+        <a class="{% if item.tab == active_tab %}active{% endif %}" href="/?tab={{ item.tab }}">
+          <span>{{ item.label }}</span>
+          {% if item.count is not none %}<b>{{ item.count }}</b>{% endif %}
+        </a>
+      {% endfor %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="mode-pill"><span>Mode</span><strong>{{ mode }}</strong></div>
+      <div class="boundary-pill"><span>Boundary</span><strong>no writes</strong></div>
+      <form method="post" action="/actions/shutdown">
+        <button class="stop-button" type="submit">Stop UI</button>
+      </form>
+    </div>
+  </aside>
+
+  <main class="main">
+    {% if flash_message %}
+      <div class="flash">{{ flash_message }}</div>
+    {% endif %}
+
+    {% if is_dashboard %}
+      {% include "dashboard.html" %}
+    {% else %}
+      <section class="legacy-shell">
+        {{ legacy_view_html | safe }}
+      </section>
+    {% endif %}
+  </main>
+</div>
+</body>
+</html>
