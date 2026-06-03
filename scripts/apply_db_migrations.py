@@ -1,0 +1,368 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import psycopg
+from psycopg.rows import dict_row
+
+from src.config import get_database_config
+
+
+DEFAULT_MIGRATIONS_DIR = Path("db/migrations")
+MIGRATION_RE = re.compile(r"^(\d+)_.*\.sql$")
+
+
+@dataclass(frozen=True)
+class MigrationFile:
+    migration_key: str
+    version_number: int
+    filename: str
+    path: Path
+    checksum_sha256: str
+
+
+@dataclass(frozen=True)
+class TrackedMigration:
+    migration_key: str
+    version_number: int
+    filename: str
+    checksum_sha256: str
+    execution_status: str
+    execution_mode: str
+    applied_by: str | None
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def parse_migration_file(path: Path) -> MigrationFile | None:
+    match = MIGRATION_RE.match(path.name)
+    if not match:
+        return None
+
+    return MigrationFile(
+        migration_key=path.name,
+        version_number=int(match.group(1)),
+        filename=path.name,
+        path=path,
+        checksum_sha256=sha256_file(path),
+    )
+
+
+def discover_migration_files(migrations_dir: Path = DEFAULT_MIGRATIONS_DIR) -> list[MigrationFile]:
+    migrations: list[MigrationFile] = []
+
+    for path in migrations_dir.glob("*.sql"):
+        parsed = parse_migration_file(path)
+        if parsed is not None:
+            migrations.append(parsed)
+
+    return sorted(migrations, key=lambda item: (item.version_number, item.filename))
+
+
+def connect() -> psycopg.Connection[Any]:
+    return psycopg.connect(**get_database_config(), row_factory=dict_row)
+
+
+def schema_migrations_exists(conn: psycopg.Connection[Any]) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'schema_migrations'
+            ) AS exists;
+            """
+        )
+        row = cur.fetchone()
+
+    return bool(row and row["exists"])
+
+
+def load_tracked_migrations(conn: psycopg.Connection[Any]) -> dict[str, TrackedMigration]:
+    if not schema_migrations_exists(conn):
+        return {}
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                migration_key,
+                version_number,
+                filename,
+                checksum_sha256,
+                execution_status,
+                execution_mode,
+                applied_by
+            FROM schema_migrations
+            ORDER BY version_number, filename;
+            """
+        )
+        rows = cur.fetchall()
+
+    return {
+        row["migration_key"]: TrackedMigration(
+            migration_key=row["migration_key"],
+            version_number=int(row["version_number"]),
+            filename=row["filename"],
+            checksum_sha256=row["checksum_sha256"],
+            execution_status=row["execution_status"],
+            execution_mode=row["execution_mode"],
+            applied_by=row["applied_by"],
+        )
+        for row in rows
+    }
+
+
+def checksum_mismatches(
+    migrations: list[MigrationFile],
+    tracked: dict[str, TrackedMigration],
+) -> list[tuple[MigrationFile, TrackedMigration]]:
+    mismatches: list[tuple[MigrationFile, TrackedMigration]] = []
+
+    for migration in migrations:
+        existing = tracked.get(migration.migration_key)
+        if existing and existing.checksum_sha256 != migration.checksum_sha256:
+            mismatches.append((migration, existing))
+
+    return mismatches
+
+
+def pending_migrations(
+    migrations: list[MigrationFile],
+    tracked: dict[str, TrackedMigration],
+) -> list[MigrationFile]:
+    return [migration for migration in migrations if migration.migration_key not in tracked]
+
+
+def insert_tracking_row(
+    conn: psycopg.Connection[Any],
+    migration: MigrationFile,
+    *,
+    execution_status: str,
+    execution_mode: str,
+    applied_by: str,
+    error_message: str | None = None,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO schema_migrations (
+                migration_key,
+                version_number,
+                filename,
+                checksum_sha256,
+                execution_status,
+                execution_mode,
+                applied_by,
+                error_message
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (migration_key)
+            DO UPDATE SET
+                checksum_sha256 = EXCLUDED.checksum_sha256,
+                execution_status = EXCLUDED.execution_status,
+                execution_mode = EXCLUDED.execution_mode,
+                applied_by = EXCLUDED.applied_by,
+                error_message = EXCLUDED.error_message,
+                applied_at = NOW(),
+                updated_at = NOW();
+            """,
+            (
+                migration.migration_key,
+                migration.version_number,
+                migration.filename,
+                migration.checksum_sha256,
+                execution_status,
+                execution_mode,
+                applied_by,
+                error_message,
+            ),
+        )
+
+
+def print_status(
+    *,
+    migrations: list[MigrationFile],
+    tracked: dict[str, TrackedMigration],
+    table_exists: bool,
+) -> None:
+    mismatches = checksum_mismatches(migrations, tracked)
+    pending = pending_migrations(migrations, tracked)
+
+    print("S7Y DB Migration Tracking Status")
+    print(f"tracking_table_exists: {str(table_exists).lower()}")
+    print(f"migration_files: {len(migrations)}")
+    print(f"tracked_migrations: {len(tracked)}")
+    print(f"pending_migrations: {len(pending)}")
+    print(f"checksum_mismatches: {len(mismatches)}")
+
+    if not table_exists:
+        print("next: apply the schema_migrations table migration manually, then bootstrap existing migrations")
+        return
+
+    if mismatches:
+        print("---")
+        print("Checksum mismatches:")
+        for migration, existing in mismatches:
+            print(
+                f"- {migration.filename}: tracked={existing.checksum_sha256} "
+                f"current={migration.checksum_sha256}"
+            )
+
+    if pending:
+        print("---")
+        print("Pending migrations:")
+        for migration in pending[:25]:
+            print(f"- {migration.filename}")
+        if len(pending) > 25:
+            print(f"- ... {len(pending) - 25} more")
+
+
+def ensure_no_checksum_mismatches(
+    migrations: list[MigrationFile],
+    tracked: dict[str, TrackedMigration],
+) -> None:
+    mismatches = checksum_mismatches(migrations, tracked)
+    if mismatches:
+        details = ", ".join(migration.filename for migration, _ in mismatches)
+        raise ValueError(f"Checksum mismatch for tracked migration(s): {details}")
+
+
+def bootstrap_existing(
+    *,
+    migrations: list[MigrationFile],
+    tracked: dict[str, TrackedMigration],
+    applied_by: str,
+) -> int:
+    ensure_no_checksum_mismatches(migrations, tracked)
+
+    inserted = 0
+    with connect() as conn:
+        if not schema_migrations_exists(conn):
+            raise RuntimeError("schema_migrations table does not exist. Apply the tracking migration first.")
+
+        with conn.transaction():
+            current = load_tracked_migrations(conn)
+            for migration in migrations:
+                if migration.migration_key in current:
+                    continue
+
+                insert_tracking_row(
+                    conn,
+                    migration,
+                    execution_status="bootstrapped",
+                    execution_mode="manual_bootstrap",
+                    applied_by=applied_by,
+                )
+                inserted += 1
+
+    return inserted
+
+
+def apply_pending(
+    *,
+    migrations: list[MigrationFile],
+    tracked: dict[str, TrackedMigration],
+    applied_by: str,
+) -> int:
+    ensure_no_checksum_mismatches(migrations, tracked)
+
+    pending = pending_migrations(migrations, tracked)
+    applied = 0
+
+    for migration in pending:
+        sql = migration.path.read_text(encoding="utf-8")
+
+        try:
+            with connect() as conn:
+                if not schema_migrations_exists(conn):
+                    raise RuntimeError("schema_migrations table does not exist. Apply the tracking migration first.")
+
+                with conn.transaction():
+                    with conn.cursor() as cur:
+                        cur.execute(sql)
+
+                    insert_tracking_row(
+                        conn,
+                        migration,
+                        execution_status="success",
+                        execution_mode="script_apply",
+                        applied_by=applied_by,
+                    )
+
+            applied += 1
+            print(f"applied: {migration.filename}")
+        except Exception as exc:
+            with connect() as conn:
+                if schema_migrations_exists(conn):
+                    with conn.transaction():
+                        insert_tracking_row(
+                            conn,
+                            migration,
+                            execution_status="failed",
+                            execution_mode="script_apply",
+                            applied_by=applied_by,
+                            error_message=str(exc),
+                        )
+
+            raise
+
+    return applied
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Track and apply DB migrations with checksum validation.")
+    action = parser.add_mutually_exclusive_group(required=True)
+    action.add_argument("--status", action="store_true")
+    action.add_argument("--bootstrap-existing", action="store_true")
+    action.add_argument("--apply", action="store_true")
+    parser.add_argument("--applied-by", default="local")
+    parser.add_argument("--migrations-dir", type=Path, default=DEFAULT_MIGRATIONS_DIR)
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    migrations = discover_migration_files(args.migrations_dir)
+
+    with connect() as conn:
+        table_exists = schema_migrations_exists(conn)
+        tracked = load_tracked_migrations(conn)
+
+    if args.status:
+        print_status(migrations=migrations, tracked=tracked, table_exists=table_exists)
+        return
+
+    if args.bootstrap_existing:
+        inserted = bootstrap_existing(
+            migrations=migrations,
+            tracked=tracked,
+            applied_by=args.applied_by,
+        )
+        print(f"bootstrapped_migrations: {inserted}")
+        return
+
+    if args.apply:
+        applied = apply_pending(
+            migrations=migrations,
+            tracked=tracked,
+            applied_by=args.applied_by,
+        )
+        print(f"applied_migrations: {applied}")
+
+
+if __name__ == "__main__":
+    main()
