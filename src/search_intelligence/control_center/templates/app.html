@@ -40,6 +40,8 @@
 
     {% if is_dashboard %}
       {% include "dashboard.html" %}
+    {% elif is_agent_monitor %}
+      {% include "agent_monitor.html" %}
     {% else %}
       <section class="legacy-shell">
         {{ legacy_view_html | safe }}
