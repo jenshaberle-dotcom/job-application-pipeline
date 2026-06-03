@@ -42,6 +42,8 @@
       {% include "dashboard.html" %}
     {% elif is_source_health %}
       {% include "source_health.html" %}
+    {% elif is_review_queue %}
+      {% include "review_queue.html" %}
     {% elif is_candidates %}
       {% include "candidates.html" %}
     {% elif is_approvals %}

@@ -1,0 +1,99 @@
+<section class="workspace review-queue tab-view" data-view="review-queue">
+  <header class="workspace-hero">
+    <span class="eyebrow">Review Queue</span>
+    <h2>Human decision workspace</h2>
+    <p>
+      Central queue for evidence review, build approvals and registration approvals.
+      S8A5 will make review-required actions usable here under explicit approval gates.
+    </p>
+  </header>
+
+  <section class="review-summary kpis" aria-label="Review Queue summary">
+    <article class="kpi {% if review_queue_summary.evidence_review %}warn{% else %}ok{% endif %}"><span>Evidence review</span><strong>{{ review_queue_summary.evidence_review }}</strong><small>blocked candidates</small></article>
+    <article class="kpi {% if review_queue_summary.approvals %}warn{% else %}ok{% endif %}"><span>Approvals</span><strong>{{ review_queue_summary.approvals }}</strong><small>explicit gate decisions</small></article>
+    <article class="kpi ok"><span>Active</span><strong>{{ review_queue_summary.active }}</strong><small>monitor only</small></article>
+    <article class="kpi"><span>Backlog</span><strong>{{ review_queue_summary.backlog }}</strong><small>no immediate action</small></article>
+  </section>
+
+  {% for section in review_queue_sections %}
+    <section class="workspace-section review-section {{ section.tone }}">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">{{ section.count }} item(s)</span>
+          <h3>{{ section.title }}</h3>
+          <p>{{ section.description }}</p>
+        </div>
+        <span class="badge {{ section.tone }}">{{ section.count }}</span>
+      </div>
+
+      {% if section.approval_items %}
+        <div class="review-grid">
+          {% for item in section.approval_items %}
+            <article class="workspace-card {{ item.tone }}">
+              <header>
+                <div><span class="eyebrow">{{ item.kind }}</span><h3>{{ item.company }}</h3><p>{{ item.company_key }}</p></div>
+                <span class="badge {{ item.tone }}">{{ item.status }}</span>
+              </header>
+              <dl class="compact-facts">
+                <div><dt>Token</dt><dd>{{ item.token }}</dd></div>
+                <div><dt>Action</dt><dd>{{ item.action_path }}</dd></div>
+              </dl>
+              <section class="agent-narrative"><h4>Allows</h4><p>{{ item.allows }}</p></section>
+              <section class="agent-narrative"><h4>Does not allow</h4><p>{{ item.does_not_allow }}</p></section>
+              {% if item.hint %}
+                <p class="warning">{{ item.hint }}</p>
+              {% endif %}
+              <form method="post" action="{{ item.action_path }}" class="approval-preview-form">
+                <input type="hidden" name="company_key" value="{{ item.company_key }}">
+                <label>Approval token <input name="approval_token" placeholder="{{ item.token }}" autocomplete="off"></label>
+                <label>Reviewed by <input name="reviewed_by" value="jens"></label>
+                <button type="submit" disabled>Prepared for S8A5 approval-safe actions</button>
+              </form>
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if section.candidate_cards %}
+        <div class="review-grid">
+          {% for candidate in section.candidate_cards %}
+            <article class="life-card {% if candidate.path_state == 'success' %}ok{% elif candidate.path_state == 'blocked' %}warn{% endif %}">
+              <header>
+                <div><strong>{{ candidate.company_name }}</strong><small>{{ candidate.source_name }}</small></div>
+                <span class="badge {{ candidate.status_tone }}">{{ candidate.status }}</span>
+              </header>
+              <div class="pipeline">
+                {% for step in candidate.pipeline_steps %}
+                  <span class="{{ step.state }}">{{ step.label }}</span>
+                {% endfor %}
+              </div>
+              <dl class="life-facts">
+                <div><dt>Stage</dt><dd>{{ candidate.stage }}</dd></div>
+                <div><dt>Gates</dt><dd>{{ candidate.gate_score }}</dd></div>
+                <div><dt>Next</dt><dd>{{ candidate.next_action }}</dd></div>
+              </dl>
+              {% if candidate.blocker_gate %}
+                <p class="blocker"><strong>{{ candidate.blocker_gate }}:</strong> {{ candidate.blocker_reason }}</p>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if not section.candidate_cards and not section.approval_items %}
+        <article class="empty-state">
+          <h3>No items in this group</h3>
+          <p>This is expected when there is currently no review work of this type.</p>
+        </article>
+      {% endif %}
+    </section>
+  {% endfor %}
+
+  <section class="workspace-note">
+    <h3>Why Review Queue before active buttons?</h3>
+    <p>
+      Review-required states need a single operational home. S8A5 will add usable actions here
+      instead of scattering approval buttons across Candidates, Approvals, Agents and Source Health.
+    </p>
+  </section>
+</section>
