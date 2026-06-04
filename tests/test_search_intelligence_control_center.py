@@ -6,11 +6,13 @@ from scripts.search_intelligence_control_center import (
     ControlCenterActionRun,
     BUILD_APPROVAL_TOKEN,
     EVIDENCE_REPAIR_TOKEN,
+    NEXT_SAFE_ACTION_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     ControlCenterCandidate,
     OrchestratorAttentionStep,
     build_approval_command,
     evidence_repair_command,
+    next_safe_action_command,
     registration_approval_command,
     render_control_center,
 )
@@ -208,9 +210,49 @@ def test_review_queue_renders_last_action_run_diagnostics() -> None:
     assert "Rerun evidence repair" in html
     assert "Failed" in html
     assert "command failed before gate review persistence" in html
+    assert "The command failed before the expected gate result was persisted." in html
+    assert "Show technical diagnostics" in html
+    assert "Traceback summary" in html
     assert "Gate review" in html
     assert "not written" in html
 
+
+
+
+def test_review_queue_renders_human_readable_next_safe_action_failure() -> None:
+    early_candidate = candidate(
+        company_key="adesso",
+        company_name="adesso SE",
+        source_name_candidate="adesso:discovery",
+        gate_passed_count=0,
+        gate_total_count=16,
+        build_status=None,
+        build_recommendation=None,
+        latest_blocking_gate="detail_evidence_gate",
+        latest_blocking_reason="early gates still missing",
+    )
+    html = render_control_center(
+        [early_candidate],
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+        action_runs=[
+            action_run(
+                action_type="run_next_safe_action",
+                company_key="adesso",
+                candidate_id=2,
+                error_summary="Next safe action failed before completion. Last diagnostic: child_command_failed: action=run_initial_gate_review exit_code=1 module=scripts.run_employer_origin_gate_agent",
+                stdout_tail="candidate_id: 6\nnext_safe_action: run_initial_gate_review",
+                stderr_tail="child_command_failed: action=run_initial_gate_review exit_code=1 module=scripts.run_employer_origin_gate_agent",
+            )
+        ],
+    )
+
+    assert "Run next safe action · Failed" in html
+    assert "Next safe action failed before completion." in html
+    assert "child_command_failed: action=run_initial_gate_review" in html
+    assert "Show technical diagnostics" in html
 
 def test_control_center_renders_orchestrator_attention_tab() -> None:
     html = render_control_center(
@@ -522,19 +564,47 @@ def test_review_queue_uses_dialog_actions_without_visible_token_inputs() -> None
 
 
 
-def test_review_queue_renders_continue_candidate_review_action() -> None:
+def test_review_queue_renders_next_safe_action_for_early_gate_candidates() -> None:
+    early_candidate = candidate(
+        company_key="adesso",
+        company_name="adesso SE",
+        source_name_candidate="adesso:discovery",
+        gate_passed_count=0,
+        gate_total_count=16,
+        build_status=None,
+        build_recommendation=None,
+        latest_blocking_gate="detail_evidence_gate",
+        latest_blocking_reason="detail evidence repair is premature while early gates are still missing",
+    )
     html = render_control_center(
-        candidates(),
+        [early_candidate],
         reviewed_by="jens",
         target_location="hannover",
         write_actions_enabled=True,
         active_tab="review-queue",
     )
 
-    assert "/actions/continue-candidate-review" in html
-    assert "Continue candidate review" in html
-    assert 'type="hidden" name="approval_token" value="continue_candidate_review"' in html
-    assert "This reruns the employer-origin agent chain with the current A1 multi-origin evidence logic." in html
+    assert "/actions/run-next-safe-action" in html
+    assert "Run initial gate review" in html
+    assert 'type="hidden" name="approval_token" value="run_next_safe_action"' in html
+    assert "not detail-evidence repair" in html
+    assert "/actions/rerun-evidence-repair" not in html
+
+
+def test_next_safe_action_command_delegates_to_orchestrator_script() -> None:
+    command = next_safe_action_command("adesso", "hannover", "jens")
+
+    assert command == (
+        "python",
+        "-m",
+        "scripts.run_employer_origin_next_safe_action_agent",
+        "--company-key",
+        "adesso",
+        "--target-location",
+        "hannover",
+        "--reviewed-by",
+        "jens",
+    )
 
 
 
@@ -564,3 +634,198 @@ def test_review_queue_renders_connector_validation_action_for_connector_candidat
     assert "Run connector validation" in html
     assert 'type="hidden" name="approval_token" value="run_connector_validation"' in html
     assert "The next safe step is connector validation" in html
+
+
+def test_review_queue_stops_terminal_early_gate_for_disallowed_auth_url() -> None:
+    blocked_candidate = candidate(
+        company_key="locked_source",
+        company_name="Locked Source GmbH",
+        candidate_url="https://example.com/login/jobs",
+        source_name_candidate="locked_source:discovery",
+        status="abort_documented",
+        gate_passed_count=1,
+        gate_total_count=16,
+        build_status=None,
+        build_recommendation=None,
+        latest_blocking_gate="source_discovery",
+        latest_blocking_status="failed",
+        latest_blocking_decision="abort_documented",
+        latest_blocking_reason="candidate URL appears to require authentication",
+    )
+    html = render_control_center(
+        [blocked_candidate],
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "No safe automated action" in html
+    assert "candidate URL appears to require authentication" in html
+    assert "will not rerun the same automated step" in html
+    assert "/actions/run-next-safe-action" not in html
+    assert "Run initial gate review" not in html
+
+
+
+def test_review_queue_stops_terminal_early_gate_when_only_candidate_status_is_terminal() -> None:
+    blocked_candidate = candidate(
+        company_key="adesso",
+        company_name="adesso SE",
+        source_name_candidate="adesso:discovery",
+        status="abort_documented",
+        gate_passed_count=1,
+        gate_total_count=16,
+        build_status=None,
+        build_recommendation=None,
+        latest_blocking_gate="source_discovery",
+        latest_blocking_status=None,
+        latest_blocking_decision=None,
+        latest_blocking_reason="candidate URL appears to require authentication",
+    )
+    html = render_control_center(
+        [blocked_candidate],
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "No safe automated action" in html
+    assert "candidate URL appears to require authentication" in html
+    assert "/actions/run-next-safe-action" not in html
+    assert "Run initial gate review" not in html
+
+def test_review_queue_still_runs_initial_gate_when_only_premature_detail_repair_blocked() -> None:
+    early_candidate = candidate(
+        company_key="adesso",
+        company_name="adesso SE",
+        source_name_candidate="adesso:discovery",
+        gate_passed_count=0,
+        gate_total_count=16,
+        build_status=None,
+        build_recommendation=None,
+        latest_blocking_gate="detail_evidence_gate",
+        latest_blocking_status="manual_review_required",
+        latest_blocking_decision="manual_review_required",
+        latest_blocking_reason="detail evidence repair is premature while early gates are still missing",
+    )
+    html = render_control_center(
+        [early_candidate],
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "Run initial gate review" in html
+    assert "/actions/run-next-safe-action" in html
+    assert "not detail-evidence repair" in html
+
+
+def test_review_queue_stops_terminal_detail_gate_after_early_gates_passed() -> None:
+    blocked_candidate = candidate(
+        company_key="hdi",
+        company_name="HDI Group",
+        source_name_candidate="hdi:hannover",
+        gate_passed_count=7,
+        gate_total_count=16,
+        build_status=None,
+        build_recommendation=None,
+        latest_blocking_gate="detail_evidence_gate",
+        latest_blocking_status="manual_review_required",
+        latest_blocking_decision="manual_review_required",
+        latest_blocking_reason="bounded repair found no concrete detail pages",
+    )
+    html = render_control_center(
+        [blocked_candidate],
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "Human review required" in html
+    assert "bounded repair found no concrete detail pages" in html
+    assert "/actions/rerun-evidence-repair" not in html
+
+
+def test_next_safe_action_recovers_source_discovery_auth_false_positive() -> None:
+    from src.search_intelligence.control_center.next_safe_action import determine_next_safe_action
+
+    candidate = {
+        "company_key": "adesso",
+        "candidate_url": "https://www.adesso.de/de/karriere/jobs/index.html",
+        "status": "abort_documented",
+        "gate_passed_count": 1,
+        "latest_blocking_gate": "source_discovery",
+        "latest_blocking_status": "failed",
+        "latest_blocking_decision": "abort_documented",
+        "latest_blocking_reason": "candidate URL appears to require authentication",
+    }
+
+    action = determine_next_safe_action(candidate)
+
+    assert action.action_id == "run_initial_gate_review"
+    assert action.show_action is True
+    assert action.button_label == "Run source URL recovery"
+
+
+def test_review_queue_recovers_technical_reachability_404() -> None:
+    blocked_candidate = candidate(
+        company_key="adesso",
+        company_name="adesso SE",
+        candidate_url="https://www.adesso.de/de/karriere/jobs/index.html",
+        source_name_candidate="adesso:discovery",
+        status="abort_documented",
+        gate_passed_count=3,
+        gate_total_count=16,
+        build_status=None,
+        build_recommendation=None,
+        latest_blocking_gate="technical_reachability_gate",
+        latest_blocking_status="failed",
+        latest_blocking_decision="abort_documented",
+        latest_blocking_reason="source returned HTTP 404",
+    )
+    html = render_control_center(
+        [blocked_candidate],
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "Run source URL recovery" in html
+    assert "Technical reachability stopped" in html
+    assert "/actions/run-next-safe-action" in html
+    assert 'value="run_next_safe_action"' in html
+
+
+def test_review_queue_recovers_relevance_preview_stop_with_evidence_probe() -> None:
+    blocked_candidate = candidate(
+        company_key="adesso",
+        company_name="adesso SE",
+        candidate_url="https://jobs.adesso-group.com/",
+        source_name_candidate="adesso:discovery",
+        status="manual_review_required",
+        gate_passed_count=6,
+        gate_total_count=16,
+        build_status=None,
+        build_recommendation=None,
+        latest_blocking_gate="relevance_gate",
+        latest_blocking_status="manual_review_required",
+        latest_blocking_decision="manual_review_required",
+        latest_blocking_reason="bounded preview did not expose target-location or remote evidence",
+    )
+    html = render_control_center(
+        [blocked_candidate],
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "Run autonomous relevance discovery" in html
+    assert "autonomous bounded job-detail discovery" in html
+    assert "/actions/run-next-safe-action" in html
+    assert 'value="run_next_safe_action"' in html
