@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
+from src.search_intelligence.employer_origin_gate_registry import gate_order
 from psycopg.rows import dict_row
 
 
@@ -97,7 +98,7 @@ def build_lifecycle_outcome(
     if metrics.raw_job_count > 0 and metrics.silver_job_count > 0:
         return LifecycleOutcome(
             gate_status="passed",
-            decision="continue",
+            decision="passed",
             stop_reason=None,
             evidence=evidence
             | {

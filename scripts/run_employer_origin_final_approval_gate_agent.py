@@ -10,6 +10,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.employer_origin_gate_registry import gate_order
 
 FINAL_APPROVAL_GATE = "final_approval_gate"
 APPROVAL_TOKEN = "approve_connector_registration"
@@ -207,7 +208,7 @@ class ApprovalRepository:
                     evidence,
                     reviewed_by
                 )
-                values (%s, 16, %s, %s, %s, %s, %s, %s)
+                values (%s, %s, %s, %s, %s, %s, %s, %s)
                 on conflict (candidate_id, gate_name)
                 do update set
                     gate_status = excluded.gate_status,
@@ -218,6 +219,7 @@ class ApprovalRepository:
                 """,
                 (
                     candidate_id,
+                    gate_order(FINAL_APPROVAL_GATE),
                     FINAL_APPROVAL_GATE,
                     outcome.gate_status,
                     outcome.decision,

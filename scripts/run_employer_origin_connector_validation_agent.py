@@ -15,6 +15,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.employer_origin_gate_registry import gate_order
 
 VALIDATION_GATE = "connector_validation_gate"
 
@@ -371,7 +372,7 @@ class ValidationRepository:
                     evidence,
                     reviewed_by
                 )
-                values (%s, 15, %s, %s, %s, %s, %s, %s)
+                values (%s, %s, %s, %s, %s, %s, %s, %s)
                 on conflict (candidate_id, gate_name)
                 do update set
                     gate_status = excluded.gate_status,

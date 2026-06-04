@@ -1,7 +1,9 @@
 from __future__ import annotations
+from dataclasses import replace
 
 from scripts.search_intelligence_control_center import (
     AgentGateReview,
+    ControlCenterActionRun,
     BUILD_APPROVAL_TOKEN,
     EVIDENCE_REPAIR_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
@@ -39,7 +41,7 @@ def candidate(**overrides: object) -> ControlCenterCandidate:
         gate_passed_count=8,
         gate_manual_review_count=2,
         gate_blocked_count=0,
-        gate_total_count=14,
+        gate_total_count=16,
         latest_blocking_gate="detail_evidence_gate",
         latest_blocking_reason="bounded repair found no concrete detail pages with profile and target/remote signals",
         connector_validation_status=None,
@@ -68,7 +70,7 @@ def candidates() -> list[ControlCenterCandidate]:
             latest_blocking_reason=None,
             gate_passed_count=14,
             gate_manual_review_count=0,
-            gate_total_count=14,
+            gate_total_count=16,
         ),
     ]
 
@@ -93,6 +95,31 @@ def gate_review(
         reviewed_by="jens",
         created_at=None,
     )
+
+
+def action_run(**overrides: object) -> ControlCenterActionRun:
+    data = dict(
+        action_run_id=17,
+        action_type="rerun_evidence_repair",
+        company_key="hdi",
+        candidate_id=2,
+        reviewed_by="jens",
+        triggered_from="control_center",
+        status="failed",
+        exit_code=1,
+        started_at="2026-06-04 01:23:00+00",
+        finished_at="2026-06-04 01:23:05+00",
+        error_summary="command failed before gate review persistence",
+        stdout_tail="",
+        stderr_tail="Traceback summary",
+        gate_review_created=False,
+        gate_review_gate_name="detail_evidence_gate",
+        gate_review_status=None,
+        gate_review_decision=None,
+        gate_review_created_at=None,
+    )
+    data.update(overrides)
+    return ControlCenterActionRun(**data)
 
 
 def test_control_center_renders_real_sidebar_tabs_and_dashboard_only_by_default() -> None:
@@ -165,6 +192,24 @@ def test_control_center_renders_review_queue_for_human_decisions() -> None:
     assert '<section class="legacy-shell">' not in html
     assert "Search Intelligence Overview" not in html
     assert "Candidate backlog" not in html
+
+
+def test_review_queue_renders_last_action_run_diagnostics() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+        action_runs=[action_run()],
+    )
+
+    assert "Last action run" in html
+    assert "Rerun evidence repair" in html
+    assert "Failed" in html
+    assert "command failed before gate review persistence" in html
+    assert "Gate review" in html
+    assert "not written" in html
 
 
 def test_control_center_renders_orchestrator_attention_tab() -> None:
@@ -474,3 +519,48 @@ def test_review_queue_uses_dialog_actions_without_visible_token_inputs() -> None
     assert 'placeholder="run_evidence_repair"' not in html
     assert "This action will not" in html
     assert "Run bounded evidence repair" in html
+
+
+
+def test_review_queue_renders_continue_candidate_review_action() -> None:
+    html = render_control_center(
+        candidates(),
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "/actions/continue-candidate-review" in html
+    assert "Continue candidate review" in html
+    assert 'type="hidden" name="approval_token" value="continue_candidate_review"' in html
+    assert "This reruns the employer-origin agent chain with the current A1 multi-origin evidence logic." in html
+
+
+
+def test_review_queue_renders_connector_validation_action_for_connector_candidates() -> None:
+    base_candidates = candidates()
+    connector_candidates = [
+        replace(
+            base_candidates[0],
+            status="connector_candidate",
+            gate_passed_count=10,
+            gate_total_count=16,
+            latest_blocking_gate=None,
+            latest_blocking_reason=None,
+        ),
+        *base_candidates[1:],
+    ]
+
+    html = render_control_center(
+        connector_candidates,
+        reviewed_by="jens",
+        target_location="hannover",
+        write_actions_enabled=True,
+        active_tab="review-queue",
+    )
+
+    assert "/actions/run-connector-validation" in html
+    assert "Run connector validation" in html
+    assert 'type="hidden" name="approval_token" value="run_connector_validation"' in html
+    assert "The next safe step is connector validation" in html

@@ -72,6 +72,7 @@ def canonical_source_type(source_name: object) -> str:
     if isinstance(source_name, str) and (
         source_name.startswith("finanz_informatik:")
         or source_name.startswith("enercity:")
+        or source_name.startswith("hdi:")
     ):
         return "employer_origin_career_site"
 
@@ -232,6 +233,36 @@ def transform_enercity_raw_job(raw_job: dict) -> dict:
     )
 
 
+
+def transform_employer_origin_raw_job(raw_job: dict, *, default_company_name: str | None = None) -> dict:
+    raw_data = raw_job["raw_data"]
+    job_data = raw_data.get("job", {})
+    result_card = raw_data.get("result_card", {})
+
+    return add_canonicalization_fields(
+        {
+            "raw_job_id": raw_job["id"],
+            "source_name": raw_job["source_name"],
+            "external_job_id": raw_job["external_job_id"],
+            "source_url": (
+                job_data.get("source_url")
+                or result_card.get("detail_url")
+                or raw_job["source_url"]
+            ),
+            "title": job_data.get("title") or result_card.get("title"),
+            "company_name": (
+                job_data.get("company_name")
+                or result_card.get("company_name")
+                or default_company_name
+            ),
+            "city": job_data.get("location") or result_card.get("location"),
+            "postal_code": None,
+            "country": "DE",
+            "publication_date": None,
+        }
+    )
+
+
 def transform_stepstone_raw_job(raw_job: dict) -> dict:
     raw_data = raw_job["raw_data"]
     result_card = raw_data.get("result_card", {})
@@ -270,6 +301,9 @@ def transform_raw_job_to_silver(raw_job: dict) -> dict:
     if source_name.startswith("enercity:"):
         return transform_enercity_raw_job(raw_job)
 
+    if source_name.startswith("hdi:"):
+        return transform_employer_origin_raw_job(raw_job, default_company_name="HDI Group")
+
     if source_name == "stepstone":
         return transform_stepstone_raw_job(raw_job)
 
@@ -283,5 +317,6 @@ def get_supported_source_patterns() -> list[str]:
         "personio:%",
         "finanz_informatik:%",
         "enercity:%",
+        "hdi:%",
         "stepstone",
     ]

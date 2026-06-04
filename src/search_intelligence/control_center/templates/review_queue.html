@@ -43,6 +43,20 @@
               {% if item.hint %}
                 <p class="warning">{{ item.hint }}</p>
               {% endif %}
+              {% if item.last_action_run %}
+                <section class="action-run-status {{ item.last_action_run.tone }}">
+                  <div>
+                    <span class="eyebrow">Last action run</span>
+                    <strong>{{ item.last_action_run.action_type }} · {{ item.last_action_run.status }}</strong>
+                    <p>{{ item.last_action_run.summary }}</p>
+                  </div>
+                  <dl>
+                    <div><dt>Started</dt><dd>{{ item.last_action_run.started_at }}</dd></div>
+                    <div><dt>Exit</dt><dd>{{ item.last_action_run.exit_code }}</dd></div>
+                    <div><dt>Gate review</dt><dd>{% if item.last_action_run.gate_review_created %}written{% else %}not written{% endif %}</dd></div>
+                  </dl>
+                </section>
+              {% endif %}
               <button
                 type="button"
                 class="review-action-button"
@@ -105,8 +119,112 @@
                 <div><dt>Gates</dt><dd>{{ candidate.gate_score }}</dd></div>
                 <div><dt>Next</dt><dd>{{ candidate.next_action }}</dd></div>
               </dl>
+              {% if candidate.can_run_connector_validation %}
+                <p class="blocker positive">
+                  <strong>Connector candidate ready:</strong>
+                  Evidence and connector-candidate gates are passed. The next safe step is connector validation, not another generic review rerun.
+                </p>
+
+                <button
+                  type="button"
+                  class="review-action-button"
+                  data-dialog-target="dialog-validation-{{ candidate.company_key }}"
+                  {% if not write_actions_enabled %}disabled{% endif %}
+                >
+                  Run connector validation
+                </button>
+
+                {% if not write_actions_enabled %}
+                  <p class="warning">Start the UI with <code>--allow-write-actions</code> to run connector validation.</p>
+                {% endif %}
+
+                <dialog class="review-dialog" id="dialog-validation-{{ candidate.company_key }}">
+                  <form method="post" action="/actions/run-connector-validation">
+                    <input type="hidden" name="company_key" value="{{ candidate.company_key }}">
+                    <input type="hidden" name="approval_token" value="run_connector_validation">
+                    <input type="hidden" name="reviewed_by" value="jens">
+
+                    <span class="eyebrow">Connector validation</span>
+                    <h3>Validate connector for {{ candidate.company_name }}?</h3>
+                    <p>This runs the connector validation agent for a candidate whose evidence and connector-candidate gates already passed.</p>
+
+                    <section class="dialog-boundary">
+                      <h4>This action may</h4>
+                      <p>Validate connector artifacts, refresh validation gate evidence and persist an action-run audit entry.</p>
+                    </section>
+
+                    <section class="dialog-boundary">
+                      <h4>This action will not</h4>
+                      <p>Activate sources, write Bronze records, change scheduler configuration, merge PRs or bypass explicit approval gates.</p>
+                    </section>
+
+                    <menu>
+                      <button type="button" value="cancel" data-dialog-close>Cancel</button>
+                      <button type="submit" class="danger-action">Run connector validation</button>
+                    </menu>
+                  </form>
+                </dialog>
+              {% endif %}
+
+              {% if candidate.can_continue_review %}
+                <button
+                  type="button"
+                  class="review-action-button"
+                  data-dialog-target="dialog-continue-{{ candidate.company_key }}"
+                  {% if not write_actions_enabled %}disabled{% endif %}
+                >
+                  Continue candidate review
+                </button>
+
+                {% if not write_actions_enabled %}
+                  <p class="warning">Start the UI with <code>--allow-write-actions</code> to continue this candidate review.</p>
+                {% endif %}
+
+                <dialog class="review-dialog" id="dialog-continue-{{ candidate.company_key }}">
+                  <form method="post" action="/actions/continue-candidate-review">
+                    <input type="hidden" name="company_key" value="{{ candidate.company_key }}">
+                    <input type="hidden" name="approval_token" value="continue_candidate_review">
+                    <input type="hidden" name="reviewed_by" value="jens">
+
+                    <span class="eyebrow">Candidate review</span>
+                    <h3>Continue review for {{ candidate.company_name }}?</h3>
+                    <p>This reruns the employer-origin agent chain with the current A1 multi-origin evidence logic.</p>
+
+                    <section class="dialog-boundary">
+                      <h4>This action may</h4>
+                      <p>Refresh gate reviews, run source/evidence discovery, recompute candidate gates and persist an action-run audit entry.</p>
+                    </section>
+
+                    <section class="dialog-boundary">
+                      <h4>This action will not</h4>
+                      <p>Activate sources, write Bronze records, change scheduler configuration, merge PRs or bypass explicit approval gates.</p>
+                    </section>
+
+                    <menu>
+                      <button type="button" value="cancel" data-dialog-close>Cancel</button>
+                      <button type="submit" class="danger-action">Continue candidate review</button>
+                    </menu>
+                  </form>
+                </dialog>
+              {% endif %}
+
               {% if candidate.blocker_gate %}
                 <p class="blocker"><strong>{{ candidate.blocker_gate }}:</strong> {{ candidate.blocker_reason }}</p>
+
+                {% if candidate.last_action_run %}
+                  <section class="action-run-status {{ candidate.last_action_run.tone }}">
+                    <div>
+                      <span class="eyebrow">Last action run</span>
+                      <strong>{{ candidate.last_action_run.action_type }} · {{ candidate.last_action_run.status }}</strong>
+                      <p>{{ candidate.last_action_run.summary }}</p>
+                    </div>
+                    <dl>
+                      <div><dt>Started</dt><dd>{{ candidate.last_action_run.started_at }}</dd></div>
+                      <div><dt>Exit</dt><dd>{{ candidate.last_action_run.exit_code }}</dd></div>
+                      <div><dt>Gate review</dt><dd>{% if candidate.last_action_run.gate_review_created %}written{% else %}not written{% endif %}</dd></div>
+                    </dl>
+                  </section>
+                {% endif %}
 
                 <button
                   type="button"

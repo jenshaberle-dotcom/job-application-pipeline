@@ -62,3 +62,14 @@ def test_registry_keeps_registration_separate_from_activation() -> None:
 
     assert isinstance(connector, PersonioConnector)
     assert not hasattr(registry, "activate")
+
+
+
+def test_default_registry_can_create_hdi_connector() -> None:
+    from src.connectors.hdi import HdiConnector
+    from src.connectors.registry import create_connector
+
+    connector = create_connector("hdi:hannover")
+
+    assert isinstance(connector, HdiConnector)
+    assert connector.source_name == "hdi:hannover"

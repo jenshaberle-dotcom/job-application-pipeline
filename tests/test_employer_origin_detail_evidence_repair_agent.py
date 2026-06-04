@@ -69,11 +69,12 @@ def test_build_repair_outcome_finds_and_validates_concrete_detail_page() -> None
         location_terms=("hannover", "remote"),
         max_seed_pages=3,
         max_detail_pages=3,
+        enable_search_discovery=False,
         fetcher=fake_fetcher,
     )
 
     assert outcome.gate_status == "passed"
-    assert outcome.decision == "continue"
+    assert outcome.decision == "passed"
     assert outcome.stop_reason is None
     assert len(outcome.details) == 1
     assert outcome.details[0].url.endswith("/product-owner-data-platform")
@@ -102,12 +103,13 @@ def test_build_repair_outcome_stops_when_no_concrete_details_are_found() -> None
         location_terms=("hannover",),
         max_seed_pages=3,
         max_detail_pages=3,
+        enable_search_discovery=False,
         fetcher=empty_fetcher,
     )
 
     assert outcome.gate_status == "manual_review_required"
     assert outcome.decision == "manual_review_required"
-    assert outcome.stop_reason == "bounded repair found no concrete detail pages with profile and target/remote signals"
+    assert outcome.stop_reason == "multi-origin repair found no concrete detail pages with profile and target/remote signals"
 
 
 def test_repair_report_lines_are_actionable() -> None:
@@ -137,3 +139,93 @@ def test_repair_report_lines_are_actionable() -> None:
     assert "detail_evidence_gate: passed / continue" in text
     assert "repaired_detail_count: 1" in text
     assert "rerun connector_candidate_agent" in text
+
+
+
+def test_concrete_job_detail_url_accepts_successfactors_like_hdi_pattern() -> None:
+    assert concrete_job_detail_url("https://job.hdi.group/job/Data-&-Analytics-Engineer-%28Long-Tail%29/720-en_US/")
+
+
+def test_build_repair_outcome_uses_search_discovery_for_hdi_job_host() -> None:
+    search_html = """
+    <html><body>
+      <a href="https://job.hdi.group/job/Data-&-Analytics-Engineer-%28Long-Tail%29/720-en_US/">HDI Data Analytics Hannover</a>
+    </body></html>
+    """
+    detail_url = "https://job.hdi.group/job/Data-&-Analytics-Engineer-%28Long-Tail%29/720-en_US/"
+
+    def search_fetcher(query: str) -> tuple[str, str, int]:
+        assert "HDI" in query or "hdi" in query
+        return search_html, "https://html.duckduckgo.com/html/?q=hdi", 200
+
+    def fetcher(url: str) -> tuple[str, str, int]:
+        if url == "https://careers.hdi.group/de/karriere/jobs":
+            return "<html><body>No detail links here.</body></html>", url, 200
+        if url == detail_url:
+            return (
+                """
+                <html>
+                  <title>Data & Analytics Engineer (Long Tail)</title>
+                  <body>Hannover Data Analytics SQL Python Datenpipelines Datenarchitektur.</body>
+                </html>
+                """,
+                url,
+                200,
+            )
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    outcome = build_repair_outcome(
+        candidate=make_candidate(),
+        gates={},
+        profile_terms=("data", "analytics", "sql", "python"),
+        location_terms=("hannover", "remote"),
+        max_seed_pages=12,
+        max_detail_pages=8,
+        enable_search_discovery=True,
+        max_search_queries=2,
+        max_search_results=4,
+        fetcher=fetcher,
+        search_fetcher=search_fetcher,
+    )
+
+    assert outcome.gate_status == "passed"
+    assert outcome.decision == "passed"
+    assert outcome.details[0].final_url == detail_url
+    assert outcome.evidence["decision_taxonomy"] == "accepted"
+    assert outcome.evidence["confidence_score"] == 0.96
+    assert outcome.evidence["search_discovery_enabled"] is True
+    assert outcome.evidence["requested_search_queries"]
+
+
+def test_build_repair_outcome_reports_implementation_gap_when_detail_candidate_cannot_be_validated() -> None:
+    detail_url = "https://job.hdi.group/job/Data-&-Analytics-Engineer-%28Long-Tail%29/720-en_US/"
+
+    def search_fetcher(query: str) -> tuple[str, str, int]:
+        return f'<html><body><a href="{detail_url}">HDI Data Analytics Hannover</a></body></html>', "https://search.example", 200
+
+    def fetcher(url: str) -> tuple[str, str, int]:
+        if url == "https://careers.hdi.group/de/karriere/jobs":
+            return "<html><body>No detail links here.</body></html>", url, 200
+        if url == detail_url:
+            return "<html><title>Data & Analytics Engineer</title><body>Data Analytics SQL Python</body></html>", url, 200
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    outcome = build_repair_outcome(
+        candidate=make_candidate(),
+        gates={},
+        profile_terms=("data", "analytics", "sql", "python"),
+        location_terms=("hannover",),
+        max_seed_pages=12,
+        max_detail_pages=8,
+        enable_search_discovery=True,
+        max_search_queries=1,
+        max_search_results=2,
+        fetcher=fetcher,
+        search_fetcher=search_fetcher,
+    )
+
+    assert outcome.gate_status == "manual_review_required"
+    assert outcome.evidence["decision_taxonomy"] == "implementation_gap"
+    assert outcome.evidence["confidence_score"] == 0.82
+    assert "plausible job-detail candidates" in (outcome.stop_reason or "")
+    assert any(item["url"] == detail_url for item in outcome.evidence["detail_assessments"])

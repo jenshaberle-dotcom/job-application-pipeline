@@ -122,7 +122,7 @@ def test_connector_candidate_outcome_passes_with_connector_spec() -> None:
 
     assert outcome.gate_name == "connector_candidate_gate"
     assert outcome.gate_status == "passed"
-    assert outcome.decision == "build_connector_candidate"
+    assert outcome.decision == "passed"
 
     spec = outcome.evidence["connector_candidate_spec"]
     assert spec["recommended_connector"]["module_path"] == "src/connectors/hdi.py"

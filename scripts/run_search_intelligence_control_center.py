@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,13 +14,18 @@ from psycopg.rows import dict_row
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from scripts.search_intelligence_control_center import (
     BUILD_APPROVAL_TOKEN,
+    CONTINUE_CANDIDATE_REVIEW_TOKEN,
+    CONNECTOR_VALIDATION_TOKEN,
     EVIDENCE_REPAIR_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     AgentGateReview,
+    ControlCenterActionRun,
     ControlCenterCandidate,
     GoldMarketCoverageSummary,
     OrchestratorAttentionStep,
     build_approval_command,
+    continue_candidate_review_command,
+    run_connector_validation_command,
     evidence_repair_command,
     registration_approval_command,
     render_control_center,
@@ -221,6 +227,32 @@ def _rows_to_agent_gate_reviews(rows: list[object]) -> list[AgentGateReview]:
     ]
 
 
+def _rows_to_action_runs(rows: list[object]) -> list[ControlCenterActionRun]:
+    return [
+        ControlCenterActionRun(
+            action_run_id=int(_value(row, "id", 0) or 0),
+            action_type=str(_value(row, "action_type", "")),
+            company_key=str(_value(row, "company_key", "")),
+            candidate_id=int(_value(row, "candidate_id")) if _value(row, "candidate_id") is not None else None,
+            reviewed_by=_value(row, "reviewed_by"),
+            triggered_from=str(_value(row, "triggered_from", "")),
+            status=str(_value(row, "status", "")),
+            exit_code=int(_value(row, "exit_code")) if _value(row, "exit_code") is not None else None,
+            started_at=_value(row, "started_at"),
+            finished_at=_value(row, "finished_at"),
+            error_summary=_value(row, "error_summary"),
+            stdout_tail=_value(row, "stdout_tail"),
+            stderr_tail=_value(row, "stderr_tail"),
+            gate_review_created=_value(row, "gate_review_created"),
+            gate_review_gate_name=_value(row, "gate_review_gate_name"),
+            gate_review_status=_value(row, "gate_review_status"),
+            gate_review_decision=_value(row, "gate_review_decision"),
+            gate_review_created_at=_value(row, "gate_review_created_at"),
+        )
+        for row in rows
+    ]
+
+
 def load_agent_gate_reviews() -> list[AgentGateReview]:
     with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
         if not _db_object_exists(conn, "employer_origin_candidate_gate_reviews"):
@@ -262,6 +294,231 @@ def load_agent_gate_reviews() -> list[AgentGateReview]:
     return _rows_to_agent_gate_reviews(rows)
 
 
+def load_action_runs() -> list[ControlCenterActionRun]:
+    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+        if not _db_object_exists(conn, "search_intelligence_action_runs"):
+            return []
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                select
+                    id,
+                    action_type,
+                    company_key,
+                    candidate_id,
+                    reviewed_by,
+                    triggered_from,
+                    status,
+                    exit_code,
+                    started_at,
+                    finished_at,
+                    stdout_tail,
+                    stderr_tail,
+                    error_summary,
+                    gate_review_created,
+                    gate_review_gate_name,
+                    gate_review_status,
+                    gate_review_decision,
+                    gate_review_created_at
+                from search_intelligence_action_runs
+                order by started_at desc, id desc
+                limit 50;
+                """
+            )
+            rows = cur.fetchall()
+    return _rows_to_action_runs(rows)
+
+
+def _tail(value: str, *, max_chars: int = 3000) -> str:
+    value = (value or "").strip()
+    if len(value) <= max_chars:
+        return value
+    return value[-max_chars:]
+
+
+def _lookup_candidate_id(conn: psycopg.Connection[object], company_key: str) -> int | None:
+    if not company_key:
+        return None
+    with conn.cursor() as cur:
+        cur.execute("select id from employer_origin_source_candidates where company_key = %s order by id limit 1", (company_key,))
+        row = cur.fetchone()
+    return int(_value(row, "id")) if row and _value(row, "id") is not None else None
+
+
+def _create_action_run(
+    *,
+    action_type: str,
+    company_key: str,
+    reviewed_by: str,
+    command: tuple[str, ...],
+) -> int | None:
+    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+        if not _db_object_exists(conn, "search_intelligence_action_runs"):
+            return None
+        candidate_id = _lookup_candidate_id(conn, company_key)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                insert into search_intelligence_action_runs (
+                    action_type, company_key, candidate_id, reviewed_by, triggered_from, command, status
+                ) values (%s, %s, %s, %s, 'control_center', %s, 'running')
+                returning id;
+                """,
+                (action_type, company_key, candidate_id, reviewed_by, shlex.join(command)),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return int(_value(row, "id")) if row and _value(row, "id") is not None else None
+
+
+def _latest_gate_review_after(
+    conn: psycopg.Connection[object],
+    *,
+    candidate_id: int | None,
+    action_run_id: int,
+    gate_name: str | None,
+) -> dict[str, object] | None:
+    if candidate_id is None:
+        return None
+    with conn.cursor() as cur:
+        cur.execute("select started_at from search_intelligence_action_runs where id = %s", (action_run_id,))
+        started = cur.fetchone()
+        if not started:
+            return None
+        if gate_name:
+            cur.execute(
+                """
+                select gate_name, gate_status, decision, created_at
+                from employer_origin_candidate_gate_reviews
+                where candidate_id = %s
+                  and gate_name = %s
+                  and created_at >= %s
+                order by created_at desc, id desc
+                limit 1;
+                """,
+                (candidate_id, gate_name, _value(started, "started_at")),
+            )
+        else:
+            cur.execute(
+                """
+                select gate_name, gate_status, decision, created_at
+                from employer_origin_candidate_gate_reviews
+                where candidate_id = %s
+                  and created_at >= %s
+                order by created_at desc, id desc
+                limit 1;
+                """,
+                (candidate_id, _value(started, "started_at")),
+            )
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def _finish_action_run(
+    *,
+    action_run_id: int | None,
+    action_type: str,
+    exit_code: int,
+    stdout: str,
+    stderr: str,
+    error_summary: str,
+) -> None:
+    if action_run_id is None:
+        return
+    gate_by_action = {
+        "rerun_evidence_repair": "detail_evidence_gate",
+        "approve_connector_registration": "final_approval_gate",
+        "approve_connector_build": "connector_candidate_gate",
+        "continue_candidate_review": None,
+        "run_connector_validation": "connector_validation_gate",
+    }
+    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+        if not _db_object_exists(conn, "search_intelligence_action_runs"):
+            return
+        with conn.cursor() as cur:
+            cur.execute("select candidate_id from search_intelligence_action_runs where id = %s", (action_run_id,))
+            run_row = cur.fetchone()
+        gate = _latest_gate_review_after(
+            conn,
+            candidate_id=int(_value(run_row, "candidate_id")) if run_row and _value(run_row, "candidate_id") is not None else None,
+            action_run_id=action_run_id,
+            gate_name=gate_by_action.get(action_type),
+        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                update search_intelligence_action_runs
+                set status = %s,
+                    exit_code = %s,
+                    finished_at = now(),
+                    stdout_tail = %s,
+                    stderr_tail = %s,
+                    error_summary = %s,
+                    gate_review_created = %s,
+                    gate_review_gate_name = %s,
+                    gate_review_status = %s,
+                    gate_review_decision = %s,
+                    gate_review_created_at = %s,
+                    updated_at = now()
+                where id = %s;
+                """,
+                (
+                    "success" if exit_code == 0 else "failed",
+                    exit_code,
+                    _tail(stdout),
+                    _tail(stderr),
+                    error_summary,
+                    bool(gate),
+                    _value(gate, "gate_name") if gate else None,
+                    _value(gate, "gate_status") if gate else None,
+                    _value(gate, "decision") if gate else None,
+                    _value(gate, "created_at") if gate else None,
+                    action_run_id,
+                ),
+            )
+        conn.commit()
+
+
+def run_command_with_audit(
+    *,
+    action_type: str,
+    company_key: str,
+    reviewed_by: str,
+    command: tuple[str, ...],
+) -> str:
+    action_run_id = _create_action_run(
+        action_type=action_type,
+        company_key=company_key,
+        reviewed_by=reviewed_by,
+        command=command,
+    )
+    try:
+        completed = subprocess.run(command, check=False, capture_output=True, text=True)
+        output = (completed.stdout or completed.stderr or "").strip().splitlines()
+        summary = output[0] if output else "No output."
+        _finish_action_run(
+            action_run_id=action_run_id,
+            action_type=action_type,
+            exit_code=completed.returncode,
+            stdout=completed.stdout or "",
+            stderr=completed.stderr or "",
+            error_summary=summary,
+        )
+        run_suffix = f"; action_run_id={action_run_id}" if action_run_id is not None else "; action_run_audit=missing"
+        return f"exit={completed.returncode}; {summary}{run_suffix}"
+    except Exception as exc:  # noqa: BLE001 - action-run audit must capture runner failures.
+        _finish_action_run(
+            action_run_id=action_run_id,
+            action_type=action_type,
+            exit_code=1,
+            stdout="",
+            stderr=repr(exc),
+            error_summary=f"runner_exception={type(exc).__name__}: {exc}",
+        )
+        run_suffix = f"; action_run_id={action_run_id}" if action_run_id is not None else "; action_run_audit=missing"
+        return f"exit=1; runner_exception={type(exc).__name__}: {exc}{run_suffix}"
+
+
 def run_command(command: tuple[str, ...]) -> str:
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     output = (completed.stdout or completed.stderr or "").strip().splitlines()
@@ -300,6 +557,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
             market_summary = load_market_coverage_summary()
             orchestrator_steps = load_orchestrator_attention_steps()
             gate_reviews = load_agent_gate_reviews()
+            action_runs = load_action_runs()
             body = render_control_center(
                 candidates,
                 reviewed_by=self.state.reviewed_by,
@@ -310,6 +568,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
                 market_summary=market_summary,
                 orchestrator_steps=orchestrator_steps,
                 gate_reviews=gate_reviews,
+                action_runs=action_runs,
             )
         except Exception as exc:  # pragma: no cover - browser diagnostics
             body = f"<html><body><h1>Control Center failed</h1><pre>{exc}</pre></body></html>"
@@ -321,7 +580,13 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
             self.send_html("<html><body><h1>Control Center stopped</h1><p>You can close this tab.</p></body></html>")
             threading.Thread(target=self.server.shutdown, daemon=True).start()  # type: ignore[attr-defined]
             return
-        if self.path not in {"/actions/rerun-evidence-repair", "/actions/approve-build", "/actions/approve-registration"}:
+        if self.path not in {
+            "/actions/rerun-evidence-repair",
+            "/actions/continue-candidate-review",
+            "/actions/run-connector-validation",
+            "/actions/approve-build",
+            "/actions/approve-registration",
+        }:
             self.send_error(404)
             return
 
@@ -338,20 +603,51 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
             if approval_token != EVIDENCE_REPAIR_TOKEN:
                 self.state.flash_message = f"Action blocked: exact token {EVIDENCE_REPAIR_TOKEN!r} required."
             else:
-                self.state.flash_message = run_command(
-                    evidence_repair_command(company_key, self.state.target_location, reviewed_by)
+                self.state.flash_message = run_command_with_audit(
+                    action_type="rerun_evidence_repair",
+                    company_key=company_key,
+                    reviewed_by=reviewed_by,
+                    command=evidence_repair_command(company_key, self.state.target_location, reviewed_by),
+                )
+        elif self.path == "/actions/continue-candidate-review":
+            if approval_token != CONTINUE_CANDIDATE_REVIEW_TOKEN:
+                self.state.flash_message = f"Action blocked: exact token {CONTINUE_CANDIDATE_REVIEW_TOKEN!r} required."
+            else:
+                self.state.flash_message = run_command_with_audit(
+                    action_type="continue_candidate_review",
+                    company_key=company_key,
+                    reviewed_by=reviewed_by,
+                    command=continue_candidate_review_command(company_key, self.state.target_location, reviewed_by),
+                )
+        elif self.path == "/actions/run-connector-validation":
+            if approval_token != CONNECTOR_VALIDATION_TOKEN:
+                self.state.flash_message = f"Action blocked: exact token {CONNECTOR_VALIDATION_TOKEN!r} required."
+            else:
+                self.state.flash_message = run_command_with_audit(
+                    action_type="run_connector_validation",
+                    company_key=company_key,
+                    reviewed_by=reviewed_by,
+                    command=run_connector_validation_command(company_key, reviewed_by),
                 )
         elif self.path == "/actions/approve-build":
             if approval_token != BUILD_APPROVAL_TOKEN:
                 self.state.flash_message = f"Action blocked: exact token {BUILD_APPROVAL_TOKEN!r} required."
             else:
-                self.state.flash_message = run_command(build_approval_command(company_key, reviewed_by))
+                self.state.flash_message = run_command_with_audit(
+                    action_type="approve_connector_build",
+                    company_key=company_key,
+                    reviewed_by=reviewed_by,
+                    command=build_approval_command(company_key, reviewed_by),
+                )
         elif self.path == "/actions/approve-registration":
             if approval_token != REGISTRATION_APPROVAL_TOKEN:
                 self.state.flash_message = f"Action blocked: exact token {REGISTRATION_APPROVAL_TOKEN!r} required."
             else:
-                self.state.flash_message = run_command(
-                    registration_approval_command(company_key, self.state.target_location, reviewed_by)
+                self.state.flash_message = run_command_with_audit(
+                    action_type="approve_connector_registration",
+                    company_key=company_key,
+                    reviewed_by=reviewed_by,
+                    command=registration_approval_command(company_key, self.state.target_location, reviewed_by),
                 )
 
         self.send_response(303)

@@ -19,8 +19,10 @@ SOURCE_TARGET = 'hannover'
 SOURCE_TYPE = 'employer_origin_career_site'
 COMPANY_NAME = 'HDI Group'
 LISTING_URL = 'https://careers.hdi.group/en/your_career_opportunities/job_board'
-ALLOWED_HOSTS = ('careers.hdi.group',)
-KNOWN_DETAIL_URLS = ()
+ALLOWED_HOSTS = ('careers.hdi.group', 'job.hdi.group')
+KNOWN_DETAIL_URLS = (
+    'https://job.hdi.group/job/Data-&-Analytics-Engineer-%28Long-Tail%29/720-en_US/',
+)
 JOB_DETAIL_PATH_MARKERS = (
     "/jobs/",
     "/job/",
@@ -280,6 +282,26 @@ def extract_candidate_links(html: str, base_url: str) -> list[CandidateLink]:
 
     candidates: list[CandidateLink] = []
     seen: set[str] = set()
+
+    for known_url in KNOWN_DETAIL_URLS:
+        clean_url = known_url.split("#", 1)[0]
+        if clean_url in seen:
+            continue
+        seen.add(clean_url)
+
+        parsed = urlparse(clean_url)
+        path = parsed.path
+        candidates.append(
+            CandidateLink(
+                url=clean_url,
+                path=path,
+                text=path.rsplit("/", 2)[-2].replace("-", " ") if "/" in path else COMPANY_NAME,
+                location_terms=TARGET_LOCATION_TERMS,
+                profile_terms=PROFILE_TERMS,
+                recommendation="known_detail_candidate_from_gate_evidence",
+                reason="URL was approved by DB-backed detail evidence gate.",
+            )
+        )
 
     for url, text in parser.links:
         clean_url = url.split("#", 1)[0]

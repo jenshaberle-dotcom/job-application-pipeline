@@ -352,7 +352,7 @@ def connector_candidate_outcome(
     return GateOutcome(
         gate_name=CONNECTOR_CANDIDATE_GATE,
         gate_status="passed",
-        decision="build_connector_candidate",
+        decision="passed",
         stop_reason=None,
         evidence={
             "connector_candidate_spec": spec,

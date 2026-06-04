@@ -34,7 +34,7 @@ def test_lifecycle_outcome_passes_when_source_has_raw_and_silver_evidence() -> N
     outcome = build_lifecycle_outcome(make_candidate(), make_metrics(raw=3, silver=3))
 
     assert outcome.gate_status == "passed"
-    assert outcome.decision == "continue"
+    assert outcome.decision == "passed"
     assert outcome.stop_reason is None
     assert outcome.evidence["raw_job_count"] == 3
     assert outcome.evidence["silver_job_count"] == 3
@@ -61,7 +61,7 @@ def test_lifecycle_report_lines_are_actionable() -> None:
     outcome = build_lifecycle_outcome(make_candidate(), make_metrics(raw=3, silver=3))
     text = "\n".join(lifecycle_report_lines(make_candidate(), outcome))
 
-    assert "source_lifecycle_tracking: passed / continue" in text
+    assert "source_lifecycle_tracking: passed / passed" in text
     assert "raw_job_count: 3" in text
     assert "silver_job_count: 3" in text
     assert "NEXT: lifecycle gate is now tracked from DB evidence." in text

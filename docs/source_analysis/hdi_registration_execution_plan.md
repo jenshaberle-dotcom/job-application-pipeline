@@ -2,13 +2,13 @@
 
 ## Status
 
-- allowed: `false`
-- reason: final approval gate is not passed/approve_connector_registration
+- allowed: `true`
+- reason: final approval gate passed
 
 ## Registration Steps
 
-- Register `hdi:hannover` in ingestion CLI/runner connector mapping.
-- Import `src.connectors.hdi` and its connector class.
+- Register `hdi:hannover` in the code-backed connector registry, not directly in CLI control flow.
+- Import `src.connectors.hdi` and its connector class from the employer-origin registry extension.
 - Run connector-specific tests and full test suite.
 - Run a bounded manual ingestion preview if supported.
 - Prepare a separate controlled activation migration/search-profile change.
@@ -22,7 +22,7 @@
 
 ## Rollback
 
-- Remove connector mapping from ingestion CLI/runner.
+- Remove connector mapping from the code-backed connector registry.
 - Revert source-profile activation migration if created in a later activation PR.
 - Keep raw_jobs unchanged unless a later controlled activation wrote new rows.
 
@@ -36,7 +36,3 @@
 ## Boundary
 
 This is an execution plan only. It does not modify connector registration, activation, Bronze persistence or scheduler state.
-
-## Current Interpretation
-
-HDI is already represented as a candidate and already has a registration execution plan artifact. The plan remains blocked because final approval is not passed. This is not a discovery gap; it is a gate-evidence and approval boundary.

@@ -96,6 +96,10 @@ def candidate_sort_key(candidate: object) -> tuple[int, int, str]:
 
 
 def pipeline_steps(candidate: object) -> list[dict[str, str]]:
+    passed = int(_value(candidate, "gate_passed_count", 0) or 0)
+    status = str(_value(candidate, "status", "") or "")
+    has_connector_candidate = status == "connector_candidate" or passed >= 10
+
     if is_active(candidate):
         states = [
             ("Discover", "done"),
@@ -106,9 +110,10 @@ def pipeline_steps(candidate: object) -> list[dict[str, str]]:
             ("Observe", "done"),
         ]
     elif is_blocked(candidate):
+        blocker = str(_value(candidate, "latest_blocking_gate", "") or "")
         states = [
             ("Discover", "done"),
-            ("Evidence", "stop"),
+            ("Evidence" if blocker == "detail_evidence_gate" else "Gate", "stop"),
             ("Build", "open"),
             ("Validate", "open"),
             ("Activate", "open"),
@@ -119,6 +124,24 @@ def pipeline_steps(candidate: object) -> list[dict[str, str]]:
             ("Discover", "done"),
             ("Gate", "done"),
             ("Build", "review"),
+            ("Validate", "open"),
+            ("Activate", "open"),
+            ("Observe", "open"),
+        ]
+    elif has_connector_candidate:
+        states = [
+            ("Discover", "done"),
+            ("Gate", "done"),
+            ("Build", "done"),
+            ("Validate", "open"),
+            ("Activate", "open"),
+            ("Observe", "open"),
+        ]
+    elif passed >= 8:
+        states = [
+            ("Discover", "done"),
+            ("Gate", "done"),
+            ("Build", "open"),
             ("Validate", "open"),
             ("Activate", "open"),
             ("Observe", "open"),
@@ -157,7 +180,85 @@ def candidate_card(candidate: object) -> dict[str, Any]:
         "blocker_reason": str(blocker_reason) if blocker_reason else None,
         "pipeline_steps": pipeline_steps(candidate),
         "next_action": next_action(candidate),
+        "can_continue_review": can_continue_candidate_review(candidate),
+        "can_run_connector_validation": can_run_connector_validation(candidate),
     }
+
+
+def format_datetime(value: object) -> str:
+    if not value:
+        return "-"
+    return str(value).replace("+00:00", " UTC")
+
+
+def action_run_card(action_run: object | None) -> dict[str, object] | None:
+    if action_run is None:
+        return None
+    status = str(_value(action_run, "status", ""))
+    exit_code = _value(action_run, "exit_code")
+    gate_created = bool(_value(action_run, "gate_review_created", False))
+    error_summary = str(_value(action_run, "error_summary", "") or "")
+    if not error_summary:
+        stdout_tail = str(_value(action_run, "stdout_tail", "") or "").strip()
+        stderr_tail = str(_value(action_run, "stderr_tail", "") or "").strip()
+        error_summary = stdout_tail.splitlines()[0] if stdout_tail else (stderr_tail.splitlines()[0] if stderr_tail else "No output recorded.")
+    return {
+        "id": _value(action_run, "action_run_id", ""),
+        "action_type": humanize(_value(action_run, "action_type")),
+        "status": humanize(status),
+        "tone": "ok" if status == "success" else ("warn" if status in {"failed", "blocked"} else "neutral"),
+        "exit_code": "-" if exit_code is None else str(exit_code),
+        "started_at": format_datetime(_value(action_run, "started_at")),
+        "finished_at": format_datetime(_value(action_run, "finished_at")),
+        "reviewed_by": str(_value(action_run, "reviewed_by", "") or "-"),
+        "summary": error_summary,
+        "gate_review_created": gate_created,
+        "gate_review_status": humanize(_value(action_run, "gate_review_status")),
+        "gate_review_decision": humanize(_value(action_run, "gate_review_decision")),
+    }
+
+
+def latest_action_runs_by_company(action_runs: list[object]) -> dict[str, object]:
+    latest: dict[str, object] = {}
+    for run in action_runs:
+        company_key = str(_value(run, "company_key", ""))
+        if not company_key or company_key in latest:
+            continue
+        latest[company_key] = run
+    return latest
+
+
+def can_run_connector_validation(candidate: object) -> bool:
+    if is_active(candidate):
+        return False
+
+    status = str(_value(candidate, "status", "") or "").strip().lower().replace(" ", "_")
+    stage = str(_value(candidate, "current_stage", "") or _value(candidate, "stage", "") or "").strip().lower().replace(" ", "_")
+    display_stage = str(_value(candidate, "display_stage", "") or "").strip().lower().replace(" ", "_")
+    passed = int(_value(candidate, "gate_passed_count", 0) or 0)
+
+    return (
+        status == "connector_candidate"
+        or stage == "connector_candidate"
+        or display_stage == "connector_candidate"
+        or passed >= 10
+    )
+
+
+def can_continue_candidate_review(candidate: object) -> bool:
+    if is_active(candidate):
+        return False
+
+    status = str(_value(candidate, "status", "") or "")
+    passed = int(_value(candidate, "gate_passed_count", 0) or 0)
+
+    # A connector candidate has already passed the build/candidate gate.
+    # Re-running the generic chain does not move it safely through activation
+    # or validation gates. It needs an explicit approval/validation workflow.
+    if status == "connector_candidate" or passed >= 10:
+        return False
+
+    return True
 
 
 def next_action(candidate: object) -> str:
@@ -165,11 +266,13 @@ def next_action(candidate: object) -> str:
         return "Monitor value"
     if is_blocked(candidate):
         return "Repair evidence"
+    if can_run_connector_validation(candidate):
+        return "Validate connector"
     if needs_registration_approval(candidate):
         return "Approve registration"
     if needs_build_approval(candidate):
         return "Approve build"
-    return "Review candidate"
+    return "Continue review"
 
 
 def source_rows(candidates: Iterable[object]) -> list[dict[str, str]]:
@@ -625,11 +728,35 @@ def planned_job_sections() -> list[dict[str, str]]:
 def review_queue_sections(
     candidates: list[object],
     approval_entries: list[dict[str, str]],
+    action_runs: list[object],
 ) -> list[dict[str, object]]:
+    latest_runs = latest_action_runs_by_company(action_runs)
+
+    def enriched_candidate_card(candidate: object) -> dict[str, object]:
+        card = candidate_card(candidate)
+        card["last_action_run"] = action_run_card(latest_runs.get(str(_value(candidate, "company_key", ""))))
+        return card
+
+    def enriched_approval_item(item: dict[str, str]) -> dict[str, object]:
+        enriched: dict[str, object] = dict(item)
+        enriched["last_action_run"] = action_run_card(latest_runs.get(str(item.get("company_key", ""))))
+        return enriched
+
+    connector_ready = [
+        candidate
+        for candidate in candidates
+        if can_run_connector_validation(candidate)
+    ]
+    connector_ready_keys = {
+        str(_value(candidate, "company_key", "") or "")
+        for candidate in connector_ready
+    }
+
     evidence_review = [
         candidate
         for candidate in candidates
         if is_blocked(candidate)
+        and str(_value(candidate, "company_key", "") or "") not in connector_ready_keys
     ]
     active_monitoring = [
         candidate
@@ -641,8 +768,14 @@ def review_queue_sections(
         for candidate in candidates
         if not is_active(candidate)
         and not is_blocked(candidate)
+        and str(_value(candidate, "company_key", "") or "") not in connector_ready_keys
         and not needs_build_approval(candidate)
         and not needs_registration_approval(candidate)
+    ]
+    visible_approval_entries = [
+        item
+        for item in approval_entries
+        if str(item.get("company_key", "") or "") not in connector_ready_keys
     ]
 
     return [
@@ -651,23 +784,31 @@ def review_queue_sections(
             "description": "Candidates blocked by weak or incomplete evidence. These need human review or bounded repair before any connector registration can continue.",
             "tone": "warn",
             "count": len(evidence_review),
-            "candidate_cards": [candidate_card(item) for item in sorted(evidence_review, key=candidate_sort_key)],
+            "candidate_cards": [enriched_candidate_card(item) for item in sorted(evidence_review, key=candidate_sort_key)],
+            "approval_items": [],
+        },
+        {
+            "title": "Connector candidates ready",
+            "description": "Evidence and connector-candidate gates are passed. These candidates need connector validation or the next explicit approval workflow, not another generic review rerun.",
+            "tone": "ok" if connector_ready else "neutral",
+            "count": len(connector_ready),
+            "candidate_cards": [enriched_candidate_card(item) for item in sorted(connector_ready, key=candidate_sort_key)],
             "approval_items": [],
         },
         {
             "title": "Approval required",
-            "description": "Explicit human approval queue for build or registration gates. S8A5 will make these actions usable under strict approval boundaries.",
-            "tone": "warn" if approval_entries else "ok",
-            "count": len(approval_entries),
+            "description": "Explicit human approval queue for build or registration gates. Approval items are shown only when no more specific connector-validation workflow is available.",
+            "tone": "warn" if visible_approval_entries else "ok",
+            "count": len(visible_approval_entries),
             "candidate_cards": [],
-            "approval_items": approval_entries,
+            "approval_items": [enriched_approval_item(item) for item in visible_approval_entries],
         },
         {
             "title": "Active / monitor only",
             "description": "Controlled sources that do not need approval right now but should remain visible for source-value and health monitoring.",
             "tone": "ok",
             "count": len(active_monitoring),
-            "candidate_cards": [candidate_card(item) for item in sorted(active_monitoring, key=candidate_sort_key)],
+            "candidate_cards": [enriched_candidate_card(item) for item in sorted(active_monitoring, key=candidate_sort_key)],
             "approval_items": [],
         },
         {
@@ -675,7 +816,7 @@ def review_queue_sections(
             "description": "Known candidates without an immediate blocker or approval request. Keep visible, but do not distract from review-required work.",
             "tone": "neutral",
             "count": len(backlog),
-            "candidate_cards": [candidate_card(item) for item in sorted(backlog, key=candidate_sort_key)],
+            "candidate_cards": [enriched_candidate_card(item) for item in sorted(backlog, key=candidate_sort_key)],
             "approval_items": [],
         },
     ]
@@ -701,6 +842,7 @@ def build_control_center_view_model(
     market_summary: object,
     orchestrator_steps: list[object],
     gate_reviews: list[object],
+    action_runs: list[object],
     write_actions_enabled: bool,
     legacy_view_html: str,
     stylesheet: str,
@@ -731,7 +873,7 @@ def build_control_center_view_model(
     blocked_candidate = next((card for card in cards if card["path_state"] == "blocked"), None)
 
     approval_entries = approval_items(candidates, write_actions_enabled=write_actions_enabled)
-    review_sections = review_queue_sections(candidates, approval_entries)
+    review_sections = review_queue_sections(candidates, approval_entries, action_runs)
     review_summary = review_queue_summary(review_sections)
     review_queue_count = review_summary["evidence_review"] + review_summary["approvals"]
 
@@ -804,6 +946,7 @@ def build_control_center_view_model(
         "approval_items": approval_entries,
         "review_queue_sections": review_sections,
         "review_queue_summary": review_summary,
+        "action_runs": [action_run_card(run) for run in action_runs],
         "orchestrator_items": orchestrator_items(orchestrator_steps),
         "demo_chain_sections": demo_chain_sections(candidates),
         "planned_gap_sections": planned_gap_sections(),

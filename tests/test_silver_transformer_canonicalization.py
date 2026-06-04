@@ -271,3 +271,44 @@ def test_transform_enercity_raw_job_uses_bounded_connector_fields() -> None:
 
 def test_supported_source_patterns_include_enercity_family() -> None:
     assert "enercity:%" in get_supported_source_patterns()
+
+
+
+def test_transform_hdi_raw_job_uses_bounded_connector_fields() -> None:
+    raw_job = {
+        "id": 11938,
+        "source_name": "hdi:hannover",
+        "external_job_id": "1371415133:c70418faa5fb",
+        "source_url": "https://job.hdi.group/job/Hannover-Portfolio-Steering-Actuary-&-Business-Analyst-(Long-Tail)/743-en_US/",
+        "raw_data": {
+            "job": {
+                "title": "Portfolio Steering - Actuary & Business Analyst (Long Tail) Job Details | HDI",
+                "company_name": "HDI Group",
+                "location": "hannover; remote; deutschland",
+                "source_url": "https://job.hdi.group/job/Hannover-Portfolio-Steering-Actuary-&-Business-Analyst-(Long-Tail)/743-en_US/",
+            },
+            "result_card": {
+                "title": "Portfolio Steering - Actuary & Business Analyst (Long Tail) Job Details | HDI",
+                "company_name": "HDI Group",
+                "location": "hannover; remote; deutschland",
+                "detail_url": "https://job.hdi.group/job/Hannover-Portfolio-Steering-Actuary-&-Business-Analyst-(Long-Tail)/743-en_US/",
+            },
+        },
+    }
+
+    result = transform_raw_job_to_silver(raw_job)
+
+    assert result["source_name"] == "hdi:hannover"
+    assert result["source_url"] == "https://job.hdi.group/job/Hannover-Portfolio-Steering-Actuary-&-Business-Analyst-(Long-Tail)/743-en_US/"
+    assert result["title"] == "Portfolio Steering - Actuary & Business Analyst (Long Tail) Job Details | HDI"
+    assert result["company_name"] == "HDI Group"
+    assert result["city"] == "hannover; remote; deutschland"
+    assert result["country"] == "DE"
+    assert result["canonical_source_type"] == "employer_origin_career_site"
+    assert result["canonical_key_candidate"].startswith(
+        "hdi group :: portfolio steering - actuary & business analyst"
+    )
+
+
+def test_supported_source_patterns_include_hdi_family() -> None:
+    assert "hdi:%" in get_supported_source_patterns()

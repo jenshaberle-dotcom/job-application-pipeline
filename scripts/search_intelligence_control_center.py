@@ -11,6 +11,8 @@ from src.search_intelligence.control_center.view_model import build_control_cent
 BUILD_APPROVAL_TOKEN = "approve_connector_build"
 REGISTRATION_APPROVAL_TOKEN = "approve_connector_registration"
 EVIDENCE_REPAIR_TOKEN = "run_evidence_repair"
+CONTINUE_CANDIDATE_REVIEW_TOKEN = "continue_candidate_review"
+CONNECTOR_VALIDATION_TOKEN = "run_connector_validation"
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,28 @@ class GoldMarketCoverageSummary:
     saturated_scope_count: int = 0
     actionable_novelty_scope_count: int = 0
     latest_aggregator_novelty_snapshot_at: object | None = None
+
+
+@dataclass(frozen=True)
+class ControlCenterActionRun:
+    action_run_id: int
+    action_type: str
+    company_key: str
+    candidate_id: int | None
+    reviewed_by: str | None
+    triggered_from: str
+    status: str
+    exit_code: int | None
+    started_at: object | None
+    finished_at: object | None
+    error_summary: str | None = None
+    stdout_tail: str | None = None
+    stderr_tail: str | None = None
+    gate_review_created: bool | None = None
+    gate_review_gate_name: str | None = None
+    gate_review_status: str | None = None
+    gate_review_decision: str | None = None
+    gate_review_created_at: object | None = None
 
 
 @dataclass(frozen=True)
@@ -165,6 +189,18 @@ def risk_class(value: str | None) -> str:
     return "neutral"
 
 
+def run_connector_validation_command(company_key: str, reviewed_by: str) -> tuple[str, ...]:
+    return (
+        "python",
+        "-m",
+        "scripts.run_employer_origin_connector_validation_agent",
+        "--company-key",
+        company_key,
+        "--reviewed-by",
+        reviewed_by,
+    )
+
+
 def build_approval_command(company_key: str, reviewed_by: str) -> tuple[str, ...]:
     return (
         "python",
@@ -196,6 +232,21 @@ def registration_approval_command(company_key: str, target_location: str, review
 
 
 def evidence_repair_command(company_key: str, target_location: str, reviewed_by: str) -> tuple[str, ...]:
+    return (
+        "python",
+        "-m",
+        "scripts.run_employer_origin_agent_chain",
+        "--company-key",
+        company_key,
+        "--target-location",
+        target_location,
+        "--reviewed-by",
+        reviewed_by,
+        "--attempt-repair",
+    )
+
+
+def continue_candidate_review_command(company_key: str, target_location: str, reviewed_by: str) -> tuple[str, ...]:
     return (
         "python",
         "-m",
@@ -646,10 +697,12 @@ def render_control_center(
     market_summary: GoldMarketCoverageSummary | None = None,
     orchestrator_steps: list[OrchestratorAttentionStep] | None = None,
     gate_reviews: list[AgentGateReview] | None = None,
+    action_runs: list[ControlCenterActionRun] | None = None,
 ) -> str:
     market_summary = market_summary or fallback_market_summary(candidates)
     orchestrator_steps = orchestrator_steps or []
     gate_reviews = gate_reviews or []
+    action_runs = action_runs or []
 
     tab_aliases = {
         "connectors": "review-queue",
@@ -700,6 +753,7 @@ def render_control_center(
             market_summary=market_summary,
             orchestrator_steps=orchestrator_steps,
             gate_reviews=gate_reviews,
+            action_runs=action_runs,
             write_actions_enabled=write_actions_enabled,
             legacy_view_html=legacy_view_html,
             stylesheet=read_static_asset("control_center.css"),

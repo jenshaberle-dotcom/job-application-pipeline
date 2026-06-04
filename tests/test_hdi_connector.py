@@ -15,6 +15,7 @@ from src.connectors.hdi import (
 
 LISTING_URL = 'https://careers.hdi.group/en/your_career_opportunities/job_board'
 DETAIL_URL = 'https://careers.hdi.group/jobs/product-owner-data-platform'
+SEEDED_DETAIL_URL = 'https://job.hdi.group/job/Data-&-Analytics-Engineer-%28Long-Tail%29/720-en_US/'
 PRODUCT_URL = 'https://careers.hdi.group/en/about/news/product-data-platform'
 
 
@@ -39,6 +40,15 @@ def fake_fetcher(url: str) -> tuple[str, str, int]:
         )
         return html, DETAIL_URL, 200
 
+    if url == SEEDED_DETAIL_URL:
+        html = (
+            "<html>"
+            "<title>Data & Analytics Engineer (Long Tail)</title>"
+            "<body>Data & Analytics Engineer in Hannover or remote Germany. SQL, Python, Analytics.</body>"
+            "</html>"
+        )
+        return html, SEEDED_DETAIL_URL, 200
+
     raise AssertionError(f"Unexpected URL: {url}")
 
 
@@ -60,7 +70,8 @@ def test_extract_candidate_links_is_bounded_to_relevant_same_domain_links() -> N
     candidates = extract_candidate_links(html, final_url)
     selected = select_detail_candidates(candidates, limit=3)
 
-    assert [candidate.url for candidate in selected] == [DETAIL_URL]
+    assert DETAIL_URL in [candidate.url for candidate in selected]
+    assert SEEDED_DETAIL_URL in [candidate.url for candidate in selected]
 
 
 def test_connector_fetches_bounded_relevant_jobs() -> None:
@@ -72,9 +83,9 @@ def test_connector_fetches_bounded_relevant_jobs() -> None:
     )
 
     assert final_url == LISTING_URL
-    assert len(records) == 1
+    assert len(records) >= 1
 
-    record = records[0]
+    record = next(item for item in records if item.source_url == DETAIL_URL)
     assert record.source_name == SOURCE_NAME
     assert record.source_url == DETAIL_URL
     assert record.external_job_id
@@ -107,3 +118,34 @@ def test_decode_response_text_prefers_utf8_over_misleading_declared_encoding() -
 def test_concrete_job_detail_url_rejects_non_job_pages() -> None:
     assert is_concrete_job_detail_url(DETAIL_URL)
     assert not is_concrete_job_detail_url(PRODUCT_URL)
+
+
+
+def test_connector_fetches_seeded_known_detail_jobs() -> None:
+    def seeded_fetcher(url: str) -> tuple[str, str, int]:
+        if url == LISTING_URL:
+            return "<html><body>No server-rendered job links here</body></html>", LISTING_URL, 200
+
+        if url == SEEDED_DETAIL_URL:
+            html = (
+                "<html>"
+                "<title>Data & Analytics Engineer (Long Tail)</title>"
+                "<body>Data & Analytics Engineer in Hannover or remote Germany. SQL, Python, Analytics.</body>"
+                "</html>"
+            )
+            return html, SEEDED_DETAIL_URL, 200
+
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    connector = HdiConnector(listing_url=LISTING_URL, fetcher=seeded_fetcher)
+
+    records, final_url = connector.fetch_jobs(
+        profile=make_profile(),
+        search_term=SearchTerm("Data", id=1),
+    )
+
+    assert final_url == LISTING_URL
+    assert len(records) == 1
+    assert records[0].source_name == SOURCE_NAME
+    assert records[0].source_url == SEEDED_DETAIL_URL
+    assert "Data" in records[0].raw_data["result_card"]["title"]
