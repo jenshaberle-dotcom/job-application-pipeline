@@ -39,7 +39,7 @@ def test_detail_evidence_passes_when_profile_and_location_are_present() -> None:
 
     assert outcome.gate_name == "detail_evidence_gate"
     assert outcome.gate_status == "passed"
-    assert outcome.decision == "continue"
+    assert outcome.decision == "passed"
 
 
 def test_detail_evidence_requires_profile_and_location_or_remote() -> None:
@@ -92,7 +92,7 @@ def test_incremental_uniqueness_passes_with_unique_candidate() -> None:
 
     assert outcome.gate_name == "incremental_uniqueness_gate"
     assert outcome.gate_status == "passed"
-    assert outcome.decision == "continue"
+    assert outcome.decision == "passed"
     assert outcome.evidence["uniqueness_counts"]["incrementally_unique_candidate"] == 1
 
 

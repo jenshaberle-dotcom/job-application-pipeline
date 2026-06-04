@@ -17,7 +17,14 @@ from scripts.run_employer_origin_gate_agent import FetchResult
 def test_url_shape_blocks_login_like_sources() -> None:
     assert has_disallowed_url_shape("ftp://example.com/jobs") == "candidate URL must use http or https"
     assert has_disallowed_url_shape("https://example.com/login/jobs") == "candidate URL appears to require authentication"
+    assert has_disallowed_url_shape("https://sso.example.com/jobs") == "candidate URL appears to require authentication"
+    assert has_disallowed_url_shape("https://example.com/jobs?auth=1") == "candidate URL appears to require authentication"
     assert has_disallowed_url_shape("https://example.com/jobs") is None
+
+
+def test_url_shape_does_not_match_auth_tokens_inside_company_names() -> None:
+    assert has_disallowed_url_shape("https://www.adesso.de/de/karriere/jobs/index.html") is None
+    assert has_disallowed_url_shape("https://jobs.adesso-group.com/job/Aachen-Cloud-Data-Engineer-Databricks-%28all-genders%29-NW-52070/1145683555/") is None
 
 
 def test_source_discovery_gate_stops_on_invalid_url_shape() -> None:
@@ -51,6 +58,29 @@ def test_same_domain_job_link_extraction_is_bounded_and_source_local() -> None:
     )
 
     assert links == ("https://example.com/de/karriere/offene-stellen/hannover/product-owner",)
+
+
+def test_job_link_extraction_allows_related_employer_job_host() -> None:
+    html = """
+    <html>
+      <body>
+        <a href="https://jobs.adesso-group.com/job/Aachen-Cloud-Data-Engineer-Databricks-%28all-genders%29-NW-52070/1145683555/">Data Engineer</a>
+        <a href="https://unrelated-example.com/jobs/data-engineer">Unrelated</a>
+      </body>
+    </html>
+    """
+
+    links = parse_same_domain_job_links(
+        requested_url="https://www.adesso.de/de/karriere/jobs/index.html",
+        final_url="https://www.adesso.de/de/karriere/jobs/index.html",
+        body=html,
+        max_links=5,
+        source_family_candidate="adesso",
+    )
+
+    assert links == (
+        "https://jobs.adesso-group.com/job/Aachen-Cloud-Data-Engineer-Databricks-%28all-genders%29-NW-52070/1145683555/",
+    )
 
 
 def test_scope_gate_requires_single_listing_page_for_agent_mvp() -> None:
@@ -106,7 +136,7 @@ def test_relevance_gate_passes_with_profile_and_location_evidence() -> None:
     outcome = relevance_gate(args, fetch)
 
     assert outcome.gate_status == "passed"
-    assert outcome.decision == "continue"
+    assert outcome.decision == "passed"
     assert outcome.evidence["profile_hits"] == ["product owner", "sql"]
     assert outcome.evidence["location_hits"] == ["hannover"]
 
@@ -115,7 +145,7 @@ def test_gate_outcome_shape_is_explicit() -> None:
     outcome = GateOutcome(
         gate_name="risk_gate",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence={"finding": "ok"},
     )

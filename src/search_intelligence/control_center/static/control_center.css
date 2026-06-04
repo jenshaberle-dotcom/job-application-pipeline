@@ -1359,3 +1359,66 @@ body {
   border-color: rgba(110, 231, 140, .35);
   background: rgba(71, 211, 113, .08);
 }
+
+.next-safe-action {
+  margin:.85rem 0 0;
+  padding:.75rem .85rem;
+  border:1px solid rgba(126,197,242,.16);
+  border-radius:14px;
+  background:rgba(255,255,255,.025);
+}
+
+.next-safe-action h4 {
+  margin:.15rem 0 .35rem;
+  color:var(--ice);
+}
+
+.next-safe-action p {
+  margin:0;
+  color:var(--muted);
+  line-height:1.45;
+}
+
+.next-safe-action.warn {
+  border-color:rgba(246,184,74,.35);
+  background:rgba(246,184,74,.07);
+}
+
+.next-safe-action.ok {
+  border-color:rgba(114,227,109,.28);
+  background:rgba(114,227,109,.055);
+}
+
+.diagnostic-hint {
+  color: rgba(209, 231, 255, 0.78);
+  font-size: 0.78rem;
+  margin: 0.55rem 0 0;
+}
+
+.action-run-details {
+  margin-top: 0.6rem;
+  border-top: 1px solid rgba(125, 211, 252, 0.16);
+  padding-top: 0.55rem;
+}
+
+.action-run-details summary {
+  color: rgba(125, 211, 252, 0.92);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.action-run-details pre {
+  background: rgba(1, 10, 20, 0.72);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 0.7rem;
+  color: rgba(226, 246, 255, 0.9);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.65rem;
+  white-space: pre-wrap;
+}

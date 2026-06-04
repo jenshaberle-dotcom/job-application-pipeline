@@ -13,6 +13,7 @@ REGISTRATION_APPROVAL_TOKEN = "approve_connector_registration"
 EVIDENCE_REPAIR_TOKEN = "run_evidence_repair"
 CONTINUE_CANDIDATE_REVIEW_TOKEN = "continue_candidate_review"
 CONNECTOR_VALIDATION_TOKEN = "run_connector_validation"
+NEXT_SAFE_ACTION_TOKEN = "run_next_safe_action"
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,8 @@ class ControlCenterCandidate:
     gate_blocked_count: int = 0
     gate_total_count: int = 0
     latest_blocking_gate: str | None = None
+    latest_blocking_status: str | None = None
+    latest_blocking_decision: str | None = None
     latest_blocking_reason: str | None = None
     connector_validation_status: str | None = None
     connector_validation_decision: str | None = None
@@ -247,17 +250,20 @@ def evidence_repair_command(company_key: str, target_location: str, reviewed_by:
 
 
 def continue_candidate_review_command(company_key: str, target_location: str, reviewed_by: str) -> tuple[str, ...]:
+    return next_safe_action_command(company_key, target_location, reviewed_by)
+
+
+def next_safe_action_command(company_key: str, target_location: str, reviewed_by: str) -> tuple[str, ...]:
     return (
         "python",
         "-m",
-        "scripts.run_employer_origin_agent_chain",
+        "scripts.run_employer_origin_next_safe_action_agent",
         "--company-key",
         company_key,
         "--target-location",
         target_location,
         "--reviewed-by",
         reviewed_by,
-        "--attempt-repair",
     )
 
 

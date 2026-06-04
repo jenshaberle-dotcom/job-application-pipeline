@@ -17,6 +17,7 @@ from scripts.search_intelligence_control_center import (
     CONTINUE_CANDIDATE_REVIEW_TOKEN,
     CONNECTOR_VALIDATION_TOKEN,
     EVIDENCE_REPAIR_TOKEN,
+    NEXT_SAFE_ACTION_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     AgentGateReview,
     ControlCenterActionRun,
@@ -25,6 +26,7 @@ from scripts.search_intelligence_control_center import (
     OrchestratorAttentionStep,
     build_approval_command,
     continue_candidate_review_command,
+    next_safe_action_command,
     run_connector_validation_command,
     evidence_repair_command,
     registration_approval_command,
@@ -76,6 +78,8 @@ def _rows_to_candidates(rows: list[object]) -> list[ControlCenterCandidate]:
             gate_blocked_count=int(_value(row, "blocked_gate_count", 0) or 0),
             gate_total_count=int(_value(row, "total_gate_count", 0) or 0),
             latest_blocking_gate=_value(row, "blocking_gate"),
+            latest_blocking_status=_value(row, "blocking_gate_status"),
+            latest_blocking_decision=_value(row, "blocking_decision"),
             latest_blocking_reason=_value(row, "blocker_reason"),
             connector_validation_status=None,
             connector_validation_decision=None,
@@ -159,6 +163,8 @@ def load_control_center_candidates() -> list[ControlCenterCandidate]:
                     blocked_gate_count,
                     total_gate_count,
                     blocking_gate,
+                    blocking_gate_status,
+                    blocking_decision,
                     blocker_reason,
                     current_stage,
                     recommended_next_action,
@@ -388,12 +394,12 @@ def _latest_gate_review_after(
         if gate_name:
             cur.execute(
                 """
-                select gate_name, gate_status, decision, created_at
+                select gate_name, gate_status, decision, greatest(created_at, updated_at) as created_at
                 from employer_origin_candidate_gate_reviews
                 where candidate_id = %s
                   and gate_name = %s
-                  and created_at >= %s
-                order by created_at desc, id desc
+                  and greatest(created_at, updated_at) >= %s
+                order by greatest(created_at, updated_at) desc, id desc
                 limit 1;
                 """,
                 (candidate_id, gate_name, _value(started, "started_at")),
@@ -401,17 +407,56 @@ def _latest_gate_review_after(
         else:
             cur.execute(
                 """
-                select gate_name, gate_status, decision, created_at
+                select gate_name, gate_status, decision, greatest(created_at, updated_at) as created_at
                 from employer_origin_candidate_gate_reviews
                 where candidate_id = %s
-                  and created_at >= %s
-                order by created_at desc, id desc
+                  and greatest(created_at, updated_at) >= %s
+                order by greatest(created_at, updated_at) desc, id desc
                 limit 1;
                 """,
                 (candidate_id, _value(started, "started_at")),
             )
         row = cur.fetchone()
     return dict(row) if row else None
+
+
+def _action_label(action_type: str) -> str:
+    labels = {
+        "rerun_evidence_repair": "Evidence repair",
+        "continue_candidate_review": "Candidate review",
+        "run_next_safe_action": "Next safe action",
+        "run_connector_validation": "Connector validation",
+        "approve_connector_build": "Connector build approval",
+        "approve_connector_registration": "Connector registration approval",
+    }
+    return labels.get(action_type, action_type.replace("_", " ").strip().title())
+
+
+def _last_meaningful_line(value: str) -> str:
+    noisy_prefixes = (
+        "candidate_id:",
+        "candidate:",
+        "planned_command:",
+        "running:",
+        "next_safe_action:",
+    )
+    for line in reversed((value or "").splitlines()):
+        clean = line.strip()
+        if not clean:
+            continue
+        if clean.lower().startswith(noisy_prefixes):
+            continue
+        return clean
+    return "No detailed diagnostic output recorded."
+
+
+def _command_summary(*, action_type: str, exit_code: int, stdout: str, stderr: str) -> str:
+    label = _action_label(action_type)
+    diagnostic_source = stderr if exit_code != 0 and stderr.strip() else stdout or stderr
+    diagnostic = _last_meaningful_line(diagnostic_source)
+    if exit_code == 0:
+        return f"{label} completed. {diagnostic}"
+    return f"{label} failed before completion. Last diagnostic: {diagnostic}"
 
 
 def _finish_action_run(
@@ -430,6 +475,7 @@ def _finish_action_run(
         "approve_connector_registration": "final_approval_gate",
         "approve_connector_build": "connector_candidate_gate",
         "continue_candidate_review": None,
+        "run_next_safe_action": None,
         "run_connector_validation": "connector_validation_gate",
     }
     with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
@@ -494,8 +540,12 @@ def run_command_with_audit(
     )
     try:
         completed = subprocess.run(command, check=False, capture_output=True, text=True)
-        output = (completed.stdout or completed.stderr or "").strip().splitlines()
-        summary = output[0] if output else "No output."
+        summary = _command_summary(
+            action_type=action_type,
+            exit_code=completed.returncode,
+            stdout=completed.stdout or "",
+            stderr=completed.stderr or "",
+        )
         _finish_action_run(
             action_run_id=action_run_id,
             action_type=action_type,
@@ -505,7 +555,7 @@ def run_command_with_audit(
             error_summary=summary,
         )
         run_suffix = f"; action_run_id={action_run_id}" if action_run_id is not None else "; action_run_audit=missing"
-        return f"exit={completed.returncode}; {summary}{run_suffix}"
+        return f"{summary} (exit={completed.returncode}{run_suffix})"
     except Exception as exc:  # noqa: BLE001 - action-run audit must capture runner failures.
         _finish_action_run(
             action_run_id=action_run_id,
@@ -516,7 +566,7 @@ def run_command_with_audit(
             error_summary=f"runner_exception={type(exc).__name__}: {exc}",
         )
         run_suffix = f"; action_run_id={action_run_id}" if action_run_id is not None else "; action_run_audit=missing"
-        return f"exit=1; runner_exception={type(exc).__name__}: {exc}{run_suffix}"
+        return f"Action runner failed before command execution: {type(exc).__name__}: {exc} (exit=1{run_suffix})"
 
 
 def run_command(command: tuple[str, ...]) -> str:
@@ -583,6 +633,7 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
         if self.path not in {
             "/actions/rerun-evidence-repair",
             "/actions/continue-candidate-review",
+            "/actions/run-next-safe-action",
             "/actions/run-connector-validation",
             "/actions/approve-build",
             "/actions/approve-registration",
@@ -618,6 +669,16 @@ class ControlCenterHandler(BaseHTTPRequestHandler):
                     company_key=company_key,
                     reviewed_by=reviewed_by,
                     command=continue_candidate_review_command(company_key, self.state.target_location, reviewed_by),
+                )
+        elif self.path == "/actions/run-next-safe-action":
+            if approval_token != NEXT_SAFE_ACTION_TOKEN:
+                self.state.flash_message = f"Action blocked: exact token {NEXT_SAFE_ACTION_TOKEN!r} required."
+            else:
+                self.state.flash_message = run_command_with_audit(
+                    action_type="run_next_safe_action",
+                    company_key=company_key,
+                    reviewed_by=reviewed_by,
+                    command=next_safe_action_command(company_key, self.state.target_location, reviewed_by),
                 )
         elif self.path == "/actions/run-connector-validation":
             if approval_token != CONNECTOR_VALIDATION_TOKEN:
