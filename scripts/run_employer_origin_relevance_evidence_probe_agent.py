@@ -42,6 +42,7 @@ BOUNDARY = {
     "bounded_relevance_probe": True,
     "autonomous_job_detail_discovery": True,
     "signal_learning_from_accepted_evidence_only": True,
+    "uses_promoted_observation_patterns_only": True,
 }
 
 
@@ -55,6 +56,23 @@ class Candidate:
     source_family_candidate: str
     source_target_candidate: str | None
     source_type_candidate: str
+
+
+@dataclass(frozen=True)
+class PromotedObservationPatterns:
+    profile_terms: tuple[str, ...] = ()
+    location_terms: tuple[str, ...] = ()
+    remote_terms: tuple[str, ...] = ()
+    url_path_patterns: tuple[str, ...] = ()
+
+    @property
+    def evidence(self) -> dict[str, object]:
+        return {
+            "profile_terms": list(self.profile_terms),
+            "location_terms": list(self.location_terms),
+            "remote_terms": list(self.remote_terms),
+            "url_path_patterns": list(self.url_path_patterns),
+        }
 
 
 def connect() -> psycopg.Connection[Any]:
@@ -96,6 +114,53 @@ def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> Candidate
     )
 
 
+def load_promoted_observation_patterns(conn: psycopg.Connection[Any]) -> PromotedObservationPatterns:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT pattern_type, pattern_value, pattern_category, usage_scope
+            FROM origin_observed_pattern_candidates
+            WHERE promotion_status = 'promoted'
+              AND usage_scope IN (
+                  'detail_url_discovery',
+                  'listing_url_discovery',
+                  'relevance_profile',
+                  'relevance_location',
+                  'relevance_remote'
+              )
+            ORDER BY usage_scope, pattern_type, pattern_value
+            """
+        )
+        rows = cur.fetchall()
+
+    grouped: dict[str, list[str]] = {
+        "profile_terms": [],
+        "location_terms": [],
+        "remote_terms": [],
+        "url_path_patterns": [],
+    }
+    for row in rows:
+        usage_scope = str(row["usage_scope"] or "")
+        value = str(row["pattern_value"] or "").strip()
+        if not value:
+            continue
+        if usage_scope == "relevance_profile" and value not in grouped["profile_terms"]:
+            grouped["profile_terms"].append(value)
+        elif usage_scope == "relevance_location" and value not in grouped["location_terms"]:
+            grouped["location_terms"].append(value)
+        elif usage_scope == "relevance_remote" and value not in grouped["remote_terms"]:
+            grouped["remote_terms"].append(value)
+        elif usage_scope in {"detail_url_discovery", "listing_url_discovery"} and value not in grouped["url_path_patterns"]:
+            grouped["url_path_patterns"].append(value)
+
+    return PromotedObservationPatterns(
+        profile_terms=tuple(grouped["profile_terms"]),
+        location_terms=tuple(grouped["location_terms"]),
+        remote_terms=tuple(grouped["remote_terms"]),
+        url_path_patterns=tuple(grouped["url_path_patterns"]),
+    )
+
+
 def fetch_text(url: str, *, timeout_seconds: float) -> str:
     try:
         response = requests.get(
@@ -133,6 +198,7 @@ def http_probe(
     timeout_seconds: float,
     target_location: str,
     source_target: str | None,
+    promoted_patterns: PromotedObservationPatterns,
 ) -> RelevanceProbeResult:
     response = fetch_response(url, timeout_seconds=timeout_seconds)
     if response is None:
@@ -147,6 +213,9 @@ def http_probe(
                 type("EmptyResponse", (), {"status_code": 0, "url": url, "text": "", "content": b""})(),
                 target_location=target_location,
                 source_target=source_target,
+                promoted_profile_terms=promoted_patterns.profile_terms,
+                promoted_location_terms=promoted_patterns.location_terms,
+                promoted_remote_terms=promoted_patterns.remote_terms,
             ).signals,
         )
     return probe_result_from_http_response(
@@ -154,6 +223,9 @@ def http_probe(
         response,
         target_location=target_location,
         source_target=source_target,
+        promoted_profile_terms=promoted_patterns.profile_terms,
+        promoted_location_terms=promoted_patterns.location_terms,
+        promoted_remote_terms=promoted_patterns.remote_terms,
     )
 
 
@@ -164,6 +236,7 @@ def autonomous_probe(
     timeout_seconds: float,
     target_location: str,
     max_probe_urls: int,
+    promoted_patterns: PromotedObservationPatterns,
 ) -> tuple[RelevanceProbeResult | None, tuple[RelevanceProbeResult, ...]]:
     """Probe URLs and expand bounded job-detail links from fetched pages.
 
@@ -187,6 +260,7 @@ def autonomous_probe(
                 timeout_seconds=timeout_seconds,
                 target_location=target_location,
                 source_target=candidate.source_target_candidate,
+                promoted_patterns=promoted_patterns,
             )
             results.append(result)
             continue
@@ -196,6 +270,9 @@ def autonomous_probe(
             response,
             target_location=target_location,
             source_target=candidate.source_target_candidate,
+            promoted_profile_terms=promoted_patterns.profile_terms,
+            promoted_location_terms=promoted_patterns.location_terms,
+            promoted_remote_terms=promoted_patterns.remote_terms,
         )
         results.append(result)
         if result.accepted:
@@ -217,7 +294,12 @@ def autonomous_probe(
                 break
             if discovered_url not in seen:
                 seen.add(discovered_url)
-                queue.append(discovered_url)
+                from src.search_intelligence.relevance_evidence_probe import is_probable_job_detail_url
+
+                if is_probable_job_detail_url(discovered_url):
+                    queue.insert(index, discovered_url)
+                else:
+                    queue.append(discovered_url)
 
     return None, tuple(results)
 
@@ -499,6 +581,7 @@ def record_relevance_result(
 def run(args: argparse.Namespace) -> int:
     with connect() as conn:
         candidate = load_candidate(conn, args.company_key)
+        promoted_patterns = load_promoted_observation_patterns(conn)
 
     initial_body = fetch_text(candidate.candidate_url, timeout_seconds=args.timeout_seconds)
     probe_urls = build_probe_url_queue(
@@ -507,6 +590,7 @@ def run(args: argparse.Namespace) -> int:
         source_family_candidate=candidate.source_family_candidate,
         company_key=candidate.company_key,
         max_links=args.max_probe_urls,
+        promoted_url_path_patterns=promoted_patterns.url_path_patterns,
     )
     selected, probe_results = autonomous_probe(
         probe_urls,
@@ -514,6 +598,7 @@ def run(args: argparse.Namespace) -> int:
         timeout_seconds=args.timeout_seconds,
         target_location=args.target_location,
         max_probe_urls=args.max_probe_urls,
+        promoted_patterns=promoted_patterns,
     )
 
     print(f"candidate_id: {candidate.candidate_id}")

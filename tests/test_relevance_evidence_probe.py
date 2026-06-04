@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.search_intelligence.relevance_evidence_probe import (
     build_probe_url_queue,
+    generated_search_urls,
     relevance_signals,
 )
 
@@ -149,3 +150,43 @@ def test_job_detail_url_pattern_generalizes_job_paths() -> None:
         "host": "jobs.adesso-group.com",
         "path_pattern": "/job/...",
     }
+
+
+def test_relevance_signals_use_promoted_multi_location_signal_only_as_supporting_evidence() -> None:
+    text = "Cloud Data Engineer Databricks Aachen, NW, DE, 52070 +29 weitere"
+
+    without_promoted = relevance_signals(text, target_location="hannover", source_target="hannover")
+    with_promoted = relevance_signals(
+        text,
+        target_location="hannover",
+        source_target="hannover",
+        promoted_location_terms=("+ weitere",),
+    )
+
+    assert without_promoted.is_relevant is False
+    assert "+ weitere" in with_promoted.location_hits
+    assert with_promoted.is_relevant is True
+
+
+def test_probe_queue_prioritizes_visible_job_detail_links_before_generated_search_pages() -> None:
+    queue = build_probe_url_queue(
+        candidate_url="https://jobs.example.com/",
+        initial_body='<a href="/job/cloud-data-engineer/123">Cloud Data Engineer</a>',
+        source_family_candidate="example",
+        company_key="example",
+        max_links=8,
+    )
+
+    assert queue[0] == "https://jobs.example.com/"
+    assert queue[1] == "https://jobs.example.com/job/cloud-data-engineer/123"
+
+
+def test_generated_search_urls_use_promoted_search_path_families() -> None:
+    urls = generated_search_urls(
+        "https://karriere.example.com/",
+        promoted_url_path_patterns=("/stellen/...",),
+        max_urls=12,
+    )
+
+    assert "https://karriere.example.com/stellen/?q=Data+Engineer" in urls
+    assert "https://karriere.example.com/stellenangebote/?q=Data+Engineer" in urls

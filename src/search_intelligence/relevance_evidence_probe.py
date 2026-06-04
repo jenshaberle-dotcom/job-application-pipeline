@@ -153,12 +153,26 @@ def term_hits(text: str, terms: Iterable[str]) -> tuple[str, ...]:
     hits: list[str] = []
     for term in terms:
         normalized_term = normalize_text(term)
-        if normalized_term and normalized_term in normalized and term not in hits:
+        if not normalized_term:
+            continue
+        if normalized_term in {"+ weitere", "+ weitere standorte"}:
+            if re.search(r"\+\s*\d+\s+weitere", normalized) and term not in hits:
+                hits.append(term)
+            continue
+        if normalized_term in normalized and term not in hits:
             hits.append(term)
     return tuple(hits)
 
 
-def relevance_signals(text: str, *, target_location: str, source_target: str | None = None) -> RelevanceSignals:
+def relevance_signals(
+    text: str,
+    *,
+    target_location: str,
+    source_target: str | None = None,
+    promoted_profile_terms: Iterable[str] = (),
+    promoted_location_terms: Iterable[str] = (),
+    promoted_remote_terms: Iterable[str] = (),
+) -> RelevanceSignals:
     location_terms = tuple(
         term
         for term in (
@@ -168,10 +182,13 @@ def relevance_signals(text: str, *, target_location: str, source_target: str | N
         )
         if str(term or "").strip()
     )
+    profile_terms = tuple(dict.fromkeys([*PROFILE_TERMS, *tuple(promoted_profile_terms)]))
+    promoted_locations = tuple(term for term in promoted_location_terms if str(term or "").strip())
+    promoted_remote = tuple(term for term in promoted_remote_terms if str(term or "").strip())
     return RelevanceSignals(
-        profile_hits=term_hits(text, PROFILE_TERMS),
-        location_hits=term_hits(text, location_terms),
-        remote_hits=term_hits(text, REMOTE_OR_GERMANY_TERMS),
+        profile_hits=term_hits(text, profile_terms),
+        location_hits=term_hits(text, tuple(dict.fromkeys([*location_terms, *promoted_locations]))),
+        remote_hits=term_hits(text, tuple(dict.fromkeys([*REMOTE_OR_GERMANY_TERMS, *promoted_remote]))),
         flexibility_hits=term_hits(text, SUPPORTING_FLEXIBILITY_TERMS),
     )
 
@@ -311,19 +328,34 @@ def extract_json_ld_job_urls(*, base_url: str, body: str, max_links: int = 6) ->
     return tuple(urls)
 
 
-def generated_search_urls(base_url: str, *, max_urls: int = 6) -> tuple[str, ...]:
+def generated_search_urls(
+    base_url: str,
+    *,
+    max_urls: int = 6,
+    promoted_url_path_patterns: Iterable[str] = (),
+) -> tuple[str, ...]:
     parsed = urlparse(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return ()
     root = f"{parsed.scheme}://{parsed.netloc}"
     urls: list[str] = []
     seen: set[str] = set()
+    promoted_patterns = {str(pattern or "").strip().lower() for pattern in promoted_url_path_patterns}
+    pattern_templates = [
+        "/search/?q={query}",
+        "/search/?q={query}&locationsearch=deutschland",
+        "/jobs/?q={query}",
+    ]
+    if "/stellen/..." in promoted_patterns:
+        pattern_templates.extend(["/stellen/?q={query}", "/stellenangebote/?q={query}"])
+    if "/vacancy/..." in promoted_patterns:
+        pattern_templates.extend(["/vacancies/?q={query}", "/vacancy/?q={query}"])
+    if "/career/..." in promoted_patterns:
+        pattern_templates.extend(["/careers/?q={query}", "/career/?q={query}"])
+
     for query in SEARCH_QUERIES:
-        for url in (
-            f"{root}/search/?q={quote_plus(query)}",
-            f"{root}/search/?q={quote_plus(query)}&locationsearch=deutschland",
-            f"{root}/jobs/?q={quote_plus(query)}",
-        ):
+        for template in pattern_templates:
+            url = f"{root}{template.format(query=quote_plus(query))}"
             if url not in seen:
                 seen.add(url)
                 urls.append(url)
@@ -339,6 +371,7 @@ def build_probe_url_queue(
     source_family_candidate: str | None = None,
     company_key: str | None = None,
     max_links: int = 8,
+    promoted_url_path_patterns: Iterable[str] = (),
 ) -> tuple[str, ...]:
     queue: list[str] = []
     seen: set[str] = set()
@@ -351,19 +384,28 @@ def build_probe_url_queue(
         queue.append(clean)
 
     add(candidate_url)
-    for url in generated_search_urls(candidate_url):
+
+    detail_candidates = (
+        extract_json_ld_job_urls(base_url=candidate_url, body=initial_body, max_links=max_links)
+        + extract_candidate_links(
+            base_url=candidate_url,
+            body=initial_body,
+            source_family_candidate=source_family_candidate,
+            company_key=company_key,
+            max_links=max_links,
+        )
+    )
+    for url in sorted(detail_candidates, key=lambda value: 0 if is_probable_job_detail_url(value) else 1):
         add(url)
-    for url in extract_json_ld_job_urls(base_url=candidate_url, body=initial_body, max_links=max_links):
-        add(url)
-    for url in extract_candidate_links(
-        base_url=candidate_url,
-        body=initial_body,
-        source_family_candidate=source_family_candidate,
-        company_key=company_key,
-        max_links=max_links,
-    ):
+
+    for url in generated_search_urls(candidate_url, promoted_url_path_patterns=promoted_url_path_patterns):
         add(url)
     return tuple(queue[: max_links + 1])
+
+
+def is_probable_job_detail_url(url: str) -> bool:
+    path = urlparse(str(url or "")).path.lower()
+    return any(marker in path for marker in ("/job/", "/stellen/", "/vacancy/"))
 
 
 def job_detail_url_pattern(url: str) -> dict[str, str | None]:
@@ -452,6 +494,9 @@ def probe_result_from_http_response(
     *,
     target_location: str,
     source_target: str | None = None,
+    promoted_profile_terms: Iterable[str] = (),
+    promoted_location_terms: Iterable[str] = (),
+    promoted_remote_terms: Iterable[str] = (),
 ) -> RelevanceProbeResult:
     status_code = int(getattr(response, "status_code", 0) or 0)
     final_url = str(getattr(response, "url", "") or url)
@@ -459,7 +504,14 @@ def probe_result_from_http_response(
     content = getattr(response, "content", b"") or b""
     parser = _LinkAndTitleParser()
     parser.feed(text)
-    signals = relevance_signals(text, target_location=target_location, source_target=source_target)
+    signals = relevance_signals(
+        text,
+        target_location=target_location,
+        source_target=source_target,
+        promoted_profile_terms=promoted_profile_terms,
+        promoted_location_terms=promoted_location_terms,
+        promoted_remote_terms=promoted_remote_terms,
+    )
     accepted = 200 <= status_code < 400 and signals.is_relevant
     if accepted:
         reason = "profile and target/remote evidence found"
