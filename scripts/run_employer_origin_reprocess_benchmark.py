@@ -38,13 +38,19 @@ def candidate_filter_sql(*, include_active_controlled: bool) -> str:
     if include_active_controlled:
         statuses.append("active_controlled")
     quoted = ", ".join("'" + status + "'" for status in statuses)
+    active_controlled_history_guard = (
+        "TRUE" if include_active_controlled else "c.status <> 'active_controlled'"
+    )
     return f"""
         c.status IN ({quoted})
-        OR EXISTS (
-            SELECT 1
-            FROM employer_origin_candidate_gate_reviews gr
-            WHERE gr.candidate_id = c.id
-              AND COALESCE(gr.gate_status, '') NOT IN ('not_started', 'defer')
+        OR (
+            {active_controlled_history_guard}
+            AND EXISTS (
+                SELECT 1
+                FROM employer_origin_candidate_gate_reviews gr
+                WHERE gr.candidate_id = c.id
+                  AND COALESCE(gr.gate_status, '') NOT IN ('not_started', 'defer')
+            )
         )
     """
 

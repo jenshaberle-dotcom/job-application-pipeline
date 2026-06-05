@@ -19,3 +19,11 @@ def test_reprocess_benchmark_active_controlled_is_explicit() -> None:
     assert "--include-active-controlled" in text
     assert "active_controlled" in text
     assert "IN_PROCESS_STATUSES" in text
+
+
+def test_reprocess_benchmark_excludes_active_controlled_gate_history_by_default() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "active_controlled_history_guard" in text
+    assert "c.status <> 'active_controlled'" in text
+    assert "TRUE" in text
