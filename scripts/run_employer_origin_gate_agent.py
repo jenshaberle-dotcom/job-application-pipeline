@@ -14,6 +14,7 @@ import psycopg
 import requests
 
 from scripts.record_employer_origin_gate_review import DEFAULT_GATES
+from src.search_intelligence.gate_stop_classification import classify_gate_stop
 from src.search_intelligence.origin_url_policy import has_disallowed_source_url_shape
 
 
@@ -536,17 +537,25 @@ def prefetch_risk_gate(args: argparse.Namespace) -> GateOutcome:
 
 def technical_reachability_gate(fetch: FetchResult) -> GateOutcome:
     if fetch.status_code < 200 or fetch.status_code >= 400:
+        evidence = {
+            "requested_url": fetch.requested_url,
+            "final_url": fetch.final_url,
+            "status_code": fetch.status_code,
+            "response_bytes": fetch.response_bytes,
+        }
+        classification = classify_gate_stop(
+            gate_name="technical_reachability_gate",
+            gate_status="failed",
+            decision="abort_documented",
+            stop_reason=f"source returned HTTP {fetch.status_code}",
+            evidence=evidence,
+        )
         return GateOutcome(
             gate_name="technical_reachability_gate",
             gate_status="failed",
             decision="abort_documented",
             stop_reason=f"source returned HTTP {fetch.status_code}",
-            evidence={
-                "requested_url": fetch.requested_url,
-                "final_url": fetch.final_url,
-                "status_code": fetch.status_code,
-                "response_bytes": fetch.response_bytes,
-            },
+            evidence={**evidence, **classification.as_evidence()},
         )
 
     return GateOutcome(
@@ -571,12 +580,29 @@ def postfetch_risk_gate(fetch: FetchResult) -> GateOutcome | None:
     if not hits:
         return None
 
-    return GateOutcome(
+    evidence = {"risk_markers": hits, "final_url": fetch.final_url, "status_code": fetch.status_code}
+    classification = classify_gate_stop(
         gate_name="risk_gate",
         gate_status="failed",
         decision="abort_documented",
         stop_reason="source response contains bot-defense or access-risk markers",
-        evidence={"risk_markers": hits, "final_url": fetch.final_url, "status_code": fetch.status_code},
+        evidence=evidence,
+    )
+    if classification.category == "terminal_access_risk":
+        return GateOutcome(
+            gate_name="risk_gate",
+            gate_status="failed",
+            decision="abort_documented",
+            stop_reason="source response contains confirmed access-risk markers",
+            evidence={**evidence, **classification.as_evidence()},
+        )
+
+    return GateOutcome(
+        gate_name="risk_gate",
+        gate_status="manual_review_required",
+        decision="manual_review_required",
+        stop_reason="source response contains weak access-risk markers requiring review",
+        evidence={**evidence, **classification.as_evidence()},
     )
 
 
@@ -748,7 +774,8 @@ def run_agent(args: argparse.Namespace) -> int:
         risk_after_fetch = postfetch_risk_gate(fetch)
         if risk_after_fetch is not None:
             repo.record_gate(candidate_id, risk_after_fetch, args.reviewed_by)
-            repo.update_candidate_status(candidate_id, "abort_documented", "blocked")
+            status, risk_level = stop_status(risk_after_fetch)
+            repo.update_candidate_status(candidate_id, status, risk_level)
             print(f"{risk_after_fetch.gate_name}: {risk_after_fetch.gate_status} / {risk_after_fetch.decision}")
             print(f"STOP: {risk_after_fetch.stop_reason}")
             return 0
