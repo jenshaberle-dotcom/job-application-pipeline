@@ -200,3 +200,67 @@ def test_seed_observation_decision_limits_saturated_provider_hosts() -> None:
     assert skipped_after_budget.should_observe is False
     assert skipped_after_budget.reason == "saturated_provider_host"
     assert revalidation.should_observe is True
+
+
+def test_observation_run_insert_statement_has_unique_boundary_column() -> None:
+    import inspect
+
+    from scripts import run_origin_job_structure_observation_agent as agent
+
+    source = inspect.getsource(agent.create_run)
+
+    assert "boundary,\n                boundary" not in source
+    assert "seed_source_type_counts" in source
+
+
+def test_run_local_host_saturation_after_repeated_low_value_pages() -> None:
+    from scripts.run_origin_job_structure_observation_agent import update_run_local_host_saturation
+
+    saturated_hosts: set[str] = set()
+    low_value_counts: dict[str, int] = {}
+
+    for _ in range(4):
+        assert (
+            update_run_local_host_saturation(
+                saturated_hosts,
+                low_value_counts,
+                host="jobs.example.com",
+                learning_value=0.0,
+                min_observations=5,
+                low_value_threshold=0.15,
+            )
+            is False
+        )
+
+    assert (
+        update_run_local_host_saturation(
+            saturated_hosts,
+            low_value_counts,
+            host="jobs.example.com",
+            learning_value=0.0,
+            min_observations=5,
+            low_value_threshold=0.15,
+        )
+        is True
+    )
+    assert "jobs.example.com" in saturated_hosts
+
+
+def test_run_local_host_saturation_resets_after_high_value_page() -> None:
+    from scripts.run_origin_job_structure_observation_agent import update_run_local_host_saturation
+
+    saturated_hosts: set[str] = set()
+    low_value_counts: dict[str, int] = {}
+
+    for value in (0.0, 0.0, 0.5, 0.0, 0.0):
+        update_run_local_host_saturation(
+            saturated_hosts,
+            low_value_counts,
+            host="jobs.example.com",
+            learning_value=value,
+            min_observations=3,
+            low_value_threshold=0.15,
+        )
+
+    assert "jobs.example.com" not in saturated_hosts
+    assert low_value_counts["jobs.example.com"] == 2

@@ -111,3 +111,36 @@ def test_keeps_unknown_signals_as_candidates_not_promoted() -> None:
 
     assert decision.promotion_status == "candidate"
     assert decision.usable_by_relevance_probe is False
+
+
+def test_promotes_profile_domain_signal_separately_from_skill_signal() -> None:
+    decision = promote_observed_pattern(
+        ObservedPattern(
+            pattern_type="profile_signal",
+            pattern_value="data & analytics",
+            evidence_count=2,
+            confidence=0.70,
+        )
+    )
+
+    assert decision.promotion_status == "promoted"
+    assert decision.pattern_category == "profile_domain_signal"
+    assert decision.usage_scope == "relevance_profile"
+    assert decision.usable_by_relevance_probe is True
+
+
+def test_structural_markers_are_diagnostics_only_not_url_finder_strategy() -> None:
+    decision = promote_observed_pattern(
+        ObservedPattern(
+            pattern_type="structural_marker",
+            pattern_value="page_type:job_detail",
+            evidence_count=3,
+            confidence=0.95,
+        )
+    )
+
+    assert decision.promotion_status == "promoted"
+    assert decision.pattern_category == "structural_marker"
+    assert decision.usage_scope == "diagnostics_only"
+    assert decision.usable_by_url_finder is False
+    assert decision.usable_by_relevance_probe is False

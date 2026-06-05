@@ -312,7 +312,8 @@ def promote_observed_pattern(pattern: ObservedPattern, *, min_signal_evidence: i
     if pattern_type == "profile_signal":
         if normalized in SAFE_PROFILE_SIGNALS:
             role_signals = {"data engineer", "data engineering", "analytics engineer"}
-            skill_signals = {"databricks", "data & analytics", "python", "sql"}
+            skill_signals = {"databricks", "python", "sql"}
+            domain_signals = {"data & analytics"}
             return PromotionDecision(
                 pattern_type=pattern_type,
                 pattern_value=normalized,
@@ -320,7 +321,11 @@ def promote_observed_pattern(pattern: ObservedPattern, *, min_signal_evidence: i
                 confidence=max(base_confidence, 0.70),
                 reason="observed profile signal is within the known search-intelligence profile vocabulary",
                 signal_strength="strong" if normalized in {"data engineer", "data engineering", "databricks", "data & analytics"} else "medium",
-                pattern_category="profile_role_signal" if normalized in role_signals else ("profile_skill_signal" if normalized in skill_signals else "profile_supporting_signal"),
+                pattern_category=(
+                    "profile_role_signal"
+                    if normalized in role_signals
+                    else ("profile_skill_signal" if normalized in skill_signals else ("profile_domain_signal" if normalized in domain_signals else "profile_supporting_signal"))
+                ),
                 usage_scope="relevance_profile",
                 usable_by_relevance_probe=True,
             )
@@ -357,7 +362,7 @@ def promote_observed_pattern(pattern: ObservedPattern, *, min_signal_evidence: i
                 signal_strength="supporting",
                 pattern_category="structural_marker",
                 usage_scope="diagnostics_only",
-                usable_by_url_finder=True,
+                usable_by_url_finder=False,
                 usable_by_relevance_probe=False,
             )
 

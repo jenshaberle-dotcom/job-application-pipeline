@@ -31,6 +31,13 @@ from src.search_intelligence.origin_job_observation import (
     normalize_text,
     summarize_learning_values,
 )
+from src.search_intelligence.origin_seed_pool import (
+    ObservationSeed,
+    classify_seed_row,
+    deduplicate_seeds,
+    observation_url_seeds,
+    seed_type_counts,
+)
 
 USER_AGENT = "job-application-pipeline-origin-observation/0.1 (+bounded personal portfolio project)"
 
@@ -96,55 +103,189 @@ def load_saturated_hosts(
     return {str(row["host"]).lower() for row in rows if row["host"]}
 
 
-def load_seed_urls(
+def _table_columns(conn: psycopg.Connection[Any], table_name: str) -> set[str]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = %s
+            """,
+            (table_name,),
+        )
+        return {str(row["column_name"]) for row in cur.fetchall()}
+
+
+def _table_exists(conn: psycopg.Connection[Any], table_name: str) -> bool:
+    return bool(_table_columns(conn, table_name))
+
+
+def load_observation_seeds(
     conn: psycopg.Connection[Any],
     *,
     company_key: str | None,
     limit: int,
-) -> list[tuple[str, str | None]]:
+    include_expanded_seed_pool: bool,
+) -> list[ObservationSeed]:
+    rows: list[dict[str, object]] = []
     params: list[object] = []
     company_filter = ""
     if company_key:
         company_filter = " AND company_key = %s"
         params.append(company_key)
 
-    query = f"""
-    WITH candidate_urls AS (
-        SELECT DISTINCT candidate_url AS url, source_family_candidate AS source_family, updated_at
-        FROM employer_origin_source_candidates
-        WHERE candidate_url IS NOT NULL
-          AND candidate_url <> ''
-          {company_filter}
-    ), evidence_urls AS (
-        SELECT DISTINCT COALESCE(final_url, source_url) AS url, company_key AS source_family, updated_at
-        FROM employer_origin_job_detail_evidence
-        WHERE COALESCE(final_url, source_url) IS NOT NULL
-          AND COALESCE(final_url, source_url) <> ''
-          {company_filter.replace('company_key', 'company_key')}
-    )
-    SELECT url, source_family
-    FROM (
-        SELECT url, source_family, updated_at FROM candidate_urls
-        UNION ALL
-        SELECT url, source_family, updated_at FROM evidence_urls
-    ) seeds
-    ORDER BY updated_at DESC NULLS LAST, url
-    LIMIT %s
-    """
-    params.extend(params[:1] if company_key else [])
-    params.append(limit)
     with conn.cursor() as cur:
-        cur.execute(query, tuple(params))
-        rows = cur.fetchall()
-    seen: set[str] = set()
-    seeds: list[tuple[str, str | None]] = []
-    for row in rows:
-        url = str(row["url"] or "").strip()
-        if not url or url in seen:
-            continue
-        seen.add(url)
-        seeds.append((url, row["source_family"]))
-    return seeds
+        cur.execute(
+            f"""
+            SELECT
+                'employer_origin_source_candidates' AS seed_source_table,
+                company_key,
+                company_name,
+                source_name_candidate AS source_name,
+                source_family_candidate,
+                candidate_url AS seed_url,
+                status
+            FROM employer_origin_source_candidates
+            WHERE (candidate_url IS NOT NULL OR company_name IS NOT NULL)
+              {company_filter}
+            ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+            LIMIT %s
+            """,
+            tuple(params + [limit]),
+        )
+        rows.extend(dict(row) for row in cur.fetchall())
+
+    if _table_exists(conn, "employer_origin_job_detail_evidence"):
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    'employer_origin_job_detail_evidence' AS seed_source_table,
+                    company_key,
+                    company_key AS company_name,
+                    company_key AS source_family_candidate,
+                    COALESCE(final_url, source_url) AS seed_url,
+                    relevance_decision AS status
+                FROM employer_origin_job_detail_evidence
+                WHERE COALESCE(final_url, source_url) IS NOT NULL
+                  {company_filter}
+                ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+                LIMIT %s
+                """,
+                tuple(params + [limit]),
+            )
+            rows.extend(dict(row) for row in cur.fetchall())
+
+    if include_expanded_seed_pool and not company_key:
+        optional_queries = [
+            (
+                "candidate_promotion_review_items",
+                """
+                SELECT
+                    'candidate_promotion_review_items' AS seed_source_table,
+                    company_key,
+                    company_name,
+                    source_name,
+                    source_family_candidate,
+                    candidate_url AS seed_url,
+                    source_decision AS status
+                FROM candidate_promotion_review_items
+                ORDER BY created_candidate_id DESC NULLS LAST, company_name
+                LIMIT %s
+                """,
+            ),
+            (
+                "candidate_expansion_review_items",
+                """
+                SELECT
+                    'candidate_expansion_review_items' AS seed_source_table,
+                    company_key,
+                    company_name,
+                    source_name,
+                    NULL::text AS seed_url,
+                    distinct_search_term_count
+                FROM candidate_expansion_review_items
+                ORDER BY distinct_search_term_count DESC NULLS LAST, company_name
+                LIMIT %s
+                """,
+            ),
+            (
+                "aggregator_novelty_items",
+                """
+                SELECT
+                    'aggregator_novelty_items' AS seed_source_table,
+                    company_key,
+                    company_name,
+                    source_name,
+                    evidence_url AS seed_url,
+                    search_term
+                FROM aggregator_novelty_items
+                ORDER BY company_name
+                LIMIT %s
+                """,
+            ),
+            (
+                "market_evidence",
+                """
+                SELECT
+                    'market_evidence' AS seed_source_table,
+                    normalized_company_key AS company_key,
+                    company_name,
+                    source_name,
+                    evidence_url AS seed_url,
+                    search_term
+                FROM market_evidence
+                ORDER BY source_seen_at DESC NULLS LAST, company_name
+                LIMIT %s
+                """,
+            ),
+            (
+                "raw_jobs",
+                """
+                SELECT DISTINCT
+                    'raw_jobs' AS seed_source_table,
+                    NULL::text AS company_key,
+                    NULL::text AS company_name,
+                    source_name,
+                    source_url AS seed_url
+                FROM raw_jobs
+                WHERE source_url IS NOT NULL
+                  AND btrim(source_url) <> ''
+                ORDER BY source_name, source_url
+                LIMIT %s
+                """,
+            ),
+        ]
+        for table_name, query in optional_queries:
+            if not _table_exists(conn, table_name):
+                continue
+            with conn.cursor() as cur:
+                cur.execute(query, (limit,))
+                rows.extend(dict(row) for row in cur.fetchall())
+        if _table_exists(conn, "silver_jobs") and "company_name" in _table_columns(conn, "silver_jobs"):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        'silver_jobs' AS seed_source_table,
+                        normalized_company_name AS company_key,
+                        company_name,
+                        source_name,
+                        source_url AS seed_url,
+                        COUNT(*) AS silver_job_count
+                    FROM silver_jobs
+                    WHERE company_name IS NOT NULL
+                      AND btrim(company_name) <> ''
+                    GROUP BY normalized_company_name, company_name, source_name, source_url
+                    ORDER BY COUNT(*) DESC, company_name
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows.extend(dict(row) for row in cur.fetchall())
+
+    return deduplicate_seeds(classify_seed_row(row) for row in rows)
 
 
 def create_run(
@@ -153,6 +294,7 @@ def create_run(
     config: ObservationConfig,
     source_scope: str,
     created_by: str,
+    seed_source_type_counts: dict[str, int] | None = None,
 ) -> int:
     with conn.cursor() as cur:
         cur.execute(
@@ -163,9 +305,10 @@ def create_run(
                 soft_cap,
                 hard_cap,
                 boundary,
-                created_by
+                created_by,
+                seed_source_type_counts
             )
-            VALUES (%s, %s, %s, %s, %s::jsonb, %s)
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::jsonb)
             RETURNING id
             """,
             (
@@ -175,11 +318,44 @@ def create_run(
                 config.hard_cap,
                 json.dumps(OBSERVATION_BOUNDARY, sort_keys=True),
                 created_by,
+                json.dumps(seed_source_type_counts or {}, sort_keys=True),
             ),
         )
         run_id = int(cur.fetchone()["id"])
     conn.commit()
     return run_id
+
+
+
+
+def update_run_local_host_saturation(
+    saturated_hosts: set[str],
+    host_low_value_counts: dict[str, int],
+    *,
+    host: str | None,
+    learning_value: float,
+    min_observations: int,
+    low_value_threshold: float,
+) -> bool:
+    """Mark hosts saturated within a run after repeated low-value observations.
+
+    Historical saturation is loaded before a run starts, but defensive observation
+    should also stop wasting budget when a newly encountered provider produces a
+    sequence of low-value pages during the current run. This is learning-input
+    bookkeeping only; it does not affect candidate gates or source status.
+    """
+
+    if not host:
+        return False
+    normalized_host = host.lower()
+    if learning_value < low_value_threshold:
+        host_low_value_counts[normalized_host] = host_low_value_counts.get(normalized_host, 0) + 1
+    else:
+        host_low_value_counts[normalized_host] = 0
+    if host_low_value_counts[normalized_host] >= min_observations:
+        saturated_hosts.add(normalized_host)
+        return True
+    return False
 
 
 def fetch_observation_input(url: str, *, source_family: str | None, timeout_seconds: float) -> PageObservationInput:
@@ -362,6 +538,9 @@ def finish_run(
     skipped_duplicate_url_count: int,
     skipped_known_url_count: int,
     skipped_saturated_host_count: int,
+    skipped_by_policy_counts: dict[str, int] | None = None,
+    observed_by_source_type_counts: dict[str, int] | None = None,
+    learning_value_by_source_type: dict[str, float] | None = None,
 ) -> None:
     summary = summarize_learning_values([observation.learning_value for observation in observations])
     full_count = sum(1 for observation in observations if observation.storage_class == "full_observation")
@@ -381,6 +560,9 @@ def finish_run(
                 total_learning_value = %s,
                 max_learning_value = %s,
                 stop_reason = %s,
+                skipped_by_policy_counts = %s::jsonb,
+                observed_by_source_type_counts = %s::jsonb,
+                learning_value_by_source_type = %s::jsonb,
                 finished_at = now(),
                 updated_at = now()
             WHERE id = %s
@@ -396,6 +578,9 @@ def finish_run(
                 summary["total"],
                 summary["max"],
                 loop.stop_reason or "seed_exhausted",
+                json.dumps(skipped_by_policy_counts or {}, sort_keys=True),
+                json.dumps(observed_by_source_type_counts or {}, sort_keys=True),
+                json.dumps(learning_value_by_source_type or {}, sort_keys=True),
                 run_id,
             ),
         )
@@ -410,7 +595,13 @@ def run(args: argparse.Namespace) -> int:
         saturation_window=args.saturation_window,
     )
     with connect() as conn:
-        seeds = load_seed_urls(conn, company_key=args.company_key, limit=args.seed_limit)
+        all_seeds = load_observation_seeds(
+            conn,
+            company_key=args.company_key,
+            limit=args.seed_limit,
+            include_expanded_seed_pool=args.include_expanded_seed_pool,
+        )
+        seeds = observation_url_seeds(all_seeds)
         known_patterns = load_known_patterns(conn)
         known_url_keys = set() if args.revalidate_known_seeds else load_known_observed_url_keys(conn)
         saturated_hosts = (
@@ -427,20 +618,29 @@ def run(args: argparse.Namespace) -> int:
             config=config,
             source_scope="company_key=" + args.company_key if args.company_key else "employer_origin_candidates",
             created_by=args.reviewed_by,
+            seed_source_type_counts=seed_type_counts(all_seeds),
         )
 
     loop = AdaptiveObservationLoop(config=config)
     observations: list[JobPageObservation] = []
-    queue: list[tuple[str, str | None]] = list(seeds)
+    queue: list[tuple[str, str | None, str]] = [
+        (str(seed.seed_url), seed.source_family or seed.company_key, seed.seed_type)
+        for seed in seeds
+        if seed.seed_url
+    ]
     seen_url_keys: set[str] = set()
     host_observation_counts: dict[str, int] = {}
+    host_low_value_counts: dict[str, int] = {}
     skipped_duplicate_url_count = 0
     skipped_known_url_count = 0
     skipped_saturated_host_count = 0
+    skipped_by_policy_counts: dict[str, int] = {}
+    observed_by_source_type_counts: dict[str, int] = {}
+    learning_value_by_source_type: dict[str, float] = {}
     index = 0
 
     while index < len(queue) and loop.observed_count < config.hard_cap:
-        url, source_family = queue[index]
+        url, source_family, seed_type = queue[index]
         index += 1
 
         decision = decide_seed_observation(
@@ -459,7 +659,8 @@ def run(args: argparse.Namespace) -> int:
                 skipped_known_url_count += 1
             elif decision.reason == "saturated_provider_host":
                 skipped_saturated_host_count += 1
-            print(f"skip_seed: url={url} | reason={decision.reason}")
+            skipped_by_policy_counts[decision.reason] = skipped_by_policy_counts.get(decision.reason, 0) + 1
+            print(f"skip_seed: url={url} | seed_type={seed_type} | reason={decision.reason}")
             continue
 
         seen_url_keys.add(decision.url_key)
@@ -470,14 +671,27 @@ def run(args: argparse.Namespace) -> int:
         observation = build_observation(raw, known_patterns=known_patterns)
         observations.append(observation)
         loop.record(observation)
+        observed_by_source_type_counts[seed_type] = observed_by_source_type_counts.get(seed_type, 0) + 1
+        learning_value_by_source_type[seed_type] = round(
+            learning_value_by_source_type.get(seed_type, 0.0) + float(observation.learning_value),
+            4,
+        )
         known_patterns.update((pattern_type, normalize_text(value)) for pattern_type, value in observation.pattern_candidates)
+        update_run_local_host_saturation(
+            saturated_hosts,
+            host_low_value_counts,
+            host=observation.host,
+            learning_value=observation.learning_value,
+            min_observations=args.host_saturation_min_observations,
+            low_value_threshold=args.host_saturation_low_value_threshold,
+        )
 
         for discovered_url in extract_job_like_urls(base_url=raw.final_url or raw.source_url, body=raw.body, max_links=args.max_discovered_links_per_page):
             if len(queue) >= args.seed_limit:
                 break
             discovered_decision = decide_seed_observation(
                 discovered_url,
-                seen_url_keys=seen_url_keys | {canonical_url_key(url) for url, _ in queue[index:]},
+                seen_url_keys=seen_url_keys | {canonical_url_key(queued_url) for queued_url, _, _ in queue[index:]},
                 known_url_keys=known_url_keys,
                 saturated_hosts=saturated_hosts,
                 saturated_host_counts=host_observation_counts,
@@ -492,7 +706,7 @@ def run(args: argparse.Namespace) -> int:
                 elif discovered_decision.reason == "saturated_provider_host":
                     skipped_saturated_host_count += 1
                 continue
-            queue.append((discovered_url, source_family))
+            queue.append((discovered_url, source_family, "discovered_url_seed"))
 
         with connect() as conn:
             with conn.cursor() as cur:
@@ -521,6 +735,9 @@ def run(args: argparse.Namespace) -> int:
             skipped_duplicate_url_count=skipped_duplicate_url_count,
             skipped_known_url_count=skipped_known_url_count,
             skipped_saturated_host_count=skipped_saturated_host_count,
+            skipped_by_policy_counts=skipped_by_policy_counts,
+            observed_by_source_type_counts=observed_by_source_type_counts,
+            learning_value_by_source_type=learning_value_by_source_type,
         )
 
     summary = summarize_learning_values([observation.learning_value for observation in observations])
@@ -531,6 +748,10 @@ def run(args: argparse.Namespace) -> int:
     print(f"skipped_duplicate_url_count: {skipped_duplicate_url_count}")
     print(f"skipped_known_url_count: {skipped_known_url_count}")
     print(f"skipped_saturated_host_count: {skipped_saturated_host_count}")
+    print(f"seed_source_type_counts: {json.dumps(seed_type_counts(all_seeds), sort_keys=True)}")
+    print(f"observed_by_source_type_counts: {json.dumps(observed_by_source_type_counts, sort_keys=True)}")
+    print(f"learning_value_by_source_type: {json.dumps(learning_value_by_source_type, sort_keys=True)}")
+    print(f"skipped_by_policy_counts: {json.dumps(skipped_by_policy_counts, sort_keys=True)}")
     print(f"stop_reason: {loop.stop_reason or 'seed_exhausted'}")
     return 0
 
@@ -540,6 +761,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewed-by", default="agent")
     parser.add_argument("--timeout-seconds", type=float, default=10.0)
     parser.add_argument("--seed-limit", type=int, default=100)
+    parser.add_argument("--include-expanded-seed-pool", action="store_true", help="Include bounded non-origin seed sources such as ATS/raw/market/company-name seeds with source-type boundaries.")
     parser.add_argument("--max-discovered-links-per-page", type=int, default=8)
     parser.add_argument("--min-observations", type=int, default=20)
     parser.add_argument("--soft-cap", type=int, default=40)

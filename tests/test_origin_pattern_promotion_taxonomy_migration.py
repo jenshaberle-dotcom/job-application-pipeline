@@ -23,3 +23,15 @@ def test_origin_pattern_promotion_taxonomy_migration_repairs_flat_a2d_outputs() 
     assert "promotion_status = 'candidate'" in sql
     assert "pattern_type = 'profile_signal'" in sql
     assert "lower(pattern_value) = 'bi'" in sql
+
+
+def test_origin_observed_pattern_taxonomy_repair_migration_covers_candidate_table_and_domain_signal() -> None:
+    sql = Path("db/migrations/069_repair_origin_observed_pattern_taxonomy_columns.sql").read_text().lower()
+
+    assert "alter table origin_observed_pattern_candidates" in sql
+    assert "add column if not exists pattern_category" in sql
+    assert "add column if not exists usage_scope" in sql
+    assert "profile_domain_signal" in sql
+    assert "data & analytics" in sql
+    assert "pattern_type = 'structural_marker'" in sql
+    assert "diagnostics only" in sql
