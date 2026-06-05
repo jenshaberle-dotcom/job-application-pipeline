@@ -72,6 +72,77 @@ def load_candidate_keys(conn: psycopg.Connection[Any], *, include_active_control
     return [(int(row["id"]), str(row["company_key"]), str(row["status"])) for row in rows]
 
 
+def load_duplicate_candidate_identities(
+    conn: psycopg.Connection[Any],
+    *,
+    candidate_ids: list[int],
+) -> list[dict[str, Any]]:
+    """Return exact identity duplicates for the selected candidate identities.
+
+    This is intentionally a preflight guard, not a DB constraint. A company may
+    legitimately have more than one source target later. For reprocess safety we
+    only stop when the exact source identity currently selected for reprocessing
+    exists more than once.
+    """
+    if not candidate_ids:
+        return []
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            WITH selected_identities AS (
+                SELECT DISTINCT company_key, source_name_candidate
+                FROM employer_origin_source_candidates
+                WHERE id = ANY(%s::bigint[])
+            )
+            SELECT
+                c.company_key,
+                c.source_name_candidate,
+                array_agg(c.id ORDER BY c.id) AS candidate_ids,
+                array_agg(c.status ORDER BY c.id) AS statuses,
+                array_agg(
+                    COALESCE(NULLIF(btrim(c.candidate_url), ''), '<empty>')
+                    ORDER BY c.id
+                ) AS candidate_urls,
+                COUNT(*) AS duplicate_count
+            FROM employer_origin_source_candidates c
+            JOIN selected_identities selected
+              ON selected.company_key = c.company_key
+             AND selected.source_name_candidate IS NOT DISTINCT FROM c.source_name_candidate
+            GROUP BY c.company_key, c.source_name_candidate
+            HAVING COUNT(*) > 1
+            ORDER BY c.company_key, c.source_name_candidate NULLS FIRST
+            """,
+            (candidate_ids,),
+        )
+        rows = cur.fetchall()
+    return [dict(row) for row in rows]
+
+
+def print_duplicate_candidate_preflight(duplicates: list[dict[str, Any]], *, apply: bool) -> bool:
+    """Print duplicate diagnostics and return True when apply must abort."""
+    if not duplicates:
+        return False
+
+    print("candidate_identity_duplicates_detected:")
+    for duplicate in duplicates:
+        print(
+            "duplicate_candidate_identity: "
+            f"company_key={duplicate['company_key']} "
+            f"source_name_candidate={duplicate['source_name_candidate']} "
+            f"candidate_ids={list(duplicate['candidate_ids'])} "
+            f"statuses={list(duplicate['statuses'])} "
+            f"candidate_urls={list(duplicate['candidate_urls'])}"
+        )
+
+    if apply:
+        print("ABORT: duplicate candidate identity detected; cleanup or merge candidates before --apply")
+        return True
+
+    print("dry_run warning: duplicate candidate identities exist; --apply would abort until they are reviewed")
+    return False
+
+
 def snapshot(conn: psycopg.Connection[Any], *, benchmark_label: str, phase: str, include_active_controlled: bool, limit: int) -> int:
     where_clause = candidate_filter_sql(include_active_controlled=include_active_controlled)
     with conn.cursor() as cur:
@@ -344,6 +415,14 @@ def run(args: argparse.Namespace) -> int:
             include_active_controlled=args.include_active_controlled,
             limit=args.max_candidates,
         )
+        duplicates = load_duplicate_candidate_identities(
+            conn,
+            candidate_ids=[candidate_id for candidate_id, _, _ in candidates],
+        )
+        duplicate_warning_blocks_mutating_dry_run = bool(duplicates) and not args.apply
+        if print_duplicate_candidate_preflight(duplicates, apply=args.apply):
+            return 2
+
         if args.snapshot_before:
             inserted = snapshot(
                 conn,
@@ -354,16 +433,22 @@ def run(args: argparse.Namespace) -> int:
             )
             print(f"snapshot_before_rows: {inserted}")
         if args.reset_candidates:
-            reset_candidates(conn, candidates=candidates, reviewed_by=args.reviewed_by, apply=args.apply)
+            if duplicate_warning_blocks_mutating_dry_run:
+                print("dry_run: reset plan suppressed because duplicate candidate identities exist")
+            else:
+                reset_candidates(conn, candidates=candidates, reviewed_by=args.reviewed_by, apply=args.apply)
 
     if args.run_next_safe_actions:
-        run_next_safe_for_candidates(
-            candidates=candidates,
-            target_location=args.target_location,
-            reviewed_by=args.reviewed_by,
-            max_iterations=args.max_iterations,
-            apply=args.apply,
-        )
+        if duplicate_warning_blocks_mutating_dry_run:
+            print("dry_run next-safe plan suppressed: duplicate candidate identities must be reviewed before --apply")
+        else:
+            run_next_safe_for_candidates(
+                candidates=candidates,
+                target_location=args.target_location,
+                reviewed_by=args.reviewed_by,
+                max_iterations=args.max_iterations,
+                apply=args.apply,
+            )
 
     with connect() as conn:
         if args.snapshot_after:
