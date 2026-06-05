@@ -74,6 +74,33 @@ SEARCH_QUERIES = (
 )
 
 
+def normalized_search_queries(
+    market_sensor_terms: Iterable[str] = (),
+    *,
+    max_queries: int = 6,
+) -> tuple[str, ...]:
+    """Return bounded search queries with market-sensor terms first.
+
+    Market sensors are allowed to guide the bounded relevance probe because
+    they are DB-backed learning input, not human-provided ad-hoc URLs. The
+    canonical defaults stay as fallback queries so non-market-sensor candidates
+    keep existing behavior.
+    """
+
+    queries: list[str] = []
+    seen: set[str] = set()
+    for value in (*tuple(market_sensor_terms), *SEARCH_QUERIES):
+        query = " ".join(str(value or "").replace("+", " ").split())
+        key = normalize_text(query)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        queries.append(query)
+        if len(queries) >= max_queries:
+            break
+    return tuple(queries)
+
+
 @dataclass(frozen=True)
 class RelevanceSignals:
     profile_hits: tuple[str, ...]
@@ -333,6 +360,7 @@ def generated_search_urls(
     *,
     max_urls: int = 6,
     promoted_url_path_patterns: Iterable[str] = (),
+    market_sensor_search_terms: Iterable[str] = (),
 ) -> tuple[str, ...]:
     parsed = urlparse(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -353,7 +381,7 @@ def generated_search_urls(
     if "/career/..." in promoted_patterns:
         pattern_templates.extend(["/careers/?q={query}", "/career/?q={query}"])
 
-    for query in SEARCH_QUERIES:
+    for query in normalized_search_queries(market_sensor_search_terms):
         for template in pattern_templates:
             url = f"{root}{template.format(query=quote_plus(query))}"
             if url not in seen:
@@ -372,6 +400,7 @@ def build_probe_url_queue(
     company_key: str | None = None,
     max_links: int = 8,
     promoted_url_path_patterns: Iterable[str] = (),
+    market_sensor_search_terms: Iterable[str] = (),
 ) -> tuple[str, ...]:
     queue: list[str] = []
     seen: set[str] = set()
@@ -398,7 +427,11 @@ def build_probe_url_queue(
     for url in sorted(detail_candidates, key=lambda value: 0 if is_probable_job_detail_url(value) else 1):
         add(url)
 
-    for url in generated_search_urls(candidate_url, promoted_url_path_patterns=promoted_url_path_patterns):
+    for url in generated_search_urls(
+        candidate_url,
+        promoted_url_path_patterns=promoted_url_path_patterns,
+        market_sensor_search_terms=market_sensor_search_terms,
+    ):
         add(url)
     return tuple(queue[: max_links + 1])
 

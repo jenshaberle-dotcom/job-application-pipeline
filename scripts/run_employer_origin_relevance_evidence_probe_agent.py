@@ -42,7 +42,8 @@ BOUNDARY = {
     "bounded_relevance_probe": True,
     "autonomous_job_detail_discovery": True,
     "signal_learning_from_accepted_evidence_only": True,
-    "uses_promoted_observation_patterns_only": True,
+    "uses_promoted_observation_patterns": True,
+    "uses_market_sensor_evidence_as_search_input": True,
 }
 
 
@@ -73,6 +74,57 @@ class PromotedObservationPatterns:
             "remote_terms": list(self.remote_terms),
             "url_path_patterns": list(self.url_path_patterns),
         }
+
+
+@dataclass(frozen=True)
+class MarketSensorEvidence:
+    search_terms: tuple[str, ...] = ()
+    data_search_terms: tuple[str, ...] = ()
+    sample_titles: tuple[str, ...] = ()
+    decision: str | None = None
+    priority: int | None = None
+    evidence_count: int | None = None
+
+    @property
+    def profile_terms(self) -> tuple[str, ...]:
+        return _dedupe_terms((*self.data_search_terms, *self.search_terms))
+
+    @property
+    def search_queries(self) -> tuple[str, ...]:
+        return _dedupe_terms((*self.data_search_terms, *self.search_terms, *self.sample_titles))
+
+    @property
+    def evidence(self) -> dict[str, object]:
+        return {
+            "search_terms": list(self.search_terms),
+            "data_search_terms": list(self.data_search_terms),
+            "sample_titles": list(self.sample_titles),
+            "decision": self.decision,
+            "priority": self.priority,
+            "evidence_count": self.evidence_count,
+        }
+
+
+def _dedupe_terms(values: tuple[str, ...]) -> tuple[str, ...]:
+    terms: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        term = " ".join(str(value or "").split())
+        key = term.lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        terms.append(term)
+    return tuple(terms)
+
+
+def _json_text_list(payload: object, key: str) -> tuple[str, ...]:
+    if not isinstance(payload, dict):
+        return ()
+    values = payload.get(key)
+    if not isinstance(values, list):
+        return ()
+    return tuple(str(value) for value in values if str(value or "").strip())
 
 
 def connect() -> psycopg.Connection[Any]:
@@ -161,6 +213,39 @@ def load_promoted_observation_patterns(conn: psycopg.Connection[Any]) -> Promote
     )
 
 
+def load_market_sensor_evidence(conn: psycopg.Connection[Any], company_key: str) -> MarketSensorEvidence:
+    """Load DB-backed market-sensor evidence for relevance probing.
+
+    The evidence is used as bounded search/profile input only. It does not
+    create candidates or pass gates by itself.
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT decision, priority, evidence_count, evidence
+            FROM candidate_expansion_review_items
+            WHERE company_key = %s
+            ORDER BY review_id DESC, priority DESC, id DESC
+            LIMIT 1
+            """,
+            (company_key,),
+        )
+        row = cur.fetchone()
+    if row is None:
+        return MarketSensorEvidence()
+
+    evidence_payload = row["evidence"]
+    return MarketSensorEvidence(
+        search_terms=_json_text_list(evidence_payload, "search_terms"),
+        data_search_terms=_json_text_list(evidence_payload, "data_search_terms"),
+        sample_titles=_json_text_list(evidence_payload, "sample_titles"),
+        decision=row["decision"],
+        priority=int(row["priority"]) if row["priority"] is not None else None,
+        evidence_count=int(row["evidence_count"]) if row["evidence_count"] is not None else None,
+    )
+
+
 def fetch_text(url: str, *, timeout_seconds: float) -> str:
     try:
         response = requests.get(
@@ -199,6 +284,7 @@ def http_probe(
     target_location: str,
     source_target: str | None,
     promoted_patterns: PromotedObservationPatterns,
+    market_sensor_evidence: MarketSensorEvidence | None = None,
 ) -> RelevanceProbeResult:
     response = fetch_response(url, timeout_seconds=timeout_seconds)
     if response is None:
@@ -218,12 +304,13 @@ def http_probe(
                 promoted_remote_terms=promoted_patterns.remote_terms,
             ).signals,
         )
+    market_sensor_evidence = market_sensor_evidence or MarketSensorEvidence()
     return probe_result_from_http_response(
         url,
         response,
         target_location=target_location,
         source_target=source_target,
-        promoted_profile_terms=promoted_patterns.profile_terms,
+        promoted_profile_terms=(*promoted_patterns.profile_terms, *market_sensor_evidence.profile_terms),
         promoted_location_terms=promoted_patterns.location_terms,
         promoted_remote_terms=promoted_patterns.remote_terms,
     )
@@ -237,6 +324,7 @@ def autonomous_probe(
     target_location: str,
     max_probe_urls: int,
     promoted_patterns: PromotedObservationPatterns,
+    market_sensor_evidence: MarketSensorEvidence,
 ) -> tuple[RelevanceProbeResult | None, tuple[RelevanceProbeResult, ...]]:
     """Probe URLs and expand bounded job-detail links from fetched pages.
 
@@ -261,6 +349,7 @@ def autonomous_probe(
                 target_location=target_location,
                 source_target=candidate.source_target_candidate,
                 promoted_patterns=promoted_patterns,
+                market_sensor_evidence=market_sensor_evidence,
             )
             results.append(result)
             continue
@@ -479,6 +568,7 @@ def record_relevance_result(
     probe_results: tuple[RelevanceProbeResult, ...],
     target_location: str,
     reviewed_by: str,
+    market_sensor_evidence: MarketSensorEvidence,
 ) -> None:
     if selected is not None:
         gate_status = "passed"
@@ -492,6 +582,7 @@ def record_relevance_result(
             "selected_signals": asdict(selected.signals),
             "target_location": target_location,
             "boundary": BOUNDARY,
+            "market_sensor_evidence": market_sensor_evidence.evidence,
             "probe_results": _serialized_results(probe_results),
         }
         candidate_status = "discovery"
@@ -506,6 +597,7 @@ def record_relevance_result(
             "candidate_url": candidate.candidate_url,
             "target_location": target_location,
             "boundary": BOUNDARY,
+            "market_sensor_evidence": market_sensor_evidence.evidence,
             "probe_results": _serialized_results(probe_results),
         }
         candidate_status = "manual_review_required"
@@ -582,6 +674,7 @@ def run(args: argparse.Namespace) -> int:
     with connect() as conn:
         candidate = load_candidate(conn, args.company_key)
         promoted_patterns = load_promoted_observation_patterns(conn)
+        market_sensor_evidence = load_market_sensor_evidence(conn, args.company_key)
 
     initial_body = fetch_text(candidate.candidate_url, timeout_seconds=args.timeout_seconds)
     probe_urls = build_probe_url_queue(
@@ -591,6 +684,7 @@ def run(args: argparse.Namespace) -> int:
         company_key=candidate.company_key,
         max_links=args.max_probe_urls,
         promoted_url_path_patterns=promoted_patterns.url_path_patterns,
+        market_sensor_search_terms=market_sensor_evidence.search_queries,
     )
     selected, probe_results = autonomous_probe(
         probe_urls,
@@ -599,11 +693,14 @@ def run(args: argparse.Namespace) -> int:
         target_location=args.target_location,
         max_probe_urls=args.max_probe_urls,
         promoted_patterns=promoted_patterns,
+        market_sensor_evidence=market_sensor_evidence,
     )
 
     print(f"candidate_id: {candidate.candidate_id}")
     print(f"company_key: {candidate.company_key}")
     print(f"candidate_url: {candidate.candidate_url}")
+    if market_sensor_evidence.search_queries:
+        print(f"market_sensor_search_queries: {list(market_sensor_evidence.search_queries)}")
     print(f"autonomous_relevance_discovery_url_count: {len(probe_urls)}")
     for result in probe_results:
         signals = result.signals
@@ -621,6 +718,7 @@ def run(args: argparse.Namespace) -> int:
             probe_results=probe_results,
             target_location=args.target_location,
             reviewed_by=args.reviewed_by,
+            market_sensor_evidence=market_sensor_evidence,
         )
 
     if selected is not None:

@@ -190,3 +190,41 @@ def test_generated_search_urls_use_promoted_search_path_families() -> None:
 
     assert "https://karriere.example.com/stellen/?q=Data+Engineer" in urls
     assert "https://karriere.example.com/stellenangebote/?q=Data+Engineer" in urls
+
+
+def test_generated_search_urls_prioritize_market_sensor_terms() -> None:
+    urls = generated_search_urls(
+        "https://jobs.example.com/",
+        market_sensor_search_terms=("big data", "data engineer", "python sql"),
+        max_urls=9,
+    )
+
+    assert urls[0] == "https://jobs.example.com/search/?q=big+data"
+    assert "https://jobs.example.com/search/?q=python+sql" in urls
+
+
+def test_probe_queue_uses_market_sensor_terms_for_bounded_listing_discovery() -> None:
+    queue = build_probe_url_queue(
+        candidate_url="https://jobs.example.com/",
+        initial_body="<html><title>Careers</title></html>",
+        source_family_candidate="example",
+        company_key="example",
+        max_links=8,
+        market_sensor_search_terms=("big data", "data engineer"),
+    )
+
+    assert queue[0] == "https://jobs.example.com/"
+    assert "https://jobs.example.com/search/?q=big+data" in queue
+    assert "https://jobs.example.com/jobs/?q=data+engineer" in queue
+
+
+def test_market_sensor_terms_can_extend_profile_relevance_without_static_term_changes() -> None:
+    signals = relevance_signals(
+        "Cloud transformation specialist bundesweit",
+        target_location="hannover",
+        promoted_profile_terms=("cloud transformation",),
+    )
+
+    assert "cloud transformation" in signals.profile_hits
+    assert "bundesweit" in signals.remote_hits
+    assert signals.is_relevant is True
