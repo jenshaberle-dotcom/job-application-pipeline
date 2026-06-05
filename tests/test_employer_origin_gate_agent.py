@@ -7,6 +7,8 @@ from scripts.run_employer_origin_gate_agent import (
     defensive_preview_gate,
     has_disallowed_url_shape,
     parse_same_domain_job_links,
+    postfetch_risk_gate,
+    technical_reachability_gate,
     relevance_gate,
     scope_gate,
     source_discovery_gate,
@@ -152,3 +154,62 @@ def test_gate_outcome_shape_is_explicit() -> None:
 
     assert outcome.gate_name == "risk_gate"
     assert outcome.evidence == {"finding": "ok"}
+
+
+def test_technical_reachability_404_is_classified_as_recoverable_url_problem() -> None:
+    fetch = FetchResult(
+        requested_url="https://db.jobs/de-de/jobs",
+        final_url="https://db.jobs/de-de/jobs",
+        status_code=404,
+        response_bytes=100,
+        title="Not Found",
+        text="",
+        same_domain_job_links=(),
+    )
+
+    outcome = technical_reachability_gate(fetch)
+
+    assert outcome.gate_status == "failed"
+    assert outcome.decision == "abort_documented"
+    assert outcome.evidence["stop_category"] == "recoverable_url_problem"
+    assert outcome.evidence["terminal"] is False
+
+
+def test_postfetch_risk_gate_does_not_abort_on_weak_captcha_markers_on_reachable_page() -> None:
+    fetch = FetchResult(
+        requested_url="https://karriere.ratiodata.de/stellenangebote",
+        final_url="https://karriere.ratiodata.de/stellenangebote/",
+        status_code=200,
+        response_bytes=105542,
+        title="Stellenangebote – Ratiodata",
+        text="Karriere Stellenangebote recaptcha captcha",
+        same_domain_job_links=("https://karriere.ratiodata.de/stellenangebote/data-engineer",),
+    )
+
+    outcome = postfetch_risk_gate(fetch)
+
+    assert outcome is not None
+    assert outcome.gate_status == "manual_review_required"
+    assert outcome.decision == "manual_review_required"
+    assert outcome.evidence["stop_category"] == "risk_marker_review"
+    assert outcome.evidence["terminal"] is False
+
+
+def test_postfetch_risk_gate_aborts_on_confirmed_access_risk_markers() -> None:
+    fetch = FetchResult(
+        requested_url="https://example.com/jobs",
+        final_url="https://example.com/jobs",
+        status_code=403,
+        response_bytes=200,
+        title="Access Denied",
+        text="Access denied bot detection",
+        same_domain_job_links=(),
+    )
+
+    outcome = postfetch_risk_gate(fetch)
+
+    assert outcome is not None
+    assert outcome.gate_status == "failed"
+    assert outcome.decision == "abort_documented"
+    assert outcome.evidence["stop_category"] == "terminal_access_risk"
+    assert outcome.evidence["terminal"] is True
