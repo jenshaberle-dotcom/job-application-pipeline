@@ -6,6 +6,7 @@ from scripts.run_employer_origin_gate_agent import (
     GateOutcome,
     defensive_preview_gate,
     has_disallowed_url_shape,
+    normalize_optional_url,
     parse_same_domain_job_links,
     relevance_gate,
     scope_gate,
@@ -152,3 +153,22 @@ def test_gate_outcome_shape_is_explicit() -> None:
 
     assert outcome.gate_name == "risk_gate"
     assert outcome.evidence == {"finding": "ok"}
+
+
+def test_normalize_optional_url_prevents_literal_none_url() -> None:
+    assert normalize_optional_url(None) is None
+    assert normalize_optional_url("") is None
+    assert normalize_optional_url("None") is None
+    assert normalize_optional_url(" null ") is None
+    assert normalize_optional_url("https://example.com/jobs") == "https://example.com/jobs"
+
+
+def test_source_discovery_gate_reports_missing_url_without_string_none() -> None:
+    args = argparse.Namespace(candidate_url="None")
+
+    outcome = source_discovery_gate(args)
+
+    assert outcome.gate_status == "failed"
+    assert outcome.decision == "abort_documented"
+    assert outcome.stop_reason == "candidate URL is missing; run source URL recovery before gate review"
+    assert outcome.evidence["candidate_url"] is None

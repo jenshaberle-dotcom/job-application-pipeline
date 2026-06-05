@@ -25,6 +25,17 @@ TERMINAL_GATE_STATUSES = {"failed", "manual_review_required", "deferred"}
 TERMINAL_GATE_DECISIONS = {"abort_documented", "manual_review_required"}
 
 
+def normalize_optional_url(value: object) -> str:
+    """Normalize optional DB/CLI URL values without turning None into a literal URL."""
+
+    if value is None:
+        return ""
+    normalized = str(value).strip()
+    if normalized.lower() in {"", "none", "null"}:
+        return ""
+    return normalized
+
+
 @dataclass(frozen=True)
 class PersistedCandidate:
     candidate_id: int
@@ -70,7 +81,16 @@ def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> Persisted
                 status
             from employer_origin_source_candidates
             where company_key = %s
-            order by id desc
+            order by
+                case
+                    when candidate_url is not null
+                     and btrim(candidate_url) <> ''
+                     and lower(btrim(candidate_url)) not in ('none', 'null')
+                    then 0
+                    else 1
+                end,
+                case when status <> 'abort_documented' then 0 else 1 end,
+                id desc
             limit 1
             """,
             (company_key,),
@@ -84,7 +104,7 @@ def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> Persisted
         candidate_id=int(row["id"]),
         company_key=str(row["company_key"]),
         company_name=str(row["company_name"]),
-        candidate_url=str(row["candidate_url"]),
+        candidate_url=normalize_optional_url(row["candidate_url"]),
         source_name_candidate=str(row["source_name_candidate"]),
         source_family_candidate=str(row["source_family_candidate"]),
         source_target_candidate=row["source_target_candidate"],
@@ -144,10 +164,16 @@ def terminal_stop_command(gate: PersistedGateReview) -> NextSafeCommand:
     )
 
 
+def candidate_has_usable_url(candidate: PersistedCandidate) -> bool:
+    return bool(normalize_optional_url(candidate.candidate_url))
+
+
 def source_discovery_stop_is_recoverable(candidate: PersistedCandidate, gate: PersistedGateReview | None) -> bool:
     if gate is None or gate.gate_name != "source_discovery":
         return False
     if (gate.decision or "") != "abort_documented":
+        return False
+    if not candidate_has_usable_url(candidate):
         return False
     return has_disallowed_source_url_shape(candidate.candidate_url) is None
 
@@ -278,6 +304,17 @@ def determine_next_safe_command(
         )
 
     missing_early_gate = first_missing_early_gate(gates)
+    if missing_early_gate is not None and not candidate_has_usable_url(candidate):
+        return NextSafeCommand(
+            action="run_source_url_recovery",
+            reason=(
+                "candidate has no persisted source URL; run bounded source URL recovery instead "
+                "of passing a literal None/empty URL into the gate agent"
+            ),
+            module="scripts.run_employer_origin_source_url_recovery_agent",
+            args=source_url_recovery_args(candidate, target_location=target_location, reviewed_by=reviewed_by),
+        )
+
     if missing_early_gate is not None:
         gate = gates.get(missing_early_gate)
         if gate is not None and is_terminal_gate(gate):

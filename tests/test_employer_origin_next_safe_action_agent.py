@@ -207,3 +207,37 @@ def test_relevance_gate_preview_stop_runs_relevance_evidence_probe() -> None:
 
     assert command.action == "run_autonomous_relevance_discovery"
     assert command.module == "scripts.run_employer_origin_autonomous_relevance_discovery_agent"
+
+
+def test_next_safe_action_normalizes_literal_none_candidate_url() -> None:
+    from scripts.run_employer_origin_next_safe_action_agent import normalize_optional_url
+
+    assert normalize_optional_url(None) == ""
+    assert normalize_optional_url("None") == ""
+    assert normalize_optional_url(" null ") == ""
+    assert normalize_optional_url("https://example.com/jobs") == "https://example.com/jobs"
+
+
+def test_next_safe_action_missing_url_runs_recovery_before_initial_gate() -> None:
+    from scripts.run_employer_origin_next_safe_action_agent import determine_next_safe_command, PersistedCandidate
+
+    command = determine_next_safe_command(
+        PersistedCandidate(
+            candidate_id=3,
+            company_key="dirk_rossmann",
+            company_name="Dirk Rossmann GmbH",
+            candidate_url="",
+            source_name_candidate="dirk_rossmann:discovery",
+            source_family_candidate="dirk_rossmann",
+            source_target_candidate=None,
+            source_type_candidate="employer_origin_career_site",
+            status="discovery",
+        ),
+        {},
+        target_location="hannover",
+        reviewed_by="jens",
+    )
+
+    assert command.action == "run_source_url_recovery"
+    assert command.module == "scripts.run_employer_origin_source_url_recovery_agent"
+    assert "--candidate-url" not in command.args

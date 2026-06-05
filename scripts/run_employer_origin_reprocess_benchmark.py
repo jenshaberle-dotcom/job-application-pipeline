@@ -42,14 +42,17 @@ def candidate_filter_sql(*, include_active_controlled: bool) -> str:
         "TRUE" if include_active_controlled else "c.status <> 'active_controlled'"
     )
     return f"""
-        c.status IN ({quoted})
-        OR (
-            {active_controlled_history_guard}
-            AND EXISTS (
-                SELECT 1
-                FROM employer_origin_candidate_gate_reviews gr
-                WHERE gr.candidate_id = c.id
-                  AND COALESCE(gr.gate_status, '') NOT IN ('not_started', 'defer')
+        lower(btrim(coalesce(c.candidate_url, ''))) NOT IN ('none', 'null')
+        AND (
+            c.status IN ({quoted})
+            OR (
+                {active_controlled_history_guard}
+                AND EXISTS (
+                    SELECT 1
+                    FROM employer_origin_candidate_gate_reviews gr
+                    WHERE gr.candidate_id = c.id
+                      AND COALESCE(gr.gate_status, '') NOT IN ('not_started', 'defer')
+                )
             )
         )
     """
@@ -205,7 +208,7 @@ def reset_candidates(
                         'decision', 'reprocess_benchmark_reset',
                         'learning_input_only', true,
                         'no_gate_pass', true,
-                        'reviewed_by', %s
+                        'reviewed_by', %s::text
                     ),
                     now(),
                     %s,

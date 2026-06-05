@@ -151,6 +151,17 @@ def has_disallowed_url_shape(url: str) -> str | None:
     return has_disallowed_source_url_shape(url)
 
 
+def normalize_optional_url(value: object) -> str | None:
+    """Normalize optional URL values and prevent the literal string 'None'."""
+
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if normalized.lower() in {"", "none", "null"}:
+        return None
+    return normalized
+
+
 def _host_tokens(hostname: str) -> set[str]:
     return {
         token
@@ -284,14 +295,50 @@ class GateStateRepository:
         *,
         company_key: str,
         company_name: str,
-        candidate_url: str,
+        candidate_url: str | None,
         source_name_candidate: str,
         source_family_candidate: str,
         source_target_candidate: str | None,
         source_type_candidate: str,
         reviewed_by: str,
     ) -> int:
+        normalized_candidate_url = normalize_optional_url(candidate_url)
         with self.conn.cursor() as cur:
+            if normalized_candidate_url is None:
+                cur.execute(
+                    """
+                    select id
+                    from employer_origin_source_candidates
+                    where company_key = %s
+                      and source_name_candidate = %s
+                    order by case when status <> 'abort_documented' then 0 else 1 end, id
+                    limit 1
+                    """,
+                    (company_key, source_name_candidate),
+                )
+                existing = cur.fetchone()
+                if existing is not None:
+                    candidate_id = int(existing[0])
+                    cur.execute(
+                        """
+                        update employer_origin_source_candidates
+                        set company_name = %s,
+                            source_family_candidate = %s,
+                            source_target_candidate = %s,
+                            source_type_candidate = %s,
+                            updated_at = now()
+                        where id = %s
+                        """,
+                        (
+                            company_name,
+                            source_family_candidate,
+                            source_target_candidate,
+                            source_type_candidate,
+                            candidate_id,
+                        ),
+                    )
+                    return candidate_id
+
             cur.execute(
                 """
                 insert into employer_origin_source_candidates (
@@ -320,7 +367,7 @@ class GateStateRepository:
                 (
                     company_key,
                     company_name,
-                    candidate_url,
+                    normalized_candidate_url,
                     source_name_candidate,
                     source_family_candidate,
                     source_target_candidate,
@@ -502,14 +549,24 @@ def company_candidate_gate(args: argparse.Namespace) -> GateOutcome:
 
 
 def source_discovery_gate(args: argparse.Namespace) -> GateOutcome:
-    url_problem = has_disallowed_url_shape(args.candidate_url)
+    candidate_url = normalize_optional_url(args.candidate_url)
+    if candidate_url is None:
+        return GateOutcome(
+            gate_name="source_discovery",
+            gate_status="failed",
+            decision="abort_documented",
+            stop_reason="candidate URL is missing; run source URL recovery before gate review",
+            evidence={"candidate_url": None},
+        )
+
+    url_problem = has_disallowed_url_shape(candidate_url)
     if url_problem:
         return GateOutcome(
             gate_name="source_discovery",
             gate_status="failed",
             decision="abort_documented",
             stop_reason=url_problem,
-            evidence={"candidate_url": args.candidate_url},
+            evidence={"candidate_url": candidate_url},
         )
 
     return GateOutcome(
@@ -517,7 +574,7 @@ def source_discovery_gate(args: argparse.Namespace) -> GateOutcome:
         gate_status="passed",
         decision="passed",
         stop_reason=None,
-        evidence={"candidate_url": args.candidate_url, "finding": "candidate source URL provided and has allowed URL shape"},
+        evidence={"candidate_url": candidate_url, "finding": "candidate source URL provided and has allowed URL shape"},
     )
 
 
@@ -693,10 +750,11 @@ def stop_status(outcome: GateOutcome) -> tuple[str, str | None]:
 def run_agent(args: argparse.Namespace) -> int:
     with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
         repo = GateStateRepository(conn)
+        normalized_candidate_url = normalize_optional_url(args.candidate_url)
         candidate_id = repo.upsert_candidate(
             company_key=args.company_key,
             company_name=args.company_name,
-            candidate_url=args.candidate_url,
+            candidate_url=normalized_candidate_url,
             source_name_candidate=args.source_name_candidate,
             source_family_candidate=args.source_family_candidate,
             source_target_candidate=args.source_target_candidate,
@@ -704,6 +762,7 @@ def run_agent(args: argparse.Namespace) -> int:
             reviewed_by=args.reviewed_by,
         )
 
+        args.candidate_url = normalized_candidate_url
         print(f"candidate_id: {candidate_id}")
 
         for outcome in (company_candidate_gate(args), source_discovery_gate(args), prefetch_risk_gate(args)):
@@ -777,7 +836,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--company-key", required=True)
     parser.add_argument("--company-name", required=True)
-    parser.add_argument("--candidate-url", required=True)
+    parser.add_argument("--candidate-url", default="")
     parser.add_argument("--source-name-candidate", required=True)
     parser.add_argument("--source-family-candidate", required=True)
     parser.add_argument("--source-target-candidate", required=True)
