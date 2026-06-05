@@ -96,6 +96,35 @@ def test_next_safe_command_runs_initial_gate_before_premature_detail_repair() ->
     assert command.module == "scripts.run_employer_origin_gate_agent"
 
 
+
+def test_fresh_candidate_without_url_runs_source_url_recovery_before_initial_gate_review() -> None:
+    command = determine_next_safe_command(
+        persisted_candidate(candidate_url="", source_target_candidate="hannover"),
+        {},
+        target_location="hannover",
+        reviewed_by="jens",
+    )
+
+    assert command.action == "run_source_url_recovery"
+    assert command.module == "scripts.run_employer_origin_source_url_recovery_agent"
+    assert "--run-gate-review-after-recovery" in command.args
+    assert "--candidate-url" not in command.args
+    assert "literal None/empty URL" in command.reason
+
+
+def test_fresh_candidate_with_literal_none_url_runs_source_url_recovery_before_initial_gate_review() -> None:
+    command = determine_next_safe_command(
+        persisted_candidate(candidate_url="None", source_target_candidate="hannover"),
+        {},
+        target_location="hannover",
+        reviewed_by="jens",
+    )
+
+    assert command.action == "run_source_url_recovery"
+    assert command.module == "scripts.run_employer_origin_source_url_recovery_agent"
+    assert "--candidate-url" not in command.args
+
+
 def test_next_safe_command_stops_terminal_detail_gate_after_early_gates_passed() -> None:
     gates = early_passed_gates()
     gates[DETAIL_EVIDENCE_GATE] = gate(

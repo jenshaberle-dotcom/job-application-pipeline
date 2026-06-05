@@ -13,6 +13,8 @@ from src.config import get_database_config
 from src.search_intelligence.employer_origin_gate_registry import OFFICIAL_EMPLOYER_ORIGIN_GATES
 from src.search_intelligence.origin_url_policy import has_disallowed_source_url_shape
 
+MISSING_CANDIDATE_URL_MARKERS = {"", "none", "null"}
+
 EARLY_GATE_NAMES = tuple(
     gate.gate_name
     for gate in OFFICIAL_EMPLOYER_ORIGIN_GATES
@@ -84,7 +86,7 @@ def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> Persisted
         candidate_id=int(row["id"]),
         company_key=str(row["company_key"]),
         company_name=str(row["company_name"]),
-        candidate_url=str(row["candidate_url"]),
+        candidate_url=str(row["candidate_url"] or ""),
         source_name_candidate=str(row["source_name_candidate"]),
         source_family_candidate=str(row["source_family_candidate"]),
         source_target_candidate=row["source_target_candidate"],
@@ -124,6 +126,10 @@ def load_gate_reviews(conn: psycopg.Connection[Any], candidate_id: int) -> dict[
 def gate_passed(gates: dict[str, PersistedGateReview], gate_name: str) -> bool:
     gate = gates.get(gate_name)
     return bool(gate and gate.gate_status == "passed")
+
+
+def has_usable_candidate_url(candidate: PersistedCandidate) -> bool:
+    return candidate.candidate_url.strip().lower() not in MISSING_CANDIDATE_URL_MARKERS
 
 
 def is_terminal_gate(gate: PersistedGateReview | None) -> bool:
@@ -275,6 +281,17 @@ def determine_next_safe_command(
         return NextSafeCommand(
             action="monitor_existing_controlled_source",
             reason="source is active_controlled and lifecycle tracking is already passed",
+        )
+
+    if not has_usable_candidate_url(candidate):
+        return NextSafeCommand(
+            action="run_source_url_recovery",
+            reason=(
+                "candidate has no persisted source URL; run bounded source URL recovery "
+                "before any gate review instead of passing a literal None/empty URL into the gate agent"
+            ),
+            module="scripts.run_employer_origin_source_url_recovery_agent",
+            args=source_url_recovery_args(candidate, target_location=target_location, reviewed_by=reviewed_by),
         )
 
     missing_early_gate = first_missing_early_gate(gates)
