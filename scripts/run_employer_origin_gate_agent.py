@@ -14,6 +14,7 @@ import psycopg
 import requests
 
 from scripts.record_employer_origin_gate_review import DEFAULT_GATES
+from src.search_intelligence.origin_url_policy import has_disallowed_source_url_shape
 
 
 DEFAULT_PROFILE_TERMS = (
@@ -147,18 +148,51 @@ def normalize_text(value: str) -> str:
 
 
 def has_disallowed_url_shape(url: str) -> str | None:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        return "candidate URL must use http or https"
-
-    lowered = url.lower()
-    if any(token in lowered for token in ("/login", "signin", "auth", "sso")):
-        return "candidate URL appears to require authentication"
-
-    return None
+    return has_disallowed_source_url_shape(url)
 
 
-def parse_same_domain_job_links(requested_url: str, final_url: str, body: str, max_links: int) -> tuple[str, ...]:
+def _host_tokens(hostname: str) -> set[str]:
+    return {
+        token
+        for token in re.split(r"[^a-z0-9]+", hostname.lower())
+        if len(token) >= 3
+    }
+
+
+def _source_tokens(source_family_candidate: str | None) -> set[str]:
+    if not source_family_candidate:
+        return set()
+    generic = {"career", "careers", "source", "origin", "employer", "jobs", "job", "hannover"}
+    return {
+        token
+        for token in re.split(r"[^a-z0-9]+", source_family_candidate.lower())
+        if len(token) >= 3 and token not in generic
+    }
+
+
+def _is_allowed_preview_host(
+    link_host: str,
+    allowed_hosts: set[str],
+    source_family_candidate: str | None,
+) -> bool:
+    normalized_host = link_host.lower()
+    if normalized_host in allowed_hosts:
+        return True
+
+    tokens = _source_tokens(source_family_candidate)
+    if not tokens:
+        return False
+
+    return bool(tokens & _host_tokens(normalized_host))
+
+
+def parse_same_domain_job_links(
+    requested_url: str,
+    final_url: str,
+    body: str,
+    max_links: int,
+    source_family_candidate: str | None = None,
+) -> tuple[str, ...]:
     parser = LinkAndTitleParser()
     parser.feed(body)
 
@@ -174,7 +208,7 @@ def parse_same_domain_job_links(requested_url: str, final_url: str, body: str, m
         parsed = urlparse(absolute)
         if parsed.scheme not in {"http", "https"}:
             continue
-        if parsed.netloc.lower() not in allowed_hosts:
+        if not _is_allowed_preview_host(parsed.netloc, allowed_hosts, source_family_candidate):
             continue
 
         lowered = absolute.lower()
@@ -209,7 +243,12 @@ def count_term_hits(text: str, terms: tuple[str, ...] | list[str]) -> list[str]:
     return hits
 
 
-def fetch_candidate_page(url: str, timeout_seconds: int, max_preview_links: int) -> FetchResult:
+def fetch_candidate_page(
+    url: str,
+    timeout_seconds: int,
+    max_preview_links: int,
+    source_family_candidate: str | None = None,
+) -> FetchResult:
     response = requests.get(
         url,
         timeout=timeout_seconds,
@@ -231,6 +270,7 @@ def fetch_candidate_page(url: str, timeout_seconds: int, max_preview_links: int)
             final_url=response.url,
             body=text,
             max_links=max_preview_links,
+            source_family_candidate=source_family_candidate,
         ),
     )
 
@@ -451,7 +491,7 @@ def company_candidate_gate(args: argparse.Namespace) -> GateOutcome:
     return GateOutcome(
         gate_name="company_candidate",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence={
             "company_key": args.company_key,
@@ -475,7 +515,7 @@ def source_discovery_gate(args: argparse.Namespace) -> GateOutcome:
     return GateOutcome(
         gate_name="source_discovery",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence={"candidate_url": args.candidate_url, "finding": "candidate source URL provided and has allowed URL shape"},
     )
@@ -485,7 +525,7 @@ def prefetch_risk_gate(args: argparse.Namespace) -> GateOutcome:
     return GateOutcome(
         gate_name="risk_gate",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence={
             "finding": "pre-fetch risk check passed",
@@ -512,7 +552,7 @@ def technical_reachability_gate(fetch: FetchResult) -> GateOutcome:
     return GateOutcome(
         gate_name="technical_reachability_gate",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence={
             "requested_url": fetch.requested_url,
@@ -553,7 +593,7 @@ def scope_gate(args: argparse.Namespace) -> GateOutcome:
     return GateOutcome(
         gate_name="scope_gate",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence={
             "source_name_candidate": args.source_name_candidate,
@@ -584,7 +624,7 @@ def defensive_preview_gate(fetch: FetchResult) -> GateOutcome:
     return GateOutcome(
         gate_name="defensive_preview_gate",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence={
             "title": fetch.title,
@@ -632,7 +672,7 @@ def relevance_gate(args: argparse.Namespace, fetch: FetchResult) -> GateOutcome:
     return GateOutcome(
         gate_name="relevance_gate",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence={
             "profile_hits": profile_hits,
@@ -680,6 +720,7 @@ def run_agent(args: argparse.Namespace) -> int:
                 args.candidate_url,
                 timeout_seconds=args.timeout_seconds,
                 max_preview_links=args.max_preview_links,
+                source_family_candidate=args.source_family_candidate,
             )
         except requests.RequestException as exc:
             outcome = GateOutcome(

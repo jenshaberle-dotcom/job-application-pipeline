@@ -207,7 +207,7 @@ def detail_evidence_outcome(details: list[DetailCandidate]) -> GateOutcome:
     return GateOutcome(
         gate_name="detail_evidence_gate",
         gate_status="passed",
-        decision="continue",
+        decision="passed",
         stop_reason=None,
         evidence=evidence,
     )
@@ -448,7 +448,7 @@ def incremental_uniqueness_outcome(
         return GateOutcome(
             gate_name="incremental_uniqueness_gate",
             gate_status="passed",
-            decision="continue",
+            decision="passed",
             stop_reason=None,
             evidence=evidence,
         )

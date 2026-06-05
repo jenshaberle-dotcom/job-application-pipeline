@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping
 
+from src.search_intelligence.control_center.next_safe_action import (
+    determine_next_safe_action,
+)
+
 
 def _value(item: object, name: str, default: object = None) -> object:
     if isinstance(item, Mapping):
@@ -16,6 +20,8 @@ def humanize(value: object) -> str:
     special = {
         "active_controlled": "Active controlled",
         "manual_review_required": "Needs review",
+        "abort_documented": "Abort documented",
+        "no_safe_automated_action": "No safe automated action",
         "build_approval_required": "Build approval required",
         "artifact_generation_allowed": "Artifact generation allowed",
         "artifacts_present": "Artifacts present",
@@ -37,7 +43,7 @@ def tone(value: object) -> str:
         return "ok"
     if raw in {"manual_review_required", "medium", "build_approval_required", "open", "review"}:
         return "warn"
-    if raw in {"critical", "high", "blocked", "failed"}:
+    if raw in {"critical", "high", "blocked", "failed", "abort_documented"}:
         return "bad"
     return "neutral"
 
@@ -162,6 +168,7 @@ def pipeline_steps(candidate: object) -> list[dict[str, str]]:
 def candidate_card(candidate: object) -> dict[str, Any]:
     blocker_gate = _value(candidate, "latest_blocking_gate")
     blocker_reason = _value(candidate, "latest_blocking_reason")
+    blocker_decision = _value(candidate, "latest_blocking_decision")
     status = _value(candidate, "status")
 
     return {
@@ -177,9 +184,11 @@ def candidate_card(candidate: object) -> dict[str, Any]:
         "fn_tone": tone(_value(candidate, "false_negative_risk_level")),
         "gate_score": f"{int(_value(candidate, 'gate_passed_count', 0) or 0)}/{int(_value(candidate, 'gate_total_count', 0) or 0)}",
         "blocker_gate": humanize(blocker_gate) if blocker_gate else None,
+        "blocker_decision": humanize(blocker_decision) if blocker_decision else None,
         "blocker_reason": str(blocker_reason) if blocker_reason else None,
         "pipeline_steps": pipeline_steps(candidate),
         "next_action": next_action(candidate),
+        "next_safe_action": determine_next_safe_action(candidate).to_display_dict(),
         "can_continue_review": can_continue_candidate_review(candidate),
         "can_run_connector_validation": can_run_connector_validation(candidate),
     }
@@ -197,11 +206,22 @@ def action_run_card(action_run: object | None) -> dict[str, object] | None:
     status = str(_value(action_run, "status", ""))
     exit_code = _value(action_run, "exit_code")
     gate_created = bool(_value(action_run, "gate_review_created", False))
-    error_summary = str(_value(action_run, "error_summary", "") or "")
+    stdout_tail = str(_value(action_run, "stdout_tail", "") or "").strip()
+    stderr_tail = str(_value(action_run, "stderr_tail", "") or "").strip()
+    error_summary = str(_value(action_run, "error_summary", "") or "").strip()
     if not error_summary:
-        stdout_tail = str(_value(action_run, "stdout_tail", "") or "").strip()
-        stderr_tail = str(_value(action_run, "stderr_tail", "") or "").strip()
-        error_summary = stdout_tail.splitlines()[0] if stdout_tail else (stderr_tail.splitlines()[0] if stderr_tail else "No output recorded.")
+        diagnostic = stderr_tail if status == "failed" and stderr_tail else stdout_tail or stderr_tail
+        error_summary = diagnostic.splitlines()[-1] if diagnostic else "No diagnostic output recorded."
+
+    if status == "failed":
+        diagnostic_hint = "The command failed before the expected gate result was persisted."
+    elif gate_created:
+        diagnostic_hint = "The action wrote or updated a gate review after it finished."
+    elif "no_safe_automated_action" in (stdout_tail + "\n" + error_summary):
+        diagnostic_hint = "The orchestrator intentionally stopped without writing another gate review."
+    else:
+        diagnostic_hint = "No gate review was written by this action."
+
     return {
         "id": _value(action_run, "action_run_id", ""),
         "action_type": humanize(_value(action_run, "action_type")),
@@ -212,6 +232,9 @@ def action_run_card(action_run: object | None) -> dict[str, object] | None:
         "finished_at": format_datetime(_value(action_run, "finished_at")),
         "reviewed_by": str(_value(action_run, "reviewed_by", "") or "-"),
         "summary": error_summary,
+        "diagnostic_hint": diagnostic_hint,
+        "stdout_tail": stdout_tail,
+        "stderr_tail": stderr_tail,
         "gate_review_created": gate_created,
         "gate_review_status": humanize(_value(action_run, "gate_review_status")),
         "gate_review_decision": humanize(_value(action_run, "gate_review_decision")),
@@ -262,17 +285,7 @@ def can_continue_candidate_review(candidate: object) -> bool:
 
 
 def next_action(candidate: object) -> str:
-    if is_active(candidate):
-        return "Monitor value"
-    if is_blocked(candidate):
-        return "Repair evidence"
-    if can_run_connector_validation(candidate):
-        return "Validate connector"
-    if needs_registration_approval(candidate):
-        return "Approve registration"
-    if needs_build_approval(candidate):
-        return "Approve build"
-    return "Continue review"
+    return str(determine_next_safe_action(candidate).label)
 
 
 def source_rows(candidates: Iterable[object]) -> list[dict[str, str]]:
