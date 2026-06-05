@@ -1,7 +1,8 @@
 """Recover a public employer-origin source URL for a blocked candidate.
 
 Boundary: this agent only probes a small deterministic set of company-related
-career/job URL candidates and may update employer_origin_source_candidates.
+career/job URL candidates. It is dry-run by default and updates
+employer_origin_source_candidates only when --apply is explicitly set.
 It does not build/register connectors, activate sources, write Bronze records,
 change scheduler configuration or bypass later approval gates.
 """
@@ -34,6 +35,8 @@ BOUNDARY = {
     "no_bronze_write": True,
     "no_scheduler_change": True,
     "bounded_recovery_probe": True,
+    "dry_run_default": True,
+    "explicit_apply_required": True,
 }
 
 
@@ -80,7 +83,7 @@ def load_candidate(conn: psycopg.Connection[Any], company_key: str) -> Candidate
         candidate_id=int(row["id"]),
         company_key=str(row["company_key"]),
         company_name=str(row["company_name"]),
-        candidate_url=str(row["candidate_url"]),
+        candidate_url=str(row["candidate_url"] or ""),
         source_name_candidate=str(row["source_name_candidate"]),
         source_family_candidate=str(row["source_family_candidate"]),
         source_target_candidate=row["source_target_candidate"],
@@ -256,6 +259,10 @@ def run_gate_review_after_recovery(candidate: Candidate, *, selected_url: str, t
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.run_gate_review_after_recovery and not args.apply:
+        print("error: --run-gate-review-after-recovery requires --apply", file=sys.stderr)
+        return 2
+
     with connect() as conn:
         candidate = load_candidate(conn, args.company_key)
         candidates = generate_recovery_url_candidates(
@@ -272,32 +279,44 @@ def run(args: argparse.Namespace) -> int:
 
         print(f"candidate_id: {candidate.candidate_id}")
         print(f"company_key: {candidate.company_key}")
-        print(f"previous_candidate_url: {candidate.candidate_url}")
+        print(f"previous_candidate_url: {candidate.candidate_url or '-'}")
+        print(f"apply: {str(args.apply).lower()}")
         print(f"recovery_candidate_count: {len(candidates)}")
         for result in probe_results:
             print(f"probe: {result.url} | accepted={result.accepted} | reason={result.reason}")
 
         if not selected_url:
-            record_unresolved_recovery(
+            print("selected_recovery_url: -")
+            print("would_record_unresolved_recovery: true")
+            if args.apply:
+                record_unresolved_recovery(
+                    conn,
+                    candidate_id=candidate.candidate_id,
+                    reviewed_by=args.reviewed_by,
+                    previous_url=candidate.candidate_url,
+                    probe_results=probe_results,
+                )
+                print("source_url_recovery_result: manual_review_required")
+            else:
+                print("source_url_recovery_result: manual_review_required_dry_run")
+            return 0
+
+        print(f"selected_recovery_url: {selected_url}")
+        print("would_update_candidate_url: true")
+
+        if args.apply:
+            reset_downstream_gate_state(
                 conn,
                 candidate_id=candidate.candidate_id,
                 reviewed_by=args.reviewed_by,
+                selected_url=selected_url,
                 previous_url=candidate.candidate_url,
                 probe_results=probe_results,
             )
-            print("source_url_recovery_result: manual_review_required")
+            print("source_url_recovery_result: recovered")
+        else:
+            print("source_url_recovery_result: recovered_dry_run")
             return 0
-
-        reset_downstream_gate_state(
-            conn,
-            candidate_id=candidate.candidate_id,
-            reviewed_by=args.reviewed_by,
-            selected_url=selected_url,
-            previous_url=candidate.candidate_url,
-            probe_results=probe_results,
-        )
-        print(f"selected_recovery_url: {selected_url}")
-        print("source_url_recovery_result: recovered")
 
     if args.run_gate_review_after_recovery:
         exit_code = run_gate_review_after_recovery(
@@ -322,6 +341,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewed-by", default="agent")
     parser.add_argument("--timeout-seconds", type=float, default=10.0)
     parser.add_argument("--max-candidates", type=int, default=12)
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Persist candidate_url/gate-state changes. Default is dry-run.",
+    )
     parser.add_argument("--run-gate-review-after-recovery", action="store_true")
     return parser
 
