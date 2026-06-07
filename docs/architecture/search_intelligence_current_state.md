@@ -289,3 +289,20 @@ Status:
 
 This keeps the next Search Intelligence step focused on URL discovery quality before Türsteher, gate or scheduler changes.
 <!-- EO-002D-CURRENT-STATE:END -->
+
+<!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
+## ARCH-001 Current State Impact
+
+The current Search Intelligence architecture is in freeze/maturity mode.
+
+EO-002D improved origin URL discovery for the current benchmark cases. The next implementation work must not add opportunistic feature breadth. It must follow ARCH-001:
+
+- identify the safety zone before changing behavior
+- identify agent permissions before adding writes or external calls
+- preserve read-only validation as separate from write/apply flows
+- use the candidate lifecycle state machine for transitions
+- use gate contracts for stop reasons and next safe actions
+- treat security controls as architecture requirements, not polish
+
+Next active block after ARCH-001: EO-002E Gate Stop / Next-Safe-Action Evidence Analysis.
+<!-- ARCH-001-SAFETY-SECURITY-STATE:END -->

@@ -22,3 +22,13 @@ The next development block is expected to be:
 **EO-002B Candidate Reprocessing & URL Finder Validation**
 
 That block should start only after the DOC-001/DOC-002 baseline is merged or consciously accepted as the active working baseline.
+
+<!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
+## Architecture Freeze Governance
+
+Architecture freeze is now an active governance rule.
+
+During maturity mode, a new idea enters active scope only when it is expected to improve a named maturity area by roughly 15 to 20 points or close a measured pipeline gap. Otherwise it is parked in the White-Whale or product backlog.
+
+ARCH-001 is the governing baseline for safety zones, security boundaries, agent permissions, lifecycle transitions and gate contracts.
+<!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
