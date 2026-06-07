@@ -1,5 +1,9 @@
 # Historical Terminology Registry
 
+Status: historical reference
+Scope: terminology history and current interpretation support
+DOC-001G note: This file preserves historical wording. It is not a primary Current Truth entry point.
+
 Purpose:
 
 Preserve historical terminology while documenting the current interpretation used by the Search Intelligence architecture.

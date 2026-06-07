@@ -1,28 +1,31 @@
 # Current System Overview
 
-Status: current truth candidate  
-Scope: DOC-001B architecture rebaseline  
-Last rebaseline: DOC-001B
+Status: current truth
+Scope: DOC-001G architecture rebaseline
+Last rebaseline: DOC-001G
 
 ## Product intent
 
-The project is a personal job-market intelligence pipeline for the Hannover and
+This project is a personal job-market intelligence pipeline for the Hannover and
 remote-in-Germany market.
 
-It is no longer just a job scraper demo. The current system is a controlled
-Search Intelligence product that combines:
+It exists because relevant jobs are not only missed by bad search terms. They
+can also be missed by noisy aggregators, repeated known-company results,
+insufficient employer-origin discovery, missing detail evidence, overly strict
+gates, stale stops, or documentation that no longer matches the system.
 
-- defensive source ingestion,
-- source and candidate discovery,
-- evidence collection,
-- gate-based progression,
-- connector candidacy,
-- controlled activation,
-- observability,
-- governance and documentation guards.
+The system is therefore optimized for controlled market understanding:
 
-The system is optimized for reducing false negatives without turning broad,
-untrusted discovery signals into uncontrolled source activation.
+- discover broadly enough to reduce false negatives,
+- preserve raw signals without trusting them too early,
+- require evidence before promotion or connector work,
+- make stops explainable and repairable,
+- keep source activation controlled,
+- show the operator where the pipeline is learning or stuck.
+
+This is a portfolio project, but the architecture is intentionally product-like:
+it favors safety, traceability, governance and maintainability over quick scraper
+wins.
 
 ## Current architecture in one sentence
 
@@ -40,6 +43,22 @@ Market Sensors
   -> Bronze / Silver / Gold / Control Center
 ```
 
+## Deep Ocean architecture metaphor
+
+The Deep Ocean identity is not decoration. It is a useful model for the system:
+
+| Concept | Architecture meaning |
+|---|---|
+| Sonar | bounded market sensing across sources/search spaces |
+| Signal | raw market or source observation |
+| Depth | evidence quality, confidence, auditability |
+| Gate / pressure | controlled progression under risk |
+| Repair loop | bounded learning path after a stop or suspected false negative |
+| Control Center | operator surface for state, blockers and next safe actions |
+
+The project should look and read like a calm technical product, not a tutorial,
+not a crawler demo and not a decorative theme exercise.
+
 ## Core pipeline stages
 
 ### 1. Market and source sensors
@@ -53,14 +72,15 @@ Important boundary:
 - employer-origin sources may be valuable even with low volume if they add unique
   relevant jobs,
 - new sensor expansion is frozen unless it materially improves safety, diagnosis,
-  generics, or maturity.
+  generic transferability or maturity.
 
 ### 2. Candidate and source discovery
 
 Candidate discovery turns market signals into employer-origin candidates.
 
 The current system tracks candidate identity, source-family candidates,
-source-name candidates, candidate URLs, risk levels, and lifecycle/gate status.
+source-name candidates, candidate URLs, risk levels, lifecycle status and gate
+state.
 
 Important boundary:
 
@@ -195,8 +215,8 @@ The system should keep these boundaries:
 
 ## Current highest documentation priorities
 
-1. Rebuild the architecture and system diagrams from the actual current system.
-2. Rebaseline ADRs.
-3. Reduce active documentation entry points.
-4. Archive/deprecate planning and source-analysis sprawl.
+1. Keep architecture diagrams aligned with the actual Search Intelligence loop.
+2. Rebaseline ADRs against the DOC-001G document-status surface.
+3. Move old README contract anchors toward Current Truth docs and tests.
+4. Archive/deprecate planning and source-analysis sprawl selectively.
 5. Keep GOV-001 guardrails active during all future changes.
