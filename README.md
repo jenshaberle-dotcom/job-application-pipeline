@@ -52,6 +52,32 @@ Visual and documentation rules are tracked in:
 
 ## Architecture
 
+<!-- DOC-001-DOC-002-OPERATING-BASELINE:START -->
+## Current Operating Baseline
+
+The project now treats governance and current-state documentation as part of the product surface.
+
+Current repo-level operating documents:
+
+- [`docs/governance/governance_foundation.md`](docs/governance/governance_foundation.md) — DOC-001 lightweight governance gate.
+- [`docs/governance/documentation_drift_baseline.md`](docs/governance/documentation_drift_baseline.md) — DOC-002 documentation drift baseline.
+- [`docs/architecture/search_intelligence_current_state.md`](docs/architecture/search_intelligence_current_state.md) — current Search Intelligence operating snapshot.
+- [`docs/planning/eo002b_candidate_reprocessing_url_finder_validation.md`](docs/planning/eo002b_candidate_reprocessing_url_finder_validation.md) — next validation campaign.
+
+The immediate sequence is:
+
+```text
+DOC-001 Governance Foundation Gate
+→ DOC-002 Documentation Drift Baseline
+→ EO-002B Candidate Reprocessing & URL Finder Validation
+→ EO-002B Metrics & Decision Report
+→ Wave Search Intelligence + Scheduler/Orchestrator validation
+→ Large Adrian-quality documentation/design polish
+```
+
+Status language must distinguish implemented code from operationally validated behavior. Search Intelligence features that are built but not yet proven in realistic runs must be documented as such.
+<!-- DOC-001-DOC-002-OPERATING-BASELINE:END -->
+
 The pipeline follows a layered data architecture inspired by modern data platforms and Microsoft Fabric concepts.
 
 Architecture flow:

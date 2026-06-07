@@ -13,6 +13,30 @@
 
 ---
 
+
+
+<!-- DOC-001-DOC-002-IMMEDIATE-PLAN:START -->
+## Immediate Current Plan — 2026-06-07
+
+The current priority is to stop documentation and implementation drift before the next large Search Intelligence mutation.
+
+| Order | Block | Purpose |
+|---|---|---|
+| 1 | DOC-001 Governance Foundation Gate | Move governance rules from chat habit into repo-level working rules. |
+| 2 | DOC-002 Documentation Drift Baseline | Reconcile the current system truth before changing more behavior. |
+| 3 | EO-002B Candidate Reprocessing & URL Finder Validation foundation | Use a controlled guest list and URL Finder validation report before Türsteher changes. |
+| 4 | EO-002B Gate-Stop Metrics & Decision Report | Join URL Finder outcomes with gate stops and decide whether the bottleneck is URL Finder, gates, Türsteher, Wave Discovery or orchestration. |
+| 5 | Wave Search Intelligence + Scheduler/Orchestrator validation | Prove that built discovery waves actually produce useful rotation/new-company yield. |
+| 6 | Large Adrian documentation/design polish | Clean up the full product narrative once the validated state is known. |
+
+Current policy:
+
+- new sensors are not the immediate priority,
+- do not weaken the Türsteher before measuring where candidates stop,
+- do not polish unvalidated intermediate behavior into product truth,
+- keep CSV/Excel artifacts as review outputs only, never hidden pipeline inputs.
+<!-- DOC-001-DOC-002-IMMEDIATE-PLAN:END -->
+
 ## Phase 2 — Bronze Layer Ingestion
 
 - [x] Bundesagentur für Arbeit connector
@@ -534,3 +558,20 @@ Sharpen connector-feasibility sample evidence so assets, feeds and technical end
 ## S7N Repair – Structural Evidence Quality
 
 Sharpen connector-feasibility sample evidence so assets, feeds, technical endpoints, social links, press/media pages, root homepages and generic career-context links are not counted as build-ready job samples. Keep those observations as URL-quality feedback for the Origin Source Discovery loop.
+
+<!-- EO-002C-ROADMAP:START -->
+## EO-002C Reprocessing Metrics & Decision Report
+
+Status: scaffold added after EO-002B foundation.
+
+Purpose:
+
+- read EO-002B URL Finder validation JSON reports,
+- aggregate selected URL rate, A/B-tier rate, gate stops and false-negative outcomes,
+- generate a Markdown + JSON decision report under `exports/`,
+- keep Wave/Scheduler, Türsteher and gate rewrites deferred until evidence is visible.
+
+Next use:
+
+Run EO-002B locally, then run EO-002C to decide whether the next implementation block should target URL Finder quality, gate-stop history joins, candidate-promotion logic or Wave/Scheduler validation.
+<!-- EO-002C-ROADMAP:END -->
