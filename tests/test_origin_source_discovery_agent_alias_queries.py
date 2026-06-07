@@ -20,4 +20,3 @@ def test_low_budget_query_order_uses_alias_in_second_query() -> None:
     )
     assert queries[0] == '"Hannover Rück SE" Karriere Jobs Hannover'
     assert queries[1] == '"hannover re" Karriere Jobs Hannover'
-

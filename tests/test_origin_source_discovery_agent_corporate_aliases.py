@@ -24,4 +24,3 @@ def test_tib_aliases_include_short_brand() -> None:
 def test_hannover_ruck_alias_tokens_include_re() -> None:
     tokens = corporate_identity_alias_tokens("hannover_ruck", "Hannover Rück SE")
     assert "re" in tokens
-

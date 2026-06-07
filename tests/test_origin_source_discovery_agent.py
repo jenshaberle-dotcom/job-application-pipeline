@@ -202,4 +202,3 @@ def test_hannover_re_alias_search_result_can_be_selected() -> None:
 
     assert result.decision == "origin_url_candidate_selected"
     assert result.selected_url == "https://jobs.hannover-re.com/"
-
