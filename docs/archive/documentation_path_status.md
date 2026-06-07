@@ -1,24 +1,24 @@
 # Documentation Path Status and Archive Triage
 
 Status: current archive/deprecation control surface
-Scope: DOC-001H docs-path cleanup and physical-archive decision rules
+Scope: DOC-001I docs-path cleanup and physical-archive decision rules
 
 ## Purpose
 
-The docs tree still looks chaotic because DOC-001 deliberately rebuilt the
-Current Truth reader path before moving large numbers of historical files.
+The docs tree still contains a large historical surface, but DOC-001 now has a
+small Current Truth reader path and a first physical archive move.
 
-This document makes the next archive rule explicit: historical content should be
-visible as historical now, and moved only when link/test impact is understood.
+This page explains which paths are current, reference, historical, transitional
+or archived.
 
 ## Current path classes
 
-| Path | DOC-001H status | Reader instruction |
+| Path | DOC-001I status | Reader instruction |
 |---|---|---|
 | `README.md` | Current Truth entry | Start here for project motivation and positioning. |
 | `docs/README.md` | Current Truth entry | Start here for documentation navigation. |
-| `docs/architecture/` | Mixed but controlled | Use `README.md`, `current_system_overview.md`, `system_diagrams.md`, and the architecture authority/status page first. |
-| `docs/database/` | Current reference, now rebaselined | Use `README.md`, `schema_overview.md`, and `schema_relationships.md` before old table details. |
+| `docs/architecture/` | Mixed but controlled | Use `README.md`, `current_system_overview.md`, `system_diagrams.md`, and `architecture_document_status.md` first. |
+| `docs/database/` | Current reference, rebaselined | Use `README.md`, `schema_overview.md`, and `schema_relationships.md` before old table details. |
 | `docs/governance/` | Current governance/control surface | Use for agent registry, capability audit, drift guard and ADR rebaseline controls. |
 | `docs/operations/` | Current operator surface | Use for runbook, migration tracking and scheduler/watchdog notes. |
 | `docs/design/` | Current reference | Keep for Deep Ocean visual identity and documentation rules. |
@@ -27,31 +27,42 @@ visible as historical now, and moved only when link/test impact is understood.
 | `docs/classification/`, `docs/relevance/` | Reference | Keep as domain references; not the main architecture story. |
 | `docs/planning/` | Historical by default | Build logs and planning notes. Do not read as Current Truth unless explicitly promoted. |
 | `docs/source_analysis/` | Historical by default | Source-analysis traceability. Do not read as Current Truth unless explicitly promoted. |
-| `docs/diagrams/` | Archive candidate | Older diagram pages should be compared against `docs/architecture/system_diagrams.md`. |
+| `docs/archive/diagrams/` | Archived historical diagrams | Preserved for traceability only; use current replacements. |
 | `docs/project_state/` | Transitional handover/state surface | Useful for chat/runtime handover, but not stable architecture truth. |
+
+## Completed physical archive moves
+
+| DOC block | Old path | New archive path | Current replacement |
+|---|---|---|---|
+| DOC-001I | `docs/diagrams/architecture.md` | `docs/archive/diagrams/architecture.md` | `docs/architecture/system_diagrams.md` |
+| DOC-001I | `docs/diagrams/bronze_data_model.md` | `docs/archive/diagrams/bronze_data_model.md` | `docs/database/schema_relationships.md` |
 
 ## Why not move everything immediately?
 
 A mass move of planning/source-analysis files would reduce visual clutter, but it
 also risks breaking historical links, tests, and prior handover references.
 
-DOC-001H therefore separates three actions:
+DOC-001 therefore separates three actions:
 
 1. **Declare status**: make it obvious what is Current Truth, Reference,
-   Historical or Archive Candidate.
+   Historical or Archived.
 2. **Index historical content**: keep it searchable without pretending it is
    current architecture.
 3. **Move only with a link check**: physically archive files once navigation and
    tests have been updated.
 
-## Physical archive candidates
+## Archive candidate queue
+
+The following paths remain archive candidates after the completed DOC-001I diagram move.
+
+## Remaining physical archive candidates
 
 | Priority | Candidate | Intended action |
 |---|---|---|
-| 1 | `docs/diagrams/architecture.md` | Compare against `docs/architecture/system_diagrams.md`; then move or replace with redirect note. |
-| 2 | `docs/diagrams/bronze_data_model.md` | Compare against `docs/database/schema_relationships.md`; then move or replace with redirect note. |
-| 3 | stale planning documents not referenced by contract tests | Move under `docs/archive/planning/` or keep indexed with historical banner. |
-| 4 | stale source-analysis documents not referenced by active source work | Move under `docs/archive/source_analysis/` or keep indexed with historical banner. |
+| 1 | stale planning documents not referenced by contract tests | Move under `docs/archive/planning/` or keep indexed with historical banner. |
+| 2 | stale source-analysis documents not referenced by active source work | Move under `docs/archive/source_analysis/` or keep indexed with historical banner. |
+| 3 | obsolete architecture narratives after ADR/status review | Replace with Current Truth extracts or move to archive/reference. |
+| 4 | transitional `docs/project_state/` snapshots | Keep only if they support current handover/state workflows. |
 
 ## Archive decision rule
 
@@ -65,9 +76,5 @@ Move a historical document only when all are true:
 
 ## Next archive block
 
-DOC-001I should perform the first physical archive pass. It should start with the
-small `docs/diagrams/` directory because the replacement diagrams already exist
-in `docs/architecture/system_diagrams.md`.
-
-The large `docs/planning/` and `docs/source_analysis/` moves should wait until a
-simple link/reference check exists.
+The next archive block should add a lightweight reference/link check before any
+larger physical move of planning or source-analysis documents.

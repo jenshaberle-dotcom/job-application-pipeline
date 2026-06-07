@@ -18,7 +18,7 @@ The database is no longer only an implementation detail. It represents important
 - technical duplicate protection
 - traceability from Silver back to Bronze
 
-The existing `docs/diagrams/bronze_data_model.md` documents the model visually, but the project also needs granular table and constraint documentation.
+The existing `docs/archive/diagrams/bronze_data_model.md` documents the model visually, but the project also needs granular table and constraint documentation.
 
 ## Decision
 
@@ -39,7 +39,7 @@ The documentation includes:
 
 The detailed documentation is stored in:
 
-- `docs/diagrams/bronze_data_model.md`
+- `docs/archive/diagrams/bronze_data_model.md`
 - `docs/database/tables.md`
 
 ## Consequences
@@ -49,3 +49,9 @@ Schema decisions become easier to review.
 Future migrations should update the database documentation in the same change set.
 
 The documentation can later support CLI parameters, GUI configuration, Silver modeling, Gold modeling and semantic deduplication.
+
+## DOC-001I note
+
+The former Bronze/Silver diagram page was physically archived to
+`docs/archive/diagrams/bronze_data_model.md`. The current schema relationship
+map is `docs/database/schema_relationships.md`.

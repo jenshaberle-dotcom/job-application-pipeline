@@ -70,9 +70,15 @@ promoted into Current Truth:
 - `docs/planning/`
 - `docs/source_analysis/`
 - `docs/project_state/`
-- `docs/diagrams/`
+- `docs/archive/diagrams/` for archived legacy diagrams
 - old source-specific candidate and connector notes
 - old spike and MVP documents
+
+## DOC-001I archive note
+
+The former `docs/diagrams/` pages were physically archived in
+`docs/archive/diagrams/` after their current replacements were established in
+`docs/architecture/system_diagrams.md` and `docs/database/schema_relationships.md`.
 
 Historical does not mean useless. It means:
 

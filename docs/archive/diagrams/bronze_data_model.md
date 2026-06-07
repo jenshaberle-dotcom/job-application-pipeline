@@ -1,3 +1,18 @@
+# Archived Bronze and Silver Data Model Diagram
+
+Status: archived historical diagram
+Archived by: DOC-001I physical diagram archive pass
+Current replacement: `docs/database/schema_relationships.md`
+
+## Archive note
+
+This file is preserved for historical traceability. It is not part of the
+Current Truth reader path anymore.
+
+Use the replacement document above for the current architecture/database view.
+
+---
+
 # Bronze and Silver Data Model
 
 ```mermaid

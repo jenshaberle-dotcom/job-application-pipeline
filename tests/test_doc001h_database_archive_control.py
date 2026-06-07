@@ -85,9 +85,9 @@ def test_doc001h_archive_path_status_classifies_chaotic_paths():
         "Archive candidate",
         "docs/planning/",
         "docs/source_analysis/",
-        "docs/diagrams/",
+        "docs/archive/diagrams/",
         "docs/project_state/",
-        "DOC-001I should perform the first physical archive pass",
+        "Completed physical archive moves",
     ]:
         assert phrase in text
 
