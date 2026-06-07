@@ -41,3 +41,20 @@ Every gate must explain what it saw, why it decided, what risk remains and what 
 ## Rule for future gate work
 
 Do not weaken a gate because a candidate is stuck. First identify whether the stop is caused by URL discovery, evidence discovery, missing gate context, candidate promotion, connector feasibility or security policy.
+
+<!-- EO-002E-GATE-CONTRACT-USAGE:START -->
+## EO-002E Gate Contract Usage
+
+EO-002E does not create new gate decisions. It checks whether existing and missing gate decisions expose enough information to choose a next safe action.
+
+A candidate analysis must expose:
+
+- effective origin URL and source of that URL,
+- first missing gate,
+- stop-like gate and stop classification when present,
+- recommended next safe action,
+- ARCH-001 Safety Zone for the recommendation,
+- whether manual review is required before writes.
+
+This turns gate stops into a diagnostic contract instead of treating them as opaque terminal states.
+<!-- EO-002E-GATE-CONTRACT-USAGE:END -->
