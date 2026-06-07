@@ -55,19 +55,51 @@ def candidate_filter_sql(*, include_active_controlled: bool) -> str:
     """
 
 
-def load_candidate_keys(conn: psycopg.Connection[Any], *, include_active_controlled: bool, limit: int) -> list[tuple[int, str, str]]:
-    where_clause = candidate_filter_sql(include_active_controlled=include_active_controlled)
+def normalize_company_keys(company_keys: list[str] | None) -> list[str]:
+    """Return unique, non-empty company keys in caller-specified guest-list order."""
+
+    normalized: list[str] = []
+    for raw_key in company_keys or []:
+        key = str(raw_key or "").strip()
+        if key and key not in normalized:
+            normalized.append(key)
+    return normalized
+
+
+def load_candidate_keys(
+    conn: psycopg.Connection[Any],
+    *,
+    include_active_controlled: bool,
+    limit: int,
+    company_keys: list[str] | None = None,
+) -> list[tuple[int, str, str]]:
+    guest_list = normalize_company_keys(company_keys)
     with conn.cursor() as cur:
-        cur.execute(
-            f"""
-            SELECT c.id, c.company_key, c.status
-            FROM employer_origin_source_candidates c
-            WHERE {where_clause}
-            ORDER BY c.updated_at DESC NULLS LAST, c.id
-            LIMIT %s
-            """,
-            (limit,),
-        )
+        if guest_list:
+            active_controlled_guard = "TRUE" if include_active_controlled else "c.status <> 'active_controlled'"
+            cur.execute(
+                f"""
+                SELECT c.id, c.company_key, c.status
+                FROM employer_origin_source_candidates c
+                WHERE c.company_key = ANY(%s::text[])
+                  AND {active_controlled_guard}
+                ORDER BY array_position(%s::text[], c.company_key), c.updated_at DESC NULLS LAST, c.id DESC
+                LIMIT %s
+                """,
+                (guest_list, guest_list, limit),
+            )
+        else:
+            where_clause = candidate_filter_sql(include_active_controlled=include_active_controlled)
+            cur.execute(
+                f"""
+                SELECT c.id, c.company_key, c.status
+                FROM employer_origin_source_candidates c
+                WHERE {where_clause}
+                ORDER BY c.updated_at DESC NULLS LAST, c.id
+                LIMIT %s
+                """,
+                (limit,),
+            )
         rows = cur.fetchall()
     return [(int(row["id"]), str(row["company_key"]), str(row["status"])) for row in rows]
 
@@ -143,8 +175,18 @@ def print_duplicate_candidate_preflight(duplicates: list[dict[str, Any]], *, app
     return False
 
 
-def snapshot(conn: psycopg.Connection[Any], *, benchmark_label: str, phase: str, include_active_controlled: bool, limit: int) -> int:
-    where_clause = candidate_filter_sql(include_active_controlled=include_active_controlled)
+def snapshot(
+    conn: psycopg.Connection[Any],
+    *,
+    benchmark_label: str,
+    phase: str,
+    include_active_controlled: bool,
+    limit: int,
+    candidates: list[tuple[int, str, str]] | None = None,
+) -> int:
+    candidate_ids = [candidate_id for candidate_id, _, _ in candidates or []]
+    where_clause = "c.id = ANY(%s::bigint[])" if candidate_ids else candidate_filter_sql(include_active_controlled=include_active_controlled)
+    query_params: tuple[object, ...] = (candidate_ids,) if candidate_ids else ()
     with conn.cursor() as cur:
         cur.execute(
             f"""
@@ -189,7 +231,8 @@ def snapshot(conn: psycopg.Connection[Any], *, benchmark_label: str, phase: str,
                     'include_active_controlled', %s,
                     'benchmark_boundary', jsonb_build_object(
                         'no_csv_or_export_input', true,
-                        'snapshot_only', true
+                        'snapshot_only', true,
+                        'guest_list_candidate_ids', to_jsonb(%s::bigint[])
                     )
                 ) AS evidence
             FROM employer_origin_source_candidates c
@@ -214,7 +257,7 @@ def snapshot(conn: psycopg.Connection[Any], *, benchmark_label: str, phase: str,
             ORDER BY c.updated_at DESC NULLS LAST, c.id
             LIMIT %s
             """,
-            (benchmark_label, phase, include_active_controlled, limit),
+            (benchmark_label, phase, include_active_controlled, candidate_ids, *query_params, limit),
         )
         inserted = cur.rowcount
     conn.commit()
@@ -414,7 +457,16 @@ def run(args: argparse.Namespace) -> int:
             conn,
             include_active_controlled=args.include_active_controlled,
             limit=args.max_candidates,
+            company_keys=args.company_key,
         )
+        if args.company_key:
+            found_keys = {company_key for _, company_key, _ in candidates}
+            missing_keys = [key for key in normalize_company_keys(args.company_key) if key not in found_keys]
+            if missing_keys:
+                print(
+                    "guest_list_missing_or_protected: " + ", ".join(missing_keys)
+                    + " (not found, over limit, or active_controlled without --include-active-controlled)"
+                )
         duplicates = load_duplicate_candidate_identities(
             conn,
             candidate_ids=[candidate_id for candidate_id, _, _ in candidates],
@@ -430,6 +482,7 @@ def run(args: argparse.Namespace) -> int:
                 phase="before",
                 include_active_controlled=args.include_active_controlled,
                 limit=args.max_candidates,
+                candidates=candidates,
             )
             print(f"snapshot_before_rows: {inserted}")
         if args.reset_candidates:
@@ -458,6 +511,7 @@ def run(args: argparse.Namespace) -> int:
                 phase="after",
                 include_active_controlled=args.include_active_controlled,
                 limit=args.max_candidates,
+                candidates=candidates,
             )
             print(f"snapshot_after_rows: {inserted}")
         if args.compare:
@@ -471,6 +525,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewed-by", default="agent")
     parser.add_argument("--target-location", default="hannover")
     parser.add_argument("--max-candidates", type=int, default=50)
+    parser.add_argument(
+        "--company-key",
+        action="append",
+        help="Explicit guest-list company key to reprocess. Repeat for multiple candidates. Active-controlled rows still require --include-active-controlled.",
+    )
     parser.add_argument("--max-iterations", type=int, default=6)
     parser.add_argument("--include-active-controlled", action="store_true")
     parser.add_argument("--snapshot-before", action="store_true")

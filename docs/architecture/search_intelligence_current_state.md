@@ -10,6 +10,51 @@ It intentionally describes the current architecture rather than historical evolu
 
 ## Mission
 
+<!-- DOC-001-DOC-002-CURRENT-SNAPSHOT:START -->
+## Current Operational Snapshot — 2026-06-07
+
+This project is currently in a Search Intelligence stabilization phase.
+
+The operational funnel is:
+
+```text
+Market Sensors
+→ Candidate Promotion / Türsteher
+→ URL Finder
+→ Evidence Gates
+→ Connector Build Candidate
+→ Bronze / Silver / Gold
+→ UI / Operations
+```
+
+Current truth table:
+
+| Area | Status | Current Interpretation |
+|---|---|---|
+| Market Sensors | Implemented, not the current priority bottleneck | Existing sensors appear sufficient for the next validation step; new sensors are not the immediate fix. |
+| Candidate Promotion / Türsteher | Implemented, suspected false-negative contributor | Do not rewrite first; validate with a bounded guest-list/reprocessing campaign. |
+| StepStone Discovery Iteration Closure / Wave Search Intelligence | Built but operationally unvalidated | Code/tests exist, but practical rotation/new-company yield and scheduler integration still need validation. |
+| URL Finder / Origin Source Discovery | Implemented, EO-002B validation runner added | Measure selected URLs, alternatives, rejected URLs, confidence and risk level across real candidates with `run_eo002b_url_finder_validation.py`. |
+| Evidence Gates | Implemented, may be correctly defensive or too strict | EO-002B should identify where candidates stop before gate thresholds are changed; gate-stop report join remains the next follow-up. |
+| Candidate Reprocessing Benchmark | Implemented as dry-run-first safety tool with guest-list support | Use repeated `--company-key` arguments for bounded EO-002B candidates instead of broad manual poking. |
+| Scheduler / Orchestrator | Present but not trusted as fully validated | Do not rely on automation until Wave Search Intelligence behavior is verified. |
+| Governance | DOC-001 established | System Impact, Drift, Lessons Learned, White Whale, Conversation Health and Reflection checks are now repo-level rules. |
+| Documentation | DOC-002 baseline in progress | Current-state docs are being reconciled before the next large behavior-changing block. |
+
+Immediate sequence:
+
+1. DOC-001 Governance Foundation Gate.
+2. DOC-002 Documentation Drift Baseline.
+3. EO-002B Candidate Reprocessing & URL Finder Validation foundation.
+4. EO-002B gate-stop metrics join and decision report.
+5. Wave Search Intelligence + Scheduler/Orchestrator validation.
+6. Larger Adrian-quality documentation/design polish.
+
+Important boundary:
+
+Do not present built Search Intelligence features as operationally complete until realistic data runs validate them.
+<!-- DOC-001-DOC-002-CURRENT-SNAPSHOT:END -->
+
 The project has evolved from a job-search pipeline into a Personal Market Intelligence Platform.
 
 The goal is continuous improvement of:
@@ -211,3 +256,19 @@ Current Search Intelligence state now includes a first Gold read-model foundatio
 These views are read-only and are intended to support the tabbed Control Center, daily status checks and demo-ready market coverage reporting.
 
 S7B connects the Control Center to the Gold Search Intelligence views. The UI remains a functional foundation, but its KPIs and candidate lifecycle now come from dashboard-ready Gold read models instead of raw Search Intelligence tables.
+
+<!-- EO-002C-CURRENT-STATE:START -->
+## EO-002C Current-State Addition — Reprocessing Decision Report
+
+EO-002C adds a read-only decision-report scaffold on top of EO-002B URL Finder validation reports.
+
+Status:
+
+- implemented as reporting code,
+- no DB writes,
+- no scheduler change,
+- no gate rewrite,
+- intended to decide whether the next block should improve URL discovery, join gate history, revise the Türsteher, or proceed to Wave/Scheduler validation.
+
+This keeps the project from jumping from raw validation output directly into broad behavior changes.
+<!-- EO-002C-CURRENT-STATE:END -->
