@@ -1,58 +1,66 @@
-# Governance
+# Governance Documentation
 
-This directory contains the lightweight operating governance for the Job Application Pipeline.
+Status: current truth entry point
+Scope: GOV-001 and DOC-001 governance navigation
 
-The goal is not to create a heavyweight project-management system. The goal is to keep a fast-moving, AI-assisted engineering project honest, reviewable and production-oriented.
+## Purpose
 
-## Documents
+This directory defines how the Search Intelligence system is governed during the
+architecture freeze and documentation rebaseline.
 
-- [Governance Foundation](governance_foundation.md) defines the required review checks and decision boundaries.
-- [Documentation Drift Baseline](documentation_drift_baseline.md) captures the current documentation gap and the correction strategy.
+Governance is not decoration. It controls agent responsibilities, write
+boundaries, documentation drift, and whether a new implementation belongs in the
+current maturity path or in the backlog.
 
-## Current Rule
+## Read this first
 
-Governance must be small enough to use before every meaningful implementation block, but explicit enough to stop hidden drift.
+| Topic | Document |
+|---|---|
+| Agent registry | `agent_governance_registry.md` |
+| Agent classification | `agent_classification_catalog.md` |
+| Agent classification rules | `agent_classification_decision_rules.md` |
+| Responsibility model | `agent_responsibility_model.md` |
+| Capability audit | `agent_capability_audit_matrix.md` |
+| Capability gaps | `agent_capability_gap_register.md` |
+| Documentation drift guard | `documentation_drift_guard.md` |
+| Documentation rebaseline | `documentation_rebaseline_strategy.md` |
+| Archive/deprecation plan | `documentation_archive_deprecation_plan.md` |
+| ADR rebaseline | `adr_rebaseline_plan.md` |
 
-If implementation, documentation and chat context disagree, the repository must be reconciled before the next large mutation of system behavior.
+## Current governance rules
 
-## Current Next Block
+### New agent-like artifacts
 
-The next development block is expected to be:
+A new agent-like script must not appear silently.
 
-**EO-002B Candidate Reprocessing & URL Finder Validation**
+It needs:
 
-That block should start only after the DOC-001/DOC-002 baseline is merged or consciously accepted as the active working baseline.
+- governance classification,
+- responsibility boundary,
+- capability audit consideration,
+- tests or explicit capability gap entry,
+- routing decision if it overlaps existing agents.
 
-<!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
-## Architecture Freeze Governance
+### Agent responsibility boundaries
 
-Architecture freeze is now an active governance rule.
+- Queue agents route; they do not repair.
+- Repair agents produce evidence or repair output; they do not approve themselves.
+- Gate agents evaluate evidence; they do not discover evidence.
+- Stopper reassessment audits stops and proposes Stage-2 plans; it does not auto-unblock.
+- Approval/lifecycle agents control state transitions.
 
-During maturity mode, a new idea enters active scope only when it is expected to improve a named maturity area by roughly 15 to 20 points or close a measured pipeline gap. Otherwise it is parked in the White-Whale or product backlog.
+### Documentation drift
 
-ARCH-001 is the governing baseline for safety zones, security boundaries, agent permissions, lifecycle transitions and gate contracts.
-<!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
+Current Truth documents must be kept small and coherent. Planning and
+source-analysis documents are historical by default.
 
-<!-- EO-002E-FREEZE-COMPLIANCE:START -->
-## EO-002E Freeze Compliance
+### Freeze / maturity
 
-EO-002E follows the architecture freeze rule:
+New ideas should not change the active architecture unless they materially
+improve safety, diagnosis, generics, or product maturity. Otherwise they go into
+the backlog.
 
-- no feature expansion beyond the measured post-URL-discovery gap,
-- no scheduler or Türsteher change,
-- no DB writes,
-- recommendations are mapped to ARCH-001 Safety Zones,
-- SENSOR-001 is registered as a roadmap gap instead of becoming an opportunistic sensor change.
-<!-- EO-002E-FREEZE-COMPLIANCE:END -->
+## Relationship to DOC-001
 
-<!-- BEGIN CAND-001-GOVERNANCE -->
-## CAND-001 Governance Note
-
-CAND-001 is allowed in the architecture freeze because it closes a measured pipeline gap found by EO-002E. It does not introduce a new architecture direction and does not activate sources or relax gates.
-<!-- END CAND-001-GOVERNANCE -->
-
-<!-- BEGIN GATE-001-GOVERNANCE -->
-## GATE-001 Governance Note
-
-GATE-001 is allowed in active scope under the architecture-freeze rule because it closes a measured pipeline gap: EO-002E reported `initial_gate_review` after CAND-001 persisted validated origin URLs. It is a direct maturity-path block, not a new idea.
-<!-- END GATE-001-GOVERNANCE -->
+DOC-001 uses this governance layer to rebuild documentation without sentimental
+patchwork. Obsolete documents may be archived, deprecated, or rewritten.
