@@ -38,6 +38,8 @@ Current Truth documents describe the current intended system.
 | Current diagrams | `docs/architecture/system_diagrams.md` |
 | Architecture document status | `docs/architecture/architecture_document_status.md` |
 | Documentation map | `docs/architecture/current_truth_documentation_map.md` |
+| Database schema map | `docs/database/schema_overview.md` |
+| Database relationship map | `docs/database/schema_relationships.md` |
 | Governance overview | `docs/governance/README.md` |
 | Agent registry | `docs/governance/agent_governance_registry.md` |
 | Capability audit | `docs/governance/agent_capability_audit_matrix.md` |
@@ -52,7 +54,7 @@ Reference documents may remain useful, but they are not the main project story.
 
 | Area | Examples |
 |---|---|
-| Database | `docs/database/tables.md` |
+| Database | `docs/database/README.md`, `docs/database/schema_overview.md`, `docs/database/schema_relationships.md` |
 | Source capabilities | `docs/data_sources/source_capabilities.md` |
 | Connector contracts | `docs/data_sources/search_result_connector_contract.md` |
 | Security | `docs/security/search_intelligence_security_baseline.md` |
@@ -68,6 +70,7 @@ promoted into Current Truth:
 - `docs/planning/`
 - `docs/source_analysis/`
 - `docs/project_state/`
+- `docs/diagrams/`
 - old source-specific candidate and connector notes
 - old spike and MVP documents
 

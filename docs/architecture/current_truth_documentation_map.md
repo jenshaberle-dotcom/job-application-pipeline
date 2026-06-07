@@ -100,3 +100,15 @@ Reference or Needs Consolidation.
 
 After DOC-001, a new reader should be able to understand the project from the
 Current Truth layer without reading historical planning notes.
+
+## DOC-001H database and archive note
+
+DOC-001H adds the active database reference entry points:
+
+- `docs/database/README.md`
+- `docs/database/schema_overview.md`
+- `docs/database/schema_relationships.md`
+
+It also adds `docs/archive/documentation_path_status.md` as the first
+docs-path triage surface before any large physical archive move.
+
