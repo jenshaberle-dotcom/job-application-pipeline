@@ -37,6 +37,39 @@ BOUNDARY: dict[str, bool] = {
 }
 
 
+DETAIL_REPORT_CONTRACT: dict[str, Any] = {
+    "preliminary_detail_candidates": (
+        "Discovered link/search candidates before detail-page fetching; "
+        "useful for discovery diagnostics, not gate-pass evidence."
+    ),
+    "authoritative_detail_assessments": (
+        "Post-fetch validation records with decision, failure_reason, confidence "
+        "and extracted signals."
+    ),
+    "supported_details": (
+        "Accepted detail pages only; this is the evidence set allowed to support "
+        "detail_evidence_gate pass/apply decisions."
+    ),
+    "legacy_keys_retained": ["details", "supported_details", "discovery_evidence"],
+}
+
+
+def _list_from_discovery_evidence(
+    discovery_evidence: Mapping[str, Any] | None,
+    key: str,
+) -> list[Any]:
+    snapshot = dict(discovery_evidence or {})
+    value = snapshot.get(key)
+    if isinstance(value, list):
+        return value
+    repair_evidence = snapshot.get("repair_agent_evidence")
+    if isinstance(repair_evidence, Mapping):
+        value = repair_evidence.get(key)
+        if isinstance(value, list):
+            return value
+    return []
+
+
 @dataclass(frozen=True)
 class CandidateDetailEvidenceSnapshot:
     candidate_id: int
@@ -219,17 +252,35 @@ def _base_evidence(
     probes: Sequence[DetailProbeEvidence],
 ) -> dict[str, Any]:
     supported = [probe for probe in probes if probe.supported]
+    preliminary_detail_candidates = _list_from_discovery_evidence(
+        discovery_evidence,
+        "preliminary_detail_candidates",
+    )
+    authoritative_detail_assessments = _list_from_discovery_evidence(
+        discovery_evidence,
+        "authoritative_detail_assessments",
+    )
+    report_contract = dict(DETAIL_REPORT_CONTRACT)
+    discovery_contract = dict(discovery_evidence or {}).get("report_contract")
+    if isinstance(discovery_contract, Mapping):
+        report_contract |= dict(discovery_contract)
+
     return {
         "campaign": CAMPAIGN,
         "company_key": candidate.company_key,
         "candidate_url": normalize_url(candidate.candidate_url),
         "reviewed_by": reviewed_by,
         "boundary": dict(BOUNDARY),
+        "report_contract": report_contract,
         "detail_candidates_considered": detail_candidate_count,
+        "preliminary_detail_candidate_count": len(preliminary_detail_candidates),
+        "authoritative_detail_assessment_count": len(authoritative_detail_assessments),
         "detail_pages_requested": len(probes),
         "supported_detail_candidates": len(supported),
         "requested_urls": list(requested_urls),
         "rejected_urls": list(rejected_urls),
+        "preliminary_detail_candidates": preliminary_detail_candidates,
+        "authoritative_detail_assessments": authoritative_detail_assessments,
         "details": [_probe_to_dict(probe) for probe in probes],
         "supported_details": [_probe_to_dict(probe) for probe in supported],
         "discovery_evidence": dict(discovery_evidence or {}),

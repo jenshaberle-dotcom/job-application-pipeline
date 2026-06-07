@@ -412,7 +412,20 @@ def build_plan_for_candidate(
         requested_urls = tuple(outcome.requested_urls)
         rejected_urls = tuple(outcome.rejected_urls)
         raw_discovery = outcome.evidence.get("discovery_evidence") or {}
+        preliminary_detail_candidates = list(
+            outcome.evidence.get("preliminary_detail_candidates")
+            or outcome.evidence.get("candidate_links")
+            or []
+        )
+        authoritative_detail_assessments = list(
+            outcome.evidence.get("authoritative_detail_assessments")
+            or outcome.evidence.get("detail_assessments")
+            or []
+        )
         discovery_evidence = {
+            "report_contract": outcome.evidence.get("report_contract"),
+            "preliminary_detail_candidates": preliminary_detail_candidates,
+            "authoritative_detail_assessments": authoritative_detail_assessments,
             "repair_agent_evidence": {
                 key: value
                 for key, value in outcome.evidence.items()
@@ -420,13 +433,18 @@ def build_plan_for_candidate(
                 not in {
                     "details",
                     "supported_details",
+                    "supported_detail_evidence",
                     "requested_urls",
                     "rejected_urls",
+                    "candidate_links",
+                    "detail_assessments",
+                    "preliminary_detail_candidates",
+                    "authoritative_detail_assessments",
                 }
             },
             "raw_discovery": raw_discovery,
         }
-        detail_candidate_count = len(outcome.evidence.get("candidate_links") or [])
+        detail_candidate_count = len(preliminary_detail_candidates)
 
     return build_detail_evidence_plan(
         candidate_snapshot(candidate),
