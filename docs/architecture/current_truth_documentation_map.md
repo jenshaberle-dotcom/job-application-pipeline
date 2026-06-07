@@ -112,3 +112,15 @@ DOC-001H adds the active database reference entry points:
 It also adds `docs/archive/documentation_path_status.md` as the first
 docs-path triage surface before any large physical archive move.
 
+## DOC-001I physical archive note
+
+DOC-001I physically archives the former `docs/diagrams/` pages into
+`docs/archive/diagrams/`.
+
+Current replacements:
+
+- `docs/architecture/system_diagrams.md` replaces the old connector architecture diagram.
+- `docs/database/schema_relationships.md` replaces the old Bronze/Silver data model diagram.
+
+This is the first small physical archive move. Larger planning/source-analysis
+moves still require a dedicated reference/link check.

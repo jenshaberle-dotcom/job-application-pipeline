@@ -38,7 +38,7 @@ interlinked with historical handovers and some existing contract tests.
 ## Next recommended block
 
 DOC-001I should perform a first physical archive pass on the small
-`docs/diagrams/` directory, because current replacement diagrams now exist in
+`docs/archive/diagrams/` directory after DOC-001I, because current replacement diagrams now exist in
 `docs/architecture/system_diagrams.md` and database relationship diagrams now
 exist in `docs/database/schema_relationships.md`.
 

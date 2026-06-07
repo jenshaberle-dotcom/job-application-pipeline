@@ -30,7 +30,7 @@ A full documentation review may include:
 - `docs/glossary.md`
 - `docs/data_sources/`
 - `docs/database/tables.md`
-- `docs/diagrams/`
+- `docs/archive/diagrams/`
 - `docs/source_evaluation.md`
 - `docs/source_analysis/`
 - `docs/relevance/`
