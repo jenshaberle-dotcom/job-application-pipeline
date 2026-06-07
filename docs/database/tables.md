@@ -1,5 +1,20 @@
 # Database Tables and Constraints
 
+Status: legacy core-table detail / partial current reference
+Scope: Bronze/Silver core tables; not a complete Search Intelligence schema inventory
+
+## DOC-001H status note
+
+This page is still useful for detailed early core-table descriptions, but it is
+not a complete description of the current database anymore.
+
+Read these first for the current schema map:
+
+- `docs/database/README.md`
+- `docs/database/schema_overview.md`
+- `docs/database/schema_relationships.md`
+
+
 This document describes the current physical PostgreSQL database model.
 
 It is based on the actual database schema and complements:

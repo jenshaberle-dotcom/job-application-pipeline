@@ -17,6 +17,7 @@ surface explicit and searchable without pretending it is current architecture.
 |---|---|---:|
 | `planning_archive_index.md` | `docs/planning/` | 26 |
 | `source_analysis_archive_index.md` | `docs/source_analysis/` | 88 |
+| `documentation_path_status.md` | docs-path status and physical archive decision rules | n/a |
 
 ## Rule
 

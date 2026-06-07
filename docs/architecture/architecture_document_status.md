@@ -64,3 +64,15 @@ as a clean current document.
   rewritten, reduced to reference notes, or archived.
 - README contract anchors should move toward Current Truth docs and tests once
   the rebaseline is stable.
+
+## DOC-001H database and archive note
+
+DOC-001H adds the active database reference entry points:
+
+- `docs/database/README.md`
+- `docs/database/schema_overview.md`
+- `docs/database/schema_relationships.md`
+
+It also adds `docs/archive/documentation_path_status.md` as the first
+docs-path triage surface before any large physical archive move.
+
