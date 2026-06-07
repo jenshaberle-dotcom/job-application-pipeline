@@ -44,6 +44,24 @@ def test_search_queries_include_company_jobs_and_site_queries() -> None:
     assert any(query.startswith("site:job.hdi.group") for query in query_text)
 
 
+
+
+def test_search_queries_prioritize_persisted_candidate_url_host() -> None:
+    queries = build_search_discovery_queries(
+        company_name="Hannover Rück SE",
+        company_key="hannover_ruck",
+        profile_terms=("data", "python"),
+        location_terms=("hannover",),
+        candidate_url="https://jobs.hannover-re.com/",
+        max_queries=6,
+    )
+    query_text = [query.query for query in queries]
+
+    assert query_text[0] == "site:jobs.hannover-re.com/job data hannover"
+    assert "site:jobs.hannover-re.com data hannover" in query_text
+    assert not any("hannover_ruck.group" in query for query in query_text)
+
+
 def test_decode_search_redirect_url_prefers_embedded_target_url() -> None:
     url = "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fjob.hdi.group%2Fjob%2FData%2F720-en_US%2F"
 
