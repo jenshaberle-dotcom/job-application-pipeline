@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -21,6 +24,36 @@ from scripts.run_employer_origin_agent_chain import (
 
 
 SOURCE_LIFECYCLE_GATE = "source_lifecycle_tracking"
+
+DEFAULT_OUTPUT_DIR = Path("exports/eo_chain_candidate_readiness")
+DEFAULT_BENCHMARK_LABEL = "eo_chain_candidate_readiness"
+
+READ_ONLY_BOUNDARY: dict[str, bool] = {
+    "read_only_candidate_chain_planning": True,
+    "no_candidate_url_write": True,
+    "no_gate_review_write": True,
+    "no_evidence_write": True,
+    "no_connector_artifact_write": True,
+    "no_connector_registration": True,
+    "no_source_activation": True,
+    "no_scheduler_change": True,
+}
+
+ACTION_SAFETY_ZONE: dict[str, str] = {
+    "monitor_source_lifecycle": "SZ0_READ_ONLY",
+    "run_source_lifecycle_tracking": "SZ2_EVIDENCE_AND_GATES",
+    "run_registration_execution_plan_agent": "SZ3_CONNECTOR_REGISTRATION_PLAN",
+    "run_connector_validation_agent": "SZ3_CONNECTOR_ARTIFACT_REVIEW",
+    "run_connector_artifact_generator": "SZ3_CONNECTOR_ARTIFACT_REVIEW",
+    "run_connector_build_readiness_agent": "SZ2_EVIDENCE_AND_GATES",
+    "run_connector_candidate_gate": "SZ2_EVIDENCE_AND_GATES",
+    "run_employer_origin_recheck": "SZ2_EVIDENCE_AND_GATES",
+    "run_detail_evidence_repair": "SZ2_EVIDENCE_AND_GATES",
+    "manual_review_stop": "SZ2_EVIDENCE_AND_GATES",
+    "run_pipeline_stop_reassessment": "SZ0_READ_ONLY",
+    "stop_explicit_approval_required": "SZ4_HUMAN_APPROVAL_REQUIRED",
+    "stop_manual_review_required": "SZ2_EVIDENCE_AND_GATES",
+}
 
 
 @dataclass(frozen=True)
@@ -41,6 +74,7 @@ class CandidateSummary:
     latest_gate_status: str | None = None
     latest_stop_reason: str | None = None
     latest_reviewed_at: str | None = None
+    candidate_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -116,6 +150,21 @@ def build_chain_command(
     return " ".join(parts)
 
 
+def build_stopper_reassessment_command(
+    *,
+    company_key: str,
+    target_location: str,
+    reviewed_by: str,
+) -> str:
+    return (
+        "python -m scripts.run_pipeline_stop_reassessment_agent "
+        f"--company-key {company_key} "
+        f"--target-location {target_location} "
+        f"--reviewed-by {reviewed_by} "
+        "--write-report --print-stage2-command"
+    )
+
+
 def build_lifecycle_command(*, company_key: str, reviewed_by: str) -> str:
     return (
         "python -m scripts.run_employer_origin_source_lifecycle_tracking_agent "
@@ -153,6 +202,33 @@ def detail_evidence_repair_exhausted(gates: dict[str, GateReview]) -> bool:
 def lifecycle_gate_missing_or_not_passed(gates: dict[str, GateReview]) -> bool:
     lifecycle = gates.get(SOURCE_LIFECYCLE_GATE)
     return lifecycle is None or lifecycle.gate_status != "passed"
+
+
+def candidate_has_blocked_operational_boundary(candidate: CandidateSummary) -> bool:
+    return candidate.status == "abort_documented" or candidate.risk_level == "blocked"
+
+
+def review_boundary_reason(item: QueueItem) -> str | None:
+    candidate = item.candidate
+
+    if item.next_action.startswith("stop_") or item.next_action == "manual_review_stop":
+        return f"next_action={item.next_action}"
+    if candidate.status in {"manual_review_required", "abort_documented"}:
+        return f"candidate_status={candidate.status}"
+    if candidate.risk_level == "blocked":
+        return "risk_level=blocked"
+    if candidate.latest_gate_status in {"manual_review_required", "blocked"}:
+        return f"latest_gate_status={candidate.latest_gate_status}"
+    if candidate.manual_review_gate_count > 0:
+        return "manual_review_gate_count>0"
+    if candidate.latest_stop_reason:
+        return "latest_stop_reason_present"
+
+    return None
+
+
+def requires_operator_review_or_stop(item: QueueItem) -> bool:
+    return review_boundary_reason(item) is not None
 
 
 def recheck_gate_fallback(gates: dict[str, GateReview]) -> GateReview | None:
@@ -221,16 +297,37 @@ def classify_queue_item(
             ),
         )
 
+    if candidate_has_blocked_operational_boundary(candidate):
+        return QueueItem(
+            candidate=candidate,
+            next_action="run_pipeline_stop_reassessment",
+            reason=(
+                "candidate has a blocked operational boundary; route to the dedicated "
+                "stopper reassessment agent before treating the stop as final "
+                f"(status={candidate.status}, risk_level={candidate.risk_level})"
+            ),
+            priority=36,
+            command=build_stopper_reassessment_command(
+                company_key=candidate.company_key,
+                target_location=target_location,
+                reviewed_by=reviewed_by,
+            ),
+        )
+
     if detail_evidence_repair_exhausted(gates):
         return QueueItem(
             candidate=candidate,
-            next_action="manual_review_stop",
+            next_action="run_pipeline_stop_reassessment",
             reason=(
-                "detail evidence repair was already attempted and found no concrete "
-                "detail pages with profile and target/remote signals"
+                "detail evidence repair was already attempted without supported details; "
+                "route the stopper to the reassessment agent before manual closure"
             ),
-            priority=95,
-            command=None,
+            priority=37,
+            command=build_stopper_reassessment_command(
+                company_key=candidate.company_key,
+                target_location=target_location,
+                reviewed_by=reviewed_by,
+            ),
         )
 
     recheck_eligible, recheck_reason = candidate_recheck_decision(
@@ -320,12 +417,15 @@ def render_queue(items: list[QueueItem], *, limit: int | None = None) -> list[st
                 f"source_name_candidate: {candidate.source_name_candidate}",
                 f"status: {candidate.status}",
                 f"risk_level: {candidate.risk_level}",
+                f"candidate_url: {candidate.candidate_url or '-'}",
+                f"latest_gate: {candidate.latest_gate_name or '-'} / {candidate.latest_gate_status or '-'}",
                 f"passed/manual/blocked/total gates: "
                 f"{candidate.passed_gate_count}/"
                 f"{candidate.manual_review_gate_count}/"
                 f"{candidate.blocked_gate_count}/"
                 f"{candidate.total_gate_count}",
                 f"next_action: {item.next_action}",
+                f"safety_zone: {ACTION_SAFETY_ZONE.get(item.next_action, 'SZ_UNKNOWN_REVIEW_REQUIRED')}",
                 f"reason: {item.reason}",
             ]
         )
@@ -333,6 +433,149 @@ def render_queue(items: list[QueueItem], *, limit: int | None = None) -> list[st
             lines.append(f"command: {item.command}")
 
     return lines
+
+
+def summarize_queue(items: list[QueueItem]) -> dict[str, Any]:
+    action_counts = Counter(item.next_action for item in items)
+    status_counts = Counter(item.candidate.status for item in items)
+    safety_zone_counts = Counter(ACTION_SAFETY_ZONE.get(item.next_action, "SZ_UNKNOWN_REVIEW_REQUIRED") for item in items)
+    command_items = [item for item in items if item.command]
+
+    return {
+        "candidate_count": len(items),
+        "actionable_command_count": len(command_items),
+        "manual_review_or_stop_count": sum(
+            1 for item in items if requires_operator_review_or_stop(item)
+        ),
+        "monitor_only_count": action_counts.get("monitor_source_lifecycle", 0),
+        "action_counts": dict(sorted(action_counts.items())),
+        "status_counts": dict(sorted(status_counts.items())),
+        "safety_zone_counts": dict(sorted(safety_zone_counts.items())),
+        "first_actionable_command": command_items[0].command if command_items else None,
+    }
+
+
+def queue_item_payload(item: QueueItem) -> dict[str, Any]:
+    payload = asdict(item)
+    payload["safety_zone"] = ACTION_SAFETY_ZONE.get(item.next_action, "SZ_UNKNOWN_REVIEW_REQUIRED")
+    payload["is_actionable"] = item.command is not None
+    payload["requires_operator_review"] = requires_operator_review_or_stop(item)
+    payload["review_boundary_reason"] = review_boundary_reason(item)
+    return payload
+
+
+def report_payload(
+    items: list[QueueItem],
+    *,
+    benchmark_label: str,
+    target_location: str,
+    reviewed_by: str,
+    allow_repair: bool,
+) -> dict[str, Any]:
+    return {
+        "campaign": "EO Candidate Chain Readiness Plan",
+        "benchmark_label": benchmark_label,
+        "target_location": target_location,
+        "reviewed_by": reviewed_by,
+        "allow_repair": allow_repair,
+        "boundary": READ_ONLY_BOUNDARY,
+        "report_contract": {
+            "queue_items": "ordered candidate-level next-safe-action recommendations; not an apply list",
+            "command": "planned command only; never executed by this report",
+            "manual_review_or_stop_count": "candidates with stop actions, blocked boundaries, manual-review state, or existing review/stop evidence",
+            "requires_operator_review": "item-level flag for candidates that need operator attention before treating the planned command as routine progress",
+            "first_actionable_command": "operator convenience for the first safe follow-up command, not automatic execution",
+        },
+        "summary": summarize_queue(items),
+        "items": [queue_item_payload(item) for item in items],
+    }
+
+
+def render_markdown_report(payload: dict[str, Any]) -> str:
+    summary = payload["summary"]
+    lines = [
+        f"# {payload['campaign']}",
+        "",
+        f"Benchmark label: `{payload['benchmark_label']}`",
+        f"Target location: `{payload['target_location']}`",
+        f"Allow repair: `{payload['allow_repair']}`",
+        "",
+        "## Boundary",
+        "",
+    ]
+    for key, value in payload["boundary"].items():
+        lines.append(f"- `{key}`: `{value}`")
+
+    lines.extend(
+        [
+            "",
+            "## Summary",
+            "",
+            f"- Candidate count: `{summary['candidate_count']}`",
+            f"- Actionable command count: `{summary['actionable_command_count']}`",
+            f"- Manual review / stop count: `{summary['manual_review_or_stop_count']}`",
+            f"- Monitor-only count: `{summary['monitor_only_count']}`",
+            "",
+            "### Action counts",
+            "",
+        ]
+    )
+    for action, count in summary["action_counts"].items():
+        lines.append(f"- `{action}`: `{count}`")
+
+    lines.extend(["", "### Safety zones", ""])
+    for zone, count in summary["safety_zone_counts"].items():
+        lines.append(f"- `{zone}`: `{count}`")
+
+    if summary["first_actionable_command"]:
+        lines.extend(
+            [
+                "",
+                "## First actionable command",
+                "",
+                "    " + summary["first_actionable_command"],
+            ]
+        )
+
+    lines.extend(["", "## Queue items", ""])
+    for item in payload["items"]:
+        candidate = item["candidate"]
+        lines.extend(
+            [
+                f"### {candidate['company_key']}",
+                "",
+                f"- Candidate ID: `{candidate['candidate_id']}`",
+                f"- Company: `{candidate['company_name']}`",
+                f"- Status: `{candidate['status']}`",
+                f"- Candidate URL: `{candidate.get('candidate_url') or '-'}`",
+                f"- Gates passed/manual/blocked/total: "
+                f"`{candidate['passed_gate_count']}/"
+                f"{candidate['manual_review_gate_count']}/"
+                f"{candidate['blocked_gate_count']}/"
+                f"{candidate['total_gate_count']}`",
+                f"- Next action: `{item['next_action']}`",
+                f"- Safety zone: `{item['safety_zone']}`",
+                f"- Requires operator review: `{item['requires_operator_review']}`",
+                f"- Review boundary reason: `{item.get('review_boundary_reason') or '-'}`",
+                f"- Reason: {item['reason']}",
+            ]
+        )
+        if item["command"]:
+            lines.extend(["- Planned command:", "", "    " + item["command"], ""])
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_reports(payload: dict[str, Any], output_dir: Path, label: str) -> tuple[Path, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    safe_label = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in label).strip("_")
+    if not safe_label:
+        safe_label = DEFAULT_BENCHMARK_LABEL
+    json_path = output_dir / f"{safe_label}_candidate_chain_readiness.json"
+    md_path = output_dir / f"{safe_label}_candidate_chain_readiness.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    md_path.write_text(render_markdown_report(payload), encoding="utf-8")
+    return json_path, md_path
 
 
 class QueueRepository:
@@ -351,6 +594,7 @@ class QueueRepository:
                     c.source_family_candidate,
                     c.status,
                     c.risk_level,
+                    c.candidate_url,
                     max(g.gate_order)::int as latest_gate_order,
                     (
                         array_agg(g.gate_name order by g.gate_order desc, g.updated_at desc, g.id desc)
@@ -382,7 +626,8 @@ class QueueRepository:
                     c.source_name_candidate,
                     c.source_family_candidate,
                     c.status,
-                    c.risk_level
+                    c.risk_level,
+                    c.candidate_url
                 order by c.company_key
                 """
             )
@@ -402,6 +647,7 @@ class QueueRepository:
                 latest_gate_status=row["latest_gate_status"],
                 latest_stop_reason=row["latest_stop_reason"],
                 latest_reviewed_at=row["latest_reviewed_at"],
+                candidate_url=row["candidate_url"],
                 blocked_gate_count=int(row["blocked_gate_count"]),
                 manual_review_gate_count=int(row["manual_review_gate_count"]),
                 passed_gate_count=int(row["passed_gate_count"]),
@@ -472,16 +718,26 @@ def run_agent(args: argparse.Namespace) -> int:
     for line in render_queue(queue, limit=args.limit):
         print(line)
 
+    payload = report_payload(
+        queue,
+        benchmark_label=args.benchmark_label,
+        target_location=args.target_location,
+        reviewed_by=args.reviewed_by,
+        allow_repair=args.allow_repair,
+    )
+
+    if args.write_report:
+        json_path, md_path = write_reports(payload, args.output_dir, args.benchmark_label)
+        print("---")
+        print("summary:", json.dumps(payload["summary"], sort_keys=True, ensure_ascii=False))
+        print("json_report_written:", json_path)
+        print("markdown_report_written:", md_path)
+
     if args.print_next_command:
-        next_command = next((item.command for item in queue if item.command), None)
-        if next_command:
-            print("---")
-            print("next_command:")
-            print(next_command)
-        else:
-            print("---")
-            print("next_command:")
-            print("-")
+        next_command = payload["summary"]["first_actionable_command"]
+        print("---")
+        print("next_command:")
+        print(next_command or "-")
 
     return 0
 
@@ -498,6 +754,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-repair", action="store_true")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--print-next-command", action="store_true")
+    parser.add_argument("--write-report", action="store_true")
+    parser.add_argument("--benchmark-label", default=DEFAULT_BENCHMARK_LABEL)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     return parser
 
 

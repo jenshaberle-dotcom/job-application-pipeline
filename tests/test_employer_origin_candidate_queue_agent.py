@@ -7,7 +7,11 @@ from scripts.run_employer_origin_candidate_queue_agent import (
     CandidateSummary,
     build_queue,
     classify_queue_item,
+    render_markdown_report,
     render_queue,
+    report_payload,
+    summarize_queue,
+    write_reports,
 )
 
 
@@ -227,9 +231,10 @@ def test_exhausted_detail_evidence_repair_is_not_repeated_even_when_repair_allow
         allow_repair=True,
     )
 
-    assert item.next_action == "manual_review_stop"
-    assert item.command is None
-    assert "already attempted" in item.reason
+    assert item.next_action == "run_pipeline_stop_reassessment"
+    assert item.command is not None
+    assert "run_pipeline_stop_reassessment_agent" in item.command
+    assert "reassessment" in item.reason
 
 
 def test_detail_evidence_repair_exhaustion_requires_specific_stop_reason() -> None:
@@ -330,3 +335,137 @@ def test_queue_routes_recheckable_inactive_candidate_before_repair_loop() -> Non
     assert item.next_action == "run_employer_origin_recheck"
     assert item.command is not None
     assert "run_employer_origin_agent_chain" in item.command
+
+def test_queue_summary_counts_actions_statuses_and_safety_zones() -> None:
+    items = build_queue(
+        [
+            candidate("hdi", candidate_id=1),
+            candidate("finanz_informatik", status="active_controlled", candidate_id=2),
+        ],
+        {
+            1: {
+                "detail_evidence_gate": gate(
+                    "detail_evidence_gate",
+                    "manual_review_required",
+                    "manual_review_required",
+                    "no concrete detail URLs",
+                )
+            },
+            2: {},
+        },
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    summary = summarize_queue(items)
+
+    assert summary["candidate_count"] == 2
+    assert summary["actionable_command_count"] == 2
+    assert summary["action_counts"] == {
+        "run_detail_evidence_repair": 1,
+        "run_source_lifecycle_tracking": 1,
+    }
+    assert summary["safety_zone_counts"] == {"SZ2_EVIDENCE_AND_GATES": 2}
+    assert summary["first_actionable_command"].startswith("python -m scripts.run_employer_origin")
+
+
+def test_queue_report_payload_preserves_read_only_contract_and_candidate_url() -> None:
+    queue_item = classify_queue_item(
+        candidate("hdi"),
+        {"detail_evidence_gate": gate("detail_evidence_gate", "passed", "continue")},
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=False,
+    )
+
+    payload = report_payload(
+        [queue_item],
+        benchmark_label="chain_smoke",
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=False,
+    )
+
+    assert payload["campaign"] == "EO Candidate Chain Readiness Plan"
+    assert payload["boundary"]["no_connector_registration"] is True
+    assert payload["report_contract"]["command"].startswith("planned command")
+    assert payload["items"][0]["safety_zone"] == "SZ2_EVIDENCE_AND_GATES"
+    assert payload["items"][0]["is_actionable"] is True
+
+
+def test_render_queue_and_markdown_include_source_url_and_report_contract(tmp_path) -> None:
+    summary = candidate("hdi")
+    summary = CandidateSummary(
+        **{**summary.__dict__, "candidate_url": "https://careers.hdi.group/jobs"}
+    )
+    queue_item = classify_queue_item(
+        summary,
+        {"detail_evidence_gate": gate("detail_evidence_gate", "manual_review_required", "manual_review_required")},
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+    payload = report_payload(
+        [queue_item],
+        benchmark_label="chain smoke",
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    rendered_queue = "\n".join(render_queue([queue_item]))
+    markdown = render_markdown_report(payload)
+    json_path, md_path = write_reports(payload, tmp_path, "chain smoke")
+
+    assert "candidate_url: https://careers.hdi.group/jobs" in rendered_queue
+    assert "Safety zone" in markdown
+    assert "Planned command" in markdown
+    assert json_path.name == "chain_smoke_candidate_chain_readiness.json"
+    assert md_path.read_text(encoding="utf-8").startswith("# EO Candidate Chain Readiness Plan")
+
+
+def test_abort_documented_or_blocked_candidates_do_not_receive_repair_command() -> None:
+    item = classify_queue_item(
+        CandidateSummary(
+            **{
+                **candidate("ratiodata").__dict__,
+                "status": "abort_documented",
+                "risk_level": "blocked",
+            }
+        ),
+        {},
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    assert item.next_action == "run_pipeline_stop_reassessment"
+    assert item.command is not None
+    assert "run_pipeline_stop_reassessment_agent" in item.command
+    assert "blocked operational boundary" in item.reason
+
+
+def test_summary_counts_manual_review_statuses_and_stop_boundaries() -> None:
+    queue_item = classify_queue_item(
+        candidate("clarios", status="manual_review_required"),
+        {"detail_evidence_gate": gate("detail_evidence_gate", "manual_review_required", "manual_review_required")},
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+    payload = report_payload(
+        [queue_item],
+        benchmark_label="chain_smoke",
+        target_location="hannover",
+        reviewed_by="jens",
+        allow_repair=True,
+    )
+
+    assert payload["summary"]["manual_review_or_stop_count"] == 1
+    assert payload["items"][0]["requires_operator_review"] is True
+    assert payload["items"][0]["review_boundary_reason"] in {
+        "candidate_status=manual_review_required",
+        "latest_gate_status=manual_review_required",
+        "manual_review_gate_count>0",
+    }
