@@ -272,3 +272,20 @@ Status:
 
 This keeps the project from jumping from raw validation output directly into broad behavior changes.
 <!-- EO-002C-CURRENT-STATE:END -->
+
+<!-- EO-002D-CURRENT-STATE:START -->
+## EO-002D Current-State Addition — URL Finder Repair
+
+EO-002D repairs the first URL Finder bottleneck found by the EO-002B/EO-002C smoke run.
+
+Status:
+
+- corporate-alias deterministic URL generation improved,
+- Hannover Rück / Hannover Re alias domains are now generated within the bounded default budget,
+- E.ON parent-careers domains are now generated within the bounded default budget,
+- no candidate URL write,
+- no scheduler change,
+- no gate weakening.
+
+This keeps the next Search Intelligence step focused on URL discovery quality before Türsteher, gate or scheduler changes.
+<!-- EO-002D-CURRENT-STATE:END -->

@@ -202,3 +202,59 @@ def test_hannover_re_alias_search_result_can_be_selected() -> None:
 
     assert result.decision == "origin_url_candidate_selected"
     assert result.selected_url == "https://jobs.hannover-re.com/"
+
+
+def test_eo002d_domain_alias_generation_prioritizes_hannover_re_domains() -> None:
+    urls = [item.url for item in generate_company_url_candidates(
+        company_key="hannover_ruck",
+        company_name="Hannover Rück SE",
+        source_family_candidate="hannover_ruck",
+        max_candidates=30,
+    )]
+
+    assert any("hannover-re.com" in url for url in urls)
+    assert any(url == "https://jobs.hannover-re.com/" for url in urls)
+    assert all("jobs.hannover.de" not in url for url in urls)
+
+
+def test_eo002d_hannover_re_alias_generation_can_select_jobs_portal() -> None:
+    result = discover_origin_source(
+        company_key="hannover_ruck",
+        company_name="Hannover Rück SE",
+        source_family_candidate="hannover_ruck",
+        probe=accepted_probe,
+        max_generated_candidates=30,
+    )
+
+    assert result.decision == "origin_url_candidate_selected"
+    assert result.selected_domain in {"jobs.hannover-re.com", "www.hannover-re.com", "hannover-re.com"}
+    assert result.selected_url is not None
+    assert "hannover-re.com" in result.selected_url
+
+
+def test_eo002d_domain_alias_generation_prioritizes_eon_parent_brand_domains() -> None:
+    urls = [item.url for item in generate_company_url_candidates(
+        company_key="e_on_grid_solutions",
+        company_name="E.ON Grid Solutions GmbH",
+        source_family_candidate="e_on_grid_solutions",
+        max_candidates=30,
+    )]
+
+    assert any("eon.com" in url for url in urls)
+    assert any(url == "https://careers.eon.com/" for url in urls)
+    assert all("jobs.grid.de" not in url for url in urls)
+
+
+def test_eo002d_eon_alias_generation_can_select_parent_careers_portal() -> None:
+    result = discover_origin_source(
+        company_key="e_on_grid_solutions",
+        company_name="E.ON Grid Solutions GmbH",
+        source_family_candidate="e_on_grid_solutions",
+        probe=accepted_probe,
+        max_generated_candidates=30,
+    )
+
+    assert result.decision == "origin_url_candidate_selected"
+    assert result.selected_domain in {"careers.eon.com", "www.eon.com", "eon.com"}
+    assert result.selected_url is not None
+    assert "eon.com" in result.selected_url

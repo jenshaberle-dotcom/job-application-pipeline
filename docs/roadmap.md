@@ -575,3 +575,20 @@ Next use:
 
 Run EO-002B locally, then run EO-002C to decide whether the next implementation block should target URL Finder quality, gate-stop history joins, candidate-promotion logic or Wave/Scheduler validation.
 <!-- EO-002C-ROADMAP:END -->
+
+<!-- EO-002D-ROADMAP:START -->
+## EO-002D Origin Source Discovery / URL Finder Repair
+
+Status: implementation foundation.
+
+Purpose:
+
+- repair deterministic URL Finder coverage for corporate alias domains,
+- use EO-002B/EO-002C evidence before touching gates or scheduler logic,
+- keep Hannover Rück and E.ON Grid Solutions as benchmark candidates,
+- preserve read-only validation boundaries.
+
+Next use:
+
+Run EO-002B/EO-002C again for `hannover_ruck` and `e_on_grid_solutions`. If selected URLs improve, proceed to gate-stop/evidence-quality analysis. If not, improve external search-result acquisition and replay before changing the Türsteher.
+<!-- EO-002D-ROADMAP:END -->
