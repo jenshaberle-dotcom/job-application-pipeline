@@ -283,7 +283,13 @@ def analyze_candidate(
     effective_url, url_source = choose_effective_origin_url(candidate, url_finder)
     gates_by_name = {gate.gate_name: gate for gate in gates}
     stop_gate = latest_stop_like_gate(gates)
-    missing_gate = first_missing_step(gates_by_name)
+    missing_step = first_missing_step(gates_by_name)
+    if (
+        url_source == "persisted_candidate_url"
+        and not stop_gate
+        and missing_step == "candidate_url_persistence"
+    ):
+        missing_step = "initial_gate_review"
     classification = None
 
     if not effective_url:
@@ -300,7 +306,7 @@ def analyze_candidate(
         )
         action, reason, zone, review_required = _recommend_from_stop(classification.category, classification.terminal)
     else:
-        action, reason, zone, review_required = _recommend_from_missing_gate(missing_gate, url_source)
+        action, reason, zone, review_required = _recommend_from_missing_gate(missing_step, url_source)
 
     latest_action = _latest_action(action_runs)
     passed_count = sum(1 for gate in gates if gate_is_passed(gate))
@@ -322,7 +328,7 @@ def analyze_candidate(
         gate_stop_category=classification.category if classification else None,
         gate_stop_terminal=bool(classification.terminal if classification else False),
         gate_stop_default_reprocess=classification.default_reprocess if classification else None,
-        first_missing_step=missing_gate,
+        first_missing_step=missing_step,
         passed_gate_count=passed_count,
         stop_like_gate_count=stop_count,
         recent_action_count=len(action_runs),
@@ -420,6 +426,10 @@ def recommendations(summary: AnalysisSummary) -> list[str]:
     if summary.gate_stop_category_counts.get("detail_discovery_gap", 0):
         items.append(
             "prioritize_detail_evidence_discovery: stop analysis shows detail evidence gaps after origin URL discovery."
+        )
+    if summary.first_missing_step_counts.get("initial_gate_review", 0):
+        items.append(
+            "run_initial_gate_review_plan: persisted origin URLs are present, but initial gate review is still missing."
         )
     if summary.first_missing_step_counts.get(DETAIL_EVIDENCE_GATE, 0):
         items.append(

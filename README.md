@@ -859,3 +859,9 @@ EO-002E adds a read-only report for the step after URL Finder validation. It com
 
 Use it to decide whether the next maturity work should persist a selected URL under SZ1 review, run bounded gate/evidence analysis under SZ2, or stop for manual review.
 <!-- EO-002E-GATE-STOP-NEXT-SAFE:END -->
+
+<!-- BEGIN CAND-001-VALIDATED-ORIGIN-URL-PERSISTENCE -->
+### CAND-001 Validated Origin URL Persistence Gate
+
+CAND-001 provides the reviewed SZ1 transition from live URL-Finder validation to persisted `candidate_url`. It keeps URL-Finder exports as review context only and avoids using local report files as hidden pipeline inputs.
+<!-- END CAND-001-VALIDATED-ORIGIN-URL-PERSISTENCE -->

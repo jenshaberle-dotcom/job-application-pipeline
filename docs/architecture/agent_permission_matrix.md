@@ -29,3 +29,11 @@ Every agent must have an explicit permission boundary. The project must avoid ag
 - Destructive operations are never default targets for active_controlled entities.
 - Connector artifacts are not registered connectors.
 - Reports may recommend next actions, but recommendations are not automatic approvals.
+
+<!-- BEGIN CAND-001-AGENT-PERMISSION -->
+## CAND-001 Permission Boundary
+
+The Validated Origin URL Persistence Gate belongs to the `origin_url_recovery_writer` permission family.
+
+It may write `candidate_url` only under SZ1 with explicit apply and audit review. It may not write gates, evidence, connectors, sources or scheduler state.
+<!-- END CAND-001-AGENT-PERMISSION -->
