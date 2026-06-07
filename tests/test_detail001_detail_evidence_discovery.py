@@ -66,6 +66,45 @@ def test_passes_when_supported_detail_page_has_profile_and_location_evidence() -
     assert plan.evidence["supported_details"][0]["raw_html_persisted"] is False
 
 
+
+def test_report_contract_separates_preliminary_candidates_from_authoritative_assessments() -> None:
+    plan = build_detail_evidence_plan(
+        candidate(),
+        passed_initial_gates(),
+        (
+            DetailProbeEvidence(
+                url="https://jobs.example.com/job/data-engineer-hannover",
+                final_url="https://jobs.example.com/job/data-engineer-hannover",
+                status_code=200,
+                title="Data Engineer Hannover",
+                response_bytes=2048,
+                profile_hits=("data", "sql"),
+                location_hits=("hannover",),
+                remote_hits=(),
+                reason="unit test",
+            ),
+        ),
+        reviewed_by="pytest",
+        requested_urls=("https://jobs.example.com/job/data-engineer-hannover",),
+        discovery_evidence={
+            "preliminary_detail_candidates": [
+                {"url": "https://jobs.example.com/job/data-engineer-hannover", "reason": "search candidate"}
+            ],
+            "authoritative_detail_assessments": [
+                {"url": "https://jobs.example.com/job/data-engineer-hannover", "decision": "accepted"}
+            ],
+        },
+        detail_candidate_count=1,
+    )
+
+    assert "not gate-pass evidence" in plan.evidence["report_contract"]["preliminary_detail_candidates"]
+    assert plan.evidence["preliminary_detail_candidate_count"] == 1
+    assert plan.evidence["authoritative_detail_assessment_count"] == 1
+    assert plan.evidence["preliminary_detail_candidates"][0]["reason"] == "search candidate"
+    assert plan.evidence["authoritative_detail_assessments"][0]["decision"] == "accepted"
+    assert plan.evidence["supported_details"][0]["supported"] is True
+
+
 def test_missing_candidate_url_defers_to_url_finder_without_apply() -> None:
     plan = build_detail_evidence_plan(
         candidate(url=None),

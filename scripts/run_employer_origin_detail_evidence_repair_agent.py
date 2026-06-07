@@ -1143,6 +1143,49 @@ def validate_detail_candidates(
 
 
 
+def link_candidate_to_report_dict(link: LinkCandidate) -> dict[str, Any]:
+    return {
+        "url": link.url,
+        "source_url": link.source_url,
+        "text": link.text,
+        "profile_terms": list(link.profile_terms),
+        "location_terms": list(link.location_terms),
+        "reason": link.reason,
+    }
+
+
+def detail_evidence_to_report_dict(detail: DetailEvidence) -> dict[str, Any]:
+    return {
+        "url": detail.url,
+        "final_url": detail.final_url,
+        "status_code": detail.status_code,
+        "title": detail.title,
+        "profile_terms": list(detail.profile_terms),
+        "location_terms": list(detail.location_terms),
+        "html_bytes": detail.html_bytes,
+        "raw_html_persisted": False,
+        "reason": detail.reason,
+    }
+
+
+def detail_evidence_report_contract() -> dict[str, Any]:
+    """Describe DETAIL JSON evidence levels for reviewers and downstream UIs.
+
+    The repair agent intentionally exposes multiple evidence stages.  Search and
+    listing extraction can find many plausible links, but only fetched and
+    assessed detail pages are authoritative for gate decisions.  Keeping the
+    contract explicit prevents reports and UI consumers from treating preliminary
+    link candidates as supported job evidence.
+    """
+
+    return {
+        "preliminary_detail_candidates": "Discovered link/search candidates before detail-page fetching; useful for debugging discovery breadth, not gate-pass evidence.",
+        "authoritative_detail_assessments": "Post-fetch validation records with decision, failure_reason, confidence and extracted signals.",
+        "supported_details": "Accepted detail pages only; this is the evidence set allowed to support detail_evidence_gate pass/apply decisions.",
+        "legacy_keys_retained": ["candidate_links", "detail_assessments", "details", "supported_details"],
+    }
+
+
 def build_repair_outcome(
     *,
     candidate: SourceCandidate,
@@ -1185,6 +1228,10 @@ def build_repair_outcome(
     requested_urls = unique_ordered([*listing_requests, *detail_requests])
     rejected_urls = unique_ordered([*link_rejections, *detail_rejections])
 
+    preliminary_detail_candidates = [link_candidate_to_report_dict(link) for link in link_candidates]
+    authoritative_detail_assessments = list(detail_assessments)
+    supported_detail_evidence = [detail_evidence_to_report_dict(detail) for detail in details]
+
     evidence: dict[str, Any] = {
         "repair_attempted": True,
         "repair_agent": "s2w_employer_origin_detail_evidence_repair_agent",
@@ -1216,34 +1263,18 @@ def build_repair_outcome(
                 else 0
             ),
         },
-        "detail_assessments": list(detail_assessments),
+        "report_contract": detail_evidence_report_contract(),
+        "preliminary_detail_candidates": preliminary_detail_candidates,
+        "authoritative_detail_assessments": authoritative_detail_assessments,
+        "supported_detail_evidence": supported_detail_evidence,
+        "detail_assessments": authoritative_detail_assessments,
         "requested_urls": list(requested_urls),
         "rejected_urls": list(rejected_urls),
-        "candidate_links": [
-            {
-                "url": link.url,
-                "source_url": link.source_url,
-                "text": link.text,
-                "profile_terms": list(link.profile_terms),
-                "location_terms": list(link.location_terms),
-                "reason": link.reason,
-            }
-            for link in link_candidates
-        ],
-        "details": [
-            {
-                "url": detail.url,
-                "final_url": detail.final_url,
-                "status_code": detail.status_code,
-                "title": detail.title,
-                "profile_terms": list(detail.profile_terms),
-                "location_terms": list(detail.location_terms),
-                "html_bytes": detail.html_bytes,
-                "raw_html_persisted": False,
-                "reason": detail.reason,
-            }
-            for detail in details
-        ],
+        # Legacy keys are retained during the report-contract cleanup so older
+        # docs/tests/UI code can migrate without losing compatibility.
+        "candidate_links": preliminary_detail_candidates,
+        "details": supported_detail_evidence,
+        "supported_details": supported_detail_evidence,
         "generated_at_utc": datetime.now(UTC).isoformat(),
     }
 

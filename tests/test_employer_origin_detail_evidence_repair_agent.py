@@ -572,6 +572,10 @@ def test_build_repair_outcome_uses_tavily_structured_results_as_detail_candidate
     assert outcome.evidence["search_provider"] == "tavily"
     assert outcome.evidence["detail_link_discovery_version"] == "DETAIL-004B"
     assert any(item["url"] == detail_url for item in outcome.evidence["candidate_links"])
+    assert outcome.evidence["preliminary_detail_candidates"] == outcome.evidence["candidate_links"]
+    assert outcome.evidence["authoritative_detail_assessments"] == outcome.evidence["detail_assessments"]
+    assert outcome.evidence["supported_detail_evidence"] == outcome.evidence["supported_details"]
+    assert "not gate-pass evidence" in outcome.evidence["report_contract"]["preliminary_detail_candidates"]
 
 
 def test_build_repair_outcome_keeps_tavily_as_candidate_finder_not_gate_decider() -> None:
