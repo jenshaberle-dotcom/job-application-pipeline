@@ -1,5 +1,9 @@
 # Search Intelligence Architecture
 
+Status: needs consolidation / historical architecture narrative  
+Scope: pre-DOC-001 Search Intelligence narrative  
+DOC-001G note: This file is not the primary Current Truth entry point. Prefer `current_system_overview.md`, `system_diagrams.md`, and `architecture_document_status.md`. Stable content should be promoted into Current Truth instead of patching this file into a half-current hybrid.
+
 ## Purpose
 
 Search Intelligence extends the ingestion platform beyond job collection.

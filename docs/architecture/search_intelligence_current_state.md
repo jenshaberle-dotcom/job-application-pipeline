@@ -1,5 +1,9 @@
 # Search Intelligence Current State
 
+Status: needs consolidation / operational snapshot  
+Scope: 2026-06-07 Search Intelligence stabilization snapshot  
+DOC-001G note: This file contains useful current-state context, but it is not the primary Current Truth entry point after DOC-001G. Prefer `current_system_overview.md`, `system_diagrams.md`, and `architecture_document_status.md`.
+
 ## Purpose
 
 This document is the primary entry point for understanding the current Search Intelligence subsystem.
