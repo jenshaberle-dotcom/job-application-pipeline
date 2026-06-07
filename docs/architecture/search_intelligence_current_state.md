@@ -325,3 +325,11 @@ Current interpretation:
 - EO-002E determines whether the next safe step is SZ1 candidate URL persistence review, SZ2 gate/evidence work, or manual review,
 - SENSOR-001 BA Remote/Nationwide Coverage Validation is a confirmed roadmap gap, but not an immediate architecture change.
 <!-- EO-002E-CURRENT-STATE:END -->
+
+<!-- BEGIN CAND-001-CURRENT-STATE -->
+## CAND-001 Candidate URL Persistence State
+
+EO-002E showed that validated origin URLs can exist only in URL-Finder reports while `candidate_url` remains empty. CAND-001 introduces the reviewed SZ1 transition for persisting those URLs into candidate metadata.
+
+This is a state transition, not a gate relaxation. It must happen before downstream detail-evidence or connector-candidate decisions rely on candidate-origin URL state.
+<!-- END CAND-001-CURRENT-STATE -->

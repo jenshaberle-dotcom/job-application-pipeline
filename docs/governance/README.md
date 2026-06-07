@@ -44,3 +44,9 @@ EO-002E follows the architecture freeze rule:
 - recommendations are mapped to ARCH-001 Safety Zones,
 - SENSOR-001 is registered as a roadmap gap instead of becoming an opportunistic sensor change.
 <!-- EO-002E-FREEZE-COMPLIANCE:END -->
+
+<!-- BEGIN CAND-001-GOVERNANCE -->
+## CAND-001 Governance Note
+
+CAND-001 is allowed in the architecture freeze because it closes a measured pipeline gap found by EO-002E. It does not introduce a new architecture direction and does not activate sources or relax gates.
+<!-- END CAND-001-GOVERNANCE -->

@@ -59,7 +59,7 @@ def test_persisted_url_with_missing_early_gate_recommends_initial_gate_review() 
     analysis = analyze_candidate(candidate, [])
 
     assert analysis.effective_origin_url_source == "persisted_candidate_url"
-    assert analysis.first_missing_step == "candidate_url_persistence"
+    assert analysis.first_missing_step == "initial_gate_review"
     assert analysis.recommended_next_safe_action == "run_initial_gate_review_plan"
     assert analysis.safety_zone == "SZ2_EVIDENCE_AND_GATES"
 

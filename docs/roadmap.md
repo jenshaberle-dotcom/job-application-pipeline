@@ -631,3 +631,21 @@ Next use:
 
 Run EO-002E for `hannover_ruck` and `e_on_grid_solutions` with the latest EO-002B/EO-002D URL Finder report, then decide whether the immediate next work is candidate URL persistence review, detail evidence discovery or gate-stop repair.
 <!-- EO-002E-GATE-STOP-NEXT-SAFE:END -->
+
+<!-- BEGIN CAND-001-VALIDATED-ORIGIN-URL-PERSISTENCE -->
+## CAND-001 Validated Origin URL Persistence Gate
+
+Status: active maturity path after EO-002E.
+
+CAND-001 persists reviewed, live-validated origin URLs into candidate metadata under SZ1. It is the bridge between EO-002D/EO-002E report-only URL evidence and downstream gate/evidence work.
+
+Scope boundaries:
+
+- dry-run first
+- explicit apply required
+- no gate writes
+- no evidence writes
+- no source activation
+- no scheduler changes
+- no export-as-input source-of-truth
+<!-- END CAND-001-VALIDATED-ORIGIN-URL-PERSISTENCE -->

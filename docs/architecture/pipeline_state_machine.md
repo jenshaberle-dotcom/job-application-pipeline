@@ -34,3 +34,15 @@ The pipeline needs one lifecycle truth. Local scripts must not invent new state 
 - Any transition affecting active_controlled entities requires explicit opt-in.
 - Reset and reprocess flows must show selected targets before apply.
 - Gate stops must include next_safe_action and stop_reason.
+
+<!-- BEGIN CAND-001-STATE-TRANSITION -->
+## CAND-001 State Transition
+
+CAND-001 operationalizes the transition:
+
+    origin_url_candidate_found -> origin_url_validated
+
+for candidates where a live bounded URL-Finder run selected an A/B-tier origin URL and `candidate_url` is empty.
+
+The transition is SZ1_CANDIDATE_METADATA and requires dry-run, explicit apply and audit review.
+<!-- END CAND-001-STATE-TRANSITION -->

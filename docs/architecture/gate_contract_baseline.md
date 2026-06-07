@@ -58,3 +58,9 @@ A candidate analysis must expose:
 
 This turns gate stops into a diagnostic contract instead of treating them as opaque terminal states.
 <!-- EO-002E-GATE-CONTRACT-USAGE:END -->
+
+<!-- BEGIN CAND-001-GATE-CONTRACT-NOTE -->
+## CAND-001 Boundary Note
+
+Candidate URL persistence is not itself a downstream gate review. It is an SZ1 state transition that makes later gate contracts meaningful by ensuring downstream analysis reads from candidate state rather than report-only URL evidence.
+<!-- END CAND-001-GATE-CONTRACT-NOTE -->
