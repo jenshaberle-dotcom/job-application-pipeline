@@ -1,8 +1,8 @@
 # Documentation Entry Point
 
 Status: current truth entry point
-Scope: DOC-001C active reader path
-Last rebaseline: DOC-001C
+Scope: DOC-001 active reader path
+Last rebaseline: DOC-001G
 
 ## Purpose
 
@@ -19,11 +19,13 @@ For the current system, read in this order:
 
 1. `docs/architecture/current_system_overview.md`
 2. `docs/architecture/system_diagrams.md`
-3. `docs/architecture/current_truth_documentation_map.md`
-4. `docs/governance/README.md`
-5. `docs/governance/agent_governance_registry.md`
-6. `docs/governance/agent_capability_audit_matrix.md`
-7. `docs/governance/documentation_rebaseline_strategy.md`
+3. `docs/architecture/architecture_document_status.md`
+4. `docs/architecture/current_truth_documentation_map.md`
+5. `docs/governance/README.md`
+6. `docs/governance/agent_governance_registry.md`
+7. `docs/governance/agent_capability_audit_matrix.md`
+8. `docs/governance/documentation_rebaseline_strategy.md`
+9. `docs/operations/runbook.md`
 
 ## Current Truth
 
@@ -31,8 +33,10 @@ Current Truth documents describe the current intended system.
 
 | Area | Document |
 |---|---|
+| Product entry | `README.md` |
 | System overview | `docs/architecture/current_system_overview.md` |
 | Current diagrams | `docs/architecture/system_diagrams.md` |
+| Architecture document status | `docs/architecture/architecture_document_status.md` |
 | Documentation map | `docs/architecture/current_truth_documentation_map.md` |
 | Governance overview | `docs/governance/README.md` |
 | Agent registry | `docs/governance/agent_governance_registry.md` |
@@ -40,6 +44,7 @@ Current Truth documents describe the current intended system.
 | Responsibility model | `docs/governance/agent_responsibility_model.md` |
 | Drift guard | `docs/governance/documentation_drift_guard.md` |
 | Documentation policy | `docs/governance/documentation_rebaseline_strategy.md` |
+| Operator runbook | `docs/operations/runbook.md` |
 
 ## Reference documentation
 

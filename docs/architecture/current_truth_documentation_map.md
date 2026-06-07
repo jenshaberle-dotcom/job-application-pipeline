@@ -1,14 +1,15 @@
 # Current Truth Documentation Map
 
-Status: DOC-001 target map  
+Status: DOC-001 current truth map
 Scope: reduced documentation entry points and archive/deprecation direction
+Last rebaseline: DOC-001G
 
 ## Purpose
 
 This document defines the intended reduced documentation structure after DOC-001.
 
-It is not a complete rewrite of the system yet. It is the target map that prevents
-DOC-001 from becoming a sentimental patchwork of old artifacts.
+It is not a complete rewrite of every historical document. It is the target map
+that prevents DOC-001 from becoming a sentimental patchwork of old artifacts.
 
 ## Current problem
 
@@ -23,14 +24,16 @@ current architecture.
 
 The active reader path should be small.
 
-Proposed Current Truth documents:
+Current Truth documents:
 
 | Document | Role |
 |---|---|
-| `README.md` | Product/repository entry point; concise current positioning. |
-| `docs/architecture/current_system_overview.md` | Current system architecture, dataflow, and lifecycle overview. |
-| `docs/architecture/pipeline_state_machine.md` | Candidate/source lifecycle state contract. |
+| `README.md` | Product/repository entry point, motivation, Deep Ocean identity, concise current positioning. |
+| `docs/README.md` | Documentation entry point and reader order. |
+| `docs/architecture/current_system_overview.md` | Current system architecture, dataflow, boundaries and lifecycle overview. |
 | `docs/architecture/system_diagrams.md` | Current diagrams only; rebuilt from GOV/DOC truth. |
+| `docs/architecture/architecture_document_status.md` | Architecture file classification and conflict-resolution order. |
+| `docs/architecture/pipeline_state_machine.md` | Candidate/source lifecycle state contract. |
 | `docs/governance/README.md` | Governance entry point. |
 | `docs/governance/agent_governance_registry.md` | Agent registry and responsibility overview. |
 | `docs/governance/agent_capability_audit_matrix.md` | Capability audit truth for agents. |
@@ -53,6 +56,7 @@ Candidates:
 | Design | `docs/design/*` |
 | Observability | `docs/observability/*` |
 | Classification/relevance | `docs/classification/*`, `docs/relevance/*` |
+| Architecture terminology | `docs/architecture/search_intelligence_terminology.md`, `docs/architecture/source_taxonomy_and_source_roles.md` |
 
 ## Historical/archive layer
 
@@ -83,15 +87,14 @@ Each ADR should be classified as:
 ADR status must become explicit. The current project should avoid creating many
 new ADRs until the reduced Current Truth layer is stable.
 
-## First rewrite targets
+## Architecture conflict-resolution rule
 
-DOC-001B/C should prioritize:
+When two docs disagree, the active architecture path wins over old planning or
+source-analysis notes.
 
-1. `docs/architecture/current_system_overview.md`
-2. `docs/architecture/system_diagrams.md`
-3. `README.md`
-4. `docs/governance/README.md`
-5. `docs/operations/runbook.md`
+Within `docs/architecture/`, use `architecture_document_status.md` to determine
+whether a file is Current Truth, Active Contract, Current Reference, Historical
+Reference or Needs Consolidation.
 
 ## Reader promise
 
