@@ -91,8 +91,46 @@ def test_detail_evidence_stop_is_classified_as_detail_discovery_gap() -> None:
     assert analysis.gate_stop == "detail_evidence_gate"
     assert analysis.gate_stop_category == "detail_discovery_gap"
     assert analysis.gate_stop_terminal is False
-    assert analysis.recommended_next_safe_action == "run_detail_evidence_discovery_plan"
+    assert analysis.first_missing_step == "detail_evidence_gate"
+    assert analysis.recommended_next_safe_action == "manual_review_detail_evidence_discovery"
+    assert analysis.manual_review_required is True
 
+
+
+def test_detail_evidence_manual_review_stop_after_gate001_does_not_reopen_url_persistence() -> None:
+    candidate = CandidateSnapshot(
+        candidate_id=36,
+        company_key="hannover_ruck",
+        company_name="Hannover Rück SE",
+        status="discovery",
+        candidate_url="https://jobs.hannover-re.com/",
+    )
+    gates = [
+        GateReviewSnapshot("source_discovery", 1, "passed", "passed", None),
+        GateReviewSnapshot("technical_reachability_gate", 2, "passed", "passed", None),
+        GateReviewSnapshot("risk_gate", 3, "passed", "passed", None),
+        GateReviewSnapshot(
+            "detail_evidence_gate",
+            8,
+            "manual_review_required",
+            "manual_review_required",
+            "bounded detail discovery found no concrete detail pages with profile and target-location/remote evidence",
+        ),
+    ]
+
+    analysis = analyze_candidate(candidate, gates)
+
+    assert analysis.effective_origin_url_source == "persisted_candidate_url"
+    assert analysis.gate_stop == "detail_evidence_gate"
+    assert analysis.first_missing_step == "detail_evidence_gate"
+    assert analysis.recommended_next_safe_action == "manual_review_detail_evidence_discovery"
+    assert analysis.manual_review_required is True
+
+    summary = summarize_analyses([analysis])
+
+    assert summary.first_missing_step_counts == {"detail_evidence_gate": 1}
+    assert summary.manual_review_required_count == 1
+    assert summary.recommendation_counts == {"manual_review_detail_evidence_discovery": 1}
 
 def test_summary_counts_recommendations_and_boundaries() -> None:
     analyses = [

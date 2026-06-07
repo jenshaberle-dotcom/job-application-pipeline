@@ -210,7 +210,13 @@ def _recommend_validated_url_not_persisted() -> tuple[str, str, str, bool]:
     )
 
 
-def _recommend_from_stop(classification_category: str | None, terminal: bool) -> tuple[str, str, str, bool]:
+def _recommend_from_stop(
+    classification_category: str | None,
+    terminal: bool,
+    *,
+    gate_status: str | None = None,
+    decision: str | None = None,
+) -> tuple[str, str, str, bool]:
     category = classification_category or "unclassified_stop"
     if terminal:
         return (
@@ -220,6 +226,13 @@ def _recommend_from_stop(classification_category: str | None, terminal: bool) ->
             True,
         )
     if category == "detail_discovery_gap":
+        if gate_status == "manual_review_required" or decision == "manual_review_required":
+            return (
+                "manual_review_detail_evidence_discovery",
+                "Detail evidence discovery already reached an auditable manual-review stop; inspect the evidence before retrying or changing thresholds.",
+                "SZ2_EVIDENCE_AND_GATES",
+                True,
+            )
         return (
             "run_detail_evidence_discovery_plan",
             "The selected origin source needs bounded detail/job evidence discovery before connector candidacy.",
@@ -284,6 +297,8 @@ def analyze_candidate(
     gates_by_name = {gate.gate_name: gate for gate in gates}
     stop_gate = latest_stop_like_gate(gates)
     missing_step = first_missing_step(gates_by_name)
+    if stop_gate is not None:
+        missing_step = stop_gate.gate_name
     if (
         url_source == "persisted_candidate_url"
         and not stop_gate
@@ -313,7 +328,12 @@ def analyze_candidate(
             stop_reason=stop_gate.stop_reason,
             evidence=stop_gate.evidence or {},
         )
-        action, reason, zone, review_required = _recommend_from_stop(classification.category, classification.terminal)
+        action, reason, zone, review_required = _recommend_from_stop(
+            classification.category,
+            classification.terminal,
+            gate_status=stop_gate.gate_status,
+            decision=stop_gate.decision,
+        )
     else:
         action, reason, zone, review_required = _recommend_from_missing_gate(missing_step, url_source)
 
