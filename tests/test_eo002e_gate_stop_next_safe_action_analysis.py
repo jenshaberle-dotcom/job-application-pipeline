@@ -167,3 +167,25 @@ def test_script_and_docs_preserve_freeze_boundaries() -> None:
     assert "no candidate URL write" in doc
     assert "SENSOR-001" in sensor_doc
     assert "must not immediately activate" in sensor_doc
+
+def test_persisted_url_with_initial_gates_passed_recommends_detail_evidence() -> None:
+    candidate = CandidateSnapshot(
+        candidate_id=36,
+        company_key="hannover_ruck",
+        company_name="Hannover Rück SE",
+        status="discovery",
+        candidate_url="https://jobs.hannover-re.com/",
+        risk_level="medium",
+    )
+    gates = [
+        GateReviewSnapshot("source_discovery", 1, "passed", "passed", None),
+        GateReviewSnapshot("technical_reachability_gate", 2, "passed", "passed", None),
+        GateReviewSnapshot("risk_gate", 3, "passed", "passed", None),
+    ]
+
+    analysis = analyze_candidate(candidate, gates)
+
+    assert analysis.first_missing_step == "detail_evidence_gate"
+    assert analysis.recommended_next_safe_action == "run_detail_evidence_discovery_plan"
+    assert analysis.safety_zone == "SZ2_EVIDENCE_AND_GATES"
+    assert analysis.manual_review_required is False

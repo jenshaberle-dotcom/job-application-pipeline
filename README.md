@@ -865,3 +865,9 @@ Use it to decide whether the next maturity work should persist a selected URL un
 
 CAND-001 provides the reviewed SZ1 transition from live URL-Finder validation to persisted `candidate_url`. It keeps URL-Finder exports as review context only and avoids using local report files as hidden pipeline inputs.
 <!-- END CAND-001-VALIDATED-ORIGIN-URL-PERSISTENCE -->
+
+<!-- BEGIN GATE-001-README -->
+### GATE-001 Initial Gate Review Foundation
+
+The project now includes a dry-run-first initial gate review layer for persisted employer-origin candidate URLs. It evaluates source discovery, technical reachability and risk gates before downstream detail evidence discovery.
+<!-- END GATE-001-README -->

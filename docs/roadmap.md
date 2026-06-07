@@ -649,3 +649,9 @@ Scope boundaries:
 - no scheduler changes
 - no export-as-input source-of-truth
 <!-- END CAND-001-VALIDATED-ORIGIN-URL-PERSISTENCE -->
+
+<!-- BEGIN GATE-001-INITIAL-GATE-REVIEW -->
+## GATE-001 Initial Gate Review Foundation
+
+GATE-001 is the next active maturity-path block after CAND-001. It evaluates the initial SZ2 gate transition from persisted candidate URL state into source discovery, technical reachability and risk gate reviews. It remains dry-run-first and must not perform detail evidence discovery, connector registration, source activation or scheduler changes.
+<!-- END GATE-001-INITIAL-GATE-REVIEW -->

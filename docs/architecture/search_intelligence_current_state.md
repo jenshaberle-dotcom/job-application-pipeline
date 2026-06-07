@@ -333,3 +333,9 @@ EO-002E showed that validated origin URLs can exist only in URL-Finder reports w
 
 This is a state transition, not a gate relaxation. It must happen before downstream detail-evidence or connector-candidate decisions rely on candidate-origin URL state.
 <!-- END CAND-001-CURRENT-STATE -->
+
+<!-- BEGIN GATE-001-CURRENT-STATE -->
+## GATE-001 Current-State Addition
+
+After CAND-001, validated origin URLs can become persisted candidate state under SZ1 review/apply control. GATE-001 is the next SZ2 step: initial gate review for `source_discovery`, `technical_reachability_gate` and `risk_gate`. Passing these gates should lead to bounded detail evidence discovery, not connector registration or activation.
+<!-- END GATE-001-CURRENT-STATE -->

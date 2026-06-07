@@ -50,3 +50,9 @@ EO-002E follows the architecture freeze rule:
 
 CAND-001 is allowed in the architecture freeze because it closes a measured pipeline gap found by EO-002E. It does not introduce a new architecture direction and does not activate sources or relax gates.
 <!-- END CAND-001-GOVERNANCE -->
+
+<!-- BEGIN GATE-001-GOVERNANCE -->
+## GATE-001 Governance Note
+
+GATE-001 is allowed in active scope under the architecture-freeze rule because it closes a measured pipeline gap: EO-002E reported `initial_gate_review` after CAND-001 persisted validated origin URLs. It is a direct maturity-path block, not a new idea.
+<!-- END GATE-001-GOVERNANCE -->

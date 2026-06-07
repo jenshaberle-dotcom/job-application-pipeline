@@ -64,3 +64,9 @@ This turns gate stops into a diagnostic contract instead of treating them as opa
 
 Candidate URL persistence is not itself a downstream gate review. It is an SZ1 state transition that makes later gate contracts meaningful by ensuring downstream analysis reads from candidate state rather than report-only URL evidence.
 <!-- END CAND-001-GATE-CONTRACT-NOTE -->
+
+<!-- BEGIN GATE-001-GATE-CONTRACT -->
+## GATE-001 Initial Gate Contract
+
+Initial gate review may write only early employer-origin gate reviews under explicit `--apply`: `source_discovery`, `technical_reachability_gate` and `risk_gate`. It must include evidence, reviewed_by, reviewed_at and bounded probe metadata. It must not write detail evidence or connector/activation decisions.
+<!-- END GATE-001-GATE-CONTRACT -->

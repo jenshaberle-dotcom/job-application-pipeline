@@ -289,7 +289,16 @@ def analyze_candidate(
         and not stop_gate
         and missing_step == "candidate_url_persistence"
     ):
-        missing_step = "initial_gate_review"
+        initial_gate_review_passed = all(
+            gates_by_name.get(gate_name) is not None
+            and str(gates_by_name[gate_name].gate_status) == "passed"
+            for gate_name in (
+                "source_discovery",
+                "technical_reachability_gate",
+                "risk_gate",
+            )
+        )
+        missing_step = DETAIL_EVIDENCE_GATE if initial_gate_review_passed else "initial_gate_review"
     classification = None
 
     if not effective_url:
