@@ -592,3 +592,23 @@ Next use:
 
 Run EO-002B/EO-002C again for `hannover_ruck` and `e_on_grid_solutions`. If selected URLs improve, proceed to gate-stop/evidence-quality analysis. If not, improve external search-result acquisition and replay before changing the Türsteher.
 <!-- EO-002D-ROADMAP:END -->
+
+<!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
+## ARCH-001 Safety, Security and Pipeline State Baseline
+
+ARCH-001 freezes the architecture baseline before additional pipeline transitions are automated.
+
+Active maturity path:
+
+| Order | Block | Purpose |
+|---:|---|---|
+| 1 | ARCH-001 Safety, Security and Pipeline State Architecture Baseline | freeze safety, security, permissions and state contracts |
+| 2 | EO-002E Gate Stop / Next-Safe-Action Evidence Analysis | inspect what happens after selected origin URLs |
+| 3 | EO-002F URL Finder Runtime Hardening | enforce total runtime and network safety boundaries |
+| 4 | EO-002G Detail Evidence Discovery | improve concrete job/detail evidence discovery |
+| 5 | EO-002H Candidate Promotion Calibration | calibrate Türsteher from measured downstream outcomes |
+| 6 | EO-002I Wave/Scheduler Stabilization | automate only after single-step maturity improves |
+| 7 | EO-002J Operations/UI Observability | make review and operations actively usable |
+| 8 | DOC-003 Adrian Reconciliation | align documentation with actual system state |
+| 9 | BENCH-001 Candidate Reality Benchmark | validate 20 to 40 diverse candidates |
+<!-- ARCH-001-SAFETY-SECURITY-STATE:END -->

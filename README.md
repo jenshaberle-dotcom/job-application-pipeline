@@ -824,3 +824,30 @@ Future source integrations are evaluated individually based on:
 ### S6C Approval-Gated Connector Build
 
 S6C connects unresolved high-pressure employer-origin candidates to a controlled connector-artifact build path. It can write DB-backed build requests and, after explicit build approval, generate bounded connector candidate artifacts. It still does not register connectors, activate sources, write Bronze rows or change schedules.
+
+<!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
+## Architecture Freeze and Safety/Security Baseline
+
+The project is now in architecture-freeze / maturity mode.
+
+Active work should close architecture contracts, fix measured pipeline gaps or improve measurability. New ideas are parked unless they are expected to improve a clearly named maturity area by roughly 15 to 20 points.
+
+ARCH-001 defines the current safety, security and pipeline-state baseline:
+
+- safety zones from read-only analysis to destructive/compliance operations
+- agent permission matrix
+- candidate lifecycle state machine
+- gate contract baseline
+- security baseline for external requests, secrets and reports
+- 90+ maturity campaign path
+
+Primary documents:
+
+- docs/architecture/safety_security_state_architecture.md
+- docs/architecture/agent_permission_matrix.md
+- docs/architecture/pipeline_state_machine.md
+- docs/architecture/gate_contract_baseline.md
+- docs/security/search_intelligence_security_baseline.md
+- docs/planning/architecture_freeze_maturity_campaign.md
+- docs/adr/033_define_search_intelligence_safety_security_boundaries.md
+<!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
