@@ -4,11 +4,12 @@ import argparse
 import json
 import os
 import re
+from html import unescape
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 import psycopg
 import requests
@@ -100,6 +101,9 @@ REQUEST_TIMEOUT_SECONDS = 20
 SEARCH_DISCOVERY_URL = "https://html.duckduckgo.com/html/"
 DEFAULT_SEARCH_QUERY_LIMIT = 6
 DEFAULT_SEARCH_RESULT_LIMIT = 8
+DEFAULT_EMBEDDED_DETAIL_URL_LIMIT = 80
+DEFAULT_SEARCH_PROVIDER = "duckduckgo_html"
+SUPPORTED_SEARCH_PROVIDERS = ("duckduckgo_html", "tavily")
 
 
 
@@ -153,6 +157,15 @@ class LinkCandidate:
     profile_terms: tuple[str, ...]
     location_terms: tuple[str, ...]
     reason: str
+
+
+@dataclass(frozen=True)
+class StructuredSearchResult:
+    url: str
+    title: str
+    snippet: str
+    query: str
+    provider: str
 
 
 @dataclass(frozen=True)
@@ -258,13 +271,93 @@ def unique_ordered(values: list[str] | tuple[str, ...]) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _term_pattern(term: str) -> re.Pattern[str]:
+    normalized = re.escape(normalize_text(term))
+    # Very short profile tokens such as AI, BI, UI and KI are useful but noisy.
+    # Match them as standalone tokens so words like maintenance or build do not
+    # accidentally count as AI/BI/UI evidence.
+    if len(normalize_text(term)) <= 3 and normalize_text(term).isalnum():
+        return re.compile(rf"(?<![a-z0-9]){normalized}(?![a-z0-9])")
+    return re.compile(normalized)
+
+
 def find_terms(value: str, terms: tuple[str, ...]) -> tuple[str, ...]:
     haystack = normalize_text(value)
     matches: list[str] = []
     for term in terms:
-        if normalize_text(term) in haystack and term not in matches:
+        if _term_pattern(term).search(haystack) and term not in matches:
             matches.append(term)
     return tuple(matches)
+
+
+def _canonical_detail_url_key(url: str) -> str:
+    parsed = urlparse(url)
+    path = re.sub(r"/{2,}", "/", (parsed.path or "/")).rstrip("/") or "/"
+    normalized = parsed._replace(
+        scheme=parsed.scheme.casefold(),
+        netloc=parsed.netloc.casefold(),
+        path=path,
+        params="",
+        fragment="",
+    )
+    return urlunparse(normalized)
+
+
+def _url_path_contains_term(url: str, term: str) -> bool:
+    path = normalize_text(urlparse(url).path.replace("-", " ").replace("_", " ").replace("/", " "))
+    return bool(_term_pattern(term).search(path))
+
+
+def _labeled_location_signal(term: str, value: str) -> bool:
+    normalized_term = re.escape(normalize_text(term))
+    haystack = normalize_text(value)
+    patterns = (
+        rf"\b(standort|arbeitsort|arbeitsplatz|ort|location|locations|city|office|workplace)\b[^.!?\n]{{0,100}}\b{normalized_term}\b",
+        rf"\b{normalized_term}\b\s*\((nds|niedersachsen|de|deutschland|germany)\)",
+    )
+    return any(re.search(pattern, haystack) for pattern in patterns)
+
+
+def _generic_in_location_signal(term: str, value: str) -> bool:
+    normalized_term = re.escape(normalize_text(term))
+    haystack = normalize_text(value)
+    return bool(re.search(rf"\b(in|at)\s+{normalized_term}\b", haystack))
+
+
+def _strong_contextual_location_signal(term: str, value: str) -> bool:
+    return _labeled_location_signal(term, value) or _generic_in_location_signal(term, value)
+
+
+def filter_target_location_terms(
+    *,
+    candidate: SourceCandidate,
+    url: str,
+    title: str,
+    text: str,
+    terms: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Keep target-location terms while suppressing employer-brand noise.
+
+    DETAIL-004 exposed a false-positive pattern for employers whose name itself
+    contains the target city.  For example, Hannover Rück pages for London or
+    Orlando can contain the word Hannover only because of the employer brand,
+    not because the job is located in Hannover.  When the company name already
+    contains a location term, the term must also appear in the job URL path or
+    in a location-like textual context.
+    """
+
+    raw_matches = find_terms(" ".join([url, title, text]), terms)
+    company_blob = normalize_text(candidate.company_name)
+    filtered: list[str] = []
+    for term in raw_matches:
+        normalized_term = normalize_text(term)
+        if normalized_term not in company_blob:
+            filtered.append(term)
+            continue
+        text_blob = " ".join([title, text])
+        if _url_path_contains_term(url, term) or _labeled_location_signal(term, text_blob):
+            filtered.append(term)
+    return tuple(filtered)
 
 
 def concrete_job_detail_url(url: str) -> bool:
@@ -316,6 +409,61 @@ def extract_links(html: str, base_url: str) -> list[tuple[str, str]]:
     return parser.links
 
 
+def _decode_embedded_url_text(value: str) -> str:
+    """Normalize common HTML/JSON escaping before embedded URL extraction."""
+
+    decoded = unescape(value or "")
+    decoded = decoded.replace(r"\/", "/")
+    decoded = decoded.replace(r"\u002F", "/").replace(r"\u002f", "/")
+    return decoded
+
+
+def _clean_embedded_url_candidate(raw_url: str, *, base_url: str) -> str | None:
+    cleaned = raw_url.strip().strip("\"'`),;")
+    cleaned = cleaned.replace("&amp;", "&")
+    if cleaned.startswith(("mailto:", "tel:", "javascript:")):
+        return None
+    if cleaned.startswith(("http://", "https://", "/")):
+        return urljoin(base_url, cleaned).split("#", 1)[0]
+    return None
+
+
+def extract_embedded_detail_url_candidates(
+    html: str,
+    base_url: str,
+    *,
+    limit: int = DEFAULT_EMBEDDED_DETAIL_URL_LIMIT,
+) -> list[tuple[str, str]]:
+    """Extract detail-shaped URLs that are present outside ordinary anchors.
+
+    Many employer-origin job portals render visible job cards with JavaScript.
+    The static HTML can still contain concrete URLs in JSON blobs, inline
+    scripts, or escaped state payloads. DETAIL-002 keeps this bounded and
+    deterministic: it only emits URLs that already look like concrete job-detail
+    paths, and later validation still fetches and checks the detail page.
+    """
+
+    decoded = _decode_embedded_url_text(html)
+    patterns = (
+        r"https?://[^\s\"'<>]+",
+        r"/(?:job|jobs|stellenangebote|offene-stellen|stellen-finden|karriere/jobs|karriere/offene-stellen)/[^\s\"'<>]+",
+    )
+    result: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for pattern in patterns:
+        for match in re.finditer(pattern, decoded, flags=re.IGNORECASE):
+            url = _clean_embedded_url_candidate(match.group(0), base_url=base_url)
+            if not url or url in seen:
+                continue
+            if not concrete_job_detail_url(url):
+                continue
+            seen.add(url)
+            result.append((url, "embedded detail URL candidate"))
+            if len(result) >= limit:
+                return result
+    return result
+
+
 def candidate_hosts(candidate: SourceCandidate) -> tuple[str, ...]:
     hosts = [urlparse(candidate.candidate_url).netloc.casefold()]
     for item in plausible_sibling_origin_urls(candidate.candidate_url, company_key=candidate.company_key):
@@ -323,21 +471,57 @@ def candidate_hosts(candidate: SourceCandidate) -> tuple[str, ...]:
     return unique_ordered(hosts)
 
 
+def _clean_persisted_evidence_url(raw_value: object) -> str | None:
+    """Return only a real URL from persisted gate evidence.
+
+    Gate evidence keeps human-readable rejection strings such as
+    ``https://jobs.example.com/ :: not_concrete_job_detail_url``. These are
+    audit output, not URLs. DETAIL-002A prevents those strings from re-entering
+    bounded probing as malformed URLs like ``%20::%20not_concrete_job_detail_url``.
+    DETAIL-003 then keeps rejected URL lists out of the seed budget entirely.
+    """
+
+    value = str(raw_value or "").strip()
+    if not value:
+        return None
+    candidate_url = value.split(" :: ", 1)[0].strip()
+    normalized = candidate_url.split("#", 1)[0].strip()
+    if not normalized.startswith(("http://", "https://")):
+        return None
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    return normalized
+
+
+def _concrete_url_from_evidence_item(item: object) -> str | None:
+    if not isinstance(item, dict):
+        return None
+    for key in ("url", "final_url"):
+        cleaned = _clean_persisted_evidence_url(item.get(key))
+        if cleaned and concrete_job_detail_url(cleaned):
+            return cleaned
+    return None
+
+
 def requested_seed_urls(candidate: SourceCandidate, gates: dict[str, dict[str, Any]]) -> tuple[str, ...]:
     urls = [candidate.candidate_url]
 
     detail_gate = gates.get(DETAIL_EVIDENCE_GATE) or {}
     evidence = detail_gate.get("evidence") or {}
-    details = evidence.get("details") or []
-    rejected = evidence.get("rejected_detail_urls") or evidence.get("rejected_urls") or []
 
-    for item in details:
-        if isinstance(item, dict):
-            urls.append(str(item.get("url") or ""))
-    for item in rejected:
-        urls.append(str(item or ""))
+    # DETAIL-003: rejected URLs are audit evidence, not a seed source.  Reusing
+    # old rejection lists made noisy DuckDuckGo, CloudFront and overview links
+    # consume the bounded max_seed_pages budget before fresh search-discovered
+    # job-detail candidates could be probed.  Only previously supported details
+    # or explicit concrete candidate links are safe to replay.
+    for collection_key in ("details", "supported_details", "candidate_links", "detail_assessments"):
+        for item in evidence.get(collection_key) or []:
+            concrete_url = _concrete_url_from_evidence_item(item)
+            if concrete_url:
+                urls.append(concrete_url)
 
-    return unique_ordered([url for url in urls if url.startswith(("http://", "https://"))])
+    return unique_ordered([url for url in (_clean_persisted_evidence_url(item) for item in urls) if url])
 
 
 def fetch_url(url: str) -> tuple[str, str, int]:
@@ -373,6 +557,132 @@ def fetch_search_results(query: str) -> tuple[str, str, int]:
     return response.text, response.url, response.status_code
 
 
+def load_local_env_file(path: str = ".env") -> None:
+    """Load local .env entries without overriding already configured secrets."""
+
+    env_path = os.path.abspath(path)
+    if not os.path.exists(env_path):
+        return
+
+    with open(env_path, encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and (_is_missing_or_placeholder_secret(os.environ.get(key))):
+                os.environ[key] = value
+
+
+def _is_missing_or_placeholder_secret(value: str | None) -> bool:
+    if value is None:
+        return True
+    normalized = value.strip()
+    lowered = normalized.lower()
+    return (
+        normalized == ""
+        or normalized == "..."
+        or "your_api_key" in lowered
+        or "api_key" in lowered
+        or "realer_key" in lowered
+        or "hier" in lowered
+        or normalized in {"<YOUR_API_KEY>", "YOUR_API_KEY", "changeme"}
+    )
+
+
+def _response_json_or_empty(response: requests.Response) -> dict[str, Any]:
+    try:
+        payload = response.json()
+    except ValueError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def fetch_tavily_search_results(
+    query: str,
+    *,
+    max_results: int,
+    timeout_seconds: float = REQUEST_TIMEOUT_SECONDS,
+    search_depth: str = "basic",
+) -> tuple[StructuredSearchResult, ...]:
+    """Fetch structured search results from Tavily for detail candidate discovery.
+
+    Tavily is used only as a candidate discovery provider.  Results still have
+    to pass plausibility, concrete detail URL shape checks and bounded HTTP
+    detail-page validation before any gate can pass.
+    """
+
+    api_key = os.getenv("TAVILY_API_KEY")
+    if _is_missing_or_placeholder_secret(api_key):
+        return ()
+
+    try:
+        response = requests.post(
+            "https://api.tavily.com/search",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "query": query,
+                "search_depth": search_depth,
+                "max_results": max(1, min(max_results, 10)),
+                "include_answer": False,
+                "include_raw_content": False,
+            },
+            timeout=timeout_seconds,
+        )
+        response.raise_for_status()
+    except requests.RequestException:
+        return ()
+
+    payload = _response_json_or_empty(response)
+    results: list[StructuredSearchResult] = []
+    for item in payload.get("results", []):
+        if not isinstance(item, dict) or not item.get("url"):
+            continue
+        results.append(
+            StructuredSearchResult(
+                url=str(item.get("url") or ""),
+                title=str(item.get("title") or ""),
+                snippet=str(item.get("content") or ""),
+                query=query,
+                provider="tavily",
+            )
+        )
+    return tuple(results)
+
+
+def _search_result_candidate(
+    *,
+    result_url: str,
+    title: str,
+    snippet: str,
+    query: str,
+    provider: str,
+    candidate: SourceCandidate,
+    base_url: str | None = None,
+) -> tuple[UrlEvidenceCandidate | None, str | None]:
+    decoded = decode_search_redirect_url(result_url, base_url=base_url)
+    if not decoded:
+        return None, f"{result_url} :: malformed_search_result_url"
+    if not plausible_origin_url(decoded, candidate):
+        return None, f"{decoded} :: {EvidenceFailureReason.DOMAIN_NOT_PLAUSIBLE.value}"
+    if not any(marker in decoded.casefold() for marker in ("job", "career", "karriere", "stellen")):
+        return None, f"{decoded} :: no_job_or_career_url_marker"
+
+    text = normalize_whitespace(" ".join([title, snippet]))
+    confidence_hint = 0.74 if concrete_job_detail_url(decoded) else 0.60
+    return (
+        UrlEvidenceCandidate(
+            url=decoded,
+            discovery_source=f"external_search:{provider}",
+            confidence_hint=confidence_hint,
+            reason=f"{provider} result for query: {query}; text={text[:160]}",
+        ),
+        None,
+    )
+
+
 def discover_search_result_candidates(
     *,
     candidate: SourceCandidate,
@@ -380,7 +690,9 @@ def discover_search_result_candidates(
     location_terms: tuple[str, ...],
     max_queries: int,
     max_results: int,
+    search_provider: str = DEFAULT_SEARCH_PROVIDER,
     search_fetcher=fetch_search_results,
+    tavily_fetcher=fetch_tavily_search_results,
 ) -> tuple[tuple[UrlEvidenceCandidate, ...], tuple[str, ...], tuple[str, ...], tuple[SearchDiscoveryQuery, ...]]:
     queries = build_search_discovery_queries(
         company_name=candidate.company_name,
@@ -388,43 +700,76 @@ def discover_search_result_candidates(
         profile_terms=profile_terms,
         location_terms=location_terms,
         max_queries=max_queries,
+        candidate_url=candidate.candidate_url,
     )
     requested_queries: list[str] = []
     rejected_results: list[str] = []
     discovered: list[UrlEvidenceCandidate] = []
     seen_results: set[str] = set()
 
+    if search_provider not in SUPPORTED_SEARCH_PROVIDERS:
+        rejected_results.append(f"search_provider={search_provider} :: unsupported_search_provider")
+        return (), unique_ordered(rejected_results), (), queries
+
     for query in queries:
+        requested_queries.append(query.query)
+
+        if search_provider == "tavily":
+            results = tavily_fetcher(query.query, max_results=max_results)
+            if not results:
+                rejected_results.append(f"{query.query} :: tavily_no_results_or_provider_unavailable")
+                continue
+            for result in results:
+                candidate_result, rejection = _search_result_candidate(
+                    result_url=result.url,
+                    title=result.title,
+                    snippet=result.snippet,
+                    query=result.query,
+                    provider=result.provider,
+                    candidate=candidate,
+                )
+                decoded_url = candidate_result.url if candidate_result else result.url
+                if decoded_url in seen_results:
+                    continue
+                seen_results.add(decoded_url)
+                if rejection:
+                    rejected_results.append(rejection)
+                    continue
+                discovered.append(candidate_result)
+                if len(discovered) >= max_results:
+                    break
+            if len(discovered) >= max_results:
+                break
+            continue
+
         try:
             html, final_url, status_code = search_fetcher(query.query)
         except Exception as exc:  # noqa: BLE001 - bounded search discovery must continue.
             rejected_results.append(f"{query.query} :: search_fetch_error={type(exc).__name__}")
             continue
 
-        requested_queries.append(query.query)
         if status_code >= 400:
             rejected_results.append(f"{query.query} :: search_status={status_code}")
             continue
 
         for raw_url, text in extract_links(html, final_url):
-            decoded = decode_search_redirect_url(raw_url, base_url=final_url)
-            if not decoded or decoded in seen_results:
-                continue
-            seen_results.add(decoded)
-            if not plausible_origin_url(decoded, candidate):
-                rejected_results.append(f"{decoded} :: {EvidenceFailureReason.DOMAIN_NOT_PLAUSIBLE.value}")
-                continue
-            if not any(marker in decoded.casefold() for marker in ("job", "career", "karriere", "stellen")):
-                rejected_results.append(f"{decoded} :: no_job_or_career_url_marker")
-                continue
-            discovered.append(
-                UrlEvidenceCandidate(
-                    url=decoded,
-                    discovery_source="external_search",
-                    confidence_hint=0.70 if job_detail_url_shape(decoded) else 0.58,
-                    reason=f"search result for query: {query.query}; text={text[:120]}",
-                )
+            candidate_result, rejection = _search_result_candidate(
+                result_url=raw_url,
+                title=text,
+                snippet="",
+                query=query.query,
+                provider="duckduckgo_html",
+                candidate=candidate,
+                base_url=final_url,
             )
+            decoded_url = candidate_result.url if candidate_result else (decode_search_redirect_url(raw_url, base_url=final_url) or raw_url)
+            if decoded_url in seen_results:
+                continue
+            seen_results.add(decoded_url)
+            if rejection:
+                rejected_results.append(rejection)
+                continue
+            discovered.append(candidate_result)
             if len(discovered) >= max_results:
                 break
         if len(discovered) >= max_results:
@@ -447,7 +792,9 @@ def build_seed_url_candidates(
     enable_search_discovery: bool,
     max_search_queries: int,
     max_search_results: int,
+    search_provider: str = DEFAULT_SEARCH_PROVIDER,
     search_fetcher=fetch_search_results,
+    tavily_fetcher=fetch_tavily_search_results,
 ) -> tuple[tuple[UrlEvidenceCandidate, ...], tuple[str, ...], tuple[str, ...], tuple[SearchDiscoveryQuery, ...]]:
     persisted_candidates: list[UrlEvidenceCandidate] = []
     for url in requested_seed_urls(candidate, gates):
@@ -473,6 +820,7 @@ def build_seed_url_candidates(
         profile_terms=profile_terms,
         location_terms=location_terms,
         max_queries=max_search_queries,
+        candidate_url=candidate.candidate_url,
     )
     if enable_search_discovery:
         search_candidates, search_rejections, requested_search_queries, planned_queries = discover_search_result_candidates(
@@ -481,7 +829,9 @@ def build_seed_url_candidates(
             location_terms=location_terms,
             max_queries=max_search_queries,
             max_results=max_search_results,
+            search_provider=search_provider,
             search_fetcher=search_fetcher,
+            tavily_fetcher=tavily_fetcher,
         )
 
     # A1 priority rule:
@@ -518,8 +868,10 @@ def discover_link_candidates(
     enable_search_discovery: bool = True,
     max_search_queries: int = DEFAULT_SEARCH_QUERY_LIMIT,
     max_search_results: int = DEFAULT_SEARCH_RESULT_LIMIT,
+    search_provider: str = DEFAULT_SEARCH_PROVIDER,
     fetcher=fetch_url,
     search_fetcher=fetch_search_results,
+    tavily_fetcher=fetch_tavily_search_results,
 ) -> tuple[tuple[LinkCandidate, ...], tuple[str, ...], tuple[str, ...], dict[str, Any]]:
     seed_candidates, search_rejections, requested_search_queries, planned_queries = build_seed_url_candidates(
         candidate=candidate,
@@ -529,7 +881,9 @@ def discover_link_candidates(
         enable_search_discovery=enable_search_discovery,
         max_search_queries=max_search_queries,
         max_search_results=max_search_results,
+        search_provider=search_provider,
         search_fetcher=search_fetcher,
+        tavily_fetcher=tavily_fetcher,
     )
 
     requested_urls: list[str] = []
@@ -572,6 +926,13 @@ def discover_link_candidates(
         requested_urls.append(final_url)
         origin_record["final_url"] = final_url
         origin_record["status_code"] = status_code
+        if not plausible_origin_url(final_url, candidate):
+            reason = EvidenceFailureReason.DOMAIN_NOT_PLAUSIBLE.value
+            origin_record["status"] = "rejected"
+            origin_record["rejection_reasons"].append(reason)
+            rejected_urls.append(f"{final_url} :: {reason}")
+            checked_origin_candidates.append(origin_record)
+            continue
         if status_code >= 400:
             reason = EvidenceFailureReason.URL_NOT_REACHABLE.value
             origin_record["status"] = "rejected"
@@ -598,10 +959,12 @@ def discover_link_candidates(
             origin_record["accepted_link_count"] = int(origin_record["accepted_link_count"]) + 1
 
         extracted_links = extract_links(html, final_url)
-        if not extracted_links:
+        embedded_links = extract_embedded_detail_url_candidates(html, final_url)
+        candidate_links_to_check = [*extracted_links, *embedded_links]
+        if not candidate_links_to_check:
             origin_record["rejection_reasons"].append(EvidenceFailureReason.NO_JOB_LIST_FOUND.value)
 
-        for url, text in extracted_links:
+        for url, text in candidate_links_to_check:
             if url in seen:
                 continue
             seen.add(url)
@@ -646,6 +1009,9 @@ def discover_link_candidates(
         ],
         "requested_search_queries": list(requested_search_queries),
         "search_discovery_enabled": enable_search_discovery,
+        "detail_link_discovery_version": "DETAIL-004B",
+        "embedded_detail_url_extraction_enabled": True,
+        "search_provider": search_provider,
     }
     return tuple(link_candidates), unique_ordered(rejected_urls), unique_ordered(requested_urls), discovery_evidence
 
@@ -670,8 +1036,19 @@ def validate_detail_candidates(
     rejected_urls: list[str] = []
     details: list[DetailEvidence] = []
     assessments: list[dict[str, Any]] = []
+    seen_link_keys: set[str] = set()
+    accepted_detail_keys: set[str] = set()
+    checked_count = 0
 
-    for link in link_candidates[:max_detail_pages]:
+    for link in link_candidates:
+        link_key = _canonical_detail_url_key(link.url)
+        if link_key in seen_link_keys:
+            continue
+        seen_link_keys.add(link_key)
+        if checked_count >= max_detail_pages:
+            break
+        checked_count += 1
+
         try:
             html, final_url, status_code = fetcher(link.url)
         except Exception as exc:  # noqa: BLE001
@@ -704,7 +1081,13 @@ def validate_detail_candidates(
         title, text = parse_detail_page(html)
         evidence_blob = " ".join([link.url, link.text, title, text])
         matched_profile = find_terms(evidence_blob, profile_terms)
-        matched_location = find_terms(evidence_blob, location_terms)
+        matched_location = filter_target_location_terms(
+            candidate=candidate,
+            url=final_url,
+            title=title,
+            text=text,
+            terms=location_terms,
+        )
         assessment = classify_checked_url(
             url=final_url,
             reference_url=candidate.candidate_url,
@@ -712,6 +1095,7 @@ def validate_detail_candidates(
             location_terms=location_terms,
             text=evidence_blob,
         )
+        final_key = _canonical_detail_url_key(final_url)
         assessment_record = {
             "url": assessment.url,
             "decision": assessment.decision.value,
@@ -727,6 +1111,13 @@ def validate_detail_candidates(
         }
         assessments.append(assessment_record)
 
+        if assessment.decision != EvidenceDecision.ACCEPTED:
+            reason = assessment.failure_reason.value if assessment.failure_reason else EvidenceDecision.REJECTED.value
+            rejected_urls.append(f"{final_url} :: {reason}")
+            continue
+        if final_key in accepted_detail_keys:
+            rejected_urls.append(f"{final_url} :: duplicate_detail_url")
+            continue
         if not matched_profile:
             rejected_urls.append(f"{final_url} :: {EvidenceFailureReason.DETAIL_PAGE_EXTRACTED_BUT_NO_PROFILE_SIGNAL.value}")
             continue
@@ -734,6 +1125,7 @@ def validate_detail_candidates(
             rejected_urls.append(f"{final_url} :: {EvidenceFailureReason.DETAIL_PAGE_EXTRACTED_BUT_NO_TARGET_SIGNAL.value}")
             continue
 
+        accepted_detail_keys.add(final_key)
         details.append(
             DetailEvidence(
                 url=link.url,
@@ -762,8 +1154,10 @@ def build_repair_outcome(
     enable_search_discovery: bool = True,
     max_search_queries: int = DEFAULT_SEARCH_QUERY_LIMIT,
     max_search_results: int = DEFAULT_SEARCH_RESULT_LIMIT,
+    search_provider: str = DEFAULT_SEARCH_PROVIDER,
     fetcher=fetch_url,
     search_fetcher=fetch_search_results,
+    tavily_fetcher=fetch_tavily_search_results,
 ) -> RepairOutcome:
     link_candidates, link_rejections, listing_requests, discovery_evidence = discover_link_candidates(
         candidate=candidate,
@@ -774,8 +1168,10 @@ def build_repair_outcome(
         enable_search_discovery=enable_search_discovery,
         max_search_queries=max_search_queries,
         max_search_results=max_search_results,
+        search_provider=search_provider,
         fetcher=fetcher,
         search_fetcher=search_fetcher,
+        tavily_fetcher=tavily_fetcher,
     )
     details, detail_rejections, detail_requests, detail_assessments = validate_detail_candidates(
         candidate=candidate,
@@ -803,11 +1199,23 @@ def build_repair_outcome(
             "external_search_discovery_used": enable_search_discovery,
             "max_search_queries": max_search_queries,
             "max_search_results": max_search_results,
+            "search_provider": search_provider,
         },
         "decision_taxonomy": EvidenceDecision.ACCEPTED.value if details else EvidenceDecision.MANUAL_REVIEW_REQUIRED.value,
         "confidence_score": 0.96 if details else 0.62,
         "confidence_reason": "validated detail page contains profile and target signals" if details else "no validated detail page with profile and target signals after multi-origin discovery",
         **discovery_evidence,
+        "search_budget_observability": {
+            "search_provider": search_provider,
+            "max_search_queries": max_search_queries,
+            "max_search_results": max_search_results,
+            "requested_search_query_count": len(discovery_evidence.get("requested_search_queries") or []),
+            "estimated_provider_credit_count": (
+                len(discovery_evidence.get("requested_search_queries") or [])
+                if search_provider == "tavily"
+                else 0
+            ),
+        },
         "detail_assessments": list(detail_assessments),
         "requested_urls": list(requested_urls),
         "rejected_urls": list(rejected_urls),
@@ -1018,6 +1426,7 @@ def build_terms(args: argparse.Namespace) -> tuple[tuple[str, ...], tuple[str, .
 
 
 def run_agent(args: argparse.Namespace) -> int:
+    load_local_env_file()
     profile_terms, location_terms = build_terms(args)
 
     with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
@@ -1035,6 +1444,7 @@ def run_agent(args: argparse.Namespace) -> int:
             enable_search_discovery=not args.disable_search_discovery,
             max_search_queries=args.max_search_queries,
             max_search_results=args.max_search_results,
+            search_provider=args.search_provider,
         )
 
         if not args.dry_run:
@@ -1070,6 +1480,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-detail-pages", type=int, default=8)
     parser.add_argument("--max-search-queries", type=int, default=DEFAULT_SEARCH_QUERY_LIMIT)
     parser.add_argument("--max-search-results", type=int, default=DEFAULT_SEARCH_RESULT_LIMIT)
+    parser.add_argument("--search-provider", choices=SUPPORTED_SEARCH_PROVIDERS, default=DEFAULT_SEARCH_PROVIDER)
     parser.add_argument("--disable-search-discovery", action="store_true")
     parser.add_argument("--reviewed-by", default="agent")
     parser.add_argument("--dry-run", action="store_true")

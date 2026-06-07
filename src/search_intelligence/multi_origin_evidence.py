@@ -158,6 +158,28 @@ def job_detail_url_shape(url: str) -> bool:
     return len(last) >= 6 and ("-" in last or "_" in last or any(char.isdigit() for char in last))
 
 
+def _candidate_search_hosts(candidate_url: str | None) -> tuple[str, ...]:
+    """Return high-value hosts derived from the persisted candidate URL.
+
+    DETAIL-002 deliberately prioritizes the concrete host that already passed
+    CAND-001/GATE-001 over generated company-key hosts.  Generated hosts such
+    as ``job.e_on_grid_solutions.group`` look plausible in code but waste the
+    limited search budget for real portals like ``jobs.eon.com`` and
+    ``jobs.hannover-re.com``.
+    """
+
+    normalized = normalize_url(candidate_url or "")
+    if not normalized:
+        return ()
+    parsed_host = host(normalized)
+    base = registrable_domain_like(normalized)
+    candidates = [parsed_host]
+    for prefix in ("jobs", "job", "careers", "career"):
+        sibling = f"{prefix}.{base}"
+        candidates.append(sibling)
+    return tuple(item for item in dict.fromkeys(candidates) if item)
+
+
 def build_search_discovery_queries(
     *,
     company_name: str,
@@ -165,11 +187,28 @@ def build_search_discovery_queries(
     profile_terms: Iterable[str],
     location_terms: Iterable[str],
     max_queries: int = 8,
+    candidate_url: str | None = None,
 ) -> tuple[SearchDiscoveryQuery, ...]:
     company = company_name or company_key
     profile = next((term for term in profile_terms if term), "data")
     location = next((term for term in location_terms if term), "jobs")
+    host_queries: list[SearchDiscoveryQuery] = []
+    for candidate_host in _candidate_search_hosts(candidate_url):
+        host_queries.extend(
+            [
+                SearchDiscoveryQuery(
+                    f"site:{candidate_host}/job {profile} {location}",
+                    "persisted candidate host job-detail query",
+                ),
+                SearchDiscoveryQuery(
+                    f"site:{candidate_host} {profile} {location}",
+                    "persisted candidate host profile-target query",
+                ),
+            ]
+        )
+
     queries = [
+        *host_queries,
         SearchDiscoveryQuery(f"{company} jobs", "baseline company jobs query"),
         SearchDiscoveryQuery(f"{company} careers", "baseline company careers query"),
         SearchDiscoveryQuery(f"{company} {profile} {location}", "profile and target query"),

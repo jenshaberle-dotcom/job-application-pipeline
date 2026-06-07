@@ -10,11 +10,14 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_detail_evidence_repair_agent import (
+    DEFAULT_SEARCH_PROVIDER,
     DEFAULT_SEARCH_QUERY_LIMIT,
     DEFAULT_SEARCH_RESULT_LIMIT,
+    SUPPORTED_SEARCH_PROVIDERS,
     SourceCandidate,
     build_repair_outcome,
     build_terms,
+    load_local_env_file,
 )
 from src.config import get_database_config
 from src.search_intelligence.detail001_detail_evidence_discovery import (
@@ -403,6 +406,7 @@ def build_plan_for_candidate(
             enable_search_discovery=not args.disable_search_discovery,
             max_search_queries=args.max_search_queries,
             max_search_results=args.max_search_results,
+            search_provider=args.search_provider,
         )
         probes = probes_from_repair_outcome(outcome)
         requested_urls = tuple(outcome.requested_urls)
@@ -437,6 +441,7 @@ def build_plan_for_candidate(
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
+    load_local_env_file()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     plans: list[DetailEvidencePlan] = []
@@ -487,6 +492,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-detail-pages", type=int, default=8)
     parser.add_argument("--max-search-queries", type=int, default=DEFAULT_SEARCH_QUERY_LIMIT)
     parser.add_argument("--max-search-results", type=int, default=DEFAULT_SEARCH_RESULT_LIMIT)
+    parser.add_argument("--search-provider", choices=SUPPORTED_SEARCH_PROVIDERS, default=DEFAULT_SEARCH_PROVIDER)
     parser.add_argument("--disable-search-discovery", action="store_true")
     parser.add_argument("--no-probe", action="store_true", help="Create a plan without HTTP probing. Apply is blocked.")
     parser.add_argument("--apply", action="store_true")
