@@ -612,3 +612,22 @@ Active maturity path:
 | 8 | DOC-003 Adrian Reconciliation | align documentation with actual system state |
 | 9 | BENCH-001 Candidate Reality Benchmark | validate 20 to 40 diverse candidates |
 <!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
+
+<!-- EO-002E-GATE-STOP-NEXT-SAFE:START -->
+## EO-002E Gate Stop / Next-Safe-Action Evidence Analysis
+
+Status: implementation foundation.
+
+Purpose:
+
+- join EO-002D selected-url evidence with persisted candidate and gate state,
+- classify whether the next blocker is URL persistence, missing early gate review, detail evidence, recoverable gate stop or terminal/manual review,
+- map recommendations to ARCH-001 Safety Zones,
+- keep all output read-only.
+
+SENSOR-001 BA Remote/Nationwide Coverage Validation is now registered as a planned coverage-gap block after EO-002E and before DOC-003. It must start as preview/read-only validation, not a broad profile activation.
+
+Next use:
+
+Run EO-002E for `hannover_ruck` and `e_on_grid_solutions` with the latest EO-002B/EO-002D URL Finder report, then decide whether the immediate next work is candidate URL persistence review, detail evidence discovery or gate-stop repair.
+<!-- EO-002E-GATE-STOP-NEXT-SAFE:END -->

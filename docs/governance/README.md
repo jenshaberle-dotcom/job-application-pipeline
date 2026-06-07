@@ -32,3 +32,15 @@ During maturity mode, a new idea enters active scope only when it is expected to
 
 ARCH-001 is the governing baseline for safety zones, security boundaries, agent permissions, lifecycle transitions and gate contracts.
 <!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
+
+<!-- EO-002E-FREEZE-COMPLIANCE:START -->
+## EO-002E Freeze Compliance
+
+EO-002E follows the architecture freeze rule:
+
+- no feature expansion beyond the measured post-URL-discovery gap,
+- no scheduler or Türsteher change,
+- no DB writes,
+- recommendations are mapped to ARCH-001 Safety Zones,
+- SENSOR-001 is registered as a roadmap gap instead of becoming an opportunistic sensor change.
+<!-- EO-002E-FREEZE-COMPLIANCE:END -->

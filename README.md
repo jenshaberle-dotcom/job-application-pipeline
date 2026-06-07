@@ -851,3 +851,11 @@ Primary documents:
 - docs/planning/architecture_freeze_maturity_campaign.md
 - docs/adr/033_define_search_intelligence_safety_security_boundaries.md
 <!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
+
+<!-- EO-002E-GATE-STOP-NEXT-SAFE:START -->
+## EO-002E Gate Stop / Next-Safe-Action Evidence Analysis
+
+EO-002E adds a read-only report for the step after URL Finder validation. It compares selected URLs from EO-002B/EO-002D reports with persisted candidate URLs and gate state, then recommends the next safe action without writing to the database.
+
+Use it to decide whether the next maturity work should persist a selected URL under SZ1 review, run bounded gate/evidence analysis under SZ2, or stop for manual review.
+<!-- EO-002E-GATE-STOP-NEXT-SAFE:END -->
