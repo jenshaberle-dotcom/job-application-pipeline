@@ -158,3 +158,37 @@ def test_eo002c_script_is_report_only_and_has_no_apply_flag() -> None:
     assert "UPDATE " not in text
     assert "INSERT " not in text
     assert "DELETE " not in text
+
+
+def test_render_markdown_names_decision_confidence_explicitly() -> None:
+    report = build_decision_report(
+        [
+            normalize_metric(
+                {
+                    "company_key": "hannover_ruck",
+                    "company_name": "Hannover Rück SE",
+                    "success_tier": "D",
+                    "selected_url": None,
+                    "confidence_score": 1.0,
+                    "decision": "not_found",
+                    "false_negative_candidate": True,
+                }
+            )
+        ],
+        benchmark_label="eo002c_confidence_wording",
+        source_reports=[],
+    )
+
+    markdown = render_markdown_report(report)
+
+    assert "Decision confidence describes confidence in the URL-finder decision" in markdown
+    assert "Average decision confidence" in markdown
+    assert "Average confidence" not in markdown
+
+
+def test_eo002c_script_filters_empty_report_path_and_rejects_directories() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "if str(raw_path).strip()" in text
+    assert "path.is_dir()" in text
+    assert "not a JSON file" in text

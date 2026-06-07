@@ -263,6 +263,8 @@ def render_markdown_report(report: Mapping[str, object]) -> str:
         "",
         "## Summary",
         "",
+        "Decision confidence describes confidence in the URL-finder decision such as `selected`, `manual_review_required` or `not_found`. It is not a confidence score for a selected URL when no URL was selected.",
+        "",
         f"- Candidates: {summary.get('candidate_count', 0)}",
         f"- Selected URLs: {summary.get('selected_url_count', 0)} ({_format_percent(summary.get('selected_url_rate', 0.0))})",
         f"- A/B-tier candidates: {summary.get('ab_tier_count', 0)} ({_format_percent(summary.get('ab_tier_rate', 0.0))})",

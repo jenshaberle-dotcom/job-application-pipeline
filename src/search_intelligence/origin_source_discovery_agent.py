@@ -71,16 +71,35 @@ CAREER_PATHS = (
     "/karriere/jobs",
     "/de/karriere",
     "/de/karriere/jobs",
+    "/de/karriere/jobs.html",
     "/de/karriere/stellenangebote",
+    "/de/karriere/stellenangebote.html",
+    "/en/career",
+    "/en/careers",
+    "/en/jobs",
     "/jobs",
+    "/jobs.html",
     "/jobsuche",
     "/careers",
+    "/careers/jobs",
     "/career",
+    "/career/jobs",
     "/stellenangebote",
     "/stellen",
 )
+HIGH_VALUE_CAREER_PATHS = (
+    "/de/karriere",
+    "/de/karriere/jobs",
+    "/de/karriere/jobs.html",
+    "/karriere",
+    "/jobs",
+    "/careers",
+    "/career",
+    "/en/career",
+)
 JOB_HOST_PREFIXES = ("jobs", "careers", "career", "karriere")
 TLD_CANDIDATES = ("de", "com", "eu", "group")
+DOMAIN_ALIAS_TLD_CANDIDATES = ("com", "de")
 SEARCH_PROVIDER_KIND = "search_provider_candidate"
 GENERATED_PROVIDER_KIND = "generated_company_domain_candidate"
 MARKET_EVIDENCE_PROVIDER_KIND = "market_evidence_context"
@@ -305,6 +324,112 @@ def _join_tokens(tokens: Sequence[str], *, max_parts: int = 4) -> str:
     return "-".join(token for token in tokens[:max_parts] if token)
 
 
+def _domain_safe_alias_bases(company_key: str, company_name: str) -> tuple[str, ...]:
+    """Return corporate alias bases for deterministic URL discovery.
+
+    The pre-EO-002D generator mostly relied on merged company-name tokens. That
+    missed common market identities such as ``Hannover Re`` for ``Hannover Rück``
+    and parent-brand domains such as ``eon.com`` for ``E.ON Grid Solutions``.
+    Alias bases are generated before generic company-key bases so a bounded
+    ``max_candidates`` budget spends its first probes on the strongest
+    corporate-domain hypotheses instead of exhausting the budget on noisy
+    spelling variants.
+    """
+
+    bases: list[str] = []
+    for alias in corporate_identity_aliases(company_key, company_name):
+        tokens = [
+            token
+            for token in tokenize(alias)
+            if token not in LEGAL_OR_GENERIC_TOKENS and token not in {"and", "und", "the", "der", "die", "das"}
+        ]
+        if not tokens:
+            continue
+
+        dashed = _join_tokens(tokens, max_parts=3)
+        # Multi-token compact variants such as ``hannoverre`` consume bounded
+        # probe budget without adding much value. Keep compact only for genuine
+        # one-token brands; keep a non-local leading brand for parent-domain
+        # cases such as E.ON Grid Solutions -> eon.com.
+        compact = "".join(tokens[:1]) if len(tokens) == 1 else ""
+        leading_brand = tokens[0] if tokens[0] not in LOCALITY_TOKENS else ""
+        for base in (dashed, compact, leading_brand):
+            if base and len(base) >= 2 and base not in bases:
+                bases.append(base)
+    return tuple(bases)
+
+
+def _append_job_host_candidates(
+    candidates: list[OriginDiscoveryCandidate],
+    seen: set[str],
+    *,
+    host: str,
+    provider: str,
+    reason: str,
+    priority: int,
+) -> None:
+    for prefix in JOB_HOST_PREFIXES:
+        _append_url(
+            candidates,
+            seen,
+            f"https://{prefix}.{host}/",
+            provider=provider,
+            reason=reason.replace("career path", "job host pattern"),
+            priority=priority + 5,
+        )
+
+
+def _append_domain_candidates(
+    candidates: list[OriginDiscoveryCandidate],
+    seen: set[str],
+    *,
+    base: str,
+    tlds: Sequence[str],
+    provider: str,
+    reason: str,
+    priority: int,
+    paths: Sequence[str] = CAREER_PATHS,
+    job_hosts_first: bool = False,
+) -> None:
+    for tld in tlds:
+        host = f"{base}.{tld}"
+        if job_hosts_first:
+            _append_job_host_candidates(
+                candidates,
+                seen,
+                host=host,
+                provider=provider,
+                reason=reason,
+                priority=priority,
+            )
+        for path in paths:
+            _append_url(
+                candidates,
+                seen,
+                f"https://www.{host}{path}",
+                provider=provider,
+                reason=reason,
+                priority=priority,
+            )
+            _append_url(
+                candidates,
+                seen,
+                f"https://{host}{path}",
+                provider=provider,
+                reason=reason,
+                priority=priority + 2,
+            )
+        if not job_hosts_first:
+            _append_job_host_candidates(
+                candidates,
+                seen,
+                host=host,
+                provider=provider,
+                reason=reason,
+                priority=priority,
+            )
+
+
 def _append_url(candidates: list[OriginDiscoveryCandidate], seen: set[str], url: str, *, provider: str, reason: str, priority: int) -> None:
     candidate = url.strip()
     if not candidate or has_disallowed_source_url_shape(candidate) is not None:
@@ -343,7 +468,7 @@ def generate_company_url_candidates(
         source_family_candidate=source_family_candidate,
     ))
     acronyms = [token for token in acronym_tokens(company_name) if token not in tokens]
-    bases: list[str] = []
+    generic_bases: list[str] = []
 
     for base in (
         _join_tokens(tokens),
@@ -352,41 +477,37 @@ def generate_company_url_candidates(
         _join_tokens(acronyms[:1]),
         re.sub(r"[^a-z0-9]+", "", ascii_fold(company_key)),
     ):
-        if base and base not in bases and len(base) >= 2:
-            bases.append(base)
+        if base and base not in generic_bases and len(base) >= 2:
+            generic_bases.append(base)
+
+    alias_bases = [base for base in _domain_safe_alias_bases(company_key, company_name) if base not in generic_bases]
 
     candidates: list[OriginDiscoveryCandidate] = []
     seen: set[str] = set()
 
-    for base in bases:
-        for tld in TLD_CANDIDATES:
-            host = f"{base}.{tld}"
-            for path in CAREER_PATHS:
-                _append_url(
-                    candidates,
-                    seen,
-                    f"https://www.{host}{path}",
-                    provider=GENERATED_PROVIDER_KIND,
-                    reason="company-token corporate career path",
-                    priority=30,
-                )
-                _append_url(
-                    candidates,
-                    seen,
-                    f"https://{host}{path}",
-                    provider=GENERATED_PROVIDER_KIND,
-                    reason="company-token corporate career path",
-                    priority=32,
-                )
-            for prefix in JOB_HOST_PREFIXES:
-                _append_url(
-                    candidates,
-                    seen,
-                    f"https://{prefix}.{host}/",
-                    provider=GENERATED_PROVIDER_KIND,
-                    reason="company-token job host pattern",
-                    priority=35,
-                )
+    for base in alias_bases:
+        _append_domain_candidates(
+            candidates,
+            seen,
+            base=base,
+            tlds=DOMAIN_ALIAS_TLD_CANDIDATES,
+            provider=GENERATED_PROVIDER_KIND,
+            reason="corporate-alias deterministic career path",
+            priority=18,
+            paths=HIGH_VALUE_CAREER_PATHS,
+            job_hosts_first=True,
+        )
+
+    for base in generic_bases:
+        _append_domain_candidates(
+            candidates,
+            seen,
+            base=base,
+            tlds=TLD_CANDIDATES,
+            provider=GENERATED_PROVIDER_KIND,
+            reason="company-token corporate career path",
+            priority=30,
+        )
 
     return tuple(candidates[:max_candidates])
 
