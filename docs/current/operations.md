@@ -7,12 +7,12 @@ changes, not clever terminal tricks.
 
 Current operator entry points:
 
-- `../guides/operator-runbook.md`
-- `../guides/development-workflow.md`
-- `../guides/testing.md`
-- `../reference/operations/db_migration_tracking.md`
-- `../reference/operations/windows_scheduler_watchdog.md`
+- `../guides/development-workflow.md` for commit, PR, merge and cleanup blocks.
+- `../guides/operator-runbook.md` for local operation and recovery.
+- `../guides/testing.md` for test expectations.
+- `../reference/operations/db_migration_tracking.md` for migration tracking.
+- `../reference/operations/windows_scheduler_watchdog.md` for scheduler context.
 
-Workflow rule: commit, PR, merge and cleanup blocks should remain stable across
-chats and handovers. Merge blocks must derive the PR number automatically from
-the current feature branch instead of requiring manual `<PR_NUMBER>` replacement.
+Workflow blocks should remain stable across chats and handovers. Merge blocks
+must derive the PR number automatically from the current feature branch; they
+must not require manual `<PR_NUMBER>` replacement.

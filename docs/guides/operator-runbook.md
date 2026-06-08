@@ -1,15 +1,15 @@
 # Operator Runbook
 
-Status: current truth candidate
-Scope: local development, validation, PR workflow, and safe operation
-Last rebaseline: DOC-001F
+Status: current guide
+Scope: local operation, safety checks and recovery
 
 ## Purpose
 
-This runbook contains the standard operator commands for the local project.
+This runbook keeps operational commands in one practical place. Architecture
+belongs in `docs/current/`; stable technical detail belongs in `docs/reference/`.
 
-It is intentionally practical. Architecture belongs in `docs/current/` and detailed reference belongs in `docs/reference/`.
-Governance belongs in `docs/reference/governance/`.
+The standard commit, PR, merge and cleanup workflow is intentionally maintained
+in `development-workflow.md` to avoid diverging command variants.
 
 ## Local setup
 
@@ -25,25 +25,26 @@ git branch --show-current
 git status --short
 ```
 
-## Branch guard
+## Standard workflow
 
-Do not work directly on `main`.
+Use `development-workflow.md` for the canonical blocks:
 
-```bash
-INTENDED_BRANCH="feature/descriptive-branch-name"
-CURRENT_BRANCH="$(git branch --show-current)"
+- Commit block
+- PR block
+- Merge + cleanup block
+- optional handover export block
 
-if [ "$CURRENT_BRANCH" = "main" ]; then
-  echo "oh noes, it's main — switching to $INTENDED_BRANCH"
-  git switch "$INTENDED_BRANCH" 2>/dev/null || git switch -c "$INTENDED_BRANCH"
-elif [ "$CURRENT_BRANCH" != "$INTENDED_BRANCH" ]; then
-  git switch "$INTENDED_BRANCH" 2>/dev/null || git switch -c "$INTENDED_BRANCH"
-fi
-```
+Rules that must not drift:
+
+- no commits on `main`,
+- no `git add .`,
+- no manual `<PR_NUMBER>` replacement in merge blocks,
+- no surprise workflow variants between chat, handover and docs,
+- no `set -euo pipefail` in user-pasted recovery-prone blocks.
 
 ## Standard validation
 
-Run before commit and before/after merge:
+Run before commit and after merge:
 
 ```bash
 python -m pytest -q
@@ -51,57 +52,14 @@ git diff --check
 git status --short
 ```
 
-For governance/doc changes:
+For governance or documentation changes:
 
 ```bash
-python scripts/check_governance_drift.py --json
-python scripts/check_governance_drift.py --strict --json || true
+python scripts/check_documentation_architecture.py --json
+python scripts/check_documentation_references.py --write-report --json
+python scripts/check_adr_rebaseline.py --json
+python scripts/check_governance_drift.py --strict
 ```
-
-Strict mode may still be advisory depending on the current DOC/GOV phase.
-
-## Commit workflow
-
-```bash
-git add <files>
-
-git diff --cached --check
-git diff --cached --stat
-
-git commit -m "<clear message>"
-```
-
-## PR workflow
-
-```bash
-git push -u origin <branch>
-
-gh pr create   --title "<PR title>"   --body "<PR body>"
-```
-
-## Merge and cleanup workflow
-
-```bash
-gh pr merge --squash --delete-branch
-
-git switch main
-git pull --ff-only
-
-git branch --delete <branch> 2>/dev/null || true
-git fetch --prune
-
-python -m pytest -q
-
-git status --short
-git log --oneline -5
-```
-
-## Handling generated exports
-
-`exports/` is ignored by git.
-
-Generated reports are useful for review and handover, but they are not pipeline
-inputs and are not committed by default.
 
 ## Dry-run before apply
 
@@ -111,10 +69,9 @@ For mutating scripts, prefer:
 python -m scripts.<agent_or_command> --dry-run
 ```
 
-Only use apply/write actions after reviewing the dry-run output.
-
-If a script supports explicit write flags, the flag should be visible in the
-command and PR validation.
+Only use apply/write actions after reviewing the dry-run output. If a script
+supports explicit write flags, the flag should be visible in the command and PR
+validation.
 
 ## Pipeline safety boundaries
 
@@ -129,21 +86,19 @@ Do not use normal workflow commands to:
 
 ## Documentation safety boundaries
 
-During DOC-001:
-
-- `docs/archive/planning/` is historical by default,
-- `docs/archive/source-analysis/` is historical/reference by default,
-- `exports/project_state/` is handover context, not Current Truth,
-- `exports/` is runtime/report output,
-- ADRs require rebaseline before large edits,
-- obsolete docs should be archived/deprecated or rewritten, not patched into hybrids.
+- `docs/current/` is small current truth.
+- `docs/reference/` is stable detail, not a second product story.
+- `docs/planning/` is active planning only.
+- `docs/archive/` is historical by default.
+- `exports/` is report and handover output, not pipeline input.
+- New docs should normally update an existing artifact before creating another file.
 
 ## Common documentation commands
 
 Inspect documentation inventory:
 
 ```bash
-python scripts/inspect_documentation_rebaseline.py   --write-report   --json   --label doc001_current
+python scripts/inspect_documentation_rebaseline.py --write-report --json --label doc001_current
 ```
 
 Refresh archive indexes:
