@@ -14,6 +14,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.gate_stop_classification import classify_gate_stop
 
 DEFAULT_OUTPUT_DIR = Path("exports/pipeline_stop_reassessment")
 DEFAULT_BENCHMARK_LABEL = "pipeline_stop_reassessment"
@@ -141,21 +142,44 @@ def collect_stop_signals(candidate: StopCandidate, gates: dict[str, StopGate]) -
                     "gate_status": gate.gate_status,
                     "decision": gate.decision,
                     "stop_reason": gate.stop_reason,
+                    "stop_category": classify_gate_stop(
+                        gate_name=gate.gate_name,
+                        gate_status=gate.gate_status,
+                        decision=gate.decision,
+                        stop_reason=gate.stop_reason,
+                        evidence=gate.evidence,
+                    ).category,
                 }
             )
     return signals
 
 
+def _signal_categories(signals: list[dict[str, Any]]) -> set[str]:
+    return {str(signal.get("stop_category") or "") for signal in signals if signal.get("stop_category")}
+
+
 def signals_contain_access_risk(signals: list[dict[str, Any]]) -> bool:
-    return any(text_contains_any(str(signal.get("stop_reason") or signal.get("value") or ""), ACCESS_RISK_MARKERS) for signal in signals)
+    categories = _signal_categories(signals)
+    return "terminal_access_risk" in categories or any(
+        text_contains_any(str(signal.get("stop_reason") or signal.get("value") or ""), ACCESS_RISK_MARKERS)
+        for signal in signals
+    )
 
 
 def signals_contain_detail_evidence_gap(signals: list[dict[str, Any]]) -> bool:
-    return any(text_contains_any(str(signal.get("stop_reason") or ""), DETAIL_EVIDENCE_MARKERS) for signal in signals)
+    categories = _signal_categories(signals)
+    return "detail_discovery_gap" in categories or any(
+        text_contains_any(str(signal.get("stop_reason") or ""), DETAIL_EVIDENCE_MARKERS)
+        for signal in signals
+    )
 
 
 def signals_contain_source_url_gap(signals: list[dict[str, Any]]) -> bool:
-    return any(text_contains_any(str(signal.get("stop_reason") or ""), SOURCE_URL_RECOVERY_MARKERS) for signal in signals)
+    categories = _signal_categories(signals)
+    return bool({"recoverable_url_problem", "technical_reachability_review"} & categories) or any(
+        text_contains_any(str(signal.get("stop_reason") or ""), SOURCE_URL_RECOVERY_MARKERS)
+        for signal in signals
+    )
 
 
 def detail_repair_plan(candidate: StopCandidate, *, target_location: str, reviewed_by: str) -> Stage2RepairPlan:

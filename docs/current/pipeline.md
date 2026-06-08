@@ -33,7 +33,7 @@ The pipeline needs one lifecycle truth. Local scripts must not invent new state 
 - Any transition into active_controlled requires manual approval.
 - Any transition affecting active_controlled entities requires explicit opt-in.
 - Reset and reprocess flows must show selected targets before apply.
-- Gate stops must include next_safe_action and stop_reason.
+- Gate stops must include `stop_reason`, stop taxonomy category and `next_safe_action` context.
 
 <!-- BEGIN CAND-001-STATE-TRANSITION -->
 ## CAND-001 State Transition
@@ -46,3 +46,14 @@ for candidates where a live bounded URL-Finder run selected an A/B-tier origin U
 
 The transition is SZ1_CANDIDATE_METADATA and requires dry-run, explicit apply and audit review.
 <!-- END CAND-001-STATE-TRANSITION -->
+
+
+<!-- BEGIN STOP-002-STOP-TAXONOMY -->
+## STOP-002 Stop Taxonomy
+
+Gate stops are interpreted through the shared stop taxonomy and repair strategy
+registry in `docs/reference/search-intelligence/stop_taxonomy_and_repair_registry.md`.
+The taxonomy distinguishes good fail-closed stops from review stops, repairable
+stops and false-negative-risk stops. This does not weaken gates; it prevents
+repairable evidence gaps from being treated as silent terminal pipeline exits.
+<!-- END STOP-002-STOP-TAXONOMY -->

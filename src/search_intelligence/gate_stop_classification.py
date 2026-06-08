@@ -11,6 +11,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from src.search_intelligence.stop_taxonomy import (
+    repair_strategy_for_category,
+    taxonomy_entry_for_category,
+)
+
 
 WEAK_RISK_MARKERS = {"captcha", "recaptcha"}
 STRONG_ACCESS_RISK_MARKERS = {
@@ -29,15 +34,51 @@ class GateStopClassification:
     terminal: bool
     default_reprocess: str
     explanation: str
+    lifecycle_class: str
+    false_negative_risk: str
+    repair_strategy_id: str
+    recommended_next_safe_action: str
+    safety_zone: str
+    human_review_required: bool
+    dry_run_required: bool
+    explicit_apply_required: bool
 
     def as_evidence(self) -> dict[str, Any]:
         return {
             "stop_category": self.category,
+            "stop_lifecycle_class": self.lifecycle_class,
             "stop_severity": self.severity,
             "terminal": self.terminal,
             "default_reprocess": self.default_reprocess,
+            "false_negative_risk": self.false_negative_risk,
+            "repair_strategy_id": self.repair_strategy_id,
+            "recommended_next_safe_action": self.recommended_next_safe_action,
+            "safety_zone": self.safety_zone,
+            "human_review_required": self.human_review_required,
+            "dry_run_required": self.dry_run_required,
+            "explicit_apply_required": self.explicit_apply_required,
             "classification_explanation": self.explanation,
         }
+
+
+def _classification(category: str, explanation: str | None = None) -> GateStopClassification:
+    entry = taxonomy_entry_for_category(category)
+    strategy = repair_strategy_for_category(category)
+    return GateStopClassification(
+        category=entry.category,
+        severity=entry.severity,
+        terminal=entry.terminal,
+        default_reprocess=entry.default_reprocess,
+        explanation=explanation or entry.description,
+        lifecycle_class=entry.lifecycle_class,
+        false_negative_risk=entry.false_negative_risk,
+        repair_strategy_id=strategy.strategy_id,
+        recommended_next_safe_action=strategy.default_next_safe_action,
+        safety_zone=strategy.safety_zone,
+        human_review_required=strategy.human_review_required,
+        dry_run_required=strategy.dry_run_required,
+        explicit_apply_required=strategy.explicit_apply_required,
+    )
 
 
 def _as_mapping(value: Any) -> Mapping[str, Any]:
@@ -90,100 +131,67 @@ def classify_gate_stop(
     if gate == "technical_reachability_gate":
         code = _status_code(evidence_map)
         if code == 404 or _contains_any(reason, {"http 404", "not found", "no reachable", "request failed"}):
-            return GateStopClassification(
-                category="recoverable_url_problem",
-                severity="review",
-                terminal=False,
-                default_reprocess="allow_with_recovery",
-                explanation=(
+            return _classification(
+                "recoverable_url_problem",
+                (
                     "The candidate/source URL appears stale, wrong or insufficiently recovered; "
                     "this should not be treated as a confirmed terminal source stop."
                 ),
             )
         if status == "failed" or gate_decision == "abort_documented":
-            return GateStopClassification(
-                category="technical_reachability_review",
-                severity="review",
-                terminal=False,
-                default_reprocess="allow_with_review",
-                explanation="Technical reachability failed, but no confirmed terminal access/policy risk was recorded.",
+            return _classification(
+                "technical_reachability_review",
+                "Technical reachability failed, but no confirmed terminal access/policy risk was recorded.",
             )
 
     if gate == "risk_gate":
         markers = _normalized_markers(evidence_map)
-        marker_text = " ".join(sorted(markers))
         if markers & STRONG_ACCESS_RISK_MARKERS or _contains_any(reason, STRONG_ACCESS_RISK_MARKERS):
-            return GateStopClassification(
-                category="terminal_access_risk",
-                severity="terminal",
-                terminal=True,
-                default_reprocess="block_without_explicit_override",
-                explanation="The gate evidence contains confirmed access-denied, challenge or bot-defense markers.",
+            return _classification(
+                "terminal_access_risk",
+                "The gate evidence contains confirmed access-denied, challenge or bot-defense markers.",
             )
         if markers and markers <= WEAK_RISK_MARKERS and _status_code(evidence_map) == 200:
-            return GateStopClassification(
-                category="risk_marker_review",
-                severity="review",
-                terminal=False,
-                default_reprocess="allow_with_review",
-                explanation=(
+            return _classification(
+                "risk_marker_review",
+                (
                     "Only weak captcha/recaptcha markers were found on an otherwise reachable page; "
                     "this is review evidence, not a confirmed terminal access stop."
                 ),
             )
         if markers:
-            return GateStopClassification(
-                category="risk_marker_review",
-                severity="review",
-                terminal=False,
-                default_reprocess="allow_with_review",
-                explanation="Risk markers were found, but the evidence is not strong enough to classify as terminal.",
+            return _classification(
+                "risk_marker_review",
+                "Risk markers were found, but the evidence is not strong enough to classify as terminal.",
             )
 
     if gate == "detail_evidence_gate":
         if _contains_any(reason, {"no concrete detail", "detail pages", "detail evidence"}):
-            return GateStopClassification(
-                category="detail_discovery_gap",
-                severity="review",
-                terminal=False,
-                default_reprocess="allow_with_detail_discovery",
-                explanation=(
-                    "The source/relevance path may be valid, but concrete job-detail evidence was not discovered."
-                ),
+            return _classification(
+                "detail_discovery_gap",
+                "The source/relevance path may be valid, but concrete job-detail evidence was not discovered.",
             )
 
     if gate == "relevance_gate":
         if status == "manual_review_required" or gate_decision == "manual_review_required":
-            return GateStopClassification(
-                category="weak_relevance_evidence",
-                severity="review",
-                terminal=False,
-                default_reprocess="allow_with_relevance_discovery",
-                explanation="The candidate needs stronger profile/location/remote evidence before progressing.",
+            return _classification(
+                "weak_relevance_evidence",
+                "The candidate needs stronger profile/location/remote evidence before progressing.",
             )
 
     if gate_decision == "abort_documented" or status == "failed":
-        return GateStopClassification(
-            category="terminal_unclassified",
-            severity="terminal",
-            terminal=True,
-            default_reprocess="block_without_explicit_override",
-            explanation="The gate recorded an abort/failure without a more precise recoverable classification.",
+        return _classification(
+            "terminal_unclassified",
+            "The gate recorded an abort/failure without a more precise recoverable classification.",
         )
 
     if status == "manual_review_required" or gate_decision == "manual_review_required":
-        return GateStopClassification(
-            category="manual_review_required",
-            severity="review",
-            terminal=False,
-            default_reprocess="allow_with_review",
-            explanation="The gate needs manual or bounded automated review but is not confirmed terminal.",
+        return _classification(
+            "manual_review_required",
+            "The gate needs manual or bounded automated review but is not confirmed terminal.",
         )
 
-    return GateStopClassification(
-        category="not_stop_like",
-        severity="info",
-        terminal=False,
-        default_reprocess="not_applicable",
-        explanation="The gate result is not classified as a stop-like decision.",
+    return _classification(
+        "not_stop_like",
+        "The gate result is not classified as a stop-like decision.",
     )
