@@ -74,7 +74,21 @@ Move a historical document only when all are true:
 - a redirect/index entry remains,
 - the move does not hide information needed for the next implementation block.
 
-## Next archive block
+## DOC-001J reference guard
 
-The next archive block should add a lightweight reference/link check before any
-larger physical move of planning or source-analysis documents.
+DOC-001J adds `scripts/check_documentation_references.py` as the lightweight
+reference/link check before any larger physical move of planning or
+source-analysis documents.
+
+The guard must stay green before a larger move. It treats retired `docs/diagrams/`
+paths as historical archive-map references, and treats `docs/archive/planning/`
+and `docs/archive/source_analysis/` as planned future archive targets rather than
+current directories.
+
+Operator command:
+
+```bash
+python scripts/check_documentation_references.py --write-report --json
+```
+
+Expected archive-readiness result: `unresolved_count=0`.
