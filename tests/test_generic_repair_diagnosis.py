@@ -6,10 +6,12 @@ from scripts.run_generic_repair_diagnosis import (
     build_candidate_lifecycle_linkage_quality,
     build_diagnosis_summary,
     build_portfolio_matrix_payload,
+    build_surface_contract_findings,
     choose_candidate_identity_column,
     choose_candidate_link_column,
     classify_likely_linkage_gap_type,
     classify_linkage_pattern,
+    classify_surface_contract_status,
     classify_surface_role,
     normalized_connect_kwargs,
     relevant_table_params,
@@ -166,6 +168,9 @@ def test_build_diagnosis_summary_has_stable_contract_for_matrix_consumers() -> N
             "mention_table_9",
         ],
         "likely_gap_type": "partial_linkage_with_noncritical_unlinked_surfaces",
+        "surface_contract_status": "pass",
+        "required_candidate_link_gap_roles": [],
+        "aggregate_or_learning_surface_roles": [],
         "recommended_generic_next_action": (
             "Review unlinked mention surfaces and document whether they are aggregate-only or should join the generic lifecycle contract."
         ),
@@ -198,12 +203,16 @@ def test_portfolio_matrix_payload_and_markdown_compare_multiple_companies() -> N
     assert payload["summary"]["likely_gap_type_counts"] == {
         "partial_linkage_with_noncritical_unlinked_surfaces": 2
     }
+    assert payload["summary"]["surface_contract_status_counts"] == {"pass": 2}
+    assert payload["summary"]["companies_with_required_candidate_link_gaps"] == []
     assert payload["summary"]["companies_with_unlinked_or_weak_surfaces"] == ["vhv_gruppe"]
 
     markdown = render_portfolio_matrix_markdown(payload)
 
     assert markdown.startswith("# DIAG-001B Portfolio Failure Pattern Matrix")
     assert "Likely gap type counts:" in markdown
+    assert "Surface contract status counts:" in markdown
+    assert "Contract status" in markdown
     assert "Recommended next action" in markdown
     assert "`adesso`" in markdown
     assert "`vhv_gruppe`" in markdown
@@ -262,7 +271,46 @@ def test_linkage_quality_contract_lists_linked_and_unlinked_surfaces() -> None:
         "mention_table_4",
     ]
     assert quality["likely_gap_type"] == "partial_linkage_with_noncritical_unlinked_surfaces"
+    assert quality["surface_contract_status"] == "pass"
+    assert quality["required_candidate_link_gap_roles"] == []
     assert "generic" in quality["recommended_generic_next_action"]
+
+
+def test_surface_contract_findings_flag_required_candidate_link_gaps() -> None:
+    findings = build_surface_contract_findings(
+        linked_surface_names=["employer_origin_source_candidates"],
+        unlinked_surface_names=[
+            "employer_origin_candidate_gate_reviews",
+            "employer_origin_job_detail_evidence",
+            "market_evidence_snapshots",
+        ],
+    )
+    by_role = {finding["role"]: finding for finding in findings}
+
+    assert by_role["candidate_identity"]["status"] == "candidate_linked"
+    assert by_role["gate"]["status"] == "candidate_link_gap"
+    assert by_role["gate"]["severity"] == "error"
+    assert by_role["detail_evidence"]["status"] == "candidate_link_gap"
+    assert by_role["market_evidence"]["status"] == "aggregate_or_unlinked"
+    assert classify_surface_contract_status(findings) == "fail"
+
+
+def test_linkage_quality_exposes_surface_contract_status_and_required_roles() -> None:
+    payload = sample_payload("vhv_gruppe", mentioned=0, linked=0)
+    payload["rows_mentioning_company"] = {
+        "employer_origin_candidate_gate_reviews": [{"candidate_key": "vhv_gruppe"}],
+        "employer_origin_job_detail_evidence": [{"company_key": "vhv_gruppe"}],
+        "market_evidence_snapshots": [{"company_key": "vhv_gruppe"}],
+    }
+    payload["rows_linked_by_candidate_id"] = {
+        "employer_origin_source_candidates": {"link_column": "id", "rows": [{"id": 25}]},
+    }
+
+    quality = build_candidate_lifecycle_linkage_quality(payload)
+
+    assert quality["surface_contract_status"] == "fail"
+    assert quality["required_candidate_link_gap_roles"] == ["detail_evidence", "gate"]
+    assert quality["aggregate_or_learning_surface_roles"] == ["market_evidence"]
 
 
 def test_safe_report_stem_is_filesystem_friendly() -> None:

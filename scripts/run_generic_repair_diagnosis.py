@@ -88,6 +88,80 @@ LEARNING_OR_EVIDENCE_ROLES = {
     "promotion_learning",
     "vocabulary_learning",
 }
+LIFECYCLE_SURFACE_CONTRACT: dict[str, dict[str, Any]] = {
+    "candidate_identity": {
+        "should_be_candidate_linked": False,
+        "aggregate_allowed": False,
+        "authoritative": True,
+        "description": "Root candidate identity surface; this is the anchor, not a child link.",
+    },
+    "gate": {
+        "should_be_candidate_linked": True,
+        "aggregate_allowed": False,
+        "authoritative": True,
+        "description": "Gate decisions must be attributable to a concrete candidate lifecycle.",
+    },
+    "detail_evidence": {
+        "should_be_candidate_linked": True,
+        "aggregate_allowed": False,
+        "authoritative": True,
+        "description": "Detail evidence must stay attached to the candidate it can unblock or reject.",
+    },
+    "repair": {
+        "should_be_candidate_linked": True,
+        "aggregate_allowed": False,
+        "authoritative": True,
+        "description": "Repair attempts and outcomes must be candidate-linked to avoid repeating blind fixes.",
+    },
+    "connector": {
+        "should_be_candidate_linked": True,
+        "aggregate_allowed": False,
+        "authoritative": True,
+        "description": "Connector build or readiness state is lifecycle state, not loose company text.",
+    },
+    "source_discovery": {
+        "should_be_candidate_linked": True,
+        "aggregate_allowed": False,
+        "authoritative": True,
+        "description": "Origin/source discovery outputs should be traceable to the candidate they support.",
+    },
+    "market_evidence": {
+        "should_be_candidate_linked": False,
+        "aggregate_allowed": True,
+        "authoritative": False,
+        "description": "Market evidence may be aggregate, but linking is useful when it promoted a candidate.",
+    },
+    "observation_learning": {
+        "should_be_candidate_linked": False,
+        "aggregate_allowed": True,
+        "authoritative": False,
+        "description": "Observation learning may remain aggregate if it documents reusable source patterns.",
+    },
+    "promotion_learning": {
+        "should_be_candidate_linked": False,
+        "aggregate_allowed": True,
+        "authoritative": False,
+        "description": "Promotion learning can be aggregate, but candidate links are useful for downstream outcomes.",
+    },
+    "vocabulary_learning": {
+        "should_be_candidate_linked": False,
+        "aggregate_allowed": True,
+        "authoritative": False,
+        "description": "Vocabulary surfaces are learning context, not direct lifecycle decisions.",
+    },
+    "source": {
+        "should_be_candidate_linked": False,
+        "aggregate_allowed": True,
+        "authoritative": False,
+        "description": "Source-level records may be aggregate unless they encode candidate-specific state.",
+    },
+    "other": {
+        "should_be_candidate_linked": False,
+        "aggregate_allowed": True,
+        "authoritative": False,
+        "description": "Unclassified surfaces need review before becoming part of the lifecycle contract.",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -316,6 +390,9 @@ def build_diagnosis_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
         "linked_surface_names": linkage_quality["linked_surface_names"],
         "unlinked_mention_surface_names": linkage_quality["unlinked_mention_surface_names"],
         "likely_gap_type": linkage_quality["likely_gap_type"],
+        "surface_contract_status": linkage_quality["surface_contract_status"],
+        "required_candidate_link_gap_roles": linkage_quality["required_candidate_link_gap_roles"],
+        "aggregate_or_learning_surface_roles": linkage_quality["aggregate_or_learning_surface_roles"],
         "recommended_generic_next_action": linkage_quality["recommended_generic_next_action"],
     }
 
@@ -346,6 +423,78 @@ def count_roles(surface_names: Sequence[str]) -> dict[str, int]:
         role = classify_surface_role(surface_name)
         counts[role] = counts.get(role, 0) + 1
     return counts
+
+
+def group_surface_names_by_role(surface_names: Sequence[str]) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {}
+    for surface_name in sorted(surface_names):
+        role = classify_surface_role(surface_name)
+        grouped.setdefault(role, []).append(surface_name)
+    return grouped
+
+
+def lifecycle_surface_contract() -> dict[str, dict[str, Any]]:
+    return {role: dict(expectation) for role, expectation in LIFECYCLE_SURFACE_CONTRACT.items()}
+
+
+def classify_surface_contract_status(findings: Sequence[Mapping[str, Any]]) -> str:
+    severities = {str(finding["severity"]) for finding in findings}
+    if "error" in severities:
+        return "fail"
+    if "warn" in severities:
+        return "warn"
+    return "pass"
+
+
+def build_surface_contract_findings(
+    *,
+    linked_surface_names: Sequence[str],
+    unlinked_surface_names: Sequence[str],
+) -> list[dict[str, Any]]:
+    linked_by_role = group_surface_names_by_role(linked_surface_names)
+    unlinked_by_role = group_surface_names_by_role(unlinked_surface_names)
+    roles = sorted(set(LIFECYCLE_SURFACE_CONTRACT) | set(linked_by_role) | set(unlinked_by_role))
+    findings: list[dict[str, Any]] = []
+
+    for role in roles:
+        expectation = LIFECYCLE_SURFACE_CONTRACT.get(role, LIFECYCLE_SURFACE_CONTRACT["other"])
+        linked = linked_by_role.get(role, [])
+        unlinked = unlinked_by_role.get(role, [])
+        should_link = bool(expectation["should_be_candidate_linked"])
+        aggregate_allowed = bool(expectation["aggregate_allowed"])
+        authoritative = bool(expectation["authoritative"])
+
+        if linked:
+            status = "candidate_linked"
+            severity = "info"
+        elif unlinked and should_link:
+            status = "candidate_link_gap"
+            severity = "error" if authoritative else "warn"
+        elif unlinked and aggregate_allowed:
+            status = "aggregate_or_unlinked"
+            severity = "info"
+        elif unlinked:
+            status = "unclassified_unlinked"
+            severity = "warn"
+        else:
+            status = "not_observed"
+            severity = "info"
+
+        findings.append(
+            {
+                "role": role,
+                "status": status,
+                "severity": severity,
+                "should_be_candidate_linked": should_link,
+                "aggregate_allowed": aggregate_allowed,
+                "authoritative": authoritative,
+                "linked_surface_names": linked,
+                "unlinked_surface_names": unlinked,
+                "description": str(expectation["description"]),
+            }
+        )
+
+    return findings
 
 
 def classify_likely_linkage_gap_type(
@@ -411,6 +560,20 @@ def build_candidate_lifecycle_linkage_quality(payload: Mapping[str, Any]) -> dic
         linked_surface_count=len(linked_surface_names),
         unlinked_roles=unlinked_role_counts,
     )
+    surface_contract_findings = build_surface_contract_findings(
+        linked_surface_names=linked_surface_names,
+        unlinked_surface_names=unlinked_surface_names,
+    )
+    required_gap_roles = [
+        str(finding["role"])
+        for finding in surface_contract_findings
+        if finding["status"] == "candidate_link_gap" and finding["authoritative"]
+    ]
+    aggregate_or_learning_roles = [
+        str(finding["role"])
+        for finding in surface_contract_findings
+        if finding["status"] == "aggregate_or_unlinked"
+    ]
 
     return {
         "candidate_identity_present": candidate_identity_present,
@@ -423,6 +586,11 @@ def build_candidate_lifecycle_linkage_quality(payload: Mapping[str, Any]) -> dic
         "mention_surface_role_counts": count_roles(mention_surface_names),
         "linked_surface_role_counts": count_roles(linked_surface_names),
         "unlinked_surface_role_counts": unlinked_role_counts,
+        "surface_contract_status": classify_surface_contract_status(surface_contract_findings),
+        "required_candidate_link_gap_roles": required_gap_roles,
+        "aggregate_or_learning_surface_roles": aggregate_or_learning_roles,
+        "surface_contract_findings": surface_contract_findings,
+        "lifecycle_surface_contract": lifecycle_surface_contract(),
         "likely_gap_type": likely_gap_type,
         "recommended_generic_next_action": recommended_next_action_for_gap_type(likely_gap_type),
     }
@@ -546,7 +714,27 @@ def render_markdown(payload: Mapping[str, Any]) -> str:
         f"- Candidate-linked surfaces: `{linkage_quality['candidate_linked_surface_count']}`",
         f"- Mention-to-link gap: `{linkage_quality['mention_to_link_gap']}`",
         f"- Likely gap type: `{linkage_quality['likely_gap_type']}`",
+        f"- Surface contract status: `{linkage_quality['surface_contract_status']}`",
+        f"- Required candidate-link gap roles: `{linkage_quality['required_candidate_link_gap_roles']}`",
+        f"- Aggregate or learning surface roles: `{linkage_quality['aggregate_or_learning_surface_roles']}`",
         f"- Recommended generic next action: {linkage_quality['recommended_generic_next_action']}",
+        "",
+        "### Surface contract findings",
+        "",
+        "| Role | Status | Severity | Linked surfaces | Unlinked surfaces |",
+        "| --- | --- | --- | --- | --- |",
+    ])
+    for finding in linkage_quality["surface_contract_findings"]:
+        lines.append(
+            "| "
+            f"`{finding['role']}` | "
+            f"`{finding['status']}` | "
+            f"`{finding['severity']}` | "
+            f"`{', '.join(finding['linked_surface_names']) or '-'}` | "
+            f"`{', '.join(finding['unlinked_surface_names']) or '-'}` |"
+        )
+
+    lines.extend([
         "",
         "### Linked surfaces",
         "",
@@ -593,11 +781,14 @@ def build_portfolio_matrix_payload(payloads: Sequence[Mapping[str, Any]], *, ben
 
     linkage_counts: dict[str, int] = {}
     gap_type_counts: dict[str, int] = {}
+    surface_contract_status_counts: dict[str, int] = {}
     for row in rows:
         pattern = str(row["linkage_pattern"])
         linkage_counts[pattern] = linkage_counts.get(pattern, 0) + 1
         gap_type = str(row["likely_gap_type"])
         gap_type_counts[gap_type] = gap_type_counts.get(gap_type, 0) + 1
+        surface_contract_status = str(row["surface_contract_status"])
+        surface_contract_status_counts[surface_contract_status] = surface_contract_status_counts.get(surface_contract_status, 0) + 1
 
     return {
         "campaign": "DIAG-001B Portfolio Failure Pattern Matrix",
@@ -608,6 +799,10 @@ def build_portfolio_matrix_payload(payloads: Sequence[Mapping[str, Any]], *, ben
             "company_count": len(rows),
             "linkage_pattern_counts": linkage_counts,
             "likely_gap_type_counts": gap_type_counts,
+            "surface_contract_status_counts": surface_contract_status_counts,
+            "companies_with_required_candidate_link_gaps": [
+                row["company_key"] for row in rows if row["required_candidate_link_gap_roles"]
+            ],
             "companies_with_unlinked_or_weak_surfaces": [
                 row["company_key"]
                 for row in rows
@@ -642,12 +837,14 @@ def render_portfolio_matrix_markdown(payload: Mapping[str, Any]) -> str:
         f"- Companies: `{summary['company_count']}`",
         f"- Linkage pattern counts: `{summary['linkage_pattern_counts']}`",
         f"- Likely gap type counts: `{summary['likely_gap_type_counts']}`",
+        f"- Surface contract status counts: `{summary['surface_contract_status_counts']}`",
+        f"- Companies with required candidate-link gaps: `{summary['companies_with_required_candidate_link_gaps']}`",
         f"- Companies with unlinked or weak surfaces: `{summary['companies_with_unlinked_or_weak_surfaces']}`",
         "",
         "## Matrix",
         "",
-        "| Company | Candidate identity | Mentioning tables | Linked tables | Gap | Linkage pattern | Likely gap type | Recommended next action |",
-        "| --- | --- | ---: | ---: | ---: | --- | --- | --- |",
+        "| Company | Candidate identity | Mentioning tables | Linked tables | Gap | Linkage pattern | Likely gap type | Contract status | Required gap roles | Recommended next action |",
+        "| --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- |",
     ]
 
     for row in rows:
@@ -660,6 +857,8 @@ def render_portfolio_matrix_markdown(payload: Mapping[str, Any]) -> str:
             f"{row['mention_to_link_gap']} | "
             f"`{row['linkage_pattern']}` | "
             f"`{row['likely_gap_type']}` | "
+            f"`{row['surface_contract_status']}` | "
+            f"`{row['required_candidate_link_gap_roles']}` | "
             f"{row['recommended_generic_next_action']} |"
         )
 
