@@ -143,6 +143,18 @@ database mutation, scheduler activation, candidate or gate changes, connector
 activation, and Bronze/Silver/Gold behavior belong to separate vertical work
 items unless explicitly justified.
 
+## Freeze-path exit gate
+
+When the freeze path is being closed, the handover may be followed by
+FREEZE-001C.
+
+FREEZE-001C should validate that the latest handover is fresh, the minimal
+restart payload is present, NEXT-001 points to the next explicit product work
+item, and the repository is ready to leave freeze work.
+
+A passing exit gate does not approve external/product execution. The next
+product action, such as SENSOR-001E, still requires explicit user approval.
+
 ## Anti-patterns
 
 Avoid these handover anti-patterns:

@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+from scripts.run_freeze001_exit_gate import (
+    EXPECTED_PRODUCT_CANDIDATE,
+    FREEZE001_EXIT_GATE_SCHEMA_VERSION,
+    MINIMAL_RESTART_PAYLOAD_SCHEMA_VERSION,
+    evaluate_exit_gate,
+)
+
+
+def _valid_payloads():
+    git_state = {
+        "available": True,
+        "branch": "main",
+        "head": "abc123 Add minimal restart payload",
+        "dirty": False,
+        "status_short": [],
+    }
+    validation_report = {
+        "profile": "commit",
+        "overall_status": "pass",
+        "required_failure_count": 0,
+    }
+    next_report = {
+        "standard_workflow_completion": {
+            "present_in_head_count": 6,
+            "required_count": 6,
+        },
+        "handover_signal": {
+            "status": "fresh",
+        },
+        "restart_readiness": {
+            "status": "ready_for_next_work_selection",
+        },
+        "horizontal_freeze_path_bundle_mode": {
+            "available": True,
+        },
+        "next_safe_action": {
+            "action": "return_to_product_pipeline_work_with_explicit_work_item",
+            "workstream": "search_intelligence_product_work",
+            "work_item": EXPECTED_PRODUCT_CANDIDATE,
+        },
+    }
+    handover = {
+        "git": {
+            "head": "abc123 Add minimal restart payload",
+            "dirty": False,
+        },
+        "completed_work_items": [
+            "STATE-001A",
+            "INSPECT-001A",
+            "HANDOVER-001A",
+            "RULES-001A",
+            "VALIDATE-001A",
+            "NEXT-001A",
+        ],
+        "recommended_next": [EXPECTED_PRODUCT_CANDIDATE],
+        "minimal_restart_payload": {
+            "schema_version": MINIMAL_RESTART_PAYLOAD_SCHEMA_VERSION,
+            "recommended_next": [EXPECTED_PRODUCT_CANDIDATE],
+            "safety_boundary": {
+                "requires_explicit_approval_before_external_or_product_action": True,
+                "no_database_writes": True,
+                "no_scheduler_activation": True,
+                "no_candidate_gate_connector_or_bronze_silver_gold_mutation": True,
+            },
+        },
+    }
+    return git_state, validation_report, next_report, handover
+
+
+def test_exit_gate_passes_for_clean_fresh_restart_state() -> None:
+    git_state, validation_report, next_report, handover = _valid_payloads()
+
+    report = evaluate_exit_gate(
+        git_state=git_state,
+        validation_report=validation_report,
+        next_report=next_report,
+        handover=handover,
+    )
+
+    assert report["schema_version"] == FREEZE001_EXIT_GATE_SCHEMA_VERSION
+    assert report["overall_status"] == "pass"
+    assert report["required_failure_count"] == 0
+    assert report["next_safe_action"]["work_item"] == EXPECTED_PRODUCT_CANDIDATE
+    assert report["next_safe_action"]["requires_user_decision"] is True
+
+
+def test_exit_gate_fails_for_dirty_worktree() -> None:
+    git_state, validation_report, next_report, handover = _valid_payloads()
+    git_state["dirty"] = True
+    git_state["status_short"] = [" M README.md"]
+
+    report = evaluate_exit_gate(
+        git_state=git_state,
+        validation_report=validation_report,
+        next_report=next_report,
+        handover=handover,
+    )
+
+    assert report["overall_status"] == "fail"
+    assert "git_main_clean" in report["required_failures"]
+
+
+def test_exit_gate_fails_for_stale_handover() -> None:
+    git_state, validation_report, next_report, handover = _valid_payloads()
+    next_report["handover_signal"]["status"] = "stale"
+
+    report = evaluate_exit_gate(
+        git_state=git_state,
+        validation_report=validation_report,
+        next_report=next_report,
+        handover=handover,
+    )
+
+    assert report["overall_status"] == "fail"
+    assert "handover_fresh" in report["required_failures"]
+
+
+def test_exit_gate_fails_when_minimal_restart_payload_is_missing() -> None:
+    git_state, validation_report, next_report, handover = _valid_payloads()
+    handover.pop("minimal_restart_payload")
+
+    report = evaluate_exit_gate(
+        git_state=git_state,
+        validation_report=validation_report,
+        next_report=next_report,
+        handover=handover,
+    )
+
+    assert report["overall_status"] == "fail"
+    assert "minimal_restart_payload_present" in report["required_failures"]
+    assert "sensor001e_is_next_product_candidate" in report["required_failures"]
+
+
+def test_exit_gate_fails_when_product_candidate_is_not_sensor001e() -> None:
+    git_state, validation_report, next_report, handover = _valid_payloads()
+    next_report["next_safe_action"]["work_item"] = "SENSOR-999 Wrong Work Item"
+
+    report = evaluate_exit_gate(
+        git_state=git_state,
+        validation_report=validation_report,
+        next_report=next_report,
+        handover=handover,
+    )
+
+    assert report["overall_status"] == "fail"
+    assert "sensor001e_is_next_product_candidate" in report["required_failures"]
