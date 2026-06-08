@@ -142,13 +142,18 @@ def test_report_payload_summarizes_false_negative_risk_and_stage2_contract(tmp_p
     markdown = render_markdown_report(payload)
     json_path, md_path = write_reports(payload, tmp_path, "stopper smoke")
 
-    assert payload["campaign"] == "Pipeline Stopper Reassessment Agent"
+    assert payload["campaign"] == "REPAIR-001 Stop Review and Repair Candidate Audit"
     assert payload["boundary"]["no_gate_review_write"] is True
+    assert payload["report_contract"]["stop_taxonomy_integration"].startswith("dominant stop category")
     assert payload["summary"]["stage2_repair_plan_count"] == 1
     assert payload["summary"]["high_false_negative_risk_count"] == 1
+    assert payload["summary"]["dominant_lifecycle_class_counts"]["review_stop"] == 1
+    assert payload["summary"]["dominant_stop_category_counts"]["manual_review_required"] == 1
+    assert payload["summary"]["repair_audit_order"][0]["company_key"] == "ratiodata"
     assert "Stage 2 dry-run command" in markdown
+    assert "Repair audit order" in markdown
     assert json_path.name == "stopper_smoke_stop_reassessment.json"
-    assert md_path.read_text(encoding="utf-8").startswith("# Pipeline Stopper Reassessment Agent")
+    assert md_path.read_text(encoding="utf-8").startswith("# REPAIR-001 Stop Review and Repair Candidate Audit")
 
 
 def test_collect_stop_signals_includes_candidate_and_gate_stoppers() -> None:
@@ -169,3 +174,39 @@ def test_collect_stop_signals_includes_candidate_and_gate_stoppers() -> None:
         "candidate_risk_level",
         "gate_stop",
     }
+    gate_signal = next(signal for signal in signals if signal["kind"] == "gate_stop")
+    assert gate_signal["stop_lifecycle_class"] == "review_stop"
+    assert gate_signal["repair_strategy_id"] == "operator_review_triage"
+    assert gate_signal["recommended_next_safe_action"] == "manual_review_or_targeted_reprocess_plan"
+    assert gate_signal["safety_zone"] == "SZ2_EVIDENCE_AND_GATES"
+
+
+def test_report_orders_false_negative_risk_stops_before_generic_manual_review() -> None:
+    missing_url = assess_stop_validity(
+        candidate("vhv_gruppe", candidate_url=None, status="discovery", risk_level="medium"),
+        {},
+        target_location="hannover",
+        reviewed_by="jens",
+    )
+    generic_review = assess_stop_validity(
+        candidate("manual_case", status="manual_review_required", risk_level="medium"),
+        {},
+        target_location="hannover",
+        reviewed_by="jens",
+    )
+
+    assert missing_url is not None
+    assert generic_review is not None
+
+    payload = report_payload(
+        [generic_review, missing_url],
+        benchmark_label="repair_order",
+        target_location="hannover",
+        reviewed_by="jens",
+    )
+
+    ordered = payload["summary"]["repair_audit_order"]
+    assert ordered[0]["company_key"] == "vhv_gruppe"
+    assert ordered[0]["dominant_lifecycle_class"] == "false_negative_risk_stop"
+    assert ordered[0]["dominant_stop_category"] == "recoverable_url_problem"
+    assert payload["items"][0]["candidate"]["company_key"] == "vhv_gruppe"

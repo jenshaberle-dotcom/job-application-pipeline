@@ -15,6 +15,7 @@ from psycopg.rows import dict_row
 
 from src.config import get_database_config
 from src.search_intelligence.gate_stop_classification import classify_gate_stop
+from src.search_intelligence.stop_taxonomy import stop_taxonomy_evidence
 
 DEFAULT_OUTPUT_DIR = Path("exports/pipeline_stop_reassessment")
 DEFAULT_BENCHMARK_LABEL = "pipeline_stop_reassessment"
@@ -49,6 +50,22 @@ SOURCE_URL_RECOVERY_MARKERS = (
     "not found",
     "request failed",
 )
+
+STOP_LIFECYCLE_PRIORITY: dict[str, int] = {
+    "false_negative_risk_stop": 10,
+    "repairable_stop": 20,
+    "review_stop": 30,
+    "taxonomy_gap_stop": 40,
+    "good_stop": 50,
+    "not_stop": 90,
+}
+
+FALSE_NEGATIVE_RISK_PRIORITY: dict[str, int] = {
+    "high": 10,
+    "medium": 20,
+    "low": 30,
+    "none": 90,
+}
 
 READ_ONLY_BOUNDARY: dict[str, bool] = {
     "read_only_stop_validity_audit": True,
@@ -105,6 +122,15 @@ class StopAssessment:
     confidence_reason: str
     recommended_action: str
     stage2_repair_plan: Stage2RepairPlan | None
+    dominant_stop_category: str
+    dominant_lifecycle_class: str
+    dominant_repair_strategy_id: str
+    safety_zone: str
+    audit_priority: int
+
+    @property
+    def repair_audit_bucket(self) -> str:
+        return f"{self.audit_priority:02d}_{self.dominant_lifecycle_class}"
 
 
 def _shell_command(parts: list[str]) -> str:
@@ -124,33 +150,57 @@ def gate_is_stop(gate: StopGate) -> bool:
     return (gate.gate_status or "") in TERMINAL_GATE_STATUSES or (gate.decision or "") in TERMINAL_GATE_DECISIONS
 
 
+def _taxonomy_signal(kind: str, value: str, category: str, **extra: Any) -> dict[str, Any]:
+    signal: dict[str, Any] = {"kind": kind, "value": value}
+    signal.update(stop_taxonomy_evidence(category))
+    signal.update(extra)
+    return signal
+
+
+def signal_priority(signal: dict[str, Any]) -> tuple[int, int, str]:
+    lifecycle = str(signal.get("stop_lifecycle_class") or "taxonomy_gap_stop")
+    risk = str(signal.get("false_negative_risk") or "medium")
+    category = str(signal.get("stop_category") or "terminal_unclassified")
+    return (
+        STOP_LIFECYCLE_PRIORITY.get(lifecycle, 80),
+        FALSE_NEGATIVE_RISK_PRIORITY.get(risk, 80),
+        category,
+    )
+
+
+def dominant_stop_signal(signals: list[dict[str, Any]]) -> dict[str, Any]:
+    if not signals:
+        return stop_taxonomy_evidence("not_stop_like")
+    return sorted(signals, key=signal_priority)[0]
+
+
 def collect_stop_signals(candidate: StopCandidate, gates: dict[str, StopGate]) -> list[dict[str, Any]]:
     signals: list[dict[str, Any]] = []
     if candidate.status in STOPPER_CANDIDATE_STATUSES:
-        signals.append({"kind": "candidate_status", "value": candidate.status})
+        signals.append(_taxonomy_signal("candidate_status", candidate.status, "manual_review_required"))
     if candidate.risk_level == "blocked":
-        signals.append({"kind": "candidate_risk_level", "value": candidate.risk_level})
+        signals.append(_taxonomy_signal("candidate_risk_level", candidate.risk_level, "terminal_unclassified"))
     if not has_usable_candidate_url(candidate) and candidate.status != "active_controlled":
-        signals.append({"kind": "missing_candidate_url", "value": "candidate_url is missing"})
+        signals.append(_taxonomy_signal("missing_candidate_url", "candidate_url is missing", "recoverable_url_problem"))
 
     for gate in sorted(gates.values(), key=lambda item: item.gate_name):
         if gate_is_stop(gate) or gate.stop_reason:
-            signals.append(
-                {
-                    "kind": "gate_stop",
-                    "gate_name": gate.gate_name,
-                    "gate_status": gate.gate_status,
-                    "decision": gate.decision,
-                    "stop_reason": gate.stop_reason,
-                    "stop_category": classify_gate_stop(
-                        gate_name=gate.gate_name,
-                        gate_status=gate.gate_status,
-                        decision=gate.decision,
-                        stop_reason=gate.stop_reason,
-                        evidence=gate.evidence,
-                    ).category,
-                }
+            classification = classify_gate_stop(
+                gate_name=gate.gate_name,
+                gate_status=gate.gate_status,
+                decision=gate.decision,
+                stop_reason=gate.stop_reason,
+                evidence=gate.evidence,
             )
+            signal = {
+                "kind": "gate_stop",
+                "gate_name": gate.gate_name,
+                "gate_status": gate.gate_status,
+                "decision": gate.decision,
+                "stop_reason": gate.stop_reason,
+            }
+            signal.update(classification.as_evidence())
+            signals.append(signal)
     return signals
 
 
@@ -247,6 +297,37 @@ def chain_plan(candidate: StopCandidate, *, target_location: str, reviewed_by: s
     )
 
 
+def stop_assessment(
+    *,
+    candidate: StopCandidate,
+    stop_signals: list[dict[str, Any]],
+    stop_validity: str,
+    false_negative_risk: str,
+    confidence_score: float,
+    confidence_reason: str,
+    recommended_action: str,
+    stage2_repair_plan: Stage2RepairPlan | None,
+) -> StopAssessment:
+    dominant = dominant_stop_signal(stop_signals)
+    lifecycle = str(dominant.get("stop_lifecycle_class") or "taxonomy_gap_stop")
+    risk = str(dominant.get("false_negative_risk") or false_negative_risk)
+    return StopAssessment(
+        candidate=candidate,
+        stop_signals=stop_signals,
+        stop_validity=stop_validity,
+        false_negative_risk=false_negative_risk,
+        confidence_score=confidence_score,
+        confidence_reason=confidence_reason,
+        recommended_action=recommended_action,
+        stage2_repair_plan=stage2_repair_plan,
+        dominant_stop_category=str(dominant.get("stop_category") or "terminal_unclassified"),
+        dominant_lifecycle_class=lifecycle,
+        dominant_repair_strategy_id=str(dominant.get("repair_strategy_id") or "taxonomy_review_required"),
+        safety_zone=str(dominant.get("safety_zone") or "SZ2_EVIDENCE_AND_GATES"),
+        audit_priority=STOP_LIFECYCLE_PRIORITY.get(lifecycle, 80) + FALSE_NEGATIVE_RISK_PRIORITY.get(risk, 80),
+    )
+
+
 def assess_stop_validity(
     candidate: StopCandidate,
     gates: dict[str, StopGate],
@@ -264,7 +345,7 @@ def assess_stop_validity(
     source_url_gap = signals_contain_source_url_gap(signals) or not has_url
 
     if access_risk and has_url:
-        return StopAssessment(
+        return stop_assessment(
             candidate=candidate,
             stop_signals=signals,
             stop_validity="needs_reassessment_likely_over_sensitive",
@@ -279,7 +360,7 @@ def assess_stop_validity(
         )
 
     if source_url_gap:
-        return StopAssessment(
+        return stop_assessment(
             candidate=candidate,
             stop_signals=signals,
             stop_validity="unconfirmed_stop_recovery_needed",
@@ -291,7 +372,7 @@ def assess_stop_validity(
         )
 
     if detail_gap and has_url:
-        return StopAssessment(
+        return stop_assessment(
             candidate=candidate,
             stop_signals=signals,
             stop_validity="unconfirmed_detail_evidence_gap",
@@ -303,7 +384,7 @@ def assess_stop_validity(
         )
 
     if candidate.status == "abort_documented" or candidate.risk_level == "blocked":
-        return StopAssessment(
+        return stop_assessment(
             candidate=candidate,
             stop_signals=signals,
             stop_validity="stop_valid_until_new_evidence",
@@ -314,7 +395,7 @@ def assess_stop_validity(
             stage2_repair_plan=chain_plan(candidate, target_location=target_location, reviewed_by=reviewed_by),
         )
 
-    return StopAssessment(
+    return stop_assessment(
         candidate=candidate,
         stop_signals=signals,
         stop_validity="manual_review_stopper",
@@ -336,9 +417,14 @@ def summarize_assessments(assessments: list[StopAssessment]) -> dict[str, Any]:
     validity_counts = Counter(item.stop_validity for item in assessments)
     risk_counts = Counter(item.false_negative_risk for item in assessments)
     action_counts = Counter(item.recommended_action for item in assessments)
+    lifecycle_counts = Counter(item.dominant_lifecycle_class for item in assessments)
+    category_counts = Counter(item.dominant_stop_category for item in assessments)
+    repair_strategy_counts = Counter(item.dominant_repair_strategy_id for item in assessments)
+    safety_zone_counts = Counter(item.safety_zone for item in assessments)
     stage2_items = [item for item in assessments if item.stage2_repair_plan is not None]
-    first_dry_run = next((item.stage2_repair_plan.dry_run_command for item in stage2_items if item.stage2_repair_plan and item.stage2_repair_plan.dry_run_command), None)
-    first_apply = next((item.stage2_repair_plan.apply_command for item in stage2_items if item.stage2_repair_plan and item.stage2_repair_plan.apply_command), None)
+    ordered = sorted(assessments, key=lambda item: (item.audit_priority, item.candidate.company_key, item.candidate.candidate_id))
+    first_dry_run = next((item.stage2_repair_plan.dry_run_command for item in ordered if item.stage2_repair_plan and item.stage2_repair_plan.dry_run_command), None)
+    first_apply = next((item.stage2_repair_plan.apply_command for item in ordered if item.stage2_repair_plan and item.stage2_repair_plan.apply_command), None)
     return {
         "stopper_count": len(assessments),
         "stage2_repair_plan_count": len(stage2_items),
@@ -346,7 +432,24 @@ def summarize_assessments(assessments: list[StopAssessment]) -> dict[str, Any]:
         "medium_false_negative_risk_count": risk_counts.get("medium", 0),
         "stop_validity_counts": dict(sorted(validity_counts.items())),
         "false_negative_risk_counts": dict(sorted(risk_counts.items())),
+        "dominant_lifecycle_class_counts": dict(sorted(lifecycle_counts.items())),
+        "dominant_stop_category_counts": dict(sorted(category_counts.items())),
+        "dominant_repair_strategy_counts": dict(sorted(repair_strategy_counts.items())),
+        "safety_zone_counts": dict(sorted(safety_zone_counts.items())),
         "recommended_action_counts": dict(sorted(action_counts.items())),
+        "repair_audit_order": [
+            {
+                "company_key": item.candidate.company_key,
+                "candidate_id": item.candidate.candidate_id,
+                "audit_priority": item.audit_priority,
+                "repair_audit_bucket": item.repair_audit_bucket,
+                "dominant_stop_category": item.dominant_stop_category,
+                "dominant_lifecycle_class": item.dominant_lifecycle_class,
+                "false_negative_risk": item.false_negative_risk,
+                "recommended_action": item.recommended_action,
+            }
+            for item in ordered
+        ],
         "first_stage2_dry_run_command": first_dry_run,
         "first_stage2_apply_command": first_apply,
     }
@@ -360,19 +463,20 @@ def report_payload(
     reviewed_by: str,
 ) -> dict[str, Any]:
     return {
-        "campaign": "Pipeline Stopper Reassessment Agent",
+        "campaign": "REPAIR-001 Stop Review and Repair Candidate Audit",
         "benchmark_label": benchmark_label,
         "target_location": target_location,
         "reviewed_by": reviewed_by,
         "boundary": READ_ONLY_BOUNDARY,
         "report_contract": {
             "stage1_stop_validity_audit": "classifies whether existing stop signals look valid, stale, over-sensitive, or recoverable",
+            "stop_taxonomy_integration": "dominant stop category, lifecycle class, safety zone and repair strategy are resolved through STOP-002",
             "stage2_repair_plan": "planned dry-run/apply commands for recoverable stoppers; not executed unless an operator explicitly runs/apply-enables them",
             "false_negative_risk": "risk that the current stop hides a relevant candidate due to over-sensitive pipeline logic",
             "no_automatic_unblocking": "this report never changes candidate status, gate status, URLs, evidence, connector files, source registration, or scheduler state",
         },
         "summary": summarize_assessments(assessments),
-        "items": [assessment_payload(item) for item in assessments],
+        "items": [assessment_payload(item) for item in sorted(assessments, key=lambda item: (item.audit_priority, item.candidate.company_key, item.candidate.candidate_id))],
     }
 
 
@@ -407,6 +511,33 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     for key, count in summary["stop_validity_counts"].items():
         lines.append(f"- `{key}`: `{count}`")
 
+    lines.extend(["", "### Dominant lifecycle classes", ""])
+    for key, count in summary["dominant_lifecycle_class_counts"].items():
+        lines.append(f"- `{key}`: `{count}`")
+
+    lines.extend(["", "### Dominant stop categories", ""])
+    for key, count in summary["dominant_stop_category_counts"].items():
+        lines.append(f"- `{key}`: `{count}`")
+
+    lines.extend(["", "### Repair strategies", ""])
+    for key, count in summary["dominant_repair_strategy_counts"].items():
+        lines.append(f"- `{key}`: `{count}`")
+
+    if summary["repair_audit_order"]:
+        lines.extend(["", "## Repair audit order", ""])
+        lines.append("| Priority | Candidate | Lifecycle | Category | Risk | Action |")
+        lines.append("|---:|---|---|---|---|---|")
+        for item in summary["repair_audit_order"]:
+            lines.append(
+                "| "
+                f"{item['audit_priority']} | "
+                f"`{item['company_key']}` | "
+                f"`{item['dominant_lifecycle_class']}` | "
+                f"`{item['dominant_stop_category']}` | "
+                f"`{item['false_negative_risk']}` | "
+                f"`{item['recommended_action']}` |"
+            )
+
     if summary["first_stage2_dry_run_command"]:
         lines.extend(["", "## First Stage 2 dry-run command", "", "    " + summary["first_stage2_dry_run_command"]])
     if summary["first_stage2_apply_command"]:
@@ -426,6 +557,10 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 f"- Risk level: `{candidate['risk_level']}`",
                 f"- Candidate URL: `{candidate.get('candidate_url') or '-'}`",
                 f"- Stop validity: `{item['stop_validity']}`",
+                f"- Dominant lifecycle class: `{item['dominant_lifecycle_class']}`",
+                f"- Dominant stop category: `{item['dominant_stop_category']}`",
+                f"- Dominant repair strategy: `{item['dominant_repair_strategy_id']}`",
+                f"- Safety zone: `{item['safety_zone']}`",
                 f"- False-negative risk: `{item['false_negative_risk']}`",
                 f"- Confidence: `{item['confidence_score']}` — {item['confidence_reason']}",
                 f"- Recommended action: `{item['recommended_action']}`",
@@ -605,8 +740,8 @@ def run_agent(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Read-only pipeline stopper reassessment agent. It audits whether current stops look valid, "
-            "stale, over-sensitive, or recoverable, and emits Stage 2 dry-run/apply repair plans."
+            "REPAIR-001 read-only stop review and repair candidate audit. It audits whether current stops look valid, "
+            "stale, over-sensitive, or recoverable, and emits ordered Stage 2 dry-run/apply repair plans."
         )
     )
     parser.add_argument("--company-key")
