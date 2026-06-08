@@ -1,0 +1,78 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MODULE_PATH = REPO_ROOT / "scripts" / "run_handover001_validate_contract.py"
+CONTRACT_PATH = REPO_ROOT / "docs" / "reference" / "handover001_standard_chat_handover_contract.md"
+
+
+def load_module():
+    spec = importlib.util.spec_from_file_location("handover001", MODULE_PATH)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_contract_document_contains_required_handover_anchors() -> None:
+    module = load_module()
+
+    result = module.validate_contract(CONTRACT_PATH)
+
+    assert result["schema_version"] == "handover001.contract_validation.v1"
+    assert result["status"] == "pass"
+    assert result["missing_anchor_groups"] == {}
+    assert result["safety_boundary"]["read_only"] is True
+    assert result["safety_boundary"]["database_writes"] is False
+
+
+def test_missing_contract_file_fails_closed(tmp_path: Path) -> None:
+    module = load_module()
+
+    result = module.validate_contract(tmp_path / "missing.md")
+
+    assert result["status"] == "fail"
+    assert "contract_file" in result["missing_anchor_groups"]
+
+
+def test_missing_required_anchor_group_is_reported(tmp_path: Path) -> None:
+    module = load_module()
+    contract = tmp_path / "contract.md"
+    contract.write_text("# Incomplete\n\nState JSON only.\n", encoding="utf-8")
+
+    result = module.validate_contract(contract)
+
+    assert result["status"] == "fail"
+    assert "required_new_chat_artifacts" in result["missing_anchor_groups"]
+    assert "new_chat_opening" in result["missing_anchor_groups"]
+
+
+def test_write_report_creates_json_and_markdown(tmp_path: Path) -> None:
+    module = load_module()
+    result = module.validate_contract(CONTRACT_PATH)
+
+    written = module.write_report(result, tmp_path)
+
+    json_path = Path(written["json"])
+    markdown_path = Path(written["markdown"])
+
+    assert json_path.exists()
+    assert markdown_path.exists()
+    assert "handover001.contract_validation.v1" in json_path.read_text(encoding="utf-8")
+    assert "HANDOVER-001A Contract Validation" in markdown_path.read_text(encoding="utf-8")
+
+
+def test_render_markdown_result_lists_missing_anchors(tmp_path: Path) -> None:
+    module = load_module()
+    missing_contract = tmp_path / "missing.md"
+
+    result = module.validate_contract(missing_contract)
+    markdown = module.render_markdown_result(result)
+
+    assert "# HANDOVER-001A Contract Validation" in markdown
+    assert "Status: `fail`" in markdown
+    assert "`contract_file`" in markdown
