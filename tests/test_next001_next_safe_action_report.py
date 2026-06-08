@@ -139,8 +139,10 @@ def test_next001_recommends_product_return_after_standard_workflow_is_present(tm
     assert report["standard_workflow_completion"]["present_in_head_count"] == 6
     assert report["next_safe_action"]["action"] == "return_to_product_pipeline_work_with_explicit_work_item"
     assert report["next_safe_action"]["workstream"] == "search_intelligence_product_work"
-    assert report["next_safe_action"]["work_item"] == "SENSOR-001A BA Remote/Nationwide Coverage Validation"
+    assert report["next_safe_action"]["work_item"] == "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review"
     assert report["next_safe_action"]["requires_user_decision"] is True
+    assert report["horizontal_freeze_path_bundle_mode"]["mode_id"] == "FREEZE-001A"
+    assert report["horizontal_freeze_path_bundle_mode"]["available"] is True
 
 
 def test_next001_dirty_worktree_prevents_new_work_recommendation(tmp_path: Path) -> None:
@@ -169,6 +171,7 @@ def test_next001_writes_json_and_markdown_reports(tmp_path: Path) -> None:
     markdown = markdown_path.read_text(encoding="utf-8")
     assert payload["schema_version"] == NEXT001_SCHEMA_VERSION
     assert "# NEXT-001A Next Safe Action Report" in markdown
+    assert "## Horizontal Freeze-Path Bundle Mode" in markdown
     assert "## Next safe action" in markdown
 
 

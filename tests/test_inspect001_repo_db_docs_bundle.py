@@ -70,6 +70,10 @@ def test_build_report_is_read_only_and_skips_db_by_default(tmp_path: Path) -> No
     assert report["safety_boundary"]["external_requests"] is False
     assert report["safety_boundary"]["database_writes"] is False
     assert report["sections"]["database"]["status"] == "skipped"
+    assert report["horizontal_bundle_eligibility"]["mode_id"] == "FREEZE-001A"
+    assert report["horizontal_bundle_eligibility"]["eligible"] is False
+    assert "git_state_not_pass" in report["horizontal_bundle_eligibility"]["blocked_reasons"]
+    assert report["horizontal_bundle_eligibility"]["database_inspection_required"] is False
 
 
 def test_render_markdown_contains_core_sections(tmp_path: Path) -> None:
@@ -81,6 +85,7 @@ def test_render_markdown_contains_core_sections(tmp_path: Path) -> None:
 
     assert "# INSPECT-001A Repo/DB/Docs Inspection Bundle" in markdown
     assert "## Safety boundary" in markdown
+    assert "## Horizontal bundle eligibility" in markdown
     assert "## Documentation structure" in markdown
     assert "## Database" in markdown
     assert "## Next safe action" in markdown

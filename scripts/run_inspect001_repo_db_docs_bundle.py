@@ -53,6 +53,21 @@ EXPECTED_DB_RELATIONS = [
     "search_intelligence_orchestrator_steps",
 ]
 
+HORIZONTAL_BUNDLE_ALLOWED_SCOPE = [
+    "governance documentation",
+    "validation tooling",
+    "inspection tooling",
+    "handover tooling",
+    "read-only state and next-safe-action reporting",
+]
+HORIZONTAL_BUNDLE_EXCLUDED_SCOPE = [
+    "product pipeline decisions",
+    "database mutation",
+    "external source execution",
+    "scheduler semantics",
+    "candidate, gate, connector, Bronze, Silver, or Gold behavior",
+]
+
 
 def utc_timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -255,6 +270,47 @@ def inspect_database(expected_relations: list[str]) -> dict[str, Any]:
         }
 
 
+
+def build_horizontal_bundle_eligibility(sections: dict[str, Any]) -> dict[str, Any]:
+    blockers: list[str] = []
+
+    git = sections["git"]
+    if git["status"] != "pass":
+        blockers.append("git_state_not_pass")
+    if git["dirty"]:
+        blockers.append("worktree_dirty")
+    if sections["documentation"]["status"] != "pass":
+        blockers.append("documentation_structure_not_pass")
+    if sections["tooling"]["status"] != "pass":
+        blockers.append("tooling_anchors_not_pass")
+    if sections["migrations"]["status"] not in {"pass", "warn"}:
+        blockers.append("migration_visibility_unavailable")
+
+    return {
+        "mode_id": "FREEZE-001A",
+        "eligible": not blockers,
+        "blocked_reasons": blockers,
+        "database_inspection_required": False,
+        "database_unavailable_is_blocking": False,
+        "impact_matrix": {
+            "pipeline_decision": False,
+            "database_mutation": False,
+            "external_requests": False,
+            "scheduler_coupling": False,
+            "candidate_gate_connector_coupling": False,
+            "bronze_silver_gold_coupling": False,
+            "hidden_runtime_dependency_allowed": False,
+        },
+        "allowed_scope": HORIZONTAL_BUNDLE_ALLOWED_SCOPE,
+        "excluded_scope": HORIZONTAL_BUNDLE_EXCLUDED_SCOPE,
+        "fan_in_validation_required": [
+            "targeted tests for every touched tooling surface",
+            "python scripts/run_validate001_unified_validation.py --profile commit",
+            "git diff --check",
+            "git status --short",
+        ],
+    }
+
 def build_report(root: Path, include_db: bool) -> dict[str, Any]:
     sections = {
         "git": inspect_git(root),
@@ -274,6 +330,8 @@ def build_report(root: Path, include_db: bool) -> dict[str, Any]:
             }
         ),
     }
+
+    horizontal_bundle_eligibility = build_horizontal_bundle_eligibility(sections)
 
     section_statuses = [section["status"] for section in sections.values()]
     if any(status == "fail" for status in section_statuses):
@@ -296,6 +354,7 @@ def build_report(root: Path, include_db: bool) -> dict[str, Any]:
             "candidate_or_gate_mutation": False,
             "connector_activation": False,
         },
+        "horizontal_bundle_eligibility": horizontal_bundle_eligibility,
         "sections": sections,
         "next_safe_action": {
             "action": "review_inspection_report_then_select_next_patch",
@@ -311,6 +370,7 @@ def build_report(root: Path, include_db: bool) -> dict[str, Any]:
 
 def render_markdown(report: dict[str, Any]) -> str:
     sections = report["sections"]
+    eligibility = report.get("horizontal_bundle_eligibility") or {}
     lines = [
         "# INSPECT-001A Repo/DB/Docs Inspection Bundle",
         "",
@@ -324,6 +384,21 @@ def render_markdown(report: dict[str, Any]) -> str:
 
     for key, value in report["safety_boundary"].items():
         lines.append(f"- {key}: `{value}`")
+
+    lines.extend([
+        "",
+        "## Horizontal bundle eligibility",
+        "",
+        f"- Mode ID: `{eligibility.get('mode_id')}`",
+        f"- Eligible: `{eligibility.get('eligible')}`",
+        f"- Blocked reasons: `{', '.join(eligibility.get('blocked_reasons') or []) or 'none'}`",
+        f"- Database inspection required: `{eligibility.get('database_inspection_required')}`",
+        f"- Database unavailable is blocking: `{eligibility.get('database_unavailable_is_blocking')}`",
+        "",
+        "### Excluded scope",
+        "",
+    ])
+    lines.extend([f"- {item}" for item in eligibility.get("excluded_scope") or []] or ["- none"])
 
     git = sections["git"]
     lines.extend([

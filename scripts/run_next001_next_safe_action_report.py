@@ -136,7 +136,22 @@ TOOLING_GOVERNANCE_ITEMS: tuple[WorkItemContract, ...] = (
 )
 
 PRODUCT_RETURN_CANDIDATES = [
-    "SENSOR-001A BA Remote/Nationwide Coverage Validation",
+    "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review",
+]
+
+HORIZONTAL_FREEZE_PATH_ALLOWED_SCOPE = [
+    "governance documentation",
+    "validation tooling",
+    "inspection tooling",
+    "handover tooling",
+    "read-only state and next-safe-action reporting",
+]
+HORIZONTAL_FREEZE_PATH_EXCLUDED_SCOPE = [
+    "product pipeline decisions",
+    "database mutation",
+    "external source execution",
+    "scheduler semantics",
+    "candidate, gate, connector, Bronze, Silver, or Gold behavior",
 ]
 
 
@@ -160,6 +175,38 @@ def safety_boundary() -> dict[str, bool]:
         "commit_or_merge_actions": False,
     }
 
+
+
+def build_horizontal_freeze_path_bundle_mode(
+    *,
+    git_state: dict[str, object],
+    documentation_state: dict[str, object],
+    standard_workflow_complete: bool,
+) -> dict[str, object]:
+    blocked_reasons: list[str] = []
+
+    if not standard_workflow_complete:
+        blocked_reasons.append("standard_workflow_not_complete")
+    if documentation_state["architecture_status"] != "pass":
+        blocked_reasons.append("documentation_architecture_not_pass")
+    if git_state.get("is_dirty"):
+        blocked_reasons.append("worktree_dirty")
+
+    return {
+        "mode_id": "FREEZE-001A",
+        "available": not blocked_reasons,
+        "blocked_reasons": blocked_reasons,
+        "purpose": "Bundle independent horizontal governance, validation, inspection, handover, and read-only stabilization changes without changing vertical product pipeline behavior.",
+        "allowed_scope": HORIZONTAL_FREEZE_PATH_ALLOWED_SCOPE,
+        "excluded_scope": HORIZONTAL_FREEZE_PATH_EXCLUDED_SCOPE,
+        "requires_explicit_work_item": True,
+        "fan_in_validation_required": [
+            "targeted tests for each touched surface",
+            "python scripts/run_validate001_unified_validation.py --profile commit",
+            "git diff --check",
+            "git status --short",
+        ],
+    }
 
 def _run_command(root: Path, command: list[str]) -> CommandResult:
     try:
@@ -568,6 +615,11 @@ def build_next_safe_action_report(
         if item.get("status") in {"present_in_head", "present_in_worktree_only"}
     )
     total_count = len(standard_items)
+    horizontal_freeze_path_bundle_mode = build_horizontal_freeze_path_bundle_mode(
+        git_state=git_state,
+        documentation_state=documentation_state,
+        standard_workflow_complete=present_count == total_count,
+    )
 
     return {
         "schema_version": NEXT001_SCHEMA_VERSION,
@@ -587,6 +639,7 @@ def build_next_safe_action_report(
             # percent_in_head / percent_effective_worktree in new code.
             "percent": round((present_count / total_count) * 100, 1) if total_count else 100.0,
         },
+        "horizontal_freeze_path_bundle_mode": horizontal_freeze_path_bundle_mode,
         "validation_signal": validation_signal,
         "handover_signal": handover_signal,
         "product_return_candidates": PRODUCT_RETURN_CANDIDATES,
@@ -600,6 +653,7 @@ def render_markdown(report: dict[str, object]) -> str:
     handover_signal = report["handover_signal"]
     validation_signal = report["validation_signal"]
     next_safe_action = report["next_safe_action"]
+    bundle_mode = report.get("horizontal_freeze_path_bundle_mode") or {}
 
     lines = [
         "# NEXT-001A Next Safe Action Report",
@@ -633,6 +687,21 @@ def render_markdown(report: dict[str, object]) -> str:
     for item in report["tooling_governance_status"]:
         required = "required" if item["required_for_standard_workflow"] else "backlog"
         lines.append(f"- `{item['item_id']}` — {item['title']}: `{item['status']}` ({required})")
+
+    lines.extend(
+        [
+            "",
+            "## Horizontal Freeze-Path Bundle Mode",
+            "",
+            f"- Mode ID: `{bundle_mode.get('mode_id')}`",
+            f"- Available: `{bundle_mode.get('available')}`",
+            f"- Blocked reasons: `{', '.join(bundle_mode.get('blocked_reasons') or []) or 'none'}`",
+            "",
+            "### Excluded scope",
+            "",
+        ]
+    )
+    lines.extend(f"- {item}" for item in bundle_mode.get("excluded_scope") or [])
 
     lines.extend(
         [
@@ -724,6 +793,7 @@ def main() -> int:
     print(f"tooling_governance_present_in_head={completion['present_in_head_count']}/{completion['required_count']}")
     print(f"tooling_governance_present_or_pending={completion['present_or_pending_in_worktree_count']}/{completion['required_count']}")
     print(f"handover_status={handover_signal['status']}")
+    print(f"horizontal_freeze_path_bundle_available={report.get('horizontal_freeze_path_bundle_mode', {}).get('available')}")
     if handover_signal.get("stale_reasons"):
         print("handover_stale_reasons=" + ",".join(str(reason) for reason in handover_signal["stale_reasons"]))
     print(f"next_action={next_safe_action['action']}")

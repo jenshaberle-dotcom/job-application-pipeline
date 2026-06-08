@@ -123,6 +123,29 @@ Active Search Intelligence rules:
 - Candidate-company seeds from the user's own search intelligence signals have
   a minimal relevance prior, but this prior does not pass evidence gates alone.
 
+
+## Horizontal Freeze-Path Bundle Mode
+
+Horizontal Freeze-Path Bundle Mode may be used to bundle multiple independent
+horizontal governance, validation, inspection, handover, and read-only
+stabilization changes into one patch or PR.
+
+It is allowed only when the impact check shows:
+
+- no product pipeline decision
+- no database mutation
+- no external source execution
+- no scheduler, gate, candidate, connector, Bronze, Silver, or Gold coupling
+- no hidden runtime dependency between bundled parts
+- targeted tests for each touched surface
+- shared fan-in validation before commit or PR
+
+Vertical product and pipeline behavior remains separate. This includes gate
+logic, candidate promotion, StepStone or sensor learning, scheduler semantics,
+reprocessing, reset, apply logic, connector activation, and Bronze/Silver/Gold
+mutation. Those changes require a separate work item or an explicit documented
+justification.
+
 ## Backlog boundary rules
 
 Backlog-only ideas should not be built as immediate product features unless the

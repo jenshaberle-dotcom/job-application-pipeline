@@ -48,6 +48,13 @@ REQUIRED_ANCHORS = {
         "exact or non-exact repo-state flag",
         "recommended next work item",
     ],
+    "freeze_path_bundle_mode": [
+        "## Freeze-path bundle mode",
+        "horizontal governance, validation, inspection, handover",
+        "read-only",
+        "stabilization",
+        "must not be mixed with product execution",
+    ],
     "anti_patterns": [
         "## Anti-patterns",
         "repeating the entire project history",
