@@ -57,6 +57,7 @@ Mandatory workflow rules:
 - Do not commit directly on `main`.
 - Use a branch guard before staging or committing.
 - Full `pytest -q` is required before commit and PR.
+- Use VALIDATE-001 as the default local validation entry point once available; do not use it to hide failing underlying checks.
 - Commit/PR/merge instructions are only provided after green local validation.
 - PR blocks include `git push -u origin <branch>` before `gh pr create`.
 - Merge blocks derive the PR number from the current branch or use safe current
@@ -129,7 +130,7 @@ current work item explicitly promotes them.
 
 Currently backlog/tooling-governance items include:
 
-- VALIDATE-001 Unified Validation Command
+- VALIDATE-001 Unified Validation Command (implemented foundation)
 - NEXT-001 Next Safe Action Report
 - MCP-001 Project State Server, read-only-first
 - Market Sensors & Growth Metrics
@@ -180,7 +181,13 @@ Saving an idea is not abandoning it. Nicht jeder Wal muss heute gefangen werden.
 
 ## Validation command
 
-The index can be checked with:
+The unified validation command can be run with:
+
+```bash
+python scripts/run_validate001_unified_validation.py --profile commit
+```
+
+The index can also be checked directly with:
 
 ```bash
 python scripts/run_rules001_validate_index.py

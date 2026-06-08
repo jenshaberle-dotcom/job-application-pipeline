@@ -63,6 +63,7 @@ def test_state001a_snapshot_is_read_only_and_machine_readable(tmp_path: Path) ->
     assert snapshot["database_writes"] is False
     assert snapshot["documentation"]["architecture_status"] == "pass"
     assert snapshot["validation"]["latest_validation_known_to_snapshot"] == "not_run_by_snapshot"
+    assert "python scripts/run_validate001_unified_validation.py --profile commit" in snapshot["validation"]["required_before_commit_or_pr"]
     assert snapshot["next_safe_action"]["action"] in {
         "select_next_work_item_then_create_feature_branch",
         "inspect_branch_intent_before_patch",
