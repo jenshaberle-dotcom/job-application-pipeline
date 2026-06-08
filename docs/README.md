@@ -18,8 +18,16 @@ the current system understandable without archaeology.
 2. `current/architecture.md`
 3. `current/pipeline.md`
 4. `current/system-diagrams.md`
-5. `current/governance.md`
-6. `current/operations.md`
+5. `current/engineering_principles.md`
+6. `current/governance.md`
+7. `current/operations.md`
+
+## Current truth notes
+
+`current/engineering_principles.md` defines the small set of engineering values
+that guide architecture, governance, compliance readiness, sustainability and
+operational decisions. It is intentionally short and must not become a policy
+collection.
 
 ## Structure
 

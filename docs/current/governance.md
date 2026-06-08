@@ -3,7 +3,9 @@
 Status: current truth
 
 Governance exists to keep the project product-grade while it grows through
-agent-like helpers, gates, source discovery and UI actions.
+agent-like helpers, gates, source discovery and UI actions. The higher-level
+engineering philosophy lives in `engineering_principles.md`; this document
+focuses on operational governance rules and reference surfaces.
 
 Current rules:
 
