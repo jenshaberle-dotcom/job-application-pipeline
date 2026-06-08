@@ -67,3 +67,17 @@ lifecycle class, repair strategy, safety zone and repair-audit order. It may emi
 Stage 2 dry-run/apply command suggestions, but it does not execute repair, write
 gate/candidate state, generate connector artifacts or activate sources.
 <!-- END REPAIR-001-STOP-REPAIR-AUDIT -->
+
+
+<!-- BEGIN DIAG-001-GENERIC-REPAIR-DIAGNOSIS -->
+## DIAG-001 Generic Repair Diagnosis
+
+DIAG-001 turns employer-specific repair failures into generic pipeline diagnosis.
+A company such as adesso, HDI or VHV may be used as a representative case, but
+any resulting change must improve reusable pipeline capability rather than push a
+single candidate through the gates.
+
+The diagnosis is read-only, performs no external requests, discovers relevant
+schema surfaces through `information_schema`, and writes JSON/Markdown reports to
+`exports/` when requested.
+<!-- END DIAG-001-GENERIC-REPAIR-DIAGNOSIS -->

@@ -17,6 +17,7 @@ story.
 - `search-intelligence/`
   - `search-intelligence/stop_taxonomy_and_repair_registry.md`
   - `search-intelligence/repair_candidate_audit.md`
+  - `search-intelligence/generic_repair_diagnosis.md`
 - `security/`
 - `sources/`
 - `glossary.md`
