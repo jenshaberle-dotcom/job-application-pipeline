@@ -74,11 +74,16 @@ promoted into Current Truth:
 - old source-specific candidate and connector notes
 - old spike and MVP documents
 
-## DOC-001I archive note
+## DOC-001 archive notes
 
 The former `docs/diagrams/` pages were physically archived in
 `docs/archive/diagrams/` after their current replacements were established in
 `docs/architecture/system_diagrams.md` and `docs/database/schema_relationships.md`.
+
+DOC-001J adds `scripts/check_documentation_references.py` as the lightweight
+link/reference guard before larger planning or source-analysis archive moves.
+Run it before moving files so stale links and unresolved path references are
+fixed or explicitly classified first.
 
 Historical does not mean useless. It means:
 

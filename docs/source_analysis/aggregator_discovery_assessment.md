@@ -156,9 +156,9 @@ time-boxed aggregator source research -> candidate employer/source target -> val
 
 Possible lightweight artifacts:
 
-- `docs/source_analysis/aggregator_discovery_log.md`
-- `docs/source_analysis/employer_origin_candidate_review.md`
-- a small CSV template for manually captured discovery evidence
+- an optional future discovery log document, if this historical workflow is reopened
+- `docs/source_analysis/employer_origin_source_candidate_review.md`
+- a review-only evidence template, if manual discovery evidence becomes frequent enough
 - later, a table such as `source_discovery_observations` if manual evidence becomes frequent enough
 
 Minimum useful fields for research-only discovery evidence:
