@@ -3,11 +3,14 @@ from __future__ import annotations
 from scripts.run_generic_repair_diagnosis import (
     RelevantTable,
     TableColumn,
+    build_candidate_lifecycle_linkage_quality,
     build_diagnosis_summary,
     build_portfolio_matrix_payload,
     choose_candidate_identity_column,
     choose_candidate_link_column,
+    classify_likely_linkage_gap_type,
     classify_linkage_pattern,
+    classify_surface_role,
     normalized_connect_kwargs,
     relevant_table_params,
     relevant_tables_where_clause,
@@ -44,6 +47,7 @@ def sample_payload(company_key: str = "adesso", *, mentioned: int = 4, linked: i
         "rows_linked_by_candidate_id": rows_linked,
         "generic_diagnosis_questions": ["Would this help peer candidates?"],
     }
+    payload["linkage_quality"] = build_candidate_lifecycle_linkage_quality(payload)
     payload["summary"] = build_diagnosis_summary(payload)
     return payload
 
@@ -129,6 +133,8 @@ def test_render_markdown_summarizes_schema_and_boundaries() -> None:
     assert markdown.startswith("# DIAG-001 Generic Repair Diagnosis")
     assert "This report is read-only" in markdown
     assert "Candidate identity column: `id`" in markdown
+    assert "## Candidate lifecycle linkage quality" in markdown
+    assert "Likely gap type:" in markdown
     assert "Would this help peer candidates?" in markdown
 
 
@@ -145,6 +151,24 @@ def test_build_diagnosis_summary_has_stable_contract_for_matrix_consumers() -> N
         "tables_linked_by_candidate_id_count": 3,
         "mention_to_link_gap": 7,
         "linkage_pattern": "weak_candidate_lifecycle_linkage",
+        "candidate_identity_present": True,
+        "linked_surface_names": ["linked_table_0", "linked_table_1", "linked_table_2"],
+        "unlinked_mention_surface_names": [
+            "mention_table_0",
+            "mention_table_1",
+            "mention_table_2",
+            "mention_table_3",
+            "mention_table_4",
+            "mention_table_5",
+            "mention_table_6",
+            "mention_table_7",
+            "mention_table_8",
+            "mention_table_9",
+        ],
+        "likely_gap_type": "partial_linkage_with_noncritical_unlinked_surfaces",
+        "recommended_generic_next_action": (
+            "Review unlinked mention surfaces and document whether they are aggregate-only or should join the generic lifecycle contract."
+        ),
     }
 
 
@@ -171,14 +195,74 @@ def test_portfolio_matrix_payload_and_markdown_compare_multiple_companies() -> N
         "partial_candidate_lifecycle_linkage": 1,
         "weak_candidate_lifecycle_linkage": 1,
     }
+    assert payload["summary"]["likely_gap_type_counts"] == {
+        "partial_linkage_with_noncritical_unlinked_surfaces": 2
+    }
     assert payload["summary"]["companies_with_unlinked_or_weak_surfaces"] == ["vhv_gruppe"]
 
     markdown = render_portfolio_matrix_markdown(payload)
 
     assert markdown.startswith("# DIAG-001B Portfolio Failure Pattern Matrix")
+    assert "Likely gap type counts:" in markdown
+    assert "Recommended next action" in markdown
     assert "`adesso`" in markdown
     assert "`vhv_gruppe`" in markdown
     assert "weak_candidate_lifecycle_linkage" in markdown
+
+
+def test_surface_roles_and_gap_type_are_explainable_without_employer_special_cases() -> None:
+    assert classify_surface_role("employer_origin_candidate_gate_reviews") == "gate"
+    assert classify_surface_role("employer_origin_job_detail_evidence") == "detail_evidence"
+    assert classify_surface_role("origin_observation_seed_pool_snapshots") == "observation_learning"
+    assert classify_surface_role("unrelated_table") == "other"
+
+    assert (
+        classify_likely_linkage_gap_type(
+            candidate_identity_present=False,
+            mention_surface_count=3,
+            linked_surface_count=0,
+            unlinked_roles={"market_evidence": 1},
+        )
+        == "missing_candidate_identity"
+    )
+    assert (
+        classify_likely_linkage_gap_type(
+            candidate_identity_present=True,
+            mention_surface_count=4,
+            linked_surface_count=2,
+            unlinked_roles={"detail_evidence": 1},
+        )
+        == "critical_lifecycle_surface_not_candidate_linked"
+    )
+    assert (
+        classify_likely_linkage_gap_type(
+            candidate_identity_present=True,
+            mention_surface_count=4,
+            linked_surface_count=2,
+            unlinked_roles={"market_evidence": 1},
+        )
+        == "learning_or_evidence_surface_not_candidate_linked"
+    )
+
+
+def test_linkage_quality_contract_lists_linked_and_unlinked_surfaces() -> None:
+    payload = sample_payload("vhv_gruppe", mentioned=5, linked=2)
+    quality = payload["linkage_quality"]
+
+    assert quality["candidate_identity_present"] is True
+    assert quality["candidate_mentions_count"] == 5
+    assert quality["candidate_linked_surface_count"] == 2
+    assert quality["mention_to_link_gap"] == 3
+    assert quality["linked_surface_names"] == ["linked_table_0", "linked_table_1"]
+    assert quality["unlinked_mention_surface_names"] == [
+        "mention_table_0",
+        "mention_table_1",
+        "mention_table_2",
+        "mention_table_3",
+        "mention_table_4",
+    ]
+    assert quality["likely_gap_type"] == "partial_linkage_with_noncritical_unlinked_surfaces"
+    assert "generic" in quality["recommended_generic_next_action"]
 
 
 def test_safe_report_stem_is_filesystem_friendly() -> None:

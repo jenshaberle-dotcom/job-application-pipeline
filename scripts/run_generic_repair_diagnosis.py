@@ -68,6 +68,27 @@ READ_ONLY_BOUNDARY: dict[str, bool] = {
     "no_external_requests": True,
 }
 
+SURFACE_ROLE_BY_KEYWORD: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("candidate_identity", ("employer_origin_source_candidates",)),
+    ("gate", ("gate",)),
+    ("detail_evidence", ("job_detail_evidence", "detail_evidence")),
+    ("market_evidence", ("market_evidence",)),
+    ("repair", ("repair",)),
+    ("connector", ("connector",)),
+    ("observation_learning", ("observation", "seed_pool")),
+    ("promotion_learning", ("promotion", "expansion")),
+    ("vocabulary_learning", ("vocabulary",)),
+    ("source_discovery", ("source_discovery", "origin_source_discovery", "discovery")),
+    ("source", ("source",)),
+)
+CRITICAL_LIFECYCLE_ROLES = {"gate", "detail_evidence", "repair", "connector", "source_discovery"}
+LEARNING_OR_EVIDENCE_ROLES = {
+    "market_evidence",
+    "observation_learning",
+    "promotion_learning",
+    "vocabulary_learning",
+}
+
 
 @dataclass(frozen=True)
 class TableColumn:
@@ -279,6 +300,7 @@ def build_diagnosis_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
     linked = payload["rows_linked_by_candidate_id"]
     mention_count = len(mentioned)
     linked_count = len(linked)
+    linkage_quality = dict(payload.get("linkage_quality") or build_candidate_lifecycle_linkage_quality(payload))
 
     return {
         "company_key": payload["company_key"],
@@ -290,6 +312,11 @@ def build_diagnosis_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
         "tables_linked_by_candidate_id_count": linked_count,
         "mention_to_link_gap": max(mention_count - linked_count, 0),
         "linkage_pattern": classify_linkage_pattern(mention_count=mention_count, linked_count=linked_count),
+        "candidate_identity_present": linkage_quality["candidate_identity_present"],
+        "linked_surface_names": linkage_quality["linked_surface_names"],
+        "unlinked_mention_surface_names": linkage_quality["unlinked_mention_surface_names"],
+        "likely_gap_type": linkage_quality["likely_gap_type"],
+        "recommended_generic_next_action": linkage_quality["recommended_generic_next_action"],
     }
 
 
@@ -303,6 +330,102 @@ def classify_linkage_pattern(*, mention_count: int, linked_count: int) -> str:
     if linked_count < mention_count:
         return "partial_candidate_lifecycle_linkage"
     return "strong_candidate_lifecycle_linkage"
+
+
+def classify_surface_role(surface_name: str) -> str:
+    normalized = surface_name.lower()
+    for role, keywords in SURFACE_ROLE_BY_KEYWORD:
+        if any(keyword in normalized for keyword in keywords):
+            return role
+    return "other"
+
+
+def count_roles(surface_names: Sequence[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for surface_name in surface_names:
+        role = classify_surface_role(surface_name)
+        counts[role] = counts.get(role, 0) + 1
+    return counts
+
+
+def classify_likely_linkage_gap_type(
+    *,
+    candidate_identity_present: bool,
+    mention_surface_count: int,
+    linked_surface_count: int,
+    unlinked_roles: Mapping[str, int],
+) -> str:
+    if not candidate_identity_present:
+        return "missing_candidate_identity"
+    if mention_surface_count == 0 and linked_surface_count == 0:
+        return "no_observable_candidate_surface"
+    if linked_surface_count == 0:
+        return "observable_surfaces_without_candidate_lifecycle_attachment"
+    if any(role in unlinked_roles for role in CRITICAL_LIFECYCLE_ROLES):
+        return "critical_lifecycle_surface_not_candidate_linked"
+    if any(role in unlinked_roles for role in LEARNING_OR_EVIDENCE_ROLES):
+        return "learning_or_evidence_surface_not_candidate_linked"
+    if mention_surface_count > linked_surface_count:
+        return "partial_linkage_with_noncritical_unlinked_surfaces"
+    return "strong_candidate_lifecycle_linkage"
+
+
+def recommended_next_action_for_gap_type(gap_type: str) -> str:
+    recommendations = {
+        "missing_candidate_identity": (
+            "Repair generic candidate identity/promotion mapping before URL, detail-evidence or connector repair."
+        ),
+        "no_observable_candidate_surface": (
+            "Run source/sensor discovery diagnosis first; no candidate lifecycle surface is visible yet."
+        ),
+        "observable_surfaces_without_candidate_lifecycle_attachment": (
+            "Add or repair the generic candidate-id attachment contract for observable evidence surfaces before executing repair."
+        ),
+        "critical_lifecycle_surface_not_candidate_linked": (
+            "Inspect why authoritative gate, detail-evidence, repair, connector or discovery surfaces are not candidate-linked."
+        ),
+        "learning_or_evidence_surface_not_candidate_linked": (
+            "Classify unlinked learning/evidence surfaces as intentionally aggregate or add a generic candidate-id bridge where needed."
+        ),
+        "partial_linkage_with_noncritical_unlinked_surfaces": (
+            "Review unlinked mention surfaces and document whether they are aggregate-only or should join the generic lifecycle contract."
+        ),
+        "strong_candidate_lifecycle_linkage": (
+            "Linkage is strong enough; move to the next repair-specific read-only diagnosis."
+        ),
+    }
+    return recommendations[gap_type]
+
+
+def build_candidate_lifecycle_linkage_quality(payload: Mapping[str, Any]) -> dict[str, Any]:
+    schema = payload["schema_contract"]
+    mention_surface_names = sorted(str(name) for name in payload["rows_mentioning_company"].keys())
+    linked_surface_names = sorted(str(name) for name in payload["rows_linked_by_candidate_id"].keys())
+    unlinked_surface_names = sorted(set(mention_surface_names) - set(linked_surface_names))
+    candidate_identity_values = list(schema.get("candidate_identity_values") or [])
+    candidate_identity_present = bool(candidate_identity_values and payload["representative_candidate_rows"])
+    unlinked_role_counts = count_roles(unlinked_surface_names)
+    likely_gap_type = classify_likely_linkage_gap_type(
+        candidate_identity_present=candidate_identity_present,
+        mention_surface_count=len(mention_surface_names),
+        linked_surface_count=len(linked_surface_names),
+        unlinked_roles=unlinked_role_counts,
+    )
+
+    return {
+        "candidate_identity_present": candidate_identity_present,
+        "candidate_mentions_count": len(mention_surface_names),
+        "candidate_linked_surface_count": len(linked_surface_names),
+        "mention_to_link_gap": max(len(mention_surface_names) - len(linked_surface_names), 0),
+        "mention_surface_names": mention_surface_names,
+        "linked_surface_names": linked_surface_names,
+        "unlinked_mention_surface_names": unlinked_surface_names,
+        "mention_surface_role_counts": count_roles(mention_surface_names),
+        "linked_surface_role_counts": count_roles(linked_surface_names),
+        "unlinked_surface_role_counts": unlinked_role_counts,
+        "likely_gap_type": likely_gap_type,
+        "recommended_generic_next_action": recommended_next_action_for_gap_type(likely_gap_type),
+    }
 
 
 def build_diagnosis_payload(
@@ -366,6 +489,7 @@ def build_diagnosis_payload(
             "Would the observed failure pattern explain peer candidates with detail_discovery_gap or weak_relevance_evidence?",
         ],
     }
+    payload["linkage_quality"] = build_candidate_lifecycle_linkage_quality(payload)
     payload["summary"] = build_diagnosis_summary(payload)
     return payload
 
@@ -375,6 +499,7 @@ def render_markdown(payload: Mapping[str, Any]) -> str:
     relevant_tables = payload["relevant_tables"]
     mentioned = payload["rows_mentioning_company"]
     linked = payload["rows_linked_by_candidate_id"]
+    linkage_quality = dict(payload.get("linkage_quality") or build_candidate_lifecycle_linkage_quality(payload))
 
     lines = [
         "# DIAG-001 Generic Repair Diagnosis",
@@ -414,6 +539,23 @@ def render_markdown(payload: Mapping[str, Any]) -> str:
         f"- Tables mentioning company key/text: `{len(mentioned)}`",
         f"- Tables linked by candidate identity: `{len(linked)}`",
         "",
+        "## Candidate lifecycle linkage quality",
+        "",
+        f"- Candidate identity present: `{linkage_quality['candidate_identity_present']}`",
+        f"- Mention surfaces: `{linkage_quality['candidate_mentions_count']}`",
+        f"- Candidate-linked surfaces: `{linkage_quality['candidate_linked_surface_count']}`",
+        f"- Mention-to-link gap: `{linkage_quality['mention_to_link_gap']}`",
+        f"- Likely gap type: `{linkage_quality['likely_gap_type']}`",
+        f"- Recommended generic next action: {linkage_quality['recommended_generic_next_action']}",
+        "",
+        "### Linked surfaces",
+        "",
+        f"`{', '.join(linkage_quality['linked_surface_names']) or '-'}`",
+        "",
+        "### Unlinked mention surfaces",
+        "",
+        f"`{', '.join(linkage_quality['unlinked_mention_surface_names']) or '-'}`",
+        "",
         "## Generic diagnosis questions",
         "",
     ])
@@ -450,9 +592,12 @@ def build_portfolio_matrix_payload(payloads: Sequence[Mapping[str, Any]], *, ben
     rows.sort(key=lambda row: (row["linkage_pattern"], row["company_key"]))
 
     linkage_counts: dict[str, int] = {}
+    gap_type_counts: dict[str, int] = {}
     for row in rows:
         pattern = str(row["linkage_pattern"])
         linkage_counts[pattern] = linkage_counts.get(pattern, 0) + 1
+        gap_type = str(row["likely_gap_type"])
+        gap_type_counts[gap_type] = gap_type_counts.get(gap_type, 0) + 1
 
     return {
         "campaign": "DIAG-001B Portfolio Failure Pattern Matrix",
@@ -462,6 +607,7 @@ def build_portfolio_matrix_payload(payloads: Sequence[Mapping[str, Any]], *, ben
         "summary": {
             "company_count": len(rows),
             "linkage_pattern_counts": linkage_counts,
+            "likely_gap_type_counts": gap_type_counts,
             "companies_with_unlinked_or_weak_surfaces": [
                 row["company_key"]
                 for row in rows
@@ -495,12 +641,13 @@ def render_portfolio_matrix_markdown(payload: Mapping[str, Any]) -> str:
         "",
         f"- Companies: `{summary['company_count']}`",
         f"- Linkage pattern counts: `{summary['linkage_pattern_counts']}`",
+        f"- Likely gap type counts: `{summary['likely_gap_type_counts']}`",
         f"- Companies with unlinked or weak surfaces: `{summary['companies_with_unlinked_or_weak_surfaces']}`",
         "",
         "## Matrix",
         "",
-        "| Company | Candidate identity | Mentioning tables | Linked tables | Gap | Linkage pattern |",
-        "| --- | --- | ---: | ---: | ---: | --- |",
+        "| Company | Candidate identity | Mentioning tables | Linked tables | Gap | Linkage pattern | Likely gap type | Recommended next action |",
+        "| --- | --- | ---: | ---: | ---: | --- | --- | --- |",
     ]
 
     for row in rows:
@@ -511,7 +658,9 @@ def render_portfolio_matrix_markdown(payload: Mapping[str, Any]) -> str:
             f"{row['tables_mentioning_company_count']} | "
             f"{row['tables_linked_by_candidate_id_count']} | "
             f"{row['mention_to_link_gap']} | "
-            f"`{row['linkage_pattern']}` |"
+            f"`{row['linkage_pattern']}` | "
+            f"`{row['likely_gap_type']}` | "
+            f"{row['recommended_generic_next_action']} |"
         )
 
     lines.extend([
