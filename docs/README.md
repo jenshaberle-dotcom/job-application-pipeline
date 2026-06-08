@@ -94,17 +94,20 @@ not authoritative for current architecture.
 
 ## ADRs
 
-ADRs are under rebaseline.
+ADRs are under DOC-001 rebaseline control.
 
 Do not assume that every accepted ADR still fully describes the current system.
-DOC-001 will classify ADRs as:
+Use `docs/governance/adr_status_table.md` as the current ADR control surface
+before treating an ADR as an implementation anchor.
+
+DOC-001K classifies ADRs as:
 
 - Current
 - Superseded
 - Historical
 - Needs rewrite
 
-See `docs/governance/adr_rebaseline_plan.md`.
+The rebaseline plan remains in `docs/governance/adr_rebaseline_plan.md`.
 
 ## Exports
 

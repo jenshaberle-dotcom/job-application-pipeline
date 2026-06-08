@@ -1,6 +1,6 @@
 # ADR Rebaseline Plan
 
-Status: DOC-001B current plan  
+Status: DOC-001K current plan and completed status-surface checkpoint
 Scope: ADR status review and current decision anchor recovery
 
 ## Intent
@@ -90,12 +90,28 @@ Do not write one ADR per recent implementation block.
 Recent planning documents remain historical build logs unless their content is
 promoted into a stable architecture decision.
 
-## DOC-001 follow-up
+## DOC-001K checkpoint
 
-DOC-001C or DOC-001D should create an ADR status table with one row per ADR:
+DOC-001K created the ADR status table with one row per ADR:
 
-```text
-ADR | Current DOC-001 status | Action | Replacement/current-truth pointer
+- `docs/governance/adr_status_table.md`
+
+The table is checked by:
+
+```bash
+python scripts/check_adr_rebaseline.py --json
 ```
 
-Only after that table exists should we edit individual ADR files.
+The status table deliberately does not rewrite every ADR. It creates the safe
+control surface needed before individual ADR edits.
+
+## Next ADR work
+
+Only after the table is green should we edit individual ADR files.
+
+Recommended order:
+
+1. ADR-019 heartbeat/source-health rewrite or explicit accept/reject decision,
+2. ADR-020 role-family classification rewrite or explicit deferral,
+3. optional small ADR for stable documentation/governance policy only if the
+   Current Truth docs need a formal decision anchor.
