@@ -2,7 +2,7 @@
 
 Status: archived historical diagram
 Archived by: DOC-001I physical diagram archive pass
-Current replacement: `docs/architecture/system_diagrams.md`
+Current replacement: `docs/current/system-diagrams.md`
 
 ## Archive note
 

@@ -28,9 +28,9 @@ def test_doc001i_archived_diagrams_have_current_replacements() -> None:
     archive_readme = read("docs/archive/diagrams/README.md")
 
     assert "Status: archived historical diagram" in architecture
-    assert "docs/architecture/system_diagrams.md" in architecture
+    assert "docs/current/system-diagrams.md" in architecture
     assert "Status: archived historical diagram" in bronze
-    assert "docs/database/schema_relationships.md" in bronze
+    assert "docs/reference/database/schema_relationships.md" in bronze
     assert "Current replacement" in archive_readme
 
 
@@ -38,12 +38,12 @@ def test_doc001i_docs_navigation_points_to_archive_and_replacements() -> None:
     docs_readme = read("docs/README.md")
     archive_readme = read("docs/archive/README.md")
     path_status = read("docs/archive/documentation_path_status.md")
-    truth_map = read("docs/architecture/current_truth_documentation_map.md")
+    truth_map = read("docs/archive/documentation-rebaseline/current_truth_documentation_map.md")
 
     for phrase in [
         "docs/archive/diagrams/",
-        "docs/architecture/system_diagrams.md",
-        "docs/database/schema_relationships.md",
+        "docs/current/system-diagrams.md",
+        "docs/reference/database/schema_relationships.md",
     ]:
         assert phrase in docs_readme + archive_readme + path_status + truth_map
 
@@ -53,8 +53,8 @@ def test_doc001i_docs_navigation_points_to_archive_and_replacements() -> None:
 
 def test_doc001i_database_and_adr_links_no_longer_point_to_removed_diagram_file() -> None:
     tracked_docs = [
-        "docs/database/tables.md",
-        "docs/adr/014_document_database_schema_and_constraints.md",
+        "docs/reference/database/tables.md",
+        "docs/decisions/adr/014_document_database_schema_and_constraints.md",
     ]
 
     for path in tracked_docs:
@@ -64,7 +64,7 @@ def test_doc001i_database_and_adr_links_no_longer_point_to_removed_diagram_file(
 
 
 def test_doc001i_planning_log_records_safe_small_archive_pass() -> None:
-    text = read("docs/planning/doc001i_physical_diagram_archive.md")
+    text = read("docs/archive/planning/doc001i_physical_diagram_archive.md")
 
     for phrase in [
         "first physical archive move",

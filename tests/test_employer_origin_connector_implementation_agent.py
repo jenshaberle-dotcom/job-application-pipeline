@@ -68,7 +68,7 @@ def test_build_implementation_writes_candidate_files_without_activation() -> Non
 
     assert str(implementation.module_path) == "src/connectors/hdi.py"
     assert str(implementation.test_path) == "tests/test_hdi_connector.py"
-    assert str(implementation.docs_path) == "docs/source_analysis/hdi_connector_candidate.md"
+    assert str(implementation.docs_path) == "docs/planning/active/source-candidates/hdi_connector_candidate.md"
 
     assert "class HdiConnector" in implementation.module_content
     assert "SOURCE_NAME = 'hdi:hannover'" in implementation.module_content

@@ -14,8 +14,8 @@ from src.search_intelligence.eo002e_gate_stop_next_safe_analysis import (
 )
 
 SCRIPT = Path("scripts/run_eo002e_gate_stop_next_safe_action_analysis.py")
-DOC = Path("docs/planning/eo002e_gate_stop_next_safe_action_evidence_analysis.md")
-SENSOR_DOC = Path("docs/planning/sensor001_ba_remote_nationwide_coverage_validation.md")
+DOC = Path("docs/archive/planning/eo002e_gate_stop_next_safe_action_evidence_analysis.md")
+SENSOR_DOC = Path("docs/archive/planning/sensor001_ba_remote_nationwide_coverage_validation.md")
 
 
 def test_validated_url_report_without_persisted_url_requires_sz1_review() -> None:

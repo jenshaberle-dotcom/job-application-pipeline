@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ALLOWED_DOC_STATUSES = {"Current", "Superseded", "Historical", "Needs rewrite"}
+ADR_DIR_CANDIDATES = (Path("docs/decisions/adr"), Path("docs/adr"))
+ADR_STATUS_TABLE_CANDIDATES = (Path("docs/decisions/adr_status_table.md"), Path("docs/governance/adr_status_table.md"))
 ADR_FILE_RE = re.compile(r"^(?P<number>\d{3})_.*\.md$")
 TABLE_ROW_RE = re.compile(r"^\|\s*ADR-(?P<number>\d{3})\s*\|")
 
@@ -72,8 +74,16 @@ def _extract_repository_status(text: str) -> str:
     return ""
 
 
+def _first_existing(root: Path, candidates: tuple[Path, ...]) -> Path:
+    for candidate in candidates:
+        path = root / candidate
+        if path.exists():
+            return path
+    return root / candidates[0]
+
+
 def collect_adr_files(root: Path) -> list[AdrFile]:
-    adr_dir = root / "docs" / "adr"
+    adr_dir = _first_existing(root, ADR_DIR_CANDIDATES)
     files: list[AdrFile] = []
     for path in sorted(adr_dir.glob("[0-9]*.md")):
         match = ADR_FILE_RE.match(path.name)
@@ -90,7 +100,7 @@ def collect_adr_files(root: Path) -> list[AdrFile]:
 
 
 def parse_adr_status_table(root: Path) -> list[AdrStatusRow]:
-    table_path = root / "docs" / "governance" / "adr_status_table.md"
+    table_path = _first_existing(root, ADR_STATUS_TABLE_CANDIDATES)
     if not table_path.exists():
         return []
 

@@ -2,7 +2,7 @@
 
 Status: archived historical diagram
 Archived by: DOC-001I physical diagram archive pass
-Current replacement: `docs/database/schema_relationships.md`
+Current replacement: `docs/reference/database/schema_relationships.md`
 
 ## Archive note
 

@@ -101,7 +101,7 @@ def test_migration_and_docs_exist() -> None:
     migration = Path("db/migrations/073_create_candidate_origin_url_persistence_reviews.sql").read_text(encoding="utf-8")
     assert "candidate_origin_url_persistence_reviews" in migration
     assert "no scheduler changes" in migration
-    doc = Path("docs/planning/cand001_validated_origin_url_persistence_gate.md").read_text(encoding="utf-8")
+    doc = Path("docs/archive/planning/cand001_validated_origin_url_persistence_gate.md").read_text(encoding="utf-8")
     assert "CAND-001" in doc
     assert "not source-of-truth inputs" in doc
 

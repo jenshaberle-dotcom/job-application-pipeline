@@ -30,11 +30,12 @@ def test_doc001j_reference_checker_accepts_valid_links_and_retired_archive_paths
     _write(
         tmp_path / "docs" / "README.md",
         "# Docs\n\n[Architecture](architecture/system_diagrams.md)\n\n"
-        "Current path: `docs/architecture/system_diagrams.md`.\n"
+        "Current path: `docs/current/system-diagrams.md`.\n"
         "Old path: `docs/diagrams/architecture.md`.\n"
         "Future target: `docs/archive/planning/`.\n",
     )
     _write(tmp_path / "docs" / "architecture" / "system_diagrams.md", "# System diagrams\n")
+    _write(tmp_path / "docs" / "current" / "system-diagrams.md", "# Current diagrams\n")
 
     report = collect_documentation_references(tmp_path)
 
@@ -54,7 +55,7 @@ def test_doc001j_current_repository_has_no_unresolved_documentation_references()
 
 
 def test_doc001j_planning_log_and_archive_controls_explain_the_guard() -> None:
-    planning = _read("docs/planning/doc001j_link_reference_check.md")
+    planning = _read("docs/archive/planning/doc001j_link_reference_check.md")
     archive_status = _read("docs/archive/documentation_path_status.md")
     docs_readme = _read("docs/README.md")
 

@@ -39,7 +39,7 @@ def candidate(**overrides: object) -> ControlCenterCandidate:
         build_next_command="python -m scripts.run_approval_gated_connector_build_agent --company-key hdi --reviewed-by jens --approve-build --write",
         connector_module_path="src/connectors/hdi.py",
         connector_test_path="tests/test_hdi_connector.py",
-        connector_docs_path="docs/source_analysis/hdi_connector_candidate.md",
+        connector_docs_path="docs/planning/active/source-candidates/hdi_connector_candidate.md",
         gate_passed_count=8,
         gate_manual_review_count=2,
         gate_blocked_count=0,

@@ -8,7 +8,7 @@ def read(path: str) -> str:
 
 
 def test_doc001h_database_schema_overview_covers_current_domains():
-    text = read("docs/database/schema_overview.md")
+    text = read("docs/reference/database/schema_overview.md")
 
     required = [
         "Ingestion Core",
@@ -35,7 +35,7 @@ def test_doc001h_database_schema_overview_covers_current_domains():
 
 
 def test_doc001h_database_constraints_are_documented_as_product_boundaries():
-    text = read("docs/database/schema_overview.md")
+    text = read("docs/reference/database/schema_overview.md")
 
     for phrase in [
         "Primary keys",
@@ -50,7 +50,7 @@ def test_doc001h_database_constraints_are_documented_as_product_boundaries():
 
 
 def test_doc001h_schema_relationships_include_mermaid_networks():
-    text = read("docs/database/schema_relationships.md")
+    text = read("docs/reference/database/schema_relationships.md")
 
     assert text.count("```mermaid") >= 5
     for phrase in [
@@ -66,8 +66,8 @@ def test_doc001h_schema_relationships_include_mermaid_networks():
 
 
 def test_doc001h_database_entrypoint_and_legacy_warning_are_present():
-    readme = read("docs/database/README.md")
-    tables = read("docs/database/tables.md")
+    readme = read("docs/reference/database/README.md")
+    tables = read("docs/reference/database/tables.md")
 
     assert "schema_overview.md" in readme
     assert "schema_relationships.md" in readme
@@ -83,10 +83,10 @@ def test_doc001h_archive_path_status_classifies_chaotic_paths():
         "Current Truth entry",
         "Historical by default",
         "Archive candidate",
-        "docs/planning/",
-        "docs/source_analysis/",
+        "docs/archive/planning/",
+        "docs/archive/source-analysis/",
         "docs/archive/diagrams/",
-        "docs/project_state/",
+        "exports/project_state/",
         "Completed physical archive moves",
     ]:
         assert phrase in text
@@ -96,6 +96,6 @@ def test_doc001h_navigation_links_database_and_archive_surfaces():
     docs_readme = read("docs/README.md")
     archive_readme = read("docs/archive/README.md")
 
-    assert "docs/database/schema_overview.md" in docs_readme
-    assert "docs/database/schema_relationships.md" in docs_readme
+    assert "docs/reference/database/schema_overview.md" in docs_readme
+    assert "docs/reference/database/schema_relationships.md" in docs_readme
     assert "documentation_path_status.md" in archive_readme

@@ -34,6 +34,6 @@ def test_artifact_generator_uses_candidate_doc_path_and_approval_gated_wording()
 
     implementation = build_implementation(candidate, gate)
 
-    assert str(implementation.docs_path) == "docs/source_analysis/hdi_connector_candidate.md"
+    assert str(implementation.docs_path) == "docs/planning/active/source-candidates/hdi_connector_candidate.md"
     assert "Generated from DB-backed approval-gated connector evidence" in implementation.docs_content
     assert "does not approve" in implementation.docs_content

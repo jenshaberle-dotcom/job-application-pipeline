@@ -21,28 +21,26 @@ from pathlib import Path
 
 
 CURRENT_TRUTH_PATH_MARKERS = (
-    "docs/architecture/",
-    "docs/governance/",
-    "docs/security/",
+    "docs/current/",
 )
 
 REFERENCE_PATH_MARKERS = (
-    "docs/database/",
-    "docs/data_sources/",
-    "docs/design/",
-    "docs/observability/",
-    "docs/relevance/",
-    "docs/classification/",
-    "docs/reviews/",
+    "docs/reference/",
+    "docs/decisions/",
+    "docs/guides/",
 )
 
 HISTORICAL_PATH_MARKERS = (
-    "docs/planning/",
-    "docs/source_analysis/",
+    "docs/archive/planning/",
+    "docs/archive/source-analysis/",
+    "docs/archive/reviews/",
+    "docs/archive/visualization/",
+    "docs/archive/legacy/",
+    "docs/archive/documentation-rebaseline/",
 )
 
 HANDOVER_PATH_MARKERS = (
-    "docs/project_state/",
+    "exports/project_state/",
 )
 
 EXCLUDED_PARTS = {
@@ -115,7 +113,7 @@ def _contains_historical_language(text: str) -> bool:
 
 
 def _detect_adr_status(path: str, text: str) -> str | None:
-    if not path.startswith("docs/adr/") or not path.endswith(".md"):
+    if not path.startswith("docs/decisions/adr/") or not path.endswith(".md"):
         return None
     lines = text.splitlines()
     for idx, line in enumerate(lines):
@@ -155,7 +153,7 @@ def classify_document(path: str, text: str) -> tuple[str, str, str | None]:
             adr_status,
         )
 
-    if lower_path.startswith("docs/adr/"):
+    if lower_path.startswith("docs/decisions/adr/"):
         if adr_status == "needs_status_review":
             return (
                 "adr_needs_rebaseline",
@@ -247,7 +245,7 @@ def collect_documentation_rebaseline(root: Path) -> DocumentationRebaselineRepor
     priority_actions = [
         "Create a reduced Current Truth documentation layer before rewriting historical docs.",
         "Run ADR rebaseline: classify ADRs as Current, Superseded, Historical, or Needs rewrite.",
-        "Treat docs/planning and docs/source_analysis as historical by default unless promoted.",
+        "Treat docs/archive/planning and docs/archive/source-analysis as historical by default unless promoted.",
         "Rebuild current architecture and system diagrams after GOV-001 closes.",
         "Archive or deprecate misleading docs rather than patching obsolete narratives.",
         "Keep docs/project_state out of current documentation truth and out of accidental commits.",
@@ -268,9 +266,9 @@ def collect_documentation_rebaseline(root: Path) -> DocumentationRebaselineRepor
         counts={
             "markdown_files": len(items),
             "docs_markdown_files": sum(1 for item in items if item.path.startswith("docs/")),
-            "adr_files": sum(1 for item in items if item.path.startswith("docs/adr/")),
-            "planning_docs": sum(1 for item in items if item.path.startswith("docs/planning/")),
-            "source_analysis_docs": sum(1 for item in items if item.path.startswith("docs/source_analysis/")),
+            "adr_files": sum(1 for item in items if item.path.startswith("docs/decisions/adr/")),
+            "planning_docs": sum(1 for item in items if item.path.startswith("docs/archive/planning/")),
+            "source_analysis_docs": sum(1 for item in items if item.path.startswith("docs/archive/source-analysis/")),
             "current_truth_candidates": classification_counts.get("current_truth_candidate", 0),
             "archive_or_historical_candidates": classification_counts.get("archive_or_historical_candidate", 0),
             "adr_needs_rebaseline": classification_counts.get("adr_needs_rebaseline", 0),

@@ -3,7 +3,7 @@ from pathlib import Path
 
 MIGRATION = Path("db/migrations/045_create_connector_build_candidate_queue.sql")
 SCRIPT = Path("scripts/preview_connector_build_candidate_queue.py")
-DOC = Path("docs/source_analysis/connector_build_candidate_queue.md")
+DOC = Path("docs/archive/source-analysis/connector_build_candidate_queue.md")
 
 
 def test_connector_build_candidate_queue_migration_exists() -> None:

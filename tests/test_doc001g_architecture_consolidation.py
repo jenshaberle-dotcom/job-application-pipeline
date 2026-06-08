@@ -23,13 +23,13 @@ def test_readme_preserves_architecture_contract_anchors() -> None:
     text = _read("README.md")
 
     assert "ARCH-001-SAFETY-SECURITY-STATE" in text
-    assert "docs/governance/governance_foundation.md" in text
-    assert "docs/governance/documentation_drift_baseline.md" in text
-    assert "docs/planning/eo002b_candidate_reprocessing_url_finder_validation.md" in text
+    assert "docs/reference/governance/governance_foundation.md" in text
+    assert "docs/reference/governance/documentation_drift_baseline.md" in text
+    assert "docs/archive/planning/eo002b_candidate_reprocessing_url_finder_validation.md" in text
 
 
 def test_system_diagrams_include_current_control_surface_and_learning_loops() -> None:
-    text = _read("docs/architecture/system_diagrams.md")
+    text = _read("docs/current/system-diagrams.md")
 
     assert "End-to-end Search Intelligence control surface" in text
     assert "Learning and repair loops" in text
@@ -39,7 +39,7 @@ def test_system_diagrams_include_current_control_surface_and_learning_loops() ->
 
 
 def test_architecture_document_status_covers_all_architecture_markdown_files() -> None:
-    status = _read("docs/architecture/architecture_document_status.md")
+    status = _read("docs/archive/documentation-rebaseline/architecture_document_status.md")
     architecture_files = sorted(
         path.name for path in (ROOT / "docs" / "architecture").glob("*.md")
     )
@@ -51,9 +51,9 @@ def test_architecture_document_status_covers_all_architecture_markdown_files() -
 
 def test_legacy_search_intelligence_docs_are_not_primary_current_truth() -> None:
     for rel_path in [
-        "docs/architecture/search_intelligence_architecture.md",
-        "docs/architecture/search_intelligence_current_state.md",
-        "docs/architecture/historical_terminology.md",
+        "docs/reference/search-intelligence/architecture.md",
+        "docs/reference/search-intelligence/current_state.md",
+        "docs/archive/legacy/historical_terminology.md",
     ]:
         text = _read(rel_path)
         assert "DOC-001G note" in text

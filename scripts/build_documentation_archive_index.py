@@ -5,8 +5,8 @@ This script writes documentation index files only. It does not move, delete, or
 edit the historical documents themselves.
 
 Default targets:
-- docs/planning/
-- docs/source_analysis/
+- docs/archive/planning/
+- docs/archive/source-analysis/
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ from pathlib import Path
 
 
 DEFAULT_DIRECTORIES = [
-    Path("docs/planning"),
-    Path("docs/source_analysis"),
+    Path("docs/archive/planning"),
+    Path("docs/archive/source-analysis"),
 ]
 
 
@@ -99,11 +99,22 @@ def classify_historical_doc(relative_path: str, text: str) -> tuple[str, str]:
     )
 
 
+def _resolve_archive_directory(root: Path, directory: Path) -> Path:
+    if (root / directory).exists():
+        return root / directory
+    aliases = {
+        Path("docs/planning"): Path("docs/archive/planning"),
+        Path("docs/source_analysis"): Path("docs/archive/source-analysis"),
+        Path("docs/source-analysis"): Path("docs/archive/source-analysis"),
+    }
+    return root / aliases.get(directory, directory)
+
+
 def collect_archive_items(root: Path, directories: list[Path]) -> list[ArchiveIndexItem]:
     items: list[ArchiveIndexItem] = []
 
     for directory in directories:
-        base = root / directory
+        base = _resolve_archive_directory(root, directory)
         if not base.exists():
             continue
         for path in sorted(base.rglob("*.md")):
@@ -178,8 +189,8 @@ def render_archive_index(title: str, items: list[ArchiveIndexItem], *, generated
 
 def write_archive_indexes(root: Path) -> list[Path]:
     generated_at = datetime.now(timezone.utc).isoformat()
-    planning_items = collect_archive_items(root, [Path("docs/planning")])
-    source_items = collect_archive_items(root, [Path("docs/source_analysis")])
+    planning_items = collect_archive_items(root, [Path("docs/archive/planning")])
+    source_items = collect_archive_items(root, [Path("docs/archive/source-analysis")])
 
     archive_dir = root / "docs" / "archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
@@ -221,16 +232,15 @@ Generated at: {generated_at}
 
 This directory contains archive/deprecation indexes, not moved historical files.
 
-The project currently keeps historical files in their original directories while
-the Current Truth layer is being rebuilt. The indexes make that historical
+Historical files now live under `docs/archive/`. The indexes make that historical
 surface explicit and searchable without pretending it is current architecture.
 
 ## Indexes
 
 | Index | Scope | Items |
 |---|---|---:|
-| `planning_archive_index.md` | `docs/planning/` | {planning_count} |
-| `source_analysis_archive_index.md` | `docs/source_analysis/` | {source_analysis_count} |
+| `planning_archive_index.md` | `docs/archive/planning/` | {planning_count} |
+| `source_analysis_archive_index.md` | `docs/archive/source-analysis/` | {source_analysis_count} |
 
 ## Rule
 
@@ -247,8 +257,8 @@ def main() -> int:
     root = Path.cwd()
 
     if args.check:
-        planning_items = collect_archive_items(root, [Path("docs/planning")])
-        source_items = collect_archive_items(root, [Path("docs/source_analysis")])
+        planning_items = collect_archive_items(root, [Path("docs/archive/planning")])
+        source_items = collect_archive_items(root, [Path("docs/archive/source-analysis")])
         print("DOC-001E archive index check")
         print(f"planning_items={len(planning_items)}")
         print(f"source_analysis_items={len(source_items)}")

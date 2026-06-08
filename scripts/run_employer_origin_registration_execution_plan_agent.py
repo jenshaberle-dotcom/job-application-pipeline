@@ -12,7 +12,7 @@ from psycopg.rows import dict_row
 
 from src.config import get_database_config
 
-PLAN_DIR = Path("docs/source_analysis")
+PLAN_DIR = Path("docs/planning/active/source-candidates")
 
 
 @dataclass(frozen=True)

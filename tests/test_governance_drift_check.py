@@ -13,7 +13,7 @@ def _write(path: Path, text: str) -> None:
 def test_governance_drift_flags_unregistered_agent_script(tmp_path: Path) -> None:
     _write(tmp_path / "scripts/run_new_magic_agent.py", "print('x')\n")
     _write(tmp_path / "tests/test_new_magic_agent.py", "def test_x(): assert True\n")
-    _write(tmp_path / "docs/governance/agent_governance_registry.md", "# Registry\n")
+    _write(tmp_path / "docs/reference/governance/agent_governance_registry.md", "# Registry\n")
 
     report = collect_governance_drift(tmp_path, strict=True)
 
@@ -28,7 +28,7 @@ def test_governance_drift_flags_unregistered_agent_script(tmp_path: Path) -> Non
 def test_governance_drift_accepts_registered_agent_script(tmp_path: Path) -> None:
     _write(tmp_path / "scripts/run_registered_agent.py", "print('x')\n")
     _write(
-        tmp_path / "docs/governance/agent_governance_registry.md",
+        tmp_path / "docs/reference/governance/agent_governance_registry.md",
         "Registered script: run_registered_agent\n",
     )
 
@@ -40,7 +40,7 @@ def test_governance_drift_accepts_registered_agent_script(tmp_path: Path) -> Non
 
 def test_governance_drift_default_mode_is_advisory(tmp_path: Path) -> None:
     _write(tmp_path / "scripts/run_new_magic_agent.py", "print('x')\n")
-    _write(tmp_path / "docs/governance/agent_governance_registry.md", "# Registry\n")
+    _write(tmp_path / "docs/reference/governance/agent_governance_registry.md", "# Registry\n")
 
     report = collect_governance_drift(tmp_path, strict=False)
 
