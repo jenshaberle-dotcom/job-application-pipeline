@@ -70,3 +70,21 @@ def test_classifies_unqualified_abort_as_terminal_unclassified() -> None:
 
     assert result.category == "terminal_unclassified"
     assert result.terminal is True
+
+
+def test_classification_evidence_includes_stop002_registry_fields() -> None:
+    result = classify_gate_stop(
+        gate_name="relevance_gate",
+        gate_status="manual_review_required",
+        decision="manual_review_required",
+        stop_reason="bounded preview did not expose target-location or remote evidence",
+        evidence={},
+    )
+
+    evidence = result.as_evidence()
+
+    assert evidence["stop_lifecycle_class"] == "false_negative_risk_stop"
+    assert evidence["false_negative_risk"] == "high"
+    assert evidence["repair_strategy_id"] == "bounded_relevance_evidence_discovery"
+    assert evidence["recommended_next_safe_action"] == "run_relevance_evidence_discovery_plan"
+    assert evidence["safety_zone"] == "SZ2_EVIDENCE_AND_GATES"

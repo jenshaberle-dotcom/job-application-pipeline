@@ -104,8 +104,15 @@ class CandidateGateStopAnalysis:
     gate_stop: str | None
     gate_stop_decision: str | None
     gate_stop_category: str | None
+    gate_stop_lifecycle_class: str | None
     gate_stop_terminal: bool
     gate_stop_default_reprocess: str | None
+    gate_stop_false_negative_risk: str | None
+    gate_stop_repair_strategy_id: str | None
+    gate_stop_registry_next_safe_action: str | None
+    gate_stop_safety_zone: str | None
+    gate_stop_dry_run_required: bool | None
+    gate_stop_explicit_apply_required: bool | None
     first_missing_step: str | None
     passed_gate_count: int
     stop_like_gate_count: int
@@ -355,8 +362,15 @@ def analyze_candidate(
         gate_stop=stop_gate.gate_name if stop_gate else None,
         gate_stop_decision=stop_gate.decision if stop_gate else None,
         gate_stop_category=classification.category if classification else None,
+        gate_stop_lifecycle_class=classification.lifecycle_class if classification else None,
         gate_stop_terminal=bool(classification.terminal if classification else False),
         gate_stop_default_reprocess=classification.default_reprocess if classification else None,
+        gate_stop_false_negative_risk=classification.false_negative_risk if classification else None,
+        gate_stop_repair_strategy_id=classification.repair_strategy_id if classification else None,
+        gate_stop_registry_next_safe_action=classification.recommended_next_safe_action if classification else None,
+        gate_stop_safety_zone=classification.safety_zone if classification else None,
+        gate_stop_dry_run_required=classification.dry_run_required if classification else None,
+        gate_stop_explicit_apply_required=classification.explicit_apply_required if classification else None,
         first_missing_step=missing_step,
         passed_gate_count=passed_count,
         stop_like_gate_count=stop_count,
@@ -505,8 +519,8 @@ def markdown_report(payload: Mapping[str, Any]) -> str:
     lines.append("")
     lines.append("## Candidate Analysis")
     lines.append("")
-    lines.append("| Company | Effective Origin URL | URL Source | Gate Stop | Missing Step | Next Safe Action | Zone | Review |")
-    lines.append("|---|---|---|---|---|---|---|---|")
+    lines.append("| Company | Effective Origin URL | URL Source | Gate Stop | Stop Class | Repair Strategy | Missing Step | Next Safe Action | Zone | Review |")
+    lines.append("|---|---|---|---|---|---|---|---|---|---|")
     for item in analyses:
         lines.append(
             "| "
@@ -516,6 +530,8 @@ def markdown_report(payload: Mapping[str, Any]) -> str:
                     str(item.get("effective_origin_url") or "<none>"),
                     str(item.get("effective_origin_url_source") or "<none>"),
                     str(item.get("gate_stop") or "<none>"),
+                    str(item.get("gate_stop_lifecycle_class") or "<none>"),
+                    str(item.get("gate_stop_repair_strategy_id") or "<none>"),
                     str(item.get("first_missing_step") or "<none>"),
                     str(item.get("recommended_next_safe_action") or "<none>"),
                     str(item.get("safety_zone") or "<none>"),

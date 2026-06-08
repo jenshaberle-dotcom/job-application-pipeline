@@ -15,6 +15,7 @@ story.
 - `product/`
 - `scoring-and-gates/`
 - `search-intelligence/`
+  - `search-intelligence/stop_taxonomy_and_repair_registry.md`
 - `security/`
 - `sources/`
 - `glossary.md`
