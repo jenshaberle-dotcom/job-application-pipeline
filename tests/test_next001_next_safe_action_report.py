@@ -119,6 +119,17 @@ def test_next001_detects_stale_handover_recommendation(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
+    # Keep the fixture repository clean so restart_readiness can evaluate the
+    # stale handover signal instead of correctly stopping at worktree_dirty.
+    subprocess.run(["git", "add", str(handover_path.relative_to(tmp_path))], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "add stale handover fixture"],
+        cwd=tmp_path,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
 
     report = build_next_safe_action_report(tmp_path, output_dir=exports)
 
@@ -127,6 +138,7 @@ def test_next001_detects_stale_handover_recommendation(tmp_path: Path) -> None:
     assert "handover_completed_work_items_missing_present_head_items" in handover_signal["stale_reasons"]
     assert "handover_recommended_next_contains_already_implemented_item" in handover_signal["stale_reasons"]
     assert "VALIDATE-001A" in handover_signal["missing_completed_items_from_handover"]
+    assert report["restart_readiness"]["status"] == "refresh_handover_required"
 
 
 def test_next001_recommends_product_return_after_standard_workflow_is_present(tmp_path: Path) -> None:
@@ -143,6 +155,7 @@ def test_next001_recommends_product_return_after_standard_workflow_is_present(tm
     assert report["next_safe_action"]["requires_user_decision"] is True
     assert report["horizontal_freeze_path_bundle_mode"]["mode_id"] == "FREEZE-001A"
     assert report["horizontal_freeze_path_bundle_mode"]["available"] is True
+    assert report["restart_readiness"]["status"] == "ready_for_next_work_selection"
 
 
 def test_next001_dirty_worktree_prevents_new_work_recommendation(tmp_path: Path) -> None:
@@ -170,8 +183,10 @@ def test_next001_writes_json_and_markdown_reports(tmp_path: Path) -> None:
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     markdown = markdown_path.read_text(encoding="utf-8")
     assert payload["schema_version"] == NEXT001_SCHEMA_VERSION
+    assert "restart_readiness" in payload
     assert "# NEXT-001A Next Safe Action Report" in markdown
     assert "## Horizontal Freeze-Path Bundle Mode" in markdown
+    assert "## Restart readiness" in markdown
     assert "## Next safe action" in markdown
 
 

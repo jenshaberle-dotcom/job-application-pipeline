@@ -208,6 +208,42 @@ def build_horizontal_freeze_path_bundle_mode(
         ],
     }
 
+
+def build_restart_readiness(
+    *,
+    git_state: dict[str, object],
+    handover_signal: dict[str, object],
+    validation_signal: dict[str, object],
+) -> dict[str, object]:
+    if git_state.get("is_dirty"):
+        status = "worktree_dirty"
+        reason = "The worktree has uncommitted changes."
+    elif handover_signal.get("status") == "stale":
+        status = "refresh_handover_required"
+        reason = "The latest detected handover export does not match the current repository HEAD."
+    elif validation_signal.get("status") == "available" and not validation_signal.get("is_commit_profile_pass"):
+        status = "commit_validation_refresh_required"
+        reason = "A validation export exists, but it is not a passing commit-profile validation."
+    else:
+        status = "ready_for_next_work_selection"
+        reason = "Repository orientation is sufficient for selecting the next explicit work item."
+
+    return {
+        "status": status,
+        "reason": reason,
+        "minimal_restart_payload": {
+            "required_new_chat_artifacts": [
+                "handover_json",
+                "handover_zip",
+            ],
+            "optional_new_chat_artifacts": [
+                "handover_markdown",
+            ],
+            "first_read_key": "minimal_restart_payload",
+            "fallback_when_uploads_are_limited": "paste minimal_restart_payload plus current NEXT-001 and VALIDATE-001 summaries",
+        },
+    }
+
 def _run_command(root: Path, command: list[str]) -> CommandResult:
     try:
         completed = subprocess.run(
@@ -604,6 +640,11 @@ def build_next_safe_action_report(
         validation_signal=validation_signal,
         handover_signal=handover_signal,
     )
+    restart_readiness = build_restart_readiness(
+        git_state=git_state,
+        handover_signal=handover_signal,
+        validation_signal=validation_signal,
+    )
 
     standard_items = [
         item for item in tooling_status if item.get("required_for_standard_workflow") is True
@@ -643,6 +684,7 @@ def build_next_safe_action_report(
         "validation_signal": validation_signal,
         "handover_signal": handover_signal,
         "product_return_candidates": PRODUCT_RETURN_CANDIDATES,
+        "restart_readiness": restart_readiness,
         "next_safe_action": next_safe_action,
     }
 
@@ -652,6 +694,7 @@ def render_markdown(report: dict[str, object]) -> str:
     completion = report["standard_workflow_completion"]
     handover_signal = report["handover_signal"]
     validation_signal = report["validation_signal"]
+    restart_readiness = report.get("restart_readiness") or {}
     next_safe_action = report["next_safe_action"]
     bundle_mode = report.get("horizontal_freeze_path_bundle_mode") or {}
 
@@ -734,6 +777,11 @@ def render_markdown(report: dict[str, object]) -> str:
 
     lines.extend(
         [
+            "",
+            "## Restart readiness",
+            "",
+            f"- Status: `{restart_readiness.get('status')}`",
+            f"- Reason: {restart_readiness.get('reason')}",
             "",
             "## Next safe action",
             "",

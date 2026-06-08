@@ -48,6 +48,12 @@ REQUIRED_ANCHORS = {
         "exact or non-exact repo-state flag",
         "recommended next work item",
     ],
+    "minimal_restart_payload": [
+        "## Minimal restart payload",
+        "minimal_restart_payload",
+        "required_new_chat_artifacts",
+        "requires_explicit_approval_before_external_or_product_action",
+    ],
     "freeze_path_bundle_mode": [
         "## Freeze-path bundle mode",
         "horizontal governance, validation, inspection, handover",
