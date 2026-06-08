@@ -2,11 +2,11 @@
 
 Status: reference navigation
 
-Reference documentation is detailed lookup material. It is not the main project
-story and should not duplicate `current/` prose.
+Reference documentation is lookup material. It should describe stable contracts,
+models and detailed technical surfaces without duplicating the current product
+story.
 
 - `agents/`
-- `architecture/`
 - `database/`
 - `documentation/`
 - `governance/`
@@ -18,3 +18,7 @@ story and should not duplicate `current/` prose.
 - `security/`
 - `sources/`
 - `glossary.md`
+
+If a reference file becomes a build log, move it to `../archive/`. If it becomes
+current truth, promote the distilled version into `../current/` and leave the
+detail here.

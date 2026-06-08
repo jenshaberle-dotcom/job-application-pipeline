@@ -1,14 +1,16 @@
 # Documentation
 
 Status: current documentation entry point
-Scope: DOC-001L information architecture
+Scope: DOC-001M documentation architecture and artifact discipline
 
 ## Purpose
 
-This directory is intentionally small at the top level. It separates current
-truth, practical guides, reference material, decisions, active planning, and
-history so a reader does not have to excavate old build notes to understand the
-project.
+The documentation is intentionally small at the top level. It separates what is
+currently true, how to work with the project, detailed reference material,
+architecture decisions, active planning and historical build traces.
+
+The goal is not to keep every useful note visible forever. The goal is to make
+the current system understandable without archaeology.
 
 ## Read this first
 
@@ -23,24 +25,29 @@ project.
 
 | Area | Purpose | Rule |
 |---|---|---|
-| `current/` | Short, curated truth about the current product and architecture. | Keep small; promote only stable facts. |
-| `guides/` | How-to documentation for development, operation and testing. | Practical instructions live here, not in the root README. |
-| `reference/` | Detailed lookup material: database, agents, governance, sources, security, scoring and glossary. | Precise detail is welcome, but not the main story. |
-| `decisions/` | ADRs and their DOC-001 status surface. | Decisions are traceability, not general reference prose. |
-| `planning/` | Active planning only. | Old work-item notes belong in `archive/planning/`. |
+| `current/` | Short, maintained truth about the current product and architecture. | Keep small; promote only stable facts. |
+| `guides/` | How-to documentation for development, operation and testing. | Practical commands live here, not in the root README. |
+| `reference/` | Detailed lookup material: database, agents, governance, sources, security, scoring and glossary. | Precise detail is welcome; story duplication is not. |
+| `decisions/` | ADRs and their DOC-001 status surface. | Decisions explain why, not how-to or current-state prose. |
+| `planning/` | Active planning only. | One active roadmap plus short active plans; old work-item notes go to archive. |
 | `archive/` | Historical build notes, old analyses, reviews and replaced diagrams. | Useful for traceability, not authoritative current truth. |
 
 ## Artifact rule
 
 The documentation architecture applies to files, not only folders:
 
-- current docs should be few, maintained and readable;
-- reference docs should explain stable concepts or contracts;
-- planning docs should be active and short-lived;
-- historical work-item traces should be archived instead of half-promoted;
+- a current file should earn its place by being maintained, short and useful;
+- a guide should help the operator do a task without becoming architecture prose;
+- a reference file should describe a stable contract, model or lookup surface;
+- a planning file should be active, temporary and easy to retire;
+- historical traces should be archived or deleted instead of half-promoted;
 - exports and handover files must not become source-of-truth documentation.
 
-The project uses docs-as-code guards for this:
+New documentation should normally update an existing artifact before creating a
+new one. Add a new file only when it has a distinct audience, lifecycle or
+contract.
+
+## Docs-as-code guards
 
 - `scripts/check_documentation_architecture.py`
 - `scripts/check_documentation_references.py`

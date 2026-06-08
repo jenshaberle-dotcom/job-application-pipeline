@@ -6,58 +6,51 @@ Primary scope: Hannover and remote-in-Germany job-market intelligence
 
 ## Why this project exists
 
-Finding a few relevant jobs is easy. Finding the right market signals reliably
-over time is harder: good employers can be hidden behind noisy aggregators,
-missing career-page evidence, strict filters, stale search terms or safe-looking
-pipeline stops that create false negatives.
+A normal job search can find a few interesting postings. The harder problem is
+noticing what the search keeps missing: relevant employers hidden behind noisy
+aggregators, weak search terms, missing career-page evidence, strict gates or
+safe-looking stops that quietly become false negatives.
 
-This project builds a personal Search Intelligence system for that problem. It
-is not optimized for maximum scraping volume. It is optimized for bounded
-acquisition, evidence quality, explainable stops, next safe actions and
-controlled source activation.
+This repository builds a personal Search Intelligence system around that
+problem. It is not a scraper demo and not a volume game. The value is in bounded
+acquisition, evidence, explainable stops, repair paths and controlled source
+activation.
 
-This is a portfolio project, but the engineering standard is product-grade:
-traceable decisions, explicit gates, governance around agent-like helpers,
-repeatable tests and documentation that survives more than one implementation
-wave.
+This is a portfolio project, but the engineering bar is deliberately
+product-like: traceable decisions, tests, explicit gates, agent governance and
+clean documentation instead of clever one-off scripts.
 
-## Current system in one sentence
+## System in one sentence
 
 ```text
 Market signals -> candidates -> origin/detail evidence -> gates/stops/repair
 -> connector readiness -> controlled sources -> Bronze/Silver/Gold -> Control Center
 ```
 
-## What this project is not
+## Deep Ocean language
 
-It is not a scraper demo, not a pile of one-off job-search scripts, and not a
-CSV/Excel-driven pipeline. Aggregators are treated as discovery inputs, not as
-uncontrolled source truth.
+Deep Ocean is the product metaphor, not decoration:
 
-## Deep Ocean design language
+- sonar for market sensing,
+- depth for evidence quality,
+- pressure for gates and risk,
+- control surfaces for approvals and next safe actions,
+- repair loops for learning without blind retries.
 
-Deep Ocean is a practical product metaphor:
+## Working principles
 
-- **Sonar** for market sensing and signal discovery.
-- **Depth** for evidence quality and confidence.
-- **Control surfaces** for gates, stops, approvals and next safe actions.
-- **Repair loops** for false-negative-aware learning instead of blind retries.
-
-## Core principles
-
-- Defensive acquisition beats aggressive crawling.
-- Raw discovery may be broad; promotion and activation must be strict.
-- Evidence comes before connector build.
-- Dry-run comes before apply.
+- Defensive acquisition over aggressive crawling.
+- Broad raw discovery, strict promotion and activation.
+- Evidence before connector build.
+- Dry-run before apply.
 - No commits on `main`.
-- Exports are reports, not source-of-truth handoffs or pipeline inputs.
-- Agent-like behavior needs governance, capability boundaries and auditability.
+- Reports and exports are outputs, not source-of-truth inputs.
+- Agent-like behavior needs clear boundaries and auditability.
 
 ## Documentation
 
-Start with `docs/README.md`.
-
-The documentation is organized as:
+Start with `docs/README.md`. The documentation is intentionally organized into a
+small active surface:
 
 ```text
 docs/
@@ -88,11 +81,11 @@ Primary entry points:
 | `scripts/` | CLI agents, checks and operator commands. |
 | `tests/` | Regression and contract tests. |
 | `db/` | Database migrations and schema assets. |
-| `docs/current/` | Current product, architecture, pipeline, governance and operations truth. |
+| `docs/current/` | Small current product, architecture, pipeline, governance and operations truth. |
 | `docs/guides/` | Practical how-to documentation. |
 | `docs/reference/` | Detailed lookup material. |
 | `docs/decisions/` | ADRs and ADR status control. |
-| `docs/archive/planning/` | Active planning only. |
+| `docs/planning/` | Active planning only. |
 | `docs/archive/` | Historical documentation and replaced artifacts. |
 | `exports/` | Generated reports and handover artifacts; not pipeline input. |
 
