@@ -273,6 +273,38 @@ def fetch_rows_linked_by_candidate_id(
         return link_column, rows_to_json_safe(cur.fetchall())
 
 
+def build_diagnosis_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
+    schema = payload["schema_contract"]
+    mentioned = payload["rows_mentioning_company"]
+    linked = payload["rows_linked_by_candidate_id"]
+    mention_count = len(mentioned)
+    linked_count = len(linked)
+
+    return {
+        "company_key": payload["company_key"],
+        "candidate_identity_column": schema["candidate_identity_column"],
+        "candidate_identity_values": schema["candidate_identity_values"],
+        "candidate_row_count": len(payload["representative_candidate_rows"]),
+        "relevant_table_count": len(payload["relevant_tables"]),
+        "tables_mentioning_company_count": mention_count,
+        "tables_linked_by_candidate_id_count": linked_count,
+        "mention_to_link_gap": max(mention_count - linked_count, 0),
+        "linkage_pattern": classify_linkage_pattern(mention_count=mention_count, linked_count=linked_count),
+    }
+
+
+def classify_linkage_pattern(*, mention_count: int, linked_count: int) -> str:
+    if mention_count == 0 and linked_count == 0:
+        return "no_observable_candidate_surface"
+    if linked_count == 0:
+        return "unlinked_evidence_surface"
+    if linked_count < max(1, mention_count // 2):
+        return "weak_candidate_lifecycle_linkage"
+    if linked_count < mention_count:
+        return "partial_candidate_lifecycle_linkage"
+    return "strong_candidate_lifecycle_linkage"
+
+
 def build_diagnosis_payload(
     conn: psycopg.Connection[Any],
     *,
@@ -303,7 +335,7 @@ def build_diagnosis_payload(
                 "rows": linked,
             }
 
-    return {
+    payload = {
         "campaign": "DIAG-001 Generic Repair Diagnosis",
         "generated_at": datetime.now(UTC).isoformat(),
         "company_key": company_key,
@@ -334,6 +366,8 @@ def build_diagnosis_payload(
             "Would the observed failure pattern explain peer candidates with detail_discovery_gap or weak_relevance_evidence?",
         ],
     }
+    payload["summary"] = build_diagnosis_summary(payload)
+    return payload
 
 
 def render_markdown(payload: Mapping[str, Any]) -> str:
@@ -411,6 +445,96 @@ def render_markdown(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def build_portfolio_matrix_payload(payloads: Sequence[Mapping[str, Any]], *, benchmark_label: str) -> dict[str, Any]:
+    rows = [dict(payload["summary"]) for payload in payloads]
+    rows.sort(key=lambda row: (row["linkage_pattern"], row["company_key"]))
+
+    linkage_counts: dict[str, int] = {}
+    for row in rows:
+        pattern = str(row["linkage_pattern"])
+        linkage_counts[pattern] = linkage_counts.get(pattern, 0) + 1
+
+    return {
+        "campaign": "DIAG-001B Portfolio Failure Pattern Matrix",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "benchmark_label": benchmark_label,
+        "boundary": READ_ONLY_BOUNDARY,
+        "summary": {
+            "company_count": len(rows),
+            "linkage_pattern_counts": linkage_counts,
+            "companies_with_unlinked_or_weak_surfaces": [
+                row["company_key"]
+                for row in rows
+                if row["linkage_pattern"] in {"unlinked_evidence_surface", "weak_candidate_lifecycle_linkage"}
+            ],
+        },
+        "matrix_rows": rows,
+        "generic_diagnosis_questions": [
+            "Do multiple companies show the same linkage pattern, indicating a generic observability gap?",
+            "Are evidence mentions present but insufficiently attached to candidate lifecycle state?",
+            "Should the next capability improvement target URL recovery, detail evidence, or candidate/evidence linkage?",
+        ],
+    }
+
+
+def render_portfolio_matrix_markdown(payload: Mapping[str, Any]) -> str:
+    summary = payload["summary"]
+    rows = payload["matrix_rows"]
+
+    lines = [
+        "# DIAG-001B Portfolio Failure Pattern Matrix",
+        "",
+        f"Generated at: `{payload['generated_at']}`",
+        f"Benchmark label: `{payload['benchmark_label']}`",
+        "",
+        "## Boundary",
+        "",
+        "This matrix is read-only. It does not perform external requests and does not write candidate, gate, evidence, connector, source, Bronze or Silver state.",
+        "",
+        "## Summary",
+        "",
+        f"- Companies: `{summary['company_count']}`",
+        f"- Linkage pattern counts: `{summary['linkage_pattern_counts']}`",
+        f"- Companies with unlinked or weak surfaces: `{summary['companies_with_unlinked_or_weak_surfaces']}`",
+        "",
+        "## Matrix",
+        "",
+        "| Company | Candidate identity | Mentioning tables | Linked tables | Gap | Linkage pattern |",
+        "| --- | --- | ---: | ---: | ---: | --- |",
+    ]
+
+    for row in rows:
+        lines.append(
+            "| "
+            f"`{row['company_key']}` | "
+            f"`{row['candidate_identity_column']}={row['candidate_identity_values']}` | "
+            f"{row['tables_mentioning_company_count']} | "
+            f"{row['tables_linked_by_candidate_id_count']} | "
+            f"{row['mention_to_link_gap']} | "
+            f"`{row['linkage_pattern']}` |"
+        )
+
+    lines.extend([
+        "",
+        "## Generic diagnosis questions",
+        "",
+    ])
+    for question in payload["generic_diagnosis_questions"]:
+        lines.append(f"- {question}")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_portfolio_matrix_reports(payload: Mapping[str, Any], output_dir: Path, label: str) -> tuple[Path, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stem = safe_report_stem(label)
+    json_path = output_dir / f"{stem}_portfolio_failure_matrix.json"
+    md_path = output_dir / f"{stem}_portfolio_failure_matrix.md"
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    md_path.write_text(render_portfolio_matrix_markdown(payload), encoding="utf-8")
+    return json_path, md_path
+
+
 def safe_report_stem(label: str) -> str:
     cleaned = "".join(char.lower() if char.isalnum() else "_" for char in label.strip())
     return "_".join(part for part in cleaned.split("_") if part) or "generic_repair_diagnosis"
@@ -434,7 +558,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "without applying employer-specific repair logic."
         )
     )
-    parser.add_argument("--company-key", required=True)
+    parser.add_argument(
+        "--company-key",
+        action="append",
+        required=True,
+        help="Representative company key to diagnose. May be provided multiple times to build a portfolio matrix.",
+    )
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument("--benchmark-label", default="generic_repair_diagnosis")
     parser.add_argument("--row-limit", type=int, default=30)
@@ -444,28 +573,31 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    with connect_database() as conn:
-        payload = build_diagnosis_payload(conn, company_key=args.company_key, row_limit=args.row_limit)
+    company_keys = list(args.company_key)
 
-    print(
-        "summary: "
-        + json.dumps(
-            {
-                "company_key": payload["company_key"],
-                "candidate_identity_column": payload["schema_contract"]["candidate_identity_column"],
-                "candidate_identity_values": payload["schema_contract"]["candidate_identity_values"],
-                "relevant_table_count": len(payload["relevant_tables"]),
-                "tables_mentioning_company_count": len(payload["rows_mentioning_company"]),
-                "tables_linked_by_candidate_id_count": len(payload["rows_linked_by_candidate_id"]),
-            },
-            sort_keys=True,
-        )
-    )
+    with connect_database() as conn:
+        payloads = [
+            build_diagnosis_payload(conn, company_key=company_key, row_limit=args.row_limit)
+            for company_key in company_keys
+        ]
+
+    if len(payloads) == 1:
+        payload = payloads[0]
+        print("summary: " + json.dumps(payload["summary"], sort_keys=True))
+
+        if args.write_report:
+            json_path, md_path = write_reports(payload, Path(args.output_dir), args.benchmark_label)
+            print(f"json_report_written: {json_path}")
+            print(f"markdown_report_written: {md_path}")
+        return 0
+
+    matrix_payload = build_portfolio_matrix_payload(payloads, benchmark_label=args.benchmark_label)
+    print("portfolio_summary: " + json.dumps(matrix_payload["summary"], sort_keys=True))
 
     if args.write_report:
-        json_path, md_path = write_reports(payload, Path(args.output_dir), args.benchmark_label)
-        print(f"json_report_written: {json_path}")
-        print(f"markdown_report_written: {md_path}")
+        json_path, md_path = write_portfolio_matrix_reports(matrix_payload, Path(args.output_dir), args.benchmark_label)
+        print(f"portfolio_json_report_written: {json_path}")
+        print(f"portfolio_markdown_report_written: {md_path}")
 
     return 0
 

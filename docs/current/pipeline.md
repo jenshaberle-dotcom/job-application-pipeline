@@ -79,5 +79,6 @@ single candidate through the gates.
 
 The diagnosis is read-only, performs no external requests, discovers relevant
 schema surfaces through `information_schema`, and writes JSON/Markdown reports to
-`exports/` when requested.
+`exports/` when requested. DIAG-001B adds portfolio matrix mode so representative
+employer cases can be compared before any generic repair capability is changed.
 <!-- END DIAG-001-GENERIC-REPAIR-DIAGNOSIS -->

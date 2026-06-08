@@ -67,3 +67,17 @@ stuck and which generic pipeline capability should be improved next.
 
 DIAG-001 should normally be used before implementing a repair-agent change when
 an individual employer exposes a suspected generic failure pattern.
+
+## DIAG-001B Portfolio Failure Pattern Matrix
+
+DIAG-001B extends the single-company diagnosis with a portfolio matrix mode.
+The same script may be called with multiple `--company-key` values. In that
+case it compares candidate identity, mentioning tables, candidate-linked tables
+and linkage patterns across representative companies.
+
+The matrix exists to prevent one-company fixes. A weak or unlinked evidence
+surface should become a generic capability improvement only when it can plausibly
+help multiple candidates or a reusable failure class.
+
+The JSON matrix report contains a stable `summary` and `matrix_rows` contract for
+downstream analysis and future Control Center views.
