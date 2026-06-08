@@ -29,6 +29,7 @@ TOOLING_SCRIPTS = [
     "scripts/run_handover001_validate_contract.py",
     "scripts/run_rules001_validate_index.py",
     "scripts/run_validate001_unified_validation.py",
+    "scripts/run_next001_next_safe_action_report.py",
 ]
 
 TOOLING_TESTS = [
@@ -37,6 +38,7 @@ TOOLING_TESTS = [
     "tests/test_handover001_contract.py",
     "tests/test_rules001_project_rules_index.py",
     "tests/test_validate001_unified_validation.py",
+    "tests/test_next001_next_safe_action_report.py",
 ]
 
 

@@ -1,0 +1,743 @@
+#!/usr/bin/env python3
+"""NEXT-001A next safe action report.
+
+NEXT-001A is a read-only orientation report for the local engineering workflow.
+It summarizes the current repository state, checks which Tooling/Governance
+building blocks are present in the current Git HEAD, detects stale handover
+signals, and recommends the next safe action without mutating project state.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Iterable, Sequence
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.check_documentation_architecture import build_documentation_architecture_report
+
+NEXT001_SCHEMA_VERSION = "next001.next_safe_action_report.v1"
+DEFAULT_OUTPUT_DIR = Path("exports")
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    command: list[str]
+    returncode: int
+    stdout: str
+    stderr: str
+
+    @property
+    def ok(self) -> bool:
+        return self.returncode == 0
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "command": self.command,
+            "returncode": self.returncode,
+            "ok": self.ok,
+            "stdout": self.stdout,
+            "stderr": self.stderr,
+        }
+
+
+@dataclass(frozen=True)
+class WorkItemContract:
+    item_id: str
+    title: str
+    stage: str
+    required_for_standard_workflow: bool
+    required_paths: tuple[str, ...]
+    notes: str = ""
+
+
+TOOLING_GOVERNANCE_ITEMS: tuple[WorkItemContract, ...] = (
+    WorkItemContract(
+        item_id="STATE-001A",
+        title="Project State Snapshot Contract",
+        stage="implemented_foundation",
+        required_for_standard_workflow=True,
+        required_paths=(
+            "scripts/run_project_state_snapshot.py",
+            "tests/test_project_state_snapshot.py",
+        ),
+    ),
+    WorkItemContract(
+        item_id="INSPECT-001A",
+        title="Repo/DB/Docs Inspection Bundle",
+        stage="implemented_foundation",
+        required_for_standard_workflow=True,
+        required_paths=(
+            "scripts/run_inspect001_repo_db_docs_bundle.py",
+            "tests/test_inspect001_repo_db_docs_bundle.py",
+            "docs/reference/governance/workflow/inspect001_repo_db_docs_bundle.md",
+        ),
+    ),
+    WorkItemContract(
+        item_id="HANDOVER-001A",
+        title="Standard Chat Handover Contract",
+        stage="implemented_foundation",
+        required_for_standard_workflow=True,
+        required_paths=(
+            "scripts/run_handover001_validate_contract.py",
+            "tests/test_handover001_contract.py",
+            "docs/reference/governance/workflow/handover001_standard_chat_handover_contract.md",
+        ),
+    ),
+    WorkItemContract(
+        item_id="RULES-001A",
+        title="Project Rules Index",
+        stage="implemented_foundation",
+        required_for_standard_workflow=True,
+        required_paths=(
+            "scripts/run_rules001_validate_index.py",
+            "tests/test_rules001_project_rules_index.py",
+            "docs/reference/governance/workflow/rules001_project_rules_index.md",
+        ),
+    ),
+    WorkItemContract(
+        item_id="VALIDATE-001A",
+        title="Unified Validation Command",
+        stage="implemented_foundation",
+        required_for_standard_workflow=True,
+        required_paths=(
+            "scripts/run_validate001_unified_validation.py",
+            "tests/test_validate001_unified_validation.py",
+            "docs/reference/governance/workflow/validate001_unified_validation_command.md",
+        ),
+    ),
+    WorkItemContract(
+        item_id="NEXT-001A",
+        title="Next Safe Action Report",
+        stage="standardization_closure",
+        required_for_standard_workflow=True,
+        required_paths=(
+            "scripts/run_next001_next_safe_action_report.py",
+            "tests/test_next001_next_safe_action_report.py",
+            "docs/reference/governance/workflow/next001_next_safe_action_report.md",
+        ),
+    ),
+    WorkItemContract(
+        item_id="MCP-001",
+        title="Project State Server, read-only-first",
+        stage="backlog_only",
+        required_for_standard_workflow=False,
+        required_paths=(),
+        notes="Backlog/tooling lever only. Do not implement unless explicitly promoted.",
+    ),
+)
+
+PRODUCT_RETURN_CANDIDATES = [
+    "SENSOR-001A BA Remote/Nationwide Coverage Validation",
+]
+
+
+def iso_now() -> str:
+    return datetime.now(tz=UTC).isoformat().replace("+00:00", "Z")
+
+
+def utc_timestamp() -> str:
+    return datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
+
+
+def safety_boundary() -> dict[str, bool]:
+    return {
+        "read_only": True,
+        "external_requests": False,
+        "database_reads": False,
+        "database_writes": False,
+        "pipeline_mutation": False,
+        "candidate_or_gate_mutation": False,
+        "connector_activation": False,
+        "commit_or_merge_actions": False,
+    }
+
+
+def _run_command(root: Path, command: list[str]) -> CommandResult:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=root,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError as exc:
+        return CommandResult(command=command, returncode=127, stdout="", stderr=str(exc))
+    return CommandResult(
+        command=command,
+        returncode=completed.returncode,
+        stdout=completed.stdout.strip(),
+        stderr=completed.stderr.strip(),
+    )
+
+
+def _lines(value: str) -> list[str]:
+    return [line for line in value.splitlines() if line.strip()]
+
+
+def _status_path(status_line: str) -> str | None:
+    """Extract the path part from git status --short output defensively.
+
+    Git porcelain normally uses two status columns followed by a space and the
+    path, for example ` M docs/file.md` or `M  docs/file.md`. Some copied or
+    serialized outputs may collapse one leading space to `M docs/file.md`.
+    NEXT-001A should not corrupt paths such as `docs/...` into `ocs/...`.
+    """
+    line = status_line.rstrip()
+    if not line:
+        return None
+    if len(line) >= 3 and line[2] == " ":
+        path = line[3:]
+    elif len(line) >= 2 and line[1] == " ":
+        path = line[2:]
+    else:
+        path = line.strip()
+    if " -> " in path:
+        path = path.split(" -> ", 1)[1]
+    return path.strip() or None
+
+
+def _changed_files(status_lines: Iterable[str]) -> list[str]:
+    files: list[str] = []
+    for line in status_lines:
+        path = _status_path(line)
+        if path is not None:
+            files.append(path)
+    return sorted(files)
+
+
+def build_git_state(root: Path) -> dict[str, object]:
+    branch = _run_command(root, ["git", "branch", "--show-current"])
+    head = _run_command(root, ["git", "log", "-1", "--oneline", "--decorate"])
+    head_hash = _run_command(root, ["git", "rev-parse", "--short", "HEAD"])
+    status = _run_command(root, ["git", "status", "--short"])
+    recent_log = _run_command(root, ["git", "log", "--oneline", "-5"])
+    remote_status = _run_command(root, ["git", "status", "--branch", "--short"])
+
+    status_lines = _lines(status.stdout) if status.ok else []
+    return {
+        "available": branch.ok and head.ok and status.ok,
+        "branch": branch.stdout if branch.ok else None,
+        "head": head.stdout if head.ok else None,
+        "head_hash": head_hash.stdout if head_hash.ok else None,
+        "is_dirty": bool(status_lines),
+        "status_short": status_lines,
+        "changed_files": _changed_files(status_lines),
+        "recent_log": _lines(recent_log.stdout) if recent_log.ok else [],
+        "remote_status": _lines(remote_status.stdout) if remote_status.ok else [],
+        "command_errors": [
+            result.to_dict()
+            for result in [branch, head, head_hash, status, recent_log, remote_status]
+            if not result.ok
+        ],
+    }
+
+
+def path_present_in_head(root: Path, relative_path: str) -> bool:
+    result = _run_command(root, ["git", "cat-file", "-e", f"HEAD:{relative_path}"])
+    return result.ok
+
+
+def build_tooling_governance_status(root: Path) -> list[dict[str, object]]:
+    status_lines = _run_command(root, ["git", "status", "--short"]).stdout.splitlines()
+    changed_paths = {path for line in status_lines if (path := _status_path(line)) is not None}
+    entries: list[dict[str, object]] = []
+    for item in TOOLING_GOVERNANCE_ITEMS:
+        path_states = []
+        for relative_path in item.required_paths:
+            worktree_present = (root / relative_path).exists()
+            head_present = path_present_in_head(root, relative_path)
+            dirty = (
+                relative_path in changed_paths
+                or any(path.endswith("/") and relative_path.startswith(path) for path in changed_paths)
+            )
+            path_states.append(
+                {
+                    "path": relative_path,
+                    "present_in_worktree": worktree_present,
+                    "present_in_head": head_present,
+                    "dirty": dirty,
+                }
+            )
+
+        if not item.required_paths:
+            status = "backlog_only"
+        elif all(path["present_in_head"] for path in path_states):
+            status = "present_in_head"
+        elif all(path["present_in_worktree"] for path in path_states):
+            status = "present_in_worktree_only"
+        elif any(path["present_in_worktree"] for path in path_states):
+            status = "partial_in_worktree"
+        else:
+            status = "missing"
+
+        entries.append(
+            {
+                "item_id": item.item_id,
+                "title": item.title,
+                "stage": item.stage,
+                "required_for_standard_workflow": item.required_for_standard_workflow,
+                "status": status,
+                "paths": path_states,
+                "notes": item.notes,
+            }
+        )
+    return entries
+
+
+def build_documentation_state(root: Path) -> dict[str, object]:
+    report = build_documentation_architecture_report(root)
+    return {
+        "architecture_status": report.status,
+        "issue_count": report.issue_count,
+        "unexpected_top_level_dirs": report.unexpected_top_level_dirs,
+        "unexpected_top_level_files": report.unexpected_top_level_files,
+        "forbidden_top_level_dirs_present": report.forbidden_top_level_dirs_present,
+        "missing_required_files": report.missing_required_files,
+    }
+
+
+def _read_json_file(path: Path) -> dict[str, object] | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def discover_latest_json(output_dir: Path, patterns: Sequence[str]) -> Path | None:
+    candidates: list[Path] = []
+    for pattern in patterns:
+        candidates.extend(output_dir.glob(pattern))
+    candidates = [path for path in candidates if path.is_file()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def build_validation_signal(root: Path, validation_json: Path | None, output_dir: Path) -> dict[str, object]:
+    discovered_path = validation_json
+    if discovered_path is None:
+        discovered_path = discover_latest_json(output_dir, ["validate001_unified_validation_*.json"])
+
+    if discovered_path is None:
+        return {
+            "status": "not_available",
+            "path": None,
+            "profile": None,
+            "overall_status": None,
+            "required_failure_count": None,
+            "is_commit_profile_pass": False,
+        }
+
+    if not discovered_path.is_absolute():
+        discovered_path = root / discovered_path
+    payload = _read_json_file(discovered_path)
+    if payload is None:
+        return {
+            "status": "unreadable",
+            "path": str(discovered_path),
+            "profile": None,
+            "overall_status": None,
+            "required_failure_count": None,
+            "is_commit_profile_pass": False,
+        }
+
+    return {
+        "status": "available",
+        "path": str(discovered_path),
+        "profile": payload.get("profile"),
+        "overall_status": payload.get("overall_status"),
+        "required_failure_count": payload.get("required_failure_count"),
+        "is_commit_profile_pass": payload.get("profile") == "commit" and payload.get("overall_status") == "pass",
+    }
+
+
+def _head_matches(current_head: str | None, handover_head: object) -> bool:
+    if not current_head or not isinstance(handover_head, str):
+        return False
+    current_hash = current_head.split(" ", 1)[0]
+    handover_hash = handover_head.split(" ", 1)[0]
+    return bool(current_hash) and current_hash == handover_hash
+
+
+def build_handover_signal(
+    root: Path,
+    git_state: dict[str, object],
+    tooling_status: Sequence[dict[str, object]],
+    handover_json: Path | None,
+    output_dir: Path,
+) -> dict[str, object]:
+    discovered_path = handover_json
+    if discovered_path is None:
+        # Only chat handover exports are valid handover signals. Contract
+        # validators also contain "handover" in their filename, but they do not
+        # carry git/completed-work/recommended-next state and must not be treated
+        # as stale chat handovers.
+        discovered_path = discover_latest_json(output_dir, ["efficient_handover*.json"])
+
+    if discovered_path is None:
+        return {
+            "status": "not_provided",
+            "path": None,
+            "stale_reasons": [],
+            "completed_work_items": [],
+            "recommended_next": [],
+        }
+
+    if not discovered_path.is_absolute():
+        discovered_path = root / discovered_path
+    payload = _read_json_file(discovered_path)
+    if payload is None:
+        return {
+            "status": "unreadable",
+            "path": str(discovered_path),
+            "stale_reasons": ["handover_json_unreadable"],
+            "completed_work_items": [],
+            "recommended_next": [],
+        }
+
+    stale_reasons: list[str] = []
+    handover_head = (payload.get("git") or {}).get("head") if isinstance(payload.get("git"), dict) else None
+    if not _head_matches(str(git_state.get("head")), handover_head):
+        stale_reasons.append("handover_git_head_does_not_match_current_head")
+
+    completed_items = payload.get("completed_work_items") or []
+    if not isinstance(completed_items, list):
+        completed_items = []
+    completed_set = {str(item) for item in completed_items}
+
+    present_standard_items = {
+        str(item["item_id"])
+        for item in tooling_status
+        if item.get("required_for_standard_workflow") is True and item.get("status") == "present_in_head"
+    }
+    missing_from_handover = sorted(present_standard_items - completed_set)
+    if missing_from_handover:
+        stale_reasons.append("handover_completed_work_items_missing_present_head_items")
+
+    recommended_next = payload.get("recommended_next") or []
+    if not isinstance(recommended_next, list):
+        recommended_next = []
+    recommended_text = "\n".join(str(item) for item in recommended_next)
+    already_implemented_recommendations = []
+    for item_id in present_standard_items:
+        item_aliases = [item_id]
+        if item_id.endswith("A"):
+            item_aliases.append(item_id[:-1])
+        if any(alias in recommended_text for alias in item_aliases):
+            already_implemented_recommendations.append(item_id)
+    if already_implemented_recommendations:
+        stale_reasons.append("handover_recommended_next_contains_already_implemented_item")
+
+    status = "fresh" if not stale_reasons else "stale"
+    return {
+        "status": status,
+        "path": str(discovered_path),
+        "handover_head": handover_head,
+        "current_head": git_state.get("head"),
+        "stale_reasons": stale_reasons,
+        "completed_work_items": completed_items,
+        "missing_completed_items_from_handover": missing_from_handover,
+        "recommended_next": recommended_next,
+        "already_implemented_recommendations": already_implemented_recommendations,
+    }
+
+
+def first_missing_standard_item(tooling_status: Sequence[dict[str, object]]) -> dict[str, object] | None:
+    for item in tooling_status:
+        if item.get("required_for_standard_workflow") is True and item.get("status") != "present_in_head":
+            return dict(item)
+    return None
+
+
+def choose_next_safe_action(
+    *,
+    git_state: dict[str, object],
+    documentation_state: dict[str, object],
+    tooling_status: Sequence[dict[str, object]],
+    validation_signal: dict[str, object],
+    handover_signal: dict[str, object],
+) -> dict[str, object]:
+    if documentation_state["architecture_status"] != "pass":
+        return {
+            "action": "fix_documentation_architecture_before_patch",
+            "workstream": "tooling_governance",
+            "work_item": None,
+            "requires_user_decision": False,
+            "reason": "The documentation architecture guard is failing.",
+        }
+
+    if git_state.get("is_dirty"):
+        return {
+            "action": "validate_current_worktree_before_commit_or_continue",
+            "workstream": "current_branch_workflow",
+            "work_item": None,
+            "requires_user_decision": False,
+            "reason": "The working tree has uncommitted changes; run the unified validation command before commit/PR decisions.",
+        }
+
+    if git_state.get("branch") not in {None, "", "main"}:
+        return {
+            "action": "open_or_update_pr_for_clean_feature_branch",
+            "workstream": "current_branch_workflow",
+            "work_item": None,
+            "requires_user_decision": False,
+            "reason": "A non-main branch is clean; continue with PR or merge workflow rather than starting unrelated work.",
+        }
+
+    missing_item = first_missing_standard_item(tooling_status)
+    if missing_item is not None:
+        return {
+            "action": "create_feature_branch_for_next_tooling_governance_item",
+            "workstream": "tooling_governance",
+            "work_item": missing_item["item_id"],
+            "requires_user_decision": False,
+            "reason": f"The next standard workflow item not present in HEAD is {missing_item['item_id']}.",
+        }
+
+    if handover_signal.get("status") == "stale":
+        return {
+            "action": "refresh_handover_or_state_export_before_chat_transition",
+            "workstream": "handover_hygiene",
+            "work_item": None,
+            "requires_user_decision": False,
+            "reason": "The latest detected handover export is stale compared with the current repository state.",
+        }
+
+    if validation_signal.get("status") == "available" and not validation_signal.get("is_commit_profile_pass"):
+        return {
+            "action": "run_commit_profile_validation_before_next_patch",
+            "workstream": "validation_hygiene",
+            "work_item": None,
+            "requires_user_decision": False,
+            "reason": "A validation export exists, but it is not a passing commit-profile validation.",
+        }
+
+    return {
+        "action": "return_to_product_pipeline_work_with_explicit_work_item",
+        "workstream": "search_intelligence_product_work",
+        "work_item": PRODUCT_RETURN_CANDIDATES[0],
+        "requires_user_decision": True,
+        "reason": "The standard Tooling/Governance foundation is present in HEAD; choose the next product work item explicitly.",
+    }
+
+
+def build_next_safe_action_report(
+    root: Path,
+    *,
+    handover_json: Path | None = None,
+    validation_json: Path | None = None,
+    output_dir: Path | None = None,
+    generated_at: str | None = None,
+) -> dict[str, object]:
+    root = root.resolve()
+    output_dir = output_dir or (root / DEFAULT_OUTPUT_DIR)
+    if not output_dir.is_absolute():
+        output_dir = root / output_dir
+
+    git_state = build_git_state(root)
+    documentation_state = build_documentation_state(root)
+    tooling_status = build_tooling_governance_status(root)
+    validation_signal = build_validation_signal(root, validation_json, output_dir)
+    handover_signal = build_handover_signal(root, git_state, tooling_status, handover_json, output_dir)
+    next_safe_action = choose_next_safe_action(
+        git_state=git_state,
+        documentation_state=documentation_state,
+        tooling_status=tooling_status,
+        validation_signal=validation_signal,
+        handover_signal=handover_signal,
+    )
+
+    standard_items = [
+        item for item in tooling_status if item.get("required_for_standard_workflow") is True
+    ]
+    present_count = sum(1 for item in standard_items if item.get("status") == "present_in_head")
+    effective_count = sum(
+        1
+        for item in standard_items
+        if item.get("status") in {"present_in_head", "present_in_worktree_only"}
+    )
+    total_count = len(standard_items)
+
+    return {
+        "schema_version": NEXT001_SCHEMA_VERSION,
+        "generated_at_utc": generated_at or iso_now(),
+        "repo_root": str(root),
+        "safety_boundary": safety_boundary(),
+        "git": git_state,
+        "documentation": documentation_state,
+        "tooling_governance_status": tooling_status,
+        "standard_workflow_completion": {
+            "present_in_head_count": present_count,
+            "present_or_pending_in_worktree_count": effective_count,
+            "required_count": total_count,
+            "percent_in_head": round((present_count / total_count) * 100, 1) if total_count else 100.0,
+            "percent_effective_worktree": round((effective_count / total_count) * 100, 1) if total_count else 100.0,
+            # Backward-compatible alias for existing consumers. Prefer
+            # percent_in_head / percent_effective_worktree in new code.
+            "percent": round((present_count / total_count) * 100, 1) if total_count else 100.0,
+        },
+        "validation_signal": validation_signal,
+        "handover_signal": handover_signal,
+        "product_return_candidates": PRODUCT_RETURN_CANDIDATES,
+        "next_safe_action": next_safe_action,
+    }
+
+
+def render_markdown(report: dict[str, object]) -> str:
+    git_state = report["git"]
+    completion = report["standard_workflow_completion"]
+    handover_signal = report["handover_signal"]
+    validation_signal = report["validation_signal"]
+    next_safe_action = report["next_safe_action"]
+
+    lines = [
+        "# NEXT-001A Next Safe Action Report",
+        "",
+        f"Generated: `{report['generated_at_utc']}`",
+        f"Schema: `{report['schema_version']}`",
+        "",
+        "## Safety boundary",
+        "",
+    ]
+    for key, value in report["safety_boundary"].items():
+        lines.append(f"- {key}: `{value}`")
+
+    lines.extend(
+        [
+            "",
+            "## Git state",
+            "",
+            f"- Branch: `{git_state.get('branch')}`",
+            f"- Head: `{git_state.get('head')}`",
+            f"- Dirty: `{git_state.get('is_dirty')}`",
+            "",
+            "## Tooling/Governance workflow status",
+            "",
+            f"- Present in HEAD: `{completion['present_in_head_count']}` / `{completion['required_count']}` ({completion['percent_in_head']}%)",
+            f"- Present in worktree or HEAD: `{completion['present_or_pending_in_worktree_count']}` / `{completion['required_count']}` ({completion['percent_effective_worktree']}%)",
+            "",
+        ]
+    )
+
+    for item in report["tooling_governance_status"]:
+        required = "required" if item["required_for_standard_workflow"] else "backlog"
+        lines.append(f"- `{item['item_id']}` — {item['title']}: `{item['status']}` ({required})")
+
+    lines.extend(
+        [
+            "",
+            "## Validation signal",
+            "",
+            f"- Status: `{validation_signal.get('status')}`",
+            f"- Profile: `{validation_signal.get('profile')}`",
+            f"- Overall status: `{validation_signal.get('overall_status')}`",
+            f"- Commit profile pass: `{validation_signal.get('is_commit_profile_pass')}`",
+            f"- Path: `{validation_signal.get('path')}`",
+            "",
+            "## Handover signal",
+            "",
+            f"- Status: `{handover_signal.get('status')}`",
+            f"- Path: `{handover_signal.get('path')}`",
+        ]
+    )
+    stale_reasons = handover_signal.get("stale_reasons") or []
+    if stale_reasons:
+        lines.append("- Stale reasons:")
+        lines.extend(f"  - `{reason}`" for reason in stale_reasons)
+    else:
+        lines.append("- Stale reasons: none")
+
+    missing_completed = handover_signal.get("missing_completed_items_from_handover") or []
+    if missing_completed:
+        lines.append("- Present in HEAD but missing from handover completed items:")
+        lines.extend(f"  - `{item}`" for item in missing_completed)
+
+    lines.extend(
+        [
+            "",
+            "## Next safe action",
+            "",
+            f"- Action: `{next_safe_action['action']}`",
+            f"- Workstream: `{next_safe_action['workstream']}`",
+            f"- Work item: `{next_safe_action['work_item']}`",
+            f"- Requires user decision: `{next_safe_action['requires_user_decision']}`",
+            f"- Reason: {next_safe_action['reason']}",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_reports(report: dict[str, object], output_dir: Path, stamp: str | None = None) -> dict[str, str]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stamp = stamp or utc_timestamp()
+    json_path = output_dir / f"next001_next_safe_action_report_{stamp}.json"
+    markdown_path = output_dir / f"next001_next_safe_action_report_{stamp}.md"
+    json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    markdown_path.write_text(render_markdown(report), encoding="utf-8")
+    return {"json": str(json_path), "markdown": str(markdown_path)}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate the NEXT-001A next safe action report.")
+    parser.add_argument("--repo-root", default=".", help="Repository root. Defaults to current working directory.")
+    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Report output directory. Defaults to exports/.")
+    parser.add_argument("--handover-json", default=None, help="Optional handover JSON to check for stale state. Defaults to latest handover JSON in output-dir if available.")
+    parser.add_argument("--validation-json", default=None, help="Optional VALIDATE-001 JSON to read. Defaults to latest validation JSON in output-dir if available.")
+    parser.add_argument("--json", action="store_true", help="Print full report JSON in addition to compact output.")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    root = Path(args.repo_root).resolve()
+    output_dir = Path(args.output_dir)
+    if not output_dir.is_absolute():
+        output_dir = root / output_dir
+
+    handover_json = Path(args.handover_json) if args.handover_json else None
+    validation_json = Path(args.validation_json) if args.validation_json else None
+    report = build_next_safe_action_report(
+        root,
+        handover_json=handover_json,
+        validation_json=validation_json,
+        output_dir=output_dir,
+    )
+    written = write_reports(report, output_dir=output_dir)
+
+    completion = report["standard_workflow_completion"]
+    handover_signal = report["handover_signal"]
+    next_safe_action = report["next_safe_action"]
+
+    print("# NEXT-001A Next Safe Action Report")
+    print(f"tooling_governance_present_in_head={completion['present_in_head_count']}/{completion['required_count']}")
+    print(f"tooling_governance_present_or_pending={completion['present_or_pending_in_worktree_count']}/{completion['required_count']}")
+    print(f"handover_status={handover_signal['status']}")
+    if handover_signal.get("stale_reasons"):
+        print("handover_stale_reasons=" + ",".join(str(reason) for reason in handover_signal["stale_reasons"]))
+    print(f"next_action={next_safe_action['action']}")
+    print(f"workstream={next_safe_action['workstream']}")
+    print(f"work_item={next_safe_action['work_item']}")
+    print(f"requires_user_decision={next_safe_action['requires_user_decision']}")
+    print(f"json={written['json']}")
+    print(f"markdown={written['markdown']}")
+
+    if args.json:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

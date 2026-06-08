@@ -228,3 +228,31 @@ def test_validate001_render_markdown_contains_failure_details() -> None:
     assert "Overall status: `fail`" in markdown
     assert "### rules001_index" in markdown
     assert "missing anchors" in markdown
+
+
+
+def test_validate001_tooling_plan_includes_next001_contract(tmp_path: Path) -> None:
+    for relative_path in [
+        "scripts/run_project_state_snapshot.py",
+        "scripts/run_inspect001_repo_db_docs_bundle.py",
+        "scripts/run_handover001_validate_contract.py",
+        "scripts/run_rules001_validate_index.py",
+        "scripts/run_validate001_unified_validation.py",
+        "scripts/run_next001_next_safe_action_report.py",
+        "tests/test_project_state_snapshot.py",
+        "tests/test_inspect001_repo_db_docs_bundle.py",
+        "tests/test_handover001_contract.py",
+        "tests/test_rules001_project_rules_index.py",
+        "tests/test_validate001_unified_validation.py",
+        "tests/test_next001_next_safe_action_report.py",
+    ]:
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# placeholder\n", encoding="utf-8")
+
+    plan = build_validation_plan("quick", tmp_path, python_executable="python")
+
+    compile_command = next(command for command in plan if command.name == "py_compile_tooling_scripts")
+    pytest_command = next(command for command in plan if command.name == "pytest_tooling_contracts")
+    assert "scripts/run_next001_next_safe_action_report.py" in compile_command.command
+    assert "tests/test_next001_next_safe_action_report.py" in pytest_command.command
