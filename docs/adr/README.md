@@ -1,68 +1,57 @@
 # Architecture Decision Records (ADRs)
 
+Status: current ADR navigation
+Scope: ADR directory after DOC-001K rebaseline
+Last rebaseline: DOC-001K
+
 This directory contains Architecture Decision Records (ADRs) for the project.
 
-ADRs document important architectural and technical decisions together with their context, consequences, and rationale.
+ADRs preserve architectural reasoning over time. They are not automatically
+Current Truth just because their repository status says `Accepted`.
 
-The goal is not only to document the current state of the system, but also to preserve the reasoning behind architectural evolution over time.
+Use the DOC-001K status table before treating an ADR as an implementation anchor:
 
----
+- `docs/governance/adr_status_table.md`
 
-# ADR Evolution
+## DOC-001K reader rule
 
-The project architecture evolved incrementally:
+When an ADR conflicts with the Current Truth layer, resolve in this order:
 
-1. Initial Bronze-layer ingestion foundation
-2. Database-level duplicate protection
-3. Search-profile-based ingestion
-4. Connector-based source abstraction
-5. Initial Silver-layer normalization
-6. Preparation for multi-source canonical modeling
+1. active safety and governance contracts,
+2. `docs/architecture/current_system_overview.md`,
+3. `docs/architecture/system_diagrams.md`,
+4. `docs/governance/adr_status_table.md`,
+5. the individual ADR file.
 
-The ADRs intentionally reflect this evolution.
+## Status vocabulary
 
----
+| DOC-001K status | Meaning |
+|---|---|
+| Current | Still an active architecture decision. |
+| Superseded | Replaced or materially narrowed by a newer decision. |
+| Historical | Useful context but not an active architecture rule. |
+| Needs rewrite | Important decision area, but the ADR text/status must be reconciled before use. |
 
-# ADR Index
+## ADR index
 
-| ADR | Title | Status |
-|---|---|---|
-| 001 | Use real job market sources | Accepted |
-| 002 | Use Bronze-first architecture | Accepted |
-| 003 | Use database-level duplicate protection | Accepted |
-| 004 | Use search-profile-based ingestion | Accepted |
-| 005 | Use PostgreSQL as primary database | Accepted |
-| 006 | Use dockerized local development | Accepted |
-| 007 | Use SSH for GitHub authentication | Accepted |
-| 008 | Use environment-based configuration | Accepted |
-| 009 | Use connector-based ingestion | Accepted |
-| 010 | Define a canonical job model for the Silver layer | Accepted |
-| 011 | separate technical duplicates from cross source deduplication | Accepted |
-| 012 | Prepare Bronze layer for historical job observations | Accepted |
-| 013 | Evolve toward a personal job market intelligence platform | Accepted |
-| 014 | Document database schema and constraints | Accepted |
-| 015 | Use canonical search intent and source capabilities | Accepted |
-| 016 | Define ingestion scope and relevance boundaries | Accepted |
-| 017 | Prepare API-first dashboard architecture | Proposed |
-| 018 | Normalize migration prefixes | Accepted |
-| 019 | Separate source heartbeat from ingestion runs | Proposed |
-| 020 | Introduce role family classification | Proposed |
-| 021 | Expand source capability model before complex sources | Accepted |
-| 022 | Define shared source and layer terminology | Accepted |
-| 023 | Define search result connector contract | Accepted |
-| 024 | Define search quality and relevance evaluation boundary | Accepted |
-| 025 | Preserve search-term lineage for quality evaluation | Accepted |
-| 026 | Define source acquisition scope, canonical source strategy and source value evaluation | Accepted |
-| 027 | Define source target acquisition model | Accepted |
-| 028 | Separate source family, source target and source type | Accepted |
-| 029 | Define historical burden retention strategy | Accepted |
-| 030 | Define trend eligibility and source coverage boundary | Accepted |
-| 031 | Define platform visual identity and documentation design rules | Accepted |
+The complete row-level classification lives in
+`docs/governance/adr_status_table.md`.
 
----
+Current highlights:
 
-# Notes
+- ADR-017 is superseded for the active UI path by ADR-032 Jinja2 Control Center Template Layer.
+- ADR-019 needs rewrite before dedicated heartbeat/source-health implementation.
+- ADR-020 needs rewrite before role-family classification becomes an active pipeline feature.
+- ADR-031, ADR-032 and ADR-033 are current anchors for visual identity, Control Center template boundaries and Search Intelligence safety/security.
 
-The ADR structure intentionally stays lightweight.
+## Maintenance rule
 
-The project is still evolving and the ADR process is meant to support architectural clarity rather than heavyweight governance.
+When adding, renaming or retiring an ADR, update
+`docs/governance/adr_status_table.md` and run:
+
+```bash
+python scripts/check_adr_rebaseline.py --json
+```
+
+The ADR table is intentionally separate from this README so navigation stays
+small while the control surface remains complete and testable.

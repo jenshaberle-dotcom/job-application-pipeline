@@ -25,7 +25,8 @@ current maturity path or in the backlog.
 | Documentation drift guard | `documentation_drift_guard.md` |
 | Documentation rebaseline | `documentation_rebaseline_strategy.md` |
 | Archive/deprecation plan | `documentation_archive_deprecation_plan.md` |
-| ADR rebaseline | `adr_rebaseline_plan.md` |
+| ADR rebaseline plan | `adr_rebaseline_plan.md` |
+| ADR status table | `adr_status_table.md` |
 
 ## Current governance rules
 
