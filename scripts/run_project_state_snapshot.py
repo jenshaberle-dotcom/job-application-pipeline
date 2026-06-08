@@ -137,6 +137,7 @@ def build_validation_state() -> dict[str, object]:
         "latest_validation_known_to_snapshot": "not_run_by_snapshot",
         "reason": "STATE-001A is read-only and does not execute the full validation suite.",
         "required_before_commit_or_pr": [
+            "python scripts/run_validate001_unified_validation.py --profile commit",
             "python -m py_compile <changed scripts/tests>",
             "python -m pytest -q <targeted tests>",
             "python -m pytest -q",

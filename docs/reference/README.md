@@ -20,6 +20,7 @@ story.
   - `search-intelligence/generic_repair_diagnosis.md`
 - `security/`
 - `sources/`
+- `validate001_unified_validation_command.md`
 - `glossary.md`
 
 If a reference file becomes a build log, move it to `../archive/`. If it becomes
