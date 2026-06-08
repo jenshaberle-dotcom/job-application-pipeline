@@ -35,6 +35,22 @@ TOOLING_GOV_SEQUENCE = [
     "MCP-001 Project State Server, read-only-first",
 ]
 
+HORIZONTAL_FREEZE_PATH_MODE_ID = "FREEZE-001A"
+HORIZONTAL_FREEZE_PATH_ALLOWED_SCOPE = [
+    "governance documentation",
+    "validation tooling",
+    "inspection tooling",
+    "handover tooling",
+    "read-only state and next-safe-action reporting",
+]
+HORIZONTAL_FREEZE_PATH_EXCLUDED_SCOPE = [
+    "product pipeline decisions",
+    "database mutation",
+    "external source execution",
+    "scheduler semantics",
+    "candidate, gate, connector, Bronze, Silver, or Gold behavior",
+]
+
 
 @dataclass(frozen=True)
 class CommandResult:
@@ -176,6 +192,34 @@ def choose_next_safe_action(git_state: dict[str, object], documentation_state: d
     }
 
 
+
+def build_horizontal_freeze_path_bundle_mode(
+    git_state: dict[str, object],
+    documentation_state: dict[str, object],
+) -> dict[str, object]:
+    blocked_reasons: list[str] = []
+
+    if documentation_state["architecture_status"] != "pass":
+        blocked_reasons.append("documentation_architecture_not_pass")
+    if git_state.get("is_dirty"):
+        blocked_reasons.append("worktree_dirty")
+
+    return {
+        "mode_id": HORIZONTAL_FREEZE_PATH_MODE_ID,
+        "available": not blocked_reasons,
+        "blocked_reasons": blocked_reasons,
+        "purpose": "Bundle independent horizontal governance, validation, inspection, handover and read-only stabilization changes without mixing in vertical product pipeline behavior.",
+        "allowed_scope": HORIZONTAL_FREEZE_PATH_ALLOWED_SCOPE,
+        "excluded_scope": HORIZONTAL_FREEZE_PATH_EXCLUDED_SCOPE,
+        "requires_before_patch": [
+            "short system-impact analysis",
+            "clean branch intent",
+            "no hidden runtime dependency between bundled parts",
+            "targeted tests for each touched surface",
+            "shared fan-in validation before commit or PR",
+        ],
+    }
+
 def build_project_state_snapshot(root: Path, generated_at: datetime | None = None) -> dict[str, object]:
     generated_at = generated_at or datetime.now(tz=UTC)
     git_state = build_git_state(root)
@@ -191,6 +235,10 @@ def build_project_state_snapshot(root: Path, generated_at: datetime | None = Non
         "database_reads": False,
         "database_writes": False,
         "tooling_governance_sequence": TOOLING_GOV_SEQUENCE,
+        "horizontal_freeze_path_bundle_mode": build_horizontal_freeze_path_bundle_mode(
+            git_state,
+            documentation_state,
+        ),
         "git": git_state,
         "documentation": documentation_state,
         "validation": build_validation_state(),
@@ -215,6 +263,7 @@ def render_markdown(snapshot: dict[str, object]) -> str:
     documentation_state = snapshot["documentation"]
     validation_state = snapshot["validation"]
     next_safe_action = snapshot["next_safe_action"]
+    bundle_mode = snapshot.get("horizontal_freeze_path_bundle_mode") or {}
 
     changed_files = git_state.get("changed_files") or []
     recent_log = git_state.get("recent_log") or []
@@ -232,6 +281,20 @@ def render_markdown(snapshot: dict[str, object]) -> str:
         f"- External requests: `{snapshot['external_requests']}`",
         f"- Database reads: `{snapshot['database_reads']}`",
         f"- Database writes: `{snapshot['database_writes']}`",
+        "",
+        "## Horizontal Freeze-Path Bundle Mode",
+        "",
+        f"- Mode ID: `{bundle_mode.get('mode_id')}`",
+        f"- Available: `{bundle_mode.get('available')}`",
+        f"- Blocked reasons: `{', '.join(bundle_mode.get('blocked_reasons') or []) or 'none'}`",
+        "",
+        "### Allowed scope",
+        "",
+        *[f"- {item}" for item in bundle_mode.get("allowed_scope") or []],
+        "",
+        "### Excluded scope",
+        "",
+        *[f"- {item}" for item in bundle_mode.get("excluded_scope") or []],
         "",
         "## Git state",
         "",

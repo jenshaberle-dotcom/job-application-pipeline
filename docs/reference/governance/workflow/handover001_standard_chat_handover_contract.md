@@ -102,6 +102,22 @@ It should include:
 
 If the state is not exact, it must say so explicitly.
 
+
+## Freeze-path bundle mode
+
+A handover may include a Freeze-path bundle mode section when the next safe work
+is a horizontal governance, validation, inspection, handover, and read-only
+stabilization patch.
+
+The handover should state whether the mode is available, which scopes are
+allowed, which scopes are excluded, and which validation is required before
+commit or PR.
+
+This mode must not be mixed with product execution. External source runs,
+database mutation, scheduler activation, candidate or gate changes, connector
+activation, and Bronze/Silver/Gold behavior belong to separate vertical work
+items unless explicitly justified.
+
 ## Anti-patterns
 
 Avoid these handover anti-patterns:

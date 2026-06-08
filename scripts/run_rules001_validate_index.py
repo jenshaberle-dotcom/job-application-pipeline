@@ -65,6 +65,13 @@ REQUIRED_ANCHORS = {
         "feed-forward known-company suppression",
         "travel-requirement extraction",
     ],
+    "horizontal_freeze_path_bundle_mode": [
+        "## Horizontal Freeze-Path Bundle Mode",
+        "horizontal governance, validation, inspection, handover",
+        "read-only",
+        "stabilization",
+        "Vertical product and pipeline behavior remains separate",
+    ],
     "backlog_boundaries": [
         "## Backlog boundary rules",
         "VALIDATE-001 Unified Validation Command",

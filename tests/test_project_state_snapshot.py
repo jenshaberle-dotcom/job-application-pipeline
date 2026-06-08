@@ -63,6 +63,8 @@ def test_state001a_snapshot_is_read_only_and_machine_readable(tmp_path: Path) ->
     assert snapshot["database_writes"] is False
     assert snapshot["documentation"]["architecture_status"] == "pass"
     assert snapshot["validation"]["latest_validation_known_to_snapshot"] == "not_run_by_snapshot"
+    assert snapshot["horizontal_freeze_path_bundle_mode"]["mode_id"] == "FREEZE-001A"
+    assert snapshot["horizontal_freeze_path_bundle_mode"]["available"] is True
     assert "python scripts/run_validate001_unified_validation.py --profile commit" in snapshot["validation"]["required_before_commit_or_pr"]
     assert snapshot["next_safe_action"]["action"] in {
         "select_next_work_item_then_create_feature_branch",
@@ -120,3 +122,4 @@ def test_state001a_markdown_contains_tooling_governance_sequence(tmp_path: Path)
     assert "STATE-001 Project State Snapshot Contract" in markdown
     assert "INSPECT-001 Repo/DB/Docs Inspection Bundle" in markdown
     assert "MCP-001 Project State Server, read-only-first" in markdown
+    assert "Horizontal Freeze-Path Bundle Mode" in markdown
