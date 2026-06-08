@@ -79,9 +79,23 @@ The standard Tooling/Governance sequence is:
 MCP-001 remains backlog-only unless explicitly promoted.
 
 After the standard sequence is present in HEAD and the repository is clean,
-NEXT-001A should recommend returning to explicitly selected product pipeline work.
-The current expected candidate is `SENSOR-001A BA Remote/Nationwide Coverage
-Validation`.
+NEXT-001A should recommend returning to explicitly selected product pipeline work
+or report that only handover refresh is needed before a chat transition. The
+current expected product candidate is `SENSOR-001E BA Remote/Nationwide Bounded
+Sample Execution Review`.
+
+
+## Restart readiness
+
+NEXT-001A reports restart readiness so a new chat can distinguish between:
+
+- `refresh_handover_required`
+- `commit_validation_refresh_required`
+- `worktree_dirty`
+- `ready_for_next_work_selection`
+
+When uploads are limited, the fallback restart payload is the compact
+`minimal_restart_payload` plus the current NEXT-001 and VALIDATE-001 summaries.
 
 ## Output contract
 
@@ -94,6 +108,7 @@ The JSON report contains:
 - `validation_signal`
 - `handover_signal`
 - `product_return_candidates`
+- `restart_readiness`
 - `next_safe_action`
 - `safety_boundary`
 

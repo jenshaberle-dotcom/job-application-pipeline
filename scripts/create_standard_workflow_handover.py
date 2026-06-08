@@ -41,6 +41,9 @@ EXPECTED_ITEMS = {
 }
 
 
+
+MINIMAL_RESTART_PAYLOAD_SCHEMA_VERSION = "chatlevel.minimal_restart_payload.v1"
+
 def run(command: list[str], *, required: bool = True) -> dict[str, Any]:
     completed = subprocess.run(
         command,
@@ -96,6 +99,59 @@ def collect_git_state() -> dict[str, Any]:
     }
 
 
+def build_minimal_restart_payload(
+    *,
+    git: dict[str, Any],
+    completed_work_items: list[str],
+    recommended_next: list[str],
+    next_report: dict[str, Any],
+    validate_report: dict[str, Any],
+    rules_path: str,
+) -> dict[str, Any]:
+    """Build the compact machine-readable payload for the next chat.
+
+    This payload is intentionally small and duplicates only the fields needed to
+    restart safely without reading a long narrative handover first.
+    """
+
+    return {
+        "schema_version": MINIMAL_RESTART_PAYLOAD_SCHEMA_VERSION,
+        "required_new_chat_artifacts": [
+            "handover_json",
+            "handover_zip",
+        ],
+        "optional_new_chat_artifacts": [
+            "handover_markdown",
+        ],
+        "exact_repo_snapshot": True,
+        "repo": {
+            "branch": git.get("branch"),
+            "head": git.get("head"),
+            "dirty": git.get("dirty"),
+        },
+        "completed_work_items": completed_work_items,
+        "validation": {
+            "profile": validate_report.get("profile"),
+            "overall_status": validate_report.get("overall_status"),
+            "required_failure_count": validate_report.get("required_failure_count"),
+            "optional_warning_count": validate_report.get("optional_warning_count"),
+        },
+        "standard_workflow_completion": next_report.get("standard_workflow_completion", {}),
+        "horizontal_freeze_path_bundle_mode": next_report.get("horizontal_freeze_path_bundle_mode", {}),
+        "next_safe_action": next_report.get("next_safe_action"),
+        "recommended_next": recommended_next,
+        "rules_pointer": rules_path,
+        "safety_boundary": {
+            "read_repo_state_first": True,
+            "requires_system_impact_analysis_before_patch": True,
+            "requires_explicit_approval_before_external_or_product_action": True,
+            "no_database_writes": True,
+            "no_scheduler_activation": True,
+            "no_candidate_gate_connector_or_bronze_silver_gold_mutation": True,
+        },
+    }
+
+
 def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any]) -> dict[str, Any]:
     tooling_items = next_report.get("tooling_governance_status", [])
     completed_work_items = [
@@ -125,8 +181,17 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
     )
 
     recommended_next = next_report.get("product_return_candidates") or [
-        "SENSOR-001A BA Remote/Nationwide Coverage Validation"
+        "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review"
     ]
+
+    minimal_restart_payload = build_minimal_restart_payload(
+        git=git,
+        completed_work_items=completed_work_items,
+        recommended_next=recommended_next,
+        next_report=next_report,
+        validate_report=validate_report,
+        rules_path=rules_path,
+    )
 
     return {
         "schema_version": "chatlevel.efficient_handover_standard_workflow.v1",
@@ -136,6 +201,8 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
         "git": git,
         "completed_work_items": completed_work_items,
         "standard_workflow_completion": next_report.get("standard_workflow_completion", {}),
+        "horizontal_freeze_path_bundle_mode": next_report.get("horizontal_freeze_path_bundle_mode", {}),
+        "minimal_restart_payload": minimal_restart_payload,
         "validation": {
             "validate001_commit": {
                 "path": str(latest("validate001_unified_validation_*.json").relative_to(ROOT)),
@@ -173,8 +240,10 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
             "STATE-001A, INSPECT-001A, HANDOVER-001A, RULES-001A, "
             "VALIDATE-001A and NEXT-001A are implemented, tested, merged and cleaned up. "
             "I uploaded the latest standard workflow handover ZIP/JSON. "
-            "Please read those first. Before any patch, provide a short system-impact analysis. "
-            "The next recommended product work item is SENSOR-001A BA Remote/Nationwide Coverage Validation."
+            "Please read those first. The minimal_restart_payload contains the compact restart boundary. "
+            "Before any patch, provide a short system-impact analysis. "
+            "Do not run external/product actions without explicit approval. "
+            "The next recommended product work item is SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review."
         ),
         "safety_notes": [
             "Repo/docs are source of truth for active rules and backlog boundaries.",
@@ -182,6 +251,7 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
             "Use python scripts/run_validate001_unified_validation.py --profile commit before commit/PR.",
             "Use python scripts/run_next001_next_safe_action_report.py before chat transition or next work selection.",
             "MCP-001 remains backlog-only unless explicitly promoted.",
+            "Do not run external/product actions such as SENSOR-001E without explicit approval.",
         ],
     }
 
@@ -194,6 +264,9 @@ def write_handover_files(handover: dict[str, Any]) -> None:
     validate_summary = handover.get("validation", {}).get("validate001_commit", {})
     recommended_next = handover["recommended_next"]
     rules_path = handover["rules_pointer"]["active_rules_and_backlog_boundaries"]
+    minimal_payload = handover.get("minimal_restart_payload", {})
+    freeze_mode = handover.get("horizontal_freeze_path_bundle_mode", {})
+    next_safe_action = minimal_payload.get("next_safe_action") or {}
     git = handover["git"]
 
     markdown = f"""# Efficient Handover — Standard Workflow
@@ -221,6 +294,21 @@ Generated: `{handover["generated_at_utc"]}`
 - VALIDATE-001 overall status: `{validate_summary.get("overall_status")}`
 - Required failures: `{validate_summary.get("required_failure_count")}`
 - Optional warnings: `{validate_summary.get("optional_warning_count")}`
+
+## Minimal restart payload
+
+- Schema: `{minimal_payload.get("schema_version")}`
+- Required uploads: `{", ".join(minimal_payload.get('required_new_chat_artifacts') or [])}`
+- Next action: `{next_safe_action.get("action")}`
+- Workstream: `{next_safe_action.get("workstream")}`
+- Product/external action approval required: `{minimal_payload.get("safety_boundary", {}).get("requires_explicit_approval_before_external_or_product_action")}`
+
+## Horizontal Freeze-Path Bundle Mode
+
+- Mode ID: `{freeze_mode.get("mode_id")}`
+- Available: `{freeze_mode.get("available")}`
+- Blocked reasons: `{", ".join(freeze_mode.get('blocked_reasons') or []) or "none"}`
+- Boundary: read-only governance/tooling stabilization only; no product execution without explicit approval.
 
 ## Next recommended work
 

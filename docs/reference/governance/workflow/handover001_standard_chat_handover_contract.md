@@ -103,6 +103,31 @@ It should include:
 If the state is not exact, it must say so explicitly.
 
 
+
+## Minimal restart payload
+
+The generated standard workflow handover should include a compact
+`minimal_restart_payload` object in the handover JSON.
+
+This payload is the preferred first-read surface for a new chat. It should
+include:
+
+- `required_new_chat_artifacts`
+- current branch, HEAD, and dirty state
+- completed standard workflow items
+- validation summary
+- standard workflow completion
+- horizontal Freeze-Path bundle mode
+- next safe action
+- recommended next work item
+- rules pointer
+- safety boundary, including
+  `requires_explicit_approval_before_external_or_product_action`
+
+The payload should be short enough to paste into chat when uploads are limited
+and structured enough that the assistant can restart without re-reading the
+whole project history.
+
 ## Freeze-path bundle mode
 
 A handover may include a Freeze-path bundle mode section when the next safe work
