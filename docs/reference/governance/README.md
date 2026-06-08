@@ -23,6 +23,7 @@ current maturity path or in the backlog.
 | Capability audit | `agent_capability_audit_matrix.md` |
 | Capability gaps | `agent_capability_gap_register.md` |
 | Documentation drift guard | `documentation_drift_guard.md` |
+| Workflow/tooling contracts | `workflow/` |
 | Documentation rebaseline | `documentation_rebaseline_strategy.md` |
 | Archive/deprecation plan | `documentation_archive_deprecation_plan.md` |
 | ADR rebaseline plan | `adr_rebaseline_plan.md` |

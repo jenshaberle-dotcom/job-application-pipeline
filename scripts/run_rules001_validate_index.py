@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_RULES_PATH = Path("docs/reference/rules001_project_rules_index.md")
+DEFAULT_RULES_PATH = Path("docs/reference/governance/workflow/rules001_project_rules_index.md")
 
 REQUIRED_ANCHORS = {
     "purpose": [

@@ -179,12 +179,19 @@ of being forgotten or forced into the current implementation path.
 
 Saving an idea is not abandoning it. Nicht jeder Wal muss heute gefangen werden.
 
-## Validation command
+## Validation and next-safe-action commands
 
 The unified validation command can be run with:
 
 ```bash
 python scripts/run_validate001_unified_validation.py --profile commit
+```
+
+After validation, merge, cleanup, or chat handover, the next-safe-action report
+can be run with:
+
+```bash
+python scripts/run_next001_next_safe_action_report.py
 ```
 
 The index can also be checked directly with:

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_CONTRACT_PATH = Path("docs/reference/handover001_standard_chat_handover_contract.md")
+DEFAULT_CONTRACT_PATH = Path("docs/reference/governance/workflow/handover001_standard_chat_handover_contract.md")
 
 REQUIRED_ANCHORS = {
     "required_new_chat_artifacts": [

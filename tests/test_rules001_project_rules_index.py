@@ -6,7 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "scripts" / "run_rules001_validate_index.py"
-RULES_PATH = REPO_ROOT / "docs" / "reference" / "rules001_project_rules_index.md"
+RULES_PATH = REPO_ROOT / "docs" / "reference" / "governance" / "workflow" / "rules001_project_rules_index.md"
 
 
 def load_module():

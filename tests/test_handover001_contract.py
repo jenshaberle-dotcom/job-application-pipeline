@@ -6,7 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "scripts" / "run_handover001_validate_contract.py"
-CONTRACT_PATH = REPO_ROOT / "docs" / "reference" / "handover001_standard_chat_handover_contract.md"
+CONTRACT_PATH = REPO_ROOT / "docs" / "reference" / "governance" / "workflow" / "handover001_standard_chat_handover_contract.md"
 
 
 def load_module():
