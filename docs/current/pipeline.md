@@ -57,3 +57,13 @@ The taxonomy distinguishes good fail-closed stops from review stops, repairable
 stops and false-negative-risk stops. This does not weaken gates; it prevents
 repairable evidence gaps from being treated as silent terminal pipeline exits.
 <!-- END STOP-002-STOP-TAXONOMY -->
+
+<!-- BEGIN REPAIR-001-STOP-REPAIR-AUDIT -->
+## REPAIR-001 Stop Review and Repair Candidate Audit
+
+REPAIR-001 operationalizes STOP-002 as a read-only repair-candidate audit. The
+existing pipeline stop reassessment agent now reports dominant stop category,
+lifecycle class, repair strategy, safety zone and repair-audit order. It may emit
+Stage 2 dry-run/apply command suggestions, but it does not execute repair, write
+gate/candidate state, generate connector artifacts or activate sources.
+<!-- END REPAIR-001-STOP-REPAIR-AUDIT -->
