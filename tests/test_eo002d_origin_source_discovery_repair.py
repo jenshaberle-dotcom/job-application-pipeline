@@ -77,9 +77,9 @@ def test_eon_parent_career_domains_can_be_selected_without_external_search() -> 
 
 
 def test_eo002d_docs_record_boundaries_and_next_decision() -> None:
-    doc = Path("docs/planning/eo002d_origin_source_discovery_url_finder_repair.md").read_text(encoding="utf-8")
-    roadmap = Path("docs/roadmap.md").read_text(encoding="utf-8")
-    current_state = Path("docs/architecture/search_intelligence_current_state.md").read_text(encoding="utf-8")
+    doc = Path("docs/archive/planning/eo002d_origin_source_discovery_url_finder_repair.md").read_text(encoding="utf-8")
+    roadmap = Path("docs/planning/active/roadmap.md").read_text(encoding="utf-8")
+    current_state = Path("docs/reference/search-intelligence/current_state.md").read_text(encoding="utf-8")
 
     assert "EO-002D Origin Source Discovery / URL Finder Repair" in doc
     assert "no scheduler change" in doc

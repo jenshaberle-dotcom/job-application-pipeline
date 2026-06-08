@@ -45,15 +45,34 @@ REPO_PATH_PREFIXES = (
 )
 
 RETIRED_PATH_REFERENCES: dict[str, str] = {
-    "docs/diagrams/": "Retired diagram directory; current replacements live under docs/architecture/ and docs/database/.",
-    "docs/diagrams": "Retired diagram directory; current replacements live under docs/architecture/ and docs/database/.",
-    "docs/diagrams/architecture.md": "Historical old path kept only in DOC-001I archive mapping; replacement is docs/architecture/system_diagrams.md.",
-    "docs/diagrams/bronze_data_model.md": "Historical old path kept only in DOC-001I archive mapping; replacement is docs/database/schema_relationships.md.",
+    "docs/diagrams/": "Retired diagram directory; current replacements live under docs/current/ and docs/reference/database/.",
+    "docs/diagrams": "Retired diagram directory; current replacements live under docs/current/ and docs/reference/database/.",
+    "docs/diagrams/architecture.md": "Historical old path kept only in DOC-001I archive mapping; replacement is docs/current/system-diagrams.md.",
+    "docs/diagrams/bronze_data_model.md": "Historical old path kept only in DOC-001I archive mapping; replacement is docs/reference/database/schema_relationships.md.",
 }
 
 PLANNED_PATH_REFERENCES: dict[str, str] = {
-    "docs/archive/planning/": "Planned archive target; directory will exist only after a later physical archive move.",
-    "docs/archive/source_analysis/": "Planned archive target; directory will exist only after a later physical archive move.",
+    "docs/archive/planning/": "Planned or existing archive target for historical planning files.",
+    "docs/archive/source-analysis/": "Planned or existing archive target for historical source-analysis files.",
+    "docs/archive/source_analysis/": "Pre-DOC-001L underscore spelling; current archive target is docs/archive/source-analysis/.",
+}
+
+RETIRED_PATH_PREFIXES: dict[str, str] = {
+    "docs/adr/": "Pre-DOC-001L ADR path; current ADRs live under docs/decisions/adr/.",
+    "docs/architecture/": "Pre-DOC-001L architecture path; current truth moved to docs/current/ and detailed reference to docs/reference/.",
+    "docs/classification/": "Pre-DOC-001L classification path; scoring and gate references live under docs/reference/scoring-and-gates/.",
+    "docs/data_sources/": "Pre-DOC-001L source-reference path; current reference lives under docs/reference/sources/.",
+    "docs/database/": "Pre-DOC-001L database path; current database reference lives under docs/reference/database/.",
+    "docs/design/": "Pre-DOC-001L design path; current product/documentation references live under docs/reference/product/ and docs/reference/documentation/.",
+    "docs/development/": "Pre-DOC-001L development path; current guides live under docs/guides/.",
+    "docs/governance/": "Pre-DOC-001L governance path; current governance reference lives under docs/reference/governance/ and decisions under docs/decisions/.",
+    "docs/observability/": "Pre-DOC-001L observability path; current reference lives under docs/reference/observability/.",
+    "docs/operations/": "Pre-DOC-001L operations path; guides live under docs/guides/ and reference under docs/reference/operations/.",
+    "docs/relevance/": "Pre-DOC-001L relevance path; current scoring/gate reference lives under docs/reference/scoring-and-gates/.",
+    "docs/reviews/": "Pre-DOC-001L review path; historical reviews live under docs/archive/reviews/.",
+    "docs/security/": "Pre-DOC-001L security path; current security reference lives under docs/reference/security/.",
+    "docs/source_analysis/": "Pre-DOC-001L source-analysis path; historical material lives under docs/archive/source-analysis/.",
+    "docs/visualization/": "Pre-DOC-001L visualization path; historical material lives under docs/archive/visualization/.",
 }
 
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
@@ -152,6 +171,9 @@ def _classify_repo_path_reference(root: Path, reference: str) -> tuple[str, str]
         return "planned_path_reference", PLANNED_PATH_REFERENCES[reference]
     if _path_exists(root / reference):
         return "valid_repo_path", "Repository path exists."
+    for prefix, note in RETIRED_PATH_PREFIXES.items():
+        if reference.startswith(prefix):
+            return "retired_path_reference", note
     return "missing_reference", "Repository path reference does not resolve and is not classified as retired or planned."
 
 

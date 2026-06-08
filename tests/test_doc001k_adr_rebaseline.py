@@ -55,14 +55,14 @@ def test_doc001k_current_repository_has_complete_adr_status_table() -> None:
 
 def test_doc001k_navigation_points_to_adr_status_surface() -> None:
     docs_readme = _read("docs/README.md")
-    governance_readme = _read("docs/governance/README.md")
-    adr_readme = _read("docs/adr/README.md")
-    adr_plan = _read("docs/governance/adr_rebaseline_plan.md")
+    governance_readme = _read("docs/reference/governance/README.md")
+    adr_readme = _read("docs/decisions/adr/README.md")
+    adr_plan = _read("docs/decisions/adr_rebaseline_plan.md")
 
     for text in [docs_readme, governance_readme, adr_readme, adr_plan]:
-        assert "docs/governance/adr_status_table.md" in text or "adr_status_table.md" in text
+        assert "docs/decisions/adr_status_table.md" in text or "adr_status_table.md" in text
 
-    status_table = _read("docs/governance/adr_status_table.md")
+    status_table = _read("docs/decisions/adr_status_table.md")
     assert "ADR-017" in status_table
     assert "Superseded" in status_table
     assert "ADR-019" in status_table

@@ -25,6 +25,13 @@ BASELINE_AGENT_LIKE_SCRIPT_COUNT = 49
 BASELINE_AGENT_LIKE_TEST_COUNT = 52
 
 GOVERNANCE_REFERENCE_FILES = [
+    Path("docs/reference/governance/agent_governance_registry.md"),
+    Path("docs/reference/governance/agent_classification_catalog.md"),
+    Path("docs/reference/governance/agent_classification_decision_rules.md"),
+    Path("docs/reference/governance/agent_capability_audit_matrix.md"),
+    Path("docs/reference/governance/agent_capability_gap_register.md"),
+    Path("docs/reference/governance/agent_responsibility_model.md"),
+    # Backward-compatible paths for tmp_path unit tests and pre-DOC-001L branches.
     Path("docs/governance/agent_governance_registry.md"),
     Path("docs/governance/agent_classification_catalog.md"),
     Path("docs/governance/agent_classification_decision_rules.md"),
@@ -124,7 +131,7 @@ def collect_governance_drift(root: Path, *, strict: bool = False) -> GovernanceD
 
     status_entries = _run_git_status(root)
     docs_project_state_status_entries = [
-        line for line in status_entries if "docs/project_state/" in line
+        line for line in status_entries if "exports/project_state/" in line
     ]
 
     findings: list[GovernanceDriftFinding] = []

@@ -10,15 +10,15 @@ are no longer the Current Truth entry points.
 
 The active architecture and database diagrams now live in:
 
-- `docs/architecture/system_diagrams.md`
-- `docs/database/schema_relationships.md`
+- `docs/current/system-diagrams.md`
+- `docs/reference/database/schema_relationships.md`
 
 ## Archived files
 
 | Archived file | Former path | Current replacement |
 |---|---|---|
-| `architecture.md` | `docs/diagrams/architecture.md` | `docs/architecture/system_diagrams.md` |
-| `bronze_data_model.md` | `docs/diagrams/bronze_data_model.md` | `docs/database/schema_relationships.md` |
+| `architecture.md` | `docs/diagrams/architecture.md` | `docs/current/system-diagrams.md` |
+| `bronze_data_model.md` | `docs/diagrams/bronze_data_model.md` | `docs/reference/database/schema_relationships.md` |
 
 ## Rule
 

@@ -813,7 +813,7 @@ def build_implementation(candidate: SourceCandidate, gate: dict[str, Any]) -> Co
     return ConnectorImplementation(
         module_path=Path("src/connectors") / f"{module_name}.py",
         test_path=Path("tests") / f"test_{module_name}_connector.py",
-        docs_path=Path("docs/source_analysis") / f"{module_name}_connector_candidate.md",
+        docs_path=Path("docs/planning/active/source-candidates") / f"{module_name}_connector_candidate.md",
         module_content=connector_module_content(candidate=candidate, spec=spec),
         test_content=connector_test_content(candidate),
         docs_content=connector_docs_content(candidate, spec),

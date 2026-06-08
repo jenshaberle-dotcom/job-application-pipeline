@@ -1,125 +1,67 @@
-# Documentation Entry Point
+# Documentation
 
-Status: current truth entry point
-Scope: DOC-001 active reader path
-Last rebaseline: DOC-001G
+Status: current documentation entry point
+Scope: DOC-001L information architecture
 
 ## Purpose
 
-This file is the active entry point for repository documentation.
-
-The project documentation is being rebaselined because the repository contains a
-large amount of historically useful but no longer current planning and
-source-analysis material. A reader should not have to infer the current system
-from old build notes.
+This directory is intentionally small at the top level. It separates current
+truth, practical guides, reference material, decisions, active planning, and
+history so a reader does not have to excavate old build notes to understand the
+project.
 
 ## Read this first
 
-For the current system, read in this order:
+1. `current/product.md`
+2. `current/architecture.md`
+3. `current/pipeline.md`
+4. `current/system-diagrams.md`
+5. `current/governance.md`
+6. `current/operations.md`
 
-1. `docs/architecture/current_system_overview.md`
-2. `docs/architecture/system_diagrams.md`
-3. `docs/architecture/architecture_document_status.md`
-4. `docs/architecture/current_truth_documentation_map.md`
-5. `docs/governance/README.md`
-6. `docs/governance/agent_governance_registry.md`
-7. `docs/governance/agent_capability_audit_matrix.md`
-8. `docs/governance/documentation_rebaseline_strategy.md`
-9. `docs/operations/runbook.md`
+## Structure
 
-## Current Truth
+| Area | Purpose | Rule |
+|---|---|---|
+| `current/` | Short, curated truth about the current product and architecture. | Keep small; promote only stable facts. |
+| `guides/` | How-to documentation for development, operation and testing. | Practical instructions live here, not in the root README. |
+| `reference/` | Detailed lookup material: database, agents, governance, sources, security, scoring and glossary. | Precise detail is welcome, but not the main story. |
+| `decisions/` | ADRs and their DOC-001 status surface. | Decisions are traceability, not general reference prose. |
+| `planning/` | Active planning only. | Old work-item notes belong in `archive/planning/`. |
+| `archive/` | Historical build notes, old analyses, reviews and replaced diagrams. | Useful for traceability, not authoritative current truth. |
 
-Current Truth documents describe the current intended system.
+## Artifact rule
 
-| Area | Document |
-|---|---|
-| Product entry | `README.md` |
-| System overview | `docs/architecture/current_system_overview.md` |
-| Current diagrams | `docs/architecture/system_diagrams.md` |
-| Architecture document status | `docs/architecture/architecture_document_status.md` |
-| Documentation map | `docs/architecture/current_truth_documentation_map.md` |
-| Database schema map | `docs/database/schema_overview.md` |
-| Database relationship map | `docs/database/schema_relationships.md` |
-| Governance overview | `docs/governance/README.md` |
-| Agent registry | `docs/governance/agent_governance_registry.md` |
-| Capability audit | `docs/governance/agent_capability_audit_matrix.md` |
-| Responsibility model | `docs/governance/agent_responsibility_model.md` |
-| Drift guard | `docs/governance/documentation_drift_guard.md` |
-| Documentation policy | `docs/governance/documentation_rebaseline_strategy.md` |
-| Operator runbook | `docs/operations/runbook.md` |
+The documentation architecture applies to files, not only folders:
 
-## Reference documentation
+- current docs should be few, maintained and readable;
+- reference docs should explain stable concepts or contracts;
+- planning docs should be active and short-lived;
+- historical work-item traces should be archived instead of half-promoted;
+- exports and handover files must not become source-of-truth documentation.
 
-Reference documents may remain useful, but they are not the main project story.
+The project uses docs-as-code guards for this:
 
-| Area | Examples |
-|---|---|
-| Database | `docs/database/README.md`, `docs/database/schema_overview.md`, `docs/database/schema_relationships.md` |
-| Source capabilities | `docs/data_sources/source_capabilities.md` |
-| Connector contracts | `docs/data_sources/search_result_connector_contract.md` |
-| Security | `docs/security/search_intelligence_security_baseline.md` |
-| Design | `docs/design/` |
-| Observability | `docs/observability/` |
-| Relevance | `docs/relevance/` |
+- `scripts/check_documentation_architecture.py`
+- `scripts/check_documentation_references.py`
+- `scripts/check_adr_rebaseline.py`
 
-## Historical documentation
+## Key reference surfaces
 
-The following areas are historical by default unless a document is explicitly
-promoted into Current Truth:
-
-- `docs/planning/`
-- `docs/source_analysis/`
-- `docs/project_state/`
-- `docs/archive/diagrams/` for archived legacy diagrams
-- old source-specific candidate and connector notes
-- old spike and MVP documents
-
-## DOC-001 archive notes
-
-The former `docs/diagrams/` pages were physically archived in
-`docs/archive/diagrams/` after their current replacements were established in
-`docs/architecture/system_diagrams.md` and `docs/database/schema_relationships.md`.
-
-DOC-001J adds `scripts/check_documentation_references.py` as the lightweight
-link/reference guard before larger planning or source-analysis archive moves.
-Run it before moving files so stale links and unresolved path references are
-fixed or explicitly classified first.
-
-Historical does not mean useless. It means:
-
-```text
-useful for traceability,
-not authoritative for current architecture.
-```
+- `reference/database/schema_overview.md`
+- `reference/database/schema_relationships.md`
+- `reference/governance/governance_foundation.md`
+- `reference/security/search_intelligence_security_baseline.md`
+- `decisions/adr_status_table.md`
 
 ## ADRs
 
-ADRs are under DOC-001 rebaseline control.
-
-Do not assume that every accepted ADR still fully describes the current system.
-Use `docs/governance/adr_status_table.md` as the current ADR control surface
-before treating an ADR as an implementation anchor.
-
-DOC-001K classifies ADRs as:
-
-- Current
-- Superseded
-- Historical
-- Needs rewrite
-
-The rebaseline plan remains in `docs/governance/adr_rebaseline_plan.md`.
+ADRs live in `decisions/adr/`. Use `decisions/adr_status_table.md` before
+reading an ADR as current implementation truth.
 
 ## Exports
 
 `exports/` contains generated runtime reports and review artifacts. Exports are
-not maintained documentation and must not become pipeline input or architecture
-truth.
+reports, not source-of-truth handoffs and not pipeline inputs.
 
-## Maintainer rule
-
-When changing the project:
-
-1. update the Current Truth layer if architecture or responsibilities changed,
-2. update governance classification if a new agent-like artifact appears,
-3. keep planning/source-analysis notes historical unless explicitly promoted,
-4. do not patch obsolete documents into a half-current hybrid.
+Reference path anchors: `docs/reference/database/schema_overview.md`, `docs/reference/database/schema_relationships.md`.

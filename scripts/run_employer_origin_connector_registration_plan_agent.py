@@ -19,7 +19,7 @@ from scripts.run_employer_origin_connector_build_readiness_agent import (
 )
 
 
-PLAN_DIR = Path("docs/source_analysis")
+PLAN_DIR = Path("docs/planning/active/source-candidates")
 
 
 @dataclass(frozen=True)

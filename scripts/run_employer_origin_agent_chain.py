@@ -75,7 +75,7 @@ def connector_artifact_paths(source_family_candidate: str) -> tuple[Path, Path, 
     return (
         Path("src/connectors") / f"{module_name}.py",
         Path("tests") / f"test_{module_name}_connector.py",
-        Path("docs/source_analysis") / f"{module_name}_connector_candidate.md",
+        Path("docs/planning/active/source-candidates") / f"{module_name}_connector_candidate.md",
     )
 
 

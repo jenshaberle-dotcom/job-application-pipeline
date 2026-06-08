@@ -59,7 +59,7 @@ def passed_gates() -> dict[str, GateReview]:
                 "recommended_connector": {
                     "module_path": "src/connectors/hdi.py",
                     "test_path": "tests/test_hdi_connector.py",
-                    "docs_path": "docs/source_analysis/hdi_connector_candidate.md",
+                    "docs_path": "docs/planning/active/source-candidates/hdi_connector_candidate.md",
                 },
                 "detail_evidence": {
                     "detail_urls": ["https://careers.hdi.group/jobs/product-owner-data-platform"]

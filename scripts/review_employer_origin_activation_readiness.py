@@ -26,7 +26,7 @@ from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.registry import create_connector
 
 
-DEFAULT_EXPORT_DIR = Path("docs/source_analysis")
+DEFAULT_EXPORT_DIR = Path("docs/planning/active/source-candidates")
 DEFAULT_LOCATION = "Hannover"
 DEFAULT_RADIUS_KM = 50
 DEFAULT_OFFER_TYPE = 1

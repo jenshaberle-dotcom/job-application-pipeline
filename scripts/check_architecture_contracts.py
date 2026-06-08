@@ -28,13 +28,13 @@ def main() -> int:
     print(f"security_controls={len(SECURITY_BASELINE_CONTROLS)}")
     print(f"maturity_targets={len(MATURITY_TARGETS_90_PLUS)}")
     required_docs = [
-        Path("docs/architecture/safety_security_state_architecture.md"),
-        Path("docs/architecture/agent_permission_matrix.md"),
-        Path("docs/architecture/pipeline_state_machine.md"),
-        Path("docs/architecture/gate_contract_baseline.md"),
-        Path("docs/security/search_intelligence_security_baseline.md"),
-        Path("docs/planning/architecture_freeze_maturity_campaign.md"),
-        Path("docs/adr/033_define_search_intelligence_safety_security_boundaries.md"),
+        Path("docs/reference/security/safety_security_state_architecture.md"),
+        Path("docs/reference/agents/agent_permission_matrix.md"),
+        Path("docs/current/pipeline.md"),
+        Path("docs/reference/scoring-and-gates/gate_contract_baseline.md"),
+        Path("docs/reference/security/search_intelligence_security_baseline.md"),
+        Path("docs/archive/planning/architecture_freeze_maturity_campaign.md"),
+        Path("docs/decisions/adr/033_define_search_intelligence_safety_security_boundaries.md"),
     ]
     missing_docs = [str(path) for path in required_docs if not path.exists()]
     if missing_docs:

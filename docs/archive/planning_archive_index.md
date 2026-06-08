@@ -21,7 +21,7 @@ No files are moved or deleted by this index.
 
 ## Items
 
-### `docs/planning/README.md`
+### `docs/archive/planning/README.md`
 
 - Title: Planning Documents
 - Suggested bucket: `historical_directory_navigation`
@@ -29,7 +29,7 @@ No files are moved or deleted by this index.
 - Reason: Directory README explains historical/reference status for the area.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/architecture_freeze_maturity_campaign.md`
+### `docs/archive/planning/architecture_freeze_maturity_campaign.md`
 
 - Title: Architecture Freeze and 90+ Maturity Campaign
 - Suggested bucket: `historical_build_note`
@@ -37,7 +37,7 @@ No files are moved or deleted by this index.
 - Reason: Historical planning/source-analysis document unless explicitly promoted during DOC-001.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/cand001_validated_origin_url_persistence_gate.md`
+### `docs/archive/planning/cand001_validated_origin_url_persistence_gate.md`
 
 - Title: CAND-001 Validated Origin URL Persistence Gate
 - Suggested bucket: `evidence_gate_history`
@@ -45,7 +45,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/detail001_detail_evidence_discovery_foundation.md`
+### `docs/archive/planning/detail001_detail_evidence_discovery_foundation.md`
 
 - Title: DETAIL-001 Detail Evidence Discovery Foundation
 - Suggested bucket: `evidence_gate_history`
@@ -53,7 +53,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/detail002_detail_link_discovery_improvement.md`
+### `docs/archive/planning/detail002_detail_link_discovery_improvement.md`
 
 - Title: DETAIL-002 Detail Link Discovery Improvement
 - Suggested bucket: `evidence_gate_history`
@@ -61,7 +61,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/detail002a_rejected_url_contamination_fix.md`
+### `docs/archive/planning/detail002a_rejected_url_contamination_fix.md`
 
 - Title: DETAIL-002A Rejected URL Contamination Fix
 - Suggested bucket: `evidence_gate_history`
@@ -69,7 +69,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/detail004a_evidence_strictness_cost_guard.md`
+### `docs/archive/planning/detail004a_evidence_strictness_cost_guard.md`
 
 - Title: DETAIL-004A Evidence Strictness & Cost Guard
 - Suggested bucket: `evidence_gate_history`
@@ -77,7 +77,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/detail004b_location_evidence_strictness.md`
+### `docs/archive/planning/detail004b_location_evidence_strictness.md`
 
 - Title: DETAIL-004B Location Evidence Strictness
 - Suggested bucket: `evidence_gate_history`
@@ -85,7 +85,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/detail005_detail_reporting_contract_cleanup.md`
+### `docs/archive/planning/detail005_detail_reporting_contract_cleanup.md`
 
 - Title: DETAIL-005 Detail Reporting Contract Cleanup
 - Suggested bucket: `evidence_gate_history`
@@ -93,7 +93,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/doc001a_documentation_rebaseline_inventory.md`
+### `docs/archive/planning/doc001a_documentation_rebaseline_inventory.md`
 
 - Title: DOC-001A Documentation Rebaseline Inventory
 - Suggested bucket: `governance_or_rebaseline_build_log`
@@ -101,7 +101,7 @@ No files are moved or deleted by this index.
 - Reason: GOV/DOC campaign planning note; keep for traceability, not current architecture truth.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/doc001b_current_truth_archive_plan.md`
+### `docs/archive/planning/doc001b_current_truth_archive_plan.md`
 
 - Title: DOC-001B Current Truth and Archive Plan
 - Suggested bucket: `governance_or_rebaseline_build_log`
@@ -109,7 +109,7 @@ No files are moved or deleted by this index.
 - Reason: GOV/DOC campaign planning note; keep for traceability, not current architecture truth.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/doc001c_active_documentation_navigation.md`
+### `docs/archive/planning/doc001c_active_documentation_navigation.md`
 
 - Title: DOC-001C Active Documentation Navigation
 - Suggested bucket: `governance_or_rebaseline_build_log`
@@ -117,7 +117,7 @@ No files are moved or deleted by this index.
 - Reason: GOV/DOC campaign planning note; keep for traceability, not current architecture truth.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/doc001e_archive_deprecation_index.md`
+### `docs/archive/planning/doc001e_archive_deprecation_index.md`
 
 - Title: DOC-001E Archive and Deprecation Index
 - Suggested bucket: `governance_or_rebaseline_build_log`
@@ -125,7 +125,7 @@ No files are moved or deleted by this index.
 - Reason: GOV/DOC campaign planning note; keep for traceability, not current architecture truth.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/eo002b_candidate_reprocessing_url_finder_validation.md`
+### `docs/archive/planning/eo002b_candidate_reprocessing_url_finder_validation.md`
 
 - Title: EO-002B Candidate Reprocessing & URL Finder Validation
 - Suggested bucket: `historical_build_note`
@@ -133,7 +133,7 @@ No files are moved or deleted by this index.
 - Reason: Historical planning/source-analysis document unless explicitly promoted during DOC-001.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/eo002d_origin_source_discovery_url_finder_repair.md`
+### `docs/archive/planning/eo002d_origin_source_discovery_url_finder_repair.md`
 
 - Title: EO-002D Origin Source Discovery / URL Finder Repair
 - Suggested bucket: `source_strategy_history`
@@ -141,7 +141,7 @@ No files are moved or deleted by this index.
 - Reason: Source/sensor analysis history; keep as reference unless promoted into source strategy.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/eo002e_gate_stop_next_safe_action_evidence_analysis.md`
+### `docs/archive/planning/eo002e_gate_stop_next_safe_action_evidence_analysis.md`
 
 - Title: EO-002E Gate Stop / Next-Safe-Action Evidence Analysis
 - Suggested bucket: `evidence_gate_history`
@@ -149,7 +149,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/eo_chain_candidate_readiness_plan.md`
+### `docs/archive/planning/eo_chain_candidate_readiness_plan.md`
 
 - Title: EO Candidate Chain Readiness Plan
 - Suggested bucket: `historical_build_note`
@@ -157,7 +157,7 @@ No files are moved or deleted by this index.
 - Reason: Historical planning/source-analysis document unless explicitly promoted during DOC-001.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/gate001_initial_gate_review_foundation.md`
+### `docs/archive/planning/gate001_initial_gate_review_foundation.md`
 
 - Title: GATE-001 Initial Gate Review Foundation
 - Suggested bucket: `evidence_gate_history`
@@ -165,7 +165,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/gov001b_agent_governance_registry_foundation.md`
+### `docs/archive/planning/gov001b_agent_governance_registry_foundation.md`
 
 - Title: GOV-001B Implementation Note
 - Suggested bucket: `governance_or_rebaseline_build_log`
@@ -173,7 +173,7 @@ No files are moved or deleted by this index.
 - Reason: GOV/DOC campaign planning note; keep for traceability, not current architecture truth.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/gov001c_agent_classification_catalog.md`
+### `docs/archive/planning/gov001c_agent_classification_catalog.md`
 
 - Title: GOV-001C Agent Classification Catalog
 - Suggested bucket: `governance_or_rebaseline_build_log`
@@ -181,7 +181,7 @@ No files are moved or deleted by this index.
 - Reason: GOV/DOC campaign planning note; keep for traceability, not current architecture truth.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/gov001d_agent_capability_audit_matrix.md`
+### `docs/archive/planning/gov001d_agent_capability_audit_matrix.md`
 
 - Title: GOV-001D Agent Capability Audit Matrix
 - Suggested bucket: `governance_or_rebaseline_build_log`
@@ -189,7 +189,7 @@ No files are moved or deleted by this index.
 - Reason: GOV/DOC campaign planning note; keep for traceability, not current architecture truth.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/gov001e_documentation_drift_guard.md`
+### `docs/archive/planning/gov001e_documentation_drift_guard.md`
 
 - Title: GOV-001E Documentation and Governance Drift Guard
 - Suggested bucket: `governance_or_rebaseline_build_log`
@@ -197,7 +197,7 @@ No files are moved or deleted by this index.
 - Reason: GOV/DOC campaign planning note; keep for traceability, not current architecture truth.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/pipeline_stop_reassessment_agent.md`
+### `docs/archive/planning/pipeline_stop_reassessment_agent.md`
 
 - Title: Pipeline Stopper Reassessment Agent
 - Suggested bucket: `evidence_gate_history`
@@ -205,7 +205,7 @@ No files are moved or deleted by this index.
 - Reason: Evidence/gate implementation history; promote only stable rules into Current Truth docs.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/relevance_and_search_quality.md`
+### `docs/archive/planning/relevance_and_search_quality.md`
 
 - Title: Relevance and Search Quality Planning
 - Suggested bucket: `historical_build_note`
@@ -213,7 +213,7 @@ No files are moved or deleted by this index.
 - Reason: Historical planning/source-analysis document unless explicitly promoted during DOC-001.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/search_intelligence_roadmap_alignment.md`
+### `docs/archive/planning/search_intelligence_roadmap_alignment.md`
 
 - Title: Search Intelligence Roadmap Alignment
 - Suggested bucket: `explicit_historical_context`
@@ -221,7 +221,7 @@ No files are moved or deleted by this index.
 - Reason: Document already contains historical/legacy language.
 - DOC-001 action: Keep as historical/reference unless promoted into Current Truth.
 
-### `docs/planning/sensor001_ba_remote_nationwide_coverage_validation.md`
+### `docs/archive/planning/sensor001_ba_remote_nationwide_coverage_validation.md`
 
 - Title: SENSOR-001 BA Remote / Nationwide Coverage Validation
 - Suggested bucket: `historical_build_note`

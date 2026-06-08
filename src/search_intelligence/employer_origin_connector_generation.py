@@ -98,7 +98,7 @@ def default_connector_paths(candidate: SourceCandidate) -> dict[str, str]:
     return {
         "module_path": f"src/connectors/{module_name}.py",
         "test_path": f"tests/test_{module_name}_connector.py",
-        "docs_path": f"docs/source_analysis/{module_name}_connector_candidate.md",
+        "docs_path": f"docs/planning/active/source-candidates/{module_name}_connector_candidate.md",
     }
 
 
