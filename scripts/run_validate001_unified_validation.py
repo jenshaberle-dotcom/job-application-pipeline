@@ -31,6 +31,7 @@ TOOLING_SCRIPTS = [
     "scripts/run_validate001_unified_validation.py",
     "scripts/run_next001_next_safe_action_report.py",
     "scripts/create_standard_workflow_handover.py",
+    "scripts/run_freeze001_exit_gate.py",
 ]
 
 TOOLING_TESTS = [
@@ -41,6 +42,7 @@ TOOLING_TESTS = [
     "tests/test_validate001_unified_validation.py",
     "tests/test_next001_next_safe_action_report.py",
     "tests/test_create_standard_workflow_handover.py",
+    "tests/test_freeze001_exit_gate.py",
 ]
 
 
