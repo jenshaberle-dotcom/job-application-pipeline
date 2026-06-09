@@ -4,6 +4,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.run_sensor001h_ba_remote_post_activation_monitoring import (
+    TERM_OBSERVATIONS_SQL,
+    TERM_OBSERVATIONS_SQL_DOCKER,
+)
+
 from src.search_intelligence.market_sensor_controlled_activation import (
     BA_REMOTE_NATIONWIDE_REVIEW_PROFILE_NAME,
     BA_SOURCE_NAME,
@@ -197,6 +202,13 @@ def test_monitoring_reports_observed_runs() -> None:
     assert report["metric_summary"]["inserted_count"] == 8
 
 
+def test_script_wires_duplicate_provenance_rows_into_builder() -> None:
+    script = Path("scripts/run_sensor001h_ba_remote_post_activation_monitoring.py").read_text(encoding="utf-8")
+    build_call = script.split("report_obj = build_sensor001h_post_activation_monitoring(", 1)[1].split(")", 1)[0]
+
+    assert "duplicate_provenance_rows=duplicate_provenance_rows" in build_call
+
+
 def test_sensor001h_script_is_directly_executable_from_repo_root() -> None:
     repo_root = Path(__file__).resolve().parents[1]
 
@@ -215,3 +227,91 @@ def test_sensor001h_script_is_directly_executable_from_repo_root() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "SENSOR-001H" in result.stdout
+
+def test_monitoring_exposes_duplicate_provenance_separately_from_duplicate_count() -> None:
+    rows = (
+        {
+            "search_term": "Data Engineer",
+            "ingestion_run_count": 1,
+            "raw_jobs_count": 9,
+            "total_loaded": 10,
+            "inserted_count": 9,
+            "duplicate_count": 1,
+            "failed_run_count": 0,
+            "latest_started_at": "2026-06-09 08:00:00+00",
+        },
+    )
+    latest_runs = (
+        {
+            "id": 41,
+            "status": "success",
+            "search_term": "Data Engineer",
+            "total_loaded": 10,
+            "inserted_count": 9,
+            "duplicate_count": 1,
+            "error_type": None,
+            "error_stage": None,
+            "error_message": None,
+            "started_at": "2026-06-09 08:00:00+00",
+            "finished_at": "2026-06-09 08:00:02+00",
+        },
+    )
+    duplicate_rows = (
+        {
+            "duplicate_run_id": 41,
+            "duplicate_seen_in_term": "Data Engineer",
+            "external_job_id": "example-1",
+            "existing_raw_job_id": 7,
+            "original_run_id": 40,
+            "original_search_term": "Analytics Engineer",
+            "original_profile_name": BA_REMOTE_NATIONWIDE_REVIEW_PROFILE_NAME,
+            "original_source_name": BA_SOURCE_NAME,
+            "title": "Data Engineer",
+            "company_name": "Example GmbH",
+            "source_url": "ba://example-1",
+            "provenance_class": "cross_term_overlap_within_current_remote_run",
+        },
+    )
+
+    report = build_sensor001h_post_activation_monitoring(
+        sensor001g_report=sensor001g_report(),
+        profiles=(review_profile(),),
+        terms=review_terms(),
+        term_observation_rows=rows,
+        latest_run_rows=latest_runs,
+        duplicate_provenance_rows=duplicate_rows,
+    ).as_dict()
+
+    assert report["metric_summary"]["duplicate_count"] == 1
+    assert report["duplicate_provenance_summary"] == {
+        "cross_term_overlap_within_current_remote_run": 1
+    }
+    assert report["metric_summary"]["duplicate_count_by_provenance"] == {
+        "cross_term_overlap_within_current_remote_run": 1
+    }
+    assert report["duplicate_provenance"][0]["company_name"] == "Example GmbH"
+
+
+def test_duplicate_provenance_sql_uses_external_id_not_observation_raw_job_id() -> None:
+    from scripts.run_sensor001h_ba_remote_post_activation_monitoring import (
+        DUPLICATE_PROVENANCE_SQL,
+        DUPLICATE_PROVENANCE_SQL_DOCKER,
+    )
+
+    assert "original_raw.source_name = current_run.source_name" in DUPLICATE_PROVENANCE_SQL
+    assert "original_raw.external_job_id = jo.external_job_id" in DUPLICATE_PROVENANCE_SQL
+    assert "original_raw.id = jo.raw_job_id" not in DUPLICATE_PROVENANCE_SQL
+
+    assert "original_raw.source_name = current_run.source_name" in DUPLICATE_PROVENANCE_SQL_DOCKER
+    assert "original_raw.external_job_id = jo.external_job_id" in DUPLICATE_PROVENANCE_SQL_DOCKER
+    assert "original_raw.id = jo.raw_job_id" not in DUPLICATE_PROVENANCE_SQL_DOCKER
+
+
+def test_monitoring_sql_does_not_multiply_run_metrics_by_raw_jobs_join() -> None:
+    assert "WITH run_metrics AS" in TERM_OBSERVATIONS_SQL
+    assert "WITH run_metrics AS" in TERM_OBSERVATIONS_SQL_DOCKER
+    assert "raw_job_counts AS" in TERM_OBSERVATIONS_SQL
+    assert "raw_job_counts AS" in TERM_OBSERVATIONS_SQL_DOCKER
+    assert "LEFT JOIN raw_jobs r ON r.ingestion_run_id = ir.id" in TERM_OBSERVATIONS_SQL
+    assert "COALESCE(SUM(ir.total_loaded), 0)::int AS total_loaded" in TERM_OBSERVATIONS_SQL
+    assert TERM_OBSERVATIONS_SQL.index("COALESCE(SUM(ir.total_loaded), 0)::int AS total_loaded") < TERM_OBSERVATIONS_SQL.index("raw_job_counts AS")

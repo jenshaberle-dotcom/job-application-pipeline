@@ -56,13 +56,14 @@ def main() -> int:
     try:
         sensor001g_path = Path(args.sensor001g_json) if args.sensor001g_json else latest_sensor001g_report_path(output_dir)
         sensor001g_report = json.loads(sensor001g_path.read_text(encoding="utf-8"))
-        profiles, terms, term_rows, latest_run_rows, access = load_state(args)
+        profiles, terms, term_rows, latest_run_rows, duplicate_provenance_rows, access = load_state(args)
         report_obj = build_sensor001h_post_activation_monitoring(
             sensor001g_report=sensor001g_report,
             profiles=profiles,
             terms=terms,
             term_observation_rows=term_rows,
             latest_run_rows=latest_run_rows,
+            duplicate_provenance_rows=duplicate_provenance_rows,
         )
         report = report_obj.as_dict()
         report["sensor001g_input_path"] = str(sensor001g_path)
@@ -106,22 +107,23 @@ def load_state(
     tuple[MarketSensorTermState, ...],
     list[dict[str, Any]],
     list[dict[str, Any]],
+    list[dict[str, Any]],
     str,
 ]:
     dsn = resolve_dsn(args.dsn)
     if dsn:
-        profiles, terms, term_rows, latest_run_rows = load_state_with_psycopg(dsn, args.source_name)
-        return profiles, terms, term_rows, latest_run_rows, "psycopg_dsn"
+        profiles, terms, term_rows, latest_run_rows, duplicate_provenance_rows = load_state_with_psycopg(dsn, args.source_name)
+        return profiles, terms, term_rows, latest_run_rows, duplicate_provenance_rows, "psycopg_dsn"
     if args.no_docker_fallback:
         raise RuntimeError("No DSN configured and docker fallback disabled.")
-    profiles, terms, term_rows, latest_run_rows = load_state_with_docker_psql(args)
-    return profiles, terms, term_rows, latest_run_rows, "docker_exec_psql"
+    profiles, terms, term_rows, latest_run_rows, duplicate_provenance_rows = load_state_with_docker_psql(args)
+    return profiles, terms, term_rows, latest_run_rows, duplicate_provenance_rows, "docker_exec_psql"
 
 
 def load_state_with_psycopg(
     dsn: str,
     source_name: str,
-) -> tuple[tuple[MarketSensorProfileState, ...], tuple[MarketSensorTermState, ...], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[tuple[MarketSensorProfileState, ...], tuple[MarketSensorTermState, ...], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     import psycopg
 
     with psycopg.connect(dsn) as conn:
@@ -147,12 +149,17 @@ def load_state_with_psycopg(
                 latest_rows = cursor.fetchall()
                 latest_columns = [desc.name for desc in cursor.description]
                 latest_runs = [dict(zip(latest_columns, row)) for row in latest_rows]
-    return profiles, terms, term_observations, latest_runs
+
+                cursor.execute(DUPLICATE_PROVENANCE_SQL, {"profile_name": BA_REMOTE_NATIONWIDE_REVIEW_PROFILE_NAME, "source_name": source_name})
+                duplicate_rows = cursor.fetchall()
+                duplicate_columns = [desc.name for desc in cursor.description]
+                duplicate_provenance = [dict(zip(duplicate_columns, row)) for row in duplicate_rows]
+    return profiles, terms, term_observations, latest_runs, duplicate_provenance
 
 
 def load_state_with_docker_psql(
     args: argparse.Namespace,
-) -> tuple[tuple[MarketSensorProfileState, ...], tuple[MarketSensorTermState, ...], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[tuple[MarketSensorProfileState, ...], tuple[MarketSensorTermState, ...], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     profile_rows = run_docker_json_query(wrap_json_query(PROFILES_SQL_DOCKER.replace("__SOURCE_NAME__", sql_literal(args.source_name))), args)
     term_rows = run_docker_json_query(wrap_json_query(TERMS_SQL_DOCKER.replace("__SOURCE_NAME__", sql_literal(args.source_name))), args)
     observation_rows = run_docker_json_query(
@@ -171,11 +178,20 @@ def load_state_with_docker_psql(
         ),
         args,
     )
+    duplicate_provenance_rows = run_docker_json_query(
+        wrap_json_query(
+            DUPLICATE_PROVENANCE_SQL_DOCKER
+            .replace("__PROFILE_NAME__", sql_literal(BA_REMOTE_NATIONWIDE_REVIEW_PROFILE_NAME))
+            .replace("__SOURCE_NAME__", sql_literal(args.source_name))
+        ),
+        args,
+    )
     return (
         tuple(MarketSensorProfileState.from_mapping(row) for row in profile_rows),
         tuple(MarketSensorTermState.from_mapping(row) for row in term_rows),
         observation_rows,
         latest_run_rows,
+        duplicate_provenance_rows,
     )
 
 
@@ -252,23 +268,51 @@ ORDER BY sp.profile_name, st.search_term;
 """
 
 TERM_OBSERVATIONS_SQL = """
+WITH run_metrics AS (
+    SELECT
+        st.id AS search_term_id,
+        st.search_term,
+        COUNT(ir.id)::int AS ingestion_run_count,
+        COALESCE(SUM(ir.total_loaded), 0)::int AS total_loaded,
+        COALESCE(SUM(ir.inserted_count), 0)::int AS inserted_count,
+        COALESCE(SUM(ir.duplicate_count), 0)::int AS duplicate_count,
+        COALESCE(SUM(CASE WHEN ir.status = 'failed' THEN 1 ELSE 0 END), 0)::int AS failed_run_count,
+        MAX(ir.started_at)::text AS latest_started_at
+    FROM search_profiles sp
+    JOIN search_terms st ON st.search_profile_id = sp.id AND st.is_active = TRUE
+    LEFT JOIN ingestion_runs ir
+      ON ir.search_profile_id = sp.id
+     AND (ir.search_term = st.search_term OR ir.search_term_id = st.id)
+    WHERE sp.profile_name = %(profile_name)s
+      AND sp.source_name = %(source_name)s
+    GROUP BY st.id, st.search_term
+),
+raw_job_counts AS (
+    SELECT
+        st.id AS search_term_id,
+        COUNT(r.id)::int AS raw_jobs_count
+    FROM search_profiles sp
+    JOIN search_terms st ON st.search_profile_id = sp.id AND st.is_active = TRUE
+    LEFT JOIN ingestion_runs ir
+      ON ir.search_profile_id = sp.id
+     AND (ir.search_term = st.search_term OR ir.search_term_id = st.id)
+    LEFT JOIN raw_jobs r ON r.ingestion_run_id = ir.id
+    WHERE sp.profile_name = %(profile_name)s
+      AND sp.source_name = %(source_name)s
+    GROUP BY st.id
+)
 SELECT
-    st.search_term,
-    COUNT(DISTINCT ir.id)::int AS ingestion_run_count,
-    COUNT(r.id)::int AS raw_jobs_count,
-    COALESCE(SUM(ir.total_loaded), 0)::int AS total_loaded,
-    COALESCE(SUM(ir.inserted_count), 0)::int AS inserted_count,
-    COALESCE(SUM(ir.duplicate_count), 0)::int AS duplicate_count,
-    COALESCE(SUM(CASE WHEN ir.status = 'failed' THEN 1 ELSE 0 END), 0)::int AS failed_run_count,
-    MAX(ir.started_at)::text AS latest_started_at
-FROM search_profiles sp
-JOIN search_terms st ON st.search_profile_id = sp.id AND st.is_active = TRUE
-LEFT JOIN ingestion_runs ir ON ir.search_profile_id = sp.id AND (ir.search_term = st.search_term OR ir.search_term_id = st.id)
-LEFT JOIN raw_jobs r ON r.ingestion_run_id = ir.id
-WHERE sp.profile_name = %(profile_name)s
-  AND sp.source_name = %(source_name)s
-GROUP BY st.search_term
-ORDER BY st.search_term;
+    rm.search_term,
+    rm.ingestion_run_count,
+    COALESCE(rjc.raw_jobs_count, 0)::int AS raw_jobs_count,
+    rm.total_loaded,
+    rm.inserted_count,
+    rm.duplicate_count,
+    rm.failed_run_count,
+    rm.latest_started_at
+FROM run_metrics rm
+LEFT JOIN raw_job_counts rjc ON rjc.search_term_id = rm.search_term_id
+ORDER BY rm.search_term;
 """
 
 LATEST_RUNS_SQL = """
@@ -308,23 +352,51 @@ ORDER BY sp.profile_name, st.search_term
 """
 
 TERM_OBSERVATIONS_SQL_DOCKER = """
+WITH run_metrics AS (
+    SELECT
+        st.id AS search_term_id,
+        st.search_term,
+        COUNT(ir.id)::int AS ingestion_run_count,
+        COALESCE(SUM(ir.total_loaded), 0)::int AS total_loaded,
+        COALESCE(SUM(ir.inserted_count), 0)::int AS inserted_count,
+        COALESCE(SUM(ir.duplicate_count), 0)::int AS duplicate_count,
+        COALESCE(SUM(CASE WHEN ir.status = 'failed' THEN 1 ELSE 0 END), 0)::int AS failed_run_count,
+        MAX(ir.started_at)::text AS latest_started_at
+    FROM search_profiles sp
+    JOIN search_terms st ON st.search_profile_id = sp.id AND st.is_active = TRUE
+    LEFT JOIN ingestion_runs ir
+      ON ir.search_profile_id = sp.id
+     AND (ir.search_term = st.search_term OR ir.search_term_id = st.id)
+    WHERE sp.profile_name = __PROFILE_NAME__
+      AND sp.source_name = __SOURCE_NAME__
+    GROUP BY st.id, st.search_term
+),
+raw_job_counts AS (
+    SELECT
+        st.id AS search_term_id,
+        COUNT(r.id)::int AS raw_jobs_count
+    FROM search_profiles sp
+    JOIN search_terms st ON st.search_profile_id = sp.id AND st.is_active = TRUE
+    LEFT JOIN ingestion_runs ir
+      ON ir.search_profile_id = sp.id
+     AND (ir.search_term = st.search_term OR ir.search_term_id = st.id)
+    LEFT JOIN raw_jobs r ON r.ingestion_run_id = ir.id
+    WHERE sp.profile_name = __PROFILE_NAME__
+      AND sp.source_name = __SOURCE_NAME__
+    GROUP BY st.id
+)
 SELECT
-    st.search_term,
-    COUNT(DISTINCT ir.id)::int AS ingestion_run_count,
-    COUNT(r.id)::int AS raw_jobs_count,
-    COALESCE(SUM(ir.total_loaded), 0)::int AS total_loaded,
-    COALESCE(SUM(ir.inserted_count), 0)::int AS inserted_count,
-    COALESCE(SUM(ir.duplicate_count), 0)::int AS duplicate_count,
-    COALESCE(SUM(CASE WHEN ir.status = 'failed' THEN 1 ELSE 0 END), 0)::int AS failed_run_count,
-    MAX(ir.started_at)::text AS latest_started_at
-FROM search_profiles sp
-JOIN search_terms st ON st.search_profile_id = sp.id AND st.is_active = TRUE
-LEFT JOIN ingestion_runs ir ON ir.search_profile_id = sp.id AND (ir.search_term = st.search_term OR ir.search_term_id = st.id)
-LEFT JOIN raw_jobs r ON r.ingestion_run_id = ir.id
-WHERE sp.profile_name = __PROFILE_NAME__
-  AND sp.source_name = __SOURCE_NAME__
-GROUP BY st.search_term
-ORDER BY st.search_term
+    rm.search_term,
+    rm.ingestion_run_count,
+    COALESCE(rjc.raw_jobs_count, 0)::int AS raw_jobs_count,
+    rm.total_loaded,
+    rm.inserted_count,
+    rm.duplicate_count,
+    rm.failed_run_count,
+    rm.latest_started_at
+FROM run_metrics rm
+LEFT JOIN raw_job_counts rjc ON rjc.search_term_id = rm.search_term_id
+ORDER BY rm.search_term
 """
 
 LATEST_RUNS_SQL_DOCKER = """
@@ -348,6 +420,138 @@ ORDER BY ir.started_at DESC
 LIMIT 10
 """
 
+
+DUPLICATE_PROVENANCE_SQL = """
+WITH remote_profile AS (
+    SELECT id, profile_name, source_name
+    FROM search_profiles
+    WHERE profile_name = %(profile_name)s
+      AND source_name = %(source_name)s
+),
+latest_remote_runs AS (
+    SELECT ir.*
+    FROM ingestion_runs ir
+    JOIN remote_profile rp ON rp.id = ir.search_profile_id
+    ORDER BY ir.started_at DESC
+    LIMIT 7
+),
+duplicate_observations AS (
+    SELECT
+        current_run.id AS duplicate_run_id,
+        current_run.search_term AS duplicate_seen_in_term,
+        jo.external_job_id,
+        jo.raw_job_id AS existing_raw_job_id,
+        original_raw.ingestion_run_id AS original_run_id,
+        original_run.search_term AS original_search_term,
+        original_profile.profile_name AS original_profile_name,
+        original_profile.source_name AS original_source_name,
+        COALESCE(
+            original_raw.raw_data #>> '{result_card,title}',
+            original_raw.raw_data #>> '{job,titel}',
+            original_raw.raw_data #>> '{job,title}',
+            '<missing>'
+        ) AS title,
+        COALESCE(
+            original_raw.raw_data #>> '{result_card,company_name}',
+            original_raw.raw_data #>> '{job,arbeitgeber}',
+            original_raw.raw_data #>> '{job,company_name}',
+            original_raw.raw_data #>> '{job,company}',
+            '<missing>'
+        ) AS company_name,
+        original_raw.source_url
+    FROM latest_remote_runs current_run
+    JOIN job_observations jo
+      ON jo.ingestion_run_id = current_run.id
+    JOIN raw_jobs original_raw
+      ON original_raw.source_name = current_run.source_name
+     AND original_raw.external_job_id = jo.external_job_id
+    LEFT JOIN ingestion_runs original_run
+      ON original_run.id = original_raw.ingestion_run_id
+    LEFT JOIN search_profiles original_profile
+      ON original_profile.id = original_raw.search_profile_id
+    WHERE jo.external_job_id IS NOT NULL
+      AND original_raw.ingestion_run_id IS DISTINCT FROM current_run.id
+)
+SELECT
+    *,
+    CASE
+        WHEN original_run_id IN (SELECT id FROM latest_remote_runs)
+            THEN 'cross_term_overlap_within_current_remote_run'
+        WHEN original_profile_name = %(profile_name)s
+            THEN 'previous_same_remote_profile_run'
+        WHEN original_source_name = %(source_name)s
+            THEN 'previous_ba_profile_or_older_ba_run'
+        ELSE 'other_or_unknown'
+    END AS provenance_class
+FROM duplicate_observations
+ORDER BY duplicate_run_id, external_job_id;
+"""
+
+DUPLICATE_PROVENANCE_SQL_DOCKER = """
+WITH remote_profile AS (
+    SELECT id, profile_name, source_name
+    FROM search_profiles
+    WHERE profile_name = __PROFILE_NAME__
+      AND source_name = __SOURCE_NAME__
+),
+latest_remote_runs AS (
+    SELECT ir.*
+    FROM ingestion_runs ir
+    JOIN remote_profile rp ON rp.id = ir.search_profile_id
+    ORDER BY ir.started_at DESC
+    LIMIT 7
+),
+duplicate_observations AS (
+    SELECT
+        current_run.id AS duplicate_run_id,
+        current_run.search_term AS duplicate_seen_in_term,
+        jo.external_job_id,
+        jo.raw_job_id AS existing_raw_job_id,
+        original_raw.ingestion_run_id AS original_run_id,
+        original_run.search_term AS original_search_term,
+        original_profile.profile_name AS original_profile_name,
+        original_profile.source_name AS original_source_name,
+        COALESCE(
+            original_raw.raw_data #>> '{result_card,title}',
+            original_raw.raw_data #>> '{job,titel}',
+            original_raw.raw_data #>> '{job,title}',
+            '<missing>'
+        ) AS title,
+        COALESCE(
+            original_raw.raw_data #>> '{result_card,company_name}',
+            original_raw.raw_data #>> '{job,arbeitgeber}',
+            original_raw.raw_data #>> '{job,company_name}',
+            original_raw.raw_data #>> '{job,company}',
+            '<missing>'
+        ) AS company_name,
+        original_raw.source_url
+    FROM latest_remote_runs current_run
+    JOIN job_observations jo
+      ON jo.ingestion_run_id = current_run.id
+    JOIN raw_jobs original_raw
+      ON original_raw.source_name = current_run.source_name
+     AND original_raw.external_job_id = jo.external_job_id
+    LEFT JOIN ingestion_runs original_run
+      ON original_run.id = original_raw.ingestion_run_id
+    LEFT JOIN search_profiles original_profile
+      ON original_profile.id = original_raw.search_profile_id
+    WHERE jo.external_job_id IS NOT NULL
+      AND original_raw.ingestion_run_id IS DISTINCT FROM current_run.id
+)
+SELECT
+    *,
+    CASE
+        WHEN original_run_id IN (SELECT id FROM latest_remote_runs)
+            THEN 'cross_term_overlap_within_current_remote_run'
+        WHEN original_profile_name = __PROFILE_NAME__
+            THEN 'previous_same_remote_profile_run'
+        WHEN original_source_name = __SOURCE_NAME__
+            THEN 'previous_ba_profile_or_older_ba_run'
+        ELSE 'other_or_unknown'
+    END AS provenance_class
+FROM duplicate_observations
+ORDER BY duplicate_run_id, external_job_id
+"""
 
 if __name__ == "__main__":
     raise SystemExit(main())
