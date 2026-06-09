@@ -92,12 +92,50 @@ class Sensor001HLatestRun:
 
 
 @dataclass(frozen=True)
+class Sensor001HDuplicateProvenance:
+    duplicate_run_id: int
+    duplicate_seen_in_term: str | None
+    external_job_id: str | None
+    existing_raw_job_id: int | None
+    original_run_id: int | None
+    original_search_term: str | None
+    original_profile_name: str | None
+    original_source_name: str | None
+    title: str
+    company_name: str
+    source_url: str | None
+    provenance_class: str
+
+    @classmethod
+    def from_mapping(cls, row: Mapping[str, Any]) -> "Sensor001HDuplicateProvenance":
+        return cls(
+            duplicate_run_id=_to_int(row.get("duplicate_run_id")),
+            duplicate_seen_in_term=_optional_text(row.get("duplicate_seen_in_term")),
+            external_job_id=_optional_text(row.get("external_job_id")),
+            existing_raw_job_id=_optional_int(row.get("existing_raw_job_id")),
+            original_run_id=_optional_int(row.get("original_run_id")),
+            original_search_term=_optional_text(row.get("original_search_term")),
+            original_profile_name=_optional_text(row.get("original_profile_name")),
+            original_source_name=_optional_text(row.get("original_source_name")),
+            title=str(row.get("title") or "<missing>"),
+            company_name=str(row.get("company_name") or "<missing>"),
+            source_url=_optional_text(row.get("source_url")),
+            provenance_class=str(row.get("provenance_class") or "other_or_unknown"),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class Sensor001HMonitoringReport:
     overall_status: str
     source_status: str
     activation_state: Sensor001HActivationState
     term_observations: tuple[Sensor001HTermObservation, ...]
     latest_runs: tuple[Sensor001HLatestRun, ...]
+    duplicate_provenance_summary: Mapping[str, int]
+    duplicate_provenance: tuple[Sensor001HDuplicateProvenance, ...]
     metric_summary: Mapping[str, Any]
     findings: tuple[str, ...]
     next_action: str
@@ -116,6 +154,8 @@ class Sensor001HMonitoringReport:
             "activation_state": self.activation_state.as_dict(),
             "term_observations": [observation.as_dict() for observation in self.term_observations],
             "latest_runs": [run.as_dict() for run in self.latest_runs],
+            "duplicate_provenance_summary": dict(self.duplicate_provenance_summary),
+            "duplicate_provenance": [item.as_dict() for item in self.duplicate_provenance],
             "metric_summary": dict(self.metric_summary),
             "findings": list(self.findings),
             "next_action": self.next_action,
@@ -131,6 +171,7 @@ def build_sensor001h_post_activation_monitoring(
     terms: Iterable[MarketSensorTermState],
     term_observation_rows: Iterable[Mapping[str, Any]],
     latest_run_rows: Iterable[Mapping[str, Any]],
+    duplicate_provenance_rows: Iterable[Mapping[str, Any]] = (),
 ) -> Sensor001HMonitoringReport:
     source_status = str(sensor001g_report.get("overall_status") or "unknown")
     profile_tuple = tuple(profiles)
@@ -138,7 +179,12 @@ def build_sensor001h_post_activation_monitoring(
     activation_state = _build_activation_state(profile_tuple, term_tuple)
     term_observations = tuple(Sensor001HTermObservation.from_mapping(row) for row in term_observation_rows)
     latest_runs = tuple(Sensor001HLatestRun.from_mapping(row) for row in latest_run_rows)
-    metric_summary = _summarize(term_observations, latest_runs)
+    duplicate_provenance = tuple(
+        Sensor001HDuplicateProvenance.from_mapping(row)
+        for row in duplicate_provenance_rows
+    )
+    duplicate_provenance_summary = _summarize_duplicate_provenance(duplicate_provenance)
+    metric_summary = _summarize(term_observations, latest_runs, duplicate_provenance_summary)
     safety_boundary = _safety_boundary()
     monitoring_contract = _monitoring_contract()
 
@@ -149,6 +195,8 @@ def build_sensor001h_post_activation_monitoring(
             activation_state=activation_state,
             term_observations=term_observations,
             latest_runs=latest_runs,
+            duplicate_provenance_summary=duplicate_provenance_summary,
+            duplicate_provenance=duplicate_provenance,
             metric_summary=metric_summary,
             findings=("SENSOR-001G has not confirmed an applied or already-active controlled profile state.",),
             next_action="Run or inspect SENSOR-001G before treating the profile as activated.",
@@ -163,6 +211,8 @@ def build_sensor001h_post_activation_monitoring(
             activation_state=activation_state,
             term_observations=term_observations,
             latest_runs=latest_runs,
+            duplicate_provenance_summary=duplicate_provenance_summary,
+            duplicate_provenance=duplicate_provenance,
             metric_summary=metric_summary,
             findings=("The BA remote/nationwide review profile is not active in the current database state.",),
             next_action="Do not monitor ingestion impact until SENSOR-001G activation is visible in the database.",
@@ -177,6 +227,8 @@ def build_sensor001h_post_activation_monitoring(
             activation_state=activation_state,
             term_observations=term_observations,
             latest_runs=latest_runs,
+            duplicate_provenance_summary=duplicate_provenance_summary,
+            duplicate_provenance=duplicate_provenance,
             metric_summary=metric_summary,
             findings=("The active BA remote/nationwide profile is missing expected active search terms.",),
             next_action="Repair the profile terms before interpreting post-activation ingestion quality.",
@@ -191,6 +243,8 @@ def build_sensor001h_post_activation_monitoring(
             activation_state=activation_state,
             term_observations=term_observations,
             latest_runs=latest_runs,
+            duplicate_provenance_summary=duplicate_provenance_summary,
+            duplicate_provenance=duplicate_provenance,
             metric_summary=metric_summary,
             findings=("At least one post-activation run for the profile failed; inspect errors before promotion decisions.",),
             next_action="Inspect failed ingestion runs and repair before broadening or judging source quality.",
@@ -205,6 +259,8 @@ def build_sensor001h_post_activation_monitoring(
             activation_state=activation_state,
             term_observations=term_observations,
             latest_runs=latest_runs,
+            duplicate_provenance_summary=duplicate_provenance_summary,
+            duplicate_provenance=duplicate_provenance,
             metric_summary=metric_summary,
             findings=(
                 "The controlled BA remote/nationwide profile is active and ready for monitoring.",
@@ -222,6 +278,8 @@ def build_sensor001h_post_activation_monitoring(
             activation_state=activation_state,
             term_observations=term_observations,
             latest_runs=latest_runs,
+            duplicate_provenance_summary=duplicate_provenance_summary,
+            duplicate_provenance=duplicate_provenance,
             metric_summary=metric_summary,
             findings=("Post-activation runs are visible but appear duplicate-dominated.",),
             next_action="Review term quality and overlap before keeping the profile active long-term.",
@@ -235,6 +293,8 @@ def build_sensor001h_post_activation_monitoring(
         activation_state=activation_state,
         term_observations=term_observations,
         latest_runs=latest_runs,
+        duplicate_provenance_summary=duplicate_provenance_summary,
+        duplicate_provenance=duplicate_provenance,
         metric_summary=metric_summary,
         findings=(
             "Post-activation ingestion runs are visible for the controlled BA remote/nationwide profile.",
@@ -274,6 +334,14 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"loaded={observation.get('total_loaded')}, inserted={observation.get('inserted_count')}, "
             f"duplicates={observation.get('duplicate_count')}, failed={observation.get('failed_run_count')}"
         )
+
+    lines.extend(["", "## Duplicate provenance", ""])
+    provenance = report.get("duplicate_provenance_summary", {})
+    if provenance:
+        for key, value in provenance.items():
+            lines.append(f"- {key}: `{value}`")
+    else:
+        lines.append("- none")
 
     lines.extend(["", "## Findings", ""])
     for finding in report.get("findings", []):
@@ -318,6 +386,7 @@ def _build_activation_state(
 def _summarize(
     term_observations: tuple[Sensor001HTermObservation, ...],
     latest_runs: tuple[Sensor001HLatestRun, ...],
+    duplicate_provenance_summary: Mapping[str, int],
 ) -> dict[str, Any]:
     ingestion_run_count = sum(observation.ingestion_run_count for observation in term_observations)
     total_loaded = sum(observation.total_loaded for observation in term_observations)
@@ -335,10 +404,22 @@ def _summarize(
         "duplicate_count": duplicate_count,
         "raw_jobs_count": raw_jobs_count,
         "failed_run_count": failed_run_count,
+        "duplicate_count_by_provenance": dict(duplicate_provenance_summary),
         "observed_terms": observed_terms,
         "silent_terms": silent_terms,
         "latest_started_at": latest_started_at,
     }
+
+
+def _summarize_duplicate_provenance(
+    duplicate_provenance: tuple[Sensor001HDuplicateProvenance, ...],
+) -> dict[str, int]:
+    summary: dict[str, int] = {}
+    for item in duplicate_provenance:
+        summary[item.provenance_class] = summary.get(item.provenance_class, 0) + 1
+    return dict(sorted(summary.items()))
+
+
 
 
 def _safety_boundary() -> dict[str, bool]:
@@ -380,6 +461,12 @@ def _monitoring_contract() -> dict[str, Any]:
 def _to_int(value: Any) -> int:
     if value is None:
         return 0
+    return int(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
     return int(value)
 
 
