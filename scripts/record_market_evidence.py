@@ -1,8 +1,11 @@
 """Record a manual market-evidence sighting.
 
-Use this for evidence such as a LinkedIn alert that proves a company has a relevant
-role while employer-origin discovery remains unresolved. This writes market evidence
-only; it does not create jobs, activate sources or change schedulers.
+Legacy single-observation helper for MARKET-003 manual market observations.
+
+Prefer scripts/run_market003_external_market_observation.py for new manual
+observations because it keeps dry-run, explicit quality signals and review mode
+in one place. This helper still writes market evidence only; it does not create
+jobs, activate sources or change schedulers.
 """
 from __future__ import annotations
 
@@ -32,7 +35,8 @@ def record_market_evidence(conn: psycopg.Connection[Any], args: argparse.Namespa
     normalized = normalize_company_key(args.company_name)
     evidence = {
         "recorded_by": args.recorded_by,
-        "input_mode": "manual_market_evidence",
+        "input_mode": "manual_market_observation",
+        "observation_origin": "external_market_observation",
         "boundary": {
             "job_ingestion": False,
             "bronze_write": False,
@@ -61,7 +65,7 @@ def record_market_evidence(conn: psycopg.Connection[Any], args: argparse.Namespa
             """,
             (
                 args.evidence_source,
-                "manual_aggregator_sighting",
+                "manual_market_observation",
                 args.source_name,
                 normalized,
                 args.company_name,
@@ -83,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--company-name", required=True)
     parser.add_argument("--title", required=True)
     parser.add_argument("--source-name", default="linkedin")
-    parser.add_argument("--evidence-source", default="manual")
+    parser.add_argument("--evidence-source", default="manual_market_observation")
     parser.add_argument("--evidence-url")
     parser.add_argument("--search-profile-name")
     parser.add_argument("--search-term")
