@@ -82,9 +82,74 @@ least:
 - whether the observation is allowed only as recall/blind-spot signal or may
   trigger a bounded downstream discovery action.
 
-Manual observations may start discovery or recall analysis. They must not silently
-become source-of-truth inputs for gates, Gold metrics, dashboards or connector
-activation.
+Manual observations may start discovery or recall analysis. They are not a pipeline input
+and must not silently become source-of-truth inputs for gates, Gold metrics,
+dashboards or connector activation.
+
+<!-- MARKET-003A-COMPANY-SEED-START -->
+## MARKET-003A Manual Company Observation Seed Register
+
+This planning anchor preserves the manually observed company group-by work as a
+review seed for MARKET-003 and ASSUMPTION-001. It is intentionally not a pipeline
+input, not source-of-truth, not automatically truth, not a gate pass, not a Gold metric and not an automatic origin-candidate creation list.
+
+Manual company observations may later be persisted in a DB-backed MARKET-003
+model. Until then, the following seed groups preserve recall/blind-spot context
+and normalization risks discovered during manual market review.
+
+### Seed group A: already visible or known in pipeline context
+
+| Company seed | Current interpretation | Review note |
+|---|---|---|
+| HDI | known company / origin-source context | Keep as known baseline for origin-source validation and scheduler/connector learning. |
+| VHV | known company / origin-source context | Keep as known baseline; prior source URL recovery uncertainty remains useful. |
+| adesso | known company / market signal | Useful for StepStone/origin mirroring and relevance vocabulary checks. |
+| E.ON Grid Solutions | known company / market signal | Useful for external market recall and source discovery checks. |
+| NEW YORKER | known company / market signal | Useful as known-company suppression and recall baseline. |
+| Finanz Informatik | active employer-origin reference | Milestone/template for employer-origin connector governance. |
+| Rossmann | known/reserve-style source context | Keep for future source/candidate comparison. |
+| enercity | known origin-source/connector context | Keep for source lifecycle and cloud/platform vocabulary examples. |
+
+### Seed group B: manually observed attractive or missing companies
+
+| Company seed | Current interpretation | Review note |
+|---|---|---|
+| Bahlsen | manually observed / potentially missing | Check whether pipeline discovers it through current sensors or origin-source discovery. |
+| GETEC | manually observed / potentially missing | Validate company identity and relevant data/IT roles before candidate promotion. |
+| MEDIFOX DAN | manually observed / potentially missing | Validate naming and origin-source evidence before treating as a missed company. |
+| goetel | manually observed / potentially missing | Validate naming, region relevance and origin-source presence. |
+| Dataciders | manually observed / potentially missing | Strong data/analytics signal; preserve as recall/blind-spot seed. |
+| Atos | manually observed / potentially missing | Validate local/remote relevance and source family before conclusions. |
+| Sopra Steria | manually observed / potentially missing | Validate consulting/source-role ambiguity before promotion. |
+| QUNIS | manually observed / potentially missing | Strong BI/analytics signal; preserve as recall/blind-spot seed. |
+
+### Seed group C: additional group-by company seeds from manual review
+
+| Company seed | Current interpretation | Review note |
+|---|---|---|
+| VALUE AG | manually observed company seed | Keep as raw seed; validate identity before normalization or candidate decisions. |
+| SVA | manually observed company seed | Ambiguous abbreviation risk; validate exact employer identity. |
+| ivv | manually observed company seed | Normalize carefully; raw spelling may not equal canonical employer identity. |
+| NETGO | manually observed company seed | Validate exact brand/legal entity and role relevance. |
+| SPARETECH | manually observed company seed | Validate market relevance and origin-source evidence. |
+| Thinkport | manually observed company seed | Validate exact company identity and relevant roles. |
+| NeoBIM | manually observed company seed | Validate domain relevance before candidate promotion. |
+| Oviva | manually observed company seed | Validate location/remote relevance and source evidence. |
+| Aignostics | manually observed company seed | Validate location/remote and role fit before downstream use. |
+| Veeva Systems | manually observed company seed | Validate Germany/remote relevance and role fit. |
+| Grafana Labs | manually observed company seed | Validate remote/location and role relevance; likely remote/global context. |
+| Concordia Versicherungen | manually observed company seed | Validate Hannover/regional relevance and origin-source evidence. |
+| EEW Energy from Waste | manually observed company seed | Validate data/IT role relevance and origin-source evidence. |
+| ISR Information Products | observed through BA duplicate provenance | Preserve as BA overlap/source-quality learning signal, not just duplicate noise. |
+
+### Governance rule
+
+Manual company group-by output is recall and blind-spot evidence. Normalized
+company identity, same-company assumptions, LinkedIn-only conclusions,
+aggregator-only conclusions and origin-source conclusions remain assumptions until
+validated. They may start bounded discovery but must not become gate, Gold,
+dashboard or connector-activation truth without evidence.
+<!-- MARKET-003A-COMPANY-SEED-END -->
 
 ## ASSUMPTION-001 Simplification Validation Register
 
