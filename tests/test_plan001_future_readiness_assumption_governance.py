@@ -50,3 +50,46 @@ def test_plan001_is_linked_from_rules_and_roadmap() -> None:
     assert "MARKET-003 Manual Market Observation Foundation" in roadmap
     assert "ASSUMPTION-001 Simplification Validation Register" in roadmap
     assert "WHALE-001 White-Whale Backlog Triage" in roadmap
+
+
+def test_market003a_manual_company_seed_register_is_documented() -> None:
+    from pathlib import Path
+
+    plan = Path("docs/planning/active/future_readiness_and_assumption_governance.md").read_text(encoding="utf-8")
+    rules = Path("docs/reference/governance/workflow/rules001_project_rules_index.md").read_text(encoding="utf-8")
+
+    assert "MARKET-003A Manual Company Observation Seed Register" in plan
+    assert "not a pipeline input" in plan
+    assert "not source-of-truth" in plan
+    assert "not automatically truth" in plan
+    assert "not a gate pass" in plan
+    assert "not a Gold metric" in plan
+
+    for company in (
+        "Bahlsen",
+        "GETEC",
+        "MEDIFOX DAN",
+        "goetel",
+        "Dataciders",
+        "Atos",
+        "Sopra Steria",
+        "QUNIS",
+        "VALUE AG",
+        "SVA",
+        "ivv",
+        "NETGO",
+        "SPARETECH",
+        "Thinkport",
+        "NeoBIM",
+        "Oviva",
+        "Aignostics",
+        "Veeva Systems",
+        "Grafana Labs",
+        "Concordia Versicherungen",
+        "EEW Energy from Waste",
+        "ISR Information Products",
+    ):
+        assert company in plan
+
+    assert "Manual company group-by outputs belong to MARKET-003A" in rules
+    assert "Company normalization or same-company" in rules

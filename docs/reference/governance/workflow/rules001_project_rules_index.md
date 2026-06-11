@@ -202,6 +202,13 @@ of being forgotten or forced into the current implementation path.
 
 Saving an idea is not abandoning it. Nicht jeder Wal muss heute gefangen werden.
 
+<!-- MARKET-003A-RULE-START -->
+Manual company group-by outputs belong to MARKET-003A as recall/blind-spot seed
+evidence. They are not pipeline inputs. Company normalization or same-company
+interpretation must be tracked through ASSUMPTION-001 before it can affect gates,
+Gold metrics, dashboards or connector/source activation.
+<!-- MARKET-003A-RULE-END -->
+
 ## Validation and next-safe-action commands
 
 The unified validation command can be run with:
