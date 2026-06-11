@@ -239,3 +239,38 @@ It must not:
 - activate sources or connectors
 - change candidates, gates, Bronze/Silver/Gold, scheduler, or UI state
 - create commits, PRs, or merges
+
+<!-- PLAN-001-FUTURE-READINESS-START -->
+## PLAN-001 Future Readiness and Assumption Governance
+
+Active planning rule:
+
+> Build event-capable, but not event-driven yet.
+
+The intended future platform sequence is Core Pipeline >90% maturity ->
+Cloud-ready Batch Pipeline -> DB-backed Outbox/Event Foundation -> Kafka Event
+Backbone -> Spark Analytics/Replay/Feature Layer only if real analytical value
+exists.
+
+Near-term work must preserve cloud/event readiness by favoring stable IDs, clear
+timestamps, auditability, idempotent processing, no export artifacts as hidden
+pipeline inputs, event vocabulary, outbox-ready boundaries and no local-only
+assumptions that would block cloud, CI or managed orchestration later.
+
+Manual market observations are benchmark-like recall and blind-spot signals, not
+source-of-truth inputs. Future MARKET-003 work should persist them as DB-backed
+observations with origin tracking and review state.
+
+Unvalidated simplifications must be explicit. Future ASSUMPTION-001 work should
+track assumptions such as company equivalence, employer-origin identity,
+duplicate interpretation, remote-signal quality, source-family classification,
+StepStone mirroring and LinkedIn-only conclusions. Heuristics may start discovery,
+but they must not become gate, Gold, dashboard or product truth without evidence.
+
+White-Whale ideas must be triaged rather than silently changing active scope:
+freeze-compatible now, soon after core maturity, after cloud readiness, after
+outbox/Kafka, only if measurable value is proven, or intentionally parked.
+
+Canonical planning anchor:
+`docs/planning/active/future_readiness_and_assumption_governance.md`
+<!-- PLAN-001-FUTURE-READINESS-END -->

@@ -73,3 +73,14 @@ EO-002D remains the active reference point for bounded origin-source discovery a
 URL-finder repair work. Its detailed historical plan lives in the archive, but the
 active roadmap keeps this anchor so repair boundaries stay visible.
 
+<!-- PLAN-001-ROADMAP-START -->
+## PLAN-001 Future Readiness and Assumption Governance
+
+Active planning anchor for future readiness without expanding current scope:
+STREAM-PREP-001 event-capable-not-event-driven premise, CLOUD-001 cloud-ready
+batch path, EVENT-001 DB-backed outbox, STREAM-001 Kafka later, SPARK-001 only
+with real analytics/replay value, MARKET-003 Manual Market Observation Foundation,
+ASSUMPTION-001 Simplification Validation Register and WHALE-001 White-Whale Backlog Triage.
+
+Details: `docs/planning/active/future_readiness_and_assumption_governance.md`.
+<!-- PLAN-001-ROADMAP-END -->
