@@ -13,6 +13,8 @@ from src.search_intelligence.expand002_controlled_external_probe_trial_run impor
     build_probe_queries,
     build_trial_run_report,
     classify_evidence_hint,
+    classify_url_evidence,
+    classify_url_evidence_classes,
     load_trial_plan,
     render_markdown,
     write_outputs,
@@ -258,3 +260,114 @@ def test_provider_auth_failure_blocks_remaining_probes_without_more_requests() -
     assert report["summary"]["failed_probe_count"] == 1
     assert report["summary"]["blocked_after_provider_auth_failure_count"] == 1
     assert report["candidate_results"][0]["trial_outcome"] == "provider_auth_failed_requires_key_review"
+
+
+
+def test_generic_data_company_token_does_not_match_generic_data_job_board() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="apo_data_service",
+        company_name="APO Data-Service GmbH",
+        stage="origin_url_discovery_probe",
+        query="APO Data-Service GmbH careers jobs Data Engineer",
+        max_results=5,
+    )
+
+    urls = [
+        "https://dailyremote.com/remote-analytics-engineer-jobs-in-germany",
+        "https://www.remoterocketship.com/country/europe/jobs/analytics-engineer",
+        "https://www.datacareer.de/jobs/data-analytics-engineer-jobs",
+    ]
+
+    assert classify_url_evidence_classes(query, urls, []) == (
+        "aggregator_or_market_url",
+        "aggregator_or_market_url",
+        "aggregator_or_market_url",
+    )
+    assert classify_evidence_hint(query, urls, []) == "weak_market_or_aggregator_hint_found"
+
+
+def test_company_acronym_career_subdomain_is_actionable_origin_hint() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="bundesgesellschaft_fur_endlagerung_bge",
+        company_name="Bundesgesellschaft für Endlagerung mbH (BGE)",
+        stage="origin_url_discovery_probe",
+        query="BGE careers jobs Data Engineer",
+        max_results=5,
+    )
+
+    url = "https://karriere.bge.de/go/BGE-ENG/9208055"
+
+    assert classify_url_evidence(query, url, "BGE Karriere") == "company_origin_or_career_url"
+    assert classify_evidence_hint(query, [url], ["BGE Karriere"]) == "origin_or_career_hint_found"
+
+
+def test_company_specific_provider_url_requires_identity_match() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="arnold_jager",
+        company_name="Arnold Jäger Holding GmbH",
+        stage="detail_page_evidence_probe",
+        query="Arnold Jäger job Analytics Engineer",
+        max_results=5,
+    )
+
+    matching_url = "https://3coresystems.zohorecruit.com/jobs/careers/171710000033593178/Jaeger-Analytics-Development-Engineer"
+    unrelated_url = "https://3coresystems.zohorecruit.com/jobs/careers/171710000033593178/Contoso-Analytics-Engineer"
+
+    assert classify_url_evidence(query, matching_url, "Jaeger Analytics Development Engineer") == "company_specific_job_detail_url"
+    assert classify_url_evidence(query, unrelated_url, "Contoso Analytics Engineer") == "unrelated_or_generic_url"
+
+
+def test_url_evidence_counts_are_reported_separately_from_candidate_hint_counts() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="cancom",
+        company_name="CANCOM SE",
+        stage="origin_url_discovery_probe",
+        query="CANCOM careers jobs",
+        max_results=5,
+    )
+
+    def transport(_url: str, _payload: object, _api_key: str | None) -> object:
+        return {
+            "results": [
+                {"url": "https://career.cancom.com/jobs", "title": "CANCOM Jobs"},
+                {"url": "https://dailyremote.com/remote-data-engineer-jobs-in-germany", "title": "Remote Data Engineer"},
+            ]
+        }
+
+    plan = {
+        "schema_version": "market003f.expand001_controlled_manual_candidate_pipeline_trial.v1",
+        "trial_candidates": [
+            {
+                "trial_id": query.trial_id,
+                "company_key": query.company_key,
+                "company_name": query.company_name,
+                "trial_priority_rank": 1,
+                "eligible_for_explicit_external_probe": True,
+            }
+        ],
+    }
+    report = build_trial_run_report(
+        plan,
+        execute_external_probes=True,
+        provider="tavily",
+        max_candidates=1,
+        max_queries_per_candidate=1,
+        transport=transport,
+        api_key="fake-key",
+    )
+
+    assert report["summary"]["strong_url_count"] == 1
+    assert report["summary"]["weak_url_count"] == 1
+    assert report["summary"]["candidate_with_strong_origin_hint_count"] == 1
+    assert report["probe_results"][0]["url_evidence_classes"] == [
+        "company_origin_or_career_url",
+        "aggregator_or_market_url",
+    ]
