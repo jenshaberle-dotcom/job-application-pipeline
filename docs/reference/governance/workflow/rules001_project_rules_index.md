@@ -160,6 +160,9 @@ Currently backlog/tooling-governance items include:
 - reset/reprocess/removal UI under explicit gates
 - agent-level observability and health narratives
 - Project Drift Index as a calculated metric
+- REFACTOR-001 Architecture & Runtime Refactor Campaign
+  - planned gate after GENERIC/EXPAND blocker closure and minimal V1 proof
+  - before cloud migration, Kafka/event backbone, Spark or serious productionization
 - DRIFT-001 Project Drift Metrics Foundation
   - Documentation Drift Index
   - Architecture Drift Index
@@ -234,6 +237,53 @@ by the genericity matrix must be tracked through ASSUMPTION-001 before they can
 affect gates, Gold metrics, dashboards, source activation, or connector
 registration.
 <!-- EXPAND-005-PARALLEL-BUNDLE-END -->
+
+
+<!-- REFACTOR-001-RULE-START -->
+## REFACTOR-001 Architecture & Runtime Refactor Gate
+
+REFACTOR-001 is a planned architecture/runtime refactor campaign. It should not
+interrupt the current GENERIC/EXPAND candidate-creation proof unless a concrete
+technical blocker appears.
+
+Preferred sequence: finish the current GENERIC/EXPAND evidence blocker, prove a
+minimal controlled V1 job-review path, then run REFACTOR-001 before cloud
+migration, DB-backed outbox, Kafka/event backbone, Spark analytics/replay or
+serious productionization.
+
+The campaign should be bounded and staged. It should inventory runtime surfaces,
+clarify module boundaries, improve maintainability, preserve audit/compliance
+boundaries, align stop/error states with future defect management and keep the
+architecture event-capable but not event-driven yet.
+
+REFACTOR-001 must not introduce hidden candidate/gate mutation, connector
+activation, scheduler changes, external crawling, CSV/export inputs or platform
+expansion.
+
+Canonical planning anchor:
+`docs/planning/active/refactor001_architecture_runtime_refactor_campaign.md`
+<!-- REFACTOR-001-RULE-END -->
+
+
+<!-- FREEZE-002-RULE-START -->
+## FREEZE-002 Pipeline Maturity to V1 Campaign
+
+FREEZE-002 is the planned second freeze campaign for raising the remaining
+pipeline parts toward >=90% target maturity while still reaching a usable V1
+product with GUI.
+
+It must preserve the core sequence: close GENERIC/EXPAND evidence blockers,
+prove a controlled V1 job-review path, run REFACTOR-001, then continue toward
+cloud readiness, outbox/event backbone, Kafka/Spark or serious productionization.
+
+The campaign may bundle independent horizontal/read-only maturity work, but it
+must not hide DB writes, candidate/gate mutation, connector activation,
+scheduler changes, unbounded external requests, automatic applications or
+CSV/export artifacts as pipeline inputs.
+
+Canonical planning anchor:
+`docs/planning/active/freeze002_pipeline_maturity_to_v1_campaign.md`
+<!-- FREEZE-002-RULE-END -->
 
 ## Validation and next-safe-action commands
 
