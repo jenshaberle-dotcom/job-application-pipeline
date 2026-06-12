@@ -51,3 +51,7 @@ The script writes:
 ## Decision boundary
 
 GENERIC-003 may close explicit control metadata gaps. It must not invent missing benchmark evidence. If a negative control or no-actionable stop case is missing, the correct result is a stop signal and a precise evidence request, not silent pass-through.
+
+## Follow-up after GENERIC-003
+
+GENERIC-004 is the next read-only step when GENERIC-003 reports the remaining gaps `negative_control_coverage` and `no_actionable_evidence_coverage`. It converts the missing safe-stop evidence into an explicit capture plan and CSV template without treating weak-only candidates as negative controls.
