@@ -17,9 +17,11 @@ Recommended sequence:
 
 1. EXPAND-003 Candidate Review Delta Report
 2. GENERIC-001 Pipeline Generics Proof Gate
-3. EXPAND-004 Controlled Candidate Creation Dry-Run
-4. Wave Search / Scheduler Intelligence
-5. Matching / TOP5 Product MVP
+3. GENERIC-002 Benchmark Gap Closure Plan, when GENERIC-001 reports gaps
+4. GENERIC-001 rerun with explicit controls and/or new stop-case evidence
+5. EXPAND-004 Controlled Candidate Creation Dry-Run
+6. Wave Search / Scheduler Intelligence
+7. Matching / TOP5 Product MVP
 
 
 ## Implemented foundation
@@ -106,6 +108,12 @@ It must not:
 - change scheduler behavior
 - perform uncontrolled external requests
 - use CSV/Excel/local exports as pipeline inputs
+
+## Relationship to GENERIC-002
+
+When GENERIC-001 reports benchmark gaps, GENERIC-002 turns those gaps into an explicit closure plan. This keeps control metadata, safe-stop coverage and missing benchmark evidence visible before EXPAND-004 or Wave Search scaling.
+
+GENERIC-002 remains review-artifact-only and must not infer hidden truth, create candidates or mutate gates.
 
 ## Relationship to EXPAND-004
 
