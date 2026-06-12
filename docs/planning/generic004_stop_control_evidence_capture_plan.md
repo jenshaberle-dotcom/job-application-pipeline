@@ -56,3 +56,9 @@ With the current EXPAND-003 benchmark:
 ## Decision boundary
 
 GENERIC-004 may prepare evidence capture. It must not fake benchmark closure. The next proof step may only pass once a real safe-stop/no-actionable control exists and is explicitly passed to GENERIC-001 as a negative control.
+
+## Handoff to GENERIC-005
+
+GENERIC-004 produces the capture template. GENERIC-005 validates the filled template, rejects placeholders or weak-only reinterpretations, and performs the GENERIC-001 final rerun as a review artifact only.
+
+The handoff remains blocked until one explicit safe-stop/no-actionable negative control row is filled with reviewer, review date, evidence summary and the no-write boundary.
