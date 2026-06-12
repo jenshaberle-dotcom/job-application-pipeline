@@ -32,3 +32,10 @@ Current operational runner:
     python scripts/run_generic001_pipeline_generics_proof_gate.py
 
 The first current-artifact run is expected to expose benchmark gaps rather than immediately pass, especially explicit positive/negative controls and a clean no-actionable-evidence stop case. Those gaps must be closed before candidate apply or wave-search scaling.
+
+
+## Current freeze-path position after GENERIC-002
+
+- GENERIC-002 Benchmark Gap Closure Plan: done.
+- GENERIC-003 Benchmark Control Rerun Review: next read-only patch.
+- GENERIC-001 Rerun with Controls / Stop-Case Evidence: positive control closable; negative/stop-case evidence still blocked.

@@ -132,3 +132,10 @@ Otherwise the system may discover more candidates than it can safely interpret.
 The TOP5 product version depends on candidate and job evidence being generic enough.
 
 No TOP5 product claim should be made until the pipeline can show that discovery, evidence, review, candidate creation dry-run and matching logic work across a representative candidate set.
+
+
+## Follow-up position
+
+- GENERIC-002 maps open GENERIC-001 benchmark gaps to closure steps.
+- GENERIC-003 performs the artifact-only control rerun for any explicit controls that can already be closed.
+- If no-actionable/negative-control evidence remains missing, EXPAND-004 and broader scaling stay blocked.

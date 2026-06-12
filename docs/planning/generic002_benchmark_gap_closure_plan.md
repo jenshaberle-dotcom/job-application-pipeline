@@ -53,3 +53,8 @@ It must not:
 The first current-artifact GENERIC-002 run is expected to show that the positive-control gap can likely be closed from an existing strong-detail candidate, while negative-control and no-actionable-evidence coverage still need a clean stop-case artifact.
 
 This is intentional. It keeps the freeze path honest: EXPAND-004 may be designed next, but broad apply or product claims remain blocked until control coverage is explicit.
+
+
+## Follow-up: GENERIC-003
+
+GENERIC-003 should consume this plan and rerun GENERIC-001 with any explicit control keys that are already safe to close from existing review artifacts. It must keep missing negative-control and no-actionable-evidence gaps blocked instead of inferring them from weak-only market hints.
