@@ -146,6 +146,7 @@ def test_runner_writes_repair_packet_with_explicit_inputs(tmp_path: Path) -> Non
             str(generic004_path),
             "--generic005-input",
             str(generic005_path),
+            "--disable-db-stop-control-evidence",
             "--export-dir",
             str(output_dir),
         ],
@@ -154,6 +155,7 @@ def test_runner_writes_repair_packet_with_explicit_inputs(tmp_path: Path) -> Non
         capture_output=True,
     )
 
+    assert "db_stop_control_evidence_status=disabled" in result.stdout
     assert "overall_status=operator_stop_control_capture_repair_required" in result.stdout
     assert "company_key" in result.stdout
     assert (output_dir / "generic006_stop_control_capture_repair_packet.json").exists()
