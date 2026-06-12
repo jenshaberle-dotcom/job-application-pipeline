@@ -5,6 +5,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -31,6 +32,64 @@ ALLOWED_ARTIFACT_ACTIONS = (
     "execute_explicit_external_probe_trial",
     "write_probe_result_exports",
     "summarize_stop_reasons_for_human_review",
+)
+
+STRONG_EVIDENCE_HINTS = frozenset(
+    {
+        "company_specific_job_detail_hint_found",
+        "origin_or_career_hint_found",
+    }
+)
+WEAK_EVIDENCE_HINTS = frozenset(
+    {
+        "weak_market_or_aggregator_hint_found",
+        "generic_web_hint_found",
+    }
+)
+PROVIDER_AUTH_FAILURE_HINTS = frozenset(
+    {
+        "provider_auth_failed_requires_key_review",
+        "blocked_after_provider_auth_failure",
+    }
+)
+WEAK_MARKET_OR_AGGREGATOR_HOSTS = frozenset(
+    {
+        "arbeitnow.com",
+        "dailyremote.com",
+        "germantechjobs.de",
+        "himalayas.app",
+        "indeed.com",
+        "indeed.de",
+        "jobswithscala.com",
+        "linkedin.com",
+        "meetfrank.com",
+        "remoterocketship.com",
+        "stepstone.de",
+    }
+)
+CAREER_PATH_TOKENS = frozenset(
+    {
+        "career",
+        "careers",
+        "jobs",
+        "job",
+        "karriere",
+        "stellen",
+        "stellenangebote",
+        "einstiegsmoeglichkeiten",
+    }
+)
+ROLE_HINT_TOKENS = frozenset(
+    {
+        "data engineer",
+        "analytics engineer",
+        "cloud data engineer",
+        "data analyst",
+        "business intelligence",
+        "bi engineer",
+        "etl",
+        "data analytics",
+    }
 )
 
 Transport = Callable[[str, Mapping[str, Any], str | None], Mapping[str, Any]]
@@ -158,18 +217,81 @@ def build_probe_manifest(
     max_results_per_query: int = 5,
     max_total_requests: int = 500,
 ) -> list[ProbeQuery]:
-    selected = select_trial_candidates(plan, max_candidates=max_candidates, eligible_only=True)
-    queries: list[ProbeQuery] = []
-    for candidate in selected:
-        queries.extend(
+    manifest, _diagnostics = build_probe_manifest_with_diagnostics(
+        plan,
+        max_candidates=max_candidates,
+        max_queries_per_candidate=max_queries_per_candidate,
+        max_results_per_query=max_results_per_query,
+        max_total_requests=max_total_requests,
+    )
+    return manifest
+
+
+def build_probe_manifest_with_diagnostics(
+    plan: Mapping[str, Any],
+    *,
+    max_candidates: int | None = 200,
+    max_queries_per_candidate: int = 2,
+    max_results_per_query: int = 5,
+    max_total_requests: int = 500,
+) -> tuple[list[ProbeQuery], dict[str, int]]:
+    raw_candidates = _ensure_mapping_list(plan.get("trial_candidates"))
+    eligible_candidates = [dict(candidate) for candidate in raw_candidates if bool(candidate.get("eligible_for_explicit_external_probe"))]
+    eligible_candidates.sort(
+        key=lambda item: (
+            _int(item.get("trial_priority_rank"), default=999),
+            _text(item.get("company_name"), default="").lower(),
+            _text(item.get("company_key"), default=""),
+            _text(item.get("trial_id"), default=""),
+        )
+    )
+
+    selected_candidates: list[dict[str, Any]] = []
+    seen_candidates: set[tuple[str, str]] = set()
+    duplicate_candidate_count = 0
+    for candidate in eligible_candidates:
+        identity = _candidate_identity(candidate)
+        if identity in seen_candidates:
+            duplicate_candidate_count += 1
+            continue
+        seen_candidates.add(identity)
+        selected_candidates.append(candidate)
+
+    if max_candidates is not None:
+        selected_candidates = selected_candidates[: max(0, max_candidates)]
+
+    raw_queries: list[ProbeQuery] = []
+    for candidate in selected_candidates:
+        raw_queries.extend(
             build_probe_queries(
                 candidate,
                 max_queries_per_candidate=max_queries_per_candidate,
                 max_results_per_query=max_results_per_query,
             )
         )
-    return queries[: max(0, max_total_requests)]
 
+    manifest: list[ProbeQuery] = []
+    seen_probes: set[tuple[str, str, str, str]] = set()
+    duplicate_probe_count = 0
+    for query in raw_queries:
+        key = (query.probe_id, query.trial_id, query.stage, query.query)
+        if key in seen_probes:
+            duplicate_probe_count += 1
+            continue
+        seen_probes.add(key)
+        manifest.append(query)
+
+    manifest = manifest[: max(0, max_total_requests)]
+    diagnostics = {
+        "raw_candidate_count": len(raw_candidates),
+        "eligible_candidate_count": len(eligible_candidates),
+        "selected_candidate_count": len(selected_candidates),
+        "duplicate_candidate_count": duplicate_candidate_count,
+        "raw_probe_count_before_probe_dedupe": len(raw_queries),
+        "duplicate_probe_count": duplicate_probe_count,
+        "planned_probe_count_after_dedupe_and_cap": len(manifest),
+    }
+    return manifest, diagnostics
 
 def build_trial_run_report(
     plan: Mapping[str, Any],
@@ -185,7 +307,7 @@ def build_trial_run_report(
     transport: Transport | None = None,
     api_key: str | None = None,
 ) -> dict[str, Any]:
-    manifest = build_probe_manifest(
+    manifest, manifest_diagnostics = build_probe_manifest_with_diagnostics(
         plan,
         max_candidates=max_candidates,
         max_queries_per_candidate=max_queries_per_candidate,
@@ -210,7 +332,8 @@ def build_trial_run_report(
             "This report records a controlled external probe trial for manually discovered candidates. "
             "It may execute external search requests only when explicitly requested by the operator. "
             "It never creates candidates, writes gate decisions, activates connectors, mutates Bronze/Silver/Gold, "
-            "writes database state, or changes scheduler behavior. Results are evidence/review artifacts only."
+            "writes database state, or changes scheduler behavior. Results are evidence/review artifacts only. "
+            "Weak market/aggregator hints are learning signals only and are not origin/detail evidence."
         ),
         "run_policy": build_run_policy(
             execute_external_probes=execute_external_probes,
@@ -220,14 +343,14 @@ def build_trial_run_report(
             max_results_per_query=max_results_per_query,
             max_total_requests=max_total_requests,
         ),
+        "manifest_diagnostics": manifest_diagnostics,
         "mutation_counts": mutation_counts(external_requests=sum(1 for result in results if result.request_executed)),
-        "summary": build_summary(manifest, results),
+        "summary": build_summary(manifest, results, manifest_diagnostics=manifest_diagnostics),
         "probe_manifest": [query.as_dict() for query in manifest],
         "probe_results": [result.as_dict() for result in results],
         "candidate_results": build_candidate_results(results),
     }
     return report
-
 
 def build_missing_input_report(path: Path, *, generated_at: str | None = None) -> dict[str, Any]:
     return {
@@ -264,6 +387,7 @@ def run_probe_manifest(
 ) -> list[ProbeResult]:
     results: list[ProbeResult] = []
     normalized_provider = provider.strip().lower() or "dry_run"
+    provider_auth_failed = False
     for query in manifest:
         if not execute_external_probes:
             results.append(
@@ -284,9 +408,31 @@ def run_probe_manifest(
                 )
             )
             continue
+        if provider_auth_failed:
+            results.append(
+                ProbeResult(
+                    probe_id=query.probe_id,
+                    trial_id=query.trial_id,
+                    company_key=query.company_key,
+                    company_name=query.company_name,
+                    stage=query.stage,
+                    query=query.query,
+                    provider=normalized_provider,
+                    status="blocked_after_provider_auth_failure",
+                    request_executed=False,
+                    result_count=0,
+                    urls=(),
+                    titles=(),
+                    evidence_hint="blocked_after_provider_auth_failure",
+                    error="Skipped after provider authentication failure to avoid repeated failed external requests.",
+                )
+            )
+            continue
         try:
             payload = execute_probe(query, provider=normalized_provider, transport=transport, api_key=api_key)
         except Exception as exc:  # noqa: BLE001 - preserve trial result instead of crashing partial run.
+            is_auth_error = _is_provider_auth_failure(exc)
+            provider_auth_failed = provider_auth_failed or is_auth_error
             results.append(
                 ProbeResult(
                     probe_id=query.probe_id,
@@ -301,7 +447,7 @@ def run_probe_manifest(
                     result_count=0,
                     urls=(),
                     titles=(),
-                    evidence_hint="request_failed",
+                    evidence_hint="provider_auth_failed_requires_key_review" if is_auth_error else "request_failed",
                     error=str(exc),
                 )
             )
@@ -327,7 +473,6 @@ def run_probe_manifest(
                 )
             )
     return results
-
 
 def execute_probe(
     query: ProbeQuery,
@@ -416,15 +561,112 @@ def extract_search_results(payload: Mapping[str, Any]) -> list[dict[str, str]]:
 
 
 def classify_evidence_hint(query: ProbeQuery, urls: Sequence[str], titles: Sequence[str]) -> str:
-    text = " ".join([query.stage, *urls, *titles]).lower()
-    if any(token in text for token in ("job", "jobs", "career", "careers", "stellen", "karriere")):
-        if any(token in text for token in ("data engineer", "analytics engineer", "engineer")):
-            return "job_detail_or_origin_hint_found"
-        return "origin_or_career_hint_found"
-    if urls:
-        return "generic_web_hint_found"
-    return "no_external_hint_found"
+    if not urls:
+        return "no_actionable_hint"
 
+    company_specific_urls = [url for url in urls if _is_company_specific_url(query, url)]
+    if company_specific_urls:
+        strong_text = " ".join([query.stage, *company_specific_urls, *titles]).lower()
+        if _has_role_hint(strong_text) or _has_detail_path(company_specific_urls):
+            return "company_specific_job_detail_hint_found"
+        if _has_career_path(company_specific_urls) or _has_career_text(strong_text):
+            return "origin_or_career_hint_found"
+        return "origin_or_career_hint_found"
+
+    if any(_is_weak_market_or_aggregator_url(url) for url in urls):
+        return "weak_market_or_aggregator_hint_found"
+
+    text = " ".join([query.stage, *urls, *titles]).lower()
+    if _has_career_text(text) or _has_role_hint(text):
+        return "weak_market_or_aggregator_hint_found"
+    return "generic_web_hint_found"
+
+
+def _candidate_identity(candidate: Mapping[str, Any]) -> tuple[str, str]:
+    trial_id = _text(candidate.get("trial_id"), default="")
+    if trial_id:
+        return ("trial_id", trial_id.lower())
+    company_key = _text(candidate.get("company_key"), default="")
+    if company_key:
+        return ("company_key", company_key.lower())
+    company_name = _normalize_token(_text(candidate.get("company_name"), default="unknown_company"))
+    return ("company_name", company_name)
+
+
+def _is_provider_auth_failure(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(token in text for token in ("http 401", "unauthorized", "invalid api key", "authentication"))
+
+
+def _is_company_specific_url(query: ProbeQuery, url: str) -> bool:
+    host = _hostname(url)
+    if not host:
+        return False
+    if _is_weak_market_or_aggregator_host(host):
+        return False
+    host_key = _normalize_token(host)
+    company_key_tokens = _company_tokens(query.company_key)
+    company_name_tokens = _company_tokens(query.company_name)
+    tokens = [token for token in (*company_key_tokens, *company_name_tokens) if len(token) >= 3]
+    if not tokens:
+        return False
+    primary_tokens = tokens[:3]
+    return any(token in host_key for token in primary_tokens)
+
+
+def _is_weak_market_or_aggregator_url(url: str) -> bool:
+    return _is_weak_market_or_aggregator_host(_hostname(url))
+
+
+def _is_weak_market_or_aggregator_host(host: str) -> bool:
+    return any(host == weak or host.endswith("." + weak) for weak in WEAK_MARKET_OR_AGGREGATOR_HOSTS)
+
+
+def _hostname(url: str) -> str:
+    try:
+        parsed = urlparse(url if "://" in url else "https://" + url)
+    except ValueError:
+        return ""
+    return (parsed.hostname or "").lower().removeprefix("www.")
+
+
+def _path_tokens(url: str) -> str:
+    try:
+        parsed = urlparse(url if "://" in url else "https://" + url)
+    except ValueError:
+        return ""
+    return _normalize_token(parsed.path)
+
+
+def _has_career_path(urls: Sequence[str]) -> bool:
+    return any(any(token in _path_tokens(url) for token in CAREER_PATH_TOKENS) for url in urls)
+
+
+def _has_detail_path(urls: Sequence[str]) -> bool:
+    return any(any(token in _path_tokens(url) for token in ("data", "engineer", "analytics", "consultant")) for url in urls)
+
+
+def _has_career_text(text: str) -> bool:
+    normalized = _normalize_token(text)
+    return any(token in normalized for token in CAREER_PATH_TOKENS)
+
+
+def _has_role_hint(text: str) -> bool:
+    normalized = text.lower()
+    return any(token in normalized for token in ROLE_HINT_TOKENS)
+
+
+def _company_tokens(value: str) -> tuple[str, ...]:
+    normalized = _normalize_token(value)
+    ignored = {"ag", "gmbh", "se", "kg", "mbh", "group", "gruppe", "business", "consulting", "company", "the"}
+    return tuple(token for token in normalized.split() if token and token not in ignored)
+
+
+def _normalize_token(value: str) -> str:
+    normalized = []
+    for char in value.lower():
+        normalized.append(char if char.isalnum() else " ")
+    return " ".join("".join(normalized).split())
 
 def build_candidate_results(results: Sequence[ProbeResult]) -> list[dict[str, Any]]:
     grouped: dict[str, list[ProbeResult]] = defaultdict(list)
@@ -460,37 +702,48 @@ def candidate_trial_outcome(rows: Sequence[ProbeResult]) -> str:
     if not rows:
         return "no_probe_rows"
     if all(not row.request_executed for row in rows):
+        if any(row.evidence_hint == "blocked_after_provider_auth_failure" for row in rows):
+            return "provider_auth_failed_requires_key_review"
         return "planned_not_executed"
-    if any(row.evidence_hint == "job_detail_or_origin_hint_found" for row in rows):
+    if any(row.evidence_hint in PROVIDER_AUTH_FAILURE_HINTS for row in rows):
+        return "provider_auth_failed_requires_key_review"
+    if any(row.evidence_hint in STRONG_EVIDENCE_HINTS for row in rows):
         return "external_hint_found_requires_human_review"
-    if any(row.evidence_hint in {"origin_or_career_hint_found", "generic_web_hint_found"} for row in rows):
+    if any(row.evidence_hint in WEAK_EVIDENCE_HINTS for row in rows):
         return "weak_external_hint_requires_human_review"
     if any(row.status == "request_failed" for row in rows):
         return "probe_error_requires_retry_or_review"
     return "no_useful_external_hint_found"
 
-
-def build_summary(manifest: Sequence[ProbeQuery], results: Sequence[ProbeResult]) -> dict[str, Any]:
+def build_summary(
+    manifest: Sequence[ProbeQuery],
+    results: Sequence[ProbeResult],
+    *,
+    manifest_diagnostics: Mapping[str, int] | None = None,
+) -> dict[str, Any]:
+    diagnostics = dict(manifest_diagnostics or {})
+    strong_hint_trial_ids = {result.trial_id for result in results if result.evidence_hint in STRONG_EVIDENCE_HINTS}
+    weak_hint_trial_ids = {result.trial_id for result in results if result.evidence_hint in WEAK_EVIDENCE_HINTS}
+    provider_auth_trial_ids = {result.trial_id for result in results if result.evidence_hint in PROVIDER_AUTH_FAILURE_HINTS}
     return {
         "planned_probe_count": len(manifest),
         "external_requests_executed_count": sum(1 for result in results if result.request_executed),
         "completed_probe_count": sum(1 for result in results if result.status == "completed"),
         "failed_probe_count": sum(1 for result in results if result.status == "request_failed"),
-        "candidate_count": len({query.trial_id for query in manifest}),
-        "candidate_with_external_hint_count": len(
-            {
-                result.trial_id
-                for result in results
-                if result.evidence_hint
-                in {"job_detail_or_origin_hint_found", "origin_or_career_hint_found", "generic_web_hint_found"}
-            }
+        "blocked_after_provider_auth_failure_count": sum(
+            1 for result in results if result.status == "blocked_after_provider_auth_failure"
         ),
+        "candidate_count": len({query.trial_id for query in manifest}),
+        "candidate_with_external_hint_count": len(strong_hint_trial_ids),
+        "candidate_with_weak_external_hint_count": len(weak_hint_trial_ids - strong_hint_trial_ids),
+        "candidate_with_provider_auth_failure_count": len(provider_auth_trial_ids),
+        "duplicate_candidate_count": int(diagnostics.get("duplicate_candidate_count", 0)),
+        "duplicate_probe_count": int(diagnostics.get("duplicate_probe_count", 0)),
         "candidate_creation_count": 0,
         "gate_decision_count": 0,
         "connector_activation_count": 0,
         "database_write_count": 0,
     }
-
 
 def empty_summary() -> dict[str, int]:
     return {
@@ -498,14 +751,18 @@ def empty_summary() -> dict[str, int]:
         "external_requests_executed_count": 0,
         "completed_probe_count": 0,
         "failed_probe_count": 0,
+        "blocked_after_provider_auth_failure_count": 0,
         "candidate_count": 0,
         "candidate_with_external_hint_count": 0,
+        "candidate_with_weak_external_hint_count": 0,
+        "candidate_with_provider_auth_failure_count": 0,
+        "duplicate_candidate_count": 0,
+        "duplicate_probe_count": 0,
         "candidate_creation_count": 0,
         "gate_decision_count": 0,
         "connector_activation_count": 0,
         "database_write_count": 0,
     }
-
 
 def build_run_policy(
     *,
@@ -626,7 +883,11 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines.append(f"- External requests executed: {summary.get('external_requests_executed_count', 0)}")
     lines.append(f"- Completed probes: {summary.get('completed_probe_count', 0)}")
     lines.append(f"- Failed probes: {summary.get('failed_probe_count', 0)}")
-    lines.append(f"- Candidates with external hint: {summary.get('candidate_with_external_hint_count', 0)}")
+    lines.append(f"- Candidates with actionable external hint: {summary.get('candidate_with_external_hint_count', 0)}")
+    lines.append(f"- Candidates with weak external hint: {summary.get('candidate_with_weak_external_hint_count', 0)}")
+    lines.append(f"- Provider-auth blocked probes: {summary.get('blocked_after_provider_auth_failure_count', 0)}")
+    lines.append(f"- Duplicate candidates removed: {summary.get('duplicate_candidate_count', 0)}")
+    lines.append(f"- Duplicate probes removed: {summary.get('duplicate_probe_count', 0)}")
     lines.append(f"- Created candidates: {summary.get('candidate_creation_count', 0)}")
     lines.append(f"- Gate decisions: {summary.get('gate_decision_count', 0)}")
     lines.append(f"- Connector activations: {summary.get('connector_activation_count', 0)}")

@@ -77,3 +77,21 @@ A candidate with external hints may become a stronger human-review candidate, bu
 ## Next step
 
 A later review/apply block may let the operator inspect the evidence and explicitly decide which companies should become real candidates or receive additional evidence repair.
+
+## EXPAND-002B result-quality hardening
+
+The live smoke test proved that the explicit provider path can complete requests and keep the no-mutation boundary. It also exposed two quality risks that must be controlled before larger runs:
+
+- duplicate trial candidates or duplicate probe rows must be deduplicated before external requests are executed
+- generic job boards, aggregators or broad market-search pages must not be classified as actionable origin/detail evidence
+
+EXPAND-002B therefore separates evidence strength:
+
+- `origin_or_career_hint_found` for company-specific career/origin URLs
+- `company_specific_job_detail_hint_found` for company-specific job/detail evidence
+- `weak_market_or_aggregator_hint_found` for generic job-board or market-search results
+- `no_actionable_hint` when no useful evidence is present
+
+Weak hints remain learning signals for human review, but they are not origin evidence, detail-page evidence, gate truth, connector truth, or automatic candidate promotion evidence.
+
+Provider authentication failures are fail-fast: after the first authentication failure, remaining planned probes are blocked instead of continuing repeated failed external requests.

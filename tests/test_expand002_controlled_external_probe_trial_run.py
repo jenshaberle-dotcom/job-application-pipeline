@@ -6,10 +6,13 @@ import sys
 from pathlib import Path
 
 from src.search_intelligence.expand002_controlled_external_probe_trial_run import (
+    ProbeQuery,
     build_missing_input_report,
     build_probe_manifest,
+    build_probe_manifest_with_diagnostics,
     build_probe_queries,
     build_trial_run_report,
+    classify_evidence_hint,
     load_trial_plan,
     render_markdown,
     write_outputs,
@@ -164,3 +167,94 @@ def test_runner_executes_directly_from_repo_root_with_fake_provider(tmp_path: Pa
     assert "external_requests_executed_count=2" in result.stdout
     assert "candidate_creation_count=0" in result.stdout
     assert (export_dir / "expand002_controlled_external_probe_trial_run.json").exists()
+
+
+def test_manifest_dedupes_duplicate_trial_candidates_before_execution() -> None:
+    plan = _plan()
+    plan["trial_candidates"].append(
+        {
+            "trial_id": "expand001::getec::ready_for_controlled_external_trial",
+            "company_key": "getec",
+            "company_name": "GETEC Duplicate",
+            "trial_lane": "ready_for_controlled_external_trial",
+            "trial_priority_rank": 11,
+            "eligible_for_explicit_external_probe": True,
+        }
+    )
+
+    manifest, diagnostics = build_probe_manifest_with_diagnostics(
+        plan,
+        max_candidates=10,
+        max_queries_per_candidate=2,
+        max_total_requests=20,
+    )
+
+    assert len(manifest) == 2
+    assert diagnostics["duplicate_candidate_count"] == 1
+    assert {query.probe_id for query in manifest} == {
+        "expand002::getec::origin_url_discovery_probe::1",
+        "expand002::getec::detail_page_evidence_probe::2",
+    }
+
+
+def test_weak_aggregator_urls_do_not_become_actionable_origin_hints() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="3xperts",
+        company_name="3XPERTS GmbH",
+        stage="origin_url_discovery_probe",
+        query="3XPERTS GmbH careers jobs Data Engineer",
+        max_results=5,
+    )
+
+    hint = classify_evidence_hint(
+        query,
+        [
+            "https://dailyremote.com/remote-analytics-engineer-jobs-in-germany",
+            "https://www.linkedin.com/jobs/data-engineer-jobs-hannover",
+        ],
+        ["Remote Analytics Engineer Jobs in Germany", "Data Engineer Jobs Hannover"],
+    )
+
+    assert hint == "weak_market_or_aggregator_hint_found"
+
+
+def test_company_specific_career_url_is_actionable_origin_hint() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="adesso_business_consulting",
+        company_name="adesso business consulting AG",
+        stage="origin_url_discovery_probe",
+        query="adesso business consulting careers jobs",
+        max_results=5,
+    )
+
+    hint = classify_evidence_hint(query, ["https://www.adesso-bc.com/career"], ["Career | adesso business consulting"])
+
+    assert hint == "origin_or_career_hint_found"
+
+
+def test_provider_auth_failure_blocks_remaining_probes_without_more_requests() -> None:
+    calls: list[str] = []
+
+    def failing_transport(url: str, payload: object, api_key: str | None) -> object:
+        calls.append(str(payload))
+        raise RuntimeError("Tavily request failed with HTTP 401: Unauthorized: missing or invalid API key")
+
+    report = build_trial_run_report(
+        _plan(),
+        execute_external_probes=True,
+        provider="tavily",
+        max_candidates=1,
+        max_queries_per_candidate=2,
+        transport=failing_transport,
+        api_key="bad-key",
+    )
+
+    assert len(calls) == 1
+    assert report["summary"]["external_requests_executed_count"] == 1
+    assert report["summary"]["failed_probe_count"] == 1
+    assert report["summary"]["blocked_after_provider_auth_failure_count"] == 1
+    assert report["candidate_results"][0]["trial_outcome"] == "provider_auth_failed_requires_key_review"
