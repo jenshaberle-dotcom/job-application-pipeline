@@ -34,10 +34,11 @@ Current operational runner:
 The first current-artifact run is expected to expose benchmark gaps rather than immediately pass, especially explicit positive/negative controls and a clean no-actionable-evidence stop case. Those gaps must be closed before candidate apply or wave-search scaling.
 
 
-## Current freeze-path position after GENERIC-004
+## Current freeze-path position after EXPAND-004
 
 - GENERIC-002 Benchmark Gap Closure Plan: done.
 - GENERIC-003 Benchmark Control Rerun Review: done.
 - GENERIC-004 Stop-Control Evidence Capture Plan: done.
-- GENERIC-005 Stop-Control Evidence / GENERIC-001 Final Rerun: next read-only patch.
-- EXPAND-004 remains blocked until GENERIC-005 accepts one explicit stop/no-actionable negative control and the nested GENERIC-001 final rerun has no gaps.
+- GENERIC-005 Stop-Control Evidence / GENERIC-001 Final Rerun: done.
+- EXPAND-004 Controlled Candidate Creation Dry-Run: implemented as a read-only manifest gate.
+- Wave Search / Scheduler Intelligence remains a separate follow-up and must not be bundled into candidate creation preview logic.
