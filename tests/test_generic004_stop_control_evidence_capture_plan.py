@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 import subprocess
 import sys
@@ -81,7 +80,7 @@ def _generic003_report(*, remaining: list[str] | None = None) -> dict[str, objec
     }
 
 
-def test_capture_plan_blocks_when_only_weak_candidates_exist() -> None:
+def test_capture_plan_blocks_when_only_weak_candidates_exist_without_file_input() -> None:
     report = build_stop_control_evidence_capture_plan(
         _generic003_report(),
         _expand003_report(include_safe_stop=False),
@@ -90,7 +89,7 @@ def test_capture_plan_blocks_when_only_weak_candidates_exist() -> None:
         generated_at="2026-06-12T20:00:00+00:00",
     )
 
-    assert report["schema_version"] == "generic004.stop_control_evidence_capture_plan.v1"
+    assert report["schema_version"] == "generic004.stop_control_evidence_capture_plan.v2"
     assert report["overall_status"] == "operator_capture_required_missing_stop_control_evidence"
     assert report["summary"]["remaining_gap_ids"] == [
         "no_actionable_evidence_coverage",
@@ -99,11 +98,13 @@ def test_capture_plan_blocks_when_only_weak_candidates_exist() -> None:
     assert report["summary"]["eligible_safe_stop_candidate_count"] == 0
     assert report["summary"]["weak_only_not_eligible_candidate_count"] == 2
     assert report["summary"]["capture_template_row_count"] == 1
+    assert report["safety_boundary"]["csv_or_excel_input"] is False
+    assert report["safety_boundary"]["no_file_based_operator_input"] is True
     assert report["mutation_counts"]["database_writes"] == 0
     assert report["follow_up_command_if_template_filled"] is None
-    assert "Keep EXPAND-004" in report["next_action"]
-    template_row = report["capture_template_rows"][0]
-    assert template_row["review_action"] == "no_useful_external_hint_no_candidate_creation"
+    assert "DB-backed or code-backed" in report["next_action"]
+    requirement = report["stop_control_evidence_requirements"][0]
+    assert requirement["review_action"] == "no_useful_external_hint_no_candidate_creation"
 
 
 def test_capture_plan_ready_when_safe_stop_artifact_exists() -> None:
@@ -135,7 +136,7 @@ def test_capture_plan_noops_when_no_stop_gaps_remain() -> None:
     assert "EXPAND-004" in report["next_action"]
 
 
-def test_render_markdown_contains_safety_and_assessments() -> None:
+def test_render_markdown_contains_no_csv_handoff() -> None:
     report = build_stop_control_evidence_capture_plan(_generic003_report(), _expand003_report())
     markdown = render_markdown(report)
 
@@ -143,20 +144,17 @@ def test_render_markdown_contains_safety_and_assessments() -> None:
     assert "review_artifact_only" in markdown
     assert "not_eligible_weak_only_signal" in markdown
     assert "No rerun command is available" in markdown
+    assert "No CSV/Excel/export template is written" in markdown
 
 
-def test_write_outputs_includes_capture_template_csv(tmp_path: Path) -> None:
+def test_write_outputs_excludes_capture_template_csv(tmp_path: Path) -> None:
     report = build_stop_control_evidence_capture_plan(_generic003_report(), _expand003_report())
     outputs = write_outputs(report, tmp_path)
 
     assert Path(outputs["json"]).exists()
     assert Path(outputs["markdown"]).exists()
-    csv_path = Path(outputs["capture_template_csv"])
-    assert csv_path.exists()
-
-    rows = list(csv.DictReader(csv_path.open(encoding="utf-8")))
-    assert rows[0]["control_type"] == "new_clean_no_actionable_negative_control"
-    assert rows[0]["boundary"] == "review_artifact_only_no_candidate_or_gate_write"
+    assert "capture_template_csv" not in outputs
+    assert not (tmp_path / "generic004_stop_control_capture_template.csv").exists()
 
 
 def test_find_latest_generic003_report_prefers_timestamped_export(tmp_path: Path) -> None:
@@ -184,7 +182,7 @@ def test_load_generic003_rejects_unexpected_schema(tmp_path: Path) -> None:
         raise AssertionError("expected ValueError")
 
 
-def test_runner_writes_artifacts(tmp_path: Path) -> None:
+def test_runner_writes_json_and_markdown_without_csv(tmp_path: Path) -> None:
     generic003_path = tmp_path / "generic003.json"
     expand003_path = tmp_path / "expand003.json"
     export_dir = tmp_path / "out"
@@ -210,5 +208,6 @@ def test_runner_writes_artifacts(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert "overall_status=operator_capture_required_missing_stop_control_evidence" in result.stdout
+    assert "capture_template_csv" not in result.stdout
     assert (export_dir / "generic004_stop_control_evidence_capture_plan.json").exists()
-    assert (export_dir / "generic004_stop_control_capture_template.csv").exists()
+    assert not (export_dir / "generic004_stop_control_capture_template.csv").exists()

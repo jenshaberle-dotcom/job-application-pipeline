@@ -10,14 +10,12 @@ if str(ROOT) not in sys.path:
 
 from src.search_intelligence.generic005_stop_control_final_rerun import (  # noqa: E402
     build_stop_control_final_rerun_report,
-    find_latest_capture_csv,
     find_latest_expand003_report,
     find_latest_generic003_report,
     find_latest_generic004_report,
     load_expand003_report,
     load_generic003_report,
     load_generic004_report,
-    read_capture_csv,
     write_outputs,
 )
 
@@ -42,12 +40,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="EXPAND-003 candidate review delta JSON. Defaults to latest exports/expand003... report.",
     )
-    parser.add_argument(
-        "--capture-input",
-        type=Path,
-        default=None,
-        help="Filled GENERIC-004 stop-control capture CSV. Defaults to latest generic004 capture CSV if present.",
-    )
+    # No --capture-input: GENERIC-005 must not read CSV/Excel/export files as operator input.
     parser.add_argument(
         "--export-dir",
         type=Path,
@@ -77,17 +70,15 @@ def main() -> int:
         print("input_warning=No EXPAND-003 report found under exports/expand003_candidate_review_delta_report*")
         return 2
 
-    capture_path = args.capture_input or find_latest_capture_csv()
-    capture_rows = read_capture_csv(capture_path) if capture_path else []
+    generic004_report = load_generic004_report(generic004_path)
     report = build_stop_control_final_rerun_report(
         load_generic003_report(generic003_path),
-        load_generic004_report(generic004_path),
+        generic004_report,
         load_expand003_report(expand003_path),
-        capture_rows,
         generic003_path=str(generic003_path),
         generic004_path=str(generic004_path),
         expand003_path=str(expand003_path),
-        capture_path=str(capture_path) if capture_path else None,
+        stop_control_source="generic004_report_stop_control_evidence_requirements",
     )
     outputs = write_outputs(report, args.export_dir)
     summary = report.get("summary", {})
@@ -97,8 +88,7 @@ def main() -> int:
     print(f"generic003_input={generic003_path}")
     print(f"generic004_input={generic004_path}")
     print(f"expand003_input={expand003_path}")
-    if capture_path:
-        print(f"capture_input={capture_path}")
+    print("stop_control_source=generic004_report_stop_control_evidence_requirements")
     print(f"overall_status={report.get('overall_status')}")
     for key in [
         "positive_control_keys",

@@ -10,18 +10,16 @@ if str(ROOT) not in sys.path:
 
 from src.search_intelligence.generic006_stop_control_capture_repair_packet import (  # noqa: E402
     build_stop_control_capture_repair_packet,
-    find_latest_capture_csv,
     find_latest_generic004_report,
     find_latest_generic005_report,
     load_generic004_report,
     load_generic005_report,
-    read_capture_csv,
     write_outputs,
 )
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run GENERIC-006 stop-control capture repair packet.")
+    parser = argparse.ArgumentParser(description="Run GENERIC-006 stop-control evidence repair packet.")
     parser.add_argument(
         "--generic004-input",
         type=Path,
@@ -34,12 +32,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="GENERIC-005 final rerun JSON. Defaults to latest exports/generic005... report.",
     )
-    parser.add_argument(
-        "--capture-input",
-        type=Path,
-        default=None,
-        help="GENERIC-004 capture CSV. Defaults to latest generic004 capture CSV if present.",
-    )
+    # No --capture-input: GENERIC-006 must not read CSV/Excel/export files as operator input.
     parser.add_argument(
         "--export-dir",
         type=Path,
@@ -63,15 +56,13 @@ def main() -> int:
         print("input_warning=No GENERIC-005 report found under exports/generic005_stop_control_final_rerun*")
         return 2
 
-    capture_path = args.capture_input or find_latest_capture_csv()
-    capture_rows = read_capture_csv(capture_path) if capture_path else []
+    generic004_report = load_generic004_report(generic004_path)
     report = build_stop_control_capture_repair_packet(
-        load_generic004_report(generic004_path),
+        generic004_report,
         load_generic005_report(generic005_path),
-        capture_rows,
         generic004_path=str(generic004_path),
         generic005_path=str(generic005_path),
-        capture_path=str(capture_path) if capture_path else None,
+        stop_control_source="generic004_report_stop_control_evidence_requirements",
     )
     outputs = write_outputs(report, args.export_dir)
     summary = report.get("summary", {})
@@ -80,8 +71,7 @@ def main() -> int:
     print("input_status=ok")
     print(f"generic004_input={generic004_path}")
     print(f"generic005_input={generic005_path}")
-    if capture_path:
-        print(f"capture_input={capture_path}")
+    print("stop_control_source=generic004_report_stop_control_evidence_requirements")
     print(f"overall_status={report.get('overall_status')}")
     for key in [
         "capture_row_count",
@@ -94,7 +84,6 @@ def main() -> int:
         print(f"{key}={summary.get(key)}")
     print(f"next_action={report.get('next_action')}")
     print(f"json={outputs['json']}")
-    print(f"csv={outputs['csv']}")
     print(f"markdown={outputs['markdown']}")
     return 0
 

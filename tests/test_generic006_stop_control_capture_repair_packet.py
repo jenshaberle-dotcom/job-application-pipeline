@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 import subprocess
 import sys
@@ -11,7 +10,7 @@ from src.search_intelligence.generic006_stop_control_capture_repair_packet impor
     READY_STATUS,
     assess_capture_row,
     build_stop_control_capture_repair_packet,
-    find_latest_capture_csv,
+    stop_control_rows_from_generic004_report,
     find_latest_generic004_report,
     find_latest_generic005_report,
     render_markdown,
@@ -100,25 +99,25 @@ def test_placeholder_report_stays_blocked() -> None:
     assert report["safe_rerun_command"] is None
 
 
-def test_markdown_and_outputs_include_repair_fields(tmp_path: Path) -> None:
+def test_markdown_and_outputs_include_repair_fields_without_csv(tmp_path: Path) -> None:
     report = build_stop_control_capture_repair_packet(_generic004_report(), _generic005_report(), [_placeholder_row()])
     markdown = render_markdown(report)
     outputs = write_outputs(report, tmp_path)
 
-    assert "GENERIC-006 Stop-Control Capture Repair Packet" in markdown
+    assert "GENERIC-006 Stop-Control Evidence Repair Packet" in markdown
     assert "company_key" in markdown
     assert Path(outputs["json"]).exists()
-    assert Path(outputs["csv"]).exists()
+    assert "csv" not in outputs
     assert Path(outputs["markdown"]).exists()
 
 
-def test_latest_report_finders(tmp_path: Path) -> None:
+def test_latest_report_finders_and_generic004_row_loader(tmp_path: Path) -> None:
     generic004_dir = tmp_path / "generic004_stop_control_evidence_capture_plan"
     generic004_dir.mkdir()
     generic004_path = generic004_dir / "generic004_stop_control_evidence_capture_plan.json"
-    capture_path = generic004_dir / "generic004_stop_control_capture_template.csv"
-    generic004_path.write_text(json.dumps(_generic004_report()), encoding="utf-8")
-    capture_path.write_text("control_type\nnew_clean_no_actionable_negative_control\n", encoding="utf-8")
+    generic004_payload = dict(_generic004_report())
+    generic004_payload["stop_control_evidence_requirements"] = [_placeholder_row()]
+    generic004_path.write_text(json.dumps(generic004_payload), encoding="utf-8")
 
     generic005_dir = tmp_path / "generic005_stop_control_final_rerun"
     generic005_dir.mkdir()
@@ -126,21 +125,18 @@ def test_latest_report_finders(tmp_path: Path) -> None:
     generic005_path.write_text(json.dumps(_generic005_report()), encoding="utf-8")
 
     assert find_latest_generic004_report(tmp_path) == generic004_path
-    assert find_latest_capture_csv(tmp_path) == capture_path
+    assert stop_control_rows_from_generic004_report(generic004_payload)[0]["review_action"] == "no_useful_external_hint_no_candidate_creation"
     assert find_latest_generic005_report(tmp_path) == generic005_path
 
 
 def test_runner_writes_repair_packet_with_explicit_inputs(tmp_path: Path) -> None:
     generic004_path = tmp_path / "generic004.json"
     generic005_path = tmp_path / "generic005.json"
-    capture_path = tmp_path / "capture.csv"
     output_dir = tmp_path / "out"
-    generic004_path.write_text(json.dumps(_generic004_report()), encoding="utf-8")
+    generic004_payload = dict(_generic004_report())
+    generic004_payload["stop_control_evidence_requirements"] = [_placeholder_row()]
+    generic004_path.write_text(json.dumps(generic004_payload), encoding="utf-8")
     generic005_path.write_text(json.dumps(_generic005_report()), encoding="utf-8")
-    with capture_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(_placeholder_row().keys()))
-        writer.writeheader()
-        writer.writerow(_placeholder_row())
 
     result = subprocess.run(
         [
@@ -150,8 +146,6 @@ def test_runner_writes_repair_packet_with_explicit_inputs(tmp_path: Path) -> Non
             str(generic004_path),
             "--generic005-input",
             str(generic005_path),
-            "--capture-input",
-            str(capture_path),
             "--export-dir",
             str(output_dir),
         ],

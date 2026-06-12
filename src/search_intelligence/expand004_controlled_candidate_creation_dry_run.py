@@ -258,7 +258,7 @@ def build_next_action(overall_status: str, summary: Mapping[str, Any]) -> str:
     if overall_status == "blocked_by_generic005_final_rerun":
         return (
             "Do not create or preview candidate records yet. GENERIC-005 final rerun has not passed with positive and "
-            "negative/no-actionable controls. Fill or fix the stop-control capture evidence, rerun GENERIC-005, then rerun EXPAND-004."
+            "negative/no-actionable controls. Repair DB/code-backed stop-control evidence, rerun GENERIC-005, then rerun EXPAND-004."
         )
     if overall_status == "no_candidate_creation_dry_run_items_selected":
         return "Generic proof passed, but no candidate creation dry-run items were selected. Review EXPAND-003 candidate evidence before continuing."

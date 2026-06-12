@@ -146,6 +146,6 @@ If GENERIC-003 closes only positive-control coverage, run GENERIC-004 before EXP
 
 ## Relationship to GENERIC-005
 
-GENERIC-005 consumes a filled GENERIC-004 stop-control capture CSV and reruns GENERIC-001 in memory with explicit positive and negative controls. It may add or overlay a benchmark-only stop-control row for the final proof report, but this remains a review artifact and must not create candidates, write gates, activate connectors, mutate Bronze/Silver/Gold, or change scheduler behavior.
+GENERIC-005 must not consume a filled GENERIC-004 CSV/Excel/export handoff. It reruns GENERIC-001 in memory only from DB-backed or code-backed stop-control evidence surfaced by the GENERIC-004 report. It may add or overlay a benchmark-only stop-control row for the final proof report, but this remains a review artifact and must not create candidates, write gates, activate connectors, mutate Bronze/Silver/Gold, or change scheduler behavior.
 
 EXPAND-004 may only move from planning to controlled dry-run design when the nested GENERIC-001 final rerun in GENERIC-005 passes without benchmark gaps.
