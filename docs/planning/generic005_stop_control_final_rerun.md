@@ -68,4 +68,4 @@ When one valid stop-control row is captured, GENERIC-005 may produce a nested GE
 
 GENERIC-005 can unblock EXPAND-004 design only if the nested GENERIC-001 final rerun passes with no benchmark gaps.
 
-A pass still does not authorize broad apply, Wave Search scaling, scheduler changes, connector activation, or TOP5 product claims. It only authorizes designing the next controlled candidate creation dry-run.
+A pass still does not authorize broad apply, Wave Search scaling, scheduler changes, connector activation, or TOP5 product claims. It only authorizes running `docs/planning/expand004_controlled_candidate_creation_dry_run.md` as a separate read-only manifest step.
