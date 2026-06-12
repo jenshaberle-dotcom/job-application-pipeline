@@ -95,3 +95,23 @@ EXPAND-002B therefore separates evidence strength:
 Weak hints remain learning signals for human review, but they are not origin evidence, detail-page evidence, gate truth, connector truth, or automatic candidate promotion evidence.
 
 Provider authentication failures are fail-fast: after the first authentication failure, remaining planned probes are blocked instead of continuing repeated failed external requests.
+
+
+## EXPAND-002C result evidence classifier calibration
+
+EXPAND-002B separated strong and weak external hints, but the controlled 10x20 run showed that URL-level evidence still needed calibration:
+
+- generic company tokens such as `data`, `service`, `software`, `business` or `consulting` must not make generic job boards look company-specific
+- career subdomains such as `karriere.<company>.de` must be recognized as origin/career evidence when the company identity is plausible
+- provider-hosted recruiting URLs such as Onlyfy, ZohoRecruit, Workday, Personio, Greenhouse, Lever or SmartRecruiters are only actionable when the company identity appears in the host, path or title
+- aggregator/market URLs remain weak learning signals, not origin evidence and not gate truth
+
+EXPAND-002C therefore classifies each returned URL before deriving the candidate-level evidence hint:
+
+- `company_origin_or_career_url`
+- `company_specific_job_detail_url`
+- `origin_provider_url`
+- `aggregator_or_market_url`
+- `unrelated_or_generic_url`
+
+The report summary includes URL-level counters for strong, weak and generic evidence. Candidate outcomes continue to require human review and still cannot create candidates, write gates, activate connectors or mutate database/pipeline state.

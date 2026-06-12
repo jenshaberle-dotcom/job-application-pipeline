@@ -5,6 +5,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+import unicodedata
 from urllib.parse import urlparse
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
@@ -52,19 +53,105 @@ PROVIDER_AUTH_FAILURE_HINTS = frozenset(
         "blocked_after_provider_auth_failure",
     }
 )
+URL_EVIDENCE_CLASSES = frozenset(
+    {
+        "company_origin_or_career_url",
+        "company_specific_job_detail_url",
+        "origin_provider_url",
+        "aggregator_or_market_url",
+        "unrelated_or_generic_url",
+    }
+)
+STRONG_URL_EVIDENCE_CLASSES = frozenset(
+    {
+        "company_origin_or_career_url",
+        "company_specific_job_detail_url",
+        "origin_provider_url",
+    }
+)
 WEAK_MARKET_OR_AGGREGATOR_HOSTS = frozenset(
     {
         "arbeitnow.com",
+        "bebee.com",
+        "broxer.com",
         "dailyremote.com",
+        "datacareer.de",
+        "devjobs.de",
         "germantechjobs.de",
+        "glassdoor.com",
         "himalayas.app",
         "indeed.com",
         "indeed.de",
+        "jobgether.com",
+        "jobleads.com",
         "jobswithscala.com",
+        "kununu.com",
         "linkedin.com",
         "meetfrank.com",
+        "nextleveljobs.eu",
+        "qualitycontracts.co.uk",
+        "remotely.de",
         "remoterocketship.com",
         "stepstone.de",
+        "wearedevelopers.com",
+        "wellfound.com",
+        "xing.com",
+    }
+)
+ORIGIN_PROVIDER_HOSTS = frozenset(
+    {
+        "ashbyhq.com",
+        "dvinci.de",
+        "greenhouse.io",
+        "join.com",
+        "lever.co",
+        "onlyfy.jobs",
+        "personio.de",
+        "recruitee.com",
+        "smartrecruiters.com",
+        "softgarden.io",
+        "successfactors.com",
+        "taleo.net",
+        "teamtailor.com",
+        "workable.com",
+        "workdayjobs.com",
+        "zohorecruit.com",
+    }
+)
+GENERIC_COMPANY_TOKEN_STOPWORDS = frozenset(
+    {
+        "ag",
+        "analytics",
+        "business",
+        "cloud",
+        "company",
+        "consulting",
+        "data",
+        "de",
+        "digital",
+        "engineer",
+        "engineering",
+        "fire",
+        "fuer",
+        "fur",
+        "gesellschaft",
+        "gmbh",
+        "group",
+        "gruppe",
+        "holding",
+        "informatik",
+        "it",
+        "jobs",
+        "kg",
+        "mbh",
+        "service",
+        "services",
+        "software",
+        "solutions",
+        "systems",
+        "technologies",
+        "technology",
+        "the",
     }
 )
 CAREER_PATH_TOKENS = frozenset(
@@ -77,6 +164,12 @@ CAREER_PATH_TOKENS = frozenset(
         "stellen",
         "stellenangebote",
         "einstiegsmoeglichkeiten",
+        "openings",
+        "roles",
+        "vacancies",
+        "vacancy",
+        "work-with-us",
+        "workwithus",
     }
 )
 ROLE_HINT_TOKENS = frozenset(
@@ -124,12 +217,14 @@ class ProbeResult:
     urls: tuple[str, ...]
     titles: tuple[str, ...]
     evidence_hint: str
+    url_evidence_classes: tuple[str, ...] = ()
     error: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["urls"] = list(self.urls)
         data["titles"] = list(self.titles)
+        data["url_evidence_classes"] = list(self.url_evidence_classes)
         return data
 
 
@@ -455,6 +550,7 @@ def run_probe_manifest(
             extracted = extract_search_results(payload)
             urls = tuple(item["url"] for item in extracted)
             titles = tuple(item["title"] for item in extracted)
+            url_evidence_classes = classify_url_evidence_classes(query, urls, titles)
             results.append(
                 ProbeResult(
                     probe_id=query.probe_id,
@@ -469,7 +565,8 @@ def run_probe_manifest(
                     result_count=len(extracted),
                     urls=urls,
                     titles=titles,
-                    evidence_hint=classify_evidence_hint(query, urls, titles),
+                    evidence_hint=classify_evidence_hint_from_url_classes(url_evidence_classes),
+                    url_evidence_classes=url_evidence_classes,
                 )
             )
     return results
@@ -561,23 +658,59 @@ def extract_search_results(payload: Mapping[str, Any]) -> list[dict[str, str]]:
 
 
 def classify_evidence_hint(query: ProbeQuery, urls: Sequence[str], titles: Sequence[str]) -> str:
-    if not urls:
+    return classify_evidence_hint_from_url_classes(classify_url_evidence_classes(query, urls, titles))
+
+
+def classify_url_evidence_classes(
+    query: ProbeQuery,
+    urls: Sequence[str],
+    titles: Sequence[str] = (),
+) -> tuple[str, ...]:
+    classes: list[str] = []
+    for index, url in enumerate(urls):
+        title = titles[index] if index < len(titles) else ""
+        classes.append(classify_url_evidence(query, url, title))
+    return tuple(classes)
+
+
+def classify_url_evidence(query: ProbeQuery, url: str, title: str = "") -> str:
+    host = _hostname(url)
+    if not host:
+        return "unrelated_or_generic_url"
+
+    if _is_weak_market_or_aggregator_host(host):
+        return "aggregator_or_market_url"
+
+    path_text = _path_tokens(url)
+    title_text = _normalize_token(title)
+    combined_text = f"{_normalize_token(host)} {path_text} {title_text}"
+    company_matches = _candidate_identity_matches(query, f"{host} {path_text} {title}")
+
+    if _is_origin_provider_host(host):
+        if not company_matches:
+            return "unrelated_or_generic_url"
+        if _has_detail_path([url]) or _has_role_hint(f"{path_text} {title}"):
+            return "company_specific_job_detail_url"
+        return "origin_provider_url"
+
+    if company_matches:
+        if _has_detail_path([url]) or _has_role_hint(f"{path_text} {title}"):
+            return "company_specific_job_detail_url"
+        if _has_career_path([url]) or _has_career_text(combined_text):
+            return "company_origin_or_career_url"
+        return "company_origin_or_career_url"
+
+    return "unrelated_or_generic_url"
+
+
+def classify_evidence_hint_from_url_classes(url_evidence_classes: Sequence[str]) -> str:
+    if not url_evidence_classes:
         return "no_actionable_hint"
-
-    company_specific_urls = [url for url in urls if _is_company_specific_url(query, url)]
-    if company_specific_urls:
-        strong_text = " ".join([query.stage, *company_specific_urls, *titles]).lower()
-        if _has_role_hint(strong_text) or _has_detail_path(company_specific_urls):
-            return "company_specific_job_detail_hint_found"
-        if _has_career_path(company_specific_urls) or _has_career_text(strong_text):
-            return "origin_or_career_hint_found"
+    if "company_specific_job_detail_url" in url_evidence_classes:
+        return "company_specific_job_detail_hint_found"
+    if any(item in {"company_origin_or_career_url", "origin_provider_url"} for item in url_evidence_classes):
         return "origin_or_career_hint_found"
-
-    if any(_is_weak_market_or_aggregator_url(url) for url in urls):
-        return "weak_market_or_aggregator_hint_found"
-
-    text = " ".join([query.stage, *urls, *titles]).lower()
-    if _has_career_text(text) or _has_role_hint(text):
+    if "aggregator_or_market_url" in url_evidence_classes:
         return "weak_market_or_aggregator_hint_found"
     return "generic_web_hint_found"
 
@@ -599,19 +732,26 @@ def _is_provider_auth_failure(exc: Exception) -> bool:
 
 
 def _is_company_specific_url(query: ProbeQuery, url: str) -> bool:
-    host = _hostname(url)
-    if not host:
-        return False
-    if _is_weak_market_or_aggregator_host(host):
-        return False
-    host_key = _normalize_token(host)
-    company_key_tokens = _company_tokens(query.company_key)
-    company_name_tokens = _company_tokens(query.company_name)
-    tokens = [token for token in (*company_key_tokens, *company_name_tokens) if len(token) >= 3]
-    if not tokens:
-        return False
-    primary_tokens = tokens[:3]
-    return any(token in host_key for token in primary_tokens)
+    return classify_url_evidence(query, url) in STRONG_URL_EVIDENCE_CLASSES
+
+
+def _is_origin_provider_host(host: str) -> bool:
+    return any(host == provider or host.endswith("." + provider) for provider in ORIGIN_PROVIDER_HOSTS)
+
+
+def _candidate_identity_matches(query: ProbeQuery, text: str) -> bool:
+    normalized_text = _normalize_token(text)
+    tokens = _candidate_match_tokens(query)
+    return any(token in normalized_text for token in tokens)
+
+
+def _candidate_match_tokens(query: ProbeQuery) -> tuple[str, ...]:
+    tokens: list[str] = []
+    for raw in (query.company_key, query.company_name):
+        for token in _company_tokens(raw):
+            if token not in tokens:
+                tokens.append(token)
+    return tuple(tokens)
 
 
 def _is_weak_market_or_aggregator_url(url: str) -> bool:
@@ -652,21 +792,33 @@ def _has_career_text(text: str) -> bool:
 
 
 def _has_role_hint(text: str) -> bool:
-    normalized = text.lower()
+    normalized = _normalize_token(text)
     return any(token in normalized for token in ROLE_HINT_TOKENS)
 
 
 def _company_tokens(value: str) -> tuple[str, ...]:
     normalized = _normalize_token(value)
-    ignored = {"ag", "gmbh", "se", "kg", "mbh", "group", "gruppe", "business", "consulting", "company", "the"}
-    return tuple(token for token in normalized.split() if token and token not in ignored)
+    return tuple(
+        token
+        for token in normalized.split()
+        if len(token) >= 3 and token not in GENERIC_COMPANY_TOKEN_STOPWORDS
+    )
 
 
 def _normalize_token(value: str) -> str:
-    normalized = []
-    for char in value.lower():
-        normalized.append(char if char.isalnum() else " ")
+    text = str(value).lower()
+    text = (
+        text.replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+    )
+    text = unicodedata.normalize("NFKD", text)
+    normalized: list[str] = []
+    for char in text:
+        normalized.append(char if char.isascii() and char.isalnum() else " ")
     return " ".join("".join(normalized).split())
+
 
 def build_candidate_results(results: Sequence[ProbeResult]) -> list[dict[str, Any]]:
     grouped: dict[str, list[ProbeResult]] = defaultdict(list)
@@ -725,6 +877,28 @@ def build_summary(
     strong_hint_trial_ids = {result.trial_id for result in results if result.evidence_hint in STRONG_EVIDENCE_HINTS}
     weak_hint_trial_ids = {result.trial_id for result in results if result.evidence_hint in WEAK_EVIDENCE_HINTS}
     provider_auth_trial_ids = {result.trial_id for result in results if result.evidence_hint in PROVIDER_AUTH_FAILURE_HINTS}
+    strong_url_count = sum(
+        1 for result in results for url_class in result.url_evidence_classes if url_class in STRONG_URL_EVIDENCE_CLASSES
+    )
+    weak_url_count = sum(
+        1 for result in results for url_class in result.url_evidence_classes if url_class == "aggregator_or_market_url"
+    )
+    generic_url_count = sum(
+        1 for result in results for url_class in result.url_evidence_classes if url_class == "unrelated_or_generic_url"
+    )
+    origin_url_trial_ids = {
+        result.trial_id
+        for result in results
+        if any(
+            url_class in {"company_origin_or_career_url", "origin_provider_url"}
+            for url_class in result.url_evidence_classes
+        )
+    }
+    job_detail_url_trial_ids = {
+        result.trial_id
+        for result in results
+        if "company_specific_job_detail_url" in result.url_evidence_classes
+    }
     return {
         "planned_probe_count": len(manifest),
         "external_requests_executed_count": sum(1 for result in results if result.request_executed),
@@ -737,6 +911,11 @@ def build_summary(
         "candidate_with_external_hint_count": len(strong_hint_trial_ids),
         "candidate_with_weak_external_hint_count": len(weak_hint_trial_ids - strong_hint_trial_ids),
         "candidate_with_provider_auth_failure_count": len(provider_auth_trial_ids),
+        "strong_url_count": strong_url_count,
+        "weak_url_count": weak_url_count,
+        "generic_url_count": generic_url_count,
+        "candidate_with_strong_origin_hint_count": len(origin_url_trial_ids),
+        "candidate_with_company_specific_job_detail_hint_count": len(job_detail_url_trial_ids),
         "duplicate_candidate_count": int(diagnostics.get("duplicate_candidate_count", 0)),
         "duplicate_probe_count": int(diagnostics.get("duplicate_probe_count", 0)),
         "candidate_creation_count": 0,
@@ -756,6 +935,11 @@ def empty_summary() -> dict[str, int]:
         "candidate_with_external_hint_count": 0,
         "candidate_with_weak_external_hint_count": 0,
         "candidate_with_provider_auth_failure_count": 0,
+        "strong_url_count": 0,
+        "weak_url_count": 0,
+        "generic_url_count": 0,
+        "candidate_with_strong_origin_hint_count": 0,
+        "candidate_with_company_specific_job_detail_hint_count": 0,
         "duplicate_candidate_count": 0,
         "duplicate_probe_count": 0,
         "candidate_creation_count": 0,
@@ -834,6 +1018,7 @@ def write_probe_results_csv(path: Path, probe_results: Any) -> None:
         "evidence_hint",
         "query",
         "urls",
+        "url_evidence_classes",
         "error",
     ]
     rows = _ensure_mapping_list(probe_results)
@@ -844,7 +1029,7 @@ def write_probe_results_csv(path: Path, probe_results: Any) -> None:
             writer.writerow(
                 {
                     key: "; ".join(str(v) for v in row.get(key, []))
-                    if key == "urls" and isinstance(row.get(key), list)
+                    if key in {"urls", "url_evidence_classes"} and isinstance(row.get(key), list)
                     else row.get(key, "")
                     for key in fieldnames
                 }
@@ -886,6 +1071,11 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines.append(f"- Candidates with actionable external hint: {summary.get('candidate_with_external_hint_count', 0)}")
     lines.append(f"- Candidates with weak external hint: {summary.get('candidate_with_weak_external_hint_count', 0)}")
     lines.append(f"- Provider-auth blocked probes: {summary.get('blocked_after_provider_auth_failure_count', 0)}")
+    lines.append(f"- Strong URL evidence count: {summary.get('strong_url_count', 0)}")
+    lines.append(f"- Weak URL evidence count: {summary.get('weak_url_count', 0)}")
+    lines.append(f"- Generic URL evidence count: {summary.get('generic_url_count', 0)}")
+    lines.append(f"- Candidates with strong origin hint: {summary.get('candidate_with_strong_origin_hint_count', 0)}")
+    lines.append(f"- Candidates with company-specific job detail hint: {summary.get('candidate_with_company_specific_job_detail_hint_count', 0)}")
     lines.append(f"- Duplicate candidates removed: {summary.get('duplicate_candidate_count', 0)}")
     lines.append(f"- Duplicate probes removed: {summary.get('duplicate_probe_count', 0)}")
     lines.append(f"- Created candidates: {summary.get('candidate_creation_count', 0)}")
