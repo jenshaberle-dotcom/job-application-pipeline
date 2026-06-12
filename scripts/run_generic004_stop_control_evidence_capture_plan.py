@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
         "--export-dir",
         type=Path,
         default=Path("exports/generic004_stop_control_evidence_capture_plan"),
-        help="Output directory for JSON/Markdown/CSV review artifacts.",
+        help="Output directory for JSON/Markdown review artifacts. No CSV/Excel/export input is generated.",
     )
     return parser.parse_args()
 
@@ -84,7 +84,6 @@ def main() -> int:
     print(f"next_action={report.get('next_action')}")
     print(f"json={outputs['json']}")
     print(f"markdown={outputs['markdown']}")
-    print(f"capture_template_csv={outputs['capture_template_csv']}")
     return 0
 
 

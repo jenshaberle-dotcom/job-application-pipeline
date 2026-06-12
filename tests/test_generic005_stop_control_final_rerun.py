@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 import subprocess
 import sys
@@ -10,8 +9,7 @@ from src.search_intelligence.generic005_stop_control_final_rerun import (
     augment_expand003_with_stop_controls,
     build_stop_control_final_rerun_report,
     evaluate_capture_rows,
-    find_latest_capture_csv,
-    read_capture_csv,
+    stop_control_rows_from_generic004_report,
     render_markdown,
     write_outputs,
 )
@@ -171,7 +169,7 @@ def test_final_rerun_passes_when_stop_control_is_explicitly_captured() -> None:
         generated_at="2026-06-12T20:15:00+00:00",
     )
 
-    assert report["schema_version"] == "generic005.stop_control_final_rerun.v1"
+    assert report["schema_version"] == "generic005.stop_control_final_rerun.v2"
     assert report["overall_status"] == "passed_all_generics_checks_review_artifact_only"
     assert report["summary"]["accepted_stop_control_count"] == 1
     assert report["summary"]["negative_control_keys"] == ["clean_stop_control"]
@@ -225,36 +223,22 @@ def test_markdown_and_outputs_include_nested_generic001_final(tmp_path: Path) ->
     assert Path(outputs["generic001_final_csv"]).exists()
 
 
-def test_read_capture_csv_and_find_latest(tmp_path: Path) -> None:
-    old_dir = tmp_path / "generic004_stop_control_evidence_capture_plan_20260612-100000"
-    new_dir = tmp_path / "generic004_stop_control_evidence_capture_plan_20260612-110000"
-    old_dir.mkdir()
-    new_dir.mkdir()
-    old_csv = old_dir / "generic004_stop_control_capture_template.csv"
-    new_csv = new_dir / "generic004_stop_control_capture_template.csv"
-    for path in [old_csv, new_csv]:
-        with path.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(_accepted_capture_row()))
-            writer.writeheader()
-            writer.writerow(_accepted_capture_row())
+def test_stop_control_rows_are_loaded_from_generic004_report_not_csv() -> None:
+    report = {"stop_control_evidence_requirements": [_accepted_capture_row()]}
 
-    assert find_latest_capture_csv(tmp_path) == new_csv
-    assert read_capture_csv(new_csv)[0]["company_key"] == "clean_stop_control"
+    assert stop_control_rows_from_generic004_report(report)[0]["company_key"] == "clean_stop_control"
 
 
 def test_runner_writes_final_rerun_artifacts(tmp_path: Path) -> None:
     generic003_path = tmp_path / "generic003.json"
     generic004_path = tmp_path / "generic004.json"
     expand003_path = tmp_path / "expand003.json"
-    capture_path = tmp_path / "capture.csv"
     export_dir = tmp_path / "out"
     generic003_path.write_text(json.dumps(_generic003_report()), encoding="utf-8")
-    generic004_path.write_text(json.dumps(_generic004_report()), encoding="utf-8")
+    generic004_payload = dict(_generic004_report())
+    generic004_payload["stop_control_evidence_requirements"] = [_accepted_capture_row()]
+    generic004_path.write_text(json.dumps(generic004_payload), encoding="utf-8")
     expand003_path.write_text(json.dumps(_expand003_without_stop_control()), encoding="utf-8")
-    with capture_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(_accepted_capture_row()))
-        writer.writeheader()
-        writer.writerow(_accepted_capture_row())
 
     result = subprocess.run(
         [
@@ -266,8 +250,6 @@ def test_runner_writes_final_rerun_artifacts(tmp_path: Path) -> None:
             str(generic004_path),
             "--expand003-input",
             str(expand003_path),
-            "--capture-input",
-            str(capture_path),
             "--export-dir",
             str(export_dir),
         ],

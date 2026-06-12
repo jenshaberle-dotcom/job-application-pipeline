@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -13,7 +12,7 @@ from src.search_intelligence.generic004_stop_control_evidence_capture_plan impor
     load_expand003_report,
 )
 
-SCHEMA_VERSION = "generic005.stop_control_final_rerun.v1"
+SCHEMA_VERSION = "generic005.stop_control_final_rerun.v2"
 WORK_ITEM = "GENERIC-005 Stop-Control Evidence / GENERIC-001 Final Rerun"
 GENERIC003_SCHEMA_PREFIX = "generic003.benchmark_control_rerun_review"
 GENERIC004_SCHEMA_PREFIX = "generic004.stop_control_evidence_capture_plan"
@@ -119,30 +118,21 @@ def find_latest_generic004_report(exports_dir: Path = Path("exports")) -> Path |
     )
 
 
-def find_latest_capture_csv(exports_dir: Path = Path("exports")) -> Path | None:
-    return _find_latest_report(
-        exports_dir,
-        [
-            "generic004_stop_control_evidence_capture_plan/generic004_stop_control_capture_template.csv",
-            "generic004_stop_control_evidence_capture_plan_*/generic004_stop_control_capture_template.csv",
-        ],
-    )
-
-
 def build_stop_control_final_rerun_report(
     generic003_report: Mapping[str, Any],
     generic004_report: Mapping[str, Any],
     expand003_report: Mapping[str, Any],
-    capture_rows: Sequence[Mapping[str, Any]],
+    stop_control_rows: Sequence[Mapping[str, Any]] | None = None,
     *,
     generic003_path: str | None = None,
     generic004_path: str | None = None,
     expand003_path: str | None = None,
-    capture_path: str | None = None,
+    stop_control_source: str | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     positive_control_keys = _positive_control_keys(generic003_report)
-    evidence_rows = evaluate_capture_rows(capture_rows)
+    rows = list(stop_control_rows) if stop_control_rows is not None else stop_control_rows_from_generic004_report(generic004_report)
+    evidence_rows = evaluate_capture_rows(rows)
     accepted_rows = [row for row in evidence_rows if row.status == "accepted_stop_control"]
     rejected_rows = [row for row in evidence_rows if row.status != "accepted_stop_control"]
     negative_control_keys = _unique([row.company_key for row in accepted_rows])
@@ -178,14 +168,14 @@ def build_stop_control_final_rerun_report(
         "generic004_input_overall_status": generic004_report.get("overall_status"),
         "expand003_input_path": expand003_path,
         "expand003_input_schema_version": expand003_report.get("schema_version"),
-        "capture_input_path": capture_path,
+        "stop_control_source": stop_control_source or "generic004_report_stop_control_evidence_requirements",
         "safety_boundary": no_mutation_boundary(),
         "mutation_counts": mutation_counts(),
         "interpretation_boundary": (
             "GENERIC-005 validates explicit operator stop-control evidence and reruns GENERIC-001 in memory with a "
             "benchmark-only augmented review artifact. It does not create candidates, write gates, activate connectors, "
             "mutate Bronze/Silver/Gold, change scheduler behavior, read the database, or perform external requests. "
-            "A CSV row is accepted only as a review artifact, never as pipeline truth."
+            "It does not read CSV/Excel/export files as operator input; stop-control evidence must be DB-backed or code-backed."
         ),
         "summary": {
             "positive_control_keys": positive_control_keys,
@@ -199,6 +189,7 @@ def build_stop_control_final_rerun_report(
             "generic001_final_candidate_count": _mapping(generic001_final.get("summary")).get("candidate_count"),
         },
         "capture_row_assessments": [row.as_dict() for row in evidence_rows],
+        "stop_control_row_assessments": [row.as_dict() for row in evidence_rows],
         "accepted_stop_controls": [row.as_dict() for row in accepted_rows],
         "generic001_final_summary": _generic001_summary(generic001_final),
         "generic001_final_report": generic001_final,
@@ -231,11 +222,11 @@ def evaluate_capture_rows(capture_rows: Sequence[Mapping[str, Any]]) -> list[Sto
     return evaluated
 
 
-def read_capture_csv(path: Path) -> list[dict[str, str]]:
-    if not path.exists():
-        raise FileNotFoundError(path)
-    with path.open(encoding="utf-8", newline="") as handle:
-        return [dict(row) for row in csv.DictReader(handle)]
+def stop_control_rows_from_generic004_report(generic004_report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows = _mapping_list(generic004_report.get("stop_control_evidence_requirements"))
+    if rows:
+        return rows
+    return _mapping_list(generic004_report.get("capture_template_rows"))
 
 
 def augment_expand003_with_stop_controls(
@@ -286,7 +277,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         f"- generic003_input_path: `{report.get('generic003_input_path')}`",
         f"- generic004_input_path: `{report.get('generic004_input_path')}`",
         f"- expand003_input_path: `{report.get('expand003_input_path')}`",
-        f"- capture_input_path: `{report.get('capture_input_path')}`",
+        f"- stop_control_source: `{report.get('stop_control_source')}`",
         "",
         "## Safety boundary",
         "",
@@ -306,7 +297,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "generic001_final_candidate_count",
     ]:
         lines.append(f"- {key}: `{summary.get(key)}`")
-    lines.extend(["", "## Capture row assessments", ""])
+    lines.extend(["", "## Stop-control row assessments", ""])
     lines.append("| Company | Action | Status | Rejection reason |")
     lines.append("|---|---|---|---|")
     assessments = _mapping_list(report.get("capture_row_assessments"))
@@ -325,7 +316,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
                 + " |"
             )
     else:
-        lines.append("| - | - | no_capture_rows | No capture rows were provided. |")
+        lines.append("| - | - | no_stop_control_rows | No DB/code-backed stop-control rows were provided. |")
     lines.extend(["", "## GENERIC-001 final rerun", ""])
     final_summary = _mapping(report.get("generic001_final_summary"))
     for key in ["overall_status", "candidate_count", "passed_check_count", "failed_check_count", "failed_checks", "gap_ids"]:
@@ -358,10 +349,10 @@ def build_next_action(overall_status: str, final_gap_ids: Sequence[str], rejecte
     if overall_status == "stop_control_capture_missing_or_invalid":
         rejected_note = ""
         if rejected_rows:
-            rejected_note = " Rejected capture rows must be fixed before rerun."
+            rejected_note = " Rejected stop-control rows must be repaired in DB-backed or code-backed evidence before rerun."
         return (
             "Keep EXPAND-004, Wave Search scaling, scheduler changes, and TOP5 product claims blocked. "
-            "Fill the GENERIC-004 capture CSV with one explicit reviewed stop/no-actionable negative control and rerun GENERIC-005."
+            "Provide one explicit DB-backed or code-backed reviewed stop/no-actionable negative control and rerun GENERIC-005."
             + rejected_note
         )
     if overall_status == "final_rerun_still_has_gaps":

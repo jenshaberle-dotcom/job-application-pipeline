@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import csv
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-SCHEMA_VERSION = "generic004.stop_control_evidence_capture_plan.v1"
+SCHEMA_VERSION = "generic004.stop_control_evidence_capture_plan.v2"
 WORK_ITEM = "GENERIC-004 Stop-Control Evidence Capture Plan"
 GENERIC003_SCHEMA_PREFIX = "generic003.benchmark_control_rerun_review"
 EXPAND003_SCHEMA_PREFIX = "expand003.candidate_review_delta_report"
@@ -62,6 +61,8 @@ class CaptureTemplateRow:
 def no_mutation_boundary() -> dict[str, bool]:
     return {
         "review_artifact_only": True,
+        "no_file_based_operator_input": True,
+        "csv_or_excel_input": False,
         "external_requests": False,
         "database_reads": False,
         "database_writes": False,
@@ -170,7 +171,7 @@ def build_stop_control_evidence_capture_plan(
         "mutation_counts": mutation_counts(),
         "interpretation_boundary": (
             "GENERIC-004 is a capture-plan artifact only. It identifies whether remaining stop-control benchmark gaps can be "
-            "closed from existing review artifacts, produces an operator intake template when evidence is missing, and keeps "
+            "closed from existing review artifacts, reports DB/code-backed stop-control evidence requirements when evidence is missing, and keeps "
             "EXPAND-004/Wave/Scheduler/TOP5 work blocked until explicit safe-stop evidence exists. It does not create candidates, "
             "write gates, activate connectors, mutate Bronze/Silver/Gold, read the database, or perform external requests."
         ),
@@ -186,6 +187,7 @@ def build_stop_control_evidence_capture_plan(
         },
         "evidence_acceptance_criteria": evidence_acceptance_criteria(),
         "candidate_stop_assessments": [item.as_dict() for item in assessments],
+        "stop_control_evidence_requirements": [row.as_dict() for row in template_rows],
         "capture_template_rows": [row.as_dict() for row in template_rows],
         "follow_up_command_if_template_filled": runnable_follow_up_command,
         "next_action": build_next_action(overall_status, remaining_gap_ids),
@@ -262,7 +264,7 @@ def evidence_acceptance_criteria() -> list[dict[str, str]]:
         {
             "criterion_id": "no_apply_side_effect",
             "required": "true",
-            "description": "The evidence capture remains a review artifact only and must not create candidates, gates, source targets, or connector changes.",
+            "description": "The evidence requirement remains a review artifact only and must not create candidates, gates, source targets, connector changes, or file-based operator input handoffs.",
         },
         {
             "criterion_id": "rerunnable_generic001_command",
@@ -325,10 +327,10 @@ def build_next_action(overall_status: str, remaining_gap_ids: Sequence[str]) -> 
     if overall_status == "no_remaining_stop_control_gaps":
         return "No remaining stop-control benchmark gaps; proceed to EXPAND-004 dry-run design only after rerunning validation artifacts."
     if overall_status == "ready_to_close_stop_controls_with_existing_safe_stop_artifact":
-        return "Rerun GENERIC-001/002/003 with the explicit negative-control key from the safe-stop artifact, then review whether GENERIC-001 passes."
+        return "Rerun GENERIC-001/002/003 with the explicit negative-control key from DB/code-backed safe-stop evidence, then review whether GENERIC-001 passes."
     return (
-        "Keep EXPAND-004, Wave Search scaling, scheduler changes, and TOP5 product claims blocked. Capture one explicit "
-        f"safe-stop/no-actionable evidence row first for gaps: {', '.join(remaining_gap_ids) or '<unknown>'}."
+        "Keep EXPAND-004, Wave Search scaling, scheduler changes, and TOP5 product claims blocked. Provide one explicit "
+        f"DB-backed or code-backed safe-stop/no-actionable evidence row first for gaps: {', '.join(remaining_gap_ids) or '<unknown>'}."
     )
 
 
@@ -380,10 +382,10 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             )
             + " |"
         )
-    lines.extend(["", "## Capture template", ""])
-    lines.append("The CSV template is written next to this Markdown report. Fill it only after a bounded manual/operator review.")
+    lines.extend(["", "## Stop-control evidence requirements", ""])
+    lines.append("No CSV/Excel/export template is written. Stop-control evidence must be DB-backed or code-backed before GENERIC-005 can pass.")
     command = report.get("follow_up_command_if_template_filled")
-    lines.extend(["", "## Follow-up command if an eligible safe-stop row exists", ""])
+    lines.extend(["", "## Follow-up command if eligible DB/code-backed safe-stop evidence exists", ""])
     lines.append(f"    {command}" if command else "No rerun command is available until explicit safe-stop evidence is captured.")
     lines.extend(["", "## Next action", "", str(report.get("next_action") or ""), ""])
     return "\n".join(lines)
@@ -393,31 +395,9 @@ def write_outputs(report: Mapping[str, Any], output_dir: Path) -> dict[str, str]
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / "generic004_stop_control_evidence_capture_plan.json"
     md_path = output_dir / "generic004_stop_control_evidence_capture_plan.md"
-    csv_path = output_dir / "generic004_stop_control_capture_template.csv"
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     md_path.write_text(render_markdown(report), encoding="utf-8")
-    write_capture_template_csv(csv_path, _mapping_list(report.get("capture_template_rows")))
-    return {"json": str(json_path), "markdown": str(md_path), "capture_template_csv": str(csv_path)}
-
-
-def write_capture_template_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
-    fieldnames = [
-        "control_type",
-        "required_for_gap_ids",
-        "company_key",
-        "company_name",
-        "review_action",
-        "evidence_strength",
-        "evidence_summary",
-        "reviewer",
-        "review_date",
-        "boundary",
-    ]
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({key: row.get(key, "") for key in fieldnames})
+    return {"json": str(json_path), "markdown": str(md_path)}
 
 
 def _all_remaining_gaps_closable(

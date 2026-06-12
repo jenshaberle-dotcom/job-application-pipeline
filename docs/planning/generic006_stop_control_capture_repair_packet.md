@@ -1,14 +1,14 @@
-# GENERIC-006 Stop-Control Capture Repair Packet
+# GENERIC-006 Stop-Control Evidence Repair Packet
 
 ## Purpose
 
-GENERIC-006 turns the current GENERIC-005 stop-control blocker into an executable operator repair packet.
-It does not fill evidence automatically. It diagnoses the GENERIC-004 capture CSV and tells the operator which fields must be reviewed and completed before GENERIC-005 can be rerun.
+GENERIC-006 turns the current GENERIC-005 stop-control blocker into an executable DB/code-backed evidence repair packet.
+It does not fill evidence automatically. It diagnoses DB-backed or code-backed stop-control evidence surfaced by GENERIC-004 and tells the operator which fields must be reviewed and completed before GENERIC-005 can be rerun. It must not use CSV/Excel/export files as process input.
 
 ## Current problem addressed
 
 The current Freeze Path is blocked because GENERIC-005 still reports `stop_control_capture_missing_or_invalid`.
-The capture template row is still a template: it has no company identity, keeps the placeholder evidence summary, and has no reviewer/date.
+The current evidence requirement row is not valid stop-control evidence: it has no company identity, keeps the placeholder evidence summary, and has no reviewer/date.
 
 GENERIC-006 makes that state visible without guessing evidence.
 
@@ -25,6 +25,7 @@ GENERIC-006 is read-only and review-only:
 - no connector activation
 - no scheduler changes
 - no Bronze/Silver/Gold mutation
+- no CSV/Excel/export file as process input
 
 ## Outputs
 
@@ -32,12 +33,13 @@ The runner writes:
 
 - `exports/generic006_stop_control_capture_repair_packet/generic006_stop_control_capture_repair_packet.json`
 - `exports/generic006_stop_control_capture_repair_packet/generic006_stop_control_capture_repair_packet.md`
-- `exports/generic006_stop_control_capture_repair_packet/generic006_capture_repair_assessments.csv`
+
+No CSV/Excel/export assessment file is generated for process input.
 
 ## Operator sequence
 
 1. Run GENERIC-006.
-2. Fill or correct the GENERIC-004 capture CSV using the repair packet.
+2. Model or correct DB-backed or code-backed stop-control evidence using the repair packet; do not use CSV/Excel/export handoffs.
 3. Rerun GENERIC-005.
 4. Rerun EXPAND-004.
 5. Rerun EXPAND-007.

@@ -9,7 +9,7 @@ GENERIC-005 is the executable bridge from the GENERIC-004 stop-control capture t
 It validates explicit operator stop-control evidence and reruns GENERIC-001 in memory with:
 
 - the positive control already closed by GENERIC-003
-- one explicit negative/no-actionable stop-control row from the filled GENERIC-004 capture CSV
+- one explicit negative/no-actionable stop-control row from DB-backed or code-backed review evidence surfaced by GENERIC-004
 - a benchmark-only augmented EXPAND-003 review artifact
 
 The goal is to decide whether the generic benchmark can finally pass before EXPAND-004 controlled candidate creation dry-run design starts.
@@ -30,7 +30,7 @@ A filled CSV row is accepted only as explicit benchmark control evidence. It is 
 
 ## Accepted stop-control evidence
 
-A row from the GENERIC-004 capture CSV may be accepted only when it has all of the following:
+A stop-control row may be accepted only when it is DB-backed or code-backed and has all of the following:
 
 - `control_type` is `new_clean_no_actionable_negative_control` or `existing_safe_stop_negative_control`
 - `required_for_gap_ids` includes both `no_actionable_evidence_coverage` and `negative_control_coverage`
@@ -60,7 +60,7 @@ python scripts/run_generic004_stop_control_evidence_capture_plan.py
 python scripts/run_generic005_stop_control_final_rerun.py
 ```
 
-When the capture CSV is still empty, GENERIC-005 should report `stop_control_capture_missing_or_invalid` and keep EXPAND-004 blocked.
+When no DB/code-backed stop-control evidence exists, GENERIC-005 should report `stop_control_capture_missing_or_invalid` and keep EXPAND-004 blocked.
 
 When one valid stop-control row is captured, GENERIC-005 may produce a nested GENERIC-001 final report with `passed_review_artifact_only`.
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -8,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-SCHEMA_VERSION = "generic006.stop_control_capture_repair_packet.v1"
-WORK_ITEM = "GENERIC-006 Stop-Control Capture Repair Packet"
+SCHEMA_VERSION = "generic006.stop_control_capture_repair_packet.v2"
+WORK_ITEM = "GENERIC-006 Stop-Control Evidence Repair Packet"
 GENERIC004_SCHEMA_PREFIX = "generic004.stop_control_evidence_capture_plan"
 GENERIC005_SCHEMA_PREFIX = "generic005.stop_control_final_rerun"
 
@@ -111,13 +110,6 @@ def load_generic005_report(path: Path) -> dict[str, Any]:
     return payload
 
 
-def read_capture_csv(path: Path) -> list[dict[str, str]]:
-    if not path.exists():
-        raise FileNotFoundError(path)
-    with path.open(encoding="utf-8", newline="") as handle:
-        return [dict(row) for row in csv.DictReader(handle)]
-
-
 def find_latest_generic004_report(exports_dir: Path = Path("exports")) -> Path | None:
     return _find_latest_report(
         exports_dir,
@@ -138,27 +130,25 @@ def find_latest_generic005_report(exports_dir: Path = Path("exports")) -> Path |
     )
 
 
-def find_latest_capture_csv(exports_dir: Path = Path("exports")) -> Path | None:
-    return _find_latest_report(
-        exports_dir,
-        [
-            "generic004_stop_control_evidence_capture_plan/generic004_stop_control_capture_template.csv",
-            "generic004_stop_control_evidence_capture_plan_*/generic004_stop_control_capture_template.csv",
-        ],
-    )
+def stop_control_rows_from_generic004_report(generic004_report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows = _mapping_list(generic004_report.get("stop_control_evidence_requirements"))
+    if rows:
+        return rows
+    return _mapping_list(generic004_report.get("capture_template_rows"))
 
 
 def build_stop_control_capture_repair_packet(
     generic004_report: Mapping[str, Any],
     generic005_report: Mapping[str, Any],
-    capture_rows: Sequence[Mapping[str, Any]],
+    stop_control_rows: Sequence[Mapping[str, Any]] | None = None,
     *,
     generic004_path: str | None = None,
     generic005_path: str | None = None,
-    capture_path: str | None = None,
+    stop_control_source: str | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
-    assessments = [assess_capture_row(row, index + 1) for index, row in enumerate(capture_rows)]
+    rows = list(stop_control_rows) if stop_control_rows is not None else stop_control_rows_from_generic004_report(generic004_report)
+    assessments = [assess_capture_row(row, index + 1) for index, row in enumerate(rows)]
     ready_rows = [row for row in assessments if row.repair_status == "ready_for_generic005_rerun"]
     blocked_rows = [row for row in assessments if row.repair_status != "ready_for_generic005_rerun"]
     missing_counter = Counter(field for row in assessments for field in row.missing_or_invalid_fields)
@@ -175,14 +165,14 @@ def build_stop_control_capture_repair_packet(
         "generic005_input_path": generic005_path,
         "generic005_input_schema_version": generic005_report.get("schema_version"),
         "generic005_input_overall_status": generic005_report.get("overall_status"),
-        "capture_input_path": capture_path,
+        "stop_control_source": stop_control_source or "generic004_report_stop_control_evidence_requirements",
         "safety_boundary": no_mutation_boundary(),
         "mutation_counts": mutation_counts(),
         "interpretation_boundary": (
-            "GENERIC-006 is a repair packet for operator stop-control capture only. It diagnoses missing or invalid "
-            "fields in the GENERIC-004 capture CSV and tells the operator what must be reviewed before rerunning "
+            "GENERIC-006 is a repair packet for DB/code-backed operator stop-control evidence only. It diagnoses missing or invalid "
+            "fields in the GENERIC-004 evidence requirements and tells the operator what must be modeled before rerunning "
             "GENERIC-005. It never fills evidence on behalf of the operator, creates candidates, writes gates, reads "
-            "the database, calls external services, mutates Bronze/Silver/Gold, activates connectors, or changes the scheduler."
+            "CSV/Excel/export files as process input, calls external services, mutates Bronze/Silver/Gold, activates connectors, or changes the scheduler."
         ),
         "summary": {
             "capture_row_count": len(assessments),
@@ -199,7 +189,7 @@ def build_stop_control_capture_repair_packet(
         "manual_repair_checklist": manual_repair_checklist(),
         "capture_repair_assessments": [row.as_dict() for row in assessments],
         "blocked_field_help": blocked_field_help(),
-        "safe_rerun_command": build_safe_rerun_command(capture_path) if ready_rows else None,
+        "safe_rerun_command": build_safe_rerun_command() if ready_rows else None,
         "next_action": build_next_action(overall_status),
     }
 
@@ -265,8 +255,8 @@ def derive_overall_status(assessments: Sequence[CaptureRepairAssessment]) -> str
 
 def build_row_repair_instruction(missing_fields: Sequence[str]) -> str:
     if not missing_fields:
-        return "Row is structurally ready for GENERIC-005 rerun after operator review."
-    return "Fill or correct these operator-reviewed fields before rerunning GENERIC-005: " + ", ".join(missing_fields) + "."
+        return "Row is structurally ready for GENERIC-005 rerun from DB/code-backed evidence."
+    return "Model or correct these fields in DB-backed or code-backed stop-control evidence before rerunning GENERIC-005: " + ", ".join(missing_fields) + "."
 
 
 def manual_repair_checklist() -> list[dict[str, str]]:
@@ -274,17 +264,17 @@ def manual_repair_checklist() -> list[dict[str, str]]:
         {
             "step_id": "choose_clean_negative_control",
             "required": "true",
-            "description": "Select one company that is explicitly a no-actionable/safe-stop control, not a weak positive or ambiguous origin candidate.",
+            "description": "Select one company that is explicitly a no-actionable/safe-stop control from DB-backed or code-backed review evidence, not a weak positive or ambiguous origin candidate.",
         },
         {
             "step_id": "fill_identity_fields",
             "required": "true",
-            "description": "Fill company_key and company_name exactly as the reviewed evidence should be referenced; do not use literal None/null placeholders.",
+            "description": "Model company_key and company_name exactly as the reviewed evidence should be referenced; do not use literal None/null placeholders.",
         },
         {
             "step_id": "write_evidence_summary",
             "required": "true",
-            "description": "Replace the template sentence with a concise operator-written explanation of why no actionable origin/detail/provider evidence exists.",
+            "description": "Persist or code-review a concise operator-written explanation of why no actionable origin/detail/provider evidence exists.",
         },
         {
             "step_id": "record_reviewer_and_date",
@@ -313,31 +303,28 @@ def blocked_field_help() -> dict[str, str]:
     }
 
 
-def build_safe_rerun_command(capture_path: str | None) -> str:
-    command = "python scripts/run_generic005_stop_control_final_rerun.py"
-    if capture_path:
-        command += f" --capture-input {capture_path}"
-    return command
+def build_safe_rerun_command() -> str:
+    return "python scripts/run_generic005_stop_control_final_rerun.py"
 
 
 def build_next_action(overall_status: str) -> str:
     if overall_status == READY_STATUS:
-        return "Rerun GENERIC-005 with the reviewed capture CSV, then rerun EXPAND-004 and EXPAND-007 before any apply-gate design."
+        return "Rerun GENERIC-005 with DB/code-backed stop-control evidence, then rerun EXPAND-004 and EXPAND-007 before any apply-gate design."
     if overall_status == NO_ROWS_STATUS:
-        return "Generate or restore the GENERIC-004 capture CSV, then fill one explicit safe-stop/no-actionable negative-control row."
-    return "Repair the GENERIC-004 capture CSV fields listed in this packet, rerun GENERIC-005, then rerun EXPAND-004 and EXPAND-007."
+        return "Model one explicit DB-backed or code-backed safe-stop/no-actionable negative-control row; do not use CSV/Excel/export handoffs."
+    return "Repair the DB/code-backed stop-control evidence fields listed in this packet, rerun GENERIC-005, then rerun EXPAND-004 and EXPAND-007."
 
 
 def render_markdown(report: Mapping[str, Any]) -> str:
     summary = _mapping(report.get("summary"))
     lines = [
-        "# GENERIC-006 Stop-Control Capture Repair Packet",
+        "# GENERIC-006 Stop-Control Evidence Repair Packet",
         "",
         f"- overall_status: `{report.get('overall_status')}`",
         f"- generated_at_utc: `{report.get('generated_at_utc')}`",
         f"- generic004_input_path: `{report.get('generic004_input_path')}`",
         f"- generic005_input_path: `{report.get('generic005_input_path')}`",
-        f"- capture_input_path: `{report.get('capture_input_path')}`",
+        f"- stop_control_source: `{report.get('stop_control_source')}`",
         "",
         "## Safety boundary",
         "",
@@ -357,7 +344,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines.extend(["", "## Manual repair checklist", ""])
     for item in _mapping_list(report.get("manual_repair_checklist")):
         lines.append(f"- `{item.get('step_id')}`: {item.get('description')}")
-    lines.extend(["", "## Capture repair assessments", ""])
+    lines.extend(["", "## Stop-control evidence repair assessments", ""])
     lines.append("| Row | Company | Status | Missing/invalid fields | Instruction |")
     lines.append("|---:|---|---|---|---|")
     assessments = _mapping_list(report.get("capture_repair_assessments"))
@@ -379,7 +366,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
                 + " |"
             )
     else:
-        lines.append("| - | - | blocked_no_capture_rows_found | - | No capture rows were found. |")
+        lines.append("| - | - | blocked_no_capture_rows_found | - | No DB/code-backed stop-control rows were found. |")
     lines.extend(["", "## Safe rerun command", ""])
     lines.append(str(report.get("safe_rerun_command") or "No rerun command is available until at least one row is structurally ready."))
     lines.extend(["", "## Next action", "", str(report.get("next_action") or ""), ""])
@@ -390,36 +377,9 @@ def write_outputs(report: Mapping[str, Any], output_dir: Path) -> dict[str, str]
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / "generic006_stop_control_capture_repair_packet.json"
     md_path = output_dir / "generic006_stop_control_capture_repair_packet.md"
-    csv_path = output_dir / "generic006_capture_repair_assessments.csv"
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     md_path.write_text(render_markdown(report), encoding="utf-8")
-    write_assessment_csv(csv_path, _mapping_list(report.get("capture_repair_assessments")))
-    return {"json": str(json_path), "markdown": str(md_path), "csv": str(csv_path)}
-
-
-def write_assessment_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
-    fieldnames = [
-        "row_number",
-        "control_type",
-        "company_key",
-        "company_name",
-        "review_action",
-        "evidence_strength",
-        "required_for_gap_ids",
-        "missing_or_invalid_fields",
-        "repair_status",
-        "repair_instruction",
-    ]
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(
-                {
-                    key: ";".join(_string_list(row.get(key))) if key in {"required_for_gap_ids", "missing_or_invalid_fields"} else row.get(key, "")
-                    for key in fieldnames
-                }
-            )
+    return {"json": str(json_path), "markdown": str(md_path)}
 
 
 def _find_latest_report(exports_dir: Path, patterns: Sequence[str]) -> Path | None:

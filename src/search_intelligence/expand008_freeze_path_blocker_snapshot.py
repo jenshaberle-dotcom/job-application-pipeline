@@ -189,7 +189,7 @@ def build_gates(
             status="pass" if generic006_status == "ready_for_generic005_rerun_after_operator_review" else "blocked",
             source_status=generic006_status,
             blocker="operator_capture_repair_required_or_report_missing" if generic006_status != "ready_for_generic005_rerun_after_operator_review" else "-",
-            next_action="run_generic006_and_fix_capture_csv" if generic006_status != "ready_for_generic005_rerun_after_operator_review" else "rerun_generic005_with_reviewed_capture_csv",
+            next_action="run_generic006_and_fix_db_code_stop_control_evidence" if generic006_status != "ready_for_generic005_rerun_after_operator_review" else "rerun_generic005_with_db_code_stop_control_evidence",
         )
     )
     gates.append(
@@ -217,9 +217,9 @@ def build_next_action(blocked_gates: Sequence[FreezePathGate]) -> str:
         return "Rerun EXPAND-004 and EXPAND-007 with refreshed evidence; then design manual apply-gate preview only."
     first = blocked_gates[0]
     if first.gate_id == "generic005_stop_control_final_rerun":
-        return "Run GENERIC-006, repair the stop-control capture CSV, rerun GENERIC-005, then rerun EXPAND-004 and EXPAND-007."
+        return "Run GENERIC-006, repair DB/code-backed stop-control evidence, rerun GENERIC-005, then rerun EXPAND-004 and EXPAND-007."
     if first.gate_id == "generic006_stop_control_capture_repair_packet":
-        return "Run GENERIC-006 or repair the capture CSV until it is ready for GENERIC-005 rerun."
+        return "Run GENERIC-006 or repair DB/code-backed stop-control evidence until it is ready for GENERIC-005 rerun."
     return first.next_action
 
 

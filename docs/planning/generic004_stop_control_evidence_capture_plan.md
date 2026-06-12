@@ -4,7 +4,7 @@ Status: planned/read-only implementation step after GENERIC-003.
 
 ## Purpose
 
-GENERIC-004 closes the remaining GENERIC-003 ambiguity by turning the missing stop/negative-control evidence into a concrete operator capture plan.
+GENERIC-004 closes the remaining GENERIC-003 ambiguity by making missing stop/negative-control evidence explicit without introducing a file-based operator handoff.
 
 GENERIC-003 can close the positive-control gap from existing EXPAND-003 evidence, but the benchmark still needs:
 
@@ -24,6 +24,7 @@ GENERIC-004 is review-artifact-only:
 - no scheduler mutation
 - no Bronze/Silver/Gold mutation
 - no external requests
+- no CSV/Excel/export file as operator input
 
 ## Output
 
@@ -31,9 +32,9 @@ The runner writes:
 
 - `exports/generic004_stop_control_evidence_capture_plan/generic004_stop_control_evidence_capture_plan.json`
 - `exports/generic004_stop_control_evidence_capture_plan/generic004_stop_control_evidence_capture_plan.md`
-- `exports/generic004_stop_control_evidence_capture_plan/generic004_stop_control_capture_template.csv`
+- no CSV/Excel/export template is generated; unresolved stop-control evidence must be modeled through DB-backed or code-backed review evidence
 
-The CSV template is not a pipeline input. It is an operator review template that documents the missing stop-control evidence before a later proof-gate rerun.
+Generated Markdown/JSON remain review outputs only. They must not be edited and re-ingested as process input.
 
 ## How to run
 
@@ -50,15 +51,15 @@ With the current EXPAND-003 benchmark:
 
 - no eligible safe-stop candidate exists
 - weak-only candidates remain explicitly not eligible as negative controls
-- GENERIC-004 should produce an operator capture template
+- GENERIC-004 should report DB/code-backed stop-control evidence requirements without producing a CSV/Excel/export template
 - EXPAND-004, Wave Search scaling, scheduler changes, and TOP5 product claims remain blocked
 
 ## Decision boundary
 
-GENERIC-004 may prepare evidence capture. It must not fake benchmark closure. The next proof step may only pass once a real safe-stop/no-actionable control exists and is explicitly passed to GENERIC-001 as a negative control.
+GENERIC-004 may report evidence requirements. It must not fake benchmark closure. The next proof step may only pass once a real safe-stop/no-actionable control exists as DB-backed or code-backed reviewed evidence and is explicitly passed to GENERIC-001 as a negative control.
 
 ## Handoff to GENERIC-005
 
-GENERIC-004 produces the capture template. GENERIC-005 validates the filled template, rejects placeholders or weak-only reinterpretations, and performs the GENERIC-001 final rerun as a review artifact only.
+GENERIC-004 surfaces stop-control evidence requirements. GENERIC-005 validates DB/code-backed stop-control rows, rejects placeholders or weak-only reinterpretations, and performs the GENERIC-001 final rerun as a review artifact only.
 
-The handoff remains blocked until one explicit safe-stop/no-actionable negative control row is filled with reviewer, review date, evidence summary and the no-write boundary.
+The handoff remains blocked until one explicit safe-stop/no-actionable negative control row exists with reviewer, review date, evidence summary and the no-write boundary. CSV/Excel/export files must not be used for that row.
