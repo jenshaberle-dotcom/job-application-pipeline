@@ -15,9 +15,14 @@ This gate is inserted between the controlled evidence/review loop and broad cand
 4. Wave Search / Scheduler Intelligence
 5. Matching / TOP5 Product MVP
 
-GENERIC-001 is review-artifact-only. It must not create candidates, write gates, activate connectors, mutate Bronze/Silver/Gold, change scheduler behavior, or perform uncontrolled external requests.
+GENERIC-001 has an implemented read-only artifact runner and remains review-artifact-only. It must not create candidates, write gates, activate connectors, mutate Bronze/Silver/Gold, change scheduler behavior, or perform uncontrolled external requests.
 
 The benchmark should start with 8 to 12 reviewed candidates covering strong origin evidence, weak-only aggregator evidence, ambiguous identity risk, acronym/alias-heavy company identity, provider-backed origin URLs, no-actionable-evidence candidates, at least one known positive control and at least one known blocked/negative control.
 
 See `docs/planning/generic_pipeline_proof_gate.md`.
 
+Current operational runner:
+
+    python scripts/run_generic001_pipeline_generics_proof_gate.py
+
+The first current-artifact run is expected to expose benchmark gaps rather than immediately pass, especially explicit positive/negative controls and a clean no-actionable-evidence stop case. Those gaps must be closed before candidate apply or wave-search scaling.
