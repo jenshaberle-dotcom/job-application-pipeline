@@ -71,6 +71,10 @@ STRONG_URL_EVIDENCE_CLASSES = frozenset(
 )
 WEAK_MARKET_OR_AGGREGATOR_HOSTS = frozenset(
     {
+        "aijobs.net",
+        "builtin.com",
+        "careervault.io",
+        "stellenanzeigen.de",
         "arbeitnow.com",
         "bebee.com",
         "broxer.com",
@@ -683,24 +687,27 @@ def classify_url_evidence(query: ProbeQuery, url: str, title: str = "") -> str:
 
     path_text = _path_tokens(url)
     title_text = _normalize_token(title)
-    combined_text = f"{_normalize_token(host)} {path_text} {title_text}"
-    company_matches = _candidate_identity_matches(query, f"{host} {path_text} {title}")
+    host_text = _normalize_token(host)
+    combined_text = f"{host_text} {path_text} {title_text}"
+
+    host_or_path_matches = _candidate_identity_matches(query, f"{host_text} {path_text}")
+    title_has_strong_identity_match = _candidate_identity_matches(query, title_text, allow_short_tokens=False)
 
     if _is_origin_provider_host(host):
-        if not company_matches:
+        if not (host_or_path_matches or title_has_strong_identity_match):
             return "unrelated_or_generic_url"
         if _has_detail_path([url]) or _has_role_hint(f"{path_text} {title}"):
             return "company_specific_job_detail_url"
         return "origin_provider_url"
 
-    if company_matches:
-        if _has_detail_path([url]) or _has_role_hint(f"{path_text} {title}"):
-            return "company_specific_job_detail_url"
-        if _has_career_path([url]) or _has_career_text(combined_text):
-            return "company_origin_or_career_url"
-        return "company_origin_or_career_url"
+    if not host_or_path_matches:
+        return "unrelated_or_generic_url"
 
-    return "unrelated_or_generic_url"
+    if _has_detail_path([url]) or _has_role_hint(f"{path_text} {title}"):
+        return "company_specific_job_detail_url"
+    if _has_career_path([url]) or _has_career_text(combined_text):
+        return "company_origin_or_career_url"
+    return "company_origin_or_career_url"
 
 
 def classify_evidence_hint_from_url_classes(url_evidence_classes: Sequence[str]) -> str:
@@ -739,10 +746,18 @@ def _is_origin_provider_host(host: str) -> bool:
     return any(host == provider or host.endswith("." + provider) for provider in ORIGIN_PROVIDER_HOSTS)
 
 
-def _candidate_identity_matches(query: ProbeQuery, text: str) -> bool:
+def _candidate_identity_matches(query: ProbeQuery, text: str, *, allow_short_tokens: bool = True) -> bool:
     normalized_text = _normalize_token(text)
+    text_tokens = set(normalized_text.split())
     tokens = _candidate_match_tokens(query)
-    return any(token in normalized_text for token in tokens)
+    for token in tokens:
+        if len(token) <= 4:
+            if allow_short_tokens and token in text_tokens:
+                return True
+            continue
+        if token in normalized_text:
+            return True
+    return False
 
 
 def _candidate_match_tokens(query: ProbeQuery) -> tuple[str, ...]:

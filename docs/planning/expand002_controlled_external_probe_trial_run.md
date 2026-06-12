@@ -115,3 +115,14 @@ EXPAND-002C therefore classifies each returned URL before deriving the candidate
 - `unrelated_or_generic_url`
 
 The report summary includes URL-level counters for strong, weak and generic evidence. Candidate outcomes continue to require human review and still cannot create candidates, write gates, activate connectors or mutate database/pipeline state.
+
+## EXPAND-002D identity-safe URL evidence calibration
+
+The EXPAND-002C 10x20 validation run improved URL-level evidence quality, but it also exposed an identity-risk boundary:
+
+- acronym-only matches must not create strong origin evidence when the acronym is merely a substring of an unrelated host
+- example risk: `bgeinc.com` must not be treated as Bundesgesellschaft für Endlagerung evidence only because it starts with `bge`
+- company-profile and market hosts such as `stellenanzeigen.de` remain weak market/profile evidence even when the company name appears in the URL path
+- short identifiers such as `BGE` or `APO` require token-boundary matches, while longer distinctive names may still match compound company hosts such as `jaegergroup.com`
+
+This calibration still produces review artifacts only. It does not create candidates, write gates, activate connectors, mutate database state, or turn URL evidence into gate truth without human review.
