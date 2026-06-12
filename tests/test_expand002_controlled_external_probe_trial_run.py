@@ -371,3 +371,72 @@ def test_url_evidence_counts_are_reported_separately_from_candidate_hint_counts(
         "company_origin_or_career_url",
         "aggregator_or_market_url",
     ]
+
+def test_acronym_substring_host_does_not_create_bge_origin_false_positive() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="bundesgesellschaft_fur_endlagerung_bge",
+        company_name="Bundesgesellschaft für Endlagerung mbH (BGE)",
+        stage="origin_url_discovery_probe",
+        query="BGE careers jobs Data Engineer",
+        max_results=5,
+    )
+
+    assert classify_url_evidence(query, "https://www.bgeinc.com/careers", "BGE Inc Careers") == "unrelated_or_generic_url"
+    assert classify_evidence_hint(
+        query,
+        ["https://www.bgeinc.com/careers"],
+        ["BGE Inc Careers"],
+    ) == "generic_web_hint_found"
+
+
+def test_career_subdomain_with_acronym_token_boundary_remains_actionable() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="bundesgesellschaft_fur_endlagerung_bge",
+        company_name="Bundesgesellschaft für Endlagerung mbH (BGE)",
+        stage="origin_url_discovery_probe",
+        query="BGE careers jobs Data Engineer",
+        max_results=5,
+    )
+
+    assert classify_url_evidence(query, "https://karriere.bge.de/go/BGE-ENG/9208055", "BGE Karriere") == (
+        "company_origin_or_career_url"
+    )
+
+
+def test_company_profile_market_host_is_not_origin_even_with_company_path() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="arnold_jager",
+        company_name="Arnold Jäger Holding GmbH",
+        stage="origin_url_discovery_probe",
+        query="Arnold Jäger careers jobs",
+        max_results=5,
+    )
+
+    url = "https://www.stellenanzeigen.de/unternehmen/arnold-jaeger-holding-gmbh"
+
+    assert classify_url_evidence(query, url, "Arnold Jäger Holding GmbH Jobs") == "aggregator_or_market_url"
+    assert classify_evidence_hint(query, [url], ["Arnold Jäger Holding GmbH Jobs"]) == (
+        "weak_market_or_aggregator_hint_found"
+    )
+
+
+def test_long_company_token_can_still_match_compound_origin_host() -> None:
+    query = ProbeQuery(
+        probe_id="p1",
+        trial_id="t1",
+        company_key="arnold_jager",
+        company_name="Arnold Jäger Holding GmbH",
+        stage="origin_url_discovery_probe",
+        query="Arnold Jäger careers jobs",
+        max_results=5,
+    )
+
+    assert classify_url_evidence(query, "https://www.jaegergroup.com/de/karriere/stellenangebote", "Karriere") == (
+        "company_origin_or_career_url"
+    )
