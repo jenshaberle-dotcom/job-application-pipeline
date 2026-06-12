@@ -34,9 +34,10 @@ Current operational runner:
 The first current-artifact run is expected to expose benchmark gaps rather than immediately pass, especially explicit positive/negative controls and a clean no-actionable-evidence stop case. Those gaps must be closed before candidate apply or wave-search scaling.
 
 
-## Current freeze-path position after GENERIC-003
+## Current freeze-path position after GENERIC-004
 
 - GENERIC-002 Benchmark Gap Closure Plan: done.
 - GENERIC-003 Benchmark Control Rerun Review: done.
-- GENERIC-004 Stop-Control Evidence Capture Plan: next read-only patch.
-- GENERIC-001 Rerun with Controls / Stop-Case Evidence: positive control closable; negative/stop-case evidence still blocked until a clean safe-stop/no-actionable artifact exists.
+- GENERIC-004 Stop-Control Evidence Capture Plan: done.
+- GENERIC-005 Stop-Control Evidence / GENERIC-001 Final Rerun: next read-only patch.
+- EXPAND-004 remains blocked until GENERIC-005 accepts one explicit stop/no-actionable negative control and the nested GENERIC-001 final rerun has no gaps.

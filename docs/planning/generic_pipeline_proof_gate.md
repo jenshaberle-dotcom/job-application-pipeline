@@ -143,3 +143,9 @@ No TOP5 product claim should be made until the pipeline can show that discovery,
 ## GENERIC-004 Stop-Control Evidence Capture Plan
 
 If GENERIC-003 closes only positive-control coverage, run GENERIC-004 before EXPAND-004. GENERIC-004 prepares the missing negative/no-actionable stop-control evidence as an operator capture artifact and prevents weak-only candidates from being silently promoted into negative controls.
+
+## Relationship to GENERIC-005
+
+GENERIC-005 consumes a filled GENERIC-004 stop-control capture CSV and reruns GENERIC-001 in memory with explicit positive and negative controls. It may add or overlay a benchmark-only stop-control row for the final proof report, but this remains a review artifact and must not create candidates, write gates, activate connectors, mutate Bronze/Silver/Gold, or change scheduler behavior.
+
+EXPAND-004 may only move from planning to controlled dry-run design when the nested GENERIC-001 final rerun in GENERIC-005 passes without benchmark gaps.
