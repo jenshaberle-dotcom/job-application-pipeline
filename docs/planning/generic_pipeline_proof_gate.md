@@ -1,6 +1,6 @@
 # GENERIC-001 Pipeline Generics Proof Gate
 
-Status: planned gate before production-like candidate throughput  
+Status: implemented foundation / review-artifact proof gate before production-like candidate throughput
 Scope: Search Intelligence / Candidate Pipeline / Origin Evidence / Connector Readiness / Matching
 
 ## Purpose
@@ -20,6 +20,25 @@ Recommended sequence:
 3. EXPAND-004 Controlled Candidate Creation Dry-Run
 4. Wave Search / Scheduler Intelligence
 5. Matching / TOP5 Product MVP
+
+
+## Implemented foundation
+
+GENERIC-001 now has a read-only artifact runner:
+
+    python scripts/run_generic001_pipeline_generics_proof_gate.py
+
+The runner reads the latest EXPAND-003 candidate review delta report and, when available, the latest SENSOR-001H or SENSOR-001E BA remote/nationwide sensor context. It writes JSON, CSV and Markdown review artifacts under:
+
+    exports/generic001_pipeline_generics_proof_gate/
+
+Explicit control candidates can be supplied without changing pipeline state:
+
+    python scripts/run_generic001_pipeline_generics_proof_gate.py \
+      --positive-control-key adesso_business_consulting \
+      --negative-control-key <blocked_control_company_key>
+
+A passing GENERIC-001 report is still not an apply step. It only means the benchmark evidence coverage is sufficient to consider a separate EXPAND-004 controlled candidate creation dry-run.
 
 ## What must be proven
 
