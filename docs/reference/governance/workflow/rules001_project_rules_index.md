@@ -209,6 +209,32 @@ interpretation must be tracked through ASSUMPTION-001 before it can affect gates
 Gold metrics, dashboards or connector/source activation.
 <!-- MARKET-003A-RULE-END -->
 
+
+<!-- EXPAND-005-PARALLEL-BUNDLE-START -->
+## EXPAND-005 Parallel Candidate Expansion Boundary
+
+EXPAND-005 may be planned as a parallel implementation bundle only while its
+lanes remain independently reviewable and fan in at report/validation level.
+
+Allowed parallel lanes:
+
+- candidate creation evidence review
+- genericity proof matrix
+- apply-boundary design
+- approval-safe UI action design
+- Agent Monitor wording/history-signal clarification
+
+The bundle must not introduce hidden coupling between candidate creation, gate
+decisions, connector activation, scheduler changes, or Bronze/Silver/Gold
+mutation. Any apply-capable path must keep `--dry-run` as default and require an
+explicit `--apply` boundary with visible selected targets and audit provenance.
+
+GENERIC-001 evidence is a proof layer, not decision truth. Assumptions surfaced
+by the genericity matrix must be tracked through ASSUMPTION-001 before they can
+affect gates, Gold metrics, dashboards, source activation, or connector
+registration.
+<!-- EXPAND-005-PARALLEL-BUNDLE-END -->
+
 ## Validation and next-safe-action commands
 
 The unified validation command can be run with:

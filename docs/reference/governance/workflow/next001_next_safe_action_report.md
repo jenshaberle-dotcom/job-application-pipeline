@@ -80,9 +80,13 @@ MCP-001 remains backlog-only unless explicitly promoted.
 
 After the standard sequence is present in HEAD and the repository is clean,
 NEXT-001A should recommend returning to explicitly selected product pipeline work
-or report that only handover refresh is needed before a chat transition. The
-current expected product candidate is `SENSOR-001E BA Remote/Nationwide Bounded
-Sample Execution Review`.
+or report that only handover refresh is needed before a chat transition.
+
+Product-return candidates are advisory. They must be treated as stale when a
+newer handover, current Git history, or explicit user decision shows that the
+named work item has already been completed or superseded. In that case the next
+safe action is to select the current product work item explicitly rather than to
+blindly follow the older candidate.
 
 
 ## Restart readiness
