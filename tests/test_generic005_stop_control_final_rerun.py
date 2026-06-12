@@ -250,6 +250,7 @@ def test_runner_writes_final_rerun_artifacts(tmp_path: Path) -> None:
             str(generic004_path),
             "--expand003-input",
             str(expand003_path),
+            "--disable-db-stop-control-evidence",
             "--export-dir",
             str(export_dir),
         ],

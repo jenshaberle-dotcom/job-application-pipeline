@@ -97,11 +97,11 @@ def test_capture_plan_blocks_when_only_weak_candidates_exist_without_file_input(
     ]
     assert report["summary"]["eligible_safe_stop_candidate_count"] == 0
     assert report["summary"]["weak_only_not_eligible_candidate_count"] == 2
-    assert report["summary"]["capture_template_row_count"] == 1
+    assert report["summary"]["stop_control_evidence_requirement_count"] == 1
     assert report["safety_boundary"]["csv_or_excel_input"] is False
     assert report["safety_boundary"]["no_file_based_operator_input"] is True
     assert report["mutation_counts"]["database_writes"] == 0
-    assert report["follow_up_command_if_template_filled"] is None
+    assert report["follow_up_command_if_db_or_code_evidence_exists"] is None
     assert "DB-backed or code-backed" in report["next_action"]
     requirement = report["stop_control_evidence_requirements"][0]
     assert requirement["review_action"] == "no_useful_external_hint_no_candidate_creation"
@@ -116,7 +116,7 @@ def test_capture_plan_ready_when_safe_stop_artifact_exists() -> None:
     assert report["overall_status"] == "ready_to_close_stop_controls_with_existing_safe_stop_artifact"
     assert report["summary"]["safe_stop_candidate_keys"] == ["clean_stop_control"]
     assert report["summary"]["eligible_safe_stop_candidate_count"] == 1
-    assert "--negative-control-key clean_stop_control" in report["follow_up_command_if_template_filled"]
+    assert "--negative-control-key clean_stop_control" in report["follow_up_command_if_db_or_code_evidence_exists"]
     assessments = report["candidate_stop_assessments"]
     eligible = [row for row in assessments if row["assessment_status"] == "eligible_safe_stop_control"]
     assert eligible[0]["can_close_gap_ids"] == [
@@ -132,7 +132,7 @@ def test_capture_plan_noops_when_no_stop_gaps_remain() -> None:
     )
 
     assert report["overall_status"] == "no_remaining_stop_control_gaps"
-    assert report["summary"]["capture_template_row_count"] == 0
+    assert report["summary"]["stop_control_evidence_requirement_count"] == 0
     assert "EXPAND-004" in report["next_action"]
 
 
@@ -144,16 +144,16 @@ def test_render_markdown_contains_no_csv_handoff() -> None:
     assert "review_artifact_only" in markdown
     assert "not_eligible_weak_only_signal" in markdown
     assert "No rerun command is available" in markdown
-    assert "No CSV/Excel/export template is written" in markdown
+    assert "No CSV/Excel/export evidence input is written" in markdown
 
 
-def test_write_outputs_excludes_capture_template_csv(tmp_path: Path) -> None:
+def test_write_outputs_excludes_capture_input_csv(tmp_path: Path) -> None:
     report = build_stop_control_evidence_capture_plan(_generic003_report(), _expand003_report())
     outputs = write_outputs(report, tmp_path)
 
     assert Path(outputs["json"]).exists()
     assert Path(outputs["markdown"]).exists()
-    assert "capture_template_csv" not in outputs
+    assert "capture_input_csv" not in outputs
     assert not (tmp_path / "generic004_stop_control_capture_template.csv").exists()
 
 
@@ -208,6 +208,6 @@ def test_runner_writes_json_and_markdown_without_csv(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert "overall_status=operator_capture_required_missing_stop_control_evidence" in result.stdout
-    assert "capture_template_csv" not in result.stdout
+    assert "capture_input_csv" not in result.stdout
     assert (export_dir / "generic004_stop_control_evidence_capture_plan.json").exists()
     assert not (export_dir / "generic004_stop_control_capture_template.csv").exists()

@@ -32,7 +32,7 @@ The runner writes:
 
 - `exports/generic004_stop_control_evidence_capture_plan/generic004_stop_control_evidence_capture_plan.json`
 - `exports/generic004_stop_control_evidence_capture_plan/generic004_stop_control_evidence_capture_plan.md`
-- no CSV/Excel/export template is generated; unresolved stop-control evidence must be modeled through DB-backed or code-backed review evidence
+- no CSV/Excel/export evidence-input artifact is generated; unresolved stop-control evidence must be modeled through DB-backed or code-backed review evidence
 
 Generated Markdown/JSON remain review outputs only. They must not be edited and re-ingested as process input.
 
@@ -51,7 +51,7 @@ With the current EXPAND-003 benchmark:
 
 - no eligible safe-stop candidate exists
 - weak-only candidates remain explicitly not eligible as negative controls
-- GENERIC-004 should report DB/code-backed stop-control evidence requirements without producing a CSV/Excel/export template
+- GENERIC-004 should report DB/code-backed stop-control evidence requirements without producing a CSV/Excel/export evidence-input artifact
 - EXPAND-004, Wave Search scaling, scheduler changes, and TOP5 product claims remain blocked
 
 ## Decision boundary
