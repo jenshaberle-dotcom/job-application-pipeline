@@ -17,7 +17,7 @@ GENERIC-006 makes that state visible without guessing evidence.
 GENERIC-006 is read-only and review-only:
 
 - no database writes
-- no database reads
+- may read `stop_control_evidence_reviews` for DB-backed stop-control evidence
 - no external requests
 - no candidate creation
 - no candidate promotion
@@ -39,7 +39,7 @@ No CSV/Excel/export assessment file is generated for process input.
 ## Operator sequence
 
 1. Run GENERIC-006.
-2. Model or correct DB-backed or code-backed stop-control evidence using the repair packet; do not use CSV/Excel/export handoffs.
+2. Model or correct DB-backed or code-backed stop-control evidence using GENERIC-008 or code review; do not use CSV/Excel/export handoffs.
 3. Rerun GENERIC-005.
 4. Rerun EXPAND-004.
 5. Rerun EXPAND-007.

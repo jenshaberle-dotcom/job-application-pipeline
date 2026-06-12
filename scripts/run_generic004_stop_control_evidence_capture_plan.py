@@ -75,12 +75,12 @@ def main() -> int:
         "remaining_gap_ids",
         "eligible_safe_stop_candidate_count",
         "weak_only_not_eligible_candidate_count",
-        "capture_template_row_count",
+        "stop_control_evidence_requirement_count",
         "safe_stop_candidate_keys",
     ]:
         print(f"{key}={summary.get(key)}")
-    if report.get("follow_up_command_if_template_filled"):
-        print(f"follow_up_command={report.get('follow_up_command_if_template_filled')}")
+    if report.get("follow_up_command_if_db_or_code_evidence_exists"):
+        print(f"follow_up_command={report.get('follow_up_command_if_db_or_code_evidence_exists')}")
     print(f"next_action={report.get('next_action')}")
     print(f"json={outputs['json']}")
     print(f"markdown={outputs['markdown']}")

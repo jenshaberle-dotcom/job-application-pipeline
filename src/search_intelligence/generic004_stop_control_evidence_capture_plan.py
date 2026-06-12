@@ -42,7 +42,7 @@ class CandidateStopAssessment:
 
 
 @dataclass(frozen=True)
-class CaptureTemplateRow:
+class StopControlEvidenceRequirement:
     control_type: str
     required_for_gap_ids: str
     company_key: str
@@ -147,7 +147,7 @@ def build_stop_control_evidence_capture_plan(
     assessments = build_candidate_stop_assessments(candidate_rows)
     safe_stop_candidates = [item for item in assessments if item.assessment_status == "eligible_safe_stop_control"]
     weak_only_candidates = [item for item in assessments if item.assessment_status == "not_eligible_weak_only_signal"]
-    template_rows = build_capture_template_rows(remaining_gap_ids, safe_stop_candidates)
+    requirement_rows = build_stop_control_evidence_requirements(remaining_gap_ids, safe_stop_candidates)
     runnable_follow_up_command = build_follow_up_command(safe_stop_candidates)
 
     if not remaining_gap_ids:
@@ -181,15 +181,14 @@ def build_stop_control_evidence_capture_plan(
             "candidate_count": len(candidate_rows),
             "eligible_safe_stop_candidate_count": len(safe_stop_candidates),
             "weak_only_not_eligible_candidate_count": len(weak_only_candidates),
-            "capture_template_row_count": len(template_rows),
+            "stop_control_evidence_requirement_count": len(requirement_rows),
             "safe_stop_candidate_keys": [item.company_key for item in safe_stop_candidates],
             "weak_only_not_eligible_candidate_keys": [item.company_key for item in weak_only_candidates],
         },
         "evidence_acceptance_criteria": evidence_acceptance_criteria(),
         "candidate_stop_assessments": [item.as_dict() for item in assessments],
-        "stop_control_evidence_requirements": [row.as_dict() for row in template_rows],
-        "capture_template_rows": [row.as_dict() for row in template_rows],
-        "follow_up_command_if_template_filled": runnable_follow_up_command,
+        "stop_control_evidence_requirements": [row.as_dict() for row in requirement_rows],
+        "follow_up_command_if_db_or_code_evidence_exists": runnable_follow_up_command,
         "next_action": build_next_action(overall_status, remaining_gap_ids),
     }
 
@@ -274,15 +273,15 @@ def evidence_acceptance_criteria() -> list[dict[str, str]]:
     ]
 
 
-def build_capture_template_rows(
+def build_stop_control_evidence_requirements(
     remaining_gap_ids: Sequence[str],
     safe_stop_candidates: Sequence[CandidateStopAssessment],
-) -> list[CaptureTemplateRow]:
+) -> list[StopControlEvidenceRequirement]:
     if not any(gap_id in STOP_CONTROL_GAPS for gap_id in remaining_gap_ids):
         return []
     if safe_stop_candidates:
         return [
-            CaptureTemplateRow(
+            StopControlEvidenceRequirement(
                 control_type="existing_safe_stop_negative_control",
                 required_for_gap_ids=";".join(STOP_CONTROL_GAPS),
                 company_key=candidate.company_key,
@@ -297,7 +296,7 @@ def build_capture_template_rows(
             for candidate in safe_stop_candidates
         ]
     return [
-        CaptureTemplateRow(
+        StopControlEvidenceRequirement(
             control_type="new_clean_no_actionable_negative_control",
             required_for_gap_ids=";".join(STOP_CONTROL_GAPS),
             company_key="",
@@ -356,7 +355,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "candidate_count",
         "eligible_safe_stop_candidate_count",
         "weak_only_not_eligible_candidate_count",
-        "capture_template_row_count",
+        "stop_control_evidence_requirement_count",
         "safe_stop_candidate_keys",
         "weak_only_not_eligible_candidate_keys",
     ]:
@@ -383,8 +382,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             + " |"
         )
     lines.extend(["", "## Stop-control evidence requirements", ""])
-    lines.append("No CSV/Excel/export template is written. Stop-control evidence must be DB-backed or code-backed before GENERIC-005 can pass.")
-    command = report.get("follow_up_command_if_template_filled")
+    lines.append("No CSV/Excel/export evidence input is written. Stop-control evidence must be DB-backed or code-backed before GENERIC-005 can pass.")
+    command = report.get("follow_up_command_if_db_or_code_evidence_exists")
     lines.extend(["", "## Follow-up command if eligible DB/code-backed safe-stop evidence exists", ""])
     lines.append(f"    {command}" if command else "No rerun command is available until explicit safe-stop evidence is captured.")
     lines.extend(["", "## Next action", "", str(report.get("next_action") or ""), ""])

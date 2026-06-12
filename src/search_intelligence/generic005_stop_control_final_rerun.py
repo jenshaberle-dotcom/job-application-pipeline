@@ -129,6 +129,7 @@ def build_stop_control_final_rerun_report(
     expand003_path: str | None = None,
     stop_control_source: str | None = None,
     generated_at: str | None = None,
+    database_reads: bool = False,
 ) -> dict[str, Any]:
     positive_control_keys = _positive_control_keys(generic003_report)
     rows = list(stop_control_rows) if stop_control_rows is not None else stop_control_rows_from_generic004_report(generic004_report)
@@ -156,6 +157,9 @@ def build_stop_control_final_rerun_report(
     )
     next_action = build_next_action(overall_status, final_gap_ids, rejected_rows)
 
+    safety_boundary = no_mutation_boundary()
+    safety_boundary["database_reads"] = database_reads
+
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": generated_at or datetime.now(timezone.utc).isoformat(),
@@ -169,13 +173,14 @@ def build_stop_control_final_rerun_report(
         "expand003_input_path": expand003_path,
         "expand003_input_schema_version": expand003_report.get("schema_version"),
         "stop_control_source": stop_control_source or "generic004_report_stop_control_evidence_requirements",
-        "safety_boundary": no_mutation_boundary(),
+        "safety_boundary": safety_boundary,
         "mutation_counts": mutation_counts(),
         "interpretation_boundary": (
             "GENERIC-005 validates explicit operator stop-control evidence and reruns GENERIC-001 in memory with a "
             "benchmark-only augmented review artifact. It does not create candidates, write gates, activate connectors, "
-            "mutate Bronze/Silver/Gold, change scheduler behavior, read the database, or perform external requests. "
-            "It does not read CSV/Excel/export files as operator input; stop-control evidence must be DB-backed or code-backed."
+            "mutate Bronze/Silver/Gold, change scheduler behavior, or perform external requests. "
+            "It does not read CSV/Excel/export files as operator input; stop-control evidence must be DB-backed or code-backed. "
+            "When DB-backed evidence is available, GENERIC-005 may read stop_control_evidence_reviews without writing."
         ),
         "summary": {
             "positive_control_keys": positive_control_keys,
@@ -223,10 +228,7 @@ def evaluate_capture_rows(capture_rows: Sequence[Mapping[str, Any]]) -> list[Sto
 
 
 def stop_control_rows_from_generic004_report(generic004_report: Mapping[str, Any]) -> list[dict[str, Any]]:
-    rows = _mapping_list(generic004_report.get("stop_control_evidence_requirements"))
-    if rows:
-        return rows
-    return _mapping_list(generic004_report.get("capture_template_rows"))
+    return _mapping_list(generic004_report.get("stop_control_evidence_requirements"))
 
 
 def augment_expand003_with_stop_controls(

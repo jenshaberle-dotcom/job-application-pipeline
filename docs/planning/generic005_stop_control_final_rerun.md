@@ -4,7 +4,7 @@ Status: planned/read-only implementation step after GENERIC-004.
 
 ## Purpose
 
-GENERIC-005 is the executable bridge from the GENERIC-004 stop-control capture template back into the GENERIC-001 proof gate.
+GENERIC-005 is the executable bridge from DB-backed or code-backed stop-control evidence back into the GENERIC-001 proof gate.
 
 It validates explicit operator stop-control evidence and reruns GENERIC-001 in memory with:
 
@@ -18,7 +18,8 @@ The goal is to decide whether the generic benchmark can finally pass before EXPA
 
 GENERIC-005 is review-artifact-only:
 
-- no database reads or writes
+- may read `stop_control_evidence_reviews` for DB-backed stop-control evidence
+- no database writes
 - no candidate creation or promotion
 - no gate decisions
 - no connector activation
@@ -26,7 +27,7 @@ GENERIC-005 is review-artifact-only:
 - no Bronze/Silver/Gold mutation
 - no external requests
 
-A filled CSV row is accepted only as explicit benchmark control evidence. It is not pipeline truth and does not create or promote a candidate.
+CSV/Excel/export rows are never accepted as stop-control evidence. DB-backed or code-backed review evidence is benchmark control evidence only; it is not pipeline truth and does not create or promote a candidate.
 
 ## Accepted stop-control evidence
 
@@ -36,11 +37,15 @@ A stop-control row may be accepted only when it is DB-backed or code-backed and 
 - `required_for_gap_ids` includes both `no_actionable_evidence_coverage` and `negative_control_coverage`
 - `company_key` and `company_name` are filled
 - `review_action` is a safe-stop action
-- `evidence_summary` describes the bounded stop-control review and is not the template placeholder
+- `evidence_summary` describes the bounded stop-control review and is not placeholder text
 - `reviewer` and `review_date` are filled
 - `boundary` remains `review_artifact_only_no_candidate_or_gate_write`
 
 Weak-only candidates remain insufficient. GENERIC-005 must not reinterpret weak-only market evidence as a negative control.
+
+## GENERIC-008 DB-backed evidence source
+
+The preferred operator path is `scripts/run_generic008_stop_control_evidence_registry.py`. It is dry-run by default and writes only to `stop_control_evidence_reviews` when `--write` is explicit. This DB row may then be read by GENERIC-005. No local file artifact may be edited and re-ingested.
 
 ## Output
 
@@ -62,7 +67,7 @@ python scripts/run_generic005_stop_control_final_rerun.py
 
 When no DB/code-backed stop-control evidence exists, GENERIC-005 should report `stop_control_capture_missing_or_invalid` and keep EXPAND-004 blocked.
 
-When one valid stop-control row is captured, GENERIC-005 may produce a nested GENERIC-001 final report with `passed_review_artifact_only`.
+When one valid DB-backed or code-backed stop-control row exists, GENERIC-005 may produce a nested GENERIC-001 final report with `passed_review_artifact_only`.
 
 ## Decision boundary
 

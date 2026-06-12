@@ -131,10 +131,7 @@ def find_latest_generic005_report(exports_dir: Path = Path("exports")) -> Path |
 
 
 def stop_control_rows_from_generic004_report(generic004_report: Mapping[str, Any]) -> list[dict[str, Any]]:
-    rows = _mapping_list(generic004_report.get("stop_control_evidence_requirements"))
-    if rows:
-        return rows
-    return _mapping_list(generic004_report.get("capture_template_rows"))
+    return _mapping_list(generic004_report.get("stop_control_evidence_requirements"))
 
 
 def build_stop_control_capture_repair_packet(
@@ -146,6 +143,7 @@ def build_stop_control_capture_repair_packet(
     generic005_path: str | None = None,
     stop_control_source: str | None = None,
     generated_at: str | None = None,
+    database_reads: bool = False,
 ) -> dict[str, Any]:
     rows = list(stop_control_rows) if stop_control_rows is not None else stop_control_rows_from_generic004_report(generic004_report)
     assessments = [assess_capture_row(row, index + 1) for index, row in enumerate(rows)]
@@ -153,6 +151,9 @@ def build_stop_control_capture_repair_packet(
     blocked_rows = [row for row in assessments if row.repair_status != "ready_for_generic005_rerun"]
     missing_counter = Counter(field for row in assessments for field in row.missing_or_invalid_fields)
     overall_status = derive_overall_status(assessments)
+
+    safety_boundary = no_mutation_boundary()
+    safety_boundary["database_reads"] = database_reads
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -166,13 +167,14 @@ def build_stop_control_capture_repair_packet(
         "generic005_input_schema_version": generic005_report.get("schema_version"),
         "generic005_input_overall_status": generic005_report.get("overall_status"),
         "stop_control_source": stop_control_source or "generic004_report_stop_control_evidence_requirements",
-        "safety_boundary": no_mutation_boundary(),
+        "safety_boundary": safety_boundary,
         "mutation_counts": mutation_counts(),
         "interpretation_boundary": (
             "GENERIC-006 is a repair packet for DB/code-backed operator stop-control evidence only. It diagnoses missing or invalid "
             "fields in the GENERIC-004 evidence requirements and tells the operator what must be modeled before rerunning "
             "GENERIC-005. It never fills evidence on behalf of the operator, creates candidates, writes gates, reads "
-            "CSV/Excel/export files as process input, calls external services, mutates Bronze/Silver/Gold, activates connectors, or changes the scheduler."
+            "CSV/Excel/export files as process input, calls external services, mutates Bronze/Silver/Gold, activates connectors, or changes the scheduler. "
+            "When DB-backed evidence is available, GENERIC-006 may read stop_control_evidence_reviews without writing."
         ),
         "summary": {
             "capture_row_count": len(assessments),
