@@ -3,84 +3,84 @@
 Status: active planning
 Last rebaseline: DOC-001M
 
-This file is the active roadmap. It is intentionally short. Historical phase
-checklists and build notes live in `../archive/planning/` and Git history.
+This file is intentionally short. Historical checklists and build notes live in
+`../archive/planning/` and Git history.
 
 ## Current freeze path
 
 | Order | Block | Status | Purpose |
 |---|---|---|---|
-| 1 | GOV-001 Agent Governance Foundation | done | Make agent-like behavior explicit and reviewable. |
-| 2 | DOC-001A-K Documentation Rebaseline Foundations | done | Inventory, current-truth navigation, archive/deprecation, README/runbook, diagrams, DB/docs control and ADR status. |
-| 3 | DOC-001L Documentation Information Architecture | done | Restructure docs into current/guides/reference/decisions/planning/archive. |
-| 4 | DOC-001M Artifact Consolidation | current | Reduce redundancy, keep active docs lean and prevent a new documentation monster. |
-| 5 | STOP-002 Stop Taxonomy & Repair Strategy Registry | next | Make stops, repair paths and next safe actions easier to reason about and operate. |
-| 6 | EO/Search Intelligence return path | next | Resume StepStone discovery, promotion quality and URL/detail evidence generics after the maturity baseline is stable. |
+| 1 | GOV-001 Agent Governance Foundation | done | Reviewable agent behavior. |
+| 2 | DOC-001A-M Documentation Rebaseline | done/current | Current truth, archive split and lean active docs. |
+| 3 | STOP-002 Stop Taxonomy | done/expand | Stops and repair paths explicit. |
+| 4 | GENERIC/EXPAND Candidate Creation | current | Prove generic evidence before any apply-capable path. |
+| 5 | V1 Job Review Path | next | Make a controlled Top-5/job-review workflow usable, including GUI. |
+| 6 | REFACTOR-001 | planned gate | Refactor before cloud, outbox, Kafka, Spark or productionization. |
+| 7 | FREEZE-002 Pipeline Maturity to V1 | planned campaign | Raise remaining pipeline areas toward >=90% without derailing V1. |
 
 ## Current product priorities
 
 | Area | Current focus |
 |---|---|
-| Documentation | Keep current truth small and archive historical build traces. |
-| Governance | Keep agent permissions, capability boundaries and drift checks active. |
-| Stop/repair logic | Build a clearer taxonomy before adding more UI actions. |
-| StepStone discovery | Prove that discovery waves produce new-company yield instead of known-company repetition. |
-| Candidate promotion | Improve the Türsteher with measured downstream outcomes, not blind gate weakening. |
-| URL/detail evidence | Improve generic discovery and evidence quality without uncontrolled crawling. |
-| Control Center | Make review-required states actionable only after stop/repair responsibilities are clear. |
+| GENERIC/EXPAND | Close stop-control and evidence blockers before apply design. |
+| Search Intelligence | Improve discovery closure and source/origin evidence generically. |
+| GUI | Build approval-safe review actions and a usable Review Queue. |
+| Operations | Keep scheduler/run/defect states visible before cloud migration. |
+| Documentation | Keep current truth lean; archive historical build traces. |
 
 ## Architecture freeze rule
 
 <!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
 ARCH-001 remains active. New changes must preserve safety, security, data
 integrity and explicit state transitions. Opportunistic scope expansion should go
-to the backlog unless it improves safety, diagnosis, generics or product maturity
-by a clearly meaningful amount.
+to the backlog unless it materially improves safety, diagnosis, generics or
+product maturity.
 <!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
-
-## Backlog parking lot
-
-Use the White-Whale backlog for valuable ideas that are not part of the current
-maturity path. Saving an idea is not the same as implementing it now.
 
 ## Contract anchors
 
-These anchors are intentionally kept because repository tests use the active roadmap
-as a lightweight governance and repair-contract surface. They are short by design:
-historical implementation detail belongs in the archive, not in the active roadmap.
-
 ### DOC-001 Governance Foundation Gate
-
-DOC-001 remains the documentation/governance freeze path that protects the project
-from documentation drift while the Search Intelligence product continues to evolve.
+DOC-001 protects the documentation/governance freeze path while Search
+Intelligence continues to evolve.
 
 ### DOC-002 Documentation Drift Baseline
-
-DOC-002 remains the baseline that protects the project from silent documentation
-drift. It keeps documentation changes tied to architecture, governance, and
-implementation reality instead of becoming detached project prose.
+DOC-002 prevents silent documentation drift and keeps docs tied to executable
+architecture, governance and implementation reality.
 
 ### EO-002B Candidate Reprocessing & URL Finder Validation
-
-EO-002B remains the active contract anchor for candidate reprocessing and URL-finder
-validation. The detailed historical plan lives in the archive, but this roadmap keeps
-the anchor visible because candidate reset/reprocess and URL-recovery safety remain
-important product constraints.
+EO-002B keeps candidate reset/reprocess and URL-recovery safety visible while
+detailed history stays archived.
 
 ### EO-002D-ROADMAP
-
-EO-002D remains the active reference point for bounded origin-source discovery and
-URL-finder repair work. Its detailed historical plan lives in the archive, but the
-active roadmap keeps this anchor so repair boundaries stay visible.
+EO-002D anchors bounded origin-source discovery and URL-finder repair boundaries.
 
 <!-- PLAN-001-ROADMAP-START -->
 ## PLAN-001 Future Readiness and Assumption Governance
 
 Active planning anchor for future readiness without expanding current scope:
-STREAM-PREP-001 event-capable-not-event-driven premise, CLOUD-001 cloud-ready
-batch path, EVENT-001 DB-backed outbox, STREAM-001 Kafka later, SPARK-001 only
-with real analytics/replay value, MARKET-003 Manual Market Observation Foundation,
-ASSUMPTION-001 Simplification Validation Register and WHALE-001 White-Whale Backlog Triage.
+event-capable-not-event-driven, CLOUD-001, EVENT-001, STREAM-001, SPARK-001,
+MARKET-003 Manual Market Observation Foundation, ASSUMPTION-001 Simplification Validation Register and WHALE-001 White-Whale Backlog Triage.
 
 Details: `docs/planning/active/future_readiness_and_assumption_governance.md`.
 <!-- PLAN-001-ROADMAP-END -->
+
+<!-- REFACTOR-001-ROADMAP-START -->
+## REFACTOR-001 Architecture & Runtime Refactor Campaign
+
+Planned gate after GENERIC/EXPAND blocker closure and a minimal controlled V1
+job-review path; before cloud migration, DB-backed outbox, Kafka/event backbone,
+Spark analytics/replay or serious productionization.
+
+Details: `docs/planning/active/refactor001_architecture_runtime_refactor_campaign.md`.
+<!-- REFACTOR-001-ROADMAP-END -->
+
+<!-- FREEZE-002-ROADMAP-START -->
+## FREEZE-002 Pipeline Maturity to V1 Campaign
+
+Second freeze campaign: raise remaining pipeline parts toward >=90% while
+preserving the current route to a usable V1 with GUI. It should improve weak
+areas in parallel where independent, but must not move the core order: generic
+evidence -> controlled V1 review path -> REFACTOR-001 -> cloud/event expansion.
+
+Details: `docs/planning/active/freeze002_pipeline_maturity_to_v1_campaign.md`.
+<!-- FREEZE-002-ROADMAP-END -->
