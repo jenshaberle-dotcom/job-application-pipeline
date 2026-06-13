@@ -25,7 +25,8 @@ if str(ROOT) not in sys.path:
 from scripts.check_documentation_architecture import build_documentation_architecture_report
 
 NEXT001_SCHEMA_VERSION = "next001.next_safe_action_report.v1"
-DEFAULT_OUTPUT_DIR = Path("exports")
+DEFAULT_EXPORT_ROOT = Path("exports")
+DEFAULT_OUTPUT_DIR = DEFAULT_EXPORT_ROOT
 
 
 @dataclass(frozen=True)
@@ -161,6 +162,10 @@ def iso_now() -> str:
 
 def utc_timestamp() -> str:
     return datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
+
+
+def default_output_dir(stamp: str) -> Path:
+    return DEFAULT_EXPORT_ROOT / f"next001_next_safe_action_report_{stamp}"
 
 
 def safety_boundary() -> dict[str, bool]:
@@ -809,7 +814,7 @@ def write_reports(report: dict[str, object], output_dir: Path, stamp: str | None
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate the NEXT-001A next safe action report.")
     parser.add_argument("--repo-root", default=".", help="Repository root. Defaults to current working directory.")
-    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Report output directory. Defaults to exports/.")
+    parser.add_argument("--output-dir", default=None, help="Report output directory. Defaults to a run-scoped folder under exports/.")
     parser.add_argument("--handover-json", default=None, help="Optional handover JSON to check for stale state. Defaults to latest handover JSON in output-dir if available.")
     parser.add_argument("--validation-json", default=None, help="Optional VALIDATE-001 JSON to read. Defaults to latest validation JSON in output-dir if available.")
     parser.add_argument("--json", action="store_true", help="Print full report JSON in addition to compact output.")
@@ -819,7 +824,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     root = Path(args.repo_root).resolve()
-    output_dir = Path(args.output_dir)
+    stamp = utc_timestamp()
+    output_dir = Path(args.output_dir) if args.output_dir else default_output_dir(stamp)
     if not output_dir.is_absolute():
         output_dir = root / output_dir
 
@@ -831,7 +837,7 @@ def main() -> int:
         validation_json=validation_json,
         output_dir=output_dir,
     )
-    written = write_reports(report, output_dir=output_dir)
+    written = write_reports(report, output_dir=output_dir, stamp=stamp)
 
     completion = report["standard_workflow_completion"]
     handover_signal = report["handover_signal"]

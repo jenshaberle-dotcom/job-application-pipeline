@@ -100,6 +100,14 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def utc_timestamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+
+def default_output_dir(stamp: str) -> Path:
+    return Path("exports") / f"rules001_index_validation_{stamp}"
+
+
 def safety_boundary() -> dict[str, bool]:
     return {
         "read_only": True,
@@ -213,8 +221,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir",
-        default="exports",
-        help="Directory for JSON/Markdown validation reports.",
+        default=None,
+        help="Directory for JSON/Markdown validation reports. Defaults to a run-scoped folder under exports/.",
     )
     return parser.parse_args()
 
@@ -222,8 +230,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
+    stamp = utc_timestamp()
+    output_dir = Path(args.output_dir) if args.output_dir else default_output_dir(stamp)
     result = validate_rules_index(Path(args.rules_path))
-    written = write_report(result, Path(args.output_dir))
+    written = write_report(result, output_dir)
 
     print("# RULES-001A Index Validation")
     print(f"status={result['status']}")

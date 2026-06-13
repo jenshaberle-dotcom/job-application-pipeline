@@ -8,6 +8,7 @@ from pathlib import Path
 from scripts.run_next001_next_safe_action_report import (
     NEXT001_SCHEMA_VERSION,
     _changed_files,
+    default_output_dir,
     build_next_safe_action_report,
     render_markdown,
     safety_boundary,
@@ -244,3 +245,7 @@ def test_next001_does_not_treat_contract_validation_as_chat_handover(tmp_path: P
     assert report["handover_signal"]["status"] == "not_provided"
     assert report["handover_signal"]["stale_reasons"] == []
 
+
+
+def test_next001_default_output_dir_is_run_scoped_under_exports() -> None:
+    assert default_output_dir("20260613-123456") == Path("exports") / "next001_next_safe_action_report_20260613-123456"

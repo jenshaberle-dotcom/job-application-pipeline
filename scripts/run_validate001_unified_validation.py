@@ -20,7 +20,8 @@ from typing import Callable, Iterable, Sequence
 
 VALIDATE001_SCHEMA_VERSION = "validate001.unified_validation.v1"
 
-DEFAULT_OUTPUT_DIR = Path("exports")
+DEFAULT_EXPORT_ROOT = Path("exports")
+DEFAULT_OUTPUT_DIR = DEFAULT_EXPORT_ROOT
 DEFAULT_TIMEOUT_SECONDS = 300
 
 TOOLING_SCRIPTS = [
@@ -115,7 +116,12 @@ def _existing_paths(root: Path, relative_paths: Iterable[str]) -> list[str]:
     return [path for path in relative_paths if (root / path).exists()]
 
 
-def build_validation_plan(profile: str, root: Path, python_executable: str = sys.executable) -> list[ValidationCommand]:
+def build_validation_plan(
+    profile: str,
+    root: Path,
+    python_executable: str = sys.executable,
+    output_dir: Path | None = None,
+) -> list[ValidationCommand]:
     """Build the validation command plan.
 
     Profiles:
@@ -129,6 +135,7 @@ def build_validation_plan(profile: str, root: Path, python_executable: str = sys
 
     existing_scripts = _existing_paths(root, TOOLING_SCRIPTS)
     existing_tests = _existing_paths(root, TOOLING_TESTS)
+    child_output_args = ["--output-dir", str(output_dir)] if output_dir is not None else []
 
     commands: list[ValidationCommand] = [
         ValidationCommand(
@@ -141,11 +148,11 @@ def build_validation_plan(profile: str, root: Path, python_executable: str = sys
         ),
         ValidationCommand(
             name="handover001_contract",
-            command=[python_executable, "scripts/run_handover001_validate_contract.py"],
+            command=[python_executable, "scripts/run_handover001_validate_contract.py", *child_output_args],
         ),
         ValidationCommand(
             name="rules001_index",
-            command=[python_executable, "scripts/run_rules001_validate_index.py"],
+            command=[python_executable, "scripts/run_rules001_validate_index.py", *child_output_args],
         ),
     ]
 
@@ -254,9 +261,15 @@ def build_validation_report(
     generated_at: str | None = None,
     command_runner: CommandRunner = run_validation_command,
     python_executable: str = sys.executable,
+    output_dir: Path | None = None,
 ) -> dict[str, object]:
     root = root.resolve()
-    plan = build_validation_plan(profile=profile, root=root, python_executable=python_executable)
+    plan = build_validation_plan(
+        profile=profile,
+        root=root,
+        python_executable=python_executable,
+        output_dir=output_dir,
+    )
     results = [command_runner(command, root) for command in plan]
 
     required_failures = [
@@ -402,8 +415,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir",
-        default=str(DEFAULT_OUTPUT_DIR),
-        help="Directory for JSON/Markdown validation reports. Defaults to exports/.",
+        default=None,
+        help="Directory for JSON/Markdown validation reports. Defaults to a run-scoped folder under exports/.",
     )
     parser.add_argument(
         "--json",
@@ -417,12 +430,16 @@ def main() -> int:
     args = parse_args()
 
     root = Path(args.repo_root).resolve()
-    output_dir = Path(args.output_dir)
+    stamp = utc_timestamp()
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+    else:
+        output_dir = DEFAULT_EXPORT_ROOT / f"validate001_unified_validation_{stamp}"
     if not output_dir.is_absolute():
         output_dir = root / output_dir
 
-    report = build_validation_report(root=root, profile=args.profile)
-    written = write_reports(report, output_dir=output_dir)
+    report = build_validation_report(root=root, profile=args.profile, output_dir=output_dir)
+    written = write_reports(report, output_dir=output_dir, stamp=stamp)
 
     print("# VALIDATE-001A Unified Validation")
     print(f"profile={report['profile']}")
