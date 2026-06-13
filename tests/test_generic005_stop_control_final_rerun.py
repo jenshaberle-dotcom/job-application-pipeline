@@ -13,6 +13,8 @@ from src.search_intelligence.generic005_stop_control_final_rerun import (
     render_markdown,
     write_outputs,
 )
+from src.search_intelligence.generic009a_positive_proof_inventory import build_positive_proof_inventory
+from src.search_intelligence.generic009b_positive_proof_evidence import build_positive_proof_rows_from_inventory
 
 
 def _review_item(
@@ -251,6 +253,7 @@ def test_runner_writes_final_rerun_artifacts(tmp_path: Path) -> None:
             "--expand003-input",
             str(expand003_path),
             "--disable-db-stop-control-evidence",
+            "--disable-db-positive-proof-evidence",
             "--export-dir",
             str(export_dir),
         ],
@@ -265,3 +268,106 @@ def test_runner_writes_final_rerun_artifacts(tmp_path: Path) -> None:
     assert "generic001_final_failed_check_count=0" in result.stdout
     assert (export_dir / "generic005_stop_control_final_rerun.json").exists()
     assert (export_dir / "generic001_final_rerun" / "generic001_pipeline_generics_proof_gate.json").exists()
+
+
+def _origin_candidate_row(
+    *,
+    company_key: str,
+    company_name: str,
+    candidate_url: str | None,
+    notes: str,
+    status: str = "discovery",
+    risk_level: str = "unknown",
+) -> dict[str, object]:
+    return {
+        "company_key": company_key,
+        "company_name": company_name,
+        "candidate_url": candidate_url,
+        "source_name_candidate": f"{company_key}:discovery",
+        "source_family_candidate": company_key,
+        "source_target_candidate": "hannover",
+        "source_type_candidate": "employer_origin_career_site",
+        "status": status,
+        "risk_level": risk_level,
+        "notes": notes,
+    }
+
+
+def _positive_inventory_rows() -> list[dict[str, object]]:
+    create = "source_decision=create_candidate_recommended; reviewed_by=jens"
+    manual = "source_decision=manual_review_required; reviewed_by=jens"
+    return [
+        _origin_candidate_row(
+            company_key="deloitte",
+            company_name="Deloitte",
+            candidate_url="https://careers.deloitte.com/",
+            notes=create,
+            status="manual_review_required",
+        ),
+        _origin_candidate_row(
+            company_key="computacenter",
+            company_name="Computacenter AG & Co. oHG",
+            candidate_url="https://jobs.computacenter.com/",
+            notes=create,
+        ),
+        _origin_candidate_row(
+            company_key="clarios_germany",
+            company_name="Clarios Germany GmbH & Co. KG",
+            candidate_url="https://jobs.clarios.com/",
+            notes=create,
+            status="manual_review_required",
+        ),
+        _origin_candidate_row(company_key="x1f", company_name="x1F GmbH", candidate_url=None, notes=create),
+        _origin_candidate_row(company_key="ivv", company_name="ivv GmbH", candidate_url=None, notes=create),
+        _origin_candidate_row(
+            company_key="e_on_grid_solutions",
+            company_name="E.ON Grid Solutions GmbH",
+            candidate_url="https://jobs.eon.com/en",
+            notes=manual,
+            risk_level="medium",
+        ),
+        _origin_candidate_row(
+            company_key="hannover_ruck",
+            company_name="Hannover Rück SE",
+            candidate_url="https://jobs.hannover-re.com/",
+            notes=manual,
+            risk_level="medium",
+        ),
+        _origin_candidate_row(
+            company_key="adesso",
+            company_name="adesso SE",
+            candidate_url="https://jobs.adesso-group.com/",
+            notes="Source URL recovered by bounded A1f recovery agent; reviewed_by=jens.",
+        ),
+    ]
+
+
+def test_positive_proof_rows_rebalance_final_rerun_to_only_provider_gap() -> None:
+    broad_expand003 = dict(_expand003_without_stop_control())
+    broad_expand003["candidate_review_items"] = broad_expand003["candidate_review_items"] * 6
+    inventory = build_positive_proof_inventory(_positive_inventory_rows())
+    positive_rows = [row.as_dict() for row in build_positive_proof_rows_from_inventory(inventory)]
+
+    report = build_stop_control_final_rerun_report(
+        _generic003_report(),
+        _generic004_report(),
+        broad_expand003,
+        [_accepted_capture_row()],
+        positive_rows,
+        positive_proof_source="generic009b_positive_proof_evidence",
+        generated_at="2026-06-13T01:45:00+00:00",
+    )
+
+    assert report["overall_status"] == "final_rerun_still_has_gaps"
+    assert report["summary"]["accepted_positive_control_count"] == 8
+    assert report["summary"]["accepted_stop_control_count"] == 1
+    assert report["summary"]["generic001_final_candidate_count"] == 9
+    assert report["summary"]["closed_positive_gap_ids"] == [
+        "benchmark_candidate_count",
+        "clear_career_origin_coverage",
+        "positive_control_coverage",
+        "strong_candidate_count",
+        "weak_candidate_count",
+    ]
+    assert report["summary"]["final_gap_ids"] == ["provider_backed_origin_coverage"]
+    assert "only provider-backed origin coverage remains" in report["next_action"]

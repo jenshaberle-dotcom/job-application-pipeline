@@ -76,3 +76,11 @@ def test_render_markdown_result_lists_missing_anchors(tmp_path: Path) -> None:
     assert "# HANDOVER-001A Contract Validation" in markdown
     assert "Status: `fail`" in markdown
     assert "`contract_file`" in markdown
+
+
+def test_default_output_dir_is_run_scoped_under_exports() -> None:
+    module = load_module()
+
+    output_dir = module.default_output_dir("20260613-123456")
+
+    assert output_dir == Path("exports") / "handover001_contract_validation_20260613-123456"

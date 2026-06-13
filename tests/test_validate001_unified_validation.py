@@ -52,6 +52,18 @@ def test_validate001_profiles_keep_full_pytest_out_of_quick_profile(tmp_path: Pa
     assert "inspect001_repo_db_docs_no_db" in {command.name for command in handover_plan}
 
 
+def test_validate001_routes_child_contract_reports_to_output_dir(tmp_path: Path) -> None:
+    output_dir = tmp_path / "validation_bundle"
+
+    plan = build_validation_plan("quick", tmp_path, python_executable="python", output_dir=output_dir)
+
+    handover_command = next(command for command in plan if command.name == "handover001_contract")
+    rules_command = next(command for command in plan if command.name == "rules001_index")
+
+    assert handover_command.command[-2:] == ["--output-dir", str(output_dir)]
+    assert rules_command.command[-2:] == ["--output-dir", str(output_dir)]
+
+
 def test_validate001_report_passes_when_required_commands_pass(tmp_path: Path) -> None:
     def fake_runner(command: ValidationCommand, cwd: Path) -> CommandResult:
         return CommandResult(

@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from src.search_intelligence.false_negative_risk import (
     CandidateMarketEvidenceSummary,
     assess_false_negative_risk,
@@ -39,7 +41,10 @@ def test_active_controlled_candidate_stays_low_risk() -> None:
 
 
 def test_many_recent_unresolved_sightings_become_critical() -> None:
-    assessment = assess_false_negative_risk(summary(sighting_count=8, recent_sighting_count=6))
+    assessment = assess_false_negative_risk(
+        summary(sighting_count=8, recent_sighting_count=6),
+        now=datetime(2026, 6, 1, tzinfo=UTC),
+    )
 
     assert assessment.risk_level == "critical"
 

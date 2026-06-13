@@ -11,6 +11,12 @@ from src.search_intelligence.generic004_stop_control_evidence_capture_plan impor
     find_latest_expand003_report,
     load_expand003_report,
 )
+from src.search_intelligence.generic009b_positive_proof_evidence import (
+    PositiveProofEvidenceRow,
+    build_positive_proof_expand003_report,
+    evaluate_inventory_item,
+    positive_control_keys_from_rows,
+)
 
 SCHEMA_VERSION = "generic005.stop_control_final_rerun.v2"
 WORK_ITEM = "GENERIC-005 Stop-Control Evidence / GENERIC-001 Final Rerun"
@@ -123,21 +129,33 @@ def build_stop_control_final_rerun_report(
     generic004_report: Mapping[str, Any],
     expand003_report: Mapping[str, Any],
     stop_control_rows: Sequence[Mapping[str, Any]] | None = None,
+    positive_proof_rows: Sequence[Mapping[str, Any]] | None = None,
     *,
     generic003_path: str | None = None,
     generic004_path: str | None = None,
     expand003_path: str | None = None,
     stop_control_source: str | None = None,
+    positive_proof_source: str | None = None,
     generated_at: str | None = None,
     database_reads: bool = False,
 ) -> dict[str, Any]:
-    positive_control_keys = _positive_control_keys(generic003_report)
+    fallback_positive_control_keys = _positive_control_keys(generic003_report)
     rows = list(stop_control_rows) if stop_control_rows is not None else stop_control_rows_from_generic004_report(generic004_report)
     evidence_rows = evaluate_capture_rows(rows)
     accepted_rows = [row for row in evidence_rows if row.status == "accepted_stop_control"]
     rejected_rows = [row for row in evidence_rows if row.status != "accepted_stop_control"]
     negative_control_keys = _unique([row.company_key for row in accepted_rows])
-    augmented_expand003 = augment_expand003_with_stop_controls(expand003_report, accepted_rows)
+
+    positive_rows = evaluate_positive_proof_rows(positive_proof_rows or [])
+    accepted_positive_rows = [row for row in positive_rows if row.status == "accepted_positive_control"]
+    rejected_positive_rows = [row for row in positive_rows if row.status != "accepted_positive_control"]
+    if accepted_positive_rows:
+        positive_control_keys = positive_control_keys_from_rows(accepted_positive_rows)
+        positive_expand003 = build_positive_proof_expand003_report(expand003_report, accepted_positive_rows)
+        augmented_expand003 = augment_expand003_with_stop_controls(positive_expand003, accepted_rows)
+    else:
+        positive_control_keys = fallback_positive_control_keys
+        augmented_expand003 = augment_expand003_with_stop_controls(expand003_report, accepted_rows)
 
     generic001_final = build_generic_pipeline_proof_report(
         augmented_expand003,
@@ -173,6 +191,7 @@ def build_stop_control_final_rerun_report(
         "expand003_input_path": expand003_path,
         "expand003_input_schema_version": expand003_report.get("schema_version"),
         "stop_control_source": stop_control_source or "generic004_report_stop_control_evidence_requirements",
+        "positive_proof_source": positive_proof_source or ("generic009b_positive_proof_evidence" if accepted_positive_rows else "generic003_report_positive_control_keys"),
         "safety_boundary": safety_boundary,
         "mutation_counts": mutation_counts(),
         "interpretation_boundary": (
@@ -187,6 +206,9 @@ def build_stop_control_final_rerun_report(
             "negative_control_keys": negative_control_keys,
             "accepted_stop_control_count": len(accepted_rows),
             "rejected_stop_control_count": len(rejected_rows),
+            "accepted_positive_control_count": len(accepted_positive_rows),
+            "rejected_positive_control_count": len(rejected_positive_rows),
+            "closed_positive_gap_ids": _closed_positive_gap_ids(final_gap_ids, accepted_positive_rows),
             "closed_stop_gap_ids": closed_stop_gap_ids,
             "final_gap_ids": final_gap_ids,
             "generic001_final_overall_status": generic001_final.get("overall_status"),
@@ -196,6 +218,9 @@ def build_stop_control_final_rerun_report(
         "capture_row_assessments": [row.as_dict() for row in evidence_rows],
         "stop_control_row_assessments": [row.as_dict() for row in evidence_rows],
         "accepted_stop_controls": [row.as_dict() for row in accepted_rows],
+        "positive_proof_row_assessments": [row.as_dict() for row in positive_rows],
+        "accepted_positive_controls": [row.as_dict() for row in accepted_positive_rows],
+        "rejected_positive_controls": [row.as_dict() for row in rejected_positive_rows],
         "generic001_final_summary": _generic001_summary(generic001_final),
         "generic001_final_report": generic001_final,
         "next_action": next_action,
@@ -226,6 +251,10 @@ def evaluate_capture_rows(capture_rows: Sequence[Mapping[str, Any]]) -> list[Sto
         )
     return evaluated
 
+
+
+def evaluate_positive_proof_rows(positive_rows: Sequence[Mapping[str, Any]]) -> list[PositiveProofEvidenceRow]:
+    return [evaluate_inventory_item(row) for row in positive_rows]
 
 def stop_control_rows_from_generic004_report(generic004_report: Mapping[str, Any]) -> list[dict[str, Any]]:
     return _mapping_list(generic004_report.get("stop_control_evidence_requirements"))
@@ -292,6 +321,9 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "negative_control_keys",
         "accepted_stop_control_count",
         "rejected_stop_control_count",
+        "accepted_positive_control_count",
+        "rejected_positive_control_count",
+        "closed_positive_gap_ids",
         "closed_stop_gap_ids",
         "final_gap_ids",
         "generic001_final_overall_status",
@@ -358,6 +390,11 @@ def build_next_action(overall_status: str, final_gap_ids: Sequence[str], rejecte
             + rejected_note
         )
     if overall_status == "final_rerun_still_has_gaps":
+        if list(final_gap_ids) == ["provider_backed_origin_coverage"]:
+            return (
+                "GENERIC-005 accepted stop-control and positive-proof evidence; only provider-backed origin coverage remains. "
+                "Run PROVIDER-001A or add explicit provider-backed evidence before EXPAND-004/007 progression."
+            )
         return (
             "GENERIC-005 accepted stop-control evidence but GENERIC-001 still has benchmark gaps: "
             f"{', '.join(final_gap_ids) or '<unknown>'}. Review the final nested GENERIC-001 report before continuing."
@@ -441,6 +478,20 @@ def _generic001_summary(generic001_report: Mapping[str, Any]) -> dict[str, Any]:
         "gap_ids": generic001_report.get("gap_ids"),
     }
 
+
+
+def _closed_positive_gap_ids(final_gap_ids: Sequence[str], accepted_positive_rows: Sequence[PositiveProofEvidenceRow]) -> list[str]:
+    if not accepted_positive_rows:
+        return []
+    positive_gap_ids = {
+        "benchmark_candidate_count",
+        "strong_candidate_count",
+        "weak_candidate_count",
+        "clear_career_origin_coverage",
+        "positive_control_coverage",
+    }
+    remaining = set(final_gap_ids)
+    return sorted(gap_id for gap_id in positive_gap_ids if gap_id not in remaining)
 
 def _find_latest_report(exports_dir: Path, patterns: Sequence[str]) -> Path | None:
     candidates: list[Path] = []
