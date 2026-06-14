@@ -1,3 +1,11 @@
+# Archived legacy file: tests/test_next001_next_safe_action_report.py
+
+Archived by CONSISTENCY-001A v9 because generated chat-continuation steering is retired as a bad idea / anti-pattern.
+
+This file is historical evidence only. It is not executable project tooling, not active documentation, not validation input, and not project truth.
+
+---
+
 from __future__ import annotations
 
 import json

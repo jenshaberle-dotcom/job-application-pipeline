@@ -87,7 +87,7 @@ Primary entry points:
 | `docs/decisions/` | ADRs and ADR status control. |
 | `docs/planning/` | Active planning only. |
 | `docs/archive/` | Historical documentation and replaced artifacts. |
-| `exports/` | Generated reports and handover artifacts; not pipeline input. |
+| `exports/` | Generated review reports; not pipeline input. |
 
 ## Architecture contract anchors
 

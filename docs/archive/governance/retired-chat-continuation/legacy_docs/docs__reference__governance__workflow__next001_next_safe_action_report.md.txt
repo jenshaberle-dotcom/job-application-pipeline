@@ -1,0 +1,57 @@
+# Archived legacy file: docs/reference/governance/workflow/next001_next_safe_action_report.md
+
+Archived by CONSISTENCY-001A v9 because generated chat-continuation steering is retired as a bad idea / anti-pattern.
+
+This file is historical evidence only. It is not executable project tooling, not active documentation, not validation input, and not project truth.
+
+---
+
+# NEXT-001A Next Safe Action Report
+
+Status: Legacy diagnostic/orientation tooling only
+Boundary: Not project truth, not active next-work steering
+
+## CONSISTENCY-001A override
+
+NEXT-001A must not select current project work after the handover/NEXT failure.
+
+NEXT reports may remain useful as local diagnostics for detecting stale exports or
+tooling drift. They are not project truth and must not override:
+
+- directly inspected repository state
+- current active planning docs
+- Repo-Truth Guardrails
+- RULES-001 source-of-truth order
+- temporary full-repository ZIP review until MCP maturity
+- MCP-backed state after MCP maturity is demonstrated
+- explicit operator decisions
+
+## Allowed use
+
+NEXT-001A may be used only to inspect whether legacy workflow tooling is present
+or stale. Any recommendation it emits is a hint requiring direct inspection, not
+a decision.
+
+## Disallowed use
+
+Do not use NEXT-001A to:
+
+- choose the next product-pipeline work item
+- decide commit or merge readiness
+- restore chat handover workflow
+- refresh handover artifacts for project continuation
+- override CONSISTENCY-001A or MCP-001 Freeze planning
+- treat exports as source of truth
+
+## Current continuation rule
+
+Chat handovers remain abolished. Until MCP maturity, project-state assessment
+uses fresh full-repository ZIP review. After MCP maturity, MCP-backed repo/DB
+state inspection replaces the ZIP bridge.
+
+## Future disposition
+
+When the external MCP control plane can provide reliable repo/DB state
+inspection, validation status, inconsistency detection, confidence scoring and
+auditability, NEXT-001A should either be retired or rewritten as an MCP-backed
+diagnostic adapter.

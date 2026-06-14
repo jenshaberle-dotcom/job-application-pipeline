@@ -1,50 +1,18 @@
 # MCP-001 Engineering Assistance / Governance Tooling
 
-Status: planned after Generik and Safe-Apply/Gate stabilization
-Boundary: engineering-assistance layer, not product-pipeline feature
+Status: Superseded by external MCP-001 Freeze framing
+Current reference: `mcp001_external_engineering_agent_control_plane.md`
 
-## Placement in the current Ablaufplan
+## Supersession note
 
-1. Finish the current Generik proof cleanly.
-2. Stabilize Safe-Apply / Stop-Control / Review-Gates.
-3. Add MCP-001A Read-only Project State Server as a small-to-medium tooling block before the full Product V1 phase.
-4. Continue Product V1: Top-5 Jobs for Jens, GUI/Review Queue, and application artifacts.
-5. Run the larger code/architecture refactor after V1 and before Cloud/Event/Streaming.
-6. Add MCP-001B/C Validation Runner, Patch Builder, and PR Assistant only after MCP-001A and preferably after a minimal usable V1 or stable gates.
-7. Keep fully write-capable agent functions long-term only: read-only-first, local, auditable, and strictly gated.
+Earlier MCP-001 planning treated MCP primarily as read-only engineering assistance inside or near the job-application-pipeline project. That framing is superseded for active steering.
 
-Target path:
+Current decision:
 
-    Generik -> Safe Apply / Gates -> MCP-001A Read-only State Server -> Product V1 -> Refactor -> MCP-001B/C Agentic Engineering Support -> Defect Management -> Cloud/Event/Streaming
+- MCP-001 is the priority-1 throughput recovery campaign.
+- MCP targets a hard-gated Level-5 autonomous Engineering Agent / Agent Control Plane.
+- The implementation is externalized into a separate project.
+- This repository is the first target project and integration consumer.
+- Full-repository ZIP review remains a temporary bridge until MCP maturity is demonstrated.
 
-## MCP-001A scope limit
-
-- Read-only only.
-- No commit.
-- No push.
-- No merge.
-- No DB mutation.
-- No candidate/source activation.
-- No scheduler change.
-- No CSV/export files as pipeline input.
-- DB access only through allowed read-only queries.
-- All outputs are audit-marked `review_output_only_not_pipeline_input`.
-- Product pipeline and Engineering Assistance remain clearly separated.
-
-## Rationale
-
-MCP-001A does not directly close the Generik proof and must not displace it. It is still worth placing before the full Product V1 phase because it can reduce handover, ZIP, log, repo-state and validation friction in a controlled local/read-only way.
-
-## Repo Truth Guardrails for MCP-001A
-
-MCP-001A must follow `docs/reference/governance/repo_truth_guardrails.md`.
-
-Hard design implications:
-
-- repository state is the only project truth
-- chat and handover artifacts are not truth sources
-- documentation must be repository-backed
-- missing or contradictory evidence must produce `unknown` or `needs_inspection`
-- MCP-001A is read-only first
-- no commits, merges, DB writes, candidate activation, scheduler changes, or pipeline mutation
-- chat switches must be reconstructed from direct repo/DB inspection, not from generated handover artifacts
+This file is retained only as a compatibility pointer so older references do not continue to carry contradictory planning.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """STATE-001A minimal project state snapshot export.
 
-The snapshot is a read-only handover aid. It intentionally does not run tests,
+The snapshot is a read-only repository-state aid. It intentionally does not run tests,
 mutate the database, call external services or infer product decisions beyond a
 small next-safe-action recommendation from repository state and documentation
 architecture checks.
@@ -28,11 +28,9 @@ SNAPSHOT_SCHEMA_VERSION = "state001a.project_state_snapshot.v1"
 TOOLING_GOV_SEQUENCE = [
     "STATE-001 Project State Snapshot Contract",
     "INSPECT-001 Repo/DB/Docs Inspection Bundle",
-    "HANDOVER-001 Standard Chat Handover Contract",
     "RULES-001 Project Rules Index",
     "VALIDATE-001 Unified Validation Command",
-    "NEXT-001 Next Safe Action Report",
-    "MCP-001 Project State Server, read-only-first",
+    "MCP-001 External Engineering Agent Control Plane",
 ]
 
 HORIZONTAL_FREEZE_PATH_MODE_ID = "FREEZE-001A"
@@ -40,8 +38,7 @@ HORIZONTAL_FREEZE_PATH_ALLOWED_SCOPE = [
     "governance documentation",
     "validation tooling",
     "inspection tooling",
-    "handover tooling",
-    "read-only state and next-safe-action reporting",
+    "read-only state reporting"
 ]
 HORIZONTAL_FREEZE_PATH_EXCLUDED_SCOPE = [
     "product pipeline decisions",
@@ -208,7 +205,7 @@ def build_horizontal_freeze_path_bundle_mode(
         "mode_id": HORIZONTAL_FREEZE_PATH_MODE_ID,
         "available": not blocked_reasons,
         "blocked_reasons": blocked_reasons,
-        "purpose": "Bundle independent horizontal governance, validation, inspection, handover and read-only stabilization changes without mixing in vertical product pipeline behavior.",
+        "purpose": "Bundle independent horizontal governance, validation, inspection and read-only stabilization changes without mixing in vertical product pipeline behavior.",
         "allowed_scope": HORIZONTAL_FREEZE_PATH_ALLOWED_SCOPE,
         "excluded_scope": HORIZONTAL_FREEZE_PATH_EXCLUDED_SCOPE,
         "requires_before_patch": [
@@ -243,18 +240,6 @@ def build_project_state_snapshot(root: Path, generated_at: datetime | None = Non
         "documentation": documentation_state,
         "validation": build_validation_state(),
         "next_safe_action": next_safe_action,
-        "handover_contract_hint": {
-            "human_summary_should_include": [
-                "validated state",
-                "last completed work items",
-                "freeze path position",
-                "pipeline capability scorecard",
-                "open blockers and user decisions",
-                "next safe action",
-                "required files or exports",
-                "rules delta since last handover",
-            ]
-        },
     }
 
 

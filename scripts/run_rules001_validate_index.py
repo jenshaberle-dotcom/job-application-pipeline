@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Validate the RULES-001A Project Rules Index.
+"""Validate the RULES-001 Project Rules Index.
 
 The validator is intentionally small and read-only. It checks that the compact
-rules index contains the active-rule anchors needed for safe handover and
-implementation work.
+rules index contains active repo-truth, safety, MCP and workflow anchors.
+Retired generated chat-continuation artifacts are explicitly not active rule
+anchors.
 """
 
 from __future__ import annotations
@@ -19,144 +20,96 @@ DEFAULT_RULES_PATH = Path("docs/reference/governance/workflow/rules001_project_r
 
 REQUIRED_ANCHORS = {
     "purpose": [
-        "## Purpose",
-        "active rules",
-        "workflow and architecture mistakes",
+        "## Source-of-truth order",
+        "Current project truth",
+        "Git working tree and committed repository files",
     ],
-    "source_of_truth_order": [
-        "## Rule source-of-truth order",
-        "Current repository files and tests",
-        "STATE-001 project state snapshot",
-        "HANDOVER-001 chat handover contract",
+    "retired_artifacts": [
+        "The following are not project truth",
+        "retired generated chat-continuation artifacts",
+        "NEXT reports",
+        "retired restart ZIPs",
     ],
-    "architecture_and_safety": [
-        "## Architecture and safety rules",
-        "system-impact check",
-        "Employer-specific fixes must improve generic pipeline capability",
-        "Defensive, bounded acquisition is mandatory",
+    "chat_continuation": [
+        "## Chat continuation rule",
+        "Retired chat-continuation artifacts remain abolished as a steering mechanism",
+        "fresh full repository ZIP export",
+        "MCP-backed repo/DB state inspection replaces full-ZIP review",
     ],
-    "workflow": [
-        "## Workflow rules",
-        "Do not commit directly on `main`",
-        "Full `pytest -q` is required before commit and PR",
-        "Prefer file artifacts or checked patch files over large chat Here-Docs",
+    "mcp_externalization": [
+        "## MCP-001 externalization rule",
+        "external Engineering Agent Control Plane project",
+        "first target and integration consumer",
     ],
-    "state_and_handover": [
-        "## State and handover rules",
-        "State JSON plus Handover ZIP",
-        "5-10 percent",
-        "Current validation output outranks older summaries",
+    "level5": [
+        "## Level-5 action rule",
+        "decision flight",
+        "policy approval",
+        "backup or rollback plan",
+        "cost estimate",
     ],
-    "documentation_and_governance": [
-        "## Documentation and governance rules",
-        "So wenig wie möglich, so viel wie nötig",
-        "ADRs should be classified",
-        "lessons-learned or recurrence-guard check",
+    "chief_agent": [
+        "## Chief Agent rule",
+        "never be the root of truth, policy or recovery",
     ],
-    "product_and_ui": [
-        "## Product and UI rules",
-        "Ocean Deep / Deep Ocean Intelligence",
-        "approval-safe and auditable",
-        "derived lifecycle status from true runtime health",
+    "local_first_cost": [
+        "## Local-first cost rule",
+        "compact evidence packets",
+        "full-repository dumps or secrets",
     ],
-    "search_intelligence": [
-        "## Search Intelligence rules",
-        "False-negative discovery is a first-class concern",
-        "feed-forward known-company suppression",
-        "travel-requirement extraction",
+    "export_boundary": [
+        "## Export boundary rule",
+        "review_output_only_not_pipeline_input",
+        "source of truth",
     ],
-    "horizontal_freeze_path_bundle_mode": [
-        "## Horizontal Freeze-Path Bundle Mode",
-        "horizontal governance, validation, inspection, handover",
-        "read-only",
-        "stabilization",
-        "Vertical product and pipeline behavior remains separate",
-    ],
-    "backlog_boundaries": [
-        "## Backlog boundary rules",
-        "VALIDATE-001 Unified Validation Command",
-        "NEXT-001 Next Safe Action Report",
-        "MCP-001 Project State Server, read-only-first",
-    ],
-    "backlog_file_escalation": [
-        "## Backlog file escalation rule",
-        "Create a dedicated planning, architecture, or ADR file only when",
-        "premature documentation operating system",
-    ],
-    "white_whale": [
-        "## White-Whale rule",
-        "White-Whale Backlog",
-        "Nicht jeder Wal muss heute gefangen werden",
-    ],
-    "safety_boundary": [
-        "## Safety boundary",
-        "write to the database",
-        "mutate pipeline data",
+    "unknown_state": [
+        "## Unknown-state rule",
+        "unknown",
+        "needs_inspection",
     ],
 }
-
-
-def iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def utc_timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-
-
-def default_output_dir(stamp: str) -> Path:
-    return Path("exports") / f"rules001_index_validation_{stamp}"
 
 
 def safety_boundary() -> dict[str, bool]:
     return {
         "read_only": True,
         "external_requests": False,
+        "database_reads": False,
         "database_writes": False,
         "pipeline_mutation": False,
-        "candidate_or_gate_mutation": False,
-        "connector_activation": False,
     }
 
 
-def read_rules(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+def iso_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
-def find_missing_anchors(text: str) -> dict[str, list[str]]:
-    missing: dict[str, list[str]] = {}
-
-    for group_name, anchors in REQUIRED_ANCHORS.items():
-        group_missing = [anchor for anchor in anchors if anchor not in text]
-        if group_missing:
-            missing[group_name] = group_missing
-
-    return missing
+def default_output_dir(stamp: str | None = None) -> Path:
+    stamp = stamp or datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return Path("exports") / f"rules001_index_validation_{stamp}"
 
 
 def validate_rules_index(path: Path = DEFAULT_RULES_PATH) -> dict[str, Any]:
+    missing_anchor_groups: dict[str, list[str]] = {}
+
     if not path.exists():
-        return {
-            "schema_version": "rules001.index_validation.v1",
-            "generated_at_utc": iso_now(),
-            "rules_path": str(path),
-            "status": "fail",
-            "missing_anchor_groups": {
-                "rules_file": [str(path)],
-            },
-            "safety_boundary": safety_boundary(),
-        }
+        missing_anchor_groups["rules_file"] = [str(path)]
+        content = ""
+    else:
+        content = path.read_text(encoding="utf-8")
 
-    text = read_rules(path)
-    missing = find_missing_anchors(text)
-    status = "pass" if not missing else "fail"
+    for group, anchors in REQUIRED_ANCHORS.items():
+        missing = [anchor for anchor in anchors if anchor not in content]
+        if missing:
+            missing_anchor_groups[group] = missing
 
+    status = "pass" if not missing_anchor_groups else "fail"
     return {
         "schema_version": "rules001.index_validation.v1",
         "generated_at_utc": iso_now(),
         "rules_path": str(path),
         "status": status,
-        "missing_anchor_groups": missing,
+        "missing_anchor_groups": missing_anchor_groups,
         "safety_boundary": safety_boundary(),
     }
 
@@ -169,77 +122,47 @@ def render_markdown_result(result: dict[str, Any]) -> str:
         f"Rules path: `{result['rules_path']}`",
         f"Status: `{result['status']}`",
         "",
-        "## Safety boundary",
+        "## Missing anchors",
         "",
     ]
-
-    for key, value in result["safety_boundary"].items():
-        lines.append(f"- {key}: `{value}`")
-
-    lines.extend(["", "## Missing anchors", ""])
-
-    missing = result["missing_anchor_groups"]
-    if not missing:
-        lines.append("- none")
+    if not result["missing_anchor_groups"]:
+        lines.append("None.")
     else:
-        for group_name, anchors in missing.items():
-            lines.append(f"- `{group_name}`")
-            for anchor in anchors:
-                lines.append(f"  - `{anchor}`")
-
-    lines.append("")
-    return "\n".join(lines)
+        for group, anchors in result["missing_anchor_groups"].items():
+            lines.append(f"### `{group}`")
+            lines.extend(f"- `{anchor}`" for anchor in anchors)
+            lines.append("")
+    return "\n".join(lines) + "\n"
 
 
 def write_report(result: dict[str, Any], output_dir: Path) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-
-    json_path = output_dir / f"rules001_index_validation_{stamp}.json"
-    markdown_path = output_dir / f"rules001_index_validation_{stamp}.md"
-
-    json_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    json_path = output_dir / "rules001_index_validation.json"
+    markdown_path = output_dir / "rules001_index_validation.md"
+    json_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     markdown_path.write_text(render_markdown_result(result), encoding="utf-8")
-
-    return {
-        "json": str(json_path),
-        "markdown": str(markdown_path),
-    }
+    return {"json": str(json_path), "markdown": str(markdown_path)}
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Validate the RULES-001A Project Rules Index."
-    )
-    parser.add_argument(
-        "--rules-path",
-        default=str(DEFAULT_RULES_PATH),
-        help="Path to the RULES-001A markdown file.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        default=None,
-        help="Directory for JSON/Markdown validation reports. Defaults to a run-scoped folder under exports/.",
-    )
+    parser = argparse.ArgumentParser(description="Validate RULES-001 project rules index.")
+    parser.add_argument("--rules-path", default=str(DEFAULT_RULES_PATH))
+    parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--json", action="store_true")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-
-    stamp = utc_timestamp()
-    output_dir = Path(args.output_dir) if args.output_dir else default_output_dir(stamp)
     result = validate_rules_index(Path(args.rules_path))
+    output_dir = Path(args.output_dir) if args.output_dir else default_output_dir()
     written = write_report(result, output_dir)
-
     print("# RULES-001A Index Validation")
     print(f"status={result['status']}")
     print(f"json={written['json']}")
     print(f"markdown={written['markdown']}")
-
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result["status"] == "pass" else 1
 
 

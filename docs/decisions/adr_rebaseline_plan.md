@@ -7,7 +7,7 @@ Scope: ADR status review and current decision anchor recovery
 
 ADRs have not been the dominant decision anchor during recent fast-moving
 pipeline work. Many decisions moved through planning docs, governance docs,
-runtime reports, PR bodies, and handover context.
+runtime reports, PR bodies, and retired restart context.
 
 DOC-001 must restore ADR usefulness without backfilling every detail into many
 new ADRs.

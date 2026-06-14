@@ -62,7 +62,7 @@ Treat these as historical unless explicitly promoted:
 - old source-specific review documents,
 - old connector candidate narratives,
 - old MVP/spike documents,
-- old handover/project-state artifacts.
+- old retired restart/project-state artifacts.
 
 ## Archive/deprecation options
 

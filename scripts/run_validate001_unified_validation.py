@@ -2,9 +2,9 @@
 """VALIDATE-001A unified validation command.
 
 This command is a compact, read-only validation entry point for the local
-engineering workflow. It groups the validation checks that were previously
-spread across chat instructions while keeping the console output short and
-writing detailed JSON/Markdown reports under exports/.
+engineering workflow. It validates repository state without relying on retired
+generated restart artifacts, NEXT steering, or generated chat-continuation
+bundles.
 """
 
 from __future__ import annotations
@@ -27,23 +27,15 @@ DEFAULT_TIMEOUT_SECONDS = 300
 TOOLING_SCRIPTS = [
     "scripts/run_project_state_snapshot.py",
     "scripts/run_inspect001_repo_db_docs_bundle.py",
-    "scripts/run_handover001_validate_contract.py",
     "scripts/run_rules001_validate_index.py",
     "scripts/run_validate001_unified_validation.py",
-    "scripts/run_next001_next_safe_action_report.py",
-    "scripts/create_standard_workflow_handover.py",
-    "scripts/run_freeze001_exit_gate.py",
 ]
 
 TOOLING_TESTS = [
     "tests/test_project_state_snapshot.py",
     "tests/test_inspect001_repo_db_docs_bundle.py",
-    "tests/test_handover001_contract.py",
     "tests/test_rules001_project_rules_index.py",
     "tests/test_validate001_unified_validation.py",
-    "tests/test_next001_next_safe_action_report.py",
-    "tests/test_create_standard_workflow_handover.py",
-    "tests/test_freeze001_exit_gate.py",
 ]
 
 
@@ -125,12 +117,11 @@ def build_validation_plan(
     """Build the validation command plan.
 
     Profiles:
-    - quick: tooling compile, tooling tests, contract validators and diff checks.
+    - quick: tooling compile, active tooling tests, rules index and diff checks.
     - commit: quick profile plus full pytest.
-    - handover: commit profile plus state/inspect report generation.
     """
 
-    if profile not in {"quick", "commit", "handover"}:
+    if profile not in {"quick", "commit"}:
         raise ValueError(f"Unsupported validation profile: {profile}")
 
     existing_scripts = _existing_paths(root, TOOLING_SCRIPTS)
@@ -147,30 +138,12 @@ def build_validation_plan(
             command=[python_executable, "-m", "pytest", "-q", *existing_tests],
         ),
         ValidationCommand(
-            name="handover001_contract",
-            command=[python_executable, "scripts/run_handover001_validate_contract.py", *child_output_args],
-        ),
-        ValidationCommand(
             name="rules001_index",
             command=[python_executable, "scripts/run_rules001_validate_index.py", *child_output_args],
         ),
     ]
 
-    if profile == "handover":
-        commands.extend(
-            [
-                ValidationCommand(
-                    name="state001_snapshot",
-                    command=[python_executable, "scripts/run_project_state_snapshot.py", "--write-report"],
-                ),
-                ValidationCommand(
-                    name="inspect001_repo_db_docs_no_db",
-                    command=[python_executable, "scripts/run_inspect001_repo_db_docs_bundle.py"],
-                ),
-            ]
-        )
-
-    if profile in {"commit", "handover"}:
+    if profile == "commit":
         commands.append(
             ValidationCommand(
                 name="full_pytest",
@@ -304,7 +277,7 @@ def build_validation_report(
 def choose_next_safe_action(overall_status: str, required_failures: Sequence[str]) -> dict[str, object]:
     if overall_status == "pass":
         return {
-            "action": "continue_with_commit_pr_or_next_safe_action_selection",
+            "action": "continue_with_commit_pr_or_repo_backed_operator_decision",
             "requires_user_decision": False,
             "reason": "All required validation checks passed.",
         }
@@ -404,7 +377,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the VALIDATE-001A unified validation command.")
     parser.add_argument(
         "--profile",
-        choices=["quick", "commit", "handover"],
+        choices=["quick", "commit"],
         default="commit",
         help="Validation profile. Defaults to commit.",
     )

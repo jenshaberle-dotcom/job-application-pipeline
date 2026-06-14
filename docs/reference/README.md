@@ -1,33 +1,28 @@
-# Reference
+# Reference Documentation
 
-Status: reference navigation
+Status: Current reference entry point
 
-Reference documentation is lookup material. It should describe stable contracts,
-models and detailed technical surfaces without duplicating the current product
-story.
+Use this area for detailed lookup material that supports the smaller current
+truth set under `docs/current/`.
 
-- `agents/`
-- `database/`
-- `documentation/`
-- `governance/`
-- `observability/`
-- `operations/`
-- `product/`
-- `scoring-and-gates/`
-- `search-intelligence/`
-  - `search-intelligence/stop_taxonomy_and_repair_registry.md`
-  - `search-intelligence/repair_candidate_audit.md`
-  - `search-intelligence/generic_repair_diagnosis.md`
-- `security/`
-- `sources/`
-- `governance/workflow/` for standardized local workflow contracts:
-  - `governance/workflow/handover001_standard_chat_handover_contract.md`
-  - `governance/workflow/inspect001_repo_db_docs_bundle.md`
-  - `governance/workflow/rules001_project_rules_index.md`
-  - `governance/workflow/validate001_unified_validation_command.md`
-  - `governance/workflow/next001_next_safe_action_report.md`
-- `glossary.md`
+Key references:
 
-If a reference file becomes a build log, move it to `../archive/`. If it becomes
-current truth, promote the distilled version into `../current/` and leave the
-detail here.
+- `governance/` for governance foundations, repo-truth guardrails and MCP integration contracts.
+- `governance/workflow/` for active local workflow contracts:
+  - `validate001_unified_validation_command.md`
+  - `inspect001_repo_db_docs_bundle.md`
+  - `rules001_project_rules_index.md`
+- `operations/` for migration and scheduler references.
+- `security/` for security boundaries.
+
+Retired chat-continuation artifacts are archived under
+`docs/archive/governance/retired-chat-continuation/` as historical evidence only.
+
+## Reference areas
+
+- `database/` — database schema, migrations and DB-facing reference material.
+- `governance/` — project rules, repo-truth, workflow boundaries and governance reference material.
+
+## Additional reference navigation anchors
+
+- `search-intelligence/` — search-intelligence reference material and discovery-loop documentation.

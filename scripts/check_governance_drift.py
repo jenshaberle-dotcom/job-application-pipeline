@@ -179,9 +179,9 @@ def collect_governance_drift(root: Path, *, strict: bool = False) -> GovernanceD
         findings.append(
             GovernanceDriftFinding(
                 severity="warning",
-                code="project_state_handover_artifact_present",
+                code="project_state_retired restart_artifact_present",
                 message=(
-                    "docs/project_state appears in git status. Handover/state files are useful context "
+                    "docs/project_state appears in git status. Retired restart/state files are useful context "
                     "but should not accidentally become current architecture truth."
                 ),
                 path=line,

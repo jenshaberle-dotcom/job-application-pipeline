@@ -1,359 +1,104 @@
-# RULES-001A Project Rules Index
-
-RULES-001A is the compact index of active project collaboration and engineering
-rules for the Job Application Pipeline. It is not a replacement for ADRs,
-architecture docs, or implementation documentation. It is a navigational anchor:
-short enough to read at handover time, explicit enough to prevent repeated
-workflow and architecture mistakes.
-
-## Purpose
-
-The index exists to make active rules referencable without carrying the full
-project history into every chat.
-
-It should help answer:
-
-- What constraints must be respected before changing the project?
-- Which workflow rules are mandatory?
-- Which ideas are backlog only?
-- Which safety boundaries must not be crossed?
-- Which artifacts should a new chat read first?
-
-## Rule source-of-truth order
-
-When there is a conflict, use this order:
-
-1. Current repository files and tests.
-2. Current local validation exports.
-3. STATE-001 project state snapshot.
-4. INSPECT-001 Repo/DB/Docs inspection report.
-5. HANDOVER-001 chat handover contract.
-6. ADRs and current architecture documents.
-7. This RULES-001 index.
-8. Chat memory and historical notes.
-
-This index is an orientation layer. It must not overrule executable tests,
-current repository state, or explicit ADRs.
-
-## Architecture and safety rules
-
-Active architecture rules:
-
-- Prefer clean architecture over shortcuts that create cloud or production debt.
-- Every meaningful change needs a short system-impact check.
-- The impact check should cover Discovery, Evidence, Candidate/Gate, Connector,
-  Bronze/Silver/Gold, UI/Observability, tests, docs, and rollback.
-- Employer-specific fixes must improve generic pipeline capability.
-- Aggregators are discovery inputs, not uncontrolled full-crawl sources.
-- Defensive, bounded acquisition is mandatory.
-- Avoid external requests during validation unless explicitly intended.
-- Secrets, local credentials, caches, virtual environments, and database dumps
-  must not be added to handovers or committed.
-
-## Workflow rules
-
-Mandatory workflow rules:
-
-- Do not commit directly on `main`.
-- Use a branch guard before staging or committing.
-- Full `pytest -q` is required before commit and PR.
-- Use VALIDATE-001 as the default local validation entry point once available; do not use it to hide failing underlying checks.
-- Commit/PR/merge instructions are only provided after green local validation.
-- PR blocks include `git push -u origin <branch>` before `gh pr create`.
-- Merge blocks derive the PR number from the current branch or use safe current
-  branch merge behavior.
-- Cleanup after merge includes returning to `main`, pulling, deleting local and
-  remote feature branches when applicable, pruning, and final validation.
-- Long console outputs should be written to timestamped files under `exports/`.
-- Prefer file artifacts or checked patch files over large chat Here-Docs.
-
-## State and handover rules
-
-Active handover rules:
-
-- A new chat normally needs State JSON plus Handover ZIP.
-- Standalone Markdown handover is optional when included in the ZIP.
-- Exact repo state must come from STATE/INSPECT/current validation, not chat
-  memory alone.
-- If repo-state uncertainty exceeds roughly 5-10 percent, request current ZIP,
-  state export, or concrete inspection output before patching.
-- Handover artifacts should be compact and should not repeat the whole project
-  history.
-- Current validation output outranks older summaries.
-
-## Documentation and governance rules
-
-Active documentation rules:
-
-- So wenig wie möglich, so viel wie nötig.
-- Prefer a lean documentation hierarchy over a documentation operating system.
-- Current documentation should be separated from planning and archive material.
-- ADRs should be classified as Current, Superseded, Historical, or Needs rewrite
-  when rebaselining.
-- Documentation reviews should validate executable reality where feasible, not
-  just wording consistency.
-- Naming should use reusable, professionally understandable domain terms where
-  possible.
-- Bug fixes should include a lessons-learned or recurrence-guard check.
-
-## Product and UI rules
-
-Active product rules:
-
-- Treat the project as a product-quality engineering project, not a tutorial.
-- Ocean Deep / Deep Ocean Intelligence is the primary visual identity.
-- UI logic should stay presentation-oriented; business decisions belong in
-  Python view models, DB views, or explicit services.
-- Review actions in the GUI must remain approval-safe and auditable.
-- Candidate reset, reprocess, and removal are future gated operations, not
-  implicit side effects.
-- Agent Monitor must distinguish derived lifecycle status from true runtime health until a real agent-observability model exists.
-
-## Search Intelligence rules
-
-Active Search Intelligence rules:
-
-- False-negative discovery is a first-class concern.
-- StepStone and other aggregators should support feed-forward known-company suppression where defensively possible.
-- Suppression must be temporary and learning-oriented, not permanent blindness.
-- Market sensors should eventually track novelty, duplicate rate, promotion
-  outcomes, and downstream gate results.
-- High-travel jobs should later receive a strong matching malus or exclusion
-  based on generic travel-requirement extraction.
-- Candidate-company seeds from the user's own search intelligence signals have
-  a minimal relevance prior, but this prior does not pass evidence gates alone.
-
-
-## Horizontal Freeze-Path Bundle Mode
-
-Horizontal Freeze-Path Bundle Mode may be used to bundle multiple independent
-horizontal governance, validation, inspection, handover, and read-only
-stabilization changes into one patch or PR.
-
-It is allowed only when the impact check shows:
-
-- no product pipeline decision
-- no database mutation
-- no external source execution
-- no scheduler, gate, candidate, connector, Bronze, Silver, or Gold coupling
-- no hidden runtime dependency between bundled parts
-- targeted tests for each touched surface
-- shared fan-in validation before commit or PR
-
-Vertical product and pipeline behavior remains separate. This includes gate
-logic, candidate promotion, StepStone or sensor learning, scheduler semantics,
-reprocessing, reset, apply logic, connector activation, and Bronze/Silver/Gold
-mutation. Those changes require a separate work item or an explicit documented
-justification.
-
-## Backlog boundary rules
-
-Backlog-only ideas should not be built as immediate product features unless the
-current work item explicitly promotes them.
-
-Currently backlog/tooling-governance items include:
-
-- VALIDATE-001 Unified Validation Command (implemented foundation)
-- NEXT-001 Next Safe Action Report
-- MCP-001 Project State Server, read-only-first
-- Market Sensors & Growth Metrics
-- reset/reprocess/removal UI under explicit gates
-- agent-level observability and health narratives
-- Project Drift Index as a calculated metric
-- REFACTOR-001 Architecture & Runtime Refactor Campaign
-  - planned gate after GENERIC/EXPAND blocker closure and minimal V1 proof
-  - before cloud migration, Kafka/event backbone, Spark or serious productionization
-- DRIFT-001 Project Drift Metrics Foundation
-  - Documentation Drift Index
-  - Architecture Drift Index
-  - ADR Currency Score
-  - Validation Freshness Score
-  - State Snapshot Freshness
-  - Handover Completeness Score
-  - Rule Coverage Score
-  - Implementation-vs-Docs Mismatch Count
-  - Open Governance Warnings
-  - Broken/Unavailable Inspection Anchors
-
-MCP-001 is explicitly read-only-first and must not become a hidden automation
-layer for commits, DB writes, crawler activation, or approval bypassing.
-
-## Backlog file escalation rule
-
-A backlog item may stay as a compact entry in this RULES-001 index while:
-
-- it is not being implemented yet
-- it does not need a concrete architecture decision
-- it does not carry enough detail to overload this index
-- it is not the next or near-next work item
-
-Create a dedicated planning, architecture, or ADR file only when:
-
-- implementation starts
-- design or ADR relevance appears
-- multiple decisions must be documented
-- the RULES-001 section becomes too large
-- validation or operational behavior needs an executable contract
+# RULES-001 Project Rules Index
 
-This keeps the repository readable: backlog ideas are not forgotten, but they
-also do not become a premature documentation operating system.
+Status: Current Truth
+Boundary: Governance / Workflow / Repo Truth
 
-## White-Whale rule
-
-Valuable but oversized ideas should be parked in the White-Whale Backlog instead
-of being forgotten or forced into the current implementation path.
+## Source-of-truth order
 
-Saving an idea is not abandoning it. Nicht jeder Wal muss heute gefangen werden.
+Current project truth must be derived in this order:
 
-<!-- MARKET-003A-RULE-START -->
-Manual company group-by outputs belong to MARKET-003A as recall/blind-spot seed
-evidence. They are not pipeline inputs. Company normalization or same-company
-interpretation must be tracked through ASSUMPTION-001 before it can affect gates,
-Gold metrics, dashboards or connector/source activation.
-<!-- MARKET-003A-RULE-END -->
+1. Git working tree and committed repository files.
+2. Directly inspected repository documentation, tests, scripts and configuration.
+3. Explicitly allowed read-only database inspection where relevant.
+4. Local validation and test outputs produced from the current repository state.
+5. Repository-backed ADRs, governance docs and active planning docs.
 
+The following are not project truth:
 
-<!-- EXPAND-005-PARALLEL-BUNDLE-START -->
-## EXPAND-005 Parallel Candidate Expansion Boundary
+- chat history
+- assistant memory
+- retired generated chat-continuation artifacts
+- NEXT reports
+- export reports
+- markdown summaries outside the repository
+- JSON summaries outside the repository
+- retired restart ZIPs
 
-EXPAND-005 may be planned as a parallel implementation bundle only while its
-lanes remain independently reviewable and fan in at report/validation level.
+They may be used only as hints for direct inspection.
 
-Allowed parallel lanes:
+## Chat continuation rule
 
-- candidate creation evidence review
-- genericity proof matrix
-- apply-boundary design
-- approval-safe UI action design
-- Agent Monitor wording/history-signal clarification
+Retired chat-continuation artifacts remain abolished as a steering mechanism.
 
-The bundle must not introduce hidden coupling between candidate creation, gate
-decisions, connector activation, scheduler changes, or Bronze/Silver/Gold
-mutation. Any apply-capable path must keep `--dry-run` as default and require an
-explicit `--apply` boundary with visible selected targets and audit provenance.
+Until MCP reaches sufficient maturity, continuation in a new chat requires a fresh full repository ZIP export and direct repository inspection. This is a temporary bridge, not a permanent process.
 
-GENERIC-001 evidence is a proof layer, not decision truth. Assumptions surfaced
-by the genericity matrix must be tracked through ASSUMPTION-001 before they can
-affect gates, Gold metrics, dashboards, source activation, or connector
-registration.
-<!-- EXPAND-005-PARALLEL-BUNDLE-END -->
+After MCP maturity is demonstrated, MCP-backed repo/DB state inspection replaces full-ZIP review. The retired chat-continuation mechanism does not return.
 
+## MCP-001 externalization rule
 
-<!-- REFACTOR-001-RULE-START -->
-## REFACTOR-001 Architecture & Runtime Refactor Gate
+MCP-001 is implemented as an external Engineering Agent Control Plane project. The job-application-pipeline repository is its first target and integration consumer.
 
-REFACTOR-001 is a planned architecture/runtime refactor campaign. It should not
-interrupt the current GENERIC/EXPAND candidate-creation proof unless a concrete
-technical blocker appears.
+This repository may later contain only project profile, adapter configuration, allowed validation definitions, DB read-only inspection contracts, rollback scope declarations and governance references.
 
-Preferred sequence: finish the current GENERIC/EXPAND evidence blocker, prove a
-minimal controlled V1 job-review path, then run REFACTOR-001 before cloud
-migration, DB-backed outbox, Kafka/event backbone, Spark analytics/replay or
-serious productionization.
+## Level-5 action rule
 
-The campaign should be bounded and staged. It should inventory runtime surfaces,
-clarify module boundaries, improve maintainability, preserve audit/compliance
-boundaries, align stop/error states with future defect management and keep the
-architecture event-capable but not event-driven yet.
+No Level-5 mutating action may execute without:
 
-REFACTOR-001 must not introduce hidden candidate/gate mutation, connector
-activation, scheduler changes, external crawling, CSV/export inputs or platform
-expansion.
+- current repo/DB-backed truth basis
+- decision flight
+- policy approval
+- operator approval or later mature confidence-gated approval
+- audit record
+- backup or rollback plan
+- dry-run where feasible
+- validation plan
+- postcondition checks
+- failure quarantine path
+- cost estimate for any external LLM involvement
 
-Canonical planning anchor:
-`docs/planning/active/refactor001_architecture_runtime_refactor_campaign.md`
-<!-- REFACTOR-001-RULE-END -->
+## Chief Agent rule
 
+The Chief Engineering Agent may coordinate specialized agents. It must never be the root of truth, policy or recovery.
 
-<!-- FREEZE-002-RULE-START -->
-## FREEZE-002 Pipeline Maturity to V1 Campaign
+## Local-first cost rule
 
-FREEZE-002 is the planned second freeze campaign for raising the remaining
-pipeline parts toward >=90% target maturity while still reaching a usable V1
-product with GUI.
+MCP must run local checks before LLM usage. LLM calls must use compact evidence packets and must not receive full-repository dumps or secrets by default.
 
-It must preserve the core sequence: close GENERIC/EXPAND evidence blockers,
-prove a controlled V1 job-review path, run REFACTOR-001, then continue toward
-cloud readiness, outbox/event backbone, Kafka/Spark or serious productionization.
+## Export boundary rule
 
-The campaign may bundle independent horizontal/read-only maturity work, but it
-must not hide DB writes, candidate/gate mutation, connector activation,
-scheduler changes, unbounded external requests, automatic applications or
-CSV/export artifacts as pipeline inputs.
+Exports are `review_output_only_not_pipeline_input`. No CSV, Excel, Markdown, JSON, ZIP or export artifact may become pipeline input, gate input, activation prerequisite or source of truth.
 
-Canonical planning anchor:
-`docs/planning/active/freeze002_pipeline_maturity_to_v1_campaign.md`
-<!-- FREEZE-002-RULE-END -->
+## Unknown-state rule
 
-## Validation and next-safe-action commands
+If state cannot be verified, the correct output is `unknown`, `stale`, `inconsistent`, or `needs_inspection`, not a guessed recommendation.
 
-The unified validation command can be run with:
+## Active planning governance anchors
 
-```bash
-python scripts/run_validate001_unified_validation.py --profile commit
-```
+PLAN-001 Future Readiness and Assumption Governance remains the canonical
+planning anchor for future-readiness assumptions, backlog placement and
+assumption-risk handling. Planning ideas are not implementation truth until they
+are represented by current repo files, tests, migrations or validated scripts.
 
-After validation, merge, cleanup, or chat handover, the next-safe-action report
-can be run with:
+Manual company group-by outputs belong to MARKET-003A. They are review-output
+only, not a pipeline input, not source-of-truth, not automatically truth, not a
+gate pass and not a Gold metric.
 
-```bash
-python scripts/run_next001_next_safe_action_report.py
-```
+## Event-readiness boundary
 
-The index can also be checked directly with:
+The project remains event-capable, but not event-driven yet. Event vocabulary,
+stable identifiers, timestamps, auditability and outbox-ready boundaries may be
+prepared, but Kafka/Spark/event backbone work is not part of this active MCP
+containment patch.
 
-```bash
-python scripts/run_rules001_validate_index.py
-```
+## Company normalization boundary
 
-The validator confirms that this document contains the required active-rule
-anchors for architecture, workflow, handover, documentation, product,
-Search Intelligence, backlog boundaries, and the White-Whale rule.
+Company normalization or same-company assumptions must not be accepted as truth
+without evidence. Manual grouping can support review, but it is not source-of-
+truth, not a pipeline input, not a gate pass and not a Gold metric.
+## PLAN-001 reference file
 
-## Safety boundary
+The canonical PLAN-001 planning document is
+`docs/planning/active/future_readiness_and_assumption_governance.md`.
 
-RULES-001A is documentation and validation tooling only.
-
-It must not:
-
-- perform external network requests
-- write to the database
-- mutate pipeline data
-- activate sources or connectors
-- change candidates, gates, Bronze/Silver/Gold, scheduler, or UI state
-- create commits, PRs, or merges
-
-<!-- PLAN-001-FUTURE-READINESS-START -->
-## PLAN-001 Future Readiness and Assumption Governance
-
-Active planning rule:
-
-> Build event-capable, but not event-driven yet.
-
-The intended future platform sequence is Core Pipeline >90% maturity ->
-Cloud-ready Batch Pipeline -> DB-backed Outbox/Event Foundation -> Kafka Event
-Backbone -> Spark Analytics/Replay/Feature Layer only if real analytical value
-exists.
-
-Near-term work must preserve cloud/event readiness by favoring stable IDs, clear
-timestamps, auditability, idempotent processing, no export artifacts as hidden
-pipeline inputs, event vocabulary, outbox-ready boundaries and no local-only
-assumptions that would block cloud, CI or managed orchestration later.
-
-Manual market observations are benchmark-like recall and blind-spot signals, not
-source-of-truth inputs. Future MARKET-003 work should persist them as DB-backed
-observations with origin tracking and review state.
-
-Unvalidated simplifications must be explicit. Future ASSUMPTION-001 work should
-track assumptions such as company equivalence, employer-origin identity,
-duplicate interpretation, remote-signal quality, source-family classification,
-StepStone mirroring and LinkedIn-only conclusions. Heuristics may start discovery,
-but they must not become gate, Gold, dashboard or product truth without evidence.
-
-White-Whale ideas must be triaged rather than silently changing active scope:
-freeze-compatible now, soon after core maturity, after cloud readiness, after
-outbox/Kafka, only if measurable value is proven, or intentionally parked.
-
-Canonical planning anchor:
-`docs/planning/active/future_readiness_and_assumption_governance.md`
-<!-- PLAN-001-FUTURE-READINESS-END -->
+This reference is retained as an active governance anchor. It does not restore
+chat handover, NEXT steering or export-based project truth.

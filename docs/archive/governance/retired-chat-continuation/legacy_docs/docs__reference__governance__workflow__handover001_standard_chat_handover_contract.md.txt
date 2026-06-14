@@ -1,4 +1,26 @@
+# Archived legacy file: docs/reference/governance/workflow/handover001_standard_chat_handover_contract.md
+
+Archived by CONSISTENCY-001A v9 because generated chat-continuation steering is retired as a bad idea / anti-pattern.
+
+This file is historical evidence only. It is not executable project tooling, not active documentation, not validation input, and not project truth.
+
+---
+
 # HANDOVER-001A Standard Chat Handover Contract
+
+Status: Legacy / superseded for steering by CONSISTENCY-001A
+Current truth: Chat handovers remain abolished as a steering mechanism.
+
+## Current override
+
+This file is retained as a historical contract and compatibility reference for existing tooling/tests. It no longer defines the normal project restart process.
+
+The former `State JSON + Handover ZIP` restart path must not be used as project truth, next-work truth, commit readiness truth, or MCP truth. Generated handovers may be used only as hints for direct repository inspection.
+
+Until MCP reaches sufficient maturity, new-chat continuation for project-state assessment uses fresh full-repository ZIP review as a temporary bridge. After MCP maturity is demonstrated, MCP-backed repo/DB state inspection replaces the full-ZIP bridge. Chat handovers do not return.
+
+## Historical contract below
+
 
 HANDOVER-001A defines the minimum useful handover shape for continuing this
 project in a new chat without turning every handover into a project novel. It

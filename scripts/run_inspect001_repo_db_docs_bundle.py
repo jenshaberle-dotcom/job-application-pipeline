@@ -57,7 +57,7 @@ HORIZONTAL_BUNDLE_ALLOWED_SCOPE = [
     "governance documentation",
     "validation tooling",
     "inspection tooling",
-    "handover tooling",
+    "retired restart tooling",
     "read-only state and next-safe-action reporting",
 ]
 HORIZONTAL_BUNDLE_EXCLUDED_SCOPE = [
@@ -360,7 +360,7 @@ def build_report(root: Path, include_db: bool) -> dict[str, Any]:
             "action": "review_inspection_report_then_select_next_patch",
             "requires_user_decision": overall_status != "pass",
             "reason": (
-                "Warnings or unavailable checks should be reviewed before using the report as a handover anchor."
+                "Warnings or unavailable checks should be reviewed before using the report as a retired restart anchor."
                 if overall_status != "pass"
                 else "Inspection passed; next patch can be selected from the current work-item sequence."
             ),

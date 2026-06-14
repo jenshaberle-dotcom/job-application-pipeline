@@ -47,8 +47,8 @@ def test_missing_required_anchor_group_is_reported(tmp_path: Path) -> None:
     result = module.validate_rules_index(rules_file)
 
     assert result["status"] == "fail"
-    assert "architecture_and_safety" in result["missing_anchor_groups"]
-    assert "white_whale" in result["missing_anchor_groups"]
+    assert "chat_continuation" in result["missing_anchor_groups"]
+    assert "mcp_externalization" in result["missing_anchor_groups"]
 
 
 def test_write_report_creates_json_and_markdown(tmp_path: Path) -> None:

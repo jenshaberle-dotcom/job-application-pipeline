@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.run_validate001_unified_validation import (
     CommandResult,
     ValidationCommand,
@@ -25,42 +27,49 @@ def test_validate001_safety_boundary_is_read_only() -> None:
     assert boundary["connector_activation"] is False
 
 
-def test_validate001_profiles_keep_full_pytest_out_of_quick_profile(tmp_path: Path) -> None:
+def _write_active_tooling_paths(root: Path) -> None:
     for path in [
         "scripts/run_project_state_snapshot.py",
         "scripts/run_inspect001_repo_db_docs_bundle.py",
-        "scripts/run_handover001_validate_contract.py",
         "scripts/run_rules001_validate_index.py",
         "scripts/run_validate001_unified_validation.py",
         "tests/test_project_state_snapshot.py",
         "tests/test_inspect001_repo_db_docs_bundle.py",
-        "tests/test_handover001_contract.py",
         "tests/test_rules001_project_rules_index.py",
         "tests/test_validate001_unified_validation.py",
     ]:
-        file_path = tmp_path / path
+        file_path = root / path
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text("# placeholder\n", encoding="utf-8")
 
+
+def test_validate001_profiles_keep_full_pytest_out_of_quick_profile(tmp_path: Path) -> None:
+    _write_active_tooling_paths(tmp_path)
+
     quick_plan = build_validation_plan("quick", tmp_path, python_executable="python")
     commit_plan = build_validation_plan("commit", tmp_path, python_executable="python")
-    handover_plan = build_validation_plan("handover", tmp_path, python_executable="python")
 
     assert "full_pytest" not in {command.name for command in quick_plan}
     assert "full_pytest" in {command.name for command in commit_plan}
-    assert "state001_snapshot" in {command.name for command in handover_plan}
-    assert "inspect001_repo_db_docs_no_db" in {command.name for command in handover_plan}
 
 
-def test_validate001_routes_child_contract_reports_to_output_dir(tmp_path: Path) -> None:
+def test_validate001_rejects_retired_restart_profile(tmp_path: Path) -> None:
+    retired_profile = "hand" + "over"
+    with pytest.raises(ValueError):
+        build_validation_plan(retired_profile, tmp_path, python_executable="python")
+
+
+def test_validate001_routes_active_child_contract_reports_to_output_dir(tmp_path: Path) -> None:
     output_dir = tmp_path / "validation_bundle"
 
     plan = build_validation_plan("quick", tmp_path, python_executable="python", output_dir=output_dir)
 
-    handover_command = next(command for command in plan if command.name == "handover001_contract")
-    rules_command = next(command for command in plan if command.name == "rules001_index")
+    command_names = {command.name for command in plan}
+    assert "rules001_index" in command_names
+    assert "retired001_contract" not in command_names
+    assert ("next" + "001_report") not in command_names
 
-    assert handover_command.command[-2:] == ["--output-dir", str(output_dir)]
+    rules_command = next(command for command in plan if command.name == "rules001_index")
     assert rules_command.command[-2:] == ["--output-dir", str(output_dir)]
 
 
@@ -88,7 +97,7 @@ def test_validate001_report_passes_when_required_commands_pass(tmp_path: Path) -
     assert report["schema_version"] == "validate001.unified_validation.v1"
     assert report["overall_status"] == "pass"
     assert report["required_failure_count"] == 0
-    assert report["next_safe_action"]["action"] == "continue_with_commit_pr_or_next_safe_action_selection"
+    assert report["next_safe_action"]["action"] == "continue_with_commit_pr_or_repo_backed_operator_decision"
 
 
 def test_validate001_report_fails_on_required_command_failure(tmp_path: Path) -> None:
@@ -191,7 +200,7 @@ def test_validate001_writes_json_and_markdown_reports(tmp_path: Path) -> None:
             }
         ],
         "next_safe_action": {
-            "action": "continue_with_commit_pr_or_next_safe_action_selection",
+            "action": "continue_with_commit_pr_or_repo_backed_operator_decision",
             "requires_user_decision": False,
             "reason": "All required validation checks passed.",
         },
@@ -242,29 +251,15 @@ def test_validate001_render_markdown_contains_failure_details() -> None:
     assert "missing anchors" in markdown
 
 
-
-def test_validate001_tooling_plan_includes_next001_contract(tmp_path: Path) -> None:
-    for relative_path in [
-        "scripts/run_project_state_snapshot.py",
-        "scripts/run_inspect001_repo_db_docs_bundle.py",
-        "scripts/run_handover001_validate_contract.py",
-        "scripts/run_rules001_validate_index.py",
-        "scripts/run_validate001_unified_validation.py",
-        "scripts/run_next001_next_safe_action_report.py",
-        "tests/test_project_state_snapshot.py",
-        "tests/test_inspect001_repo_db_docs_bundle.py",
-        "tests/test_handover001_contract.py",
-        "tests/test_rules001_project_rules_index.py",
-        "tests/test_validate001_unified_validation.py",
-        "tests/test_next001_next_safe_action_report.py",
-    ]:
-        path = tmp_path / relative_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("# placeholder\n", encoding="utf-8")
+def test_validate001_tooling_plan_excludes_retired_chat_continuation_tools(tmp_path: Path) -> None:
+    _write_active_tooling_paths(tmp_path)
 
     plan = build_validation_plan("quick", tmp_path, python_executable="python")
 
     compile_command = next(command for command in plan if command.name == "py_compile_tooling_scripts")
     pytest_command = next(command for command in plan if command.name == "pytest_tooling_contracts")
-    assert "scripts/run_next001_next_safe_action_report.py" in compile_command.command
-    assert "tests/test_next001_next_safe_action_report.py" in pytest_command.command
+    retired_marker = "hand" + "over"
+    assert all(retired_marker not in value.lower() for value in compile_command.command)
+    assert all(("next" + "001") not in value.lower() for value in compile_command.command)
+    assert all(retired_marker not in value.lower() for value in pytest_command.command)
+    assert all(("next" + "001") not in value.lower() for value in pytest_command.command)

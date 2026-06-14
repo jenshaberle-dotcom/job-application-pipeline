@@ -38,12 +38,12 @@ def test_documentation_rebaseline_treats_planning_as_historical_by_default(tmp_p
 
 
 def test_documentation_rebaseline_excludes_exported_project_state_from_docs_inventory(tmp_path: Path) -> None:
-    _write(tmp_path / "exports/project_state/handover_delta.md", "# Handover\n")
+    _write(tmp_path / "exports/project_state/retired restart_delta.md", "# Retired restart\n")
 
     report = collect_documentation_rebaseline(tmp_path)
 
     assert report.counts["markdown_files"] == 0
-    assert "handover_context_not_current_truth" not in report.classification_counts
+    assert "retired restart_context_not_current_truth" not in report.classification_counts
 
 
 def test_documentation_rebaseline_marks_architecture_as_current_truth_candidate(tmp_path: Path) -> None:
