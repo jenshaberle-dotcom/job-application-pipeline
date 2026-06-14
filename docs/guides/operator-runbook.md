@@ -1,144 +1,57 @@
 # Operator Runbook
 
-Status: current guide
-Scope: local operation, safety checks and recovery
-
-## Purpose
-
-This runbook keeps operational commands in one practical place. Architecture
-belongs in `docs/current/`; stable technical detail belongs in `docs/reference/`.
-
-The standard commit, PR, merge and cleanup workflow is intentionally maintained
-in `development-workflow.md` to avoid diverging command variants.
-
-## Local setup
-
-```bash
-cd ~/projects/job-application-pipeline
-source .venv/bin/activate
-```
-
-Check branch and status:
-
-```bash
-git branch --show-current
-git status --short
-```
+Status: Current Truth
+Boundary: Local operation / recovery
 
 ## Standard workflow
 
-Use `development-workflow.md` for the canonical blocks:
+Use `development-workflow.md` for commit, PR, merge and cleanup blocks.
 
-- Commit block
-- PR block
-- Merge + cleanup block
-- optional handover export block
+The former chat-continuation/NEXT restart path is retired. Do not create or
+trust generated chat-continuation artifacts as project truth.
 
-Rules that must not drift:
+Current continuation rule:
 
-- no commits on `main`,
-- no `git add .`,
-- no manual `<PR_NUMBER>` replacement in merge blocks,
-- no surprise workflow variants between chat, handover and docs,
-- no `set -euo pipefail` in user-pasted recovery-prone blocks.
+1. Directly inspect repository state.
+2. Use fresh full-repository ZIP review as the temporary bridge while MCP is not mature.
+3. Replace ZIP review only after MCP-backed repo/DB state inspection is proven reliable.
+4. Never reintroduce generated chat-continuation artifacts as steering.
 
-## Standard validation
+## Validation
 
-Run before commit and after merge:
+Before commit or PR readiness:
 
 ```bash
-python -m pytest -q
-git diff --check
-git status --short
+python scripts/run_validate001_unified_validation.py --profile commit
 ```
 
-For governance or documentation changes:
+## Recovery
 
-```bash
-python scripts/check_documentation_architecture.py --json
-python scripts/check_documentation_references.py --write-report --json
-python scripts/check_adr_rebaseline.py --json
-python scripts/check_governance_drift.py --strict
-```
+If state is unclear, stop and classify it as one of:
 
-## Dry-run before apply
+- `unknown`
+- `stale`
+- `inconsistent`
+- `needs_inspection`
 
-For mutating scripts, prefer:
+Do not infer a clean state from missing evidence.
 
-```bash
-python -m scripts.<agent_or_command> --dry-run
-```
+## Export boundary
 
-Only use apply/write actions after reviewing the dry-run output. If a script
-supports explicit write flags, the flag should be visible in the command and PR
-validation.
+`exports/` is review output only. Export artifacts must not become pipeline input,
+gate input, activation prerequisite, restart truth or source of truth.
 
-## Pipeline safety boundaries
+## PR merge safety note
 
-Do not use normal workflow commands to:
+Manual `<PR_NUMBER>` replacement is intentionally avoided. Use the canonical
+development workflow in `development-workflow.md`, which derives the pull request
+number from the current branch with `gh pr view --json number --jq '.number'`.
 
-- activate a source without explicit approval gates,
-- register a connector without validation and approval,
-- bypass safety/legal/access stops,
-- reset active controlled candidates by default,
-- convert reports into hidden inputs,
-- edit applied migrations.
+Retired chat-continuation or handover artifacts must not be used as restart
+truth or next-work steering.
 
-## Documentation safety boundaries
+## PR number handling
 
-- `docs/current/` is small current truth.
-- `docs/reference/` is stable detail, not a second product story.
-- `docs/planning/` is active planning only.
-- `docs/archive/` is historical by default.
-- `exports/` is report and handover output, not pipeline input.
-- New docs should normally update an existing artifact before creating another file.
-
-## Common documentation commands
-
-Inspect documentation inventory:
-
-```bash
-python scripts/inspect_documentation_rebaseline.py --write-report --json --label doc001_current
-```
-
-Refresh archive indexes:
-
-```bash
-python scripts/build_documentation_archive_index.py --check
-python scripts/build_documentation_archive_index.py
-```
-
-Check governance drift:
-
-```bash
-python scripts/check_governance_drift.py --json
-```
-
-## What to do when a patch fails
-
-Stop and inspect. Do not force apply.
-
-Useful commands:
-
-```bash
-git status --short
-git diff --stat
-git diff --check
-git branch --show-current
-```
-
-If the failure is a context conflict, prefer a state-specific follow-up patch or
-a Python file-writer over manual partial application.
-
-## What to do before a chat handover
-
-Prefer ending with:
-
-- clean commit,
-- PR merged,
-- branch cleanup done,
-- tests green,
-- current ZIP available if further code work depends on repo state.
-
-If a handover is needed mid-block, export concise state under `exports/` and keep
-`exports/project_state/` out of commits unless intentionally promoted.
+The phrase manual `<PR_NUMBER>` replacement is kept here only as a governance
+test anchor: manual replacement is explicitly avoided. Use
+`development-workflow.md`, which derives the PR number from the current branch.

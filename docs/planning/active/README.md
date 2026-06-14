@@ -1,113 +1,63 @@
 # Active Planning
 
-Status: active planning surface
+Status: Current Truth
+Last updated for: CONSISTENCY-001A v8 and external MCP-001 Freeze
 
-Keep this folder small. A planning artifact belongs here only while it is still
-an active steering input. When the implementation or decision is finished, move
-it to `../../archive/planning/` or promote the stable rule into `../current/`,
-`../reference/`, or `../decisions/`.
+## Current active sequence
 
-Current active anchors:
+Project work is currently in containment mode.
 
-- `roadmap.md`
+The active priority is:
 
-<!-- PLAN-001-ACTIVE-README-START -->
-## Future readiness and assumption governance
+1. CONSISTENCY-001A Active Truth Containment in this repository.
+2. Repo-Truth Guardrails in this repository.
+3. Removal of active Retired restart/NEXT steering from current planning.
+4. Full-repository ZIP review as a temporary bridge until MCP maturity.
+5. External MCP-001 Freeze as priority 1 for sustainable throughput recovery.
+6. MCP-backed consistency re-check.
+7. Retirement of the full-ZIP bridge only after MCP maturity is demonstrated.
+8. After CONSISTENCY-001A closes, dedicate project capacity to the external MCP project until it can replace the temporary full-ZIP bridge.
+9. Resume product-pipeline work only from repo/DB/MCP-backed state.
 
-- `future_readiness_and_assumption_governance.md` defines the active planning
-  premise for cloud/event transition readiness, manual market observation,
-  simplification validation and White-Whale triage.
-<!-- PLAN-001-ACTIVE-README-END -->
+## MCP-001 Freeze scope
 
-<!-- REFACTOR-001-ACTIVE-README-START -->
-## REFACTOR-001 Architecture & Runtime Refactor Campaign
+MCP-001 is now the priority-1 throughput recovery campaign. It supersedes the previous active freeze campaign for steering purposes.
 
-- `refactor001_architecture_runtime_refactor_campaign.md` is the planned
-  refactor gate after GENERIC/EXPAND evidence closure and a minimal controlled
-  V1 proof path, but before cloud migration, Kafka/event backbone, Spark or
-  serious productionization.
-<!-- REFACTOR-001-ACTIVE-README-END -->
+The MCP agent core is not implemented inside this repository. This repository remains the first target project and integration consumer.
 
-<!-- FREEZE-002-ACTIVE-README-START -->
-## FREEZE-002 Pipeline Maturity to V1 Campaign
+Future integration in this repository is limited to:
 
-- `freeze002_pipeline_maturity_to_v1_campaign.md` defines the second freeze
-  campaign for raising remaining pipeline areas toward >=90% while preserving a
-  usable V1 path with GUI before cloud or streaming expansion.
-<!-- FREEZE-002-ACTIVE-README-END -->
+- project profile / adapter configuration
+- allowed validation definitions
+- DB read-only inspection contracts
+- rollback scope declarations
+- governance references
+- evidence-packet contracts
 
-<!-- STRATEGIC-SEQUENCING-GENERICS-FIRST-START -->
+The agent core, policy engine, capability registry, decision flight, audit ledger, rollback manager, confidence loop, cost control, tool integrity checks, red-team evals and GUI control plane belong in a separate MCP / Engineering Agent Control Plane project.
 
-## Strategic sequencing: generics before V1
+## Current truth rules
 
-Status: active planning baseline.
+- The repository is the only project truth.
+- Chat retired restarts remain abolished as a steering mechanism.
+- Retired restart artifacts, NEXT reports, exports, assistant memory and chat summaries are not project truth.
+- Full-repository ZIP review is a temporary bridge, not a permanent operating model.
+- The full-ZIP bridge is retired only after MCP can reliably provide repo/DB-backed state inspection, validation reliability, fallback/unknown handling, consistency checks, auditability and enough successful confidence-scored iteration flights.
+- Exports remain review outputs only and must not become pipeline input, gate input, activation prerequisite, or source of truth.
+- MCP must be local-first and cost-controlled: repo, git, DB read-only, validation, policy, audit, rollback, confidence and reports run locally; LLM calls receive only compact evidence packets.
 
-The current strategic order is:
+## Active anchors
 
-1. Finish the generics proof cleanly.
-2. Open controlled candidate creation only through a reviewed apply gate.
-3. Make the review UI usable with approval-safe actions.
-4. Build matching, Gold decision views, and the first useful V1 product flow.
-5. Run the large architecture and runtime refactor campaign after V1.
-6. Build Defect Management after V1 and after the refactor campaign.
-7. Continue Agent/Ops, Cloud readiness, and later Kafka/Streaming after the core path is mature.
+- `consistency001_project_consistency_and_state_truth_audit.md`
+- `repo_truth_guardrails.md`
+- `mcp001_external_engineering_agent_control_plane.md`
+- `mcp001_external_integration_contract.md`
+- `rules001_project_rules_index.md`
 
-### Resolved planning decisions
+## Product-pipeline pause
 
-- Generics proof is prioritized over Product V1.
-- Product V1 is intentionally postponed until the generics/provider evidence path is clean.
-- Mutating UI actions must not be built before the backend apply boundary exists.
-- Matching and Top-N job logic may be prepared read-only, but should not drive a V1 promise before Apply Gate and Review UI are ready.
-- Defect Management remains important but is sequenced after V1.
-- The large refactor campaign is explicitly placed after V1 and before Defect Management.
-- Cloud and Kafka/Streaming remain later tracks; current work should stay event-ready but not event-driven.
+Provider, GENERIC, EXPAND, APPLY, UI, MATCH, GOLD, DOCGEN and V1 product work is paused. After CONSISTENCY-001A closes, the next active work is the external MCP project until MCP can take over repo-state continuation from the temporary full-ZIP bridge. Product-pipeline work resumes only from repo/DB/MCP-backed state or an explicit repo-backed re-entry decision.
 
-### Current ordered roadmap
+## Superseded planning
 
-| Order | Work item | Purpose | Boundary |
-|---:|---|---|---|
-| 0 | Post-merge state check | Confirm current HEAD, validation, and Block-Z state | Read-only |
-| 1 | PROVIDER-001B Read-only Provider Evidence Discovery | Find provider-backed origin evidence from existing DB/code/url/source signals | No external probes by default |
-| 2 | PROVIDER-001C Provider Coverage Decision Bundle | Close or explicitly justify the provider-backed origin coverage gap | Review output only |
-| 3 | GENERIC final recheck | Re-run GENERIC-005 / EXPAND-008 after provider evidence | No candidate mutation |
-| 4 | COMPLIANCE-001A Probe Boundary Matrix | Define safe boundaries before any external provider/source probe | Required before external probes |
-| 5 | APPLY-001A/B/C Controlled Candidate Creation Apply Gate | Move from blocked dry-run to reviewed, audited candidate creation | No activation by default |
-| 6 | UI-001/002 Review Queue and Approval-safe Actions | Make Review Required / Ready / Active / Parked usable | UI actions require backend apply boundary |
-| 7 | MATCH-001 Jens Fit Scoring | Score jobs by remote, travel, salary, 35h, data-role signal, fallback roles | Read-only scoring first |
-| 8 | GOLD-001 Top-N Decision Layer | Produce Top-N / Top-5 candidates with reason codes | No auto-apply |
-| 9 | DOCGEN-001 + V1-001 | Generate CV/application-letter scaffolds and first useful end-to-end flow | Human review required |
-| 10 | REFACTOR-001 Architecture and Runtime Refactor Campaign | Clean module boundaries, runtime boundaries, cloud/event readiness | After V1, before Defect Management |
-| 11 | DEFECT-001 Defect Management Foundation | Track defects, root causes, recurrence guards, and verification | After V1 and refactor |
-| 12 | AGENT/OPS Health | Runtime/source/agent health and observability | After core product path |
-| 13 | CLOUD-001 | Cloud-ready batch deployment path | After core/V1/refactor |
-| 14 | STREAM-001 Kafka/Event Backbone | Event streaming, Kafka, possible Spark later | Later, not Freeze Path |
-
-### Backlog alignment
-
-- Keep PROVIDER-001B/C as the next main block.
-- Keep APPLY-001 before mutating UI actions.
-- Keep UI Review Queue before V1 product flow.
-- Keep MATCH-001, GOLD-001, DOCGEN-001, and V1-001 as the product-value path.
-- Keep REFACTOR-001 visible and explicitly after V1.
-- Keep DEFECT-001 after V1 and REFACTOR-001.
-- Keep Agent Capability, Ops Health, Cloud, Kafka, Spark, and MCP as later tracks unless a concrete blocker appears.
-- Continue using curated output bundles and run-scoped validation outputs as review artifacts only, never as pipeline inputs.
-
-<!-- STRATEGIC-SEQUENCING-GENERICS-FIRST-END -->
-
-<!-- PROVIDER-001-ACTIVE-README-START -->
-
-## PROVIDER-001 Provider Evidence Closure
-
-- `provider001_provider_evidence_closure.md` defines the active provider evidence
-  closure path for the generics-first sequence before APPLY-001 and V1.
-
-<!-- PROVIDER-001-ACTIVE-README-END -->
-
-<!-- MCP-001-ACTIVE-README-START -->
-
-## MCP-001 Engineering Assistance / Governance Tooling
-
-- `mcp001_engineering_assistance_governance_tooling.md` places MCP-001A after Generik and Safe-Apply/Gate stabilization, before the full Product V1 phase, with read-only-first engineering-assistance boundaries.
-
-<!-- MCP-001-ACTIVE-README-END -->
+Previous active planning that placed PROVIDER-001B/C, Generik, Safe-Apply, V1 or the old freeze path before MCP-001 is superseded for active steering. It may remain only as historical context in archived documents, not as current project direction.

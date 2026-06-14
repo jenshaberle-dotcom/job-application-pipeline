@@ -8,12 +8,12 @@ Created from: GOV-001A static inventory intake and GOV-001B-D governance foundat
 
 GOV-001A-D made agent and documentation drift visible. That is useful, but not sufficient.
 A project can still drift again if new agents, helper scripts, planning notes, or
-handover artifacts are added without a governance trail.
+retired restart artifacts are added without a governance trail.
 
 This guard adds a small enforceable boundary:
 
 - new agent-like scripts must be visible in governance documentation,
-- project-state handover files must not accidentally become current architecture truth,
+- project-state retired restart files must not accidentally become current architecture truth,
 - agent counts are compared against the GOV-001A baseline,
 - the check is read-only and safe to run before PRs.
 

@@ -49,7 +49,7 @@ The documentation architecture applies to files, not only folders:
 - a reference file should describe a stable contract, model or lookup surface;
 - a planning file should be active, temporary and easy to retire;
 - historical traces should be archived or deleted instead of half-promoted;
-- exports and handover files must not become source-of-truth documentation.
+- exports and retired restart files must not become source-of-truth documentation.
 
 New documentation should normally update an existing artifact before creating a
 new one. Add a new file only when it has a distinct audience, lifecycle or

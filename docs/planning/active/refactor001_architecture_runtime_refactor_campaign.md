@@ -38,7 +38,7 @@ safe progress impossible.
 
 Preferred sequence:
 
-1. Finish the current GENERIC-006 / EXPAND-008 block and handover.
+1. Finish the current GENERIC-006 / EXPAND-008 block and retired restart.
 2. Close the immediate stop-control and generic-evidence blocker.
 3. Reach a minimal controlled V1 proof path for real job review, including the
    Top-5/job-review direction and approval-safe review workflow.

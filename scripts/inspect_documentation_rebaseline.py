@@ -39,7 +39,7 @@ HISTORICAL_PATH_MARKERS = (
     "docs/archive/documentation-rebaseline/",
 )
 
-HANDOVER_PATH_MARKERS = (
+RETIRED_RESTART_PATH_MARKERS = (
     "exports/project_state/",
 )
 
@@ -166,10 +166,10 @@ def classify_document(path: str, text: str) -> tuple[str, str, str | None]:
             adr_status,
         )
 
-    if lower_path.startswith(HANDOVER_PATH_MARKERS):
+    if lower_path.startswith(RETIRED_RESTART_PATH_MARKERS):
         return (
-            "handover_context_not_current_truth",
-            "Project-state handover context is useful but must not become current architecture truth.",
+            "retired restart_context_not_current_truth",
+            "Project-state retired restart context is useful but must not become current architecture truth.",
             adr_status,
         )
 

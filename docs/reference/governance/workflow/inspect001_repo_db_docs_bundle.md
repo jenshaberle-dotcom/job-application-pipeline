@@ -7,7 +7,7 @@ engineering operating system.
 
 ## Purpose
 
-The bundle is intended as a lightweight handover and pre-patch anchor:
+The bundle is intended as a lightweight retired restart and pre-patch anchor:
 
 - summarize Git state
 - check expected documentation structure
@@ -70,4 +70,4 @@ The report distinguishes:
 - `skipped` — intentionally not executed, for example DB checks without `--include-db`
 
 Warnings are not automatically failures. They are decision inputs for the next
-safe action and for handover quality.
+safe action and for retired restart quality.

@@ -1,7 +1,7 @@
 # EXPAND-005 Parallel Controlled Candidate Expansion Plan
 
 Status: planned implementation bundle
-Created from handover baseline: `2a669c4 Add controlled candidate creation dry run (#247)`
+Created from retired restart baseline: `2a669c4 Add controlled candidate creation dry run (#247)`
 
 ## Purpose
 

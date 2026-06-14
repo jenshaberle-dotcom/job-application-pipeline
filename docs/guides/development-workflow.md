@@ -64,5 +64,5 @@ git log --oneline -5
 ## Stability rule
 
 Do not use manual `<PR_NUMBER>` placeholders in merge blocks. Do not introduce
-surprise workflow variants in handovers. Avoid `set -euo pipefail` in user-pasted
+surprise workflow variants across chats or repository docs. Chat retired restarts are abolished as steering; use direct repo inspection, temporary full-repository ZIP review, and later MCP-backed state instead. Avoid `set -euo pipefail` in user-pasted
 operational blocks when a recoverable CLI error could close the terminal.

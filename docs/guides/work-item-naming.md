@@ -1,6 +1,6 @@
 # Work Item Naming and Domain Prefixes
 
-This project uses short domain prefixes for implementation blocks, branches, PRs and handover notes. The goal is to keep names understandable in the repository and reusable for future projects, while avoiding historically grown labels such as `A2H2` as the primary identifier.
+This project uses short domain prefixes for implementation blocks, branches, PRs and retired restart notes. The goal is to keep names understandable in the repository and reusable for future projects, while avoiding historically grown labels such as `A2H2` as the primary identifier.
 
 This document is a lightweight development convention, not an ADR. Add new domains only when an existing domain would make the work item misleading.
 
@@ -41,7 +41,7 @@ Use as few domains as possible. Prefer these until a new domain is clearly neede
 | `EO` | Employer Origin | Employer-origin source candidates, gates, connector readiness, connector build/validation, source activation boundaries. |
 | `CC` | Control Center | Server-rendered UI, review queue, operations actions, dialogs, dashboard/control-center presentation. |
 | `DB` | Database & Migrations | Schema changes, migration tracking, idempotent repair migrations, database constraints/views. |
-| `DOC` | Documentation & Governance | ADRs, architecture docs, naming conventions, roadmap alignment, design rules, handovers. |
+| `DOC` | Documentation & Governance | ADRs, architecture docs, naming conventions, roadmap alignment, design rules, retired restarts. |
 | `OPS` | Operations & Automation | Scheduler, local/CI operations, watchdogs, runbooks, cleanup workflows, operational safety. |
 
 ## Optional future domains

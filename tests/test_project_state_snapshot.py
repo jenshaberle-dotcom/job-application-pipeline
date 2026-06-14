@@ -121,5 +121,5 @@ def test_state001a_markdown_contains_tooling_governance_sequence(tmp_path: Path)
 
     assert "STATE-001 Project State Snapshot Contract" in markdown
     assert "INSPECT-001 Repo/DB/Docs Inspection Bundle" in markdown
-    assert "MCP-001 Project State Server, read-only-first" in markdown
+    assert "MCP-001 External Engineering Agent Control Plane" in markdown
     assert "Horizontal Freeze-Path Bundle Mode" in markdown
