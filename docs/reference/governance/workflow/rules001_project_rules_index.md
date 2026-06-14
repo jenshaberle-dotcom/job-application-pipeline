@@ -102,3 +102,11 @@ The canonical PLAN-001 planning document is
 
 This reference is retained as an active governance anchor. It does not restore
 chat handover, NEXT steering or export-based project truth.
+
+## CONSISTENCY-001B retired next-action steering boundary
+
+`next safe action` must not be treated as active chat, handover, export or
+restart steering. If the phrase remains in domain language, it is restricted to
+local MCP/agent decision evidence backed by current repo/DB/test inspection.
+It must not carry the retired planned-command field, the retired child-run hook or other executable child-run
+instructions as active pipeline steering.

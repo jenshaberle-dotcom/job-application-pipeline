@@ -436,7 +436,7 @@ def _last_meaningful_line(value: str) -> str:
     noisy_prefixes = (
         "candidate_id:",
         "candidate:",
-        "planned_command:",
+        "review_evidence_command:",
         "running:",
         "next_safe_action:",
     )
