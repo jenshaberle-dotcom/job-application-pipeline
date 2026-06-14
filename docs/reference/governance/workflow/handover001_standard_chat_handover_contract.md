@@ -82,6 +82,22 @@ It should not include:
 - database dumps unless explicitly requested and sanitized
 - raw crawler outputs unless they are intentionally part of a review artifact
 
+## ZIP layout convention
+
+The ZIP file may be stored on disk under `exports/<run>/`, but the archive
+contents must use stable logical roots instead of embedding the local
+`exports/` folder.
+
+Expected archive roots:
+
+- `handover/` for the handover JSON and Markdown
+- `handover/reports/` for VALIDATE, NEXT, INSPECT, HANDOVER and RULES reports
+- `worktree/` for dirty-worktree diagnostics such as status and diff files
+- `reference/` for curated workflow/reference documents
+- `repo_snapshot/` for the optional tracked/non-ignored project snapshot
+
+A valid handover ZIP must not contain archive entries starting with `exports/`.
+
 ## Machine-readable handover expectations
 
 Machine-readable handover state should be compact and explicit. It should

@@ -13,8 +13,10 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
+import sys
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,9 +29,17 @@ EXPORTS.mkdir(exist_ok=True)
 
 STAMP = datetime.now().strftime("%Y%m%d-%H%M")
 BASE = f"efficient_handover_standard_workflow_{STAMP}"
-JSON_PATH = EXPORTS / f"{BASE}.json"
-MD_PATH = EXPORTS / f"{BASE}.md"
-ZIP_PATH = EXPORTS / f"{BASE}.zip"
+BASE_DIR = EXPORTS / BASE
+BASE_DIR.mkdir(parents=True, exist_ok=True)
+JSON_PATH = BASE_DIR / f"{BASE}.json"
+MD_PATH = BASE_DIR / f"{BASE}.md"
+ZIP_PATH = BASE_DIR / f"{BASE}.zip"
+
+ZIP_HANDOVER_DIR = Path("handover")
+ZIP_REPORTS_DIR = ZIP_HANDOVER_DIR / "reports"
+ZIP_WORKTREE_DIR = Path("worktree")
+ZIP_REFERENCE_DIR = Path("reference")
+ZIP_REPO_SNAPSHOT_DIR = Path("repo_snapshot")
 
 EXPECTED_ITEMS = {
     "STATE-001A",
@@ -66,9 +76,18 @@ def run(command: list[str], *, required: bool = True) -> dict[str, Any]:
     return result
 
 
-def latest(pattern: str) -> Path | None:
-    matches = sorted(EXPORTS.glob(pattern), key=lambda p: p.stat().st_mtime)
-    return matches[-1] if matches else None
+def latest(pattern: str, *, output_dir: Path | None = None) -> Path | None:
+    """Return the newest matching report, preferring the selected run folder.
+
+    Run-scoped export hardening means multiple folders can contain reports with
+    similar names.  The handover helper must not accidentally pick a stale
+    report from another run just because its filename sorts later.
+    """
+    search_root = output_dir or EXPORTS
+    matches = [path for path in search_root.rglob(pattern) if path.is_file()]
+    if not matches:
+        return None
+    return max(matches, key=lambda p: (p.stat().st_mtime_ns, str(p)))
 
 
 def read_json(path: Path | None) -> dict[str, Any]:
@@ -79,6 +98,48 @@ def read_json(path: Path | None) -> dict[str, Any]:
 
 def git_text(args: list[str]) -> str:
     return run(["git", *args])["stdout"]
+
+
+def git_text_optional(args: list[str]) -> str:
+    return run(["git", *args], required=False)["stdout"]
+
+
+def write_text_artifact(path: Path, value: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text((value or "") + ("" if value.endswith("\n") else "\n"), encoding="utf-8")
+    return path
+
+
+def write_worktree_artifacts() -> list[Path]:
+    """Write compact dirty-worktree diagnostics into the handover run folder."""
+    artifacts = [
+        write_text_artifact(BASE_DIR / "git_status_short.txt", git_text_optional(["status", "--short"])),
+        write_text_artifact(BASE_DIR / "git_status_branch.txt", git_text_optional(["status", "--branch", "--short"])),
+        write_text_artifact(BASE_DIR / "git_recent_log.txt", git_text_optional(["log", "--oneline", "-8"])),
+        write_text_artifact(BASE_DIR / "worktree_diff.patch", git_text_optional(["diff", "--binary"])),
+        write_text_artifact(BASE_DIR / "worktree_cached_diff.patch", git_text_optional(["diff", "--cached", "--binary"])),
+        write_text_artifact(
+            BASE_DIR / "untracked_files.txt",
+            git_text_optional(["ls-files", "--others", "--exclude-standard"]),
+        ),
+    ]
+    return artifacts
+
+
+def project_snapshot_paths() -> list[Path]:
+    """Return tracked + untracked, non-ignored project files for handover ZIPs."""
+    tracked = git_text_optional(["ls-files", "-z"])
+    untracked = git_text_optional(["ls-files", "--others", "--exclude-standard", "-z"])
+    relative_paths = {item for item in (tracked + untracked).split("\0") if item}
+    excluded_prefixes = ("exports/", ".git/", ".venv/", "__pycache__/")
+    paths: list[Path] = []
+    for relative in sorted(relative_paths):
+        if relative.startswith(excluded_prefixes):
+            continue
+        path = ROOT / relative
+        if path.is_file():
+            paths.append(path)
+    return paths
 
 
 def validate_report_is_green(validate_report: dict[str, Any]) -> None:
@@ -123,7 +184,8 @@ def build_minimal_restart_payload(
         "optional_new_chat_artifacts": [
             "handover_markdown",
         ],
-        "exact_repo_snapshot": True,
+        "exact_repo_snapshot": not bool(git.get("dirty")),
+        "worktree_snapshot_included": bool(git.get("dirty")),
         "repo": {
             "branch": git.get("branch"),
             "head": git.get("head"),
@@ -152,7 +214,7 @@ def build_minimal_restart_payload(
     }
 
 
-def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any]) -> dict[str, Any]:
+def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any], *, allow_dirty: bool = False) -> dict[str, Any]:
     tooling_items = next_report.get("tooling_governance_status", [])
     completed_work_items = [
         item["item_id"]
@@ -166,14 +228,20 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
         raise SystemExit(f"Refusing handover: missing completed workflow items: {missing}")
 
     git = collect_git_state()
-    if git["dirty"]:
-        raise SystemExit("Refusing handover: git worktree is dirty.")
+    if git["dirty"] and not allow_dirty:
+        raise SystemExit("Refusing handover: git worktree is dirty. Re-run with --allow-dirty to include worktree artifacts in the handover ZIP.")
 
     validate_report_is_green(validate_report)
 
-    rules_report = read_json(latest("rules001_index_validation_*.json"))
-    inspect_report = read_json(latest("inspect001_repo_db_docs_bundle_*.json"))
-    handover_contract_report = read_json(latest("handover001_contract_validation_*.json"))
+    validate_json = latest("validate001_unified_validation_*.json", output_dir=BASE_DIR)
+    next_json = latest("next001_next_safe_action_report_*.json", output_dir=BASE_DIR)
+    inspect_json = latest("inspect001_repo_db_docs_bundle_*.json", output_dir=BASE_DIR)
+    handover_contract_json = latest("handover001_contract_validation_*.json", output_dir=BASE_DIR)
+    rules_json = latest("rules001_index_validation_*.json", output_dir=BASE_DIR)
+
+    rules_report = read_json(rules_json)
+    inspect_report = read_json(inspect_json)
+    handover_contract_report = read_json(handover_contract_json)
 
     rules_path = rules_report.get(
         "rules_path",
@@ -181,7 +249,7 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
     )
 
     recommended_next = next_report.get("product_return_candidates") or [
-        "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review"
+        "PROVIDER-001B Read-only Provider Evidence Discovery"
     ]
 
     minimal_restart_payload = build_minimal_restart_payload(
@@ -197,7 +265,8 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
         "schema_version": "chatlevel.efficient_handover_standard_workflow.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "source": "standard_workflow_handover_generated_from_next001_validate001",
-        "exact_repo_snapshot": True,
+        "exact_repo_snapshot": not git["dirty"],
+        "worktree_snapshot_included": git["dirty"],
         "git": git,
         "completed_work_items": completed_work_items,
         "standard_workflow_completion": next_report.get("standard_workflow_completion", {}),
@@ -205,27 +274,27 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
         "minimal_restart_payload": minimal_restart_payload,
         "validation": {
             "validate001_commit": {
-                "path": str(latest("validate001_unified_validation_*.json").relative_to(ROOT)),
+                "path": str(validate_json.relative_to(ROOT)) if validate_json else None,
                 "overall_status": validate_report.get("overall_status"),
                 "required_failure_count": validate_report.get("required_failure_count"),
                 "optional_warning_count": validate_report.get("optional_warning_count"),
                 "profile": validate_report.get("profile"),
             },
             "next001_report": {
-                "path": str(latest("next001_next_safe_action_report_*.json").relative_to(ROOT)),
+                "path": str(next_json.relative_to(ROOT)) if next_json else None,
                 "next_safe_action": next_report.get("next_safe_action"),
                 "workflow_completion": next_report.get("standard_workflow_completion", {}),
             },
             "inspect001": {
-                "path": str(latest("inspect001_repo_db_docs_bundle_*.json").relative_to(ROOT)),
+                "path": str(inspect_json.relative_to(ROOT)) if inspect_json else None,
                 "overall_status": inspect_report.get("overall_status"),
             },
             "handover001_contract": {
-                "path": str(latest("handover001_contract_validation_*.json").relative_to(ROOT)),
+                "path": str(handover_contract_json.relative_to(ROOT)) if handover_contract_json else None,
                 "status": handover_contract_report.get("status"),
             },
             "rules001_index": {
-                "path": str(latest("rules001_index_validation_*.json").relative_to(ROOT)),
+                "path": str(rules_json.relative_to(ROOT)) if rules_json else None,
                 "status": rules_report.get("status"),
             },
         },
@@ -243,7 +312,7 @@ def build_handover(next_report: dict[str, Any], validate_report: dict[str, Any])
             "Please read those first. The minimal_restart_payload contains the compact restart boundary. "
             "Before any patch, provide a short system-impact analysis. "
             "Do not run external/product actions without explicit approval. "
-            "The next recommended product work item is SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review."
+            "The next recommended product work item is PROVIDER-001B Read-only Provider Evidence Discovery."
         ),
         "safety_notes": [
             "Repo/docs are source of truth for active rules and backlog boundaries.",
@@ -327,22 +396,41 @@ Generated: `{handover["generated_at_utc"]}`
     MD_PATH.write_text(markdown, encoding="utf-8")
 
 
-def write_zip() -> None:
-    include_paths = [
+def write_zip(*, include_repo_snapshot: bool = False) -> None:
+    """Write a curated ZIP layout without embedding the local exports/ folder.
+
+    The ZIP is stored inside exports/<run>/ on disk, but the archive itself uses
+    stable logical roots so a new chat does not see a nested exports/run folder
+    as part of the handover payload.
+    """
+    handover_paths = [
         JSON_PATH,
         MD_PATH,
-        latest("next001_next_safe_action_report_*.json"),
-        latest("next001_next_safe_action_report_*.md"),
-        latest("validate001_unified_validation_*.json"),
-        latest("validate001_unified_validation_*.md"),
-        latest("inspect001_repo_db_docs_bundle_*.json"),
-        latest("inspect001_repo_db_docs_bundle_*.md"),
-        latest("handover001_contract_validation_*.json"),
-        latest("handover001_contract_validation_*.md"),
-        latest("rules001_index_validation_*.json"),
-        latest("rules001_index_validation_*.md"),
-        latest("freeze001_exit_gate_*.json"),
-        latest("freeze001_exit_gate_*.md"),
+    ]
+    report_paths = [
+        latest("next001_next_safe_action_report_*.json", output_dir=BASE_DIR),
+        latest("next001_next_safe_action_report_*.md", output_dir=BASE_DIR),
+        latest("validate001_unified_validation_*.json", output_dir=BASE_DIR),
+        latest("validate001_unified_validation_*.md", output_dir=BASE_DIR),
+        latest("inspect001_repo_db_docs_bundle_*.json", output_dir=BASE_DIR),
+        latest("inspect001_repo_db_docs_bundle_*.md", output_dir=BASE_DIR),
+        latest("handover001_contract_validation_*.json", output_dir=BASE_DIR),
+        latest("handover001_contract_validation_*.md", output_dir=BASE_DIR),
+        latest("rules001_index_validation_*.json", output_dir=BASE_DIR),
+        latest("rules001_index_validation_*.md", output_dir=BASE_DIR),
+        latest("freeze001_exit_gate_*.json", output_dir=BASE_DIR),
+        latest("freeze001_exit_gate_*.md", output_dir=BASE_DIR),
+    ]
+    worktree_paths = [
+        BASE_DIR / "git_status_short.txt",
+        BASE_DIR / "git_status_branch.txt",
+        BASE_DIR / "git_recent_log.txt",
+        BASE_DIR / "worktree_diff.patch",
+        BASE_DIR / "worktree_cached_diff.patch",
+        BASE_DIR / "untracked_files.txt",
+    ]
+    reference_paths = [
+        ROOT / "docs/planning/active/README.md",
         ROOT / "docs/reference/governance/workflow/rules001_project_rules_index.md",
         ROOT / "docs/reference/governance/workflow/freeze001_exit_gate.md",
         ROOT / "docs/reference/governance/workflow/next001_next_safe_action_report.md",
@@ -351,41 +439,87 @@ def write_zip() -> None:
     ]
 
     with zipfile.ZipFile(ZIP_PATH, "w", zipfile.ZIP_DEFLATED) as archive:
-        seen: set[Path] = set()
-        for path in include_paths:
+        seen_arcnames: set[str] = set()
+
+        def write_once(path: Path | None, arcname: Path) -> None:
+            if path is None:
+                return
+            resolved = path.resolve()
+            if not resolved.exists():
+                return
+            archive_name = arcname.as_posix()
+            if archive_name in seen_arcnames:
+                return
+            seen_arcnames.add(archive_name)
+            archive.write(resolved, archive_name)
+
+        for path in handover_paths:
+            if path is not None:
+                write_once(path, ZIP_HANDOVER_DIR / path.name)
+
+        for path in report_paths:
+            if path is not None:
+                write_once(path, ZIP_REPORTS_DIR / path.name)
+
+        for path in worktree_paths:
+            if path is not None:
+                write_once(path, ZIP_WORKTREE_DIR / path.name)
+
+        for path in reference_paths:
             if path is None:
                 continue
             resolved = path.resolve()
-            if not resolved.exists() or resolved in seen:
-                continue
-            seen.add(resolved)
-            archive.write(resolved, resolved.relative_to(ROOT).as_posix())
+            if resolved.exists():
+                write_once(resolved, ZIP_REFERENCE_DIR / resolved.relative_to(ROOT))
+
+        if include_repo_snapshot:
+            for path in project_snapshot_paths():
+                resolved = path.resolve()
+                write_once(resolved, ZIP_REPO_SNAPSHOT_DIR / resolved.relative_to(ROOT))
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Create the standard workflow chat handover export.")
+    parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Create a handover for an active dirty worktree and include worktree diagnostics.",
+    )
+    parser.add_argument(
+        "--include-repo-snapshot",
+        action="store_true",
+        help="Include tracked and non-ignored untracked project files under repo_snapshot/ in the handover ZIP.",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
+    args = parse_args()
     print("=== Preflight validation ===")
-    run(["python", "scripts/run_project_state_snapshot.py"])
-    run(["python", "scripts/run_inspect001_repo_db_docs_bundle.py"])
-    run(["python", "scripts/run_handover001_validate_contract.py"])
-    run(["python", "scripts/run_rules001_validate_index.py"])
-    run(["python", "scripts/run_validate001_unified_validation.py", "--profile", "commit"])
-    run(["python", "scripts/run_next001_next_safe_action_report.py"])
+    py = sys.executable
+    run([py, "scripts/run_project_state_snapshot.py", "--write-report", "--output-dir", str(BASE_DIR)])
+    run([py, "scripts/run_inspect001_repo_db_docs_bundle.py", "--output-dir", str(BASE_DIR)])
+    run([py, "scripts/run_handover001_validate_contract.py", "--output-dir", str(BASE_DIR)])
+    run([py, "scripts/run_rules001_validate_index.py", "--output-dir", str(BASE_DIR)])
+    run([py, "scripts/run_validate001_unified_validation.py", "--profile", "commit", "--output-dir", str(BASE_DIR)])
+    run([py, "scripts/run_next001_next_safe_action_report.py", "--output-dir", str(BASE_DIR)])
+    write_worktree_artifacts()
 
-    next_report = read_json(latest("next001_next_safe_action_report_*.json"))
-    validate_report = read_json(latest("validate001_unified_validation_*.json"))
+    next_report = read_json(latest("next001_next_safe_action_report_*.json", output_dir=BASE_DIR))
+    validate_report = read_json(latest("validate001_unified_validation_*.json", output_dir=BASE_DIR))
 
     print("=== Create handover ===")
-    handover = build_handover(next_report, validate_report)
+    handover = build_handover(next_report, validate_report, allow_dirty=args.allow_dirty)
     write_handover_files(handover)
 
     print("=== Refresh NEXT-001 after handover exists ===")
-    run(["python", "scripts/run_next001_next_safe_action_report.py"])
-    next_report = read_json(latest("next001_next_safe_action_report_*.json"))
-    validate_report = read_json(latest("validate001_unified_validation_*.json"))
+    run([py, "scripts/run_next001_next_safe_action_report.py", "--output-dir", str(BASE_DIR), "--handover-json", str(JSON_PATH), "--validation-json", str(latest("validate001_unified_validation_*.json", output_dir=BASE_DIR))])
+    next_report = read_json(latest("next001_next_safe_action_report_*.json", output_dir=BASE_DIR))
+    validate_report = read_json(latest("validate001_unified_validation_*.json", output_dir=BASE_DIR))
 
-    handover = build_handover(next_report, validate_report)
+    handover = build_handover(next_report, validate_report, allow_dirty=args.allow_dirty)
     write_handover_files(handover)
-    write_zip()
+    write_zip(include_repo_snapshot=args.include_repo_snapshot)
 
     print()
     print("# Efficient handover standard workflow")

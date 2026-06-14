@@ -137,7 +137,7 @@ TOOLING_GOVERNANCE_ITEMS: tuple[WorkItemContract, ...] = (
 )
 
 PRODUCT_RETURN_CANDIDATES = [
-    "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review",
+    "PROVIDER-001B Read-only Provider Evidence Discovery",
 ]
 
 HORIZONTAL_FREEZE_PATH_ALLOWED_SCOPE = [

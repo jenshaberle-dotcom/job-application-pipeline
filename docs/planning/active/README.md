@@ -94,3 +94,20 @@ The current strategic order is:
 - Continue using curated output bundles and run-scoped validation outputs as review artifacts only, never as pipeline inputs.
 
 <!-- STRATEGIC-SEQUENCING-GENERICS-FIRST-END -->
+
+<!-- PROVIDER-001-ACTIVE-README-START -->
+
+## PROVIDER-001 Provider Evidence Closure
+
+- `provider001_provider_evidence_closure.md` defines the active provider evidence
+  closure path for the generics-first sequence before APPLY-001 and V1.
+
+<!-- PROVIDER-001-ACTIVE-README-END -->
+
+<!-- MCP-001-ACTIVE-README-START -->
+
+## MCP-001 Engineering Assistance / Governance Tooling
+
+- `mcp001_engineering_assistance_governance_tooling.md` places MCP-001A after Generik and Safe-Apply/Gate stabilization, before the full Product V1 phase, with read-only-first engineering-assistance boundaries.
+
+<!-- MCP-001-ACTIVE-README-END -->
