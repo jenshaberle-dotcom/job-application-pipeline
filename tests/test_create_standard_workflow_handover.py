@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+import zipfile
+
+from scripts import create_standard_workflow_handover as handover_module
 from scripts.create_standard_workflow_handover import (
     MINIMAL_RESTART_PAYLOAD_SCHEMA_VERSION,
     build_minimal_restart_payload,
@@ -22,7 +26,7 @@ def test_build_minimal_restart_payload_is_compact_and_safety_bounded() -> None:
             "NEXT-001A",
         ],
         recommended_next=[
-            "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review",
+            "PROVIDER-001B Read-only Provider Evidence Discovery",
         ],
         next_report={
             "standard_workflow_completion": {
@@ -37,7 +41,7 @@ def test_build_minimal_restart_payload_is_compact_and_safety_bounded() -> None:
             "next_safe_action": {
                 "action": "return_to_product_pipeline_work_with_explicit_work_item",
                 "workstream": "search_intelligence_product_work",
-                "work_item": "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review",
+                "work_item": "PROVIDER-001B Read-only Provider Evidence Discovery",
             },
         },
         validate_report={
@@ -54,8 +58,120 @@ def test_build_minimal_restart_payload_is_compact_and_safety_bounded() -> None:
     assert payload["repo"]["head"] == "abc123 Add example"
     assert payload["validation"]["overall_status"] == "pass"
     assert payload["recommended_next"] == [
-        "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review",
+        "PROVIDER-001B Read-only Provider Evidence Discovery",
     ]
     assert payload["safety_boundary"]["requires_system_impact_analysis_before_patch"] is True
     assert payload["safety_boundary"]["requires_explicit_approval_before_external_or_product_action"] is True
     assert payload["safety_boundary"]["no_database_writes"] is True
+
+
+def test_handover001b_outputs_are_run_scoped() -> None:
+    assert handover_module.JSON_PATH.parent == handover_module.MD_PATH.parent
+    assert handover_module.JSON_PATH.parent == handover_module.ZIP_PATH.parent
+    assert handover_module.JSON_PATH.parent.name.startswith("efficient_handover_standard_workflow_")
+
+
+def test_handover001b_latest_finds_run_scoped_reports(tmp_path: Path, monkeypatch) -> None:
+    older_dir = tmp_path / "validate001_unified_validation_20260613-100000"
+    newer_dir = tmp_path / "validate001_unified_validation_20260613-110000"
+    older_dir.mkdir()
+    newer_dir.mkdir()
+    older = older_dir / "validate001_unified_validation_20260613-100000.json"
+    newer = newer_dir / "validate001_unified_validation_20260613-110000.json"
+    older.write_text("{}", encoding="utf-8")
+    newer.write_text("{}", encoding="utf-8")
+    same_time = 1_700_000_000
+    older.touch()
+    newer.touch()
+    import os
+    os.utime(older, (same_time, same_time))
+    os.utime(newer, (same_time, same_time))
+    monkeypatch.setattr(handover_module, "EXPORTS", tmp_path)
+    assert handover_module.latest("validate001_unified_validation_*.json") == newer
+
+
+def test_handover001b_latest_prefers_selected_run_folder(tmp_path: Path, monkeypatch) -> None:
+    root_latest = tmp_path / "validate001_unified_validation_20991231-999999.json"
+    root_latest.write_text("{}", encoding="utf-8")
+    run_dir = tmp_path / "efficient_handover_standard_workflow_20260614-100000"
+    run_dir.mkdir()
+    current = run_dir / "validate001_unified_validation_20260614-100000.json"
+    current.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(handover_module, "EXPORTS", tmp_path)
+
+    assert handover_module.latest("validate001_unified_validation_*.json", output_dir=run_dir) == current
+
+
+def test_handover001b_build_handover_can_include_dirty_worktree_snapshot() -> None:
+    next_report = {
+        "tooling_governance_status": [
+            {"item_id": item, "required_for_standard_workflow": True, "status": "present_in_head"}
+            for item in handover_module.EXPECTED_ITEMS
+        ],
+        "standard_workflow_completion": {"present_in_head_count": 6, "required_count": 6},
+        "horizontal_freeze_path_bundle_mode": {"available": True},
+        "next_safe_action": {"action": "return_to_product_pipeline_work_with_explicit_work_item"},
+        "product_return_candidates": ["PROVIDER-001B Read-only Provider Evidence Discovery"],
+    }
+    validate_report = {
+        "profile": "commit",
+        "overall_status": "pass",
+        "required_failure_count": 0,
+        "optional_warning_count": 0,
+    }
+
+    def fake_git_state() -> dict[str, object]:
+        return {
+            "branch": "feature/provider001b-readonly-provider-evidence",
+            "head": "abc123 Example",
+            "dirty": True,
+            "status_short": " M docs/planning/active/README.md",
+            "recent_log": ["abc123 Example"],
+        }
+
+    original = handover_module.collect_git_state
+    handover_module.collect_git_state = fake_git_state
+    try:
+        handover = handover_module.build_handover(next_report, validate_report, allow_dirty=True)
+    finally:
+        handover_module.collect_git_state = original
+
+    assert handover["exact_repo_snapshot"] is False
+    assert handover["worktree_snapshot_included"] is True
+    assert handover["minimal_restart_payload"]["worktree_snapshot_included"] is True
+
+
+def test_handover001b_zip_uses_curated_roots_without_exports_prefix(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path
+    base_dir = root / "exports" / "efficient_handover_standard_workflow_20260614-100000"
+    base_dir.mkdir(parents=True)
+
+    planning_readme = root / "docs" / "planning" / "active" / "README.md"
+    planning_readme.parent.mkdir(parents=True)
+    planning_readme.write_text("# Active Planning\\n", encoding="utf-8")
+
+    json_path = base_dir / "efficient_handover_standard_workflow_20260614-100000.json"
+    md_path = base_dir / "efficient_handover_standard_workflow_20260614-100000.md"
+    zip_path = base_dir / "efficient_handover_standard_workflow_20260614-100000.zip"
+    json_path.write_text("{}", encoding="utf-8")
+    md_path.write_text("# Handover\\n", encoding="utf-8")
+
+    monkeypatch.setattr(handover_module, "ROOT", root)
+    monkeypatch.setattr(handover_module, "EXPORTS", root / "exports")
+    monkeypatch.setattr(handover_module, "BASE_DIR", base_dir)
+    monkeypatch.setattr(handover_module, "JSON_PATH", json_path)
+    monkeypatch.setattr(handover_module, "MD_PATH", md_path)
+    monkeypatch.setattr(handover_module, "ZIP_PATH", zip_path)
+    monkeypatch.setattr(handover_module, "project_snapshot_paths", lambda: [planning_readme])
+
+    handover_module.write_zip(include_repo_snapshot=True)
+
+    with zipfile.ZipFile(zip_path) as archive:
+        names = set(archive.namelist())
+
+    assert "handover/efficient_handover_standard_workflow_20260614-100000.json" in names
+    assert "handover/efficient_handover_standard_workflow_20260614-100000.md" in names
+    assert "reference/docs/planning/active/README.md" in names
+    assert "repo_snapshot/docs/planning/active/README.md" in names
+    assert not any(name.startswith("exports/") for name in names)

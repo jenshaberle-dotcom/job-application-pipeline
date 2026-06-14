@@ -152,7 +152,7 @@ def test_next001_recommends_product_return_after_standard_workflow_is_present(tm
     assert report["standard_workflow_completion"]["present_in_head_count"] == 6
     assert report["next_safe_action"]["action"] == "return_to_product_pipeline_work_with_explicit_work_item"
     assert report["next_safe_action"]["workstream"] == "search_intelligence_product_work"
-    assert report["next_safe_action"]["work_item"] == "SENSOR-001E BA Remote/Nationwide Bounded Sample Execution Review"
+    assert report["next_safe_action"]["work_item"] == "PROVIDER-001B Read-only Provider Evidence Discovery"
     assert report["next_safe_action"]["requires_user_decision"] is True
     assert report["horizontal_freeze_path_bundle_mode"]["mode_id"] == "FREEZE-001A"
     assert report["horizontal_freeze_path_bundle_mode"]["available"] is True
