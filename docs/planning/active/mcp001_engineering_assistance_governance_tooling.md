@@ -34,3 +34,17 @@ Target path:
 ## Rationale
 
 MCP-001A does not directly close the Generik proof and must not displace it. It is still worth placing before the full Product V1 phase because it can reduce handover, ZIP, log, repo-state and validation friction in a controlled local/read-only way.
+
+## Repo Truth Guardrails for MCP-001A
+
+MCP-001A must follow `docs/reference/governance/repo_truth_guardrails.md`.
+
+Hard design implications:
+
+- repository state is the only project truth
+- chat and handover artifacts are not truth sources
+- documentation must be repository-backed
+- missing or contradictory evidence must produce `unknown` or `needs_inspection`
+- MCP-001A is read-only first
+- no commits, merges, DB writes, candidate activation, scheduler changes, or pipeline mutation
+- chat switches must be reconstructed from direct repo/DB inspection, not from generated handover artifacts
