@@ -1,3 +1,12 @@
+"""RETIRED: historical artifact only.
+
+This script was removed from active project paths by CONSISTENCY-001B.
+It must not be executed as active pipeline steering and must not be used as
+chat/handover/NEXT-style restart truth.
+
+The original implementation follows below for audit/history only.
+"""
+
 from __future__ import annotations
 
 import argparse

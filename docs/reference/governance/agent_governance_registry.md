@@ -89,7 +89,7 @@ This table is provisional. It intentionally classifies by observed script names,
 | `scripts/run_origin_url_repair_application_agent.py` | repair/recovery | apply-gated | --company-key, --reviewed-by | connector-registration, scheduler, apply | high |
 | `scripts/preview_connector_build_candidate_queue.py` | router/planner | write-risk-needs-review | - | connector-registration, scheduler, read-only-claim | high |
 | `scripts/run_employer_origin_candidate_queue_agent.py` | router/planner | apply-gated | --attempt-repair, --benchmark-label, --company-key, --print-next-command, --print-stage2-command, --reviewed-by, --target-location, --write-report | gate-write, source-activation, scheduler, read-only-claim, apply | high |
-| `scripts/run_employer_origin_next_safe_action_agent.py` | router/planner | write-risk-needs-review | --attempt-repair, --company-key, --reviewed-by, --target-location | gate-write, source-activation | high |
+| `retired next-action steering agent` | retired/historical | not-active | none | none | retired |
 | `scripts/run_employer_origin_registration_execution_plan_agent.py` | router/planner | write-risk-needs-review | --company-key, --reviewed-by | gate-write, source-activation, connector-registration, scheduler | high |
 | `scripts/run_eo002e_gate_stop_next_safe_action_analysis.py` | router/planner | write-risk-needs-review | --benchmark-label, --company-key | gate-write, read-only-claim | high |
 | `scripts/run_employer_origin_gate_stop_audit.py` | stop-audit/planner | write-risk-needs-review | - | gate-write | high |

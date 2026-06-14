@@ -597,7 +597,7 @@ def test_next_safe_action_command_delegates_to_orchestrator_script() -> None:
     assert command == (
         "python",
         "-m",
-        "scripts.run_employer_origin_next_safe_action_agent",
+        "retired_next_action_agent_removed_consistency001b",
         "--company-key",
         "adesso",
         "--target-location",

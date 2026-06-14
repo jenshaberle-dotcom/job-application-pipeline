@@ -257,7 +257,7 @@ def next_safe_action_command(company_key: str, target_location: str, reviewed_by
     return (
         "python",
         "-m",
-        "scripts.run_employer_origin_next_safe_action_agent",
+        "retired_next_action_agent_removed_consistency001b",
         "--company-key",
         company_key,
         "--target-location",

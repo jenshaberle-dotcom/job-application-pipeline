@@ -69,3 +69,25 @@ GOV-001 is not complete until:
 - capability audit priorities are assigned
 - STOP-001 is registered
 - DOC-001 can start from one canonical governance truth
+
+## CONSISTENCY-001B next-action steering retirement
+
+`next safe action` is no longer a chat-continuation, handover, restart, or
+project-steering model. It must not be used to decide the next pipeline work item
+from chat memory, exported reports, generated handovers, stale assistant state,
+or command-shaped continuation output.
+
+If a domain agent still needs a next-action-like value for local reasoning, it is
+limited to MCP-backed or locally inspected decision evidence. Such evidence must
+be produced from current repository/database/test state, must be auditable, and
+must not execute, schedule, or recommend executable child commands.
+
+The following active-control patterns are retired for this project boundary:
+
+- the retired planned-command field
+- the retired child-run hook
+- generated next-work steering
+- chat handover or export-driven restart truth
+
+The Chief Agent may orchestrate agents, but it is never the authority for truth,
+policy, or recovery.

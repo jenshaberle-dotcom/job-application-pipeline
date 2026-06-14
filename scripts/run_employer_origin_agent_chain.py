@@ -378,15 +378,13 @@ def print_artifact_summary(candidate: SourceCandidate) -> None:
         print(f"- {path}: {'present' if path.exists() else 'missing'}")
 
 
-def run_child(decision: ChainDecision) -> int:
-    if not decision.module:
-        return 0
-
+def review_evidence_child_plan(decision: ChainDecision) -> int:
+    """Emit local decision evidence without executing a child runner."""
     command = child_command(decision.module, decision.args)
-    print("running:", " ".join(command))
-    completed = subprocess.run(command, check=False)
-    return int(completed.returncode)
-
+    print("review_evidence_command:", " ".join(command))
+    print("decision_evidence_only: child execution retired by CONSISTENCY-001B")
+    print("execution_boundary: future execution must use MCP policy/capability/audit/rollback controls")
+    return 0
 
 def child_exit_interpretation_lines(exit_code: int) -> list[str]:
     if exit_code == 0:
@@ -438,10 +436,10 @@ def run_agent(args: argparse.Namespace) -> int:
 
     if args.plan_only or decision.module is None:
         if decision.module:
-            print("planned_command:", " ".join(child_command(decision.module, decision.args)))
+            print("review_evidence_command:", " ".join(child_command(decision.module, decision.args)))
         return 0 if not decision.action.startswith("stop_") else 2
 
-    exit_code = run_child(decision)
+    exit_code = review_evidence_child_plan(decision)
     for line in child_exit_interpretation_lines(exit_code):
         print(line)
     return exit_code

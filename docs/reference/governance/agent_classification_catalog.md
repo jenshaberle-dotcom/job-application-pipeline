@@ -179,7 +179,7 @@ These areas should be reviewed before adding more agents.
 
 1. **Next-safe-action routing**
    - `run_employer_origin_candidate_queue_agent.py`
-   - `run_employer_origin_next_safe_action_agent.py`
+   - `retired next-action steering agent`
    - `run_eo002e_gate_stop_next_safe_action_analysis.py`
 
    Governance question: which artifact is the current authoritative router?

@@ -360,7 +360,7 @@ def run_next_safe_for_candidates(
                     [
                         sys.executable,
                         "-m",
-                        "scripts.run_employer_origin_next_safe_action_agent",
+                        "retired_next_action_agent_removed_consistency001b",
                         "--company-key",
                         company_key,
                         "--target-location",
@@ -381,7 +381,7 @@ def run_next_safe_for_candidates(
             command = [
                 sys.executable,
                 "-m",
-                "scripts.run_employer_origin_next_safe_action_agent",
+                "retired_next_action_agent_removed_consistency001b",
                 "--company-key",
                 company_key,
                 "--target-location",
