@@ -1,0 +1,19 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    ".venv",
+    "exports",
+    "runs",
+    ".pytest_cache",
+    "__pycache__",
+    "docs/archive/governance/retired-chat-continuation/legacy_code",
+    "docs/archive/governance/retired-chat-continuation/legacy_tests",
+]
+
+[tool.ruff.lint]
+# Conservative first baseline:
+# - E4/E7/E9: import/syntax/runtime-critical pycodestyle classes
+# - F: Pyflakes correctness checks
+# Do not enable broad style cleanup until the existing pipeline codebase has a reviewed baseline.
+select = ["E4", "E7", "E9", "F"]
