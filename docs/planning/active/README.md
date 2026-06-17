@@ -85,3 +85,4 @@ Current re-entry rule:
 
 Details: `docs/planning/active/reentry001a_mcp_backed_pipeline_reentry_decision.md`
 <!-- REENTRY-001A END -->
+- [ENV-001 / Env-aware controlled runs for external probes](env001_env_aware_controlled_runs.md) — backlog item for safe dotenv-aware controlled provider runs without secret logging or shell-sourcing.
