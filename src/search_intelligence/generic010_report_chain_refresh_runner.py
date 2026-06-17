@@ -68,6 +68,14 @@ def build_dry_run_report(*, include_external_probe: bool = False, generated_at: 
         "work_item": WORK_ITEM,
         "overall_status": "dry_run_only",
         "safety_boundary": safety_boundary(include_external_probe=include_external_probe),
+        "summary": {
+            "step_count": len(chain),
+            "failure_count": None,
+            "skipped_count": None,
+            "dependency_block_count": 0,
+            "include_external_probe": include_external_probe,
+            "keep_going": False,
+        },
         "step_count": len(chain),
         "steps": [_step_to_dict(index, step, skipped=False) for index, step in enumerate(chain, start=1)],
         "next_action": "Run without --dry-run only after confirming this report-only chain order.",
@@ -86,12 +94,35 @@ def run_chain(
     run = runner or _default_runner
     results: list[dict[str, object]] = []
     failed = False
+    dependency_blocked = False
     for index, step in enumerate(chain, start=1):
         name = step[0]
         command = [sys.executable, *step[1:]]
         if failed and not keep_going:
-            results.append(_step_to_dict(index, step, skipped=True))
+            results.append(_step_to_dict(index, step, skipped=True, skip_reason="previous_step_failed"))
             continue
+        if dependency_blocked and not keep_going:
+            results.append(_step_to_dict(index, step, skipped=True, skip_reason="previous_dependency_missing"))
+            continue
+
+        dependency_issue = _dependency_issue_for_step(
+            name,
+            repo_root=repo_root,
+            include_external_probe=include_external_probe,
+        )
+        if dependency_issue is not None:
+            dependency_blocked = True
+            results.append(
+                _step_to_dict(
+                    index,
+                    step,
+                    skipped=True,
+                    skip_reason="missing_dependency",
+                    dependency_issue=dependency_issue,
+                )
+            )
+            continue
+
         completed = run(command, repo_root)
         step_result = _completed_to_dict(index, name, command, completed)
         results.append(step_result)
@@ -99,21 +130,24 @@ def run_chain(
             failed = True
     failure_count = sum(1 for item in results if item.get("exit_code") not in (0, None))
     skipped_count = sum(1 for item in results if item.get("skipped"))
+    dependency_block_count = sum(1 for item in results if item.get("skip_reason") == "missing_dependency")
+    overall_status = _overall_status(failure_count=failure_count, dependency_block_count=dependency_block_count)
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": generated_at or datetime.now(timezone.utc).isoformat(),
         "work_item": WORK_ITEM,
-        "overall_status": "pass" if failure_count == 0 else "fail",
+        "overall_status": overall_status,
         "safety_boundary": safety_boundary(include_external_probe=include_external_probe),
         "summary": {
             "step_count": len(chain),
             "failure_count": failure_count,
             "skipped_count": skipped_count,
+            "dependency_block_count": dependency_block_count,
             "include_external_probe": include_external_probe,
             "keep_going": keep_going,
         },
         "steps": results,
-        "next_action": "Review failing step before rerunning downstream reports." if failure_count else "Report chain refreshed; inspect GENERIC-005/EXPAND-008 for remaining proof gaps.",
+        "next_action": _next_action(failure_count=failure_count, dependency_block_count=dependency_block_count),
     }
 
 
@@ -121,12 +155,21 @@ def _default_runner(command: Sequence[str], cwd: Path) -> subprocess.CompletedPr
     return subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
 
 
-def _step_to_dict(index: int, step: Sequence[str], *, skipped: bool) -> dict[str, object]:
+def _step_to_dict(
+    index: int,
+    step: Sequence[str],
+    *,
+    skipped: bool,
+    skip_reason: str | None = None,
+    dependency_issue: Mapping[str, object] | None = None,
+) -> dict[str, object]:
     return {
         "index": index,
         "name": step[0],
         "command": [sys.executable, *step[1:]],
         "skipped": skipped,
+        "skip_reason": skip_reason,
+        "dependency_issue": dict(dependency_issue or {}),
         "exit_code": None,
         "stdout_tail": "",
         "stderr_tail": "",
@@ -144,10 +187,70 @@ def _completed_to_dict(
         "name": name,
         "command": list(command),
         "skipped": False,
+        "skip_reason": None,
+        "dependency_issue": {},
         "exit_code": completed.returncode,
         "stdout_tail": _tail(completed.stdout),
         "stderr_tail": _tail(completed.stderr),
     }
+
+
+def _dependency_issue_for_step(
+    name: str,
+    *,
+    repo_root: Path,
+    include_external_probe: bool,
+) -> dict[str, object] | None:
+    if name != "expand003_candidate_review_delta_report":
+        return None
+    if include_external_probe:
+        return None
+    if _find_latest_expand002_report(repo_root) is not None:
+        return None
+    return {
+        "dependency_status": "missing",
+        "required_report": "expand002_controlled_external_probe_trial_run",
+        "required_input": "EXPAND-002 controlled external probe trial report",
+        "reason": (
+            "EXPAND-003 requires an EXPAND-002 report, but the external probe step "
+            "is excluded and no existing EXPAND-002 report was found."
+        ),
+        "safe_next_action": (
+            "Decide whether to run the bounded external probe explicitly or keep the "
+            "EXPAND path blocked; do not auto-enable external requests."
+        ),
+    }
+
+
+def _find_latest_expand002_report(repo_root: Path) -> Path | None:
+    exports_dir = repo_root / "exports"
+    candidates = list(
+        exports_dir.glob(
+            "expand002_controlled_external_probe_trial_run_*/expand002_controlled_external_probe_trial_run.json"
+        )
+    )
+    default = exports_dir / "expand002_controlled_external_probe_trial_run" / "expand002_controlled_external_probe_trial_run.json"
+    if default.exists():
+        candidates.append(default)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def _overall_status(*, failure_count: int, dependency_block_count: int) -> str:
+    if failure_count:
+        return "fail"
+    if dependency_block_count:
+        return "blocked_missing_dependency"
+    return "pass"
+
+
+def _next_action(*, failure_count: int, dependency_block_count: int) -> str:
+    if failure_count:
+        return "Review failing step before rerunning downstream reports."
+    if dependency_block_count:
+        return "Review missing report dependency before rerunning downstream reports."
+    return "Report chain refreshed; inspect GENERIC-005/EXPAND-008 for remaining proof gaps."
 
 
 def _tail(value: str, *, max_chars: int = 4000) -> str:
@@ -171,6 +274,7 @@ def render_markdown(report: Mapping[str, object]) -> str:
         f"- Steps: `{summary.get('step_count', report.get('step_count'))}`",
         f"- Failures: `{summary.get('failure_count')}`",
         f"- Skipped: `{summary.get('skipped_count')}`",
+        f"- Dependency blocks: `{summary.get('dependency_block_count')}`",
         f"- Include external probe: `{summary.get('include_external_probe')}`",
         "",
         "## Steps",
@@ -178,7 +282,12 @@ def render_markdown(report: Mapping[str, object]) -> str:
     ]
     for step in report.get("steps", []):
         if isinstance(step, Mapping):
-            lines.append(f"- `{step.get('index')}` `{step.get('name')}` exit=`{step.get('exit_code')}` skipped=`{step.get('skipped')}`")
+            dependency_issue = step.get("dependency_issue") if isinstance(step.get("dependency_issue"), Mapping) else {}
+            dependency_reason = f" dependency=`{dependency_issue.get('required_report')}`" if dependency_issue else ""
+            lines.append(
+                f"- `{step.get('index')}` `{step.get('name')}` exit=`{step.get('exit_code')}` "
+                f"skipped=`{step.get('skipped')}` reason=`{step.get('skip_reason')}`{dependency_reason}"
+            )
     lines.extend(["", "## Next action", "", str(report.get("next_action")), ""])
     return "\n".join(lines)
 
