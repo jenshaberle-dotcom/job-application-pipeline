@@ -25,3 +25,15 @@ Reference surfaces:
 - `../reference/governance/agent_capability_audit_matrix.md`
 - `../reference/governance/documentation_drift_baseline.md`
 - `../decisions/adr_status_table.md`
+
+<!-- REENTRY-001A START -->
+## MCP-backed re-entry guardrail
+
+After an external MCP freeze, product-pipeline work may resume only through a
+repository-backed re-entry decision. REENTRY-001A defines the current gate:
+read-only MCP evidence may support planning, but it does not authorize mutation,
+DB writes, scheduler changes, provider calls, apply, commit, PR or merge.
+
+The first allowed product direction after the gate is the bounded GENERIC/EXPAND
+stop-control and generic-evidence blocker.
+<!-- REENTRY-001A END -->
