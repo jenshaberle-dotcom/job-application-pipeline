@@ -61,3 +61,27 @@ Provider, GENERIC, EXPAND, APPLY, UI, MATCH, GOLD, DOCGEN and V1 product work is
 ## Superseded planning
 
 Previous active planning that placed PROVIDER-001B/C, Generik, Safe-Apply, V1 or the old freeze path before MCP-001 is superseded for active steering. It may remain only as historical context in archived documents, not as current project direction.
+
+<!-- REENTRY-001A START -->
+## REENTRY-001A MCP-backed pipeline re-entry
+
+Status: current re-entry gate
+
+The external MCP control-plane has demonstrated bounded read-only inspection
+against this repository. Product-pipeline planning may resume only through the
+repo-backed REENTRY-001A decision and its constraints.
+
+Current re-entry rule:
+
+1. repository and MCP-backed state override chat, retired NEXT artifacts,
+   exports and assistant memory;
+2. first valid product candidate is the GENERIC/EXPAND stop-control and
+   generic-evidence blocker;
+3. DB writes, scheduler changes, provider calls, candidate/source/gate/connector
+   mutation and apply-capable work remain out of scope until a separate gate
+   explicitly authorizes them;
+4. the full-ZIP bridge remains only a temporary fallback until MCP maturity is
+   repeatedly demonstrated.
+
+Details: `docs/planning/active/reentry001a_mcp_backed_pipeline_reentry_decision.md`
+<!-- REENTRY-001A END -->
