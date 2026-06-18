@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import psycopg
-import pytest
 
 from scripts.review_employer_origin_activation_readiness import (
     ActiveProfile,

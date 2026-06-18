@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 import html
 import re
 import unicodedata
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 from urllib.parse import urlparse
 
 from src.search_intelligence.origin_source_discovery import is_known_aggregator_domain

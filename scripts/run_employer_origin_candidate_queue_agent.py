@@ -22,6 +22,9 @@ from scripts.run_employer_origin_agent_chain import (
     next_decision,
 )
 
+# Public compatibility re-export used by tests and operator scripts.
+__all__ = ["CONNECTOR_CANDIDATE_GATE"]
+
 
 SOURCE_LIFECYCLE_GATE = "source_lifecycle_tracking"
 

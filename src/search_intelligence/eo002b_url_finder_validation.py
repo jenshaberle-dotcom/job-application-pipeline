@@ -11,7 +11,7 @@ candidate-promotion threshold.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from typing import Any, Mapping
+from typing import Mapping
 
 SUCCESS_TIER_A = "A"
 SUCCESS_TIER_B = "B"

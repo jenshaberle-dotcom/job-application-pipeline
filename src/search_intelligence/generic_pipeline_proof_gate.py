@@ -613,7 +613,6 @@ def _is_provider_url(url: str) -> bool:
 
 
 def _is_career_origin_url(url: str) -> bool:
-    lowered = url.lower()
     parsed = urlparse(url)
     host = parsed.netloc.lower()
     path = parsed.path.lower()

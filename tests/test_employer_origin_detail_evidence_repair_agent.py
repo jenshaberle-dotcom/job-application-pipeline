@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from scripts.run_employer_origin_detail_evidence_repair_agent import (
     DetailEvidence,
-    LinkCandidate,
     RepairOutcome,
     SourceCandidate,
     StructuredSearchResult,

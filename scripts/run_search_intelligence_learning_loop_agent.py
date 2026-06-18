@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 from dataclasses import asdict
-from decimal import Decimal
 from typing import Any
 
 import psycopg

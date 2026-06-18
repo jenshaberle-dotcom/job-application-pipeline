@@ -8,7 +8,6 @@ from src.search_intelligence.generic008_stop_control_evidence_registry import (
     build_stop_control_evidence_review_plan,
     fetch_accepted_stop_control_evidence_rows,
     render_plan_markdown,
-    stop_control_registry_boundary,
 )
 
 

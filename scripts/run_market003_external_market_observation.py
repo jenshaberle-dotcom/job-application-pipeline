@@ -24,7 +24,6 @@ from src.search_intelligence.market003_external_market_observations import (
     ManualMarketObservationInput,
     build_manual_market_observation_plan,
     build_manual_market_observation_review,
-    market003_safety_boundary,
     render_market003_markdown,
 )
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 import json
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Iterable, Mapping
 
 SUCCESS_TIERS = ("A", "B", "C", "D")
 

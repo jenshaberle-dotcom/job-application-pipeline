@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 
 from src.search_intelligence.market_sensor_funnel import ConnectorCandidate, MarketSensorItem
 from src.search_intelligence.quality001_search_intelligence_quality import (
