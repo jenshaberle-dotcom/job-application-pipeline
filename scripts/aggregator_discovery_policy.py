@@ -8,6 +8,7 @@ employer-origin lifecycle/queue instead.
 
 from __future__ import annotations
 
+from typing import Any
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
