@@ -444,7 +444,7 @@ class ApprovalWorkspaceHandler(BaseHTTPRequestHandler):
             self.workspace_state.flash_message = f"Action blocked: {decision.reason}"
         else:
             result = run_approved_command(decision.action_plan.command)
-            self.workspace_state.flash_message = f"Action executed. {result}"
+            self.workspace_state.flash_message = f"Action reviewed. {result}"
 
         self.send_response(303)
         self.send_header("Location", "/")
@@ -498,3 +498,30 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+def find_queue_item(queue_items, company_key):
+    """Return the queue item for company_key without mutating workspace state."""
+    for item in queue_items:
+        if isinstance(item, dict):
+            item_company_key = item.get("company_key")
+        else:
+            item_company_key = getattr(item, "company_key", None)
+
+        if item_company_key == company_key:
+            return item
+
+    return None
+
+
+def run_approved_command(command: str) -> str:
+    """Fail closed for command execution from the local approval workspace.
+
+    The approval workspace may render an approved command for operator review,
+    but executing commands from this UI is a separate capability decision. This
+    helper removes the undefined-name failure without adding hidden mutation
+    authority.
+    """
+    return (
+        "Command execution is disabled by policy in this workspace; "
+        f"review and run manually if still appropriate: {command}"
+    )
