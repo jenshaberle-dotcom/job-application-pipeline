@@ -20,7 +20,6 @@ from scripts.run_employer_origin_gate_agent import (
     FetchResult,
     GateOutcome,
     count_term_hits,
-    extract_title,
     fetch_candidate_page,
     parse_same_domain_job_links,
 )

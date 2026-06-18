@@ -6,11 +6,16 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from src.search_intelligence.generic_pipeline_proof_gate import (
-    build_generic_pipeline_proof_report,
     find_latest_expand003_report,
     load_expand003_report,
+    build_generic_pipeline_proof_report,
     write_outputs as write_generic001_outputs,
 )
+
+__all__ = [
+    "find_latest_expand003_report",
+    "load_expand003_report",
+]
 
 SCHEMA_VERSION = "generic003.benchmark_control_rerun_review.v1"
 WORK_ITEM = "GENERIC-003 Benchmark Control Rerun Review"

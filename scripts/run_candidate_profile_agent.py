@@ -189,7 +189,7 @@ def run(args: argparse.Namespace) -> int:
                 profile, skills = loaded
 
         print_summary(profile, skills, write_mode=True)
-        print(f"candidate_profile_upsert_count: 1")
+        print("candidate_profile_upsert_count: 1")
         print(f"candidate_skill_upsert_count: {skill_count}")
         print("boundary: no search-profile mutation, no source activation, no Bronze write, no scheduler change")
         return 0

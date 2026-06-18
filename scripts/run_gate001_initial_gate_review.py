@@ -5,7 +5,6 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Sequence
-from urllib.parse import urlparse
 
 import psycopg
 import requests
@@ -14,7 +13,6 @@ from src.config import get_database_config
 from src.search_intelligence.gate001_initial_gate_review import (
     CandidateInitialGatePlan,
     CandidateSnapshot,
-    InitialGateEvaluation,
     ProbeResult,
     build_initial_gate_plan,
     report_payload,

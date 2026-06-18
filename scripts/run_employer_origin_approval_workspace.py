@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse

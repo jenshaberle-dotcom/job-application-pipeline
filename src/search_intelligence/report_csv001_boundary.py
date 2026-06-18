@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import json
-import re
-from typing import Iterable, Mapping, Sequence
+from typing import Mapping, Sequence
 
 SCHEMA_VERSION = "report_csv001.boundary_check.v1"
 WORK_ITEM = "REPORT-CSV-001 Export Boundary Hardening"
@@ -149,7 +148,6 @@ def _scan_file(repo_root: Path, path: Path) -> list[CsvReference]:
         if ".csv" not in line and not any(pattern in line for pattern in (*CSV_READ_PATTERNS, *CSV_WRITE_PATTERNS)):
             continue
         stripped = line.strip()
-        lower = stripped.lower()
         export_ref = _line_references_export_csv(stripped)
         marker_present = REVIEW_OUTPUT_MARKER in stripped
         if any(pattern in stripped for pattern in CSV_READ_PATTERNS):

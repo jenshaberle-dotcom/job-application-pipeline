@@ -11,7 +11,6 @@ from psycopg.rows import dict_row
 
 from src.config import get_database_config
 from src.search_intelligence.origin_seed_pool import (
-    SEED_POOL_BOUNDARY,
     ObservationSeed,
     classify_seed_row,
     deduplicate_seeds,

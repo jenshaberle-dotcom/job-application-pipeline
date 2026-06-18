@@ -873,7 +873,6 @@ def build_control_center_view_model(
     if not build_approval_count:
         build_approval_count = sum(1 for item in candidates if needs_build_approval(item))
 
-    registration_approval_count = sum(1 for item in candidates if needs_registration_approval(item))
 
     critical_count = int(_value(market_summary, "critical_fn_pressure_candidate_count", 0) or 0)
     if not critical_count:

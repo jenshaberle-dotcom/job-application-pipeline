@@ -14,7 +14,6 @@ import argparse
 import json
 import os
 import re
-import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone

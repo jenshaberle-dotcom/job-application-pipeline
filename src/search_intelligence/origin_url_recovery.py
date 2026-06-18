@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Sequence
 from urllib.parse import urlparse
 
 from src.search_intelligence.origin_url_policy import has_disallowed_source_url_shape

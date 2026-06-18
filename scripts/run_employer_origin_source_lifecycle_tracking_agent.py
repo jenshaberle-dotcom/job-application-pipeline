@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
-from src.search_intelligence.employer_origin_gate_registry import gate_order
 from psycopg.rows import dict_row
 
 

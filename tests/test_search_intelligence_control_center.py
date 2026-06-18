@@ -6,7 +6,6 @@ from scripts.search_intelligence_control_center import (
     ControlCenterActionRun,
     BUILD_APPROVAL_TOKEN,
     EVIDENCE_REPAIR_TOKEN,
-    NEXT_SAFE_ACTION_TOKEN,
     REGISTRATION_APPROVAL_TOKEN,
     ControlCenterCandidate,
     OrchestratorAttentionStep,

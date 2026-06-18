@@ -337,7 +337,7 @@ def run_agent(args: argparse.Namespace) -> int:
 
     if batch_id is not None:
         print("---")
-        print(f"snapshot_written: true")
+        print("snapshot_written: true")
         print(f"aggregator_discovery_suppression_batch_id: {batch_id}")
     else:
         print("---")

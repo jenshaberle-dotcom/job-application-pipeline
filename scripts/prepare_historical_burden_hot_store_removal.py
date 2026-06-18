@@ -19,7 +19,7 @@ import argparse
 import hashlib
 import json
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal

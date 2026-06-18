@@ -161,7 +161,6 @@ def promote_observed_pattern(pattern: ObservedPattern, *, min_signal_evidence: i
         value = normalized if normalized.startswith("/") else raw_value
         if value in SAFE_URL_PATH_PATTERNS:
             detail_patterns = {"/job/...", "/stellen/...", "/vacancy/..."}
-            listing_patterns = {"/jobs/...", "/search/...", "/career/..."}
             is_detail_pattern = value in detail_patterns
             return PromotionDecision(
                 pattern_type=pattern_type,

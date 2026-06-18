@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
-from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_connector_build_readiness_agent import (
     GateReview,

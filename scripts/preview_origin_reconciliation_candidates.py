@@ -402,7 +402,7 @@ def print_details(jobs: list[KnownJob]) -> None:
         print(f"  publication_date:      {job.publication_date or '-'}")
         print(f"  title_signals:         {', '.join(find_title_signals(job.title, job.normalized_title)) or '-'}")
         print(f"  reconciliation_intent: {reconciliation_intent(job.source_name, source_count)}")
-        print(f"  evidence_status:       pending_manual_origin_check")
+        print("  evidence_status:       pending_manual_origin_check")
         print(f"  reason_hint:           {reason_hint(job.source_name, source_count)}")
         print(f"  source_url:            {job.source_url or '-'}")
         print(f"  canonical_key:         {job.canonical_key_candidate or '-'}")

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import json
 import subprocess
 import sys
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 SCHEMA_VERSION = "generic010.report_chain_refresh_runner.v1"
 WORK_ITEM = "GENERIC-010 Market to EXPAND to GENERIC Report Chain Refresh Runner"

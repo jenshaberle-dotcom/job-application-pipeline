@@ -18,6 +18,11 @@ from src.search_intelligence.generic009b_positive_proof_evidence import (
     positive_control_keys_from_rows,
 )
 
+__all__ = [
+    "find_latest_expand003_report",
+    "load_expand003_report",
+]
+
 SCHEMA_VERSION = "generic005.stop_control_final_rerun.v2"
 WORK_ITEM = "GENERIC-005 Stop-Control Evidence / GENERIC-001 Final Rerun"
 GENERIC003_SCHEMA_PREFIX = "generic003.benchmark_control_rerun_review"
