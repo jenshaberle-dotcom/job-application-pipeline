@@ -1,88 +1,62 @@
 # Active Planning
 
-Status: Current Truth
-Last updated for: CONSISTENCY-001A v8 and external MCP-001 Freeze
+Status: current planning truth
+Last rebaseline: BACKLOG-REFINE-001 on 2026-07-29
 
-## Current active sequence
+## Current steering rule
 
-Project work is currently in containment mode.
+The repository has exited the old CONSISTENCY/MCP containment pause through
+REENTRY-001A. Product work may proceed, but only from current repository and
+DB/runtime evidence and only through explicit item-level side-effect gates.
 
-The active priority is:
+The active control surfaces are:
 
-1. CONSISTENCY-001A Active Truth Containment in this repository.
-2. Repo-Truth Guardrails in this repository.
-3. Removal of active Retired restart/NEXT steering from current planning.
-4. Full-repository ZIP review as a temporary bridge until MCP maturity.
-5. External MCP-001 Freeze as priority 1 for sustainable throughput recovery.
-6. MCP-backed consistency re-check.
-7. Retirement of the full-ZIP bridge only after MCP maturity is demonstrated.
-8. After CONSISTENCY-001A closes, dedicate project capacity to the external MCP project until it can replace the temporary full-ZIP bridge.
-9. Resume product-pipeline work only from repo/DB/MCP-backed state.
+1. `backlog_refinement.md` — operator-readable contradiction and work-item view.
+2. `backlog_catalog.json` — machine-readable DON-style work-item truth.
+3. `roadmap.md` — short sequencing view.
+4. `reentry001a_mcp_backed_pipeline_reentry_decision.md` — re-entry boundary.
+5. `canonical_target_profile.md` — operator-approved profile hierarchy.
 
-## MCP-001 Freeze scope
+## Current sequence
 
-MCP-001 is now the priority-1 throughput recovery campaign. It supersedes the previous active freeze campaign for steering purposes.
+1. `DOC-011` rebaseline active steering and remove containment-era ambiguity.
+2. `SI-021` recompute the GENERIC/EXPAND evidence chain from current repo/DB truth.
+3. `SI-022` run PROVIDER-001C only when the fresh evidence still requires it.
+4. `SI-023` obtain a current GENERIC pass or a finite named blocker set.
+5. `SI-025`/`SI-026` design and execute only a tiny operator-approved candidate apply.
+6. `SI-027` prove outcome and rollback.
+7. `CC-011` begin the usable V1 Top-5/job-review path.
 
-The MCP agent core is not implemented inside this repository. This repository remains the first target project and integration consumer.
+## Canonical target profile
 
-Future integration in this repository is limited to:
+- Foundation: Machine Learning Engineer.
+- Technical focus: Data Engineering and data-centric ML systems.
+- Future direction: AI Reliability / Data & AI Reliability Engineering.
+- GenAI is a cross-cutting engineering competency, not a separate target profile.
 
-- project profile / adapter configuration
-- allowed validation definitions
-- DB read-only inspection contracts
-- rollback scope declarations
-- governance references
-- evidence-packet contracts
+## Truth rules
 
-The agent core, policy engine, capability registry, decision flight, audit ledger, rollback manager, confidence loop, cost control, tool integrity checks, red-team evals and GUI control plane belong in a separate MCP / Engineering Agent Control Plane project.
+- Repository code, tests and migrations are implementation truth.
+- DB/runtime evidence is required for live-state claims.
+- Current docs and this backlog steer planning only after contradictions are resolved.
+- Merged PRs prove implementation, not current runtime health.
+- Reference and archive artifacts may supply ideas; they do not steer directly.
+- Exports, retired NEXT/restart artifacts, chat and assistant memory are not project truth.
+- Missing evidence yields `needs_inspection` or a blocked item, never a guessed continuation.
 
-## Current truth rules
+## Parked and conditional tracks
 
-- The repository is the only project truth.
-- Chat retired restarts remain abolished as a steering mechanism.
-- Retired restart artifacts, NEXT reports, exports, assistant memory and chat summaries are not project truth.
-- Full-repository ZIP review is a temporary bridge, not a permanent operating model.
-- The full-ZIP bridge is retired only after MCP can reliably provide repo/DB-backed state inspection, validation reliability, fallback/unknown handling, consistency checks, auditability and enough successful confidence-scored iteration flights.
-- Exports remain review outputs only and must not become pipeline input, gate input, activation prerequisite, or source of truth.
-- MCP must be local-first and cost-controlled: repo, git, DB read-only, validation, policy, audit, rollback, confidence and reports run locally; LLM calls receive only compact evidence packets.
+The following remain visible but are not immediate steering:
 
-## Active anchors
+- V1 application intelligence and LLM features.
+- FREEZE-002 and REFACTOR-001.
+- Cloud, outbox, Kafka and Spark.
+- CV update automation.
+- Provider calls, scheduler changes and all mutating paths without their explicit gates.
 
-- `consistency001_project_consistency_and_state_truth_audit.md`
-- `repo_truth_guardrails.md`
-- `mcp001_external_engineering_agent_control_plane.md`
-- `mcp001_external_integration_contract.md`
-- `rules001_project_rules_index.md`
+## Historical containment note
 
-## Product-pipeline pause
-
-Provider, GENERIC, EXPAND, APPLY, UI, MATCH, GOLD, DOCGEN and V1 product work is paused. After CONSISTENCY-001A closes, the next active work is the external MCP project until MCP can take over repo-state continuation from the temporary full-ZIP bridge. Product-pipeline work resumes only from repo/DB/MCP-backed state or an explicit repo-backed re-entry decision.
-
-## Superseded planning
-
-Previous active planning that placed PROVIDER-001B/C, Generik, Safe-Apply, V1 or the old freeze path before MCP-001 is superseded for active steering. It may remain only as historical context in archived documents, not as current project direction.
-
-<!-- REENTRY-001A START -->
-## REENTRY-001A MCP-backed pipeline re-entry
-
-Status: current re-entry gate
-
-The external MCP control-plane has demonstrated bounded read-only inspection
-against this repository. Product-pipeline planning may resume only through the
-repo-backed REENTRY-001A decision and its constraints.
-
-Current re-entry rule:
-
-1. repository and MCP-backed state override chat, retired NEXT artifacts,
-   exports and assistant memory;
-2. first valid product candidate is the GENERIC/EXPAND stop-control and
-   generic-evidence blocker;
-3. DB writes, scheduler changes, provider calls, candidate/source/gate/connector
-   mutation and apply-capable work remain out of scope until a separate gate
-   explicitly authorizes them;
-4. the full-ZIP bridge remains only a temporary fallback until MCP maturity is
-   repeatedly demonstrated.
-
-Details: `docs/planning/active/reentry001a_mcp_backed_pipeline_reentry_decision.md`
-<!-- REENTRY-001A END -->
-- [ENV-001 / Env-aware controlled runs for external probes](env001_env_aware_controlled_runs.md) — backlog item for safe dotenv-aware controlled provider runs without secret logging or shell-sourcing.
+CONSISTENCY-001A, the external MCP freeze and the full-ZIP bridge remain useful
+lessons and evidence. They are no longer the active sequence. The external MCP/DON
+project remains an engineering control plane and target-work enabler, not an
+implementation core inside this repository.

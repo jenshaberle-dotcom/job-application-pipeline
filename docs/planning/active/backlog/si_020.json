@@ -1,0 +1,56 @@
+{
+  "schema_version": "pipeline.backlog_capability.v1",
+  "target_id": "job-application-pipeline",
+  "capability": {
+    "id": "SI-020",
+    "title": "Generic Evidence Closure",
+    "status": "ready_after_truth_rebaseline",
+    "priority": "P0",
+    "risk_zone": "R0",
+    "outcome": "Generic origin/detail/stop-control evidence is recomputed from current repo and DB truth and yields a defensible go/no-go decision.",
+    "dependencies": [],
+    "evidence_paths": ["docs/planning/generic_pipeline_proof_gate.md", "docs/planning/active/reentry001a_mcp_backed_pipeline_reentry_decision.md"],
+    "boundaries": ["read_only_first", "exports_are_review_only", "no_candidate_or_gate_mutation_without_separate_apply_gate"],
+    "acceptance_criteria": ["Current evidence replaces June snapshots.", "All remaining generic gaps have explicit evidence owners."],
+    "validation": ["Full report chain passes or blocks with named missing dependency."],
+    "operator_decisions": []
+  },
+  "stories": [
+    {
+      "id": "SI-021", "title": "Fresh GENERIC/EXPAND Evidence Recompute", "status": "ready", "priority": "P0", "risk_zone": "R1",
+      "outcome": "Current repo/DB evidence replaces dated exports and identifies the exact blocker.",
+      "dependencies": ["DOC-011"],
+      "evidence_paths": ["src/search_intelligence/generic010_report_chain_refresh_runner.py", "docs/planning/expand008_freeze_path_blocker_snapshot.md"],
+      "boundaries": ["read_only", "require_db_where_claims_depend_on_db", "exports_review_only"],
+      "acceptance_criteria": ["Fresh timestamped reports exist.", "Missing dependency returns blocked, not guessed continuation.", "No June snapshot is treated as current."],
+      "validation": ["Full report chain, CI, targeted tests."], "operator_decisions": [], "parent_capability": "SI-020"
+    },
+    {
+      "id": "SI-022", "title": "PROVIDER-001C Coverage Decision Bundle", "status": "conditional_ready", "priority": "P0", "risk_zone": "R1",
+      "outcome": "Provider-backed origin coverage is accepted, rejected or narrowed with DB-backed evidence.",
+      "dependencies": ["SI-021"],
+      "evidence_paths": ["docs/planning/active/provider001_provider_evidence_closure.md", "scripts/run_provider001b_provider_evidence_discovery.py"],
+      "boundaries": ["read_only", "include_db_and_require_db", "no_provider_call_by_default"],
+      "acceptance_criteria": ["Decision names covered providers and remaining gaps.", "Generic proof receives a decision, not raw report volume."],
+      "validation": ["Provider report tests and DB read-only audit."], "operator_decisions": [], "parent_capability": "SI-020"
+    },
+    {
+      "id": "SI-023", "title": "GENERIC Final Recheck", "status": "blocked", "priority": "P0", "risk_zone": "R1",
+      "outcome": "The proof matrix returns passed or a finite named gap set from current evidence.",
+      "dependencies": ["SI-021", "SI-022"],
+      "evidence_paths": ["docs/planning/generic_pipeline_proof_gate.md", "docs/planning/generic005_stop_control_final_rerun.md"],
+      "boundaries": ["review_only", "no_candidate_creation"],
+      "acceptance_criteria": ["Positive, negative/no-actionable and provider-backed cases are evidenced.", "No placeholder evidence closes a gap."],
+      "validation": ["GENERIC targeted tests and full report-chain run."], "operator_decisions": [], "parent_capability": "SI-020"
+    },
+    {
+      "id": "SI-024", "title": "Stop-Control Repair Strategy Coverage", "status": "ready", "priority": "P1", "risk_zone": "R1",
+      "outcome": "All active stop categories route to a bounded repair, review or accepted terminal outcome.",
+      "dependencies": ["SI-021"],
+      "evidence_paths": ["docs/reference/search-intelligence/stop_taxonomy_and_repair_registry.md", "docs/reference/governance/agent_capability_gap_register.md"],
+      "boundaries": ["do_not_weaken_gates", "absence_of_evidence_not_evidence_of_absence"],
+      "acceptance_criteria": ["Repair strategy registry covers active stop taxonomy.", "Unknown stop types fail closed with operator review."],
+      "validation": ["Stop taxonomy and representative repair tests."], "operator_decisions": [], "parent_capability": "SI-020"
+    }
+  ]
+}
