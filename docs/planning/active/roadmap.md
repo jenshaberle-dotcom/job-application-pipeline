@@ -30,8 +30,14 @@ and acceptance criteria live in `backlog_catalog.json`.
 ## Parallel low-risk lanes
 
 Planning-status and governance reconciliation, E402 cleanup, CSV marker cleanup,
-CI/main observability, read-only scheduler audit, profile decision preparation and
-defect-taxonomy design may proceed without changing the critical path.
+CI/main observability, read-only scheduler audit, target-profile contract alignment
+and defect-taxonomy design may proceed without changing the critical path.
+
+## Canonical target profile
+
+Machine Learning Engineer is the foundation, with a Data Engineering/data-centric
+ML focus and a future direction toward AI Reliability. GenAI is treated as a
+cross-cutting engineering competency rather than a standalone role profile.
 
 ## Explicitly not current
 
