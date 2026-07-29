@@ -59,10 +59,6 @@ jobs:
               value = int(payload[key])
               if not minimum <= value <= maximum:
                   raise SystemExit(f"{key} outside private runtime envelope")
-          if int(payload["max_candidates"]) * int(payload["search_query_limit"]) > int(
-              payload["max_provider_requests"]
-          ):
-              raise SystemExit("candidate/query request plan exceeds provider ceiling")
           PY
 
   run-benchmark:
