@@ -1,0 +1,47 @@
+{
+  "schema_version": "pipeline.backlog_capability.v1",
+  "target_id": "job-application-pipeline",
+  "capability": {
+    "id": "SI-030",
+    "title": "Controlled Candidate Creation",
+    "status": "blocked",
+    "priority": "P1",
+    "risk_zone": "R0",
+    "outcome": "A tiny, exact candidate cohort can be created through dry-run, explicit approval, audited apply and rollback proof.",
+    "dependencies": ["SI-020"],
+    "evidence_paths": ["docs/planning/expand004_controlled_candidate_creation_dry_run.md", "docs/planning/expand007_controlled_candidate_creation_apply_gate_readiness.md"],
+    "boundaries": ["exact_candidate_keys", "dry_run_before_apply", "operator_approval", "no_broad_wave_or_scheduler_side_effect"],
+    "acceptance_criteria": ["Apply is impossible without current generic proof.", "Affected objects and rollback evidence are visible."],
+    "validation": ["Targeted tests, full pytest, Ruff and DB audit evidence."],
+    "operator_decisions": []
+  },
+  "stories": [
+    {
+      "id": "SI-025", "title": "Candidate Apply-Gate Design", "status": "blocked", "priority": "P1", "risk_zone": "R2",
+      "outcome": "Exact candidate writes are specified with preview, approval, idempotency and rollback before code writes.",
+      "dependencies": ["SI-023"],
+      "evidence_paths": ["docs/planning/expand007_controlled_candidate_creation_apply_gate_readiness.md"],
+      "boundaries": ["no_write_in_design_slice", "exact_candidate_scope"],
+      "acceptance_criteria": ["Affected tables/rows and audit events are named.", "Approval token and rollback semantics are specified."],
+      "validation": ["Design review and contract tests."], "operator_decisions": [], "parent_capability": "SI-030"
+    },
+    {
+      "id": "SI-026", "title": "Controlled Candidate Apply Implementation", "status": "blocked", "priority": "P1", "risk_zone": "R3",
+      "outcome": "A tiny approved cohort is created once, idempotently, with audit evidence.",
+      "dependencies": ["SI-025"],
+      "evidence_paths": ["src/search_intelligence/expand004_controlled_candidate_creation_dry_run.py", "scripts/run_market_sensor_candidate_promotion_batch.py"],
+      "boundaries": ["explicit_apply", "operator_approval", "no_gate_auto_pass", "no_scheduler_change"],
+      "acceptance_criteria": ["Dry-run/apply parity.", "Duplicate/normalization checks.", "Zero writes without approval.", "Rollback tested."],
+      "validation": ["Targeted DB integration tests, full pytest, Ruff, CI."], "operator_decisions": [], "parent_capability": "SI-030"
+    },
+    {
+      "id": "SI-027", "title": "Candidate Apply Outcome and Rollback Proof", "status": "blocked", "priority": "P1", "risk_zone": "R2",
+      "outcome": "Post-apply state, downstream routing and rollback are independently reviewable.",
+      "dependencies": ["SI-026"],
+      "evidence_paths": ["docs/current/pipeline.md", "db migration/audit surfaces"],
+      "boundaries": ["no_hidden_follow_on_activation"],
+      "acceptance_criteria": ["Created candidates have correct lifecycle state and provenance.", "Rollback restores prior state without orphaned audit records."],
+      "validation": ["DB audit report and rollback rehearsal."], "operator_decisions": [], "parent_capability": "SI-030"
+    }
+  ]
+}
