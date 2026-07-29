@@ -1,0 +1,192 @@
+name: Reusable origin provider benchmark
+
+on:
+  workflow_call:
+    inputs:
+      pipeline_ref:
+        description: Exact committed pipeline SHA selected by the local dispatcher.
+        required: true
+        type: string
+      expected_fingerprint:
+        description: SHA-256 of the bounded DB projection at dispatch time.
+        required: true
+        type: string
+      max_candidates:
+        required: false
+        type: number
+        default: 6
+      search_query_limit:
+        required: false
+        type: number
+        default: 2
+      search_max_results:
+        required: false
+        type: number
+        default: 5
+      max_provider_requests:
+        required: false
+        type: number
+        default: 12
+      target_location:
+        required: false
+        type: string
+        default: Hannover
+      tailscale_tags:
+        required: false
+        type: string
+        default: tag:github-origin-benchmark
+      max_url_candidates:
+        required: false
+        type: number
+        default: 20
+      market_evidence_limit:
+        required: false
+        type: number
+        default: 10
+      no_probe:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      ts_oauth_client_id:
+        required: true
+      ts_audience:
+        required: true
+      tavily_api_key:
+        required: true
+      postgres_host:
+        required: true
+      postgres_port:
+        required: true
+      postgres_db:
+        required: true
+      postgres_user:
+        required: true
+      postgres_password:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: origin-provider-benchmark-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: Fingerprint-bound Tavily origin benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out exact pipeline revision
+        uses: actions/checkout@v4
+        with:
+          repository: jenshaberle-dotcom/job-application-pipeline
+          ref: ${{ inputs.pipeline_ref }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip check
+
+      - name: Join private tailnet as an ephemeral runner
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.ts_oauth_client_id }}
+          audience: ${{ secrets.ts_audience }}
+          tags: ${{ inputs.tailscale_tags }}
+          ping: ${{ secrets.postgres_host }}
+
+      - name: Verify PostgreSQL port is reachable
+        env:
+          POSTGRES_HOST: ${{ secrets.postgres_host }}
+          POSTGRES_PORT: ${{ secrets.postgres_port }}
+        run: |
+          python - <<'PY'
+          import os
+          import socket
+
+          with socket.create_connection(
+              (os.environ["POSTGRES_HOST"], int(os.environ["POSTGRES_PORT"])),
+              timeout=10,
+          ):
+              print("postgres_tailnet_connectivity=ok")
+          PY
+
+      - name: Run bounded provider benchmark
+        env:
+          TAVILY_API_KEY: ${{ secrets.tavily_api_key }}
+          POSTGRES_HOST: ${{ secrets.postgres_host }}
+          POSTGRES_PORT: ${{ secrets.postgres_port }}
+          POSTGRES_DB: ${{ secrets.postgres_db }}
+          POSTGRES_USER: ${{ secrets.postgres_user }}
+          POSTGRES_PASSWORD: ${{ secrets.postgres_password }}
+          OUTPUT_PATH: ${{ runner.temp }}/origin-provider-benchmark.json
+        run: |
+          ARGS=(
+            --expected-fingerprint "${{ inputs.expected_fingerprint }}"
+            --max-candidates "${{ inputs.max_candidates }}"
+            --search-query-limit "${{ inputs.search_query_limit }}"
+            --search-max-results "${{ inputs.search_max_results }}"
+            --max-provider-requests "${{ inputs.max_provider_requests }}"
+            --market-evidence-limit "${{ inputs.market_evidence_limit }}"
+            --max-url-candidates "${{ inputs.max_url_candidates }}"
+            --target-location "${{ inputs.target_location }}"
+            --output "$OUTPUT_PATH"
+          )
+          if [ "${{ inputs.no_probe }}" = "true" ]; then
+            ARGS+=(--no-probe)
+          fi
+          python -m scripts.run_origin_provider_event_benchmark "${ARGS[@]}"
+
+      - name: Publish sanitized run summary
+        if: always()
+        env:
+          OUTPUT_PATH: ${{ runner.temp }}/origin-provider-benchmark.json
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path(os.environ["OUTPUT_PATH"])
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          lines = ["## Origin provider benchmark", ""]
+          if not report_path.exists():
+              lines.append("The benchmark stopped before a review report was created.")
+          else:
+              report = json.loads(report_path.read_text(encoding="utf-8"))
+              summary = report["summary"]
+              provider = report["provider"]
+              lines.extend(
+                  [
+                      f"- Candidate count: `{summary['result_count']}`",
+                      f"- Provider request attempts: `{provider['provider_request_attempts']}`",
+                      f"- Selected: `{summary['selected_count']}`",
+                      f"- Manual review: `{summary['manual_review_count']}`",
+                      f"- Not found: `{summary['not_found_count']}`",
+                      "- Boundary: `review_output_only_not_pipeline_input`",
+                  ]
+              )
+          summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload private review artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: origin-provider-benchmark-${{ inputs.expected_fingerprint }}
+          path: ${{ runner.temp }}/origin-provider-benchmark.json
+          if-no-files-found: warn
+          retention-days: 3
