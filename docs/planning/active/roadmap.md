@@ -52,6 +52,49 @@ These may proceed when they do not interfere with the critical path:
 - monolithic refactoring;
 - cloud, Kafka or Spark implementation.
 
+## Retained architecture and governance anchors
+
+These anchors remain because repository tests and reference documents use them as
+stable contracts. They preserve constraints and traceability; they do not restore
+the superseded historical steering sequence.
+
+<!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
+### ARCH-001-SAFETY-SECURITY-STATE
+
+Safety, security, data integrity, explicit state transitions and dry-run/apply
+separation remain mandatory for every backlog item.
+<!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
+
+### DOC-001 Governance Foundation Gate
+
+The governance foundation remains an active constraint referenced by the refined
+backlog.
+
+### DOC-002 Documentation Drift Baseline
+
+Current truth, planning truth and historical evidence must remain visibly
+separate.
+
+### EO-002B Candidate Reprocessing & URL Finder Validation
+
+EO-002B remains historical validation evidence for bounded candidate and URL
+reprocessing, not the current steering block.
+
+<!-- EO-002D-ROADMAP -->
+### EO-002D-ROADMAP
+
+The origin-source discovery repair boundary remains a regression anchor; generic
+benchmark work is represented by `SI-045`.
+
+<!-- PLAN-001-ROADMAP-START -->
+### PLAN-001 Future Readiness and Assumption Governance
+
+`MARKET-003 Manual Market Observation Foundation`, `ASSUMPTION-001 Simplification
+Validation Register` and `WHALE-001 White-Whale Backlog Triage` remain preserved
+in the executable catalog as reconciled, planned or parked work. Details remain
+in `future_readiness_and_assumption_governance.md`.
+<!-- PLAN-001-ROADMAP-END -->
+
 ## Architecture boundary
 
 New changes must preserve safety, security, data integrity, explicit state
