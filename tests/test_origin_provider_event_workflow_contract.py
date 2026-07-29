@@ -3,9 +3,9 @@ from pathlib import Path
 REUSABLE = Path(".github/workflows/reusable-origin-provider-benchmark.yml").read_text(
     encoding="utf-8"
 )
-CALLER = Path("docs/runtime/private_origin_runtime_caller.example.yml").read_text(
-    encoding="utf-8"
-)
+CALLER = Path(
+    "docs/reference/security/private_origin_runtime_caller.example.yml"
+).read_text(encoding="utf-8")
 DISPATCHER = Path("scripts/dispatch_origin_provider_benchmark_if_changed.py").read_text(
     encoding="utf-8"
 )
