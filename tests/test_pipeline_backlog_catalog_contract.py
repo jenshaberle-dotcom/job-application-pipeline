@@ -38,6 +38,20 @@ def test_repository_backlog_catalog_contract() -> None:
     assert validate_backlog_catalog() == (10, 67)
 
 
+def test_canonical_target_profile_contract() -> None:
+    profile = _load_catalog()["canonical_target_profile"]
+
+    assert profile["foundation"] == "Machine Learning Engineer"
+    assert profile["focus"] == "Data Engineering and data-centric ML systems"
+    assert profile["future_direction"] == (
+        "AI Reliability / Data & AI Reliability Engineering"
+    )
+    assert profile["genai_positioning"] == (
+        "cross-cutting engineering competency, not a standalone target profile"
+    )
+    assert (ROOT / profile["active_contract"]).is_file()
+
+
 def test_backlog_contract_rejects_unknown_dependency(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
