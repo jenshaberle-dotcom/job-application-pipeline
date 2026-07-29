@@ -29,6 +29,9 @@ def test_reusable_workflow_uses_ephemeral_tailscale_identity_and_private_artifac
     assert "audience: ${{ secrets.ts_audience }}" in REUSABLE
     assert "ping: ${{ secrets.postgres_host }}" in REUSABLE
     assert "retention-days: 3" in REUSABLE
+    assert "actions/cache/restore@v4" in REUSABLE
+    assert "actions/cache/save@v4" in REUSABLE
+    assert "already_completed" in REUSABLE
     assert "review_output_only_not_pipeline_input" in REUSABLE
 
 
@@ -43,7 +46,7 @@ def test_private_caller_is_event_driven_and_validates_exact_payload() -> None:
 
 def test_dispatcher_sends_only_metadata_after_change_detection() -> None:
     assert "projection_fingerprint" in DISPATCHER
-    assert "unchanged projection; no event sent" in DISPATCHER
+    assert "unchanged projection inside recovery window; no event sent" in DISPATCHER
     assert '"gh",' in DISPATCHER
     assert "repos/{runtime_repository}/dispatches" in DISPATCHER
     assert "candidate_url" not in DISPATCHER
