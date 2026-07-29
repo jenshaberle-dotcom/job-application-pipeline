@@ -1,0 +1,98 @@
+name: Pipeline CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pipeline-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Quality, migrations, and governance contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install runtime and development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Verify installed dependency consistency
+        run: python -m pip check
+
+      - name: Compile active Python paths
+        run: python -m compileall -q src scripts tests
+
+      - name: Validate migration, tooling, and governance contracts
+        run: python scripts/validate_ci_contract.py
+
+      - name: Run hard Ruff correctness gate
+        run: python -m ruff check . --select E4,E7,E9,F --ignore E402
+
+      - name: Prevent E402 baseline growth
+        shell: bash
+        run: |
+          python -m ruff check . \
+            --select E402 \
+            --output-format json \
+            --exit-zero > /tmp/head-e402.json
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git worktree add --detach /tmp/pipeline-base "origin/${{ github.base_ref }}"
+            python -m ruff check /tmp/pipeline-base \
+              --config /tmp/pipeline-base/pyproject.toml \
+              --select E402 \
+              --output-format json \
+              --exit-zero > /tmp/base-e402.json
+          fi
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          head = json.loads(Path("/tmp/head-e402.json").read_text(encoding="utf-8"))
+          base_path = Path("/tmp/base-e402.json")
+          base = (
+              json.loads(base_path.read_text(encoding="utf-8"))
+              if base_path.exists()
+              else None
+          )
+
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          lines = ["## Ruff E402 transition", "", f"- Current findings: `{len(head)}`"]
+          if base is not None:
+              lines.append(f"- Base findings: `{len(base)}`")
+              lines.append(f"- Delta: `{len(head) - len(base):+d}`")
+          summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+          if base is not None and len(head) > len(base):
+              raise SystemExit(
+                  f"E402 baseline grew from {len(base)} to {len(head)} findings"
+              )
+          PY
+
+      - name: Run full test suite
+        run: python -m pytest -q
