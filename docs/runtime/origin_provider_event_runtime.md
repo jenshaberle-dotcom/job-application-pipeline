@@ -72,6 +72,7 @@ The dedicated PostgreSQL role has `default_transaction_read_only=on` and direct
 | Generated URL candidates per company | 20 |
 | Market-evidence URLs per company | 10 |
 | Review artifact retention | 3 days |
+| Unchanged-event recovery window | 12 hours |
 
 The effective candidate count is reduced automatically when the configured
 candidate/query combination would exceed the global provider request ceiling.
@@ -220,8 +221,11 @@ python -m scripts.dispatch_origin_provider_benchmark_if_changed --dispatch
 
 The dispatcher writes its last successful event state under
 `.runtime/origin-provider-dispatch-state.json`. This path is ignored by Git.
-An unchanged projection exits without sending an event or consuming Tavily
-requests.
+An unchanged projection inside the default 12-hour recovery window exits without
+sending an event. After that window the dispatcher may resend the event so failed
+runtime attempts recover automatically. The private runtime stores a successful
+ref/fingerprint marker and therefore does not repeat Tavily for an already
+completed pair.
 
 ## Automatic integration after successful data refresh
 
@@ -241,7 +245,8 @@ python -m scripts.dispatch_origin_provider_benchmark_if_changed --dispatch
 ```
 
 A failed local pipeline command therefore cannot trigger the remote provider
-runtime. A successful run with unchanged relevant data also triggers nothing.
+runtime. A successful run with unchanged relevant data triggers nothing inside the
+recovery window; later recovery events remain provider-idempotent.
 
 ## Operational behavior
 
@@ -257,7 +262,11 @@ runtime. A successful run with unchanged relevant data also triggers nothing.
 
 ### Unchanged data
 
-The local dispatcher exits successfully without contacting GitHub or Tavily.
+Inside the 12-hour recovery window, the local dispatcher exits successfully
+without contacting GitHub or Tavily. After the window it sends a recovery event.
+If the same pipeline-ref/fingerprint pair already completed, the private GitHub
+cache stops before Python setup, Tailscale, PostgreSQL and Tavily. If the prior run
+failed, the missing success marker allows an automatic retry.
 
 ### Database host offline
 
