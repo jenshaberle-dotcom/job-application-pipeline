@@ -1,21 +1,22 @@
 from pathlib import Path
 
-CHECKLIST = Path("docs/runtime/origin_provider_tools_checklist.md").read_text(
+CHECKLIST = Path("docs/guides/origin_provider_tools_checklist.md").read_text(
     encoding="utf-8"
 )
 
 
 def test_tools_checklist_covers_runtime_security_prerequisites() -> None:
+    checklist = CHECKLIST.lower()
     required = (
         "private repository",
-        "GitHub OIDC",
-        "TCP 5432",
+        "github oidc",
+        "tcp 5432",
         "default_transaction_read_only=on",
         "cannot insert, update or delete",
         "review-only",
     )
     for statement in required:
-        assert statement in CHECKLIST
+        assert statement in checklist
 
 
 def test_tools_checklist_names_every_required_secret() -> None:
