@@ -15,6 +15,7 @@ The active control surfaces are:
 2. `backlog_catalog.json` — machine-readable DON-style work-item truth.
 3. `roadmap.md` — short sequencing view.
 4. `reentry001a_mcp_backed_pipeline_reentry_decision.md` — re-entry boundary.
+5. `canonical_target_profile.md` — operator-approved profile hierarchy.
 
 ## Current sequence
 
@@ -25,6 +26,13 @@ The active control surfaces are:
 5. `SI-025`/`SI-026` design and execute only a tiny operator-approved candidate apply.
 6. `SI-027` prove outcome and rollback.
 7. `CC-011` begin the usable V1 Top-5/job-review path.
+
+## Canonical target profile
+
+- Foundation: Machine Learning Engineer.
+- Technical focus: Data Engineering and data-centric ML systems.
+- Future direction: AI Reliability / Data & AI Reliability Engineering.
+- GenAI is a cross-cutting engineering competency, not a separate target profile.
 
 ## Truth rules
 
