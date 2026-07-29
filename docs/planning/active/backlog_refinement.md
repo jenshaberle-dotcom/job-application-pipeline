@@ -10,6 +10,17 @@ This refinement treats the entire repository as an idea and unfinished-work sour
 
 The executable truth is `backlog_catalog.json` plus the files under `backlog/`. Every story carries outcome, dependencies, evidence, risk zone, boundaries, acceptance criteria and validation.
 
+## Canonical target profile decision
+
+Operator decision recorded on 2026-07-29:
+
+1. Foundation role family: **Machine Learning Engineer**.
+2. Technical focus: **Data Engineering and data-centric ML systems**.
+3. Future specialization: **AI Reliability / Data & AI Reliability Engineering**.
+4. GenAI: **cross-cutting engineering competency**, not a standalone target profile.
+
+Current application wording may adapt to a vacancy, but it must preserve this hierarchy and must not claim seniority or production capability without evidence. Runtime/search/CV alignment remains open under `DOC-018`.
+
 ## Current sequence
 
 | Order | Story | Gate |
@@ -36,7 +47,7 @@ The executable truth is `backlog_catalog.json` plus the files under `backlog/`. 
 | `CTR-007` | P1 | `implemented_work_marked_planned` | `DOC-017` |
 | `CTR-008` | P1 | `implemented_work_marked_planned` | `DOC-012` |
 | `CTR-009` | P1 | `unfinished_work_package` | `DOC-016` |
-| `CTR-010` | P1 | `operator_profile_truth_conflict` | `DOC-018` |
+| `CTR-010` | P1 | `runtime_profile_drift_after_operator_decision` | `DOC-018` — decision recorded, alignment open |
 | `CTR-011` | P2 | `stale_governance_classification` | `DOC-021` |
 | `CTR-012` | P1 | `ci_observability_gap` | `OPS-026` |
 
@@ -68,7 +79,7 @@ The executable truth is `backlog_catalog.json` plus the files under `backlog/`. 
 | `DOC-015` Close or Reclassify CONSISTENCY-001A | `ready` | P0 | R0 | `DOC-011` |
 | `DOC-016` Repair FREEZE-002 Exit Criteria | `ready` | P1 | R0 | — |
 | `DOC-017` Reconcile Ruff Transition Documentation | `ready` | P1 | R0 | — |
-| `DOC-018` Target-Profile Truth Decision | `operator_decision` | P1 | R0 | — |
+| `DOC-018` Target-Profile Truth Alignment | `in_progress` | P1 | R0 | — |
 | `DOC-019` Contradiction Regression Check | `planned` | P2 | R0 | `DOC-012` |
 
 ### SI-020 — Generic Evidence Closure
@@ -109,7 +120,7 @@ The executable truth is `backlog_catalog.json` plus the files under `backlog/`. 
 | `SI-044` Candidate Promotion Quality Benchmark | `ready` | P1 | R2 | `SI-042` |
 | `SI-045` Generic Origin and Detail Evidence Benchmark | `ready` | P1 | R1 | `SI-044` |
 | `SI-046` Sensor Contribution and Blind-Spot Audit | `planned` | P2 | R1 | `SI-043` |
-| `SI-047` Search-Term Registry for Current Target Profile | `blocked_by_operator` | P1 | R2 | `DOC-018` |
+| `SI-047` Search-Term Registry for Current Target Profile | `blocked` | P1 | R2 | `DOC-018` |
 | `SI-048` Deterministic Matching Signal Model | `blocked` | P1 | R2 | `SI-047`, `SI-042` |
 
 ### EO-020 — Employer-Origin and Connector Lifecycle Consolidation
@@ -183,7 +194,7 @@ The executable truth is `backlog_catalog.json` plus the files under `backlog/`. 
 - Multiple GENERIC, EXPAND, MARKET and UI plans remain marked planned after code/tests/PRs were merged.
 - The Search Intelligence snapshot carries contradictory authority wording and a dated sequence.
 - Agent governance registers contain rows that may now be wrappers, aliases or implemented capabilities rather than stubs.
-- Runtime target profile remains `Data Engineer` while planning proposes Data & AI Reliability.
+- Runtime `DEFAULT_PROFILE` still targets `Data Engineer v1`; the operator-approved contract now requires a Machine Learning Engineer foundation, Data focus and future AI Reliability direction.
 - Post-merge main CI is not observable through the available connector; PR green is the last verified evidence.
 
 ## Boundary
