@@ -1,0 +1,92 @@
+name: Private origin provider runtime
+
+on:
+  repository_dispatch:
+    types: [origin-provider-benchmark-requested]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: private-origin-provider-runtime
+  cancel-in-progress: false
+
+jobs:
+  validate-event:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate metadata-only dispatch contract
+        env:
+          CLIENT_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+
+          payload = json.loads(os.environ["CLIENT_PAYLOAD"])
+          required = {
+              "schema_version",
+              "pipeline_repository",
+              "pipeline_ref",
+              "projection_fingerprint",
+              "max_candidates",
+              "search_query_limit",
+              "search_max_results",
+              "max_provider_requests",
+              "target_location",
+              "requested_at",
+          }
+          if set(payload) != required:
+              raise SystemExit("invalid repository_dispatch field set")
+          if payload["schema_version"] != "origin_provider_dispatch.v1":
+              raise SystemExit("invalid dispatch schema")
+          if payload["pipeline_repository"] != "jenshaberle-dotcom/job-application-pipeline":
+              raise SystemExit("invalid pipeline repository")
+          if not re.fullmatch(r"[0-9a-f]{40,64}", str(payload["pipeline_ref"])):
+              raise SystemExit("pipeline_ref must be an exact commit SHA")
+          if not re.fullmatch(r"[0-9a-f]{64}", str(payload["projection_fingerprint"])):
+              raise SystemExit("invalid projection fingerprint")
+          limits = {
+              "max_candidates": (1, 10),
+              "search_query_limit": (1, 4),
+              "search_max_results": (1, 10),
+              "max_provider_requests": (1, 20),
+          }
+          for key, (minimum, maximum) in limits.items():
+              value = int(payload[key])
+              if not minimum <= value <= maximum:
+                  raise SystemExit(f"{key} outside private runtime envelope")
+          if int(payload["max_candidates"]) * int(payload["search_query_limit"]) > int(
+              payload["max_provider_requests"]
+          ):
+              raise SystemExit("candidate/query request plan exceeds provider ceiling")
+          PY
+
+  run-benchmark:
+    needs: validate-event
+    # Replace @main with the accepted merge SHA after installing this template.
+    uses: jenshaberle-dotcom/job-application-pipeline/.github/workflows/reusable-origin-provider-benchmark.yml@main
+    with:
+      pipeline_ref: ${{ github.event.client_payload.pipeline_ref }}
+      expected_fingerprint: ${{ github.event.client_payload.projection_fingerprint }}
+      max_candidates: ${{ github.event.client_payload.max_candidates }}
+      search_query_limit: ${{ github.event.client_payload.search_query_limit }}
+      search_max_results: ${{ github.event.client_payload.search_max_results }}
+      max_provider_requests: ${{ github.event.client_payload.max_provider_requests }}
+      target_location: ${{ github.event.client_payload.target_location }}
+      market_evidence_limit: 10
+      max_url_candidates: 20
+      no_probe: false
+      tailscale_tags: tag:github-origin-benchmark
+    secrets:
+      ts_oauth_client_id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      ts_audience: ${{ secrets.TS_AUDIENCE }}
+      tavily_api_key: ${{ secrets.TAVILY_API_KEY }}
+      postgres_host: ${{ secrets.POSTGRES_HOST }}
+      postgres_port: ${{ secrets.POSTGRES_PORT }}
+      postgres_db: ${{ secrets.POSTGRES_DB }}
+      postgres_user: ${{ secrets.POSTGRES_USER }}
+      postgres_password: ${{ secrets.POSTGRES_PASSWORD }}
