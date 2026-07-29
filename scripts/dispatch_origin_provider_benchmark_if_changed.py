@@ -11,7 +11,7 @@ import argparse
 import json
 import os
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import psycopg
@@ -137,6 +137,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--target-location", default="Hannover")
     parser.add_argument("--state-file", type=Path, default=DEFAULT_STATE_FILE)
     parser.add_argument(
+        "--retry-unchanged-after-hours",
+        type=float,
+        default=12.0,
+        help=(
+            "Redispatch unchanged truth after this recovery window. The private runtime "
+            "uses a success cache, so completed fingerprints do not call Tavily again."
+        ),
+    )
+    parser.add_argument(
         "--dispatch",
         action="store_true",
         help="Send repository_dispatch. Without this flag the command is a dry-run.",
@@ -197,6 +206,19 @@ def main() -> int:
         and isinstance(previous_payload, dict)
         and comparable_payload(previous_payload) == comparable_payload(payload)
     )
+    if args.retry_unchanged_after_hours < 0:
+        raise SystemExit("--retry-unchanged-after-hours must not be negative")
+    retry_due = False
+    if unchanged:
+        try:
+            dispatched_at = datetime.fromisoformat(str(previous["dispatched_at"]))
+            if dispatched_at.tzinfo is None:
+                dispatched_at = dispatched_at.replace(tzinfo=timezone.utc)
+            retry_due = datetime.now(timezone.utc) >= dispatched_at + timedelta(
+                hours=args.retry_unchanged_after_hours
+            )
+        except (KeyError, TypeError, ValueError):
+            retry_due = True
 
     print(
         "origin_provider_dispatch_plan: "
@@ -205,12 +227,15 @@ def main() -> int:
         f"planned_provider_requests={budget.planned_provider_requests} "
         f"runtime_repository={runtime_repository} "
         f"pipeline_ref={pipeline_ref} "
-        f"changed={not unchanged}"
+        f"changed={not unchanged} "
+        f"recovery_retry_due={retry_due}"
     )
 
-    if unchanged and not args.force:
-        print("origin_provider_dispatch: unchanged projection; no event sent")
+    if unchanged and not args.force and not retry_due:
+        print("origin_provider_dispatch: unchanged projection inside recovery window; no event sent")
         return 0
+    if unchanged and retry_due and not args.force:
+        print("origin_provider_dispatch: recovery retry for unchanged projection")
     if not args.dispatch:
         print("origin_provider_dispatch: dry-run only; pass --dispatch after review")
         return 0
