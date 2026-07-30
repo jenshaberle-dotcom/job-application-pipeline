@@ -45,8 +45,12 @@ merged. It performs no automatic installation or secret creation.
 - [ ] `POSTGRES_HOST`
 - [ ] `POSTGRES_PORT`
 - [ ] `POSTGRES_DB`
-- [ ] `POSTGRES_USER`
-- [ ] `POSTGRES_PASSWORD`
+- [ ] `ORIGIN_BENCHMARK_DB_USER=origin_benchmark_reader`
+- [ ] `ORIGIN_BENCHMARK_DB_PASSWORD`
+
+The privilege-specific names are intentional. Local Pipeline credentials may
+continue to use `POSTGRES_USER` and `POSTGRES_PASSWORD`; the private runtime must
+not use those generic names for the restricted reader credentials.
 
 ## Activation
 
