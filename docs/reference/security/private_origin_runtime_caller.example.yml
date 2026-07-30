@@ -84,5 +84,5 @@ jobs:
       postgres_host: ${{ secrets.POSTGRES_HOST }}
       postgres_port: ${{ secrets.POSTGRES_PORT }}
       postgres_db: ${{ secrets.POSTGRES_DB }}
-      postgres_user: ${{ secrets.POSTGRES_USER }}
-      postgres_password: ${{ secrets.POSTGRES_PASSWORD }}
+      postgres_user: ${{ secrets.ORIGIN_BENCHMARK_DB_USER }}
+      postgres_password: ${{ secrets.ORIGIN_BENCHMARK_DB_PASSWORD }}
