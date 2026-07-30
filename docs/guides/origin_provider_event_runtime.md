@@ -164,12 +164,25 @@ TAVILY_API_KEY
 POSTGRES_HOST
 POSTGRES_PORT
 POSTGRES_DB
-POSTGRES_USER=origin_benchmark_reader
-POSTGRES_PASSWORD
+ORIGIN_BENCHMARK_DB_USER=origin_benchmark_reader
+ORIGIN_BENCHMARK_DB_PASSWORD
 ```
 
-`POSTGRES_HOST` should be the Tailscale MagicDNS hostname or stable tailnet IP of
-the database host.
+The privilege-specific credential names are intentional:
+
+```text
+local Pipeline .env:
+POSTGRES_USER / POSTGRES_PASSWORD
+    -> normal Pipeline or administrative access
+
+private runtime repository:
+ORIGIN_BENCHMARK_DB_USER / ORIGIN_BENCHMARK_DB_PASSWORD
+    -> restricted origin_benchmark_reader access
+```
+
+Do not store the restricted reader password under the generic
+`POSTGRES_PASSWORD` secret name. `POSTGRES_HOST` should be the Tailscale MagicDNS
+hostname or stable tailnet IP of the database host.
 
 ## Local dispatcher setup
 
