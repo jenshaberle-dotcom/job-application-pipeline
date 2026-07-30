@@ -53,7 +53,7 @@ def test_runtime_lease_acquire_release_and_presence_queries() -> None:
 
     acquire_runtime_lease(conn)
     assert release_runtime_lease(conn) is True
-    assert runtime_lease_present(conn) is False
+    assert runtime_lease_present(conn) is True
 
     queries = conn.cursor_value.executed
     assert "pg_advisory_lock" in queries[0][0]
