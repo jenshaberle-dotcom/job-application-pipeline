@@ -27,8 +27,13 @@ def test_tools_checklist_names_every_required_secret() -> None:
         "POSTGRES_HOST",
         "POSTGRES_PORT",
         "POSTGRES_DB",
-        "POSTGRES_USER",
-        "POSTGRES_PASSWORD",
+        "ORIGIN_BENCHMARK_DB_USER",
+        "ORIGIN_BENCHMARK_DB_PASSWORD",
     )
     for secret in required_secrets:
         assert secret in CHECKLIST
+
+
+def test_tools_checklist_rejects_generic_reader_credential_names() -> None:
+    assert "`POSTGRES_USER` and `POSTGRES_PASSWORD`" in CHECKLIST
+    assert "must not use those generic names" in CHECKLIST
