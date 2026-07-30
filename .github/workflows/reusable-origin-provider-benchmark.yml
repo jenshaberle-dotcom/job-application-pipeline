@@ -98,6 +98,15 @@ jobs:
         if: steps.success-cache.outputs.cache-hit == 'true'
         run: echo "origin_provider_event_benchmark=already_completed"
 
+      - name: Restore candidate checkpoint
+        if: steps.success-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: .origin-runtime-checkpoint
+          key: origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-
+
       - name: Set up Python
         if: steps.success-cache.outputs.cache-hit != 'true'
         uses: actions/setup-python@v5
@@ -139,7 +148,42 @@ jobs:
               print("postgres_tailnet_connectivity=ok")
           PY
 
-      - name: Run bounded provider benchmark
+      - name: Acquire fail-safe local runtime lease
+        if: steps.success-cache.outputs.cache-hit != 'true'
+        env:
+          POSTGRES_HOST: ${{ secrets.postgres_host }}
+          POSTGRES_PORT: ${{ secrets.postgres_port }}
+          POSTGRES_DB: ${{ secrets.postgres_db }}
+          POSTGRES_USER: ${{ secrets.postgres_user }}
+          POSTGRES_PASSWORD: ${{ secrets.postgres_password }}
+          LEASE_READY: ${{ runner.temp }}/origin-runtime-lease.ready
+          LEASE_PID: ${{ runner.temp }}/origin-runtime-lease.pid
+          LEASE_LOG: ${{ runner.temp }}/origin-runtime-lease.log
+        run: |
+          nohup python -m scripts.hold_origin_runtime_lease \
+            --ready-file "$LEASE_READY" \
+            --heartbeat-seconds 20 \
+            --max-seconds 2100 \
+            >"$LEASE_LOG" 2>&1 &
+          printf '%s\n' "$!" >"$LEASE_PID"
+
+          ready=false
+          for attempt in $(seq 1 20); do
+            if [ -f "$LEASE_READY" ]; then
+              echo "origin_runtime_lease=ready attempt=$attempt"
+              ready=true
+              break
+            fi
+            if ! kill -0 "$(cat "$LEASE_PID")" 2>/dev/null; then
+              cat "$LEASE_LOG" || true
+              echo "origin runtime lease holder exited before readiness"
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$ready" = "true"
+
+      - name: Run bounded provider benchmark from immutable snapshot
         if: steps.success-cache.outputs.cache-hit != 'true'
         env:
           TAVILY_API_KEY: ${{ secrets.tavily_api_key }}
@@ -149,6 +193,7 @@ jobs:
           POSTGRES_USER: ${{ secrets.postgres_user }}
           POSTGRES_PASSWORD: ${{ secrets.postgres_password }}
           OUTPUT_PATH: ${{ runner.temp }}/origin-provider-benchmark.json
+          CHECKPOINT_PATH: .origin-runtime-checkpoint/origin-provider-event-checkpoint.json
         run: |
           ARGS=(
             --expected-fingerprint "${{ inputs.expected_fingerprint }}"
@@ -159,6 +204,7 @@ jobs:
             --market-evidence-limit "${{ inputs.market_evidence_limit }}"
             --max-url-candidates "${{ inputs.max_url_candidates }}"
             --target-location "${{ inputs.target_location }}"
+            --checkpoint "$CHECKPOINT_PATH"
             --output "$OUTPUT_PATH"
           )
           if [ "${{ inputs.no_probe }}" = "true" ]; then
@@ -166,15 +212,41 @@ jobs:
           fi
           python -m scripts.run_origin_provider_event_benchmark "${ARGS[@]}"
 
+      - name: Release local runtime lease
+        if: ${{ always() && steps.success-cache.outputs.cache-hit != 'true' }}
+        env:
+          LEASE_PID: ${{ runner.temp }}/origin-runtime-lease.pid
+          LEASE_LOG: ${{ runner.temp }}/origin-runtime-lease.log
+        run: |
+          if [ -f "$LEASE_PID" ]; then
+            pid="$(cat "$LEASE_PID")"
+            if kill -0 "$pid" 2>/dev/null; then
+              kill "$pid" || true
+              for _attempt in $(seq 1 10); do
+                kill -0 "$pid" 2>/dev/null || break
+                sleep 1
+              done
+            fi
+          fi
+          cat "$LEASE_LOG" 2>/dev/null || true
+          echo "origin_runtime_lease_cleanup=complete"
+
+      - name: Save candidate checkpoint
+        if: ${{ always() && steps.success-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .origin-runtime-checkpoint
+          key: origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+
       - name: Create successful fingerprint marker
-        if: steps.success-cache.outputs.cache-hit != 'true'
+        if: steps.success-cache.outputs.cache-hit != 'true' && success()
         run: |
           mkdir -p .origin-runtime-cache
           printf '%s\n' "${{ inputs.pipeline_ref }}:${{ inputs.expected_fingerprint }}" \
             > .origin-runtime-cache/completed.txt
 
       - name: Save successful fingerprint marker
-        if: steps.success-cache.outputs.cache-hit != 'true'
+        if: steps.success-cache.outputs.cache-hit != 'true' && success()
         uses: actions/cache/save@v4
         with:
           path: .origin-runtime-cache
@@ -184,6 +256,7 @@ jobs:
         if: always()
         env:
           OUTPUT_PATH: ${{ runner.temp }}/origin-provider-benchmark.json
+          CHECKPOINT_PATH: .origin-runtime-checkpoint/origin-provider-event-checkpoint.json
         run: |
           python - <<'PY'
           import json
@@ -191,35 +264,56 @@ jobs:
           from pathlib import Path
 
           report_path = Path(os.environ["OUTPUT_PATH"])
+          checkpoint_path = Path(os.environ["CHECKPOINT_PATH"])
           summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
           lines = ["## Origin provider benchmark", ""]
           cache_hit = "${{ steps.success-cache.outputs.cache-hit }}" == "true"
           if cache_hit:
-              lines.append("This exact pipeline-ref/fingerprint pair completed earlier; no provider call was repeated.")
-          elif not report_path.exists():
-              lines.append("The benchmark stopped before a review report was created.")
-          else:
+              lines.append(
+                  "This exact pipeline-ref/fingerprint pair completed earlier; "
+                  "no provider call was repeated."
+              )
+          elif report_path.exists():
               report = json.loads(report_path.read_text(encoding="utf-8"))
               summary = report["summary"]
               provider = report["provider"]
+              recovery = report["recovery"]
               lines.extend(
                   [
                       f"- Candidate count: `{summary['result_count']}`",
                       f"- Provider request attempts: `{provider['provider_request_attempts']}`",
+                      f"- Resumed candidate results: `{recovery['resumed_result_count']}`",
                       f"- Selected: `{summary['selected_count']}`",
                       f"- Manual review: `{summary['manual_review_count']}`",
                       f"- Not found: `{summary['not_found_count']}`",
+                      "- Database reads after verified snapshot: `0`",
+                      "- Runtime lease: `PostgreSQL advisory lock, fail-safe on disconnect`",
                       "- Boundary: `review_output_only_not_pipeline_input`",
                   ]
               )
+          elif checkpoint_path.exists():
+              checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+              lines.extend(
+                  [
+                      "The benchmark stopped before the final review report.",
+                      f"- Checkpointed candidates: `{len(checkpoint.get('results', []))}`",
+                      f"- Checkpointed provider attempts: `{checkpoint.get('provider_request_attempts', 0)}`",
+                      "- Recovery: `rerun the same pipeline-ref/fingerprint pair`",
+                  ]
+              )
+          else:
+              lines.append("The benchmark stopped before a checkpoint was created.")
           summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
 
-      - name: Upload private review artifact
+      - name: Upload private review and recovery artifact
         if: ${{ always() && steps.success-cache.outputs.cache-hit != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: origin-provider-benchmark-${{ inputs.expected_fingerprint }}
-          path: ${{ runner.temp }}/origin-provider-benchmark.json
+          path: |
+            ${{ runner.temp }}/origin-provider-benchmark.json
+            .origin-runtime-checkpoint/origin-provider-event-checkpoint.json
+            ${{ runner.temp }}/origin-runtime-lease.log
           if-no-files-found: warn
           retention-days: 3
