@@ -1,9 +1,10 @@
 """Run the bounded Tavily origin benchmark after an authenticated event trigger.
 
-The command is designed for a private GitHub runtime connected to the local
-PostgreSQL host through Tailscale. It re-reads the same database projection used
-by the local dispatcher and stops before any provider call when the fingerprint
-changed in transit.
+The private runtime reads and fingerprints the complete bounded PostgreSQL
+projection once. All provider calls and HTTP probes then run from that immutable
+in-memory snapshot, so a later local sleep or Tailscale interruption cannot abort
+an already-authorized benchmark. Candidate-level checkpoints preserve completed
+work across retried GitHub jobs.
 """
 
 from __future__ import annotations
@@ -14,14 +15,15 @@ import os
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Mapping, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
 
+from scripts.origin_provider_snapshot_runner import run_for_projection_row
 from scripts.run_origin_source_discovery_agent import (
     _is_missing_or_placeholder_secret,
     load_local_env_file,
-    run_for_company,
 )
 from src.config import get_database_config
 from src.search_intelligence.origin_provider_event_runtime import (
@@ -31,6 +33,9 @@ from src.search_intelligence.origin_provider_event_runtime import (
     normalize_company_keys,
     projection_fingerprint,
 )
+
+CHECKPOINT_SCHEMA_VERSION = "origin_provider_event_checkpoint.v1"
+REPORT_SCHEMA_VERSION = "origin_provider_event_benchmark.v2"
 
 
 def build_origin_args(args: argparse.Namespace) -> argparse.Namespace:
@@ -67,16 +72,102 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--search-timeout-seconds", type=float, default=8.0)
     parser.add_argument("--search-depth", choices=("basic", "advanced"), default="basic")
     parser.add_argument("--no-probe", action="store_true")
+    parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     return parser
 
 
-def write_report(path: Path, report: dict[str, object]) -> None:
+def write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    temporary.replace(path)
+
+
+def write_report(path: Path, report: dict[str, object]) -> None:
+    write_json_atomic(path, report)
+
+
+def _checkpoint_payload(
+    *,
+    fingerprint: str,
+    company_keys: Sequence[str],
+    results: Sequence[Mapping[str, object]],
+    provider_request_attempts: int,
+    complete: bool,
+) -> dict[str, object]:
+    return {
+        "schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "review_output_only_not_pipeline_input": True,
+        "projection_fingerprint": fingerprint,
+        "company_keys": list(company_keys),
+        "completed_company_keys": [str(item.get("company_key") or "") for item in results],
+        "provider_request_attempts": provider_request_attempts,
+        "complete": complete,
+        "results": list(results),
+    }
+
+
+def write_checkpoint(
+    path: Path | None,
+    *,
+    fingerprint: str,
+    company_keys: Sequence[str],
+    results: Sequence[Mapping[str, object]],
+    provider_request_attempts: int,
+    complete: bool,
+) -> None:
+    if path is None:
+        return
+    write_json_atomic(
+        path,
+        _checkpoint_payload(
+            fingerprint=fingerprint,
+            company_keys=company_keys,
+            results=results,
+            provider_request_attempts=provider_request_attempts,
+            complete=complete,
+        ),
+    )
+
+
+def load_checkpoint(
+    path: Path | None,
+    *,
+    expected_fingerprint: str,
+    company_keys: Sequence[str],
+) -> tuple[list[dict[str, object]], int]:
+    if path is None or not path.exists():
+        return [], 0
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise SystemExit("invalid origin benchmark checkpoint payload")
+    if payload.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+        raise SystemExit("unsupported origin benchmark checkpoint schema")
+    if payload.get("projection_fingerprint") != expected_fingerprint:
+        raise SystemExit("checkpoint fingerprint does not match the dispatched projection")
+    if payload.get("company_keys") != list(company_keys):
+        raise SystemExit("checkpoint company ordering does not match the dispatched projection")
+
+    raw_results = payload.get("results")
+    if not isinstance(raw_results, list) or not all(isinstance(item, dict) for item in raw_results):
+        raise SystemExit("checkpoint results must be a list of objects")
+    results = [dict(item) for item in raw_results]
+    completed_keys = [str(item.get("company_key") or "") for item in results]
+    if completed_keys != list(company_keys[: len(completed_keys)]):
+        raise SystemExit("checkpoint results are not an ordered projection prefix")
+    if len(completed_keys) != len(set(completed_keys)):
+        raise SystemExit("checkpoint contains duplicate company results")
+
+    attempts = int(payload.get("provider_request_attempts") or 0)
+    if attempts < 0:
+        raise SystemExit("checkpoint provider request attempts must not be negative")
+    return results, attempts
 
 
 def main() -> int:
@@ -112,20 +203,56 @@ def main() -> int:
         raise SystemExit("No eligible origin candidates in the fingerprint-bound projection")
 
     company_keys = [str(row["company_key"]) for row in projection]
-    provider_request_attempts = len(company_keys) * budget.search_query_limit
-    if provider_request_attempts > budget.max_provider_requests:
+    planned_provider_requests = len(company_keys) * budget.search_query_limit
+    if planned_provider_requests > budget.max_provider_requests:
         raise SystemExit("Provider request budget invariant violated before execution")
 
+    results, provider_request_attempts = load_checkpoint(
+        args.checkpoint,
+        expected_fingerprint=actual_fingerprint,
+        company_keys=company_keys,
+    )
+    if provider_request_attempts > budget.max_provider_requests:
+        raise SystemExit("checkpoint already exceeds the provider request budget")
+    resumed_result_count = len(results)
+
+    write_checkpoint(
+        args.checkpoint,
+        fingerprint=actual_fingerprint,
+        company_keys=company_keys,
+        results=results,
+        provider_request_attempts=provider_request_attempts,
+        complete=False,
+    )
+
     origin_args = build_origin_args(args)
-    results: list[dict[str, object]] = []
-    for company_key in company_keys:
-        results.append(run_for_company(origin_args, company_key))
+    for row in projection[len(results) :]:
+        def observe_provider_attempt(_provider: str, _query: str) -> None:
+            nonlocal provider_request_attempts
+            if provider_request_attempts >= budget.max_provider_requests:
+                raise SystemExit("Provider request budget exhausted during execution")
+            provider_request_attempts += 1
+
+        result = run_for_projection_row(
+            origin_args,
+            row,
+            request_attempt_observer=observe_provider_attempt,
+        )
+        results.append(result)
+        write_checkpoint(
+            args.checkpoint,
+            fingerprint=actual_fingerprint,
+            company_keys=company_keys,
+            results=results,
+            provider_request_attempts=provider_request_attempts,
+            complete=False,
+        )
 
     decision_counts = Counter(str(item.get("decision") or "unknown") for item in results)
     selected_count = decision_counts.get("origin_url_candidate_selected", 0)
     manual_count = decision_counts.get("manual_review_required", 0)
     report: dict[str, object] = {
-        "schema_version": "origin_provider_event_benchmark.v1",
+        "schema_version": REPORT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "review_output_only_not_pipeline_input": True,
         "boundary": list(RUNTIME_BOUNDARY),
@@ -134,12 +261,19 @@ def main() -> int:
             "candidate_count": len(projection),
             "company_keys": company_keys,
             "market_evidence_limit": args.market_evidence_limit,
+            "database_reads_after_snapshot": 0,
         },
         "provider": {
             "name": "tavily",
             "search_depth": args.search_depth,
             "request_budget": budget.to_json(),
+            "planned_provider_requests": planned_provider_requests,
             "provider_request_attempts": provider_request_attempts,
+        },
+        "recovery": {
+            "checkpoint_enabled": args.checkpoint is not None,
+            "resumed_result_count": resumed_result_count,
+            "candidate_level_checkpoint": True,
         },
         "summary": {
             "result_count": len(results),
@@ -152,10 +286,19 @@ def main() -> int:
         "results": results,
     }
     write_report(args.output, report)
+    write_checkpoint(
+        args.checkpoint,
+        fingerprint=actual_fingerprint,
+        company_keys=company_keys,
+        results=results,
+        provider_request_attempts=provider_request_attempts,
+        complete=True,
+    )
     print(
         "origin_provider_event_benchmark_complete: "
         f"candidates={len(results)} "
         f"provider_request_attempts={provider_request_attempts} "
+        f"resumed_results={resumed_result_count} "
         f"selected={selected_count} "
         f"manual_review={manual_count} "
         f"output={args.output}"
