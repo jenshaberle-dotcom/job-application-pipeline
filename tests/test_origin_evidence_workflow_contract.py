@@ -34,11 +34,13 @@ def test_artifact_contains_evidence_and_recovery_checkpoint() -> None:
     assert "LLM output: `review signal only; never selection truth or mutation authority`" in text
 
 
-def test_private_caller_requires_explicit_activation() -> None:
+def test_private_caller_requires_explicit_campaign_activation() -> None:
     text = CALLER.read_text(encoding="utf-8")
 
-    assert "enable_llm_adjudication: false" in text
-    assert 'llm_adjudication_model: ""' in text
+    assert "campaign_mode: benchmark" in text
+    assert "benchmark_models: gpt-5.4-mini,gpt-5.6-terra,gpt-5.5" in text
+    assert "benchmark_max_requests: 18" in text
+    assert "benchmark_max_estimated_cost_usd: 0.50" in text
     assert "openai_api_key: ${{ secrets.OPENAI_API_KEY }}" in text
 
 
