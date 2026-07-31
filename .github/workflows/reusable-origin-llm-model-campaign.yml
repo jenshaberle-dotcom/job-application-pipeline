@@ -212,13 +212,36 @@ jobs:
           name: origin-provider-benchmark-${{ inputs.expected_fingerprint }}
           path: ${{ runner.temp }}/origin-provider-artifact
 
+      - name: Resolve immutable origin evidence input
+        id: evidence-input
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/origin-provider-artifact
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["ARTIFACT_ROOT"])
+          matches = sorted(root.rglob("origin-evidence-adjudication.json"))
+          if len(matches) != 1:
+              relative = [str(path.relative_to(root)) for path in matches]
+              raise SystemExit(
+                  "expected exactly one origin-evidence-adjudication.json "
+                  f"inside downloaded artifact; found={relative}"
+              )
+          resolved = matches[0].resolve()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"path={resolved}\n")
+          print(f"origin_evidence_input={resolved.relative_to(root.resolve())}")
+          PY
+
       - name: Run fixed three-model benchmark
         if: inputs.campaign_mode == 'benchmark'
         env:
           OPENAI_API_KEY: ${{ secrets.openai_api_key }}
         run: |
           python -m scripts.run_origin_llm_model_campaign \
-            --input "${{ runner.temp }}/origin-provider-artifact/origin-evidence-adjudication.json" \
+            --input "${{ steps.evidence-input.outputs.path }}" \
             --contract docs/reference/search-intelligence/origin_llm_model_benchmark_contract.v1.json \
             --output "${{ runner.temp }}/origin-llm-model-campaign.json" \
             --checkpoint "${{ runner.temp }}/origin-llm-model-campaign-checkpoint.json" \
@@ -235,7 +258,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.openai_api_key }}
         run: |
           python -m scripts.run_origin_llm_escalation \
-            --input "${{ runner.temp }}/origin-provider-artifact/origin-evidence-adjudication.json" \
+            --input "${{ steps.evidence-input.outputs.path }}" \
             --output "${{ runner.temp }}/origin-llm-escalation.json" \
             --primary-model "${{ inputs.primary_model }}" \
             --escalation-model "${{ inputs.escalation_model }}" \
