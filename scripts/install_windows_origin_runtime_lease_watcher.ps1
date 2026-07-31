@@ -103,7 +103,7 @@ function New-WatcherState {
 
 function Read-WatcherState {
     if (-not (Test-Path $StatePath)) {
-        return New-WatcherState
+        return (New-WatcherState)
     }
 
     try {
@@ -113,14 +113,14 @@ function Read-WatcherState {
         Write-TelemetryEvent -Event "watcher_state_reset" -Fields @{
             reason = "invalid_json"
         }
-        return New-WatcherState
+        return (New-WatcherState)
     }
 
     if ($State.schema_version -ne $SchemaVersion) {
         Write-TelemetryEvent -Event "watcher_state_reset" -Fields @{
             reason = "schema_mismatch"
         }
-        return New-WatcherState
+        return (New-WatcherState)
     }
 
     return $State
@@ -486,18 +486,9 @@ if ($Uninstall) {
 }
 
 if ($Install) {
-    Write-Host "=== 1/5 Vorhandenen Task bereinigen ==="
-
-    $ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-
-    if ($ExistingTask) {
-        Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-    }
-
     Ensure-DeployRoot
 
-    Write-Host "=== 2/5 Pipeline-Stand prüfen ==="
+    Write-Host "=== 1/5 Pipeline-Stand prüfen ==="
     $PipelineHead = Get-PipelineHead
 
     if ($ExpectedPipelineSha -and $PipelineHead -ne $ExpectedPipelineSha) {
@@ -506,112 +497,189 @@ if ($Install) {
 
     Write-Host "pipeline_head=$PipelineHead"
 
-    Write-Host "=== 3/5 Wächter dauerhaft bereitstellen ==="
+    Write-Host "=== 2/5 Kandidaten-Skript und Rollback vorbereiten ==="
     $CurrentScript = [System.IO.Path]::GetFullPath($PSCommandPath)
-    $TargetScript = [System.IO.Path]::GetFullPath($InstalledScript)
+    $CandidateScript = Join-Path $DeployRoot "origin-runtime-lease-watcher.candidate.ps1"
+    $BackupScript = Join-Path $DeployRoot "origin-runtime-lease-watcher.backup.ps1"
+    Copy-Item -LiteralPath $CurrentScript -Destination $CandidateScript -Force
 
-    if ($CurrentScript -ne $TargetScript) {
-        Copy-Item -LiteralPath $CurrentScript -Destination $TargetScript -Force
+    if (Test-Path $InstalledScript) {
+        Copy-Item -LiteralPath $InstalledScript -Destination $BackupScript -Force
+    }
+    else {
+        Remove-Item -LiteralPath $BackupScript -Force -ErrorAction SilentlyContinue
     }
 
-    Write-JsonAtomically -Path $MetadataPath -Value ([ordered]@{
-        schema_version = $SchemaVersion
-        installed_at_utc = (Get-Date).ToUniversalTime().ToString("o")
-        pipeline_head = $PipelineHead
-        wsl_distro = $WslDistro
-        installed_script = $InstalledScript
-    })
-
-    Write-Host "installed_script=$InstalledScript"
-
-    Write-Host "=== 4/5 Einmaligen Prozess-Test ausführen ==="
+    $ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     $PowerShellExe = Join-Path `
         $env:SystemRoot `
         "System32\WindowsPowerShell\v1.0\powershell.exe"
 
-    $OnceOutput = @(
-        & $PowerShellExe `
-            -NoProfile `
-            -ExecutionPolicy Bypass `
-            -File $InstalledScript `
-            -Once `
-            -WslDistro $WslDistro
-    )
+    Write-Host "=== 3/5 Kandidaten-Skript einmalig prüfen ==="
+    if ($ExistingTask -and $ExistingTask.State -eq "Running") {
+        Stop-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+        Start-Sleep -Seconds 2
+    }
 
-    if ($LASTEXITCODE -ne 0) {
+    try {
+        $OnceOutput = @(
+            & $PowerShellExe `
+                -NoProfile `
+                -ExecutionPolicy Bypass `
+                -File $CandidateScript `
+                -Once `
+                -WslDistro $WslDistro
+        )
+
+        if ($LASTEXITCODE -ne 0) {
+            $OnceOutput | ForEach-Object { Write-Host $_ }
+            throw "Der einmalige Wächter-Test ist fehlgeschlagen."
+        }
+
         $OnceOutput | ForEach-Object { Write-Host $_ }
-        throw "Der einmalige Wächter-Test ist fehlgeschlagen."
+
+        $HealthyProbe = (
+            $OnceOutput |
+                Where-Object {
+                    $_ -match '^origin_runtime_lease_watch=(idle|active|unavailable:[^ ]+) wake_lock=false$'
+                }
+        )
+
+        if (-not $HealthyProbe) {
+            throw "Der Wächter lieferte kein gültiges Statussignal."
+        }
+    }
+    catch {
+        if ($ExistingTask) {
+            Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        }
+        throw
     }
 
-    $OnceOutput | ForEach-Object { Write-Host $_ }
+    Write-Host "=== 4/5 Task atomar ersetzen ==="
+    try {
+        if ($ExistingTask) {
+            Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+        }
 
-    $HealthyProbe = (
-        $OnceOutput |
-            Where-Object {
-                $_ -match '^origin_runtime_lease_watch=(idle|active|unavailable:[^ ]+) wake_lock=false$'
-            }
-    )
+        Copy-Item -LiteralPath $CandidateScript -Destination $InstalledScript -Force
 
-    if (-not $HealthyProbe) {
-        throw "Der Wächter lieferte kein gültiges Statussignal."
+        Write-JsonAtomically -Path $MetadataPath -Value ([ordered]@{
+            schema_version = $SchemaVersion
+            installed_at_utc = (Get-Date).ToUniversalTime().ToString("o")
+            pipeline_head = $PipelineHead
+            wsl_distro = $WslDistro
+            installed_script = $InstalledScript
+        })
+
+        $CurrentIdentity = (
+            [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        )
+
+        $ActionArguments = (
+            '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -WslDistro "{1}"' -f
+            $InstalledScript,
+            $WslDistro
+        )
+
+        $Action = New-ScheduledTaskAction `
+            -Execute $PowerShellExe `
+            -Argument $ActionArguments
+
+        $Trigger = New-ScheduledTaskTrigger `
+            -AtLogOn `
+            -User $CurrentIdentity
+
+        $Principal = New-ScheduledTaskPrincipal `
+            -UserId $CurrentIdentity `
+            -LogonType Interactive `
+            -RunLevel Limited
+
+        $Settings = New-ScheduledTaskSettingsSet `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries `
+            -StartWhenAvailable `
+            -RestartCount 3 `
+            -RestartInterval (New-TimeSpan -Minutes 1) `
+            -ExecutionTimeLimit (New-TimeSpan -Days 3650)
+
+        $TaskDefinition = New-ScheduledTask `
+            -Action $Action `
+            -Trigger $Trigger `
+            -Principal $Principal `
+            -Settings $Settings `
+            -Description "Hält Windows nur während einer aktiven Origin-Runtime-Lease wach, protokolliert beobachtete Wachzeit und repariert begrenzt den lokalen Tailscale-Dienst."
+
+        Register-ScheduledTask `
+            -TaskName $TaskName `
+            -InputObject $TaskDefinition `
+            -Force | Out-Null
+
+        Start-ScheduledTask -TaskName $TaskName
+        Start-Sleep -Seconds 7
+
+        $Task = Get-ScheduledTask -TaskName $TaskName
+        $TaskInfo = Get-ScheduledTaskInfo -TaskName $TaskName
+
+        if ($Task.State -ne "Running") {
+            throw "Der Wächter läuft nicht. Status: $($Task.State), Ergebnis: $($TaskInfo.LastTaskResult)"
+        }
+    }
+    catch {
+        $InstallationFailure = $_
+        $BrokenTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        if ($BrokenTask) {
+            Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+            Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+        }
+
+        if (Test-Path $BackupScript) {
+            Copy-Item -LiteralPath $BackupScript -Destination $InstalledScript -Force
+
+            $CurrentIdentity = (
+                [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+            )
+            $RollbackArguments = (
+                '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f
+                $InstalledScript
+            )
+            $RollbackAction = New-ScheduledTaskAction `
+                -Execute $PowerShellExe `
+                -Argument $RollbackArguments
+            $RollbackTrigger = New-ScheduledTaskTrigger `
+                -AtLogOn `
+                -User $CurrentIdentity
+            $RollbackPrincipal = New-ScheduledTaskPrincipal `
+                -UserId $CurrentIdentity `
+                -LogonType Interactive `
+                -RunLevel Limited
+            $RollbackSettings = New-ScheduledTaskSettingsSet `
+                -AllowStartIfOnBatteries `
+                -DontStopIfGoingOnBatteries `
+                -StartWhenAvailable `
+                -RestartCount 3 `
+                -RestartInterval (New-TimeSpan -Minutes 1) `
+                -ExecutionTimeLimit (New-TimeSpan -Days 3650)
+            $RollbackTask = New-ScheduledTask `
+                -Action $RollbackAction `
+                -Trigger $RollbackTrigger `
+                -Principal $RollbackPrincipal `
+                -Settings $RollbackSettings `
+                -Description "Rollback des Job Pipeline Runtime Lease Watchers."
+            Register-ScheduledTask `
+                -TaskName $TaskName `
+                -InputObject $RollbackTask `
+                -Force | Out-Null
+            Start-ScheduledTask -TaskName $TaskName
+        }
+
+        throw "Watcher-Installation fehlgeschlagen; vorheriges Skript wurde soweit möglich wiederhergestellt. Ursache: $InstallationFailure"
+    }
+    finally {
+        Remove-Item -LiteralPath $CandidateScript -Force -ErrorAction SilentlyContinue
     }
 
-    Write-Host "=== 5/5 Scheduled Task registrieren und starten ==="
-    $CurrentIdentity = (
-        [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-    )
-
-    $ActionArguments = (
-        '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -WslDistro "{1}"' -f
-        $InstalledScript,
-        $WslDistro
-    )
-
-    $Action = New-ScheduledTaskAction `
-        -Execute $PowerShellExe `
-        -Argument $ActionArguments
-
-    $Trigger = New-ScheduledTaskTrigger `
-        -AtLogOn `
-        -User $CurrentIdentity
-
-    $Principal = New-ScheduledTaskPrincipal `
-        -UserId $CurrentIdentity `
-        -LogonType Interactive `
-        -RunLevel Limited
-
-    $Settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -StartWhenAvailable `
-        -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Minutes 1) `
-        -ExecutionTimeLimit (New-TimeSpan -Days 3650)
-
-    $TaskDefinition = New-ScheduledTask `
-        -Action $Action `
-        -Trigger $Trigger `
-        -Principal $Principal `
-        -Settings $Settings `
-        -Description "Hält Windows nur während einer aktiven Origin-Runtime-Lease wach, protokolliert beobachtete Wachzeit und repariert begrenzt den lokalen Tailscale-Dienst."
-
-    Register-ScheduledTask `
-        -TaskName $TaskName `
-        -InputObject $TaskDefinition `
-        -Force | Out-Null
-
-    Start-ScheduledTask -TaskName $TaskName
-    Start-Sleep -Seconds 7
-
-    $Task = Get-ScheduledTask -TaskName $TaskName
-    $TaskInfo = Get-ScheduledTaskInfo -TaskName $TaskName
-
-    if ($Task.State -ne "Running") {
-        throw "Der Wächter läuft nicht. Status: $($Task.State), Ergebnis: $($TaskInfo.LastTaskResult)"
-    }
-
-    Write-Host ""
-    Write-Host "=== ERGEBNIS ==="
+    Write-Host "=== 5/5 Ergebnis ==="
     Write-Host "pipeline_head=$PipelineHead"
     Write-Host "watcher_task=$($Task.TaskName)"
     Write-Host "watcher_state=$($Task.State)"
