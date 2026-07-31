@@ -47,6 +47,28 @@ on:
         required: false
         type: boolean
         default: false
+      origin_evidence_max_candidates_per_company:
+        required: false
+        type: number
+        default: 3
+      origin_evidence_max_http_requests:
+        required: false
+        type: number
+        default: 30
+      enable_llm_adjudication:
+        description: Explicitly enable bounded LLM review for unresolved origin evidence.
+        required: false
+        type: boolean
+        default: false
+      max_llm_adjudication_requests:
+        required: false
+        type: number
+        default: 2
+      llm_adjudication_model:
+        description: Explicit OpenAI model ID; required only when LLM adjudication is enabled.
+        required: false
+        type: string
+        default: ""
     secrets:
       ts_oauth_client_id:
         required: true
@@ -64,6 +86,8 @@ on:
         required: true
       postgres_password:
         required: true
+      openai_api_key:
+        required: false
 
 permissions:
   contents: read
@@ -87,12 +111,30 @@ jobs:
           ref: ${{ inputs.pipeline_ref }}
           persist-credentials: false
 
+      - name: Derive runtime contract cache key
+        id: runtime-contract
+        env:
+          RUNTIME_INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+
+          payload = json.loads(os.environ["RUNTIME_INPUTS_JSON"])
+          canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+          digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"sha256={digest}\n")
+          print(f"origin_runtime_contract_sha256={digest}")
+          PY
+
       - name: Restore successful fingerprint marker
         id: success-cache
         uses: actions/cache/restore@v4
         with:
           path: .origin-runtime-cache
-          key: origin-provider-success-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}
+          key: origin-provider-success-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ steps.runtime-contract.outputs.sha256 }}
 
       - name: Report already completed fingerprint
         if: steps.success-cache.outputs.cache-hit == 'true'
@@ -103,9 +145,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .origin-runtime-checkpoint
-          key: origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ steps.runtime-contract.outputs.sha256 }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-
+            origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ steps.runtime-contract.outputs.sha256 }}-
 
       - name: Set up Python
         if: steps.success-cache.outputs.cache-hit != 'true'
@@ -231,18 +273,42 @@ jobs:
           cat "$LEASE_LOG" 2>/dev/null || true
           echo "origin_runtime_lease_cleanup=complete"
 
+      - name: Grade source evidence and adjudicate unresolved cases
+        if: steps.success-cache.outputs.cache-hit != 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.openai_api_key }}
+          ORIGIN_ADJUDICATION_MODEL: ${{ inputs.llm_adjudication_model }}
+          INPUT_PATH: ${{ runner.temp }}/origin-provider-benchmark.json
+          OUTPUT_PATH: ${{ runner.temp }}/origin-evidence-adjudication.json
+          CHECKPOINT_PATH: .origin-runtime-checkpoint/origin-evidence-adjudication-checkpoint.json
+        run: |
+          ARGS=(
+            --input "$INPUT_PATH"
+            --output "$OUTPUT_PATH"
+            --checkpoint "$CHECKPOINT_PATH"
+            --target-location "${{ inputs.target_location }}"
+            --max-candidates-per-company "${{ inputs.origin_evidence_max_candidates_per_company }}"
+            --max-http-requests "${{ inputs.origin_evidence_max_http_requests }}"
+            --max-llm-requests "${{ inputs.max_llm_adjudication_requests }}"
+            --llm-model "${{ inputs.llm_adjudication_model }}"
+          )
+          if [ "${{ inputs.enable_llm_adjudication }}" = "true" ]; then
+            ARGS+=(--enable-llm-adjudication)
+          fi
+          python -m scripts.run_origin_evidence_adjudication "${ARGS[@]}"
+
       - name: Save candidate checkpoint
         if: ${{ always() && steps.success-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: .origin-runtime-checkpoint
-          key: origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: origin-provider-checkpoint-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ steps.runtime-contract.outputs.sha256 }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Create successful fingerprint marker
         if: steps.success-cache.outputs.cache-hit != 'true' && success()
         run: |
           mkdir -p .origin-runtime-cache
-          printf '%s\n' "${{ inputs.pipeline_ref }}:${{ inputs.expected_fingerprint }}" \
+          printf '%s\n' "${{ inputs.pipeline_ref }}:${{ inputs.expected_fingerprint }}:${{ steps.runtime-contract.outputs.sha256 }}" \
             > .origin-runtime-cache/completed.txt
 
       - name: Save successful fingerprint marker
@@ -250,12 +316,13 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .origin-runtime-cache
-          key: origin-provider-success-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}
+          key: origin-provider-success-${{ inputs.pipeline_ref }}-${{ inputs.expected_fingerprint }}-${{ steps.runtime-contract.outputs.sha256 }}
 
       - name: Publish sanitized run summary
         if: always()
         env:
           OUTPUT_PATH: ${{ runner.temp }}/origin-provider-benchmark.json
+          EVIDENCE_PATH: ${{ runner.temp }}/origin-evidence-adjudication.json
           CHECKPOINT_PATH: .origin-runtime-checkpoint/origin-provider-event-checkpoint.json
         run: |
           python - <<'PY'
@@ -264,13 +331,14 @@ jobs:
           from pathlib import Path
 
           report_path = Path(os.environ["OUTPUT_PATH"])
+          evidence_path = Path(os.environ["EVIDENCE_PATH"])
           checkpoint_path = Path(os.environ["CHECKPOINT_PATH"])
           summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
           lines = ["## Origin provider benchmark", ""]
           cache_hit = "${{ steps.success-cache.outputs.cache-hit }}" == "true"
           if cache_hit:
               lines.append(
-                  "This exact pipeline-ref/fingerprint pair completed earlier; "
+                  "This exact pipeline-ref/fingerprint/runtime-contract completed earlier; "
                   "no provider call was repeated."
               )
           elif report_path.exists():
@@ -281,16 +349,32 @@ jobs:
               lines.extend(
                   [
                       f"- Candidate count: `{summary['result_count']}`",
-                      f"- Provider request attempts: `{provider['provider_request_attempts']}`",
+                      f"- Tavily request attempts: `{provider['provider_request_attempts']}`",
                       f"- Resumed candidate results: `{recovery['resumed_result_count']}`",
-                      f"- Selected: `{summary['selected_count']}`",
-                      f"- Manual review: `{summary['manual_review_count']}`",
-                      f"- Not found: `{summary['not_found_count']}`",
+                      f"- Legacy selected: `{summary['selected_count']}`",
+                      f"- Legacy manual review: `{summary['manual_review_count']}`",
+                      f"- Legacy not found: `{summary['not_found_count']}`",
                       "- Database reads after verified snapshot: `0`",
                       "- Runtime lease: `PostgreSQL advisory lock, fail-safe on disconnect`",
                       "- Boundary: `review_output_only_not_pipeline_input`",
                   ]
               )
+              if evidence_path.exists():
+                  evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+                  evidence_summary = evidence["summary"]
+                  lines.extend(
+                      [
+                          "",
+                          "### Source-grade evidence",
+                          f"- Deterministic selected: `{evidence_summary['deterministic_selected_count']}`",
+                          f"- Manual review: `{evidence_summary['manual_review_count']}`",
+                          f"- LLM-eligible: `{evidence_summary['llm_eligible_count']}`",
+                          f"- LLM request attempts: `{evidence_summary['llm_request_attempts']}`",
+                          f"- LLM completed: `{evidence_summary['llm_completed_count']}`",
+                          f"- Bounded HTTP request attempts: `{evidence_summary['http_request_attempts']}`",
+                          "- LLM output: `review signal only; never selection truth or mutation authority`",
+                      ]
+                  )
           elif checkpoint_path.exists():
               checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
               lines.extend(
@@ -313,7 +397,9 @@ jobs:
           name: origin-provider-benchmark-${{ inputs.expected_fingerprint }}
           path: |
             ${{ runner.temp }}/origin-provider-benchmark.json
+            ${{ runner.temp }}/origin-evidence-adjudication.json
             .origin-runtime-checkpoint/origin-provider-event-checkpoint.json
+            .origin-runtime-checkpoint/origin-evidence-adjudication-checkpoint.json
             ${{ runner.temp }}/origin-runtime-lease.log
           if-no-files-found: warn
           retention-days: 3
