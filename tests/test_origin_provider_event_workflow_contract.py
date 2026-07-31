@@ -58,6 +58,13 @@ def test_private_caller_is_event_driven_and_validates_exact_payload() -> None:
     assert "schedule:" not in CALLER
 
 
+def test_private_caller_uses_only_privilege_specific_reader_secret_names() -> None:
+    assert "secrets.ORIGIN_BENCHMARK_DB_USER" in CALLER
+    assert "secrets.ORIGIN_BENCHMARK_DB_PASSWORD" in CALLER
+    assert "secrets.POSTGRES_USER" not in CALLER
+    assert "secrets.POSTGRES_PASSWORD" not in CALLER
+
+
 def test_dispatcher_sends_only_metadata_after_change_detection() -> None:
     assert "projection_fingerprint" in DISPATCHER
     assert "unchanged projection inside recovery window; no event sent" in DISPATCHER

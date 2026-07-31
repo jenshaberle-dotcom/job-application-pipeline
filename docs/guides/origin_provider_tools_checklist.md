@@ -37,6 +37,17 @@ merged. It performs no automatic installation or secret creation.
 - [ ] PostgreSQL listens on the Tailscale interface.
 - [ ] `pg_hba.conf` permits the dedicated user only from the intended tailnet range.
 
+## Credential separation
+
+- [ ] Application credentials remain local to the normal Pipeline runtime and use
+  the existing application configuration contract.
+- [ ] Administrative credentials are used only for explicit operator-controlled
+  setup, migration or role-management commands and are never copied to GitHub.
+- [ ] Remote runtime credentials use only the restricted
+  `origin_benchmark_reader` role and the privilege-specific secret names below.
+- [ ] No password is reused across application, administrative and remote runtime
+  credential classes.
+
 ## Private repository secrets
 
 - [ ] `TS_OAUTH_CLIENT_ID`
@@ -45,8 +56,12 @@ merged. It performs no automatic installation or secret creation.
 - [ ] `POSTGRES_HOST`
 - [ ] `POSTGRES_PORT`
 - [ ] `POSTGRES_DB`
-- [ ] `POSTGRES_USER`
-- [ ] `POSTGRES_PASSWORD`
+- [ ] `ORIGIN_BENCHMARK_DB_USER=origin_benchmark_reader`
+- [ ] `ORIGIN_BENCHMARK_DB_PASSWORD`
+
+The privilege-specific reader names are intentional. Generic local names such as
+`POSTGRES_USER` and `POSTGRES_PASSWORD` must not be used for the private runtime
+reader credentials.
 
 ## Activation
 
