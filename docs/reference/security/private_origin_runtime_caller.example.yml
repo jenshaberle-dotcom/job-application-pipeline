@@ -77,6 +77,12 @@ jobs:
       max_url_candidates: 20
       no_probe: false
       tailscale_tags: tag:github-origin-benchmark
+      origin_evidence_max_candidates_per_company: 3
+      origin_evidence_max_http_requests: 30
+      enable_llm_adjudication: false
+      max_llm_adjudication_requests: 2
+      # Set an explicit current model ID only when enable_llm_adjudication is true.
+      llm_adjudication_model: ""
     secrets:
       ts_oauth_client_id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
       ts_audience: ${{ secrets.TS_AUDIENCE }}
@@ -86,3 +92,5 @@ jobs:
       postgres_db: ${{ secrets.POSTGRES_DB }}
       postgres_user: ${{ secrets.POSTGRES_USER }}
       postgres_password: ${{ secrets.POSTGRES_PASSWORD }}
+      # Optional while LLM adjudication remains disabled.
+      openai_api_key: ${{ secrets.OPENAI_API_KEY }}
