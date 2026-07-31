@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from time import perf_counter
 from typing import Callable, Mapping
 
@@ -12,6 +14,7 @@ from src.search_intelligence.origin_llm_adjudication import (
     ADJUDICATION_SCHEMA,
     OPENAI_RESPONSES_URL,
     SYSTEM_INSTRUCTIONS,
+    AdjudicationValidationError,
     LLMAdjudicationResult,
     build_adjudication_packet,
     validate_adjudication,
@@ -27,6 +30,41 @@ Transport = Callable[
     [str, Mapping[str, str], Mapping[str, object], float],
     Mapping[str, object],
 ]
+
+
+class ProviderTransportError(RuntimeError):
+    """Sanitized provider failure with stable stage and HTTP status."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        stage: str,
+        http_status: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.stage = stage
+        self.http_status = http_status
+
+
+def _safe_failure_message(exc: BaseException) -> str:
+    text = " ".join(str(exc).split()) or type(exc).__name__
+    text = re.sub(r"Bearer\s+\S+", "Bearer ***", text, flags=re.IGNORECASE)
+    return text[:800]
+
+
+def _output_item_types(response: Mapping[str, object]) -> tuple[str, ...]:
+    output = response.get("output")
+    if not isinstance(output, list):
+        return ()
+    result: list[str] = []
+    for item in output:
+        if not isinstance(item, Mapping):
+            continue
+        item_type = item.get("type")
+        if isinstance(item_type, str) and item_type:
+            result.append(item_type)
+    return tuple(result)
 
 
 def _extract_output_text(response: Mapping[str, object]) -> str:
@@ -65,10 +103,30 @@ def _requests_transport(
         json=dict(payload),
         timeout=timeout_seconds,
     )
-    response.raise_for_status()
-    decoded = response.json()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        status = response.status_code
+        stage = "authentication" if status in {401, 403} else "provider_response"
+        raise ProviderTransportError(
+            f"OpenAI request failed with HTTP {status}",
+            stage=stage,
+            http_status=status,
+        ) from exc
+    try:
+        decoded = response.json()
+    except ValueError as exc:
+        raise ProviderTransportError(
+            "OpenAI response body is not valid JSON",
+            stage="provider_response",
+            http_status=response.status_code,
+        ) from exc
     if not isinstance(decoded, Mapping):
-        raise ValueError("OpenAI response root must be an object")
+        raise ProviderTransportError(
+            "OpenAI response root must be an object",
+            stage="provider_response",
+            http_status=response.status_code,
+        )
     return decoded
 
 
@@ -167,6 +225,10 @@ def adjudicate_model(
             usage=None,
             adjudication=None,
             failure_class=failure,
+            failure_stage="configuration",
+            failure_message=(
+                "OPENAI_API_KEY is missing" if not key else "model is missing"
+            ),
         )
         return ModelCallObservation(
             company_key=decision.company_key,
@@ -182,6 +244,16 @@ def adjudicate_model(
 
     started = perf_counter()
     response: Mapping[str, object] | None = None
+    usage_map: Mapping[str, object] | None = None
+    returned_model = selected_model
+    response_id: str | None = None
+    provider_status: str | None = None
+    http_status: int | None = None
+    incomplete_details: Mapping[str, object] | None = None
+    output_item_types: tuple[str, ...] = ()
+    output_text_length: int | None = None
+    raw_output_sha256: str | None = None
+    failure_stage = "transport"
     try:
         response = transport(
             OPENAI_RESPONSES_URL,
@@ -192,39 +264,83 @@ def adjudicate_model(
             request_payload,
             timeout_seconds,
         )
+        usage = response.get("usage")
+        usage_map = usage if isinstance(usage, Mapping) else None
+        returned_model = str(response.get("model") or selected_model)
+        response_id = str(response.get("id") or "") or None
+        provider_status = str(response.get("status") or "") or None
+        incomplete = response.get("incomplete_details")
+        incomplete_details = incomplete if isinstance(incomplete, Mapping) else None
+        output_item_types = _output_item_types(response)
+
+        failure_stage = "output_extraction"
         output_text = _extract_output_text(response)
+        output_text_length = len(output_text)
+        raw_output_sha256 = hashlib.sha256(output_text.encode("utf-8")).hexdigest()
+
+        failure_stage = "json_decode"
         decoded = json.loads(output_text)
         if not isinstance(decoded, Mapping):
-            raise ValueError("adjudication JSON root must be an object")
+            raise AdjudicationValidationError(
+                "schema_validation",
+                "adjudication JSON root must be an object",
+            )
+
+        failure_stage = "schema_validation"
         allowed_ids = {item.candidate_id for item in decision.assessments[:4]}
         adjudication = validate_adjudication(
             decoded,
             allowed_candidate_ids=allowed_ids,
         )
-        usage = response.get("usage")
-        usage_map = usage if isinstance(usage, Mapping) else None
-        returned_model = str(response.get("model") or selected_model)
         result = LLMAdjudicationResult(
             status="completed",
             provider="openai_responses",
             model=returned_model,
             request_attempted=True,
-            response_id=str(response.get("id") or "") or None,
+            response_id=response_id,
             usage=usage_map,
             adjudication=adjudication,
+            provider_status=provider_status,
+            http_status=http_status,
+            incomplete_details=incomplete_details,
+            output_item_types=output_item_types,
+            output_text_length=output_text_length,
+            raw_output_sha256=raw_output_sha256,
         )
-    except (json.JSONDecodeError, requests.RequestException, TypeError, ValueError) as exc:
-        usage_map = None
-        returned_model = selected_model
+    except (
+        AdjudicationValidationError,
+        ProviderTransportError,
+        json.JSONDecodeError,
+        requests.RequestException,
+        TypeError,
+        ValueError,
+    ) as exc:
+        if isinstance(exc, AdjudicationValidationError):
+            failure_stage = exc.stage
+        elif isinstance(exc, ProviderTransportError):
+            failure_stage = exc.stage
+            http_status = exc.http_status
+        elif isinstance(exc, json.JSONDecodeError):
+            failure_stage = "json_decode"
+        elif isinstance(exc, requests.RequestException):
+            failure_stage = "transport"
         result = LLMAdjudicationResult(
             status="failed_closed",
             provider="openai_responses",
-            model=selected_model,
+            model=returned_model,
             request_attempted=True,
-            response_id=None,
-            usage=None,
+            response_id=response_id,
+            usage=usage_map,
             adjudication=None,
             failure_class=type(exc).__name__,
+            failure_stage=failure_stage,
+            failure_message=_safe_failure_message(exc),
+            provider_status=provider_status,
+            http_status=http_status,
+            incomplete_details=incomplete_details,
+            output_item_types=output_item_types,
+            output_text_length=output_text_length,
+            raw_output_sha256=raw_output_sha256,
         )
     elapsed_ms = int(round((perf_counter() - started) * 1000))
     return ModelCallObservation(
