@@ -4,15 +4,18 @@ from pathlib import Path
 WORKFLOW = Path(".github/workflows/reusable-origin-llm-model-campaign.yml")
 
 
-def test_model_campaign_workflow_is_bounded_and_review_only() -> None:
+def test_model_campaign_workflow_is_call_bounded_and_review_only() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
     assert "name: Reusable origin LLM model campaign" in text
     assert "gpt-5.4-mini,gpt-5.6-terra,gpt-5.5" in text
     assert "benchmark_max_requests" in text
     assert "default: 18" in text
-    assert "benchmark_max_estimated_cost_usd" in text
-    assert "default: 0.50" in text
+    assert "benchmark_max_requests must equal cases multiplied by model count" in text
+    assert "benchmark_max_estimated_cost_usd:" not in text
+    assert "escalation_max_estimated_cost_usd:" not in text
+    assert text.count("--max-estimated-cost-usd inf") == 2
+    assert "Cost telemetry: `reported but not used as a stop gate`" in text
     assert "Provider disagreement: `manual review required`" in text
     assert "review_output_only_not_pipeline_input" in text
     assert "openai_api_key:" in text
