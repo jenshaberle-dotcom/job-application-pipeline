@@ -1,0 +1,311 @@
+name: Reusable origin LLM model campaign
+
+on:
+  workflow_call:
+    inputs:
+      pipeline_ref:
+        description: Exact committed Pipeline SHA selected by the local dispatcher.
+        required: true
+        type: string
+      expected_fingerprint:
+        description: SHA-256 of the bounded DB projection at dispatch time.
+        required: true
+        type: string
+      max_candidates:
+        required: false
+        type: number
+        default: 6
+      search_query_limit:
+        required: false
+        type: number
+        default: 2
+      search_max_results:
+        required: false
+        type: number
+        default: 5
+      max_provider_requests:
+        required: false
+        type: number
+        default: 12
+      target_location:
+        required: false
+        type: string
+        default: Hannover
+      tailscale_tags:
+        required: false
+        type: string
+        default: tag:github-origin-benchmark
+      max_url_candidates:
+        required: false
+        type: number
+        default: 20
+      market_evidence_limit:
+        required: false
+        type: number
+        default: 10
+      no_probe:
+        required: false
+        type: boolean
+        default: false
+      origin_evidence_max_candidates_per_company:
+        required: false
+        type: number
+        default: 3
+      origin_evidence_max_http_requests:
+        required: false
+        type: number
+        default: 30
+      campaign_mode:
+        description: benchmark compares all models; adjudicate runs the configured two-stage route.
+        required: false
+        type: string
+        default: benchmark
+      benchmark_models:
+        required: false
+        type: string
+        default: gpt-5.4-mini,gpt-5.6-terra,gpt-5.5
+      benchmark_max_cases:
+        required: false
+        type: number
+        default: 6
+      benchmark_max_requests:
+        required: false
+        type: number
+        default: 18
+      benchmark_max_estimated_cost_usd:
+        required: false
+        type: number
+        default: 0.50
+      primary_model:
+        required: false
+        type: string
+        default: gpt-5.4-mini
+      escalation_model:
+        required: false
+        type: string
+        default: gpt-5.5
+      max_primary_requests:
+        required: false
+        type: number
+        default: 2
+      max_escalation_requests:
+        required: false
+        type: number
+        default: 2
+      escalation_max_estimated_cost_usd:
+        required: false
+        type: number
+        default: 0.15
+      reasoning_effort:
+        required: false
+        type: string
+        default: low
+      max_output_tokens:
+        required: false
+        type: number
+        default: 600
+    secrets:
+      ts_oauth_client_id:
+        required: true
+      ts_audience:
+        required: true
+      tavily_api_key:
+        required: true
+      postgres_host:
+        required: true
+      postgres_port:
+        required: true
+      postgres_db:
+        required: true
+      postgres_user:
+        required: true
+      postgres_password:
+        required: true
+      openai_api_key:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: origin-llm-model-campaign-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  origin-evidence:
+    uses: ./.github/workflows/reusable-origin-provider-benchmark.yml
+    with:
+      pipeline_ref: ${{ inputs.pipeline_ref }}
+      expected_fingerprint: ${{ inputs.expected_fingerprint }}
+      max_candidates: ${{ inputs.max_candidates }}
+      search_query_limit: ${{ inputs.search_query_limit }}
+      search_max_results: ${{ inputs.search_max_results }}
+      max_provider_requests: ${{ inputs.max_provider_requests }}
+      target_location: ${{ inputs.target_location }}
+      tailscale_tags: ${{ inputs.tailscale_tags }}
+      max_url_candidates: ${{ inputs.max_url_candidates }}
+      market_evidence_limit: ${{ inputs.market_evidence_limit }}
+      no_probe: ${{ inputs.no_probe }}
+      origin_evidence_max_candidates_per_company: ${{ inputs.origin_evidence_max_candidates_per_company }}
+      origin_evidence_max_http_requests: ${{ inputs.origin_evidence_max_http_requests }}
+      enable_llm_adjudication: false
+      max_llm_adjudication_requests: 0
+      llm_adjudication_model: ""
+    secrets:
+      ts_oauth_client_id: ${{ secrets.ts_oauth_client_id }}
+      ts_audience: ${{ secrets.ts_audience }}
+      tavily_api_key: ${{ secrets.tavily_api_key }}
+      postgres_host: ${{ secrets.postgres_host }}
+      postgres_port: ${{ secrets.postgres_port }}
+      postgres_db: ${{ secrets.postgres_db }}
+      postgres_user: ${{ secrets.postgres_user }}
+      postgres_password: ${{ secrets.postgres_password }}
+
+  model-campaign:
+    needs: origin-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate campaign contract
+        env:
+          CAMPAIGN_MODE: ${{ inputs.campaign_mode }}
+          BENCHMARK_MODELS: ${{ inputs.benchmark_models }}
+          BENCHMARK_MAX_CASES: ${{ inputs.benchmark_max_cases }}
+          BENCHMARK_MAX_REQUESTS: ${{ inputs.benchmark_max_requests }}
+          PRIMARY_MODEL: ${{ inputs.primary_model }}
+          ESCALATION_MODEL: ${{ inputs.escalation_model }}
+        run: |
+          python3 - <<'PY'
+          import os
+
+          mode = os.environ["CAMPAIGN_MODE"]
+          if mode not in {"benchmark", "adjudicate"}:
+              raise SystemExit("campaign_mode must be benchmark or adjudicate")
+          models = [item.strip() for item in os.environ["BENCHMARK_MODELS"].split(",") if item.strip()]
+          if mode == "benchmark" and models != ["gpt-5.4-mini", "gpt-5.6-terra", "gpt-5.5"]:
+              raise SystemExit("benchmark model set or order changed")
+          if int(os.environ["BENCHMARK_MAX_CASES"]) > 6:
+              raise SystemExit("benchmark_max_cases exceeds six-case mini-campaign")
+          if int(os.environ["BENCHMARK_MAX_REQUESTS"]) > 18:
+              raise SystemExit("benchmark_max_requests exceeds 18-call envelope")
+          if not os.environ["PRIMARY_MODEL"] or not os.environ["ESCALATION_MODEL"]:
+              raise SystemExit("primary and escalation models must be explicit")
+          PY
+
+      - name: Check out exact Pipeline revision
+        uses: actions/checkout@v4
+        with:
+          repository: jenshaberle-dotcom/job-application-pipeline
+          ref: ${{ inputs.pipeline_ref }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Download immutable origin evidence artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: origin-provider-benchmark-${{ inputs.expected_fingerprint }}
+          path: ${{ runner.temp }}/origin-provider-artifact
+
+      - name: Run fixed three-model benchmark
+        if: inputs.campaign_mode == 'benchmark'
+        env:
+          OPENAI_API_KEY: ${{ secrets.openai_api_key }}
+        run: |
+          python -m scripts.run_origin_llm_model_campaign \
+            --input "${{ runner.temp }}/origin-provider-artifact/origin-evidence-adjudication.json" \
+            --contract docs/reference/search-intelligence/origin_llm_model_benchmark_contract.v1.json \
+            --output "${{ runner.temp }}/origin-llm-model-campaign.json" \
+            --checkpoint "${{ runner.temp }}/origin-llm-model-campaign-checkpoint.json" \
+            --models "${{ inputs.benchmark_models }}" \
+            --max-cases "${{ inputs.benchmark_max_cases }}" \
+            --max-requests "${{ inputs.benchmark_max_requests }}" \
+            --reasoning-effort "${{ inputs.reasoning_effort }}" \
+            --max-output-tokens "${{ inputs.max_output_tokens }}" \
+            --max-estimated-cost-usd "${{ inputs.benchmark_max_estimated_cost_usd }}"
+
+      - name: Run bounded two-stage adjudication
+        if: inputs.campaign_mode == 'adjudicate'
+        env:
+          OPENAI_API_KEY: ${{ secrets.openai_api_key }}
+        run: |
+          python -m scripts.run_origin_llm_escalation \
+            --input "${{ runner.temp }}/origin-provider-artifact/origin-evidence-adjudication.json" \
+            --output "${{ runner.temp }}/origin-llm-escalation.json" \
+            --primary-model "${{ inputs.primary_model }}" \
+            --escalation-model "${{ inputs.escalation_model }}" \
+            --max-primary-requests "${{ inputs.max_primary_requests }}" \
+            --max-escalation-requests "${{ inputs.max_escalation_requests }}" \
+            --reasoning-effort "${{ inputs.reasoning_effort }}" \
+            --max-output-tokens "${{ inputs.max_output_tokens }}" \
+            --max-estimated-cost-usd "${{ inputs.escalation_max_estimated_cost_usd }}"
+
+      - name: Publish model campaign summary
+        if: always()
+        env:
+          BENCHMARK_PATH: ${{ runner.temp }}/origin-llm-model-campaign.json
+          ESCALATION_PATH: ${{ runner.temp }}/origin-llm-escalation.json
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          benchmark = Path(os.environ["BENCHMARK_PATH"])
+          escalation = Path(os.environ["ESCALATION_PATH"])
+          lines = ["## Origin LLM model campaign", ""]
+          if benchmark.exists():
+              payload = json.loads(benchmark.read_text(encoding="utf-8"))
+              recommendation = payload["recommendation"]
+              lines.extend(
+                  [
+                      f"- Cases: `{payload['summary']['case_count']}`",
+                      f"- Provider calls: `{payload['summary']['request_attempts']}`",
+                      f"- Estimated cost: `${payload['summary']['estimated_total_cost_usd']:.6f}`",
+                      f"- Recommended primary: `{recommendation['primary_model']}`",
+                      f"- Recommended escalation: `{recommendation['escalation_model']}`",
+                      f"- Escalation lift proven: `{recommendation['escalation_value_proven']}`",
+                  ]
+              )
+          elif escalation.exists():
+              payload = json.loads(escalation.read_text(encoding="utf-8"))
+              lines.extend(
+                  [
+                      f"- Eligible cases: `{payload['summary']['eligible_case_count']}`",
+                      f"- Primary calls: `{payload['summary']['primary_request_attempts']}`",
+                      f"- Escalation calls: `{payload['summary']['escalation_request_attempts']}`",
+                      f"- Provider disagreements: `{payload['summary']['provider_disagreement_count']}`",
+                  ]
+              )
+          else:
+              lines.append("No model campaign output was produced.")
+          lines.extend(
+              [
+                  "- Boundary: `review_output_only_not_pipeline_input`",
+                  "- Provider disagreement: `manual review required`",
+              ]
+          )
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload model campaign artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: origin-llm-model-campaign-${{ inputs.expected_fingerprint }}
+          path: |
+            ${{ runner.temp }}/origin-llm-model-campaign.json
+            ${{ runner.temp }}/origin-llm-model-campaign-checkpoint.json
+            ${{ runner.temp }}/origin-llm-escalation.json
+          if-no-files-found: warn
+          retention-days: 3
