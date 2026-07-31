@@ -22,6 +22,19 @@ def test_model_campaign_workflow_is_call_bounded_and_review_only() -> None:
     assert "required: true" in text
 
 
+def test_downloaded_evidence_artifact_is_resolved_recursively_and_uniquely() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "Resolve immutable origin evidence input" in text
+    assert 'root.rglob("origin-evidence-adjudication.json")' in text
+    assert "expected exactly one origin-evidence-adjudication.json" in text
+    assert text.count('${{ steps.evidence-input.outputs.path }}') == 2
+    assert (
+        '${{ runner.temp }}/origin-provider-artifact/origin-evidence-adjudication.json'
+        not in text
+    )
+
+
 def test_evidence_stage_never_runs_single_model_adjudication() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
