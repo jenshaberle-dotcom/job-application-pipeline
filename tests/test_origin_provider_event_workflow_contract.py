@@ -97,6 +97,24 @@ def test_runtime_lease_is_advisory_lock_based_and_windows_fail_safe() -> None:
     assert "ES_SYSTEM_REQUIRED" in LEASE_WATCHER
 
 
+def test_windows_watcher_records_conservative_awake_time() -> None:
+    assert "observed_awake_seconds" in LEASE_WATCHER
+    assert "lease_active_seconds" in LEASE_WATCHER
+    assert "awake_without_lease_seconds" in LEASE_WATCHER
+    assert "suspend_or_unobserved_seconds" in LEASE_WATCHER
+    assert "awake-gap-threshold-seconds" in LEASE_WATCHER
+
+
+def test_windows_watcher_tailscale_recovery_is_bounded_and_fail_closed() -> None:
+    assert "recovery-cooldown-seconds" in LEASE_WATCHER
+    assert "recovery-max-per-hour" in LEASE_WATCHER
+    assert '"systemctl",\n                action,\n                "tailscaled"' in LEASE_WATCHER
+    assert "NeedsLogin" in LEASE_WATCHER
+    assert "tailscale up" not in LEASE_WATCHER
+    assert "tailscale logout" not in LEASE_WATCHER
+    assert "tailscaled.state" not in LEASE_WATCHER
+
+
 def test_database_role_is_read_only_and_table_scoped() -> None:
     assert "default_transaction_read_only = 'on'" in SQL
     assert "employer_origin_source_candidates" in SQL
