@@ -16,7 +16,9 @@ SNAPSHOT_RUNNER = Path("scripts/origin_provider_snapshot_runner.py").read_text(
     encoding="utf-8"
 )
 LEASE_HOLDER = Path("scripts/hold_origin_runtime_lease.py").read_text(encoding="utf-8")
-LEASE_WATCHER = Path("scripts/watch_origin_runtime_lease.py").read_text(encoding="utf-8")
+LEASE_WATCHER = Path("scripts/install_windows_origin_runtime_lease_watcher.ps1").read_text(
+    encoding="utf-8"
+)
 SQL = Path("db/ops/create_origin_benchmark_reader.sql").read_text(encoding="utf-8")
 
 
@@ -93,26 +95,41 @@ def test_provider_loop_uses_verified_snapshot_without_reopening_database() -> No
 def test_runtime_lease_is_advisory_lock_based_and_windows_fail_safe() -> None:
     assert "pg_advisory_lock" in LEASE_HOLDER or "acquire_runtime_lease" in LEASE_HOLDER
     assert "SetThreadExecutionState" in LEASE_WATCHER
-    assert "grace-seconds" in LEASE_WATCHER
+    assert "GraceSeconds" in LEASE_WATCHER
     assert "ES_SYSTEM_REQUIRED" in LEASE_WATCHER
+    assert "$ShouldHold = $LeaseActive -or $InsideGrace" in LEASE_WATCHER
+
+
+def test_windows_watcher_matches_the_deployed_wsl_powershell_topology() -> None:
+    assert 'Join-Path $env:LOCALAPPDATA "JobPipelineRuntimeLeaseWatcher"' in LEASE_WATCHER
+    assert '$HOME/projects/job-application-pipeline' in LEASE_WATCHER
+    assert 'wsl.exe -d $WslDistro -- bash -lc' in LEASE_WATCHER
+    assert "WindowStyle Hidden" in LEASE_WATCHER
+    assert "windows_python_required=false" in LEASE_WATCHER
+    assert ".venv\\Scripts\\python.exe" not in LEASE_WATCHER
 
 
 def test_windows_watcher_records_conservative_awake_time() -> None:
-    assert "observed_awake_seconds" in LEASE_WATCHER
-    assert "lease_active_seconds" in LEASE_WATCHER
-    assert "awake_without_lease_seconds" in LEASE_WATCHER
-    assert "suspend_or_unobserved_seconds" in LEASE_WATCHER
-    assert "awake-gap-threshold-seconds" in LEASE_WATCHER
+    assert "total_observed_awake_seconds" in LEASE_WATCHER
+    assert "total_lease_active_seconds" in LEASE_WATCHER
+    assert "total_awake_without_lease_seconds" in LEASE_WATCHER
+    assert "total_suspend_or_unobserved_seconds" in LEASE_WATCHER
+    assert "AwakeGapThresholdSeconds" in LEASE_WATCHER
+    assert 'Event "suspend_or_unobserved_gap"' in LEASE_WATCHER
 
 
 def test_windows_watcher_tailscale_recovery_is_bounded_and_fail_closed() -> None:
-    assert "recovery-cooldown-seconds" in LEASE_WATCHER
-    assert "recovery-max-per-hour" in LEASE_WATCHER
-    assert '"systemctl",\n                action,\n                "tailscaled"' in LEASE_WATCHER
+    assert "RecoveryCooldownSeconds" in LEASE_WATCHER
+    assert "RecoveryMaxPerHour" in LEASE_WATCHER
+    assert '[ValidateSet("start", "restart")]' in LEASE_WATCHER
+    assert "wsl.exe -d $WslDistro -u root -- systemctl $Action tailscaled" in LEASE_WATCHER
     assert "NeedsLogin" in LEASE_WATCHER
+    assert "NeedsMachineAuth" in LEASE_WATCHER
     assert "tailscale up" not in LEASE_WATCHER
     assert "tailscale logout" not in LEASE_WATCHER
     assert "tailscaled.state" not in LEASE_WATCHER
+    assert "systemctl $Action docker" not in LEASE_WATCHER
+    assert "systemctl $Action postgresql" not in LEASE_WATCHER
 
 
 def test_database_role_is_read_only_and_table_scoped() -> None:
