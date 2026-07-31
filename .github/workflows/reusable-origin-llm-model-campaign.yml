@@ -56,10 +56,15 @@ on:
         type: number
         default: 30
       campaign_mode:
-        description: benchmark compares all models; adjudicate runs the configured two-stage route.
+        description: benchmark compares models; adjudicate runs the configured two-stage route.
         required: false
         type: string
         default: benchmark
+      diagnostic_mode:
+        description: Require exactly one case, one gpt-5.4-mini request and a successful provider result.
+        required: false
+        type: boolean
+        default: false
       benchmark_models:
         required: false
         type: string
@@ -163,6 +168,7 @@ jobs:
       - name: Validate campaign contract
         env:
           CAMPAIGN_MODE: ${{ inputs.campaign_mode }}
+          DIAGNOSTIC_MODE: ${{ inputs.diagnostic_mode }}
           BENCHMARK_MODELS: ${{ inputs.benchmark_models }}
           BENCHMARK_MAX_CASES: ${{ inputs.benchmark_max_cases }}
           BENCHMARK_MAX_REQUESTS: ${{ inputs.benchmark_max_requests }}
@@ -173,17 +179,26 @@ jobs:
           import os
 
           mode = os.environ["CAMPAIGN_MODE"]
+          diagnostic = os.environ["DIAGNOSTIC_MODE"].lower() == "true"
           if mode not in {"benchmark", "adjudicate"}:
               raise SystemExit("campaign_mode must be benchmark or adjudicate")
           models = [item.strip() for item in os.environ["BENCHMARK_MODELS"].split(",") if item.strip()]
-          if mode == "benchmark" and models != ["gpt-5.4-mini", "gpt-5.6-terra", "gpt-5.5"]:
-              raise SystemExit("benchmark model set or order changed")
           max_cases = int(os.environ["BENCHMARK_MAX_CASES"])
           max_requests = int(os.environ["BENCHMARK_MAX_REQUESTS"])
-          if max_cases < 1 or max_cases > 6:
-              raise SystemExit("benchmark_max_cases must be between 1 and 6")
-          if mode == "benchmark" and max_requests != max_cases * len(models):
-              raise SystemExit("benchmark_max_requests must equal cases multiplied by model count")
+          if diagnostic:
+              if mode != "benchmark":
+                  raise SystemExit("diagnostic_mode requires campaign_mode benchmark")
+              if models != ["gpt-5.4-mini"]:
+                  raise SystemExit("diagnostic_mode requires only gpt-5.4-mini")
+              if max_cases != 1 or max_requests != 1:
+                  raise SystemExit("diagnostic_mode requires one case and one request")
+          else:
+              if mode == "benchmark" and models != ["gpt-5.4-mini", "gpt-5.6-terra", "gpt-5.5"]:
+                  raise SystemExit("benchmark model set or order changed")
+              if max_cases < 1 or max_cases > 6:
+                  raise SystemExit("benchmark_max_cases must be between 1 and 6")
+              if mode == "benchmark" and max_requests != max_cases * len(models):
+                  raise SystemExit("benchmark_max_requests must equal cases multiplied by model count")
           if not os.environ["PRIMARY_MODEL"] or not os.environ["ESCALATION_MODEL"]:
               raise SystemExit("primary and escalation models must be explicit")
           PY
@@ -235,22 +250,29 @@ jobs:
           print(f"origin_evidence_input={resolved.relative_to(root.resolve())}")
           PY
 
-      - name: Run fixed three-model benchmark
+      - name: Run bounded model benchmark
         if: inputs.campaign_mode == 'benchmark'
         env:
           OPENAI_API_KEY: ${{ secrets.openai_api_key }}
+          DIAGNOSTIC_MODE: ${{ inputs.diagnostic_mode }}
         run: |
-          python -m scripts.run_origin_llm_model_campaign \
-            --input "${{ steps.evidence-input.outputs.path }}" \
-            --contract docs/reference/search-intelligence/origin_llm_model_benchmark_contract.v1.json \
-            --output "${{ runner.temp }}/origin-llm-model-campaign.json" \
-            --checkpoint "${{ runner.temp }}/origin-llm-model-campaign-checkpoint.json" \
-            --models "${{ inputs.benchmark_models }}" \
-            --max-cases "${{ inputs.benchmark_max_cases }}" \
-            --max-requests "${{ inputs.benchmark_max_requests }}" \
-            --reasoning-effort "${{ inputs.reasoning_effort }}" \
-            --max-output-tokens "${{ inputs.max_output_tokens }}" \
+          ARGS=(
+            --input "${{ steps.evidence-input.outputs.path }}"
+            --contract docs/reference/search-intelligence/origin_llm_model_benchmark_contract.v1.json
+            --output "${{ runner.temp }}/origin-llm-model-campaign.json"
+            --checkpoint "${{ runner.temp }}/origin-llm-model-campaign-checkpoint.json"
+            --diagnostics-output "${{ runner.temp }}/origin-llm-diagnostics.json"
+            --models "${{ inputs.benchmark_models }}"
+            --max-cases "${{ inputs.benchmark_max_cases }}"
+            --max-requests "${{ inputs.benchmark_max_requests }}"
+            --reasoning-effort "${{ inputs.reasoning_effort }}"
+            --max-output-tokens "${{ inputs.max_output_tokens }}"
             --max-estimated-cost-usd inf
+          )
+          if [ "$DIAGNOSTIC_MODE" = "true" ]; then
+            ARGS+=(--diagnostic-mode)
+          fi
+          python -m scripts.run_origin_llm_model_campaign "${ARGS[@]}"
 
       - name: Run bounded two-stage adjudication
         if: inputs.campaign_mode == 'adjudicate'
@@ -272,6 +294,7 @@ jobs:
         if: always()
         env:
           BENCHMARK_PATH: ${{ runner.temp }}/origin-llm-model-campaign.json
+          DIAGNOSTICS_PATH: ${{ runner.temp }}/origin-llm-diagnostics.json
           ESCALATION_PATH: ${{ runner.temp }}/origin-llm-escalation.json
         run: |
           python3 - <<'PY'
@@ -280,6 +303,7 @@ jobs:
           from pathlib import Path
 
           benchmark = Path(os.environ["BENCHMARK_PATH"])
+          diagnostics = Path(os.environ["DIAGNOSTICS_PATH"])
           escalation = Path(os.environ["ESCALATION_PATH"])
           lines = ["## Origin LLM model campaign", ""]
           if benchmark.exists():
@@ -289,12 +313,34 @@ jobs:
                   [
                       f"- Cases: `{payload['summary']['case_count']}`",
                       f"- Provider calls: `{payload['summary']['request_attempts']}`",
+                      f"- Completed: `{payload['summary']['completed_count']}`",
+                      f"- Failed closed: `{payload['summary']['failed_count']}`",
                       f"- Estimated cost: `${payload['summary']['estimated_total_cost_usd']:.6f}`",
                       f"- Recommended primary: `{recommendation['primary_model']}`",
                       f"- Recommended escalation: `{recommendation['escalation_model']}`",
                       f"- Escalation lift proven: `{recommendation['escalation_value_proven']}`",
                   ]
               )
+              if diagnostics.exists():
+                  diagnostic_payload = json.loads(diagnostics.read_text(encoding="utf-8"))
+                  failures = [
+                      item
+                      for item in diagnostic_payload.get("results", [])
+                      if item.get("provider_result", {}).get("status") != "completed"
+                  ]
+                  if failures:
+                      failure = failures[0]["provider_result"]
+                      lines.extend(
+                          [
+                              "",
+                              "### First provider failure",
+                              f"- Stage: `{failure.get('failure_stage')}`",
+                              f"- Class: `{failure.get('failure_class')}`",
+                              f"- Message: `{failure.get('failure_message')}`",
+                              f"- Response ID: `{failure.get('response_id')}`",
+                              f"- Provider status: `{failure.get('provider_status')}`",
+                          ]
+                      )
           elif escalation.exists():
               payload = json.loads(escalation.read_text(encoding="utf-8"))
               lines.extend(
@@ -325,6 +371,7 @@ jobs:
           path: |
             ${{ runner.temp }}/origin-llm-model-campaign.json
             ${{ runner.temp }}/origin-llm-model-campaign-checkpoint.json
+            ${{ runner.temp }}/origin-llm-diagnostics.json
             ${{ runner.temp }}/origin-llm-escalation.json
           if-no-files-found: warn
           retention-days: 3

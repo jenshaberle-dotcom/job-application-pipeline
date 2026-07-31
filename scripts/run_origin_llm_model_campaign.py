@@ -28,6 +28,7 @@ from src.search_intelligence.origin_source_evidence import (
 
 REPORT_SCHEMA_VERSION = "origin_llm_model_campaign.v1"
 CHECKPOINT_SCHEMA_VERSION = "origin_llm_model_campaign_checkpoint.v1"
+DIAGNOSTICS_SCHEMA_VERSION = "origin_llm_provider_diagnostics.v1"
 BOUNDARY = (
     "immutable_origin_evidence_input_only",
     "same_packet_per_model",
@@ -132,6 +133,40 @@ def _observation_from_json(payload: Mapping[str, object]) -> ModelCallObservatio
             if provider.get("failure_class") is None
             else str(provider["failure_class"])
         ),
+        failure_stage=(
+            None
+            if provider.get("failure_stage") is None
+            else str(provider["failure_stage"])
+        ),
+        failure_message=(
+            None
+            if provider.get("failure_message") is None
+            else str(provider["failure_message"])
+        ),
+        provider_status=(
+            None
+            if provider.get("provider_status") is None
+            else str(provider["provider_status"])
+        ),
+        http_status=(
+            None if provider.get("http_status") is None else int(provider["http_status"])
+        ),
+        incomplete_details=(
+            provider.get("incomplete_details")
+            if isinstance(provider.get("incomplete_details"), Mapping)
+            else None
+        ),
+        output_item_types=tuple(provider.get("output_item_types") or ()),
+        output_text_length=(
+            None
+            if provider.get("output_text_length") is None
+            else int(provider["output_text_length"])
+        ),
+        raw_output_sha256=(
+            None
+            if provider.get("raw_output_sha256") is None
+            else str(provider["raw_output_sha256"])
+        ),
     )
     return ModelCallObservation(
         company_key=str(payload["company_key"]),
@@ -208,6 +243,47 @@ def _models(raw: str) -> tuple[str, ...]:
     return models
 
 
+def _diagnostics_payload(
+    observations: Sequence[ModelCallObservation],
+    *,
+    input_sha256: str,
+    contract_sha256: str,
+    config: Mapping[str, object],
+) -> dict[str, object]:
+    completed_count = sum(item.result.status == "completed" for item in observations)
+    failed_count = sum(item.result.status != "completed" for item in observations)
+    return {
+        "schema_version": DIAGNOSTICS_SCHEMA_VERSION,
+        "source_evidence_sha256": input_sha256,
+        "benchmark_contract_sha256": contract_sha256,
+        "review_output_only_not_pipeline_input": True,
+        "boundary": list(BOUNDARY),
+        "config": dict(config),
+        "summary": {
+            "observation_count": len(observations),
+            "request_attempts": sum(
+                item.result.request_attempted for item in observations
+            ),
+            "completed_count": completed_count,
+            "failed_count": failed_count,
+        },
+        "results": [
+            {
+                "company_key": item.company_key,
+                "company_name": item.company_name,
+                "model_requested": item.model_requested,
+                "model_returned": item.model_returned,
+                "latency_ms": item.latency_ms,
+                "estimated_cost_usd": round(item.estimated_cost_usd, 8),
+                "packet_sha256": item.packet_sha256,
+                "request_contract_sha256": item.request_contract_sha256,
+                "provider_result": item.result.to_json(),
+            }
+            for item in observations
+        ],
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Benchmark origin-adjudication models and validate escalation value."
@@ -216,6 +292,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--contract", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument("--diagnostics-output", type=Path)
+    parser.add_argument("--diagnostic-mode", action="store_true")
     parser.add_argument(
         "--models",
         default=",".join(DEFAULT_BENCHMARK_MODELS),
@@ -247,6 +325,12 @@ def main() -> int:
     model_order = _models(args.models)
     if args.max_requests < len(model_order):
         raise SystemExit("max-requests is lower than the model count")
+    if args.diagnostic_mode and not (
+        args.max_cases == 1 and len(model_order) == 1 and args.max_requests == 1
+    ):
+        raise SystemExit(
+            "diagnostic mode requires exactly one case, one model and one request"
+        )
 
     evidence = json.loads(args.input.read_text(encoding="utf-8"))
     contract_payload = json.loads(args.contract.read_text(encoding="utf-8"))
@@ -292,6 +376,7 @@ def main() -> int:
         "max_estimated_cost_usd": args.max_estimated_cost_usd,
         "pessimistic_reserved_cost_usd": round(reserved_cost, 8),
         "timeout_seconds": args.timeout_seconds,
+        "diagnostic_mode": args.diagnostic_mode,
     }
     input_sha = _sha256(args.input)
     contract_sha = _sha256(args.contract)
@@ -380,6 +465,8 @@ def main() -> int:
         model_order=model_order,
     )
     recommendation = recommend_route(summaries, simulations_by_pair)
+    completed_count = sum(item.result.status == "completed" for item in observations)
+    failed_count = len(observations) - completed_count
     report = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "source_evidence_sha256": input_sha,
@@ -391,6 +478,8 @@ def main() -> int:
             "case_count": len(selected),
             "model_count": len(model_order),
             "request_attempts": request_attempts,
+            "completed_count": completed_count,
+            "failed_count": failed_count,
             "pessimistic_reserved_cost_usd": round(reserved_cost, 8),
             "estimated_total_cost_usd": round(
                 sum(item.estimated_cost_usd for item in observations), 8
@@ -406,6 +495,16 @@ def main() -> int:
         "observations": [item.to_json() for item in observations],
     }
     _write_json_atomic(args.output, report)
+    if args.diagnostics_output is not None:
+        _write_json_atomic(
+            args.diagnostics_output,
+            _diagnostics_payload(
+                observations,
+                input_sha256=input_sha,
+                contract_sha256=contract_sha,
+                config=config,
+            ),
+        )
     _write_checkpoint(
         args.checkpoint,
         input_sha256=input_sha,
@@ -417,11 +516,17 @@ def main() -> int:
     print(
         "origin_llm_model_campaign_complete: "
         f"cases={len(selected)} models={len(model_order)} "
-        f"requests={request_attempts} "
+        f"requests={request_attempts} completed={completed_count} failed={failed_count} "
         f"primary={recommendation.get('primary_model')} "
         f"escalation={recommendation.get('escalation_model')} "
         f"output={args.output}"
     )
+    if args.diagnostic_mode and failed_count:
+        print(
+            "origin_llm_diagnostic_failure: "
+            f"completed={completed_count} failed={failed_count}"
+        )
+        return 2
     return 0
 
 
