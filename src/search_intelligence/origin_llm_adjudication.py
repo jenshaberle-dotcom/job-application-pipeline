@@ -85,6 +85,14 @@ strong. When evidence conflicts or a legal entity relationship is not proven,
 require manual review or abstain. Return only the requested JSON schema."""
 
 
+class AdjudicationValidationError(ValueError):
+    """Validation failure with a stable diagnostic stage."""
+
+    def __init__(self, stage: str, message: str) -> None:
+        super().__init__(message)
+        self.stage = stage
+
+
 @dataclass(frozen=True)
 class LLMAdjudication:
     decision: str
@@ -113,6 +121,14 @@ class LLMAdjudicationResult:
     usage: Mapping[str, object] | None
     adjudication: LLMAdjudication | None
     failure_class: str | None = None
+    failure_stage: str | None = None
+    failure_message: str | None = None
+    provider_status: str | None = None
+    http_status: int | None = None
+    incomplete_details: Mapping[str, object] | None = None
+    output_item_types: tuple[str, ...] = ()
+    output_text_length: int | None = None
+    raw_output_sha256: str | None = None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -126,6 +142,14 @@ class LLMAdjudicationResult:
             if self.adjudication is None
             else self.adjudication.to_json(),
             "failure_class": self.failure_class,
+            "failure_stage": self.failure_stage,
+            "failure_message": self.failure_message,
+            "provider_status": self.provider_status,
+            "http_status": self.http_status,
+            "incomplete_details": dict(self.incomplete_details or {}),
+            "output_item_types": list(self.output_item_types),
+            "output_text_length": self.output_text_length,
+            "raw_output_sha256": self.raw_output_sha256,
         }
 
 
@@ -201,7 +225,10 @@ def validate_adjudication(
 ) -> LLMAdjudication:
     expected = set(ADJUDICATION_SCHEMA["required"])
     if set(payload) != expected:
-        raise ValueError("adjudication field set does not match strict schema")
+        raise AdjudicationValidationError(
+            "schema_validation",
+            "adjudication field set does not match strict schema",
+        )
     decision = str(payload["decision"])
     allowed_decisions = {
         "confirm_deterministic",
@@ -210,16 +237,28 @@ def validate_adjudication(
         "abstain",
     }
     if decision not in allowed_decisions:
-        raise ValueError("unsupported adjudication decision")
+        raise AdjudicationValidationError(
+            "schema_validation",
+            "unsupported adjudication decision",
+        )
     recommended_raw = payload["recommended_candidate_id"]
     recommended = None if recommended_raw is None else str(recommended_raw)
     if recommended is not None and recommended not in allowed_candidate_ids:
-        raise ValueError("provider recommended a candidate outside the evidence packet")
+        raise AdjudicationValidationError(
+            "candidate_validation",
+            "provider recommended a candidate outside the evidence packet",
+        )
     if decision == "prefer_alternative" and recommended is None:
-        raise ValueError("prefer_alternative requires a candidate ID")
+        raise AdjudicationValidationError(
+            "business_validation",
+            "prefer_alternative requires a candidate ID",
+        )
     references = tuple(str(item) for item in payload["evidence_references"])
     if not set(references).issubset(allowed_candidate_ids):
-        raise ValueError("provider cited an unknown candidate ID")
+        raise AdjudicationValidationError(
+            "candidate_validation",
+            "provider cited an unknown candidate ID",
+        )
     uncertainties = tuple(str(item) for item in payload["remaining_uncertainty"])
     return LLMAdjudication(
         decision=decision,
@@ -275,6 +314,8 @@ def adjudicate_with_openai(
             usage=None,
             adjudication=None,
             failure_class="missing_openai_api_key",
+            failure_stage="configuration",
+            failure_message="OPENAI_API_KEY is missing",
         )
     if not selected_model:
         return LLMAdjudicationResult(
@@ -286,6 +327,8 @@ def adjudicate_with_openai(
             usage=None,
             adjudication=None,
             failure_class="missing_origin_adjudication_model",
+            failure_stage="configuration",
+            failure_message="origin adjudication model is missing",
         )
 
     packet = build_adjudication_packet(decision)
@@ -317,6 +360,7 @@ def adjudicate_with_openai(
             }
         },
     }
+    response: Mapping[str, object] | None = None
     try:
         response = transport(
             OPENAI_RESPONSES_URL,
@@ -330,22 +374,49 @@ def adjudicate_with_openai(
         output_text = _extract_output_text(response)
         decoded = json.loads(output_text)
         if not isinstance(decoded, Mapping):
-            raise ValueError("adjudication JSON root must be an object")
+            raise AdjudicationValidationError(
+                "schema_validation",
+                "adjudication JSON root must be an object",
+            )
         allowed_ids = {item.candidate_id for item in decision.assessments[:4]}
         adjudication = validate_adjudication(
             decoded,
             allowed_candidate_ids=allowed_ids,
         )
     except (json.JSONDecodeError, requests.RequestException, TypeError, ValueError) as exc:
+        usage = None if response is None else response.get("usage")
+        if isinstance(exc, AdjudicationValidationError):
+            failure_stage = exc.stage
+        elif isinstance(exc, json.JSONDecodeError):
+            failure_stage = "json_decode"
+        elif isinstance(exc, requests.RequestException):
+            failure_stage = "transport"
+        else:
+            failure_stage = "output_extraction"
         return LLMAdjudicationResult(
             status="failed_closed",
             provider="openai_responses",
-            model=selected_model,
+            model=(
+                selected_model
+                if response is None
+                else str(response.get("model") or selected_model)
+            ),
             request_attempted=True,
-            response_id=None,
-            usage=None,
+            response_id=(
+                None
+                if response is None
+                else (str(response.get("id") or "") or None)
+            ),
+            usage=usage if isinstance(usage, Mapping) else None,
             adjudication=None,
             failure_class=type(exc).__name__,
+            failure_stage=failure_stage,
+            failure_message=str(exc)[:800],
+            provider_status=(
+                None
+                if response is None
+                else (str(response.get("status") or "") or None)
+            ),
         )
 
     usage = response.get("usage")
@@ -357,6 +428,7 @@ def adjudicate_with_openai(
         response_id=str(response.get("id") or "") or None,
         usage=usage if isinstance(usage, Mapping) else None,
         adjudication=adjudication,
+        provider_status=str(response.get("status") or "") or None,
     )
 
 
