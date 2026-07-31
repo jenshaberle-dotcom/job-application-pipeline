@@ -19,10 +19,12 @@ from src.search_intelligence.origin_llm_model_campaign_evaluation import (
     match_expectation,
     observations_agree,
     parse_expectations,
-    recommend_route,
     score_observation,
     should_escalate,
     simulate_escalation,
+)
+from src.search_intelligence.origin_llm_model_campaign_recommendation import (
+    recommend_route,
     summarize_models,
 )
 from src.search_intelligence.origin_llm_model_campaign_runtime import (
