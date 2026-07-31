@@ -3,182 +3,164 @@
 ## Purpose
 
 The private GitHub origin benchmark must survive the local Windows workstation
-returning to sleep. The runtime therefore combines six controls:
+returning to sleep. The runtime combines six controls:
 
 1. **Remote wake** – the private dispatcher wakes the workstation through the
-   existing WARP → FRITZ WireGuard path.
-2. **Fail-safe runtime lease** – the GitHub runner owns a PostgreSQL
-   session-level advisory lock and sends a heartbeat every 20 seconds.
-3. **Bounded local transport recovery** – the Windows watcher starts the configured
-   WSL distribution when necessary and may start or restart only `tailscaled`.
-4. **Awake-time telemetry** – regular watcher heartbeats are counted as observed
-   awake time; long gaps are recorded separately rather than being counted awake.
-5. **Immutable snapshot execution** – the complete bounded projection is read
-   once, fingerprint-verified and then processed without further database reads.
-6. **Candidate checkpoint recovery** – every completed company result is written
-   atomically and restored on an exact pipeline-ref/fingerprint retry.
+   WARP → FRITZ WireGuard path.
+2. **Fail-safe runtime lease** – the GitHub runner owns a PostgreSQL advisory lock.
+3. **Bounded local Tailscale recovery** – the Windows watcher may start or restart
+   only the WSL `tailscaled` service.
+4. **Awake-time telemetry** – regular watcher intervals are counted as observed
+   awake time; long gaps are kept separate.
+5. **Immutable snapshot execution** – the bounded projection is fingerprinted and
+   processed without later database reads.
+6. **Candidate checkpoint recovery** – completed company results are restored only
+   for the exact pipeline-ref and projection fingerprint.
 
 The design remains `review_output_only_not_pipeline_input`. It does not write to
 candidate tables, activate a source, register a connector or change a scheduler.
 
-## Why the lease is fail-safe
+## Deployed topology
 
-The lease is a session-level PostgreSQL advisory lock. It disappears automatically
-when the GitHub process exits, the connection fails or the runner is destroyed. A
-local Windows watcher observes the lock and calls `SetThreadExecutionState` only
-while the lock exists, plus a 90-second bounded grace period.
+The production workstation uses this path:
 
-A crashed workflow therefore cannot leave the workstation awake indefinitely. The
-Tailscale recovery path never acquires the Windows wake lock by itself. It can make
-the local transport available after a resume, but Windows remains free to sleep
-whenever no runtime lease or grace period is active.
+```text
+Windows Scheduled Task
+→ %LOCALAPPDATA%\JobPipelineRuntimeLeaseWatcher\origin-runtime-lease-watcher.ps1
+→ wsl.exe -d Ubuntu
+→ ~/projects/job-application-pipeline
+→ local PostgreSQL and Tailscale in WSL
+```
+
+The watcher is deliberately copied outside the repository so that it can run as a
+hidden Windows task while the source repository and Python virtual environment
+remain in WSL. It does not require Windows Python and does not copy the database
+`.env` file to Windows.
+
+## Fail-safe wake-lock behavior
+
+The GitHub runtime lease is a session-level PostgreSQL advisory lock. It disappears
+when the runner exits or loses its database connection. The Windows watcher calls
+`SetThreadExecutionState` only while the lease is active, plus a 90-second grace
+period.
+
+Tailscale inspection or recovery does not acquire the Windows wake lock. Windows
+therefore remains free to sleep whenever there is no active lease or grace period.
 
 ## Bounded Tailscale recovery
 
-The watcher treats three consecutive database connection failures as a signal to
-inspect the local WSL/Tailscale path. It records the WSL state before starting the
-distribution, then checks:
+After three consecutive database probe failures the watcher inspects:
 
 - the `tailscaled` systemd service,
 - the `tailscale0` interface,
-- `BackendState` and local online state from `tailscale status --json`.
+- `BackendState` from `tailscale status --json`.
 
-The permitted recovery actions are intentionally narrow:
+Recovery is attempted only when Tailscale itself is unhealthy. A database failure
+with a healthy Tailscale snapshot is logged as a database-only problem and does not
+restart Tailscale.
 
-1. start the configured WSL distribution through the read-only inspection call,
-2. start `tailscaled` when the service is inactive,
-3. restart `tailscaled` once when the service is active but the backend or
-   interface remains unhealthy.
-
-Recovery has a 10-minute cooldown and a maximum of three attempts per hour.
-`NeedsLogin`, logout and machine-approval states are fail-closed. The watcher does
-not run `tailscale up`, does not use an auth key, does not log out and does not
-delete `/var/lib/tailscale/tailscaled.state`.
-
-The exact service action runs through WSL as root but is fixed to:
+The only root actions are fixed argument-list calls through WSL:
 
 ```text
 systemctl start tailscaled
 systemctl restart tailscaled
 ```
 
-It does not start Docker or PostgreSQL and does not execute an arbitrary shell
-command as root.
+The service name and action set are not user-provided shell commands. The watcher
+does not start Docker or PostgreSQL. It never runs `tailscale up`, never logs out,
+never uses an auth key and never deletes `tailscaled.state`.
+
+`NeedsLogin`, `NeedsMachineAuth` and `NeedsApproval` remain fail-closed. Recovery
+has a 10-minute cooldown and is limited to three attempts per hour.
 
 ## Awake-time telemetry
 
-The watcher writes two local files:
+The deployed watcher writes:
 
 ```text
-.runtime/origin-runtime-watcher.jsonl
-.runtime/origin-runtime-watcher-state.json
+%LOCALAPPDATA%\JobPipelineRuntimeLeaseWatcher\origin-runtime-watcher.jsonl
+%LOCALAPPDATA%\JobPipelineRuntimeLeaseWatcher\origin-runtime-watcher-state.json
 ```
 
-The JSONL file contains only low-volume lifecycle, gap, summary and recovery
-events. The state file contains the current daily and cumulative counters.
-Important fields are:
+The state contains daily and cumulative counters including:
 
-- `observed_awake_seconds` – intervals between regular watcher heartbeats,
-- `lease_active_seconds` – observed awake intervals during an active runtime lease,
-- `awake_without_lease_seconds` – observed awake intervals without a lease,
-- `suspend_or_unobserved_seconds` – gaps longer than 30 seconds,
-- `tailscale_recovery_attempts`, `successes` and `failures`.
+- `total_observed_awake_seconds`,
+- `total_lease_active_seconds`,
+- `total_awake_without_lease_seconds`,
+- `total_suspend_or_unobserved_seconds`,
+- Tailscale recovery attempts, successes and failures.
 
-The measurement is deliberately conservative. A long gap may represent Windows
-sleep, reboot, watcher pause or a stopped task, so it is called
-`suspend_or_unobserved`; it is never silently counted as awake time. Consequently,
-`observed_awake_seconds` is a lower-bound measurement, suitable for detecting
-whether the machine appears to run continuously without claiming exact operating
-system power accounting.
+Intervals of at most 30 seconds between watcher observations count as observed
+awake time. Larger gaps are recorded as `suspend_or_unobserved` and never counted
+as awake time. This is a conservative lower-bound measurement rather than exact
+Windows power accounting.
 
-`awake_without_lease_seconds` is not automatically an error because the operator
-may be using the workstation normally. It shows how much observed awake time was
-not caused by the pipeline lease.
+`awake_without_lease` is not automatically a defect because the operator may use
+the workstation normally. It helps reveal whether the workstation appears to stay
+awake outside actual pipeline runtime leases.
 
-Inspect the current totals:
+## Installation from the WSL repository
+
+Open a fresh Windows PowerShell window. The following block updates the WSL
+repository, copies the installer to a Windows temporary file and installs it:
 
 ```powershell
-Get-Content .\.runtime\origin-runtime-watcher-state.json
+$ErrorActionPreference = "Stop"
+$Installer = Join-Path $env:TEMP "install-origin-runtime-watcher.ps1"
+
+$ScriptContent = wsl.exe -d Ubuntu -- bash -lc '
+set -e
+cd "$HOME/projects/job-application-pipeline"
+git checkout main >/dev/null 2>&1
+git pull --ff-only origin main >/dev/null 2>&1
+cat scripts/install_windows_origin_runtime_lease_watcher.ps1
+'
+
+if ($LASTEXITCODE -ne 0 -or -not $ScriptContent) {
+    throw "Installer konnte nicht aus dem WSL-Repository gelesen werden."
+}
+
+$ScriptContent | Set-Content -LiteralPath $Installer -Encoding UTF8
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Installer -Install
 ```
 
-Inspect recent lifecycle and recovery events:
+The optional `-ExpectedPipelineSha <40-character SHA>` parameter can pin a specific
+reviewed `main` revision during installation.
 
-```powershell
-Get-Content .\.runtime\origin-runtime-watcher.jsonl -Tail 30
-```
-
-## One-time Windows installation
-
-Run from a Windows PowerShell terminal in the repository root after the feature is
-merged and the local checkout is updated:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install_windows_origin_runtime_lease_watcher.ps1
-```
-
-Re-running the installer safely replaces the existing scheduled-task definition
-and starts the updated watcher immediately.
-
-The installer:
-
-- uses `.venv\Scripts\python.exe`,
-- reads the existing local `.env` database settings,
-- uses the WSL distribution `Ubuntu` unless another name is supplied,
-- creates the scheduled task `Job Pipeline Runtime Lease Watcher`,
-- creates the local `.runtime` telemetry paths,
-- starts the watcher immediately,
-- restarts it after transient failures.
-
-No GitHub, Tailscale auth or Tavily secret is copied into the task. The watcher
-only needs local PostgreSQL connectivity and read visibility on `pg_locks`.
-
-To select another distribution:
-
-```powershell
-powershell -ExecutionPolicy Bypass `
-  -File .\scripts\install_windows_origin_runtime_lease_watcher.ps1 `
-  -WslDistro "Ubuntu-24.04"
-```
+Re-running `-Install` stops and replaces the existing task, deploys the current
+script under `%LOCALAPPDATA%`, runs one foreground probe and then starts the hidden
+Scheduled Task.
 
 ## Verification
 
-Check the task:
+Check task and installation metadata:
 
 ```powershell
-Get-ScheduledTask -TaskName "Job Pipeline Runtime Lease Watcher"
+$Root = Join-Path $env:LOCALAPPDATA "JobPipelineRuntimeLeaseWatcher"
+
+Get-ScheduledTask -TaskName "Job Pipeline Runtime Lease Watcher" |
+    Select-Object TaskName, State
+
+Get-Content (Join-Path $Root "installation.json")
+Get-Content (Join-Path $Root "origin-runtime-watcher-state.json")
+Get-Content (Join-Path $Root "origin-runtime-watcher.jsonl") -Tail 30
+Get-Content (Join-Path $Root "watcher.log") -Tail 20
 ```
 
-Run one foreground observation without changing the task:
+Run one foreground observation without changing the registered task:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scripts.watch_origin_runtime_lease `
-  --env-file .env `
-  --once
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File "$env:LOCALAPPDATA\JobPipelineRuntimeLeaseWatcher\origin-runtime-lease-watcher.ps1" `
+  -Once
 ```
 
-During a private benchmark the GitHub summary should show:
+## Checkpoint and re-wake boundaries
 
-```text
-origin_runtime_lease=ready
-Database reads after verified snapshot: 0
-Runtime lease: PostgreSQL advisory lock, fail-safe on disconnect
-```
+The checkpoint cache remains bound to the exact pipeline commit and projection
+fingerprint. Completed companies may be reused only when both values and company
+order match exactly.
 
-## Recovery behavior
-
-The checkpoint cache key is bound to both the exact pipeline commit and projection
-fingerprint. A retry can only reuse a checkpoint when the company order and
-fingerprint match exactly. Completed company results are skipped. A different
-projection is rejected rather than mixed with previous evidence.
-
-The current checkpoint granularity is one completed company. A failure inside one
-company can repeat that company's provider queries, but completed companies are
-not repeated.
-
-## Re-wake boundary
-
-The initial remote dispatcher remains the wake authority. Once the projection is
-verified, the provider phase is independent of the local workstation. A second
-wake during Tavily execution is therefore unnecessary. Future local write-back
-phases must obtain a new wake and a new lease rather than extending this read-only
+The private dispatcher remains the remote wake authority. Future local write-back
+phases must obtain a new wake and lease rather than extending this read-only
 benchmark implicitly.
