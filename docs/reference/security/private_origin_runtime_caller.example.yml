@@ -1,4 +1,4 @@
-name: Private origin provider runtime
+name: Private origin LLM model campaign
 
 on:
   repository_dispatch:
@@ -9,7 +9,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: private-origin-provider-runtime
+  group: private-origin-llm-model-campaign
   cancel-in-progress: false
 
 jobs:
@@ -50,21 +50,21 @@ jobs:
           if not re.fullmatch(r"[0-9a-f]{64}", str(payload["projection_fingerprint"])):
               raise SystemExit("invalid projection fingerprint")
           limits = {
-              "max_candidates": (1, 10),
-              "search_query_limit": (1, 4),
-              "search_max_results": (1, 10),
-              "max_provider_requests": (1, 20),
+              "max_candidates": (1, 6),
+              "search_query_limit": (1, 2),
+              "search_max_results": (1, 5),
+              "max_provider_requests": (1, 12),
           }
           for key, (minimum, maximum) in limits.items():
               value = int(payload[key])
               if not minimum <= value <= maximum:
-                  raise SystemExit(f"{key} outside private runtime envelope")
+                  raise SystemExit(f"{key} outside fixed campaign envelope")
           PY
 
-  run-benchmark:
+  run-model-campaign:
     needs: validate-event
-    # Replace @main with the accepted merge SHA after installing this template.
-    uses: jenshaberle-dotcom/job-application-pipeline/.github/workflows/reusable-origin-provider-benchmark.yml@main
+    # Replace @main with the accepted public merge SHA before activation.
+    uses: jenshaberle-dotcom/job-application-pipeline/.github/workflows/reusable-origin-llm-model-campaign.yml@main
     with:
       pipeline_ref: ${{ github.event.client_payload.pipeline_ref }}
       expected_fingerprint: ${{ github.event.client_payload.projection_fingerprint }}
@@ -77,6 +77,25 @@ jobs:
       max_url_candidates: 20
       no_probe: false
       tailscale_tags: tag:github-origin-benchmark
+      origin_evidence_max_candidates_per_company: 3
+      origin_evidence_max_http_requests: 30
+
+      # One-time fixed benchmark. All models receive the identical evidence task.
+      campaign_mode: benchmark
+      benchmark_models: gpt-5.4-mini,gpt-5.6-terra,gpt-5.5
+      benchmark_max_cases: 6
+      benchmark_max_requests: 18
+      benchmark_max_estimated_cost_usd: 0.50
+      reasoning_effort: low
+      max_output_tokens: 600
+
+      # Used only after the benchmark has proved a route and campaign_mode changes
+      # to adjudicate. Keep explicit so the later production boundary is visible.
+      primary_model: gpt-5.4-mini
+      escalation_model: gpt-5.5
+      max_primary_requests: 2
+      max_escalation_requests: 2
+      escalation_max_estimated_cost_usd: 0.15
     secrets:
       ts_oauth_client_id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
       ts_audience: ${{ secrets.TS_AUDIENCE }}
@@ -86,3 +105,4 @@ jobs:
       postgres_db: ${{ secrets.POSTGRES_DB }}
       postgres_user: ${{ secrets.ORIGIN_BENCHMARK_DB_USER }}
       postgres_password: ${{ secrets.ORIGIN_BENCHMARK_DB_PASSWORD }}
+      openai_api_key: ${{ secrets.OPENAI_API_KEY }}

@@ -1,0 +1,65 @@
+{
+  "schema_version": "origin_llm_model_benchmark_contract.v1",
+  "cases": [
+    {
+      "case_id": "eon_grid_solutions_strong_origin",
+      "company_name_contains": "e.on grid solutions",
+      "expected_manual_review": false,
+      "acceptable_url_contains": ["eon"],
+      "acceptable_source_grades": ["ats_job_listing", "company_job_listing"],
+      "expected_locale": null,
+      "weight": 1.0,
+      "notes": "A strong first-party job-bearing origin should remain selected."
+    },
+    {
+      "case_id": "hannover_rueck_job_list_over_landing",
+      "company_name_contains": "hannover rück",
+      "expected_manual_review": false,
+      "acceptable_url_contains": ["hannover", "jobs", "career"],
+      "acceptable_source_grades": ["ats_job_listing", "company_job_listing"],
+      "expected_locale": null,
+      "weight": 1.2,
+      "notes": "A concrete job list should beat a generic career landing page."
+    },
+    {
+      "case_id": "msg_legal_entity_ambiguity",
+      "company_name_contains": "msg systems",
+      "expected_manual_review": true,
+      "acceptable_url_contains": [],
+      "acceptable_source_grades": [],
+      "expected_locale": null,
+      "weight": 1.5,
+      "notes": "MSG Solutions GmbH must not be silently equated with msg systems ag."
+    },
+    {
+      "case_id": "materna_strong_job_market",
+      "company_name_contains": "materna",
+      "expected_manual_review": false,
+      "acceptable_url_contains": ["materna"],
+      "acceptable_source_grades": ["ats_job_listing", "company_job_listing"],
+      "expected_locale": null,
+      "weight": 1.0,
+      "notes": "The official job market is strong first-party evidence."
+    },
+    {
+      "case_id": "x1f_german_locale_preference",
+      "company_name_contains": "x1f",
+      "expected_manual_review": false,
+      "acceptable_url_contains": ["x1f"],
+      "acceptable_source_grades": ["ats_job_listing", "company_job_listing"],
+      "expected_locale": "de",
+      "weight": 1.2,
+      "notes": "The German job page should win an otherwise equivalent tie."
+    },
+    {
+      "case_id": "genoverband_strong_job_board",
+      "company_name_contains": "genoverband",
+      "expected_manual_review": false,
+      "acceptable_url_contains": ["genoverband"],
+      "acceptable_source_grades": ["ats_job_listing", "company_job_listing"],
+      "expected_locale": null,
+      "weight": 1.0,
+      "notes": "The official job board should remain selected after deduplication."
+    }
+  ]
+}
