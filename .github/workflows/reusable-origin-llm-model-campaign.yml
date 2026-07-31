@@ -226,7 +226,8 @@ jobs:
             --max-cases "${{ inputs.benchmark_max_cases }}" \
             --max-requests "${{ inputs.benchmark_max_requests }}" \
             --reasoning-effort "${{ inputs.reasoning_effort }}" \
-            --max-output-tokens "${{ inputs.max_output_tokens }}"
+            --max-output-tokens "${{ inputs.max_output_tokens }}" \
+            --max-estimated-cost-usd inf
 
       - name: Run bounded two-stage adjudication
         if: inputs.campaign_mode == 'adjudicate'
@@ -241,7 +242,8 @@ jobs:
             --max-primary-requests "${{ inputs.max_primary_requests }}" \
             --max-escalation-requests "${{ inputs.max_escalation_requests }}" \
             --reasoning-effort "${{ inputs.reasoning_effort }}" \
-            --max-output-tokens "${{ inputs.max_output_tokens }}"
+            --max-output-tokens "${{ inputs.max_output_tokens }}" \
+            --max-estimated-cost-usd inf
 
       - name: Publish model campaign summary
         if: always()
