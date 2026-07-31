@@ -27,8 +27,18 @@ def test_tools_checklist_names_every_required_secret() -> None:
         "POSTGRES_HOST",
         "POSTGRES_PORT",
         "POSTGRES_DB",
-        "POSTGRES_USER",
-        "POSTGRES_PASSWORD",
+        "ORIGIN_BENCHMARK_DB_USER",
+        "ORIGIN_BENCHMARK_DB_PASSWORD",
     )
     for secret in required_secrets:
         assert secret in CHECKLIST
+
+
+def test_tools_checklist_defines_three_credential_classes() -> None:
+    checklist = CHECKLIST.lower()
+    for credential_class in ("application credentials", "administrative credentials", "remote runtime credentials"):
+        assert credential_class in checklist
+
+
+def test_tools_checklist_forbids_generic_runtime_reader_names() -> None:
+    assert "`POSTGRES_USER` and `POSTGRES_PASSWORD` must not be used" in CHECKLIST

@@ -138,6 +138,25 @@ that password only in the private runtime repository. PostgreSQL must listen on
 the Tailscale interface and `pg_hba.conf` must permit the dedicated user from
 the intended tailnet range. Public Internet access remains closed.
 
+## Credential classes
+
+Keep the following credential classes separate:
+
+1. **Application credentials** belong to the normal local Pipeline runtime. They
+   follow the existing application configuration contract and must not be copied
+   into the private GitHub runtime merely because they use familiar generic
+   environment-variable names.
+2. **Administrative credentials** are reserved for explicit operator-controlled
+   setup, migration and role-management commands. They must never be stored in
+   the private runtime repository or exposed to the reusable provider workflow.
+3. **Remote runtime credentials** identify only the restricted
+   `origin_benchmark_reader`. They are stored in the private runtime repository
+   under `ORIGIN_BENCHMARK_DB_USER` and `ORIGIN_BENCHMARK_DB_PASSWORD`.
+
+Do not reuse passwords between these classes. Host, port and database-name
+secrets may be shared as connection metadata; user and password secrets may not
+silently cross privilege boundaries.
+
 ## Create the private runtime repository
 
 ```bash
@@ -164,12 +183,14 @@ TAVILY_API_KEY
 POSTGRES_HOST
 POSTGRES_PORT
 POSTGRES_DB
-POSTGRES_USER=origin_benchmark_reader
-POSTGRES_PASSWORD
+ORIGIN_BENCHMARK_DB_USER=origin_benchmark_reader
+ORIGIN_BENCHMARK_DB_PASSWORD
 ```
 
-`POSTGRES_HOST` should be the Tailscale MagicDNS hostname or stable tailnet IP of
-the database host.
+The privilege-specific reader names are part of the caller contract. Do not
+store the restricted reader under generic `POSTGRES_USER` or
+`POSTGRES_PASSWORD` secret names. `POSTGRES_HOST` should be the Tailscale
+MagicDNS hostname or stable tailnet IP of the database host.
 
 ## Local dispatcher setup
 
