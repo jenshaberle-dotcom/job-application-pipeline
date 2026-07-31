@@ -2,6 +2,7 @@ from pathlib import Path
 
 
 WORKFLOW = Path(".github/workflows/reusable-origin-llm-model-campaign.yml")
+RUNNER = Path("scripts/run_origin_llm_model_campaign.py")
 
 
 def test_model_campaign_workflow_is_call_bounded_and_review_only() -> None:
@@ -42,3 +43,26 @@ def test_evidence_stage_never_runs_single_model_adjudication() -> None:
     assert "max_llm_adjudication_requests: 0" in text
     assert "scripts.run_origin_llm_model_campaign" in text
     assert "scripts.run_origin_llm_escalation" in text
+
+
+def test_diagnostic_mode_is_exactly_one_case_one_model_one_request() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "diagnostic_mode:" in text
+    assert "diagnostic_mode requires only gpt-5.4-mini" in text
+    assert "diagnostic_mode requires one case and one request" in text
+    assert "ARGS+=(--diagnostic-mode)" in text
+    assert "origin-llm-diagnostics.json" in text
+    assert "First provider failure" in text
+    assert "if: always()" in text
+
+
+def test_diagnostic_runner_writes_artifacts_before_nonzero_exit() -> None:
+    text = RUNNER.read_text(encoding="utf-8")
+
+    write_report = text.index("_write_json_atomic(args.output, report)")
+    write_diagnostics = text.index("if args.diagnostics_output is not None:")
+    diagnostic_failure = text.index("if args.diagnostic_mode and failed_count:")
+    assert write_report < write_diagnostics < diagnostic_failure
+    assert "diagnostic mode requires exactly one case, one model and one request" in text
+    assert "return 2" in text
