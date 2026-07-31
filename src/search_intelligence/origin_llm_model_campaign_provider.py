@@ -11,12 +11,12 @@ from typing import Callable, Mapping
 import requests
 
 from src.search_intelligence.origin_llm_adjudication import (
-    ADJUDICATION_SCHEMA,
     OPENAI_RESPONSES_URL,
     SYSTEM_INSTRUCTIONS,
     AdjudicationValidationError,
     LLMAdjudicationResult,
     build_adjudication_packet,
+    build_adjudication_schema,
     validate_adjudication,
 )
 from src.search_intelligence.origin_source_evidence import OriginEvidenceDecision
@@ -139,6 +139,8 @@ def build_request_payload(
 ) -> tuple[dict[str, object], str, str]:
     packet = build_adjudication_packet(decision)
     packet_sha = canonical_sha256(packet)
+    allowed_ids = tuple(item.candidate_id for item in decision.assessments[:4])
+    adjudication_schema = build_adjudication_schema(allowed_ids)
     payload: dict[str, object] = {
         "model": model,
         "store": False,
@@ -165,7 +167,7 @@ def build_request_payload(
                 "type": "json_schema",
                 "name": "origin_adjudication",
                 "strict": True,
-                "schema": ADJUDICATION_SCHEMA,
+                "schema": adjudication_schema,
             },
         },
     }
@@ -174,7 +176,7 @@ def build_request_payload(
         "system_instructions": SYSTEM_INSTRUCTIONS,
         "reasoning_effort": reasoning_effort,
         "max_output_tokens": max_output_tokens,
-        "schema": ADJUDICATION_SCHEMA,
+        "schema": adjudication_schema,
         "store": False,
         "text_verbosity": "low",
     }

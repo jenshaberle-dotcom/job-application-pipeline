@@ -3,6 +3,7 @@ from typing import Mapping
 from src.search_intelligence.origin_llm_adjudication import (
     adjudicate_with_openai,
     build_adjudication_packet,
+    build_adjudication_schema,
     final_review_state,
 )
 from src.search_intelligence.origin_source_evidence import (
@@ -53,7 +54,15 @@ def test_packet_exposes_bounded_candidates_and_no_mutation_boundary() -> None:
     assert packet["boundary"]["no_mutation"] is True
 
 
-def test_openai_request_uses_strict_schema_and_store_false() -> None:
+def test_schema_binds_references_to_exact_candidate_ids() -> None:
+    schema = build_adjudication_schema(("C1", "C2", "C1"))
+    properties = schema["properties"]
+
+    assert properties["recommended_candidate_id"]["enum"] == ["C1", "C2", None]
+    assert properties["evidence_references"]["items"]["enum"] == ["C1", "C2"]
+
+
+def test_openai_request_uses_strict_candidate_bound_schema_and_store_false() -> None:
     captured: dict[str, object] = {}
 
     def transport(
@@ -102,10 +111,15 @@ def test_openai_request_uses_strict_schema_and_store_false() -> None:
         transport=transport,
     )
 
+    request_payload = captured["payload"]
+    schema = request_payload["text"]["format"]["schema"]
+    properties = schema["properties"]
     assert result.status == "completed"
     assert result.adjudication is not None
-    assert captured["payload"]["store"] is False
-    assert captured["payload"]["text"]["format"]["strict"] is True
+    assert request_payload["store"] is False
+    assert request_payload["text"]["format"]["strict"] is True
+    assert properties["recommended_candidate_id"]["enum"] == ["C1", None]
+    assert properties["evidence_references"]["items"]["enum"] == ["C1"]
     assert captured["headers"]["Authorization"] == "Bearer test-secret"
     assert final_review_state(_ambiguous_decision(), result) == "manual_review_required"
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import json
-from typing import Callable, Mapping
+from typing import Callable, Mapping, Sequence
 
 import requests
 
@@ -81,8 +81,10 @@ Use only the supplied candidates and observations. Never invent a URL, employer
 relationship, job count or page content. Deterministic observations are primary.
 A missing job today does not prove an origin is wrong. Prefer a concrete ATS/job
 listing over a generic career landing page when entity fidelity is at least as
-strong. When evidence conflicts or a legal entity relationship is not proven,
-require manual review or abstain. Return only the requested JSON schema."""
+strong. Use exact candidate_id values only in recommended_candidate_id and
+evidence_references. evidence_references must never contain prose, URLs or
+observation labels. When evidence conflicts or a legal entity relationship is not
+proven, require manual review or abstain. Return only the requested JSON schema."""
 
 
 class AdjudicationValidationError(ValueError):
@@ -151,6 +153,22 @@ class LLMAdjudicationResult:
             "output_text_length": self.output_text_length,
             "raw_output_sha256": self.raw_output_sha256,
         }
+
+
+def build_adjudication_schema(candidate_ids: Sequence[str]) -> dict[str, object]:
+    """Bind structured-output candidate references to the exact evidence packet."""
+
+    allowed_ids = tuple(
+        dict.fromkeys(str(item).strip() for item in candidate_ids if str(item).strip())
+    )
+    if not allowed_ids:
+        raise ValueError("adjudication schema requires at least one candidate ID")
+
+    schema = json.loads(json.dumps(ADJUDICATION_SCHEMA))
+    properties = schema["properties"]
+    properties["recommended_candidate_id"]["enum"] = [*allowed_ids, None]
+    properties["evidence_references"]["items"]["enum"] = list(allowed_ids)
+    return schema
 
 
 def build_adjudication_packet(decision: OriginEvidenceDecision) -> dict[str, object]:
@@ -332,6 +350,8 @@ def adjudicate_with_openai(
         )
 
     packet = build_adjudication_packet(decision)
+    allowed_ids = tuple(item.candidate_id for item in decision.assessments[:4])
+    adjudication_schema = build_adjudication_schema(allowed_ids)
     request_payload: dict[str, object] = {
         "model": selected_model,
         "store": False,
@@ -356,7 +376,7 @@ def adjudicate_with_openai(
                 "type": "json_schema",
                 "name": "origin_adjudication",
                 "strict": True,
-                "schema": ADJUDICATION_SCHEMA,
+                "schema": adjudication_schema,
             }
         },
     }
@@ -378,10 +398,9 @@ def adjudicate_with_openai(
                 "schema_validation",
                 "adjudication JSON root must be an object",
             )
-        allowed_ids = {item.candidate_id for item in decision.assessments[:4]}
         adjudication = validate_adjudication(
             decoded,
-            allowed_candidate_ids=allowed_ids,
+            allowed_candidate_ids=set(allowed_ids),
         )
     except (json.JSONDecodeError, requests.RequestException, TypeError, ValueError) as exc:
         usage = None if response is None else response.get("usage")
