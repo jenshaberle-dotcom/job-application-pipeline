@@ -282,3 +282,97 @@ def test_live_escalation_runs_at_most_one_second_attempt() -> None:
     assert run.trigger_reason == "provider_attempts_to_clear_deterministic_manual_review"
     assert run.outcome == "provider_disagreement_manual_review_required"
     assert run.escalation is not None
+
+
+def test_failed_closed_preserves_provider_metadata_and_candidate_stage() -> None:
+    payload = {
+        "decision": "confirm_deterministic",
+        "recommended_candidate_id": "C1",
+        "entity_relationship": "exact_legal_entity",
+        "origin_assessment": "verified_job_listing",
+        "manual_review_required": False,
+        "evidence_references": ["not-a-candidate-id"],
+        "remaining_uncertainty": [],
+        "rationale": "Fixture with an invalid evidence reference.",
+    }
+
+    def transport(_url, _headers, _request, _timeout):
+        return {
+            "id": "resp_diagnostic",
+            "model": "gpt-5.4-mini-2026-07-01",
+            "status": "completed",
+            "usage": {
+                "input_tokens": 1000,
+                "output_tokens": 100,
+                "total_tokens": 1100,
+            },
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {"type": "output_text", "text": json.dumps(payload)}
+                    ],
+                }
+            ],
+        }
+
+    observation = adjudicate_model(
+        _decision(),
+        api_key="secret",
+        model="gpt-5.4-mini",
+        transport=transport,
+    )
+
+    result = observation.result
+    assert result.status == "failed_closed"
+    assert result.failure_stage == "candidate_validation"
+    assert result.failure_class == "AdjudicationValidationError"
+    assert result.failure_message == "provider cited an unknown candidate ID"
+    assert result.response_id == "resp_diagnostic"
+    assert result.provider_status == "completed"
+    assert result.usage == {
+        "input_tokens": 1000,
+        "output_tokens": 100,
+        "total_tokens": 1100,
+    }
+    assert result.output_item_types == ("message",)
+    assert result.output_text_length is not None
+    assert result.output_text_length > 0
+    assert result.raw_output_sha256 is not None
+    assert observation.model_returned == "gpt-5.4-mini-2026-07-01"
+    assert observation.estimated_cost_usd > 0
+
+
+def test_incomplete_response_preserves_provider_diagnostics() -> None:
+    def transport(_url, _headers, _request, _timeout):
+        return {
+            "id": "resp_incomplete",
+            "model": "gpt-5.4-mini",
+            "status": "incomplete",
+            "incomplete_details": {"reason": "max_output_tokens"},
+            "usage": {
+                "input_tokens": 1000,
+                "output_tokens": 600,
+                "total_tokens": 1600,
+            },
+            "output": [{"type": "reasoning", "content": []}],
+        }
+
+    observation = adjudicate_model(
+        _decision(),
+        api_key="secret",
+        model="gpt-5.4-mini",
+        transport=transport,
+    )
+
+    result = observation.result
+    assert result.status == "failed_closed"
+    assert result.failure_stage == "output_extraction"
+    assert result.failure_message == "response contains no output_text"
+    assert result.response_id == "resp_incomplete"
+    assert result.provider_status == "incomplete"
+    assert result.incomplete_details == {"reason": "max_output_tokens"}
+    assert result.output_item_types == ("reasoning",)
+    assert result.output_text_length is None
+    assert result.raw_output_sha256 is None
+    assert observation.estimated_cost_usd > 0
