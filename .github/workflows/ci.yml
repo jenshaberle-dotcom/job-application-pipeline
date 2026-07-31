@@ -45,6 +45,22 @@ jobs:
       - name: Compile active Python paths
         run: python -m compileall -q src scripts tests
 
+      - name: Parse Windows PowerShell watcher
+        shell: pwsh
+        run: |
+          $Tokens = $null
+          $Errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "scripts/install_windows_origin_runtime_lease_watcher.ps1",
+            [ref]$Tokens,
+            [ref]$Errors
+          ) | Out-Null
+
+          if ($Errors.Count -gt 0) {
+            $Errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
       - name: Validate migration, tooling, and governance contracts
         run: python scripts/validate_ci_contract.py
 
