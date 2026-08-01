@@ -1,0 +1,45 @@
+{
+  "schema_version": "origin_inventory_resolution_input.v1",
+  "review_output_only_not_pipeline_input": true,
+  "example": {
+    "company_key": "materna",
+    "company_name": "Materna Information & Communications SE",
+    "as_of": "2026-08-01",
+    "failed_reobservation_attempt": 0,
+    "new_external_job_event": false,
+    "external_job_signal": {
+      "currently_live": true,
+      "confidence": 0.9,
+      "observation_count": 1,
+      "origin_miss_count": 0
+    },
+    "candidates": [
+      {
+        "candidate_id": "C1",
+        "source_url": "https://example.invalid/careers",
+        "final_url": "https://example.invalid/jobs",
+        "canonical_url": "https://example.invalid/jobs",
+        "source_role": "official_company",
+        "ats_tenant": "example-tenant",
+        "employer_scope": "materna",
+        "reachable": true,
+        "observed_job_count": 2,
+        "relevant_job_count": 2,
+        "relevant_job_keys": [
+          "JOB-001",
+          "JOB-002"
+        ]
+      }
+    ]
+  },
+  "boundary": {
+    "no_provider_call": true,
+    "no_network_fetch": true,
+    "no_database_read": true,
+    "no_database_write": true,
+    "no_connector_registration": true,
+    "no_source_activation": true,
+    "no_scheduler_change": true,
+    "no_baitjob_assertion": true
+  }
+}
