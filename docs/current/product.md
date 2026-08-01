@@ -7,12 +7,12 @@ Project character: **A — Intent Locked**
 
 This file is the short current-product summary. It is not the complete product specification.
 
-The authoritative product-behavior surface is `docs/product/`:
+The authoritative product-behavior surface is `docs/reference/product-contract/`:
 
-1. `docs/product/PRD.md`
-2. `docs/product/PRODUCT_DECISION_REGISTER.md`
-3. `docs/product/ACCEPTANCE_SCENARIOS.md`
-4. `docs/product/TRACEABILITY.md`
+1. `docs/reference/product-contract/PRD.md`
+2. `docs/reference/product-contract/PRODUCT_DECISION_REGISTER.md`
+3. `docs/reference/product-contract/ACCEPTANCE_SCENARIOS.md`
+4. `docs/reference/product-contract/TRACEABILITY.md`
 
 Jens owns product intent. DON may propose product changes and independently choose technical implementation inside approved requirements, but it may not infer unresolved product preferences or promote them into current truth.
 
