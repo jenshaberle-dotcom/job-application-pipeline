@@ -76,7 +76,7 @@ def test_react_control_center_consumes_the_read_only_product_api() -> None:
     styles = (FRONTEND / "src" / "styles.css").read_text(encoding="utf-8")
 
     assert '"react"' in package
-    assert '"build": "tsc -b && vite build"' in package
+    assert '"build": "tsc --noEmit && vite build"' in package
     assert 'fetch("/api/v1/product-v1"' in app
     assert "StepStone Waves" in app
     assert "Top 5" in app
