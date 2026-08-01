@@ -7,7 +7,6 @@ and ranking results. Open operator decisions remain explicit blockers.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from functools import cmp_to_key
 from hashlib import sha256
 from typing import Iterable, Mapping, Sequence
 
@@ -125,7 +124,7 @@ def product_readiness_status(job: ProductJob) -> str:
     if job.hard_filter_status == "failed":
         return "blocked_hard_filter"
     if job.hard_filter_status != "passed":
-        return "hard_filter_decision_required"
+        return "hard_filter_evidence_required"
     required_scores = (
         job.profile_direction_score,
         job.data_focus_score,
@@ -167,71 +166,58 @@ def _public_transport_preference(value: str) -> int:
     return {"good": 0, "acceptable": 1, "unknown": 2, "poor": 3}.get(value, 2)
 
 
-def _compare_ranked(
-    left: tuple[ProductJob, float],
-    right: tuple[ProductJob, float],
-    *,
-    comparable_score_delta: float,
-) -> int:
-    left_job, left_score = left
-    right_job, right_score = right
-    if abs(left_score - right_score) > comparable_score_delta:
-        return -1 if left_score > right_score else 1
-
-    left_work = _work_model_preference(left_job.work_model)
-    right_work = _work_model_preference(right_job.work_model)
-    if left_work != right_work:
-        return -1 if left_work < right_work else 1
-
-    left_commute = left_job.commute_minutes if left_job.commute_minutes is not None else 10**9
-    right_commute = right_job.commute_minutes if right_job.commute_minutes is not None else 10**9
-    if left_commute != right_commute:
-        return -1 if left_commute < right_commute else 1
-
-    left_transit = _public_transport_preference(left_job.public_transport_quality)
-    right_transit = _public_transport_preference(right_job.public_transport_quality)
-    if left_transit != right_transit:
-        return -1 if left_transit < right_transit else 1
-
-    left_evidence = float(left_job.evidence_quality_score or 0)
-    right_evidence = float(right_job.evidence_quality_score or 0)
-    if left_evidence != right_evidence:
-        return -1 if left_evidence > right_evidence else 1
-    return -1 if left_job.silver_job_id < right_job.silver_job_id else 1
+def _comparable_preference_key(item: tuple[ProductJob, float]) -> tuple[object, ...]:
+    job, score = item
+    commute = job.commute_minutes if job.commute_minutes is not None else 10**9
+    return (
+        _work_model_preference(job.work_model),
+        commute,
+        _public_transport_preference(job.public_transport_quality),
+        -float(job.evidence_quality_score or 0),
+        -score,
+        job.silver_job_id,
+    )
 
 
 def rank_product_jobs(
     jobs: Iterable[ProductJob],
     policy: RankingPolicy,
 ) -> tuple[RankedProductJob, ...]:
-    """Rank only fully eligible jobs under an explicitly approved policy."""
+    """Rank only fully eligible jobs under an explicitly approved policy.
+
+    For each rank position, the highest remaining score establishes the current
+    comparison window. Jobs no more than the approved delta below that score are
+    treated as otherwise comparable; only inside that window may hybrid, commute
+    and public-transport preferences reorder candidates.
+    """
     policy.require_approved()
     assert policy.minimum_quality_score is not None
     assert policy.top_job_limit is not None
     assert policy.comparable_score_delta is not None
 
-    scored: list[tuple[ProductJob, float]] = []
+    remaining: list[tuple[ProductJob, float]] = []
     for job in jobs:
         if product_readiness_status(job) != "rankable":
             continue
         score = _score(job, policy)
         if score < policy.minimum_quality_score:
             continue
-        scored.append((job, score))
+        remaining.append((job, score))
 
-    ordered = sorted(
-        scored,
-        key=cmp_to_key(
-            lambda left, right: _compare_ranked(
-                left,
-                right,
-                comparable_score_delta=float(policy.comparable_score_delta),
-            )
-        ),
-    )
+    ordered: list[tuple[ProductJob, float]] = []
+    while remaining and len(ordered) < policy.top_job_limit:
+        highest_score = max(score for _, score in remaining)
+        comparable = [
+            item
+            for item in remaining
+            if item[1] >= highest_score - float(policy.comparable_score_delta)
+        ]
+        selected = min(comparable, key=_comparable_preference_key)
+        ordered.append(selected)
+        remaining.remove(selected)
 
     ranked: list[RankedProductJob] = []
-    for index, (job, score) in enumerate(ordered[: policy.top_job_limit], start=1):
+    for index, (job, score) in enumerate(ordered, start=1):
         reasons = [
             f"Profile direction score: {job.profile_direction_score}",
             f"Data focus score: {job.data_focus_score}",
@@ -239,10 +225,15 @@ def rank_product_jobs(
             f"Origin/evidence quality score: {job.evidence_quality_score}",
         ]
         if job.work_model == "hybrid":
-            reasons.append("Hybrid preference applied only within the approved comparable-score range.")
+            reasons.append(
+                "Hybrid preference applied only within the approved comparable-score range."
+            )
         if job.commute_minutes is not None:
-            reasons.append(f"Observed commute estimate: {job.commute_minutes} minutes per direction.")
+            reasons.append(
+                f"Observed commute estimate: {job.commute_minutes} minutes per direction."
+            )
         reasons.extend(job.explanations)
+        reasons.extend(f"Uncertainty: {item}" for item in job.uncertainties)
         ranked.append(
             RankedProductJob(
                 rank=index,
@@ -265,7 +256,9 @@ def build_application_source_manifest(
     if readiness != "rankable":
         blockers.append(f"job_not_eligible:{readiness}")
 
-    approved_documents = tuple(document for document in source_documents if document.status == "approved")
+    approved_documents = tuple(
+        document for document in source_documents if document.status == "approved"
+    )
     document_types = {document.document_type for document in approved_documents}
     if "base_cv" not in document_types:
         blockers.append("missing_approved_base_cv")

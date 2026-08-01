@@ -29,7 +29,7 @@ This register prevents product behavior from being guessed by DON, implementatio
 |---|---|---|
 | `PD-010` | approved | Canonical hierarchy: Machine Learning Engineer foundation; strong Data Engineering and data-centric ML focus; AI/Data & AI Reliability as future specialization; GenAI as cross-cutting competency rather than standalone target profile. |
 | `PD-011` | approved | Primary families: Machine Learning Engineer, ML Engineer, MLOps Engineer, ML Platform Engineer, AI Platform Engineer and substantive AI Engineer roles. Strong bridge families: Data Engineer, Data Platform Engineer and Analytics Engineer. Strategic probes: AI/ML Reliability. |
-| `PD-012` | open_operator_decision | Define accepted seniority levels and titles that imply unsupported seniority. |
+| `PD-012` | approved | Seniority labels do not decide eligibility by themselves. Actual requirements and evidenced capability fit are authoritative. A Senior/Lead/Principal-labelled vacancy remains eligible when the requirements fit. A Junior-labelled vacancy with Senior/Lead/Principal-level requirements is excluded. Approved 2026-08-02. |
 | `PD-013` | open_operator_decision | Define which adjacent roles are interesting but not primary Top-5 candidates. |
 | `PD-014` | open_operator_decision | Define required and disqualifying technical/task content independent of job title. |
 
@@ -48,12 +48,12 @@ This register prevents product behavior from being guessed by DON, implementatio
 
 | ID | Status | Decision required |
 |---|---|---|
-| `PD-030` | open_operator_decision | Approve employment types: permanent, temporary, trainee, internship, freelance or others. |
-| `PD-031` | open_operator_decision | Define language requirements and acceptable German/English combinations. |
-| `PD-032` | open_operator_decision | Define salary as hard filter, soft signal or unavailable-data field. |
+| `PD-030` | approved | Permanent employment is required for authoritative Top-5 eligibility. Explicit fixed-term, temporary, freelance, internship or trainee roles fail this hard filter. Missing contract evidence remains manual-review-required. Approved 2026-08-02. |
+| `PD-031` | approved | German and English are the accepted working languages. A role requiring an additional language fails the language hard filter. Missing language evidence remains manual-review-required. Approved 2026-08-02. |
+| `PD-032` | approved | Salary is a negotiable soft signal, not a hard exclusion. The current target is approximately EUR 75,000 gross/year. The operator's current compensation remains private local runtime context and is not committed to the public repository. Approved 2026-08-02. |
 | `PD-033` | open_operator_decision | Define company, industry or role exclusions. |
-| `PD-034` | open_operator_decision | Define required working-time constraints. |
-| `PD-035` | open_operator_decision | Define how unsupported experience requirements affect inclusion. |
+| `PD-034` | approved | The acceptable weekly-hours range is 35 to 40 hours. A vacancy passes when its evidenced selectable range overlaps 35–40 hours. Missing hours evidence remains manual-review-required. Approved 2026-08-02. |
+| `PD-035` | approved | Capability and requirements fit take precedence over the advertised seniority title. Senior-labelled roles may qualify when the actual requirements fit. Junior-labelled roles carrying Senior/Lead/Principal-level requirements are excluded. Unsupported capability requirements fail; missing evidence remains manual-review-required. Approved 2026-08-02. |
 
 ## E. Job truth, freshness and evidence
 
@@ -71,13 +71,13 @@ This register prevents product behavior from being guessed by DON, implementatio
 
 | ID | Status | Decision required |
 |---|---|---|
-| `PD-050` | open_operator_decision | Define whether Top 5 means exactly five, at most five or another bounded set. |
-| `PD-051` | open_operator_decision | Define the minimum quality threshold and behavior when fewer jobs qualify. |
-| `PD-052` | open_operator_decision | Approve remaining ranking factors and their relative importance. Profile direction is primary; commute, public-transport quality and work model are approved soft comparison signals under PD-021 to PD-023. |
-| `PD-053` | open_operator_decision | Define whether hard-filter failures can ever appear in the primary queue. |
-| `PD-054` | open_operator_decision | Define treatment of missing information in ranking. |
-| `PD-055` | open_operator_decision | Define required explanation for each rank. |
-| `PD-056` | open_operator_decision | Define whether score, rank bands, reasons or combinations are shown. |
+| `PD-050` | approved | Top 5 means at most five jobs. The result is never filled with weaker, blocked or below-threshold jobs merely to reach five. Approved 2026-08-02. |
+| `PD-051` | approved | Minimum overall quality is 70/100. Fewer than five jobs are valid when fewer jobs qualify. The threshold is an adjustable V1 starting value, not a permanent constant. Approved 2026-08-02. |
+| `PD-052` | approved | Starting weights: profile/ML direction 40%, Reliability potential 25%, Data/Data-Engineering focus 20%, origin/evidence quality 15%. Jobs within 3 score points are otherwise comparable; only inside that window may hybrid, commute and public-transport preferences reorder them. The weights and delta remain versioned and adjustable. Approved 2026-08-02. |
+| `PD-053` | approved | Hard-filter failures never enter the authoritative Top-5 queue. Unknown required hard-filter evidence remains review-required rather than silently passing or failing. Approved 2026-08-02. |
+| `PD-054` | approved | Missing required evidence blocks authoritative ranking. Missing optional soft signals remain visible as uncertainty and do not become fabricated values. Approved 2026-08-02. |
+| `PD-055` | approved | Each rank must expose score components, ranking reasons, uncertainties and relevant missing information. Approved 2026-08-02. |
+| `PD-056` | approved | The UI shows rank, overall score, component scores, reasons and uncertainties together rather than a score without explanation. Approved 2026-08-02. |
 | `PD-057` | open_operator_decision | Define deterministic versus LLM-assisted ranking boundaries. |
 | `PD-058` | open_operator_decision | Define how ranking changes between cycles are explained. |
 
