@@ -18,6 +18,12 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+from src.search_intelligence.product_v1 import (
+    OperatorDecisionRequired,
+    ProductJob,
+    RankingPolicy,
+    rank_product_jobs,
+)
 from src.search_intelligence.product_v1_service import build_product_v1_payload
 
 
@@ -25,37 +31,165 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FRONTEND_DIST = ROOT / "frontend" / "control-center" / "dist"
 
 
-def _relation_exists(conn: psycopg.Connection[object], relation_name: str) -> bool:
+def _relation_exists(
+    conn: psycopg.Connection[object], relation_name: str
+) -> bool:
     with conn.cursor() as cur:
-        cur.execute("SELECT to_regclass(%s) IS NOT NULL AS present", (f"public.{relation_name}",))
+        cur.execute(
+            "SELECT to_regclass(%s) IS NOT NULL AS present",
+            (f"public.{relation_name}",),
+        )
         row = cur.fetchone()
     return bool(row and row["present"])
 
 
-def _fetch_all(conn: psycopg.Connection[object], query: str) -> list[dict[str, object]]:
+def _fetch_all(
+    conn: psycopg.Connection[object], query: str
+) -> list[dict[str, object]]:
     with conn.cursor() as cur:
         cur.execute(query)
         return [dict(row) for row in cur.fetchall()]
 
 
-def _fetch_one(conn: psycopg.Connection[object], query: str) -> dict[str, object] | None:
+def _fetch_one(
+    conn: psycopg.Connection[object], query: str
+) -> dict[str, object] | None:
     with conn.cursor() as cur:
         cur.execute(query)
         row = cur.fetchone()
     return dict(row) if row else None
 
 
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if isinstance(value, (list, tuple)):
+        return tuple(str(item) for item in value)
+    return ()
+
+
+def _build_top_jobs(
+    job_readiness: list[dict[str, object]],
+    ranking_policy: dict[str, object] | None,
+) -> list[dict[str, object]]:
+    if ranking_policy is None:
+        return []
+    raw_weights = ranking_policy.get("ranking_weights")
+    factor_weights = (
+        {str(key): float(value) for key, value in raw_weights.items()}
+        if isinstance(raw_weights, dict)
+        else {}
+    )
+    policy = RankingPolicy(
+        status=str(ranking_policy.get("status") or "operator_decision_required"),
+        top_job_limit=(
+            int(ranking_policy["top_job_limit"])
+            if ranking_policy.get("top_job_limit") is not None
+            else None
+        ),
+        minimum_quality_score=(
+            float(ranking_policy["minimum_quality_score"])
+            if ranking_policy.get("minimum_quality_score") is not None
+            else None
+        ),
+        factor_weights=factor_weights,
+        comparable_score_delta=(
+            float(ranking_policy["comparable_score_delta"])
+            if ranking_policy.get("comparable_score_delta") is not None
+            else None
+        ),
+        explanation_mode=(
+            str(ranking_policy["explanation_mode"])
+            if ranking_policy.get("explanation_mode") is not None
+            else None
+        ),
+        policy_version=(
+            str(ranking_policy["policy_version"])
+            if ranking_policy.get("policy_version") is not None
+            else None
+        ),
+    )
+    jobs = [
+        ProductJob(
+            silver_job_id=int(row["silver_job_id"]),
+            title=str(row.get("title") or ""),
+            company_name=str(row.get("company_name") or ""),
+            source_url=(
+                str(row["source_url"])
+                if row.get("source_url") is not None
+                else None
+            ),
+            origin_validation_status=str(
+                row.get("origin_validation_status") or "pending"
+            ),
+            activity_status=str(row.get("activity_status") or "unknown"),
+            hard_filter_status=str(row.get("hard_filter_status") or "unknown"),
+            profile_direction_score=(
+                float(row["profile_direction_score"])
+                if row.get("profile_direction_score") is not None
+                else None
+            ),
+            data_focus_score=(
+                float(row["data_focus_score"])
+                if row.get("data_focus_score") is not None
+                else None
+            ),
+            reliability_focus_score=(
+                float(row["reliability_focus_score"])
+                if row.get("reliability_focus_score") is not None
+                else None
+            ),
+            evidence_quality_score=(
+                float(row["evidence_quality_score"])
+                if row.get("evidence_quality_score") is not None
+                else None
+            ),
+            work_model=str(row.get("work_model") or "unknown"),
+            commute_minutes=(
+                int(row["commute_minutes"])
+                if row.get("commute_minutes") is not None
+                else None
+            ),
+            public_transport_quality=str(
+                row.get("public_transport_quality") or "unknown"
+            ),
+            explanations=_string_tuple(row.get("explanations")),
+            uncertainties=_string_tuple(row.get("uncertainties")),
+        )
+        for row in job_readiness
+        if row.get("silver_job_id") is not None
+    ]
+    try:
+        ranked = rank_product_jobs(jobs, policy)
+    except OperatorDecisionRequired:
+        return []
+
+    by_id = {int(row["silver_job_id"]): row for row in job_readiness}
+    result: list[dict[str, object]] = []
+    for item in ranked:
+        source = dict(by_id[item.job.silver_job_id])
+        source["product_rank"] = item.rank
+        source["overall_quality_score"] = item.overall_quality_score
+        source["ranking_reasons"] = list(item.ranking_reasons)
+        result.append(source)
+    return result
+
+
 def load_product_v1_payload() -> dict[str, object]:
-    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+    with psycopg.connect(
+        DatabaseConfig.from_environment().dsn(), row_factory=dict_row
+    ) as conn:
         required_relations = {
             "search_term_cycle_state",
             "product_v1_ranking_policy",
+            "product_v1_hard_filter_policy",
+            "gold_product_v1_hard_filter_evaluation",
             "gold_product_v1_job_readiness",
             "gold_product_v1_top_jobs",
             "gold_product_v1_application_readiness",
             "application_source_documents",
         }
-        migration_ready = all(_relation_exists(conn, relation) for relation in required_relations)
+        migration_ready = all(
+            _relation_exists(conn, relation) for relation in required_relations
+        )
         if not migration_ready:
             return build_product_v1_payload(
                 wave_states=[],
@@ -65,6 +199,7 @@ def load_product_v1_payload() -> dict[str, object]:
                 application_readiness=[],
                 application_sources=[],
                 migration_ready=False,
+                hard_filter_policy=None,
             )
 
         wave_states = _fetch_all(
@@ -97,21 +232,14 @@ def load_product_v1_payload() -> dict[str, object]:
                 CASE product_readiness_status
                     WHEN 'rankable' THEN 0
                     WHEN 'ranking_policy_required' THEN 1
-                    WHEN 'origin_validation_required' THEN 2
-                    ELSE 3
+                    WHEN 'hard_filter_evidence_required' THEN 2
+                    WHEN 'origin_validation_required' THEN 3
+                    ELSE 4
                 END,
                 profile_direction_score DESC NULLS LAST,
                 publication_date DESC NULLS LAST,
                 silver_job_id
             LIMIT 200
-            """,
-        )
-        top_jobs = _fetch_all(
-            conn,
-            """
-            SELECT *
-            FROM gold_product_v1_top_jobs
-            ORDER BY product_rank
             """,
         )
         ranking_policy = _fetch_one(
@@ -122,6 +250,15 @@ def load_product_v1_payload() -> dict[str, object]:
             WHERE policy_key = 'default'
             """,
         )
+        hard_filter_policy = _fetch_one(
+            conn,
+            """
+            SELECT *
+            FROM product_v1_hard_filter_policy
+            WHERE policy_key = 'default'
+            """,
+        )
+        top_jobs = _build_top_jobs(job_readiness, ranking_policy)
         application_readiness = _fetch_all(
             conn,
             """
@@ -157,6 +294,7 @@ def load_product_v1_payload() -> dict[str, object]:
         application_readiness=application_readiness,
         application_sources=application_sources,
         migration_ready=True,
+        hard_filter_policy=hard_filter_policy,
     )
 
 
@@ -183,9 +321,17 @@ class ProductV1Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_json(self, payload: object, *, status: HTTPStatus = HTTPStatus.OK) -> None:
-        body = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
-        self._send_bytes(body, content_type="application/json; charset=utf-8", status=status)
+    def _send_json(
+        self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
+    ) -> None:
+        body = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True
+        ).encode("utf-8")
+        self._send_bytes(
+            body,
+            content_type="application/json; charset=utf-8",
+            status=status,
+        )
 
     def _serve_frontend(self, requested_path: str) -> None:
         root = self.frontend_dist.resolve()
@@ -196,7 +342,11 @@ class ProductV1Handler(BaseHTTPRequestHandler):
                 "The read-only API is available at <code>/api/v1/product-v1</code>.</p>"
                 "</body></html>"
             ).encode("utf-8")
-            self._send_bytes(body, content_type="text/html; charset=utf-8", status=HTTPStatus.SERVICE_UNAVAILABLE)
+            self._send_bytes(
+                body,
+                content_type="text/html; charset=utf-8",
+                status=HTTPStatus.SERVICE_UNAVAILABLE,
+            )
             return
 
         relative = requested_path.lstrip("/")
@@ -206,9 +356,20 @@ class ProductV1Handler(BaseHTTPRequestHandler):
             return
         if not candidate.is_file():
             candidate = root / "index.html"
-        content_type = mimetypes.guess_type(candidate.name)[0] or "application/octet-stream"
-        cache = "public, max-age=31536000, immutable" if "/assets/" in requested_path else "no-cache"
-        self._send_bytes(candidate.read_bytes(), content_type=content_type, cache_control=cache)
+        content_type = (
+            mimetypes.guess_type(candidate.name)[0]
+            or "application/octet-stream"
+        )
+        cache = (
+            "public, max-age=31536000, immutable"
+            if "/assets/" in requested_path
+            else "no-cache"
+        )
+        self._send_bytes(
+            candidate.read_bytes(),
+            content_type=content_type,
+            cache_control=cache,
+        )
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
@@ -256,17 +417,30 @@ class ProductV1Handler(BaseHTTPRequestHandler):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default=os.environ.get("PRODUCT_V1_UI_HOST", "127.0.0.1"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("PRODUCT_V1_UI_PORT", "8780")))
-    parser.add_argument("--frontend-dist", type=Path, default=DEFAULT_FRONTEND_DIST)
+    parser.add_argument(
+        "--host", default=os.environ.get("PRODUCT_V1_UI_HOST", "127.0.0.1")
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("PRODUCT_V1_UI_PORT", "8780")),
+    )
+    parser.add_argument(
+        "--frontend-dist", type=Path, default=DEFAULT_FRONTEND_DIST
+    )
     return parser
 
 
 def run_server(args: argparse.Namespace) -> None:
     server = ThreadingHTTPServer((args.host, args.port), ProductV1Handler)
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
-    print(f"Deep Ocean Product V1 Control Center: http://{args.host}:{args.port}/")
-    print("Boundary: read-only API, no provider call, no source activation, no application submission.")
+    print(
+        f"Deep Ocean Product V1 Control Center: http://{args.host}:{args.port}/"
+    )
+    print(
+        "Boundary: read-only API, no provider call, no source activation, "
+        "no application submission."
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

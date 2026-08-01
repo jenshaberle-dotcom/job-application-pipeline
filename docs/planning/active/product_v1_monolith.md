@@ -1,6 +1,6 @@
 # PRODUCT-V1-MONOLITH-001
 
-Status: implementation in review  
+Status: operator policy approved; runtime migration prepared  
 Product character: A — Intent Locked  
 Risk: repository implementation only; live actions remain operator-controlled
 
@@ -20,7 +20,7 @@ StepStone bounded company waves
 → employer-origin discovery and validation
 → concrete active Silver job
 → Product V1 assessment and eligibility gates
-→ approved ranking policy
+→ approved ranking and hard-filter policy
 → Gold Top-5 serving
 → approved CV and base-letter manifest
 → review-safe application draft request
@@ -30,30 +30,65 @@ StepStone bounded company waves
 ## Implemented repository surfaces
 
 - migration `077_create_product_v1_monolith_foundation.sql`;
+- migration `078_activate_product_v1_operator_policy.sql`;
 - persistent exclusion-wave state and empty-wave constraint repair;
 - deterministic, provider-free ranking domain;
-- explicit operator-decision gate for ranking policy;
+- approved at-most-five, no-fill ranking policy;
+- approved structured hard-filter policy;
 - application source-document and request contracts;
-- Gold Product V1 readiness, Top-5 and application-readiness views;
+- Gold Product V1 hard-filter, readiness, Top-5 and application-readiness views;
 - integrated Product V1 runner;
+- guarded atomic runtime migration script for migrations 077 and 078;
 - read-only Product V1 API;
 - React/TypeScript Control Center source;
-- provider-free tests for product, wave, API and frontend contracts.
+- provider-free tests for policy, ranking, migration, API and frontend contracts.
 
-## Product decisions deliberately not invented
+## Approved Top-5 start policy
 
-The implementation does not choose:
+- at most five jobs;
+- never fill the list with blocked or below-threshold jobs;
+- minimum score: `70/100`;
+- ML/profile direction: `40%`;
+- Reliability potential: `25%`;
+- Data/Data-Engineering focus: `20%`;
+- origin/evidence quality: `15%`;
+- otherwise comparable window: `3` score points;
+- hybrid, commute and public-transport preferences may reorder jobs only inside that window;
+- rank, overall score, component scores, reasons, uncertainties and missing information remain visible;
+- all values are versioned V1 starting values and may be adjusted later by the operator.
 
-- exactly five versus at most five;
-- minimum Top-5 quality threshold;
-- final ranking weights;
-- numeric definition of otherwise comparable jobs;
-- handling of missing job information;
-- seniority, language, salary, contract-type or experience hard filters;
-- operator review actions;
-- provider/model execution policy.
+## Approved hard-filter start policy
 
-The ranking policy remains `operator_decision_required` until these required decisions are approved.
+- actual requirements and evidenced capability fit take precedence over the advertised seniority label;
+- a Senior/Lead/Principal-labelled vacancy remains eligible when the requirements fit;
+- a Junior-labelled vacancy with Senior/Lead/Principal-level requirements is excluded;
+- permanent employment is required for authoritative Top-5 eligibility;
+- accepted working languages are German and English;
+- a required additional language fails the language hard filter;
+- acceptable working time is 35–40 hours/week;
+- an evidenced selectable range passes when it overlaps 35–40 hours;
+- salary is negotiable and remains a soft signal;
+- current salary target: approximately EUR 75,000 gross/year;
+- missing required evidence remains manual-review-required rather than silently passing.
+
+## Privacy boundary
+
+The repository is public. The operator's current compensation is therefore not written to Git history. It remains private local runtime context. Migration 078 records only the approved negotiable target salary and the rule `current_compensation_storage = local_runtime_only`.
+
+## Product decisions still open
+
+This policy block deliberately does not decide:
+
+- company, industry or role exclusions;
+- maximum acceptable posting age;
+- handling of unknown publication dates;
+- the exact minimum evidence proving a concrete vacancy is still active;
+- travel, customer-site or relocation treatment;
+- operator review actions and lifecycle history;
+- provider/model execution policy;
+- ranking-change explanation between cycles.
+
+These decisions remain visible in the Product Decision Register and are not invented by the implementation.
 
 ## Application assistant boundary
 
@@ -64,11 +99,30 @@ The assistant currently builds only a deterministic source manifest. It remains 
 
 No draft generation and no provider call are performed by this block. No application can be sent automatically.
 
+## Runtime migration path
+
+Default preflight is read-only:
+
+```bash
+python -m scripts.prepare_product_v1_runtime_migration
+```
+
+The prepared apply path is intentionally separate and requires the exact token:
+
+```bash
+python -m scripts.prepare_product_v1_runtime_migration \
+  --apply \
+  --approval-token apply_product_v1_runtime_migrations_077_078 \
+  --applied-by jens
+```
+
+The script applies only migrations 077 and 078 in one database transaction. It refuses to bypass unresolved predecessor migrations and does not invoke StepStone, providers, sources, schedulers or application workflows.
+
 ## Runtime boundary
 
 Repository merge does not:
 
-- apply migration 077 to the live database;
+- apply migrations 077 or 078 to the live database;
 - call StepStone;
 - apply company cooldowns;
 - trigger a provider;
@@ -80,11 +134,6 @@ Repository merge does not:
 
 Each runtime effect remains a separate explicit operator action.
 
-## Operator stop point
+## Current operator stop point
 
-After repository validation, the next product-shaping step requires operator input for:
-
-1. the ranking-policy decisions listed above;
-2. the base CV and base application letter.
-
-Implementation must stop there rather than generating defaults or synthetic application facts.
+After repository validation, the next runtime step is the separately approved execution of migrations 077 and 078. The application-assistant path additionally requires the canonical base CV and base application letter.
