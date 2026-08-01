@@ -3,82 +3,57 @@
 Status: current planning
 Last rebaseline: Product-authority preparation after BACKLOG-REFINE-001
 
-This roadmap is intentionally short. Executable engineering detail, dependencies,
-boundaries and acceptance criteria live in `backlog_catalog.json`.
+The engineering catalog supplies implementation detail. Desired product behavior
+is defined under `docs/reference/product-contract/` and has higher authority.
 
-Desired product behavior is defined separately under `docs/product/` and has
-higher authority than the engineering catalog.
-
-## Product steering principle
-
+## Steering principle
 ```text
 Exact on WHAT.
 Adaptive on HOW.
 ```
-
-Jens owns product semantics. DON may adapt technical design, slicing and sequencing
-inside approved requirements. Unresolved product behavior remains blocked or a
-`product_change_proposal`; it is never closed by inference.
+Jens owns product semantics. DON may adapt design, slicing and sequencing inside
+approved requirements. Unresolved product behavior remains open.
 
 ## Critical path
-
 | Order | Block | Status | Exit gate |
 |---:|---|---|---|
-| 0 | PRD-001 Product Intent Rebaseline | current | First-slice product decisions, scenarios and traceability are operator-approved. |
-| 1 | DOC-010 Planning Truth and Executable Backlog Control | current parallel | One sequence and CI-valid engineering catalog. |
-| 2 | SI-020 Generic Evidence Closure | next parallel | Fresh repo/DB evidence returns pass or finite blockers without defining product defaults. |
-| 3 | SI-030 Controlled Candidate Creation | blocked | Generic evidence plus approved candidate/product semantics, exact scope, audit and rollback proof. |
-| 4 | CC-010 Usable V1 Job Review | blocked | Approved Top-5/ranking/review contract plus reproducible queue and safe actions. |
-| 5 | OPS-030 / FREEZE-002 maturity | planned | Measurable targets and V1 entry gate. |
-| 6 | OPS-030 / REFACTOR-001 | parked | Inventory and staged boundary plan. |
-| 7 | Cloud/outbox/Kafka/Spark | parked | Core maturity and explicit product-value evidence. |
+| 0 | PRD-001 Product Intent Rebaseline | current | First-slice decisions, scenarios and traceability approved. |
+| 1 | DOC-010 Planning Truth | current parallel | One sequence and CI-valid engineering catalog. |
+| 2 | SI-020 Generic Evidence Closure | next parallel | Fresh evidence returns pass or finite blockers. |
+| 3 | SI-030 Controlled Candidate Creation | blocked | Generic proof plus approved candidate semantics and rollback. |
+| 4 | CC-010 Usable V1 Job Review | blocked | Approved Top-5/ranking/review contract and safe queue. |
+| 5 | OPS-030 maturity/refactor | planned | Measurable V1 gate and staged boundary plan. |
+| 6 | Cloud/outbox/Kafka/Spark | parked | Explicit product-value evidence. |
 
 ## Immediate product-alignment work
-
-1. Confirm the product truths already recorded in `docs/product/PRD.md`.
-2. Resolve only the open decisions needed for the first useful vertical slice.
+1. Confirm recorded product truths.
+2. Resolve only decisions needed for the first useful vertical slice.
 3. Approve representative acceptance scenarios.
-4. Map the active candidate/V1 backlog to approved product intent.
-5. Select a small vertical slice that exposes filtering, ranking, evidence, uncertainty and review behavior to Jens.
-6. Obtain operator acceptance before scaling the product path.
+4. Map active candidate/V1 items to approved intent.
+5. Build a small visible slice covering filtering, ranking, evidence, uncertainty and review.
+6. Obtain operator acceptance before scaling.
 
 ## Engineering work allowed in parallel
+- read-only GENERIC/EXPAND evidence;
+- conditional provider-coverage decision without automatic call;
+- safety, defects, documentation and runtime stabilization;
+- CI, scheduler audit and target-profile evidence review.
 
-1. Refresh the GENERIC/EXPAND evidence chain.
-2. Decide provider coverage only if the refresh still requires it.
-3. Close generic proof or expose exact blockers.
-4. Continue safety, defect, documentation and runtime stabilization.
-5. Do not introduce candidate, Top-5, ranking, queue or action semantics before the relevant PRD decisions are approved.
+These lanes may not introduce candidate, Top-5, ranking, queue or action semantics
+before the relevant product decisions are approved.
 
-## Parallel low-risk lanes
-
-Planning-status and governance reconciliation, E402 cleanup, CSV marker cleanup,
-CI/main observability, read-only scheduler audit, target-profile evidence review
-and defect-taxonomy design may proceed without changing the product critical path.
-
-## Canonical target profile
-
-The repository records Machine Learning Engineer as the foundation, with a Data
-Engineering/data-centric ML focus and a future direction toward AI Reliability.
-GenAI is treated as a cross-cutting engineering competency rather than a standalone
-role profile.
-
-This recorded hierarchy requires operator confirmation in the product decision
-register before it becomes the approved basis for product filtering and ranking.
+## Recorded target profile
+The repository records Machine Learning Engineer as foundation, Data Engineering
+and data-centric ML as focus, AI Reliability as future direction and GenAI as a
+cross-cutting competency. Operator confirmation is required before this becomes
+the approved filtering/ranking basis.
 
 ## Explicitly not current
-
-Broad candidate/Wave scaling, automatic source activation, scheduler changes,
-autonomous provider runs, premature LLM/application generation, maturity scoring
-without exit criteria, monolithic refactoring, cloud, Kafka and Spark.
-
+Broad scaling, automatic source activation, autonomous provider runs, premature
+LLM/application generation, monolithic refactoring, cloud, Kafka and Spark.
 Product-shaping work without approved PRD traceability is also not current.
 
-## Retained architecture and governance anchors
-
-These stable anchors preserve constraints and test contracts; they do not restore
-the superseded historical steering sequence.
-
+## Retained anchors
 <!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
 ### ARCH-001-SAFETY-SECURITY-STATE
 Safety, security, data integrity, explicit transitions and dry-run/apply separation
@@ -86,37 +61,24 @@ remain mandatory.
 <!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
 
 ### DOC-001 Governance Foundation Gate
-The governance foundation remains an active constraint.
+The governance foundation remains active.
 
 ### DOC-002 Documentation Drift Baseline
-Current truth, product truth, planning truth and historical evidence stay visibly separated.
+Current truth, product contract, planning truth and history remain separate.
 
 ### EO-002B Candidate Reprocessing & URL Finder Validation
-EO-002B remains bounded validation evidence, not the current steering block.
+EO-002B remains bounded evidence, not current steering.
 
 <!-- EO-002D-ROADMAP -->
 ### EO-002D-ROADMAP
-The origin-source repair boundary remains a regression anchor; generic benchmark
-work is represented by `SI-045`.
+Origin-source repair remains a regression anchor; generic benchmark work is `SI-045`.
 
 <!-- PLAN-001-ROADMAP-START -->
 ### PLAN-001 Future Readiness and Assumption Governance
-Preserved catalog work includes:
-- MARKET-003 Manual Market Observation Foundation
-- ASSUMPTION-001 Simplification Validation Register
-- WHALE-001 White-Whale Backlog Triage
-
-Details remain in `future_readiness_and_assumption_governance.md`.
+Preserved catalog work includes MARKET-003, ASSUMPTION-001 and WHALE-001.
 <!-- PLAN-001-ROADMAP-END -->
 
-## Architecture boundary
-
-All changes preserve safety, security, data integrity, explicit transitions,
-dry-run/apply separation and the rule that reports/exports are not pipeline inputs.
-Opportunistic breadth goes into the catalog rather than changing the critical path.
-
-## Product boundary
-
-All product-shaping changes preserve the operator-approved product contract.
-DON may propose product changes, but it may not activate them without explicit
-operator approval and corresponding acceptance scenarios.
+## Boundaries
+All changes preserve safety, data integrity, explicit transitions, dry-run/apply
+separation and the rule that exports are not pipeline inputs. Product changes
+require operator approval and acceptance scenarios.
