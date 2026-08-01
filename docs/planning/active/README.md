@@ -7,7 +7,7 @@ Last rebaseline: Product-authority preparation after BACKLOG-REFINE-001
 
 The Pipeline is a **Class A — Intent Locked** project.
 
-The active engineering backlog remains the implementation inventory, but it is subordinate to the operator-approved product contract under `docs/product/`.
+The active engineering backlog remains the implementation inventory, but it is subordinate to the operator-approved product contract under `docs/reference/product-contract/`.
 
 DON may adapt technical design and sequencing. It may not infer unresolved product behavior or treat the current implementation as the desired product definition.
 
@@ -19,11 +19,11 @@ The repository has exited the old CONSISTENCY/MCP containment pause through
 REENTRY-001A. Product work may proceed, but only from current repository and
 DB/runtime evidence and only through explicit item-level side-effect gates.
 
-Product-shaping work additionally requires approved requirements and acceptance scenarios from `docs/product/`.
+Product-shaping work additionally requires approved requirements and acceptance scenarios from `docs/reference/product-contract/`.
 
 The active control surfaces are:
 
-1. `../../product/README.md` — product authority and decision status.
+1. `../../reference/product-contract/README.md` — product authority and decision status.
 2. `prd001_product_intent_rebaseline.md` — progressive PRD-alignment gate.
 3. `backlog_refinement.md` — operator-readable contradiction and work-item view.
 4. `backlog_catalog.json` — machine-readable engineering work-item inventory.
