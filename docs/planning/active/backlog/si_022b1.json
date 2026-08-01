@@ -2,9 +2,9 @@
   "schema_version": "don.target_work_item.v1",
   "work_item_id": "SI-022B1",
   "title": "Project current origin observations into deterministic resolution input",
-  "status": "open",
+  "status": "completed",
   "risk": "low",
-  "uncertainty": "medium",
+  "uncertainty": "low",
   "creation_authority": "operator_approved",
   "created_by": "DON_CUSTOMER_PORTFOLIO_EXPANSION_2026_08_01",
   "source_candidate_backlog_id": "SI-020",
@@ -32,8 +32,12 @@
     "repo-file:src/search_intelligence/origin_inventory_resolution.py",
     "repo-file:scripts/run_origin_inventory_resolution.py",
     "repo-file:tests/test_origin_inventory_resolution.py",
-    "pipeline-main:bc9346cf6e9a85e5e64a0de29dfec10ce60afd82",
-    "operator-decision:2026-08-01-pipeline-reapproved-as-don-customer"
+    "operator-decision:2026-08-01-pipeline-reapproved-as-don-customer",
+    "don-actions:30710297552:local-implementation-route",
+    "pipeline-pr:290",
+    "pipeline-main:1e31008d3185559d6fe1011583920a76a5506cb2",
+    "pipeline-ci:30710606947",
+    "pipeline-tests:1162-passed"
   ],
   "execution_contract": {
     "change_class": "python_read_only_product_feature",
@@ -55,6 +59,17 @@
   },
   "progress_authority": "target_repository",
   "provider_calls_executed": 0,
+  "actual_provider_cost_eur": "0.00000000",
+  "completion": {
+    "outcome": "accepted_local_implementation",
+    "pull_request": 290,
+    "main_sha": "1e31008d3185559d6fe1011583920a76a5506cb2",
+    "ci_run_id": 30710606947,
+    "tests_passed": 1162,
+    "provider_value_decision": "local_learning_record_only",
+    "target_mutation_via_reviewed_merge": true,
+    "automatic_patch_adoption_performed": false
+  },
   "authority_boundary": {
     "read_only_database_access_allowed": true,
     "database_write_authorized": false,
