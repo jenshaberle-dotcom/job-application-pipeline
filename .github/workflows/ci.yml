@@ -112,3 +112,23 @@ jobs:
 
       - name: Run full test suite
         run: python -m pytest -q
+
+  frontend:
+    name: React Control Center build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install frontend dependencies
+        run: npm install --prefix frontend/control-center --no-audit --no-fund
+
+      - name: Type-check and build React Control Center
+        run: npm run build --prefix frontend/control-center
