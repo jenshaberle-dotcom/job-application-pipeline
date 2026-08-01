@@ -14,7 +14,7 @@ PRD-001 does not redesign the technical pipeline, weaken existing safety gates, 
 
 ## Product authority change
 
-The engineering backlog remains the executable inventory of technical work. It is subordinate to the approved product contract under `docs/product/`.
+The engineering backlog remains the executable inventory of technical work. It is subordinate to the approved product contract under `docs/reference/product-contract/`.
 
 DON may decide implementation details. DON may not close an open product decision by inference.
 
@@ -22,7 +22,7 @@ DON may decide implementation details. DON may not close an open product decisio
 
 ### PRD-001A — Confirm current product truths
 
-Review the statements currently recorded in `docs/product/PRD.md` and classify each as:
+Review the statements currently recorded in `docs/reference/product-contract/PRD.md` and classify each as:
 
 - approved;
 - modified and approved;
