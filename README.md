@@ -16,6 +16,8 @@ problem. It is not a scraper demo and not a volume game. The value is in bounded
 acquisition, evidence, explainable stops, repair paths and controlled source
 activation.
 
+This is a portfolio project, but its desired behavior is governed like a personal product.
+
 ## Product authority
 Jens owns desired product behavior. DON may adapt technical implementation but
 may not redefine target profile, geography, Top-5, ranking, review or automation
