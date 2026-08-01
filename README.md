@@ -6,7 +6,6 @@ Theme: Deep Ocean / Search Intelligence
 Primary scope: Hannover and remote-in-Germany job-market intelligence
 
 ## Why this project exists
-
 A normal job search can find a few interesting postings. The harder problem is
 noticing what the search keeps missing: relevant employers hidden behind noisy
 aggregators, weak search terms, missing career-page evidence, strict gates or
@@ -17,35 +16,18 @@ problem. It is not a scraper demo and not a volume game. The value is in bounded
 acquisition, evidence, explainable stops, repair paths and controlled source
 activation.
 
-This is a portfolio project, but the engineering bar is deliberately
-product-like: traceable decisions, tests, explicit gates, agent governance and
-clean documentation instead of clever one-off scripts.
-
 ## Product authority
-
-Jens owns the desired product behavior. DON and other engineering agents may adapt technical design and implementation, but they may not independently redefine target-profile, geography, Top-5, ranking, review or automation semantics.
-
-The authoritative product surface starts at `docs/product/README.md`. Product changes require explicit operator approval and representative acceptance scenarios.
+Jens owns desired product behavior. DON may adapt technical implementation but
+may not redefine target profile, geography, Top-5, ranking, review or automation
+semantics. Start with `docs/reference/product-contract/README.md`.
 
 ## System in one sentence
-
 ```text
 Market signals -> candidates -> origin/detail evidence -> gates/stops/repair
 -> connector readiness -> controlled sources -> Bronze/Silver/Gold -> Control Center
 ```
 
-## Deep Ocean language
-
-Deep Ocean is the product metaphor, not decoration:
-
-- sonar for market sensing,
-- depth for evidence quality,
-- pressure for gates and risk,
-- control surfaces for approvals and next safe actions,
-- repair loops for learning without blind retries.
-
 ## Working principles
-
 - Exact on product WHAT; adaptive on technical HOW.
 - Defensive acquisition over aggressive crawling.
 - Broad raw discovery, strict promotion and activation.
@@ -54,60 +36,44 @@ Deep Ocean is the product metaphor, not decoration:
 - No commits on `main`.
 - Reports and exports are outputs, not source-of-truth inputs.
 - Agent-like behavior needs clear boundaries and auditability.
-- Open product decisions remain open; implementation must not silently default them.
+- Open product decisions remain open.
 
 ## Documentation
-
-Start with `docs/README.md`. The documentation is intentionally organized into a
-small active surface:
-
-```text
-docs/
-├── README.md
-├── product/
-├── current/
-├── guides/
-├── reference/
-├── decisions/
-├── planning/
-└── archive/
-```
+Start with `docs/README.md`.
 
 Primary entry points:
-
-1. `docs/product/README.md`
-2. `docs/product/PRD.md`
-3. `docs/current/product.md`
-4. `docs/current/architecture.md`
-5. `docs/current/pipeline.md`
-6. `docs/current/system-diagrams.md`
-7. `docs/current/governance.md`
-8. `docs/current/operations.md`
-9. `docs/guides/development-workflow.md`
+1. `docs/reference/product-contract/README.md`
+2. `docs/current/product.md`
+3. `docs/current/architecture.md`
+4. `docs/current/pipeline.md`
+5. `docs/current/system-diagrams.md`
+6. `docs/current/governance.md`
+7. `docs/current/operations.md`
+8. `docs/guides/development-workflow.md`
 
 ## Repository map
-
 | Path | Purpose |
 |---|---|
 | `src/` | Production code and shared modules. |
 | `scripts/` | CLI agents, checks and operator commands. |
 | `tests/` | Regression and contract tests. |
 | `db/` | Database migrations and schema assets. |
-| `docs/product/` | Operator-owned product requirements, decisions, scenarios and traceability. |
 | `docs/current/` | Small current product, architecture, pipeline, governance and operations truth. |
 | `docs/guides/` | Practical how-to documentation. |
-| `docs/reference/` | Detailed lookup material. |
+| `docs/reference/` | Detailed product, database, governance, security and source contracts. |
 | `docs/decisions/` | ADRs and ADR status control. |
 | `docs/planning/` | Active planning only. |
 | `docs/archive/` | Historical documentation and replaced artifacts. |
 | `exports/` | Generated review reports; not pipeline input. |
 
+## Deep Ocean language
+Deep Ocean is the product metaphor: sonar for sensing, depth for evidence,
+pressure for gates, calm control surfaces for decisions and repair loops for
+learning.
+
 ## Architecture contract anchors
-
-Some repository tests intentionally assert that the README still points to the
-active architecture and governance baselines.
-
-Current anchors:
+Some tests intentionally assert that the README still points to active
+architecture and governance baselines.
 
 - `ARCH-001-SAFETY-SECURITY-STATE`
 - `docs/reference/governance/governance_foundation.md`
