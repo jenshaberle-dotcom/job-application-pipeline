@@ -49,7 +49,7 @@ Engineering freedom does not include changing product meaning to make implementa
 
 When artifacts disagree, use this order:
 
-1. operator-approved product contract and decision records under `docs/product/`;
+1. operator-approved product contract and decision records under `docs/reference/product-contract/`;
 2. approved product acceptance scenarios;
 3. current product and architecture truth under `docs/current/`;
 4. active roadmap and backlog catalog;
