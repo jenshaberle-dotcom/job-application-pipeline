@@ -75,7 +75,9 @@ Origin-source repair remains a regression anchor; generic benchmark work is `SI-
 
 <!-- PLAN-001-ROADMAP-START -->
 ### PLAN-001 Future Readiness and Assumption Governance
-Preserved catalog work includes MARKET-003, ASSUMPTION-001 and WHALE-001.
+- MARKET-003 Manual Market Observation Foundation
+- ASSUMPTION-001 Simplification Validation Register
+- WHALE-001 White-Whale Backlog Triage
 <!-- PLAN-001-ROADMAP-END -->
 
 ## Boundaries
