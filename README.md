@@ -1,6 +1,7 @@
 # Job Application Pipeline
 
 Status: active portfolio project
+Project character: **A — Intent Locked**
 Theme: Deep Ocean / Search Intelligence
 Primary scope: Hannover and remote-in-Germany job-market intelligence
 
@@ -19,6 +20,12 @@ activation.
 This is a portfolio project, but the engineering bar is deliberately
 product-like: traceable decisions, tests, explicit gates, agent governance and
 clean documentation instead of clever one-off scripts.
+
+## Product authority
+
+Jens owns the desired product behavior. DON and other engineering agents may adapt technical design and implementation, but they may not independently redefine target-profile, geography, Top-5, ranking, review or automation semantics.
+
+The authoritative product surface starts at `docs/product/README.md`. Product changes require explicit operator approval and representative acceptance scenarios.
 
 ## System in one sentence
 
@@ -39,6 +46,7 @@ Deep Ocean is the product metaphor, not decoration:
 
 ## Working principles
 
+- Exact on product WHAT; adaptive on technical HOW.
 - Defensive acquisition over aggressive crawling.
 - Broad raw discovery, strict promotion and activation.
 - Evidence before connector build.
@@ -46,6 +54,7 @@ Deep Ocean is the product metaphor, not decoration:
 - No commits on `main`.
 - Reports and exports are outputs, not source-of-truth inputs.
 - Agent-like behavior needs clear boundaries and auditability.
+- Open product decisions remain open; implementation must not silently default them.
 
 ## Documentation
 
@@ -55,6 +64,7 @@ small active surface:
 ```text
 docs/
 ├── README.md
+├── product/
 ├── current/
 ├── guides/
 ├── reference/
@@ -65,13 +75,15 @@ docs/
 
 Primary entry points:
 
-1. `docs/current/product.md`
-2. `docs/current/architecture.md`
-3. `docs/current/pipeline.md`
-4. `docs/current/system-diagrams.md`
-5. `docs/current/governance.md`
-6. `docs/current/operations.md`
-7. `docs/guides/development-workflow.md`
+1. `docs/product/README.md`
+2. `docs/product/PRD.md`
+3. `docs/current/product.md`
+4. `docs/current/architecture.md`
+5. `docs/current/pipeline.md`
+6. `docs/current/system-diagrams.md`
+7. `docs/current/governance.md`
+8. `docs/current/operations.md`
+9. `docs/guides/development-workflow.md`
 
 ## Repository map
 
@@ -81,6 +93,7 @@ Primary entry points:
 | `scripts/` | CLI agents, checks and operator commands. |
 | `tests/` | Regression and contract tests. |
 | `db/` | Database migrations and schema assets. |
+| `docs/product/` | Operator-owned product requirements, decisions, scenarios and traceability. |
 | `docs/current/` | Small current product, architecture, pipeline, governance and operations truth. |
 | `docs/guides/` | Practical how-to documentation. |
 | `docs/reference/` | Detailed lookup material. |
