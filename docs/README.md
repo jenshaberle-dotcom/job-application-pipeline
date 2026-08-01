@@ -15,7 +15,7 @@ the current system and desired product understandable without archaeology.
 
 ## Read this first
 
-1. `product/README.md`
+1. `reference/product-contract/README.md`
 2. `current/product.md`
 3. `current/architecture.md`
 4. `current/pipeline.md`
@@ -26,7 +26,7 @@ the current system and desired product understandable without archaeology.
 
 ## Product authority
 
-`product/` defines the operator-owned product contract, open decisions, acceptance scenarios and traceability rules.
+`reference/product-contract/` defines the operator-owned product contract, open decisions, acceptance scenarios and traceability rules.
 
 The Pipeline is a Class A — Intent Locked project. Product semantics may be proposed by DON or engineering work, but they become active only through explicit operator approval.
 
@@ -43,10 +43,9 @@ collection.
 
 | Area | Purpose | Rule |
 |---|---|---|
-| `product/` | Approved and pending operator-owned product intent. | Product behavior changes require explicit operator approval. |
 | `current/` | Short, maintained truth about the current product and architecture. | Keep small; promote only stable facts. |
 | `guides/` | How-to documentation for development, operation and testing. | Practical commands live here, not in the root README. |
-| `reference/` | Detailed lookup material: database, agents, governance, sources, security, scoring and glossary. | Precise detail is welcome; story duplication is not. |
+| `reference/` | Detailed product contracts and lookup material: database, agents, governance, sources, security, scoring and glossary. | Precise detail is welcome; story duplication is not. |
 | `decisions/` | ADRs and their DOC-001 status surface. | Decisions explain why, not how-to or current-state prose. |
 | `planning/` | Active planning only. | One active roadmap plus short active plans; old work-item notes go to archive. |
 | `archive/` | Historical build notes, old analyses, reviews and replaced diagrams. | Useful for traceability, not authoritative current or product truth. |
@@ -55,7 +54,7 @@ collection.
 
 The documentation architecture applies to files, not only folders:
 
-- a product file must distinguish approved decisions from open or proposed behavior;
+- a product-contract file must distinguish approved decisions from open or proposed behavior;
 - a current file should earn its place by being maintained, short and useful;
 - a guide should help the operator do a task without becoming architecture prose;
 - a reference file should describe a stable contract, model or lookup surface;
@@ -75,10 +74,10 @@ contract.
 
 ## Key reference surfaces
 
-- `product/PRD.md`
-- `product/PRODUCT_DECISION_REGISTER.md`
-- `product/ACCEPTANCE_SCENARIOS.md`
-- `product/TRACEABILITY.md`
+- `reference/product-contract/PRD.md`
+- `reference/product-contract/PRODUCT_DECISION_REGISTER.md`
+- `reference/product-contract/ACCEPTANCE_SCENARIOS.md`
+- `reference/product-contract/TRACEABILITY.md`
 - `reference/database/schema_overview.md`
 - `reference/database/schema_relationships.md`
 - `reference/governance/governance_foundation.md`
