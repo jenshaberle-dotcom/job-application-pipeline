@@ -129,7 +129,7 @@ def apply_targets(
                     conn,
                     migration,
                     execution_status="success",
-                    execution_mode="product_v1_atomic_apply",
+                    execution_mode="script_apply",
                     applied_by=applied_by,
                 )
     return len(pending_targets)
