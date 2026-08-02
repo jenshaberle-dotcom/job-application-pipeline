@@ -27,7 +27,6 @@ from scripts.run_stepstone_aba_filter_refill_probe import (
     fetch_page,
 )
 from src.connectors.stepstone import USER_AGENT
-from src.normalization.company_keys import normalize_company_key
 from src.search_intelligence.stepstone_company_discovery_cycle import (
     build_not_query,
     company_not_alias,
@@ -382,7 +381,6 @@ def main() -> None:
         )
 
     cumulative: list[dict[str, Any]] = [individual[0]]
-    cumulative_pages: dict[int, dict[str, Any]] = {1: individual_pages[1]}
     for cardinality in range(2, len(candidates) + 1):
         selected = candidates[:cardinality]
         query = build_not_query(
@@ -398,7 +396,6 @@ def main() -> None:
             artifact_dir=artifact_dir,
             delay_seconds=args.delay_seconds,
         )
-        cumulative_pages[cardinality] = page
         cumulative.append(
             summarize_probe(
                 page=page,
@@ -414,13 +411,10 @@ def main() -> None:
     if broken is not None:
         break_count = int(broken["filter_count"])
         break_candidates = candidates[:break_count]
-
+        reverse_candidates = list(reversed(break_candidates))
         reverse_query = build_not_query(
             args.search_term,
-            [
-                str(item["filter_alias"])
-                for item in reversed(break_candidates)
-            ],
+            [str(item["filter_alias"]) for item in reverse_candidates],
         )
         reverse_page = fetch_with_budget(
             budget=budget,
@@ -433,7 +427,7 @@ def main() -> None:
         )
         reverse_result = summarize_probe(
             page=reverse_page,
-            candidates=list(reversed(break_candidates)),
+            candidates=reverse_candidates,
             baseline=a0,
         )
 
