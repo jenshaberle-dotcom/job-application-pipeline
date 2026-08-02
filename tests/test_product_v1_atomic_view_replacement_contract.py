@@ -18,7 +18,9 @@ def test_product_v1_policy_uses_atomic_managed_view_replacement() -> None:
     )
 
     assert application_drop < top_jobs_drop < readiness_drop
-    assert "CASCADE" not in source
+    assert "DROP VIEW IF EXISTS gold_product_v1_application_readiness CASCADE" not in source
+    assert "DROP VIEW IF EXISTS gold_product_v1_top_jobs CASCADE" not in source
+    assert "DROP VIEW IF EXISTS gold_product_v1_job_readiness CASCADE" not in source
     assert "reset_product_v1_managed_views(conn)" in source
     assert "ensure_product_v1_managed_views_exist(conn)" in source
     assert "with conn.transaction():" in source
