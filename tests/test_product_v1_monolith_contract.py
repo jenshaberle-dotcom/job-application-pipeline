@@ -9,6 +9,7 @@ FOUNDATION_MIGRATION = Path(
 POLICY_MIGRATION = Path(
     "db/migrations/078_activate_product_v1_operator_policy.sql"
 )
+TRACKING_MIGRATION = Path("db/migrations/054_create_schema_migrations.sql")
 MIGRATION_PREP = Path("scripts/prepare_product_v1_runtime_migration.py")
 RUNNER = Path("scripts/run_product_v1_monolith.py")
 API = Path("scripts/run_product_v1_control_center.py")
@@ -73,9 +74,17 @@ def test_runtime_migration_preparation_is_read_only_and_targeted_by_default() ->
     assert "apply_product_v1_runtime_migrations_077_078" in source
     assert "if not args.apply" in source
     assert "mode: read_only" in source
-    assert "product_v1_atomic_apply" in source
     assert "unresolved_predecessors" in source
     assert "no provider call" in source
+
+
+def test_runtime_migration_uses_a_tracking_mode_allowed_by_schema_contract() -> None:
+    source = MIGRATION_PREP.read_text(encoding="utf-8")
+    tracking_sql = TRACKING_MIGRATION.read_text(encoding="utf-8")
+
+    assert 'execution_mode="script_apply"' in source
+    assert "'script_apply'" in tracking_sql
+    assert "product_v1_atomic_apply" not in source
 
 
 def test_monolith_runner_is_read_only_and_provider_free_by_default() -> None:
