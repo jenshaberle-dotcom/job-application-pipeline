@@ -51,15 +51,16 @@ def test_selection_uses_only_immediately_previous_run() -> None:
         now=NOW,
     )
 
-    assert selection.selected_company_keys == ("current_a", "current_b")
-    assert "historical_company" not in selection.selected_company_keys
+    selected_names = {item.company_name for item in selection.selected_items}
+    assert selected_names == {"current_a", "current_b"}
+    assert "historical_company" not in selected_names
 
 
 def test_active_reselection_cooldown_rotates_ordinary_company_out() -> None:
     observations = [
-        _observation("alpha", 3, 1),
+        _observation("alpha", 2, 1),
         _observation("beta", 2, 2),
-        _observation("gamma", 1, 3),
+        _observation("gamma", 2, 3),
     ]
     cooldown = CompanyReselectionState(
         company_key="alpha",
@@ -74,12 +75,12 @@ def test_active_reselection_cooldown_rotates_ordinary_company_out() -> None:
         now=NOW,
     )
 
-    alpha = next(item for item in selection.items if item.company_key == "alpha")
+    alpha = next(item for item in selection.items if item.company_name == "alpha")
     assert not alpha.selected_for_next_run
     assert alpha.cooldown_active
     assert not alpha.dominance_override_applied
     assert alpha.selection_reason == "rotated_out_by_reselection_cooldown"
-    assert selection.selected_company_keys == ("beta", "gamma")
+    assert {item.company_name for item in selection.selected_items} == {"beta", "gamma"}
 
 
 def test_extreme_nminus1_dominance_overrides_active_cooldown() -> None:
@@ -108,8 +109,14 @@ def test_extreme_nminus1_dominance_overrides_active_cooldown() -> None:
 
 
 def test_selection_is_bounded_but_not_static() -> None:
-    first_run = [_observation(f"company_{index}", 10 - index, index) for index in range(1, 8)]
-    second_run = [_observation(f"other_{index}", 10 - index, index) for index in range(1, 8)]
+    first_run = [
+        _observation(f"company_{index}", 10 - index, index)
+        for index in range(1, 8)
+    ]
+    second_run = [
+        _observation(f"other_{index}", 10 - index, index)
+        for index in range(1, 8)
+    ]
 
     first = select_next_run_filters(
         observations=first_run,
@@ -124,24 +131,31 @@ def test_selection_is_bounded_but_not_static() -> None:
         now=NOW,
     )
 
+    first_names = {item.company_name for item in first.selected_items}
+    second_names = {item.company_name for item in second.selected_items}
     assert first.selected_filter_count == 5
     assert second.selected_filter_count == 5
-    assert first.selected_company_keys != second.selected_company_keys
-    assert all(key.startswith("company_") for key in first.selected_company_keys)
-    assert all(key.startswith("other_") for key in second.selected_company_keys)
+    assert first_names != second_names
+    assert all(name.startswith("company_") for name in first_names)
+    assert all(name.startswith("other_") for name in second_names)
 
 
-def test_capacity_plan_requires_validated_transport() -> None:
-    selection = select_next_run_filters(
-        observations=[_observation(f"company_{index}", 10 - index, index) for index in range(1, 6)],
+def _five_company_selection():
+    return select_next_run_filters(
+        observations=[
+            _observation(f"company_{index}", 10 - index, index)
+            for index in range(1, 6)
+        ],
         reselection_states=[],
         policy=POLICY,
         now=NOW,
     )
 
+
+def test_capacity_plan_requires_validated_transport() -> None:
     with pytest.raises(ValueError, match="validated transport"):
         build_filter_capacity_experiment_plan(
-            selection=selection,
+            selection=_five_company_selection(),
             transport_name="encoded_q",
             transport_status="candidate",
             maximum_filter_count=5,
@@ -150,15 +164,8 @@ def test_capacity_plan_requires_validated_transport() -> None:
 
 
 def test_capacity_plan_measures_every_length_with_permutation_control() -> None:
-    selection = select_next_run_filters(
-        observations=[_observation(f"company_{index}", 10 - index, index) for index in range(1, 6)],
-        reselection_states=[],
-        policy=POLICY,
-        now=NOW,
-    )
-
     plan = build_filter_capacity_experiment_plan(
-        selection=selection,
+        selection=_five_company_selection(),
         transport_name="encoded_q",
         transport_status="validated",
         maximum_filter_count=5,
@@ -170,22 +177,20 @@ def test_capacity_plan_measures_every_length_with_permutation_control() -> None:
     assert plan.required_total_request_count == 11
     assert [trial.filter_count for trial in plan.trials].count(1) == 1
     for filter_count in range(2, 6):
-        trials = [trial for trial in plan.trials if trial.filter_count == filter_count]
-        assert {trial.permutation_name for trial in trials} == {"forward", "reverse"}
+        trials = [
+            trial for trial in plan.trials if trial.filter_count == filter_count
+        ]
+        assert {trial.permutation_name for trial in trials} == {
+            "forward",
+            "reverse",
+        }
         assert trials[0].company_keys == tuple(reversed(trials[1].company_keys))
 
 
 def test_capacity_plan_enforces_request_budget() -> None:
-    selection = select_next_run_filters(
-        observations=[_observation(f"company_{index}", 10 - index, index) for index in range(1, 6)],
-        reselection_states=[],
-        policy=POLICY,
-        now=NOW,
-    )
-
     with pytest.raises(ValueError, match="required_total=11"):
         build_filter_capacity_experiment_plan(
-            selection=selection,
+            selection=_five_company_selection(),
             transport_name="encoded_q",
             transport_status="validated",
             maximum_filter_count=5,
