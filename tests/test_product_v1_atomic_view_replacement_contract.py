@@ -43,7 +43,8 @@ def test_runner_rejects_inconsistent_077_078_tracking_order() -> None:
     source = RUNNER.read_text(encoding="utf-8")
 
     assert "ensure_consistent_target_state" in source
-    assert "078 is complete while 077 is unresolved" in source
+    assert "078 is complete while " in source
+    assert "077 is unresolved" in source
 
 
 def test_preflight_documents_transactional_view_transition() -> None:
