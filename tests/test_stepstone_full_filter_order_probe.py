@@ -27,12 +27,14 @@ def _candidate(
     }
 
 
-def test_runner_is_bounded_and_read_only() -> None:
+def test_runner_is_bounded_read_only_and_diagnostic_only() -> None:
     source = RUNNER.read_text(encoding="utf-8")
 
     assert "DEFAULT_MAX_REQUESTS = 8" in source
     assert "DEFAULT_COMPANY_COUNT = 5" in source
     assert '"page_one_only": True' in source
+    assert '"diagnostic_only": True' in source
+    assert '"production_order_policy_allowed": False' in source
     assert '"no_pagination": True' in source
     assert '"no_detail_pages": True' in source
     assert '"no_database_write": True' in source
@@ -54,58 +56,65 @@ def test_order_strategies_use_same_five_candidates_in_distinct_orders() -> None:
 
     assert 3 <= len(strategies) <= 5
     assert len(orders) == len(set(orders))
-    assert all(set(order) == {item["filter_alias"] for item in candidates} for order in orders)
-    assert orders[0][0] == "Technische Informationsbibliothek (TIB)"
-    assert any(order[-1] == "Technische Informationsbibliothek (TIB)" for order in orders)
+    assert all(
+        set(order) == {item["filter_alias"] for item in candidates}
+        for order in orders
+    )
 
 
-def test_diagnosis_supports_five_filters_when_one_order_fully_refills() -> None:
+def test_zero_and_nonzero_orders_are_transport_failure_not_policy() -> None:
     results = [
         {
             "strategy_name": "dominance_order",
             "outcome": "filter_effective_no_refill",
+            "parsed_card_count": 0,
             "filter_aliases": ["TIB", "HDI", "Sopra", "1&1", "adesso"],
         },
         {
-            "strategy_name": "syntax_risk_ascending",
+            "strategy_name": "reverse_dominance",
             "outcome": "filter_effective_full_refill",
-            "filter_aliases": ["HDI", "adesso", "Sopra", "1&1", "TIB"],
+            "parsed_card_count": 25,
+            "filter_aliases": ["adesso", "1&1", "Sopra", "HDI", "TIB"],
         },
     ]
 
     diagnosis = diagnose_order_results(results)
 
-    assert (
-        diagnosis["primary_diagnosis"]
-        == "five_filter_cardinality_supported_with_order_policy"
-    )
-    assert diagnosis["recommended_strategy"] == "syntax_risk_ascending"
-    assert diagnosis["full_refill_strategy_count"] == 1
+    assert diagnosis["primary_diagnosis"] == "same_filter_set_not_permutation_invariant"
+    assert diagnosis["recommended_strategy"] is None
+    assert diagnosis["recommended_alias_order"] == []
+    assert diagnosis["production_order_policy_allowed"] is False
 
 
-def test_diagnosis_reports_partial_five_filter_support() -> None:
+def test_all_usable_orders_still_do_not_authorize_transport_or_order_policy() -> None:
     results = [
         {
+            "strategy_name": "dominance_order",
+            "outcome": "filter_effective_full_refill",
+            "parsed_card_count": 25,
+            "filter_aliases": ["A", "B", "C", "D", "E"],
+        },
+        {
             "strategy_name": "reverse_dominance",
-            "outcome": "filter_effective_partial_refill",
-            "filter_aliases": ["adesso", "1&1", "Sopra", "HDI", "TIB"],
-        }
+            "outcome": "filter_effective_full_refill",
+            "parsed_card_count": 25,
+            "filter_aliases": ["E", "D", "C", "B", "A"],
+        },
     ]
 
     diagnosis = diagnose_order_results(results)
 
-    assert (
-        diagnosis["primary_diagnosis"]
-        == "five_filter_cardinality_supported_with_partial_refill"
-    )
-    assert diagnosis["recommended_strategy"] == "reverse_dominance"
+    assert diagnosis["primary_diagnosis"] == "orders_usable_but_transport_semantics_unvalidated"
+    assert diagnosis["recommended_strategy"] is None
+    assert diagnosis["production_order_policy_allowed"] is False
 
 
-def test_diagnosis_keeps_indeterminate_pages_separate() -> None:
+def test_indeterminate_response_blocks_conclusion() -> None:
     results = [
         {
             "strategy_name": "dominance_order",
             "outcome": "indeterminate_page_type",
+            "parsed_card_count": 0,
             "filter_aliases": ["A", "B", "C", "D", "E"],
         }
     ]
@@ -113,27 +122,4 @@ def test_diagnosis_keeps_indeterminate_pages_separate() -> None:
     diagnosis = diagnose_order_results(results)
 
     assert diagnosis["primary_diagnosis"] == "five_filter_order_test_indeterminate"
-    assert diagnosis["recommended_strategy"] is None
-
-
-def test_diagnosis_does_not_claim_five_filter_support_without_working_order() -> None:
-    results = [
-        {
-            "strategy_name": "dominance_order",
-            "outcome": "filter_effective_no_refill",
-            "filter_aliases": ["A", "B", "C", "D", "E"],
-        },
-        {
-            "strategy_name": "reverse_dominance",
-            "outcome": "filter_effective_no_refill",
-            "filter_aliases": ["E", "D", "C", "B", "A"],
-        },
-    ]
-
-    diagnosis = diagnose_order_results(results)
-
-    assert (
-        diagnosis["primary_diagnosis"]
-        == "five_filter_cardinality_or_higher_order_interaction_not_resolved"
-    )
-    assert diagnosis["recommended_strategy"] is None
+    assert diagnosis["production_order_policy_allowed"] is False
