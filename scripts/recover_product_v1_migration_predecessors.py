@@ -1,9 +1,11 @@
 """Preflight or recover the known Product V1 predecessor migration gaps.
 
 This runner handles only migrations 066, 069 and 076. Migration 069 is the
-idempotent repair/superset of 066, so the recovery executes 069 and records 066
-as bootstrapped when 066 is not already complete. Migration 076 is then applied
-normally. Any other unresolved migration below 077 blocks the recovery.
+idempotent repair/superset of 066, so the recovery executes the non-view part of
+069, reapplies the compatible view definition from already-completed migration
+070, and records 066 as bootstrapped when 066 is not already complete.
+Migration 076 is then applied normally. Any other unresolved migration below
+077 blocks the recovery.
 
 Default execution is read-only. No source, provider, scheduler or application
 workflow is invoked by this script.
@@ -27,26 +29,40 @@ from scripts.apply_db_migrations import (
 
 BASE_TAXONOMY_KEY = "066_harden_origin_pattern_promotion_taxonomy.sql"
 REPAIR_TAXONOMY_KEY = "069_repair_origin_observed_pattern_taxonomy_columns.sql"
+VIEW_COMPATIBILITY_REPAIR_KEY = (
+    "070_repair_origin_observed_pattern_candidate_taxonomy_columns.sql"
+)
 PROFILE_REBASELINE_KEY = "076_rebaseline_stepstone_ml_data_search_profile.sql"
 RECOVERY_MIGRATION_KEYS = (
     BASE_TAXONOMY_KEY,
     REPAIR_TAXONOMY_KEY,
     PROFILE_REBASELINE_KEY,
 )
+REQUIRED_MIGRATION_KEYS = (
+    *RECOVERY_MIGRATION_KEYS,
+    VIEW_COMPATIBILITY_REPAIR_KEY,
+)
 RECOVERY_APPROVAL_TOKEN = "recover_product_v1_predecessors_066_069_076"
 SUCCESS_STATUSES = {"success", "bootstrapped"}
+INCOMPATIBLE_VIEW_MARKER = (
+    "CREATE OR REPLACE VIEW gold_origin_promoted_observation_patterns AS"
+)
 
 
-def _migration_map(migrations: Sequence[MigrationFile]) -> dict[str, MigrationFile]:
+def _migration_map(
+    migrations: Sequence[MigrationFile],
+) -> dict[str, MigrationFile]:
     return {migration.migration_key: migration for migration in migrations}
 
 
-def recovery_migrations(migrations: Sequence[MigrationFile]) -> dict[str, MigrationFile]:
+def recovery_migrations(
+    migrations: Sequence[MigrationFile],
+) -> dict[str, MigrationFile]:
     by_key = _migration_map(migrations)
-    missing = [key for key in RECOVERY_MIGRATION_KEYS if key not in by_key]
+    missing = [key for key in REQUIRED_MIGRATION_KEYS if key not in by_key]
     if missing:
         raise RuntimeError(f"Missing recovery migration file(s): {missing}")
-    return {key: by_key[key] for key in RECOVERY_MIGRATION_KEYS}
+    return {key: by_key[key] for key in REQUIRED_MIGRATION_KEYS}
 
 
 def migration_is_complete(
@@ -54,7 +70,9 @@ def migration_is_complete(
     tracked: dict[str, TrackedMigration],
 ) -> bool:
     existing = tracked.get(migration.migration_key)
-    return bool(existing and existing.execution_status in SUCCESS_STATUSES)
+    return bool(
+        existing and existing.execution_status in SUCCESS_STATUSES
+    )
 
 
 def unexpected_unresolved_predecessors(
@@ -71,6 +89,20 @@ def unexpected_unresolved_predecessors(
     ]
 
 
+def taxonomy_repair_without_incompatible_view(sql: str) -> str:
+    """Remove only migration 069's incompatible final view definition."""
+    prefix, marker, _view_definition = sql.partition(
+        INCOMPATIBLE_VIEW_MARKER
+    )
+    if not marker:
+        raise RuntimeError(
+            "Migration 069 no longer contains the expected final view marker"
+        )
+    if not prefix.strip():
+        raise RuntimeError("Migration 069 contains no repair SQL before the view")
+    return prefix.rstrip() + "\n"
+
+
 def print_preflight(
     *,
     migrations: Sequence[MigrationFile],
@@ -85,8 +117,17 @@ def print_preflight(
         existing = tracked.get(key)
         status = existing.execution_status if existing else "pending"
         print(f"- {key}: {status}")
+    view_repair = tracked.get(VIEW_COMPATIBILITY_REPAIR_KEY)
+    view_status = (
+        view_repair.execution_status if view_repair else "pending"
+    )
+    print(
+        f"- compatibility helper {VIEW_COMPATIBILITY_REPAIR_KEY}: "
+        f"{view_status}"
+    )
     print("recovery_plan:")
-    print("- execute 069 as the idempotent repair/superset of 066 when needed")
+    print("- execute 069 without its incompatible final view definition")
+    print("- reapply 070's PostgreSQL-compatible appended-column view")
     print("- record unresolved 066 as bootstrapped only after 069 succeeds")
     print("- execute 076 normally when needed")
     print(f"unexpected_unresolved_predecessors: {len(unexpected)}")
@@ -97,8 +138,8 @@ def print_preflight(
     else:
         pending = [
             key
-            for key, migration in targets.items()
-            if not migration_is_complete(migration, tracked)
+            for key in RECOVERY_MIGRATION_KEYS
+            if not migration_is_complete(targets[key], tracked)
         ]
         print(f"recovery_actions_required: {len(pending)}")
         print("ready_for_operator_apply: true")
@@ -121,26 +162,39 @@ def apply_recovery(
     if unexpected:
         names = ", ".join(item.migration_key for item in unexpected)
         raise RuntimeError(
-            "Cannot recover Product V1 predecessors while additional unresolved "
-            "migration(s) exist below version 077: " + names
+            "Cannot recover Product V1 predecessors while additional "
+            "unresolved migration(s) exist below version 077: " + names
         )
 
     base = targets[BASE_TAXONOMY_KEY]
     repair = targets[REPAIR_TAXONOMY_KEY]
+    view_repair = targets[VIEW_COMPATIBILITY_REPAIR_KEY]
     profile = targets[PROFILE_REBASELINE_KEY]
     actions: list[str] = []
 
     with connect() as conn:
         if not schema_migrations_exists(conn):
             raise RuntimeError(
-                "schema_migrations table does not exist; migration tracking must be restored first"
+                "schema_migrations table does not exist; migration tracking "
+                "must be restored first"
             )
         with conn.transaction():
             current = load_tracked_migrations(conn)
+            if not migration_is_complete(view_repair, current):
+                raise RuntimeError(
+                    "Migration 070 must already be complete before the "
+                    "targeted 069 recovery"
+                )
 
             if not migration_is_complete(repair, current):
+                repair_sql = taxonomy_repair_without_incompatible_view(
+                    repair.path.read_text(encoding="utf-8")
+                )
                 with conn.cursor() as cur:
-                    cur.execute(repair.path.read_text(encoding="utf-8"))
+                    cur.execute(repair_sql)
+                    cur.execute(
+                        view_repair.path.read_text(encoding="utf-8")
+                    )
                 insert_tracking_row(
                     conn,
                     repair,
@@ -148,7 +202,9 @@ def apply_recovery(
                     execution_mode="script_apply",
                     applied_by=applied_by,
                 )
-                actions.append(f"applied:{repair.migration_key}")
+                actions.append(
+                    f"applied:{repair.migration_key}:view_repaired_by_070"
+                )
 
             if not migration_is_complete(base, current):
                 insert_tracking_row(
@@ -164,7 +220,9 @@ def apply_recovery(
 
             if not migration_is_complete(profile, current):
                 with conn.cursor() as cur:
-                    cur.execute(profile.path.read_text(encoding="utf-8"))
+                    cur.execute(
+                        profile.path.read_text(encoding="utf-8")
+                    )
                 insert_tracking_row(
                     conn,
                     profile,
@@ -192,7 +250,8 @@ def main() -> None:
     with connect() as conn:
         if not schema_migrations_exists(conn):
             raise SystemExit(
-                "schema_migrations table is missing; run the normal migration-recovery procedure first"
+                "schema_migrations table is missing; run the normal "
+                "migration-recovery procedure first"
             )
         tracked = load_tracked_migrations(conn)
 
