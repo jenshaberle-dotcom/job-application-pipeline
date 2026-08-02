@@ -1,8 +1,9 @@
-"""Validate whether five StepStone company filters work in a safe order.
+"""Diagnose StepStone five-filter order sensitivity without adopting an order.
 
 The probe selects the top five companies from the current A0 page and tests the
-same five filter expressions in several deterministic orders. It separates a
-true five-filter/cardinality failure from an order/syntax interaction.
+same five filter expressions in several deterministic orders. Different results
+for the same filter set are treated as evidence that URL/query transport
+semantics are unvalidated, not as a reason to create a production order policy.
 
 Boundaries: page one only, local artifacts only, no PostgreSQL writes, no
 pagination, no detail pages, no candidates, no providers, no scheduler changes.
@@ -30,7 +31,7 @@ PAGE_CARD_LIMIT = 25
 DEFAULT_MAX_REQUESTS = 8
 DEFAULT_DELAY_SECONDS = 2.0
 DEFAULT_COMPANY_COUNT = 5
-SUCCESS_OUTCOMES = {
+USABLE_OUTCOMES = {
     "filter_effective_full_refill",
     "filter_effective_partial_refill",
 }
@@ -43,7 +44,7 @@ def _special_character_count(value: str) -> int:
 def build_order_strategies(
     candidates: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Return distinct deterministic orders for the same candidate set."""
+    """Return distinct diagnostic orders for the same candidate set."""
     raw_strategies = [
         ("dominance_order", list(candidates)),
         ("reverse_dominance", list(reversed(candidates))),
@@ -94,65 +95,54 @@ def build_order_strategies(
 
 
 def diagnose_order_results(results: list[dict[str, Any]]) -> dict[str, Any]:
-    working = [item for item in results if item["outcome"] in SUCCESS_OUTCOMES]
-    full_refill = [
-        item
-        for item in working
-        if item["outcome"] == "filter_effective_full_refill"
-    ]
-    indeterminate = [
-        item for item in results if item["outcome"] == "indeterminate_page_type"
-    ]
+    """Classify order evidence without recommending a production order."""
+    counts = [int(item.get("parsed_card_count", 0)) for item in results]
+    has_zero = any(count == 0 for count in counts)
+    has_nonzero = any(count > 0 for count in counts)
+    indeterminate = any(
+        item["outcome"] == "indeterminate_page_type"
+        for item in results
+    )
+    all_usable = bool(results) and all(
+        item["outcome"] in USABLE_OUTCOMES
+        for item in results
+    )
 
-    if full_refill:
-        return {
-            "primary_diagnosis": "five_filter_cardinality_supported_with_order_policy",
-            "recommended_strategy": full_refill[0]["strategy_name"],
-            "recommended_alias_order": full_refill[0]["filter_aliases"],
-            "working_strategy_count": len(working),
-            "full_refill_strategy_count": len(full_refill),
-            "evidence": (
-                "The same five filters produced a leak-free full page in at least "
-                "one deterministic order; five filters are not inherently too many."
-            ),
-        }
-
-    if working:
-        return {
-            "primary_diagnosis": "five_filter_cardinality_supported_with_partial_refill",
-            "recommended_strategy": working[0]["strategy_name"],
-            "recommended_alias_order": working[0]["filter_aliases"],
-            "working_strategy_count": len(working),
-            "full_refill_strategy_count": 0,
-            "evidence": (
-                "At least one five-filter order remained interpretable and leak-free, "
-                "but no tested order restored all 25 cards."
-            ),
-        }
-
-    if indeterminate:
-        return {
-            "primary_diagnosis": "five_filter_order_test_indeterminate",
-            "recommended_strategy": None,
-            "recommended_alias_order": [],
-            "working_strategy_count": 0,
-            "full_refill_strategy_count": 0,
-            "evidence": (
-                "No tested order produced a usable page and at least one response "
-                "was technically indeterminate."
-            ),
-        }
+    if has_zero and has_nonzero:
+        primary = "same_filter_set_not_permutation_invariant"
+        evidence = (
+            "The same logical filter set produced both zero-card and non-zero-card "
+            "responses when only expression order changed. URL/query transport "
+            "semantics are therefore unvalidated."
+        )
+    elif indeterminate:
+        primary = "five_filter_order_test_indeterminate"
+        evidence = (
+            "At least one response was technically indeterminate; no filter-count "
+            "or ordering conclusion is permitted."
+        )
+    elif all_usable:
+        primary = "orders_usable_but_transport_semantics_unvalidated"
+        evidence = (
+            "All tested orders produced usable pages, but this diagnostic does not "
+            "prove that the logical query survived URL transport unchanged."
+        )
+    else:
+        primary = "multi_not_transport_or_filter_semantics_unresolved"
+        evidence = (
+            "The order experiment did not establish stable logical filter semantics."
+        )
 
     return {
-        "primary_diagnosis": "five_filter_cardinality_or_higher_order_interaction_not_resolved",
+        "primary_diagnosis": primary,
         "recommended_strategy": None,
         "recommended_alias_order": [],
-        "working_strategy_count": 0,
-        "full_refill_strategy_count": 0,
-        "evidence": (
-            "All tested five-filter orders were interpretable but produced no usable "
-            "refill or leaked excluded companies."
+        "production_order_policy_allowed": False,
+        "working_strategy_count": sum(
+            1 for item in results if item["outcome"] in USABLE_OUTCOMES
         ),
+        "zero_card_strategy_count": sum(1 for count in counts if count == 0),
+        "evidence": evidence,
     }
 
 
@@ -186,7 +176,7 @@ def main() -> None:
         {
             "User-Agent": USER_AGENT.replace(
                 "connector",
-                "full-filter-order-proof",
+                "full-filter-order-diagnostic",
             ),
             "Accept": "text/html,application/xhtml+xml",
             "Accept-Language": "de-DE,de;q=0.9,en;q=0.7",
@@ -241,12 +231,7 @@ def main() -> None:
             candidates=list(strategy["candidates"]),
             baseline=a0,
         )
-        results.append(
-            {
-                **summary,
-                "strategy_name": strategy["name"],
-            }
-        )
+        results.append({**summary, "strategy_name": strategy["name"]})
 
     a1 = fetch_with_budget(
         budget=budget,
@@ -263,7 +248,7 @@ def main() -> None:
     a1_jobs = {str(card["job_key"]) for card in a1["cards"]}
     diagnosis = diagnose_order_results(results)
     payload = {
-        "schema_version": "pipeline.stepstone.full_filter_order_probe.v1",
+        "schema_version": "pipeline.stepstone.full_filter_order_probe.v2",
         "created_at": datetime.now(UTC).isoformat(),
         "search_term": args.search_term,
         "location": args.location,
@@ -281,6 +266,8 @@ def main() -> None:
         "diagnosis": diagnosis,
         "boundaries": {
             "page_one_only": True,
+            "diagnostic_only": True,
+            "production_order_policy_allowed": False,
             "no_pagination": True,
             "no_detail_pages": True,
             "no_database_write": True,
@@ -298,15 +285,9 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    print("StepStone full five-filter order proof")
+    print("StepStone full five-filter order diagnostic")
     print(f"artifact: {result_path}")
     print(f"requests: {budget.used}/{budget.maximum}")
-    print("A0 candidates:")
-    for item in candidates:
-        print(
-            f"- #{item['rank']} {item['company_name']} | "
-            f"cards={item['card_count']} | alias='{item['filter_alias']}'"
-        )
     print("order outcomes:")
     for item in results:
         aliases = " -> ".join(item["filter_aliases"])
@@ -316,14 +297,10 @@ def main() -> None:
         )
         print(f"  order: {aliases}")
     print(f"diagnosis: {diagnosis['primary_diagnosis']}")
-    print(f"recommended_strategy: {diagnosis['recommended_strategy']}")
-    if diagnosis["recommended_alias_order"]:
-        print(
-            "recommended_order: "
-            + " -> ".join(diagnosis["recommended_alias_order"])
-        )
+    print("recommended_strategy: None")
+    print("production_order_policy_allowed: false")
     print(f"evidence: {diagnosis['evidence']}")
-    print("RESULT: STEPSTONE_FULL_FILTER_ORDER_PROBE_COMPLETED")
+    print("RESULT: STEPSTONE_FULL_FILTER_ORDER_DIAGNOSTIC_COMPLETED")
 
 
 if __name__ == "__main__":
