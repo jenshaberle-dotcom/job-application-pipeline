@@ -1,8 +1,8 @@
 """Pure structural similarity helpers for StepStone filter aliases.
 
-The module intentionally compares parser-relevant string structure rather than
-business or semantic company-name similarity. It performs no I/O and makes no
-claim that a high similarity score proves a shared StepStone failure mechanism.
+The module compares parser-relevant string structure rather than business or
+semantic company-name similarity. Similarity is reported per explicit
+hypothesis; no aggregate score may automatically select a live probe alias.
 """
 from __future__ import annotations
 
@@ -10,6 +10,16 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any, Iterable
 from urllib.parse import quote
+
+
+HYPOTHESIS_LENGTH_TOKEN = "length_token_shape"
+HYPOTHESIS_ACRONYM_NAME = "acronym_name_shape"
+HYPOTHESIS_SYNTAX_ENCODING = "syntax_encoding_shape"
+SUPPORTED_HYPOTHESES = (
+    HYPOTHESIS_LENGTH_TOKEN,
+    HYPOTHESIS_ACRONYM_NAME,
+    HYPOTHESIS_SYNTAX_ENCODING,
+)
 
 
 @dataclass(frozen=True)
@@ -24,9 +34,15 @@ class AliasFeatures:
     ampersand_count: int
     digit_count: int
     uppercase_letter_ratio: float
+    uppercase_token_count: int
+    contains_acronym_token: bool
     all_caps_alias: bool
     single_token: bool
     acronym_in_parentheses: bool
+
+
+def _normalized_token(value: str) -> str:
+    return re.sub(r"[^0-9A-Za-zÄÖÜäöüß-]", "", value)
 
 
 def extract_alias_features(alias: str) -> AliasFeatures:
@@ -37,14 +53,23 @@ def extract_alias_features(alias: str) -> AliasFeatures:
     parenthetical_values = re.findall(r"\(([^()]*)\)", value)
     acronym_in_parentheses = any(
         token.strip()
-        and token.strip().replace("-", "").isalnum()
-        and token.strip().upper() == token.strip()
+        and _normalized_token(token).replace("-", "").isalnum()
+        and _normalized_token(token).upper() == _normalized_token(token)
+        and sum(char.isalpha() for char in _normalized_token(token)) >= 2
         for token in parenthetical_values
     )
+    words = value.split()
+    normalized_tokens = [_normalized_token(word) for word in words]
+    uppercase_tokens = [
+        token
+        for token in normalized_tokens
+        if token
+        and token.upper() == token
+        and sum(char.isalpha() for char in token) >= 2
+    ]
     punctuation_count = sum(
         1 for char in value if not char.isalnum() and not char.isspace()
     )
-    words = value.split()
     return AliasFeatures(
         alias=value,
         char_length=len(value),
@@ -56,6 +81,8 @@ def extract_alias_features(alias: str) -> AliasFeatures:
         ampersand_count=value.count("&"),
         digit_count=sum(1 for char in value if char.isdigit()),
         uppercase_letter_ratio=round(uppercase_ratio, 6),
+        uppercase_token_count=len(uppercase_tokens),
+        contains_acronym_token=bool(uppercase_tokens),
         all_caps_alias=bool(letters) and uppercase_letters == len(letters),
         single_token=len(words) == 1,
         acronym_in_parentheses=acronym_in_parentheses,
@@ -71,15 +98,10 @@ def _boolean_similarity(first: bool, second: bool) -> float:
     return 1.0 if first == second else 0.0
 
 
-def structural_similarity(seed_alias: str, candidate_alias: str) -> dict[str, Any]:
-    seed = extract_alias_features(seed_alias)
-    candidate = extract_alias_features(candidate_alias)
-    components = {
+def _component_scores(seed: AliasFeatures, candidate: AliasFeatures) -> dict[str, float]:
+    return {
         "char_length": _numeric_similarity(seed.char_length, candidate.char_length),
-        "encoded_length": _numeric_similarity(
-            seed.encoded_length,
-            candidate.encoded_length,
-        ),
+        "encoded_length": _numeric_similarity(seed.encoded_length, candidate.encoded_length),
         "word_count": _numeric_similarity(seed.word_count, candidate.word_count),
         "parenthesis_count": _numeric_similarity(
             seed.parenthesis_count,
@@ -89,15 +111,17 @@ def structural_similarity(seed_alias: str, candidate_alias: str) -> dict[str, An
             seed.acronym_in_parentheses,
             candidate.acronym_in_parentheses,
         ),
-        "all_caps_alias": _boolean_similarity(
-            seed.all_caps_alias,
-            candidate.all_caps_alias,
+        "contains_acronym_token": _boolean_similarity(
+            seed.contains_acronym_token,
+            candidate.contains_acronym_token,
         ),
+        "uppercase_token_count": _numeric_similarity(
+            seed.uppercase_token_count,
+            candidate.uppercase_token_count,
+        ),
+        "all_caps_alias": _boolean_similarity(seed.all_caps_alias, candidate.all_caps_alias),
         "single_token": _boolean_similarity(seed.single_token, candidate.single_token),
-        "ampersand_count": _numeric_similarity(
-            seed.ampersand_count,
-            candidate.ampersand_count,
-        ),
+        "ampersand_count": _numeric_similarity(seed.ampersand_count, candidate.ampersand_count),
         "digit_count": _numeric_similarity(seed.digit_count, candidate.digit_count),
         "punctuation_count": _numeric_similarity(
             seed.punctuation_count,
@@ -108,41 +132,98 @@ def structural_similarity(seed_alias: str, candidate_alias: str) -> dict[str, An
             candidate.uppercase_letter_ratio,
         ),
     }
-    weights = {
-        "char_length": 0.16,
-        "encoded_length": 0.10,
-        "word_count": 0.14,
-        "parenthesis_count": 0.12,
-        "acronym_in_parentheses": 0.12,
-        "all_caps_alias": 0.08,
-        "single_token": 0.06,
-        "ampersand_count": 0.06,
+
+
+HYPOTHESIS_WEIGHTS: dict[str, dict[str, float]] = {
+    HYPOTHESIS_LENGTH_TOKEN: {
+        "char_length": 0.30,
+        "encoded_length": 0.25,
+        "word_count": 0.25,
+        "punctuation_count": 0.10,
+        "uppercase_letter_ratio": 0.10,
+    },
+    HYPOTHESIS_ACRONYM_NAME: {
+        "contains_acronym_token": 0.30,
+        "uppercase_token_count": 0.20,
+        "word_count": 0.15,
+        "char_length": 0.15,
+        "uppercase_letter_ratio": 0.10,
+        "acronym_in_parentheses": 0.10,
+    },
+    HYPOTHESIS_SYNTAX_ENCODING: {
+        "encoded_length": 0.25,
+        "punctuation_count": 0.20,
+        "parenthesis_count": 0.20,
+        "acronym_in_parentheses": 0.15,
+        "ampersand_count": 0.08,
         "digit_count": 0.04,
-        "punctuation_count": 0.06,
-        "uppercase_letter_ratio": 0.06,
-    }
+        "char_length": 0.08,
+    },
+}
+
+
+def structural_similarity(
+    seed_alias: str,
+    candidate_alias: str,
+    *,
+    hypothesis: str = HYPOTHESIS_LENGTH_TOKEN,
+) -> dict[str, Any]:
+    if hypothesis not in SUPPORTED_HYPOTHESES:
+        raise ValueError(f"Unsupported similarity hypothesis: {hypothesis}")
+    seed = extract_alias_features(seed_alias)
+    candidate = extract_alias_features(candidate_alias)
+    components = _component_scores(seed, candidate)
+    weights = HYPOTHESIS_WEIGHTS[hypothesis]
     weighted = {
         name: round(components[name] * weight, 6)
         for name, weight in weights.items()
     }
     score = round(sum(weighted.values()), 6)
     return {
+        "hypothesis": hypothesis,
         "score": score,
         "seed_features": asdict(seed),
         "candidate_features": asdict(candidate),
-        "component_scores": {name: round(value, 6) for name, value in components.items()},
+        "component_scores": {
+            name: round(value, 6) for name, value in components.items()
+        },
         "weighted_components": weighted,
     }
 
 
 def similarity_class(score: float) -> str:
-    if score >= 0.70:
+    if score >= 0.80:
         return "high"
-    if score >= 0.45:
+    if score >= 0.60:
         return "medium"
-    if score >= 0.25:
+    if score >= 0.40:
         return "exploratory"
     return "weak"
+
+
+def critical_signature_match(seed_alias: str, candidate_alias: str) -> dict[str, Any]:
+    seed = extract_alias_features(seed_alias)
+    candidate = extract_alias_features(candidate_alias)
+    required = {
+        "has_parentheses": seed.parenthesis_count > 0,
+        "acronym_in_parentheses": seed.acronym_in_parentheses,
+        "contains_acronym_token": seed.contains_acronym_token,
+    }
+    observed = {
+        "has_parentheses": candidate.parenthesis_count > 0,
+        "acronym_in_parentheses": candidate.acronym_in_parentheses,
+        "contains_acronym_token": candidate.contains_acronym_token,
+    }
+    matches = {
+        name: observed[name] == expected
+        for name, expected in required.items()
+    }
+    return {
+        "required": required,
+        "observed": observed,
+        "matches": matches,
+        "all_match": all(matches.values()),
+    }
 
 
 def rank_alias_candidates(
@@ -150,6 +231,7 @@ def rank_alias_candidates(
     seed_alias: str,
     candidates: Iterable[dict[str, Any]],
     excluded_company_keys: Iterable[str] = (),
+    hypothesis: str = HYPOTHESIS_LENGTH_TOKEN,
 ) -> list[dict[str, Any]]:
     excluded = {str(value) for value in excluded_company_keys}
     ranked: list[dict[str, Any]] = []
@@ -160,12 +242,18 @@ def rank_alias_candidates(
         alias = str(candidate.get("filter_alias") or "").strip()
         if not alias:
             continue
-        comparison = structural_similarity(seed_alias, alias)
+        comparison = structural_similarity(
+            seed_alias,
+            alias,
+            hypothesis=hypothesis,
+        )
         ranked.append(
             {
                 **candidate,
+                "hypothesis": hypothesis,
                 "similarity_score": comparison["score"],
                 "similarity_class": similarity_class(float(comparison["score"])),
+                "critical_signature": critical_signature_match(seed_alias, alias),
                 "similarity": comparison,
             }
         )
@@ -177,6 +265,24 @@ def rank_alias_candidates(
             str(item["company_key"]),
         ),
     )
+
+
+def rank_candidates_by_hypothesis(
+    *,
+    seed_alias: str,
+    candidates: Iterable[dict[str, Any]],
+    excluded_company_keys: Iterable[str] = (),
+) -> dict[str, list[dict[str, Any]]]:
+    materialized = list(candidates)
+    return {
+        hypothesis: rank_alias_candidates(
+            seed_alias=seed_alias,
+            candidates=materialized,
+            excluded_company_keys=excluded_company_keys,
+            hypothesis=hypothesis,
+        )
+        for hypothesis in SUPPORTED_HYPOTHESES
+    }
 
 
 def directed_pair_signature(left_alias: str, right_alias: str) -> dict[str, Any]:
