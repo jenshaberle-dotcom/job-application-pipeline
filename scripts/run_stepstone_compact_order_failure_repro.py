@@ -1,15 +1,11 @@
 """Run the compact one-shot StepStone directed-order reproduction experiment.
 
-This script closes the current filter-semantics slice with one explicitly locked
-analog and the smallest still interpretable live matrix. Plan mode performs no
-network request. Live mode performs exactly eight page-one requests:
+Plan mode performs no network request. Live mode performs exactly eight
+page-one requests: A0, A, C, A->B, B->A, C->B, B->C, A1.
 
-A0, A, C, A->B, B->A, C->B, B->C, A1.
-
-Seed B is not fetched alone because a usable reverse pair already proves that B
-can participate in an interpretable expression during the same observation
-window. The experiment is diagnostic-only and cannot activate a production
-order, transport, workaround, capacity policy, source, connector, or scheduler.
+Seed B is not fetched alone because a usable reverse pair proves that B can
+participate in an interpretable expression in the same observation window. The
+experiment is diagnostic-only and cannot activate production behavior.
 """
 from __future__ import annotations
 
@@ -27,7 +23,6 @@ from scripts.run_stepstone_filter_matrix_probe import (
     summarize_probe,
 )
 from scripts.run_stepstone_order_failure_repro_probe import (
-    APPROVAL_TOKEN,
     enforce_execution_gate,
     find_candidate,
     load_latest_baseline_candidates,
@@ -141,17 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    args = build_parser().parse_args()
-    if args.cooldown_hours < 1:
-        raise SystemExit("--cooldown-hours must be at least 1")
-    if args.delay_seconds < 0:
-        raise SystemExit("--delay-seconds must be non-negative")
-    if args.max_requests != DEFAULT_MAX_REQUESTS:
-        raise SystemExit(
-            f"--max-requests must equal {DEFAULT_MAX_REQUESTS} for this fixed experiment"
-        )
-
+def _load_experiment(args: argparse.Namespace) -> dict[str, Any]:
     baseline = load_latest_baseline_candidates(
         source_name=args.source_name,
         search_profile_name=args.search_profile_name,
@@ -171,16 +156,46 @@ def main() -> None:
         candidates=candidates,
         excluded_company_keys=tuple(seed_keys),
     )
-    analog_evidence = next(
+    locked_ranking = rankings[LOCKED_HYPOTHESIS]
+    analog_rank = next(
         (
-            item
-            for item in rankings[LOCKED_HYPOTHESIS]
+            index
+            for index, item in enumerate(locked_ranking, start=1)
             if str(item["company_key"]) == str(analog["company_key"])
         ),
         None,
     )
-    if analog_evidence is None:
+    if analog_rank is None:
         raise RuntimeError("Locked analog is missing from the locked hypothesis ranking")
+    analog_evidence = locked_ranking[analog_rank - 1]
+    return {
+        "baseline": baseline,
+        "seed_a": seed_a,
+        "seed_b": seed_b,
+        "analog": analog,
+        "analog_rank": analog_rank,
+        "analog_evidence": analog_evidence,
+    }
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    if args.cooldown_hours < 1:
+        raise SystemExit("--cooldown-hours must be at least 1")
+    if args.delay_seconds < 0:
+        raise SystemExit("--delay-seconds must be non-negative")
+    if args.max_requests != DEFAULT_MAX_REQUESTS:
+        raise SystemExit(
+            f"--max-requests must equal {DEFAULT_MAX_REQUESTS} for this fixed experiment"
+        )
+
+    experiment = _load_experiment(args)
+    baseline = experiment["baseline"]
+    seed_a = experiment["seed_a"]
+    seed_b = experiment["seed_b"]
+    analog = experiment["analog"]
+    analog_evidence = experiment["analog_evidence"]
+    analog_rank = int(experiment["analog_rank"])
 
     gate = enforce_execution_gate(
         execute=args.execute,
@@ -210,6 +225,7 @@ def main() -> None:
         "seed_b": seed_b,
         "locked_analog": analog,
         "locked_hypothesis": LOCKED_HYPOTHESIS,
+        "locked_hypothesis_rank": analog_rank,
         "locked_hypothesis_evidence": analog_evidence,
         "request_plan": request_plan,
         "execution_gate": gate,
@@ -250,9 +266,8 @@ def main() -> None:
     print(f"locked_hypothesis: {LOCKED_HYPOTHESIS}")
     print(
         "locked_hypothesis_score: "
-        f"{analog_evidence['hypothesis_score']} | "
-        f"class={analog_evidence['hypothesis_class']} | "
-        f"rank={analog_evidence['hypothesis_rank']}"
+        f"{analog_evidence['similarity_score']} | "
+        f"class={analog_evidence['similarity_class']} | rank={analog_rank}"
     )
     print("request_matrix: A0, A, C, A->B, B->A, C->B, B->C, A1")
     if not args.execute:
