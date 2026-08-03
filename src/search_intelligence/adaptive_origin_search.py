@@ -1,6 +1,6 @@
 """Pure contracts for adaptive, non-repeating origin-source search.
 
-The module models the small set of actions a human uses when a literal search
+The module models the small set of actions a human uses when literal search
 fails: preserve the displayed brand, derive domain-safe brand surfaces, search
 without an over-specific location first, inspect likely career hosts, and only
 then ask an LLM for novel hypotheses. Every transition must add a novel query,
@@ -14,7 +14,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from typing import Iterable, Mapping, Sequence
+from typing import Iterable, Mapping
 from urllib.parse import urlparse
 
 from src.search_intelligence.origin_source_discovery import is_known_aggregator_domain
@@ -74,12 +74,7 @@ def brand_surface_variants(
     company_name: str,
     company_key: str | None = None,
 ) -> tuple[str, ...]:
-    """Return bounded human-readable and domain-safe brand variants.
-
-    The transformation is generic. In particular, digits are retained and
-    symbols are verbalized instead of being discarded, so ``1&1`` yields
-    ``1and1`` and ``1-and-1`` rather than the useless token ``11``.
-    """
+    """Return bounded human-readable and domain-safe brand variants."""
 
     original = _strip_legal_suffixes(company_name) or str(company_name or "").strip()
     candidates = [
@@ -140,12 +135,7 @@ def initial_adaptive_queries(
     target_location: str | None = None,
     maximum: int = 6,
 ) -> tuple[str, ...]:
-    """Build a bounded query sequence in human-search order.
-
-    Corporate-origin discovery is location-independent. Global career queries
-    therefore precede location-specific queries. Domain-safe symbol variants are
-    included before any repeated literal query.
-    """
+    """Build a bounded query sequence in human-search order."""
 
     variants = brand_surface_variants(
         company_name=company_name,
@@ -169,9 +159,11 @@ def initial_adaptive_queries(
         queries.append(f'"{original}" Jobs {target_location}')
 
     unique: list[str] = []
+    seen: set[str] = set()
     for query in queries:
         normalized = normalize_query(query)
-        if normalized and normalized not in {normalize_query(item) for item in unique}:
+        if normalized and normalized not in seen:
+            seen.add(normalized)
             unique.append(query)
         if len(unique) >= maximum:
             break
@@ -298,7 +290,8 @@ class SearchProgressLedger:
             "attempted_urls": sorted(self.attempted_urls),
             "observed_domains": sorted(self.observed_domains),
             "state_fingerprints": list(self.fingerprints),
-            "repeated_state_detected": len(self.fingerprints) != len(set(self.fingerprints)),
+            "repeated_state_detected": len(self.fingerprints)
+            != len(set(self.fingerprints)),
         }
 
 
