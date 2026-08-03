@@ -8,6 +8,10 @@ from scripts.run_stepstone_order_failure_repro_probe import (
     build_request_plan,
     classify_directed_pair,
     enforce_execution_gate,
+    select_analog,
+)
+from src.search_intelligence.stepstone_filter_failure_similarity import (
+    HYPOTHESIS_ACRONYM_NAME,
 )
 
 
@@ -36,7 +40,7 @@ def test_request_plan_is_fixed_nine_request_seed_and_analog_matrix() -> None:
         search_term="Machine Learning Engineer",
         seed_a=_candidate("tib", "Technische Informationsbibliothek (TIB)"),
         seed_b=_candidate("hdi", "HDI"),
-        analog=_candidate("luh", "Leibniz Universität Hannover (LUH)"),
+        analog=_candidate("sva", "SVA System Vertrieb Alexander"),
     )
 
     assert [item["label"] for item in plan] == [
@@ -61,19 +65,72 @@ def test_request_plan_is_fixed_nine_request_seed_and_analog_matrix() -> None:
     ]
 
 
-def test_execution_gate_is_baseline_relative_and_exact_token_gated() -> None:
+def test_analog_selection_is_explicit_and_cannot_reuse_seed() -> None:
+    candidates = [
+        _candidate("tib", "Technische Informationsbibliothek (TIB)"),
+        _candidate("hdi", "HDI"),
+        _candidate("sva", "SVA System Vertrieb Alexander"),
+    ]
+
+    assert select_analog(
+        candidates=candidates,
+        analog_alias=None,
+        seed_keys=("tib", "hdi"),
+    ) is None
+    selected = select_analog(
+        candidates=candidates,
+        analog_alias="SVA System Vertrieb Alexander",
+        seed_keys=("tib", "hdi"),
+    )
+    assert selected is not None
+    assert selected["company_key"] == "sva"
+
+    with pytest.raises(RuntimeError, match="must differ"):
+        select_analog(
+            candidates=candidates,
+            analog_alias="HDI",
+            seed_keys=("tib", "hdi"),
+        )
+
+
+def test_execution_gate_requires_analog_hypothesis_token_and_cooldown() -> None:
     baseline = datetime(2026, 8, 3, 6, 53, tzinfo=UTC)
     before = datetime(2026, 8, 4, 6, 52, tzinfo=UTC)
     after = datetime(2026, 8, 4, 6, 54, tzinfo=UTC)
+    analog = _candidate("sva", "SVA System Vertrieb Alexander")
 
     plan_gate = enforce_execution_gate(
         execute=False,
         approval_token=None,
         baseline_observed_at=baseline,
         cooldown_hours=24,
+        analog=None,
+        hypothesis=None,
         now=before,
     )
     assert plan_gate["execution_allowed_now"] is False
+
+    with pytest.raises(SystemExit, match="explicit --analog-alias"):
+        enforce_execution_gate(
+            execute=True,
+            approval_token=APPROVAL_TOKEN,
+            baseline_observed_at=baseline,
+            cooldown_hours=24,
+            analog=None,
+            hypothesis=HYPOTHESIS_ACRONYM_NAME,
+            now=after,
+        )
+
+    with pytest.raises(SystemExit, match="explicit --analog-hypothesis"):
+        enforce_execution_gate(
+            execute=True,
+            approval_token=APPROVAL_TOKEN,
+            baseline_observed_at=baseline,
+            cooldown_hours=24,
+            analog=analog,
+            hypothesis=None,
+            now=after,
+        )
 
     with pytest.raises(SystemExit, match="exact --approval-token"):
         enforce_execution_gate(
@@ -81,6 +138,8 @@ def test_execution_gate_is_baseline_relative_and_exact_token_gated() -> None:
             approval_token="wrong",
             baseline_observed_at=baseline,
             cooldown_hours=24,
+            analog=analog,
+            hypothesis=HYPOTHESIS_ACRONYM_NAME,
             now=after,
         )
 
@@ -89,6 +148,8 @@ def test_execution_gate_is_baseline_relative_and_exact_token_gated() -> None:
         approval_token=APPROVAL_TOKEN,
         baseline_observed_at=baseline,
         cooldown_hours=24,
+        analog=analog,
+        hypothesis=HYPOTHESIS_ACRONYM_NAME,
         now=after,
     )
     assert execute_gate["execution_allowed_now"] is True
@@ -106,13 +167,16 @@ def test_classifies_known_directed_zero_nonzero_failure() -> None:
     assert result["directed_forward_failure_reproduced"] is True
 
 
-def test_runner_declares_read_only_and_no_production_adoption() -> None:
+def test_runner_declares_read_only_manual_selection_and_no_production_adoption() -> None:
     source = RUNNER.read_text(encoding="utf-8")
 
     assert 'conn.execute("SET TRANSACTION READ ONLY")' in source
     assert "DEFAULT_MAX_REQUESTS = 9" in source
     assert '"no_database_write": True' in source
     assert '"production_rule_adoption_allowed": False' in source
+    assert '"automatic_analog_selection_allowed": False' in source
+    assert 'parser.add_argument("--analog-alias")' in source
+    assert 'parser.add_argument("--analog-hypothesis"' in source
     assert '"no_source_activation": True' in source
     assert '"no_scheduler_change": True' in source
     assert "rule_or_workaround_adoption_allowed: false" in source

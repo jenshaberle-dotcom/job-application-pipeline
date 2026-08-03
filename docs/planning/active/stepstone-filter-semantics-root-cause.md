@@ -22,25 +22,37 @@ as a directed interaction until further evidence explains it.
 
 `STEPSTONE-ORDER-FAILURE-REPRO-001` uses the latest persisted production
 baseline review as the candidate pool. It computes parser-relevant structural
-features for each actual filter alias and selects the strongest current analog
-to seed A, excluding seed A and seed B.
+features for each actual filter alias, excluding seed A and seed B.
 
-The comparison deliberately prioritizes:
+The initial aggregate ranking over-weighted broad length and word-count
+similarity and selected `adesso business consulting`, even though it shares
+neither parentheses nor a parenthetical acronym with TIB. That result is useful
+evidence that a single aggregate score is not a safe experimental selector.
 
-- raw, UTF-8 and URL-encoded length;
-- word count;
-- parentheses and parenthetical acronyms;
-- punctuation, ampersands and digits;
-- uppercase ratio, all-caps aliases and single-token aliases.
+The revised plan separates three explicit hypotheses:
+
+1. `length_token_shape`: raw/encoded length, word count and broad token shape;
+2. `acronym_name_shape`: acronym-bearing, expanded multiword name structure;
+3. `syntax_encoding_shape`: punctuation, parentheses, encoded length,
+   ampersands and digits.
+
+The plan reports leaders for every hypothesis. It never selects an analog
+automatically. The operator must provide both an explicit alias and the
+hypothesis being tested before a live request can run.
+
+A critical-signature check separately reports whether a candidate shares TIB's
+parentheses, parenthetical acronym and acronym-token characteristics. Absence of
+such a candidate is preserved as evidence rather than hidden by a medium global
+score.
 
 This is not semantic company-name matching and does not claim causality. The
-purpose is to provoke a second directed failure with a structurally similar
-alias.
+purpose is to provoke a second directed failure under one clearly stated
+structural hypothesis.
 
 ## Fixed live matrix
 
-After a baseline-relative 24-hour cooldown and exact operator approval, the
-probe performs exactly nine page-one requests:
+After a baseline-relative 24-hour cooldown, explicit analog/hypothesis selection
+and exact operator approval, the probe performs exactly nine page-one requests:
 
 1. unfiltered A0 baseline;
 2. seed A alone;
@@ -61,7 +73,8 @@ hashes through the existing bounded StepStone probe helpers.
 This slice may conclude only whether:
 
 - the known seed failure reproduced in the current observation window; and
-- the selected structural analog reproduced the same directed failure.
+- the operator-selected analog reproduced the same directed failure under the
+  declared hypothesis.
 
 It may not adopt a production ordering rule, transport, workaround, filter
 capacity, source activation or scheduler behavior.
@@ -69,7 +82,7 @@ capacity, source activation or scheduler behavior.
 ## Next evidence step
 
 If the analog reproduces the failure, compare the common features and construct
-minimal counterexamples. If it does not, replace one feature dimension at a
-time or test a B-like analog while keeping A fixed. Maximum filter capacity is
-measured only after the failure mechanism is explained or reliably detected by
-a fail-closed compiler contract.
+minimal counterexamples. If it does not, select the leader from a different
+hypothesis or test a B-like analog while keeping A fixed. Maximum filter
+capacity is measured only after the failure mechanism is explained or reliably
+detected by a fail-closed compiler contract.
