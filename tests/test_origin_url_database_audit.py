@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from scripts.run_origin_url_database_audit import result_row, stage_counts
+from scripts.run_origin_url_database_audit import request_accounting, result_row
 
 
-def test_stage_counts_separate_total_provider_and_llm_requests() -> None:
+def test_request_accounting_does_not_treat_searches_as_llm_calls() -> None:
     payload = {
         "default_repair": {
             "stages": [
@@ -16,10 +16,18 @@ def test_stage_counts_separate_total_provider_and_llm_requests() -> None:
                 },
                 {"name": "evidence_and_llm_repair", "provider_request_count": 1},
             ]
-        }
+        },
+        "early_llm_observation": {"request_attempted": True},
+        "llm_observation": {
+            "provider_result": {"request_attempted": True}
+        },
     }
 
-    assert stage_counts(payload) == (6, 3)
+    assert request_accounting(payload) == {
+        "external_provider_requests": 6,
+        "web_search_requests": 4,
+        "llm_requests": 2,
+    }
 
 
 def test_budget_guard_row_is_visible_and_has_no_fake_execution() -> None:
@@ -36,6 +44,7 @@ def test_budget_guard_row_is_visible_and_has_no_fake_execution() -> None:
 
     assert row["final_state"] == "not_run_budget_guard"
     assert row["provider_requests"] == 0
+    assert row["web_search_requests"] == 0
     assert row["llm_requests"] == 0
     assert row["selected_url"] is None
     assert row["error"] is None
