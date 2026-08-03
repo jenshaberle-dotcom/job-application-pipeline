@@ -2,87 +2,97 @@
 
 ## Status
 
-Active diagnostic campaign. Baseline-only production is proven and remains the
-only active StepStone runtime mode. Multi-company NOT production remains
-blocked.
+Closed at the current evidence boundary on 2026-08-03. Baseline-only production
+remains the only active StepStone runtime mode. Multi-company NOT production
+remains blocked.
 
-## Known seed failure
+## Validated seed failure
 
-The current validated seed is a directed pair interaction:
+The directed seed interaction reproduced in the compact live experiment:
 
-- `Technische Informationsbibliothek (TIB)` alone produced a usable page;
-- `HDI` alone produced a usable page;
-- `Technische Informationsbibliothek (TIB) -> HDI` produced zero cards;
-- `HDI -> Technische Informationsbibliothek (TIB)` produced a full page.
+- `Technische Informationsbibliothek (TIB)` alone was usable;
+- `Technische Informationsbibliothek (TIB) -> HDI` failed;
+- `HDI -> Technische Informationsbibliothek (TIB)` was usable;
+- runner classification: `directed_forward_failure_reproduced`.
 
-The failure is therefore not assigned to one alias in isolation. It is treated
-as a directed interaction until further evidence explains it.
+The failure is therefore reproducible and cannot be dismissed as a transient
+single observation. It is still not assigned to one alias in isolation.
 
-## First slice: structural analog reproduction
+## Structural-analog method
 
-`STEPSTONE-ORDER-FAILURE-REPRO-001` uses the latest persisted production
-baseline review as the candidate pool. It computes parser-relevant structural
-features for each actual filter alias, excluding seed A and seed B.
+The campaign compared parser-relevant alias characteristics rather than semantic
+company similarity. It separated three hypotheses:
 
-The initial aggregate ranking over-weighted broad length and word-count
-similarity and selected `adesso business consulting`, even though it shares
-neither parentheses nor a parenthetical acronym with TIB. That result is useful
-evidence that a single aggregate score is not a safe experimental selector.
+1. `length_token_shape`;
+2. `acronym_name_shape`;
+3. `syntax_encoding_shape`.
 
-The revised plan separates three explicit hypotheses:
+The initial aggregate ranking selected `adesso business consulting`, revealing
+that a broad combined score over-weighted length and word count. The selector was
+therefore hardened to expose hypothesis-specific rankings and prohibit automatic
+live-candidate selection.
 
-1. `length_token_shape`: raw/encoded length, word count and broad token shape;
-2. `acronym_name_shape`: acronym-bearing, expanded multiword name structure;
-3. `syntax_encoding_shape`: punctuation, parentheses, encoded length,
-   ampersands and digits.
+No current candidate shared TIB's full critical signature of parentheses,
+parenthetical acronym and acronym-token characteristics.
 
-The plan reports leaders for every hypothesis. It never selects an analog
-automatically. The operator must provide both an explicit alias and the
-hypothesis being tested before a live request can run.
+## Executed compact experiment
 
-A critical-signature check separately reports whether a candidate shares TIB's
-parentheses, parenthetical acronym and acronym-token characteristics. Absence of
-such a candidate is preserved as evidence rather than hidden by a medium global
-score.
+The final one-shot experiment locked:
 
-This is not semantic company-name matching and does not claim causality. The
-purpose is to provoke a second directed failure under one clearly stated
-structural hypothesis.
+- seed A: `Technische Informationsbibliothek (TIB)`;
+- seed B: `HDI`;
+- analog C: `CompuGroup Medical SE & Co. KGaA`;
+- hypothesis: `syntax_encoding_shape`;
+- baseline review: `4`;
+- request budget: exactly eight page-one requests.
 
-## Fixed live matrix
+Observed classifications:
 
-After a baseline-relative 24-hour cooldown, explicit analog/hypothesis selection
-and exact operator approval, the probe performs exactly nine page-one requests:
+- seed pair: `directed_forward_failure_reproduced`;
+- analog pair: `both_orders_usable`;
+- conclusion: `seed_reproduced_but_syntax_encoding_analog_did_not`.
 
-1. unfiltered A0 baseline;
-2. seed A alone;
-3. seed B alone;
-4. selected analog C alone;
-5. A then B;
-6. B then A;
-7. C then B;
-8. B then C;
-9. unfiltered A1 baseline control.
+## What the evidence supports
 
-The probe records the logical query, requested and final URLs, URL lengths,
-response classification, parsed cards, excluded-company leakage and local HTML
-hashes through the existing bounded StepStone probe helpers.
+The broad syntax/encoding characteristics represented by CompuGroup are not
+sufficient to reproduce the TIB/HDI failure. The experiment does not establish
+that punctuation, encoding or parser syntax are irrelevant in general.
 
-## Decision boundary
+Still-open causal possibilities include:
 
-This slice may conclude only whether:
+- TIB-specific features absent from CompuGroup, especially parentheses and a
+  parenthetical acronym;
+- an exact TIB/HDI pair interaction;
+- another tokenization, parser or transport rule;
+- an unobserved StepStone evaluation condition.
 
-- the known seed failure reproduced in the current observation window; and
-- the operator-selected analog reproduced the same directed failure under the
-  declared hypothesis.
+## Runtime decision
 
-It may not adopt a production ordering rule, transport, workaround, filter
-capacity, source activation or scheduler behavior.
+No production policy follows from this campaign:
 
-## Next evidence step
+- no preferred company order;
+- no validated multi-NOT transport;
+- no compiler workaround;
+- no approved maximum filter count;
+- no capacity experiment;
+- no filtered multi-company production.
 
-If the analog reproduces the failure, compare the common features and construct
-minimal counterexamples. If it does not, select the leader from a different
-hypothesis or test a B-like analog while keeping A fixed. Maximum filter
-capacity is measured only after the failure mechanism is explained or reliably
-detected by a fail-closed compiler contract.
+The safe runtime behavior is unchanged: baseline-only production may continue;
+multi-company NOT remains fail-closed.
+
+## Reopen conditions
+
+Do not start another StepStone analog sequence from this campaign. Reopen only
+with materially new evidence, such as:
+
+1. a candidate matching TIB's missing critical signature;
+2. an offline or synthetic minimal parser reproduction;
+3. a transport with a verifiable local round-trip contract and bounded causal
+   live test;
+4. a material change in StepStone's query interface.
+
+The current retained finding is:
+
+> Reproducible unresolved directed parser interaction for TIB/HDI; broad
+> CompuGroup-like syntax/encoding similarity is not sufficient; no safe generic
+> production rule is available.
