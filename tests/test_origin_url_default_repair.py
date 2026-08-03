@@ -130,6 +130,32 @@ def test_missing_provider_configuration_is_not_misreported_as_not_found() -> Non
     assert outcome.repair_exhausted is False
 
 
+def test_failed_llm_request_is_an_explicit_repair_blocker() -> None:
+    evidence = evidence_stage(
+        {
+            "deterministic_decision": "manual_review_required",
+            "selected_url": None,
+            "confidence_score": 0.7,
+            "manual_review_required": True,
+            "assessments": [{"candidate_id": "C1"}],
+        },
+        llm_attempted=True,
+        llm_status="failed_closed",
+        llm_recommended_url=None,
+        llm_provider_request_count=1,
+    )
+    outcome = finalize_outcome(
+        company_key="example",
+        company_name="Example GmbH",
+        stages=[evidence],
+    )
+
+    assert evidence.status == "configuration_blocked"
+    assert evidence.blocker == "llm_provider_failed_closed"
+    assert outcome.final_state == "repair_configuration_blocked"
+    assert outcome.configuration_blocked is True
+
+
 def test_llm_may_recommend_only_for_operator_review() -> None:
     baseline = stage_from_discovery(
         "deterministic_baseline",
