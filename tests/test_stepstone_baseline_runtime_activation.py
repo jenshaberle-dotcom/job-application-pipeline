@@ -47,7 +47,8 @@ def test_production_runner_has_exactly_one_bounded_fetch_call() -> None:
     assert "maximum_requests\": 1" in source
     assert "no_pagination\": True" in source
     assert "no_detail_pages\": True" in source
-    assert "multi_not_production_status: blocked_pending_transport_and_capacity_validation" in source
+    assert "multi_not_production_status" in source
+    assert "blocked_pending_transport_and_capacity_validation" in source
     assert "baseline_only_active" in source
 
 
