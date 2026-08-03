@@ -1,9 +1,12 @@
-"""Run EO-002B URL-Finder validation through the product-default repair cascade.
+"""Run EO-002B read-only URL Finder validation with default repair.
 
 The default path is no longer a single deterministic pass. Every unresolved
 candidate automatically runs the bounded sequence deterministic -> Tavily ->
-deep evidence -> eligible LLM adjudication. The command remains review-only and
-never persists URLs or mutates connectors, sources, jobs, or scheduler state.
+deep evidence -> eligible LLM adjudication.
+
+Boundary terms remain explicit: ``no_candidate_url_write``,
+``no_connector_registration``, ``no_source_activation``,
+``no_bronze_silver_write`` and ``no_scheduler_change``.
 """
 
 from __future__ import annotations
@@ -157,7 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         help="Explicit guest-list company key. Repeat for multiple candidates.",
     )
-    parser.add_argument("--max-candidates", type=int, default=20)
+    parser.add_argument("--max-candidates", type=int, default=5)
     parser.add_argument("--include-active-controlled", action="store_true")
     parser.add_argument("--target-location", default="Hannover")
     parser.add_argument("--target-locale", default="de")
@@ -240,6 +243,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     load_local_env_file()
     args = build_parser().parse_args()
+    if not 1 <= args.max_candidates <= 5:
+        raise SystemExit("--max-candidates must be between 1 and 5")
     if args.no_probe and not args.single_pass_diagnostic:
         raise SystemExit("--no-probe is only valid with --single-pass-diagnostic")
     if len(args.search_provider) > 1 and "none" in args.search_provider:
