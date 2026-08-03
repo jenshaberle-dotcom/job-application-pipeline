@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.search_intelligence.origin_seed_pool import ObservationSeed
 from src.search_intelligence.product_e2e_golden_path import (
     AUDIT_BOUNDARY,
@@ -91,6 +93,21 @@ def test_discovery_source_class_covers_three_requested_ingress_types() -> None:
     assert discovery_source_class(manual) == "manual_observation"
 
 
+def test_non_manual_market_evidence_keeps_origin_evidence_role() -> None:
+    origin = seed(
+        key="origin:a",
+        seed_type="origin_url_seed",
+        table="market_evidence",
+        source_name="company_career_site",
+        company_key="a",
+        company_name="A",
+        priority=0.8,
+        url="https://jobs.example.test/",
+    )
+
+    assert discovery_source_class(origin) == "existing_origin_evidence"
+
+
 def test_portfolio_selection_is_source_diverse_bounded_and_deduplicated() -> None:
     cases = [
         case_from_seed(
@@ -153,18 +170,107 @@ def test_portfolio_selection_is_source_diverse_bounded_and_deduplicated() -> Non
     }.issubset({item.discovery_source_class for item in selected})
 
 
+def test_origin_seed_does_not_erase_stepstone_discovery_provenance() -> None:
+    cases = [
+        case_from_seed(
+            seed(
+                key="origin:a",
+                seed_type="origin_url_seed",
+                table="employer_origin_source_candidates",
+                source_name="a_origin",
+                company_key="a",
+                company_name="A",
+                priority=0.95,
+                url="https://jobs.a.test/",
+            )
+        ),
+        case_from_seed(
+            seed(
+                key="stepstone:a",
+                seed_type="aggregator_company_seed",
+                table="aggregator_novelty_items",
+                source_name="stepstone",
+                company_key="a",
+                company_name="A",
+                priority=0.48,
+            )
+        ),
+        case_from_seed(
+            seed(
+                key="ba:b",
+                seed_type="job_text_signal_seed",
+                table="silver_jobs",
+                source_name="bundesagentur_fuer_arbeit",
+                company_key="b",
+                company_name="B",
+                priority=0.55,
+            )
+        ),
+        case_from_seed(
+            seed(
+                key="manual:c",
+                seed_type="company_name_only_seed",
+                table="market_evidence",
+                source_name="manual_market_observation",
+                company_key="c",
+                company_name="C",
+                priority=0.68,
+            )
+        ),
+    ]
+
+    selected = select_representative_cases(cases, limit=3)
+
+    assert [item.discovery_source_class for item in selected] == [
+        "aggregator_company_discovery",
+        "public_job_api_discovery",
+        "manual_observation",
+    ]
+    assert [item.company_key for item in selected] == ["a", "b", "c"]
+
+
+def test_identified_ba_case_is_preferred_over_unlinked_raw_seed() -> None:
+    cases = [
+        DiscoveryCase(
+            case_id="ba:unlinked",
+            discovery_source_class="public_job_api_discovery",
+            seed_type="job_text_signal_seed",
+            seed_source_table="raw_jobs",
+            company_key=None,
+            company_name=None,
+            source_name="bundesagentur_fuer_arbeit",
+            seed_url="https://ba.example.test/job/1",
+            priority_score=0.9,
+            prior_reason="test",
+        ),
+        case_from_seed(
+            seed(
+                key="ba:linked",
+                seed_type="job_text_signal_seed",
+                table="silver_jobs",
+                source_name="bundesagentur_fuer_arbeit",
+                company_key="linked",
+                company_name="Linked Employer",
+                priority=0.55,
+            )
+        ),
+    ]
+
+    selected = select_representative_cases(cases, limit=1)
+
+    assert selected[0].company_key == "linked"
+
+
 def test_selection_rejects_more_than_five_cases() -> None:
-    try:
+    with pytest.raises(ValueError, match="between 1 and 5"):
         select_representative_cases([case("A", "other_discovery")], limit=6)
-    except ValueError as exc:
-        assert "between 1 and 5" in str(exc)
-    else:
-        raise AssertionError("expected ValueError")
 
 
 def complete_snapshot() -> LifecycleSnapshot:
     return LifecycleSnapshot(
         candidate_id=1,
+        canonical_company_name="Canonical Employer GmbH",
+        source_name_candidate="canonical_employer",
         candidate_status="active_controlled",
         candidate_url="https://jobs.example.test/",
         current_stage="active_controlled",
@@ -175,6 +281,7 @@ def complete_snapshot() -> LifecycleSnapshot:
                 decision="continue",
             )
         },
+        source_raw_job_count=2,
         silver_job_count=2,
         product_readiness_counts={"rankable": 1, "blocked_hard_filter": 1},
         top5_job_count=1,
@@ -183,10 +290,12 @@ def complete_snapshot() -> LifecycleSnapshot:
 
 def test_downstream_trace_is_identical_for_different_company_names() -> None:
     first = trace_case(
-        case("Company One", "aggregator_company_discovery"), complete_snapshot()
+        case("Company One", "aggregator_company_discovery"),
+        complete_snapshot(),
     )
     second = trace_case(
-        case("Totally Different GmbH", "manual_observation"), complete_snapshot()
+        case("Totally Different GmbH", "manual_observation"),
+        complete_snapshot(),
     )
 
     assert [(item.stage, item.status, item.reason_code) for item in first.stages] == [
@@ -195,7 +304,7 @@ def test_downstream_trace_is_identical_for_different_company_names() -> None:
     assert first.overall_status == second.overall_status == "completed"
 
 
-def test_missing_origin_candidate_is_a_capability_gap_for_every_ingress() -> None:
+def test_missing_origin_candidate_is_cross_source_capability_gap() -> None:
     traces = [
         trace_case(case("A", "aggregator_company_discovery"), LifecycleSnapshot()),
         trace_case(case("B", "public_job_api_discovery"), LifecycleSnapshot()),
@@ -203,8 +312,11 @@ def test_missing_origin_candidate_is_a_capability_gap_for_every_ingress() -> Non
 
     assert traces[0].next_blocker_stage == "origin_candidate"
     assert traces[1].next_blocker_stage == "origin_candidate"
-    gaps = summarize_gaps(traces)
-    matching = next(item for item in gaps if item.reason_code == "origin_candidate_missing")
+    matching = next(
+        item
+        for item in summarize_gaps(traces)
+        if item.reason_code == "origin_candidate_missing"
+    )
     assert matching.scope == "generic_cross_source_gap"
     assert matching.occurrence_count == 2
 
@@ -215,6 +327,7 @@ def test_build_approval_is_explicit_operator_decision() -> None:
         candidate_status="connector_candidate",
         build_status="build_approval_required",
         queue_reason="build review required",
+        source_raw_job_count=None,
         silver_job_count=0,
         product_readiness_counts={},
         top5_job_count=0,
@@ -226,6 +339,24 @@ def test_build_approval_is_explicit_operator_decision() -> None:
     assert build.status == "operator_decision_required"
     assert build.operator_decision == "Approve bounded connector artifact generation."
     assert trace.overall_status == "operator_decision_required"
+
+
+def test_connector_artifacts_do_not_imply_source_activation() -> None:
+    snapshot = replace(
+        complete_snapshot(),
+        candidate_status="connector_artifact_generated",
+        build_status="artifacts_present",
+        source_raw_job_count=None,
+        silver_job_count=0,
+        product_readiness_counts={},
+        top5_job_count=0,
+    )
+
+    trace = trace_case(case("A", "manual_observation"), snapshot)
+    activation = next(item for item in trace.stages if item.stage == "source_activation")
+
+    assert activation.status == "operator_decision_required"
+    assert activation.reason_code == "source_activation_approval_required"
 
 
 def test_rankable_job_outside_top5_is_valid_stop_not_failure() -> None:
