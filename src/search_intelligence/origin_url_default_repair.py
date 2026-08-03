@@ -193,6 +193,10 @@ def evidence_stage(
     elif blocker:
         status = "configuration_blocked"
         reason = _text(payload.get("reason")) or "Evidence review could not complete."
+    elif llm_attempted and llm_status != "completed":
+        status = "configuration_blocked"
+        blocker = "llm_provider_failed_closed"
+        reason = "The mandatory LLM repair request failed closed."
     elif manual_required or llm_status == "completed":
         status = "manual_review"
         reason = _text(payload.get("reason")) or "Evidence remains ambiguous."
