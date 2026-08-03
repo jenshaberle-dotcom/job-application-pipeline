@@ -16,6 +16,7 @@ from scripts.run_origin_observation_seed_pool_agent import collect_seeds
 from src.config import get_database_config
 from src.search_intelligence.product_e2e_golden_path import (
     AUDIT_BOUNDARY,
+    PRIMARY_SOURCE_CLASSES,
     DiscoveryCase,
     GateState,
     LifecycleSnapshot,
@@ -33,7 +34,16 @@ def connect() -> psycopg.Connection[Any]:
     return psycopg.connect(**get_database_config(), row_factory=dict_row)
 
 
+def _text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 class SnapshotRepository:
+    """Read current lifecycle and Product V1 evidence without mutation."""
+
     def __init__(self, conn: psycopg.Connection[Any]) -> None:
         self.conn = conn
         self._relations = self._load_relations()
@@ -108,18 +118,18 @@ class SnapshotRepository:
             )
             if row is not None:
                 return row
-        if case.company_name:
-            return self._fetchone(
-                """
-                SELECT *
-                FROM gold_candidate_lifecycle_status
-                WHERE lower(display_company_name) = lower(%s)
-                ORDER BY last_signal_at DESC NULLS LAST, candidate_id DESC
-                LIMIT 1
-                """,
-                (case.company_name,),
-            )
-        return None
+        if not case.company_name:
+            return None
+        return self._fetchone(
+            """
+            SELECT *
+            FROM gold_candidate_lifecycle_status
+            WHERE lower(display_company_name) = lower(%s)
+            ORDER BY last_signal_at DESC NULLS LAST, candidate_id DESC
+            LIMIT 1
+            """,
+            (case.company_name,),
+        )
 
     def _gates(self, candidate_id: int | None) -> dict[str, GateState]:
         if candidate_id is None or not self.relation_exists(
@@ -140,10 +150,8 @@ class SnapshotRepository:
             str(row["gate_name"]): GateState(
                 gate_name=str(row["gate_name"]),
                 gate_status=str(row["gate_status"]),
-                decision=None if row.get("decision") is None else str(row["decision"]),
-                stop_reason=(
-                    None if row.get("stop_reason") is None else str(row["stop_reason"])
-                ),
+                decision=_text(row.get("decision")),
+                stop_reason=_text(row.get("stop_reason")),
             )
             for row in rows
         }
@@ -163,7 +171,22 @@ class SnapshotRepository:
             (candidate_id,),
         )
 
-    def _silver_job_count(self, case: DiscoveryCase) -> int:
+    def _source_raw_job_count(self, source_name_candidate: str | None) -> int | None:
+        if not source_name_candidate or not self.relation_exists("raw_jobs"):
+            return None
+        if "source_name" not in self.columns("raw_jobs"):
+            return None
+        row = self._fetchone(
+            "SELECT count(*)::integer AS count FROM raw_jobs WHERE source_name = %s",
+            (source_name_candidate,),
+        )
+        return None if row is None else int(row["count"] or 0)
+
+    def _silver_job_count(
+        self,
+        case: DiscoveryCase,
+        canonical_company_name: str | None,
+    ) -> int:
         if not self.relation_exists("silver_jobs"):
             return 0
         columns = self.columns("silver_jobs")
@@ -178,31 +201,26 @@ class SnapshotRepository:
             )
             if row and int(row["count"] or 0) > 0:
                 return int(row["count"])
-        if case.company_name and "company_name" in columns:
-            row = self._fetchone(
-                """
-                SELECT count(*)::integer AS count
-                FROM silver_jobs
-                WHERE lower(company_name) = lower(%s)
-                """,
-                (case.company_name,),
-            )
-            return 0 if row is None else int(row["count"] or 0)
-        return 0
-
-    def _exact_raw_job_count(self, case: DiscoveryCase) -> int | None:
-        if not case.seed_url or not self.relation_exists("raw_jobs"):
-            return None
-        if "source_url" not in self.columns("raw_jobs"):
-            return None
+        company_name = canonical_company_name or case.company_name
+        if not company_name or "company_name" not in columns:
+            return 0
         row = self._fetchone(
-            "SELECT count(*)::integer AS count FROM raw_jobs WHERE source_url = %s",
-            (case.seed_url,),
+            """
+            SELECT count(*)::integer AS count
+            FROM silver_jobs
+            WHERE lower(company_name) = lower(%s)
+            """,
+            (company_name,),
         )
-        return None if row is None else int(row["count"] or 0)
+        return 0 if row is None else int(row["count"] or 0)
 
-    def _readiness_counts(self, case: DiscoveryCase) -> dict[str, int]:
-        if not case.company_name or not self.relation_exists(
+    def _readiness_counts(
+        self,
+        case: DiscoveryCase,
+        canonical_company_name: str | None,
+    ) -> dict[str, int]:
+        company_name = canonical_company_name or case.company_name
+        if not company_name or not self.relation_exists(
             "gold_product_v1_job_readiness"
         ):
             return {}
@@ -214,14 +232,20 @@ class SnapshotRepository:
             GROUP BY product_readiness_status
             ORDER BY product_readiness_status
             """,
-            (case.company_name,),
+            (company_name,),
         )
         return {
-            str(row["product_readiness_status"]): int(row["count"]) for row in rows
+            str(row["product_readiness_status"]): int(row["count"])
+            for row in rows
         }
 
-    def _top5_count(self, case: DiscoveryCase) -> int:
-        if not case.company_name or not self.relation_exists("gold_product_v1_top_jobs"):
+    def _top5_count(
+        self,
+        case: DiscoveryCase,
+        canonical_company_name: str | None,
+    ) -> int:
+        company_name = canonical_company_name or case.company_name
+        if not company_name or not self.relation_exists("gold_product_v1_top_jobs"):
             return 0
         row = self._fetchone(
             """
@@ -229,16 +253,24 @@ class SnapshotRepository:
             FROM gold_product_v1_top_jobs
             WHERE lower(company_name) = lower(%s)
             """,
-            (case.company_name,),
+            (company_name,),
         )
         return 0 if row is None else int(row["count"] or 0)
 
     def load_snapshot(self, case: DiscoveryCase) -> LifecycleSnapshot:
         candidate = self._candidate_row(case)
         candidate_id = None if candidate is None else int(candidate["candidate_id"])
+        canonical_company_name = (
+            None if candidate is None else _text(candidate.get("display_company_name"))
+        )
+        source_name_candidate = (
+            None if candidate is None else _text(candidate.get("source_name_candidate"))
+        )
         queue = self._queue_row(candidate_id) or {}
         return LifecycleSnapshot(
             candidate_id=candidate_id,
+            canonical_company_name=canonical_company_name,
+            source_name_candidate=source_name_candidate,
             candidate_status=(
                 None if candidate is None else _text(candidate.get("candidate_status"))
             ),
@@ -268,29 +300,28 @@ class SnapshotRepository:
             queue_action=_text(queue.get("queue_action")),
             queue_reason=_text(queue.get("queue_reason")),
             gate_states=self._gates(candidate_id),
-            exact_raw_job_count=self._exact_raw_job_count(case),
-            silver_job_count=self._silver_job_count(case),
-            product_readiness_counts=self._readiness_counts(case),
-            top5_job_count=self._top5_count(case),
+            source_raw_job_count=self._source_raw_job_count(source_name_candidate),
+            silver_job_count=self._silver_job_count(case, canonical_company_name),
+            product_readiness_counts=self._readiness_counts(
+                case,
+                canonical_company_name,
+            ),
+            top5_job_count=self._top5_count(case, canonical_company_name),
         )
-
-
-def _text(value: object) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
 
 
 def _source_counts(cases: Iterable[DiscoveryCase]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for case in cases:
-        counts[case.discovery_source_class] = counts.get(case.discovery_source_class, 0) + 1
+        counts[case.discovery_source_class] = (
+            counts.get(case.discovery_source_class, 0) + 1
+        )
     return dict(sorted(counts.items()))
 
 
 def build_report(
-    cases: list[DiscoveryCase], snapshots: list[LifecycleSnapshot]
+    cases: list[DiscoveryCase],
+    snapshots: list[LifecycleSnapshot],
 ) -> dict[str, object]:
     traces = [
         trace_case(case, snapshot)
@@ -310,13 +341,7 @@ def build_report(
         if stage.operator_decision
     ]
     missing_primary_classes = sorted(
-        set(
-            (
-                "aggregator_company_discovery",
-                "public_job_api_discovery",
-                "manual_observation",
-            )
-        )
+        set(PRIMARY_SOURCE_CLASSES)
         - {case.discovery_source_class for case in cases}
     )
     return {
@@ -336,7 +361,8 @@ def build_report(
                 trace.overall_status == "completed" for trace in traces
             ),
             "operator_decision_case_count": sum(
-                trace.overall_status == "operator_decision_required" for trace in traces
+                trace.overall_status == "operator_decision_required"
+                for trace in traces
             ),
             "blocked_case_count": sum(
                 trace.overall_status == "blocked" for trace in traces
@@ -376,7 +402,10 @@ def render_markdown(report: Mapping[str, object]) -> str:
             f"- selected cases: `{selection['selected_case_count']}` / "
             f"`{selection['maximum_case_count']}`"
         ),
-        f"- source classes: `{json.dumps(selection['source_class_counts'], sort_keys=True)}`",
+        (
+            "- source classes: "
+            f"`{json.dumps(selection['source_class_counts'], sort_keys=True)}`"
+        ),
         (
             "- missing primary classes: "
             f"`{json.dumps(selection['missing_primary_source_classes'])}`"
@@ -388,7 +417,10 @@ def render_markdown(report: Mapping[str, object]) -> str:
         f"- completed cases: `{summary['completed_case_count']}`",
         f"- operator-decision cases: `{summary['operator_decision_case_count']}`",
         f"- blocked cases: `{summary['blocked_case_count']}`",
-        f"- cross-source generic gaps: `{summary['generic_cross_source_gap_count']}`",
+        (
+            "- cross-source generic gaps: "
+            f"`{summary['generic_cross_source_gap_count']}`"
+        ),
         "",
         "## Cases",
         "",
@@ -398,10 +430,18 @@ def render_markdown(report: Mapping[str, object]) -> str:
     for item in cases:
         assert isinstance(item, Mapping)
         case = item["case"]
+        snapshot = item["snapshot"]
         assert isinstance(case, Mapping)
+        assert isinstance(snapshot, Mapping)
+        display_name = (
+            snapshot.get("canonical_company_name")
+            or case.get("company_name")
+            or case.get("company_key")
+            or case["case_id"]
+        )
         lines.extend(
             [
-                f"### {case.get('company_name') or case.get('company_key') or case['case_id']}",
+                f"### {display_name}",
                 "",
                 f"- discovery class: `{case['discovery_source_class']}`",
                 f"- overall status: `{item['overall_status']}`",
@@ -425,11 +465,13 @@ def render_markdown(report: Mapping[str, object]) -> str:
         lines.append("- No unresolved gap was observed in the selected portfolio.")
     for gap in gaps:
         assert isinstance(gap, Mapping)
+        source_classes = gap["discovery_source_classes"]
+        assert isinstance(source_classes, (list, tuple))
         lines.append(
             "- "
             f"`{gap['stage']}` / `{gap['reason_code']}`: "
             f"{gap['occurrence_count']} case(s), scope `{gap['scope']}`, "
-            f"sources `{', '.join(gap['discovery_source_classes'])}`"
+            f"sources `{', '.join(str(item) for item in source_classes)}`"
         )
 
     lines.extend(
@@ -438,9 +480,9 @@ def render_markdown(report: Mapping[str, object]) -> str:
             "## Boundary",
             "",
             (
-                "This audit performs read-only database inspection only. It makes no "
-                "external request, writes no pipeline state, builds or activates no "
-                "connector, and changes no ranking or application behavior."
+                "This audit performs read-only database inspection only. It makes "
+                "no external request, writes no pipeline state, builds or activates "
+                "no connector, and changes no ranking or application behavior."
             ),
             "",
         ]
@@ -449,9 +491,10 @@ def render_markdown(report: Mapping[str, object]) -> str:
 
 
 def write_report(
-    report: Mapping[str, object], output_dir: Path
+    report: Mapping[str, object],
+    output_dir: Path,
 ) -> tuple[Path, Path]:
-    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     run_dir = output_dir / f"product_e2e_golden_path_{stamp}"
     run_dir.mkdir(parents=True, exist_ok=False)
     json_path = run_dir / "result.json"
@@ -492,6 +535,7 @@ def build_parser() -> argparse.ArgumentParser:
 def run(args: argparse.Namespace) -> int:
     if args.limit < 1 or args.limit > 5:
         raise SystemExit("--limit must be between 1 and 5")
+
     with connect() as conn:
         with conn.cursor() as cur:
             cur.execute("SET TRANSACTION READ ONLY")
@@ -509,10 +553,12 @@ def run(args: argparse.Namespace) -> int:
     summary = report["summary"]
     assert isinstance(selection, Mapping)
     assert isinstance(summary, Mapping)
+
     print("Product E2E generic discovery-to-Top-5 audit")
     print(f"selected_cases: {selection['selected_case_count']}/5")
     print(
-        f"source_classes: {json.dumps(selection['source_class_counts'], sort_keys=True)}"
+        "source_classes: "
+        f"{json.dumps(selection['source_class_counts'], sort_keys=True)}"
     )
     print(
         "missing_primary_source_classes: "
@@ -522,25 +568,34 @@ def run(args: argparse.Namespace) -> int:
     print(f"operator_decision_cases: {summary['operator_decision_case_count']}")
     print(f"blocked_cases: {summary['blocked_case_count']}")
     print(f"generic_cross_source_gaps: {summary['generic_cross_source_gap_count']}")
+
     cases_payload = report["cases"]
     assert isinstance(cases_payload, list)
     for item in cases_payload:
         assert isinstance(item, Mapping)
         case = item["case"]
+        snapshot = item["snapshot"]
         assert isinstance(case, Mapping)
+        assert isinstance(snapshot, Mapping)
+        company = (
+            snapshot.get("canonical_company_name")
+            or case.get("company_name")
+            or case.get("company_key")
+            or "-"
+        )
         print(
             "case: "
             f"source={case['discovery_source_class']} | "
-            f"company={case.get('company_name') or case.get('company_key') or '-'} | "
-            f"status={item['overall_status']} | "
+            f"company={company} | status={item['overall_status']} | "
             f"blocker={item['next_blocker_stage'] or '-'}"
         )
-    if not args.no_write_artifact:
+
+    if args.no_write_artifact:
+        print("artifact_write: disabled")
+    else:
         json_path, markdown_path = write_report(report, args.output_dir)
         print(f"artifact_json: {json_path}")
         print(f"artifact_markdown: {markdown_path}")
-    else:
-        print("artifact_write: disabled")
     print(f"RESULT: {RESULT}")
     return 0
 
