@@ -34,20 +34,29 @@ def test_symbol_brand_career_org_host_is_inside_first_budget() -> None:
 
 
 def test_global_human_search_precedes_location_filtering() -> None:
-    queries = initial_adaptive_queries(
+    bounded = initial_adaptive_queries(
         company_name="1&1",
         company_key="1_1",
         target_location="Hannover",
         maximum=6,
     )
+    expanded = initial_adaptive_queries(
+        company_name="1&1",
+        company_key="1_1",
+        target_location="Hannover",
+        maximum=20,
+    )
 
-    assert queries[:3] == (
+    assert bounded[:3] == (
         '"1&1" Karriere',
         '"1&1" careers',
         '"1&1" offizielle Karriereseite',
     )
-    assert '"1and1" Karriere' in queries
-    assert queries[-1] == '"1&1" Jobs Hannover'
+    assert '"1and1" Karriere' in bounded
+    assert '"1&1" Jobs Hannover' not in bounded[:5]
+    assert expanded.index('"1&1" Jobs Hannover') > expanded.index(
+        '"1and1" careers'
+    )
 
 
 def test_domain_followup_is_bounded_and_skips_aggregators() -> None:
