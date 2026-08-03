@@ -41,8 +41,8 @@ Discovery provenance changes only the first-stage evidence:
 - StepStone and other aggregators are company-discovery signals;
 - Bundesagentur jobs are public job/text signals and must still resolve to an
   employer origin before authoritative Product V1 eligibility;
-- manual observations may contain a company, a job URL or an origin hint, but do
-  not bypass identity, origin, connector or product gates.
+- manual observations may contain a company, job URL or origin hint, but do not
+  bypass identity, origin, connector or product gates.
 
 After employer identity is available, source and company names are forbidden as
 control-flow conditions. The same downstream state and gate rules apply.
@@ -54,8 +54,15 @@ one case from each primary discovery class and fills remaining slots by existing
 seed priority. There is no company allowlist, company-specific threshold or
 employer-specific repair branch.
 
-A missing primary source class is reported as coverage evidence. It is not silently
-replaced by a fabricated case.
+Seed deduplication is source-class aware. A later, higher-priority origin seed for
+an employer must not erase evidence that the employer was independently discovered
+through StepStone, Bundesagentur or manual observation. The final selected
+portfolio still contains each employer at most once.
+
+Cases with a normalized employer identity are preferred over otherwise higher
+priority URL/text rows that cannot yet be linked to an employer. A missing primary
+source class is reported as coverage evidence rather than replaced by a fabricated
+case.
 
 ## Read-only evidence inspected
 
@@ -65,10 +72,20 @@ available current-truth read models:
 - `gold_candidate_lifecycle_status`;
 - `employer_origin_candidate_gate_reviews`;
 - `gold_connector_build_candidate_queue`;
-- `raw_jobs` by exact observed URL where possible;
-- `silver_jobs` by normalized employer identity;
-- `gold_product_v1_job_readiness`;
-- `gold_product_v1_top_jobs`.
+- `raw_jobs` by exact registered origin-source name;
+- `silver_jobs` by normalized identity and then exact canonical employer name;
+- `gold_product_v1_job_readiness` by canonical employer name;
+- `gold_product_v1_top_jobs` by canonical employer name.
+
+After an origin candidate is resolved, its canonical display name becomes the
+preferred downstream identity. The original discovery label remains provenance
+only. This avoids false negatives caused by aliases or legal-name variants without
+introducing fuzzy or company-specific matching.
+
+Aggregator or Bundesagentur raw rows are not accepted as proof that a later origin
+connector ingested jobs. Raw ingestion is counted only for the exact registered
+origin source. A downstream Silver job can also prove that ingestion reached the
+normalized layer.
 
 Absent relations or evidence fail closed as unknown/missing evidence. The runner
 does not infer success from source reachability, connector files or aggregator
@@ -132,8 +149,10 @@ This slice is complete when:
 1. the runner selects a bounded source-diverse portfolio without company rules;
 2. all cases use the same stage engine;
 3. operator decisions and valid stops are distinct from capability gaps;
-4. the current repository suite and Ruff gate pass;
-5. the operator runs the audit against the live local DB and reviews the actual
+4. discovery provenance survives later origin evidence without duplicate firms;
+5. downstream joins use canonical identity and exact source evidence;
+6. the current repository suite and Ruff gate pass;
+7. the operator runs the audit against the live local DB and reviews the actual
    selected cases and blockers.
 
 The first follow-up must be chosen from observed cross-source evidence. It must not
