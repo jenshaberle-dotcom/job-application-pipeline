@@ -17,7 +17,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psycopg
-from psycopg.rows import dict_row
 
 from scripts.activate_stepstone_baseline_runtime import (
     connect,
@@ -29,10 +28,7 @@ from scripts.run_stepstone_company_discovery_cycle_agent import (
     fetch_stepstone_observations,
     write_review,
 )
-from src.normalization.company_keys import (
-    find_matching_company_key,
-    normalize_company_key,
-)
+from src.normalization.company_keys import normalize_company_key
 from src.search_intelligence.stepstone_company_discovery_cycle import (
     CompanyObservation,
     StepStoneCompanyDiscoveryPlan,
@@ -72,13 +68,13 @@ def load_activation(
         row = cur.fetchone()
     if row is None:
         raise RuntimeError("No StepStone runtime activation exists for this scope")
-    activation = dict(row)
-    if activation["status"] != "baseline_only_active":
+    result = dict(row)
+    if result["status"] != "baseline_only_active":
         raise RuntimeError(
             "This runner requires status=baseline_only_active; "
-            f"current status={activation['status']}"
+            f"current status={result['status']}"
         )
-    return activation
+    return result
 
 
 def load_baseline_cycle_state(
@@ -113,12 +109,13 @@ def baseline_is_due(
         return True, "operator_forced_baseline"
     if state is None or state.get("last_baseline_at") is None:
         return True, "no_valid_baseline_exists"
-    if bool(state.get("transport_health_degraded")):
-        return True, "transport_health_requires_recalibration"
-    if bool(state.get("vocabulary_refresh_due")):
-        return True, "company_vocabulary_refresh_due"
-    if bool(state.get("novelty_degraded")):
-        return True, "filtered_discovery_novelty_degraded"
+    for flag, reason in (
+        ("transport_health_degraded", "transport_health_requires_recalibration"),
+        ("vocabulary_refresh_due", "company_vocabulary_refresh_due"),
+        ("novelty_degraded", "filtered_discovery_novelty_degraded"),
+    ):
+        if bool(state.get(flag)):
+            return True, reason
     due_at = state.get("next_baseline_due_at")
     if due_at is None or now >= due_at:
         return True, "baseline_refresh_interval_elapsed"
@@ -147,7 +144,9 @@ def build_baseline_plan(
             "maximum_requests": 1,
             "unfiltered_baseline": True,
             "candidate_persistence": "discovery_status_only",
-            "multi_not_filtering": "blocked_pending_transport_and_capacity_validation",
+            "multi_not_filtering": (
+                "blocked_pending_transport_and_capacity_validation"
+            ),
             "no_pagination": True,
             "no_detail_pages": True,
             "no_connector_execution": True,
@@ -165,26 +164,46 @@ def aggregate_baseline_observations(
 ) -> list[BaselineCompanyObservation]:
     return [
         BaselineCompanyObservation(
-            company_key=observation.company_key,
-            company_name=observation.company_name,
+            company_key=item.company_key,
+            company_name=item.company_name,
             card_count=1,
             first_position=index,
         )
-        for index, observation in enumerate(observations, start=1)
+        for index, item in enumerate(observations, start=1)
     ]
+
+
+def policy_from_activation(activation: dict[str, Any]) -> DecoupledCyclePolicy:
+    return DecoupledCyclePolicy(
+        requested_filter_count=int(activation["requested_filter_count"]),
+        baseline_refresh_interval_hours=int(
+            activation["baseline_refresh_interval_hours"]
+        ),
+        max_filtered_runs_between_baselines=int(
+            activation["max_filtered_runs_between_baselines"]
+        ),
+        vocabulary_staleness_hours=int(
+            activation["vocabulary_staleness_hours"]
+        ),
+        origin_refresh_cooldown_hours=int(
+            activation["origin_refresh_cooldown_hours"]
+        ),
+        dominance_min_cards=int(activation["dominance_min_cards"]),
+        dominance_min_share=float(activation["dominance_min_share"]),
+        policy_version=str(activation["policy_version"]),
+    )
 
 
 def persist_suppression_candidate(
     conn: psycopg.Connection[Any],
     *,
-    source_name: str,
-    search_profile_name: str,
-    search_term: str,
+    scope: tuple[str, str, str],
     review_id: int,
     observations: list[CompanyObservation],
     policy: DecoupledCyclePolicy,
     observed_at: datetime,
 ) -> int:
+    source_name, profile, search_term = scope
     selection = build_suppression_set_from_baseline(
         observations=aggregate_baseline_observations(observations),
         policy=policy,
@@ -194,40 +213,30 @@ def persist_suppression_candidate(
         cur.execute(
             """
             UPDATE stepstone_filter_suppression_sets
-            SET status = 'superseded',
-                superseded_at = now()
+            SET status = 'superseded', superseded_at = now()
             WHERE source_name = %s
               AND search_profile_name = %s
               AND search_term = %s
               AND status IN ('diagnostic_only', 'candidate')
             """,
-            (source_name, search_profile_name, search_term),
+            scope,
         )
         cur.execute(
             """
             INSERT INTO stepstone_filter_suppression_sets (
-                source_name,
-                search_profile_name,
-                search_term,
-                baseline_review_id,
-                baseline_observed_at,
-                baseline_observed_count,
-                baseline_distinct_company_count,
-                requested_filter_count,
-                selected_filter_count,
-                transport_name,
-                transport_status,
-                status,
-                policy_version
+                source_name, search_profile_name, search_term,
+                baseline_review_id, baseline_observed_at,
+                baseline_observed_count, baseline_distinct_company_count,
+                requested_filter_count, selected_filter_count,
+                transport_name, transport_status, status, policy_version
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 NULL, 'unvalidated', 'candidate', %s
-            )
-            RETURNING id
+            ) RETURNING id
             """,
             (
                 source_name,
-                search_profile_name,
+                profile,
                 search_term,
                 review_id,
                 observed_at,
@@ -241,23 +250,18 @@ def persist_suppression_candidate(
         row = cur.fetchone()
         if row is None:
             raise RuntimeError("suppression candidate insert returned no id")
-        suppression_set_id = int(row["id"])
+        suppression_id = int(row["id"])
         for item in selection.items:
             cur.execute(
                 """
                 INSERT INTO stepstone_filter_suppression_set_items (
-                    suppression_set_id,
-                    company_key,
-                    company_name,
-                    filter_alias,
-                    baseline_card_count,
-                    baseline_card_share,
-                    first_position,
-                    selection_rank
+                    suppression_set_id, company_key, company_name,
+                    filter_alias, baseline_card_count, baseline_card_share,
+                    first_position, selection_rank
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    suppression_set_id,
+                    suppression_id,
                     item.company_key,
                     item.company_name,
                     item.filter_alias,
@@ -267,44 +271,32 @@ def persist_suppression_candidate(
                     item.selection_rank,
                 ),
             )
-    return suppression_set_id
+    return suppression_id
 
 
 def update_baseline_state(
     conn: psycopg.Connection[Any],
     *,
-    source_name: str,
-    search_profile_name: str,
-    search_term: str,
-    review_id: int | None,
+    scope: tuple[str, str, str],
+    review_id: int,
     observed_at: datetime,
-    refresh_hours: int,
-    policy_version: str,
+    policy: DecoupledCyclePolicy,
     transport_health_degraded: bool,
 ) -> None:
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO stepstone_baseline_cycle_state (
-                source_name,
-                search_profile_name,
-                search_term,
-                last_baseline_review_id,
-                active_suppression_set_id,
-                last_baseline_at,
-                next_baseline_due_at,
-                filtered_runs_since_baseline,
-                vocabulary_refresh_due,
-                vocabulary_refresh_reason,
-                novelty_degraded,
-                transport_health_degraded,
-                last_run_mode,
-                last_run_at,
+                source_name, search_profile_name, search_term,
+                last_baseline_review_id, active_suppression_set_id,
+                last_baseline_at, next_baseline_due_at,
+                filtered_runs_since_baseline, vocabulary_refresh_due,
+                vocabulary_refresh_reason, novelty_degraded,
+                transport_health_degraded, last_run_mode, last_run_at,
                 policy_version
             ) VALUES (
-                %s, %s, %s, %s, NULL,
-                %s, %s, 0, false, NULL, false, %s,
-                'baseline', %s, %s
+                %s, %s, %s, %s, NULL, %s, %s,
+                0, false, NULL, false, %s, 'baseline', %s, %s
             )
             ON CONFLICT (source_name, search_profile_name, search_term)
             DO UPDATE SET
@@ -323,101 +315,73 @@ def update_baseline_state(
                 updated_at = now()
             """,
             (
-                source_name,
-                search_profile_name,
-                search_term,
+                *scope,
                 review_id,
                 observed_at,
-                observed_at + timedelta(hours=refresh_hours),
+                observed_at
+                + timedelta(hours=policy.baseline_refresh_interval_hours),
                 transport_health_degraded,
                 observed_at,
-                policy_version,
+                policy.policy_version,
             ),
         )
 
 
-def load_origin_connector_states(
+def load_origin_states(
     conn: psycopg.Connection[Any],
-    *,
     observations: list[CompanyObservation],
 ) -> list[OriginConnectorState]:
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT
-                id,
-                company_key,
-                company_name,
-                status,
-                source_name_candidate
+            SELECT company_key, status
             FROM employer_origin_source_candidates
-            ORDER BY id
             """
         )
-        candidates = [dict(row) for row in cur.fetchall()]
+        candidate_status = {
+            normalize_company_key(row["company_key"]): str(row["status"])
+            for row in cur.fetchall()
+        }
         cur.execute(
             """
-            SELECT
-                company_key,
-                refresh_pending,
-                refresh_cooldown_until
+            SELECT company_key, refresh_pending, refresh_cooldown_until
             FROM stepstone_origin_refresh_state
             """
         )
-        refresh_by_key = {
+        refresh_state = {
             normalize_company_key(row["company_key"]): dict(row)
             for row in cur.fetchall()
         }
-
-    candidate_by_key = {
-        normalize_company_key(row["company_key"] or row["company_name"]): row
-        for row in candidates
-        if normalize_company_key(row["company_key"] or row["company_name"])
+    keys = {
+        normalize_company_key(item.company_key or item.company_name)
+        for item in observations
     }
-    states: list[OriginConnectorState] = []
-    seen: set[str] = set()
-    for observation in observations:
-        key = normalize_company_key(
-            observation.company_key or observation.company_name
+    return [
+        OriginConnectorState(
+            company_key=key,
+            has_origin_connector=candidate_status.get(key) == "active_controlled",
+            refresh_pending=bool(refresh_state.get(key, {}).get("refresh_pending")),
+            refresh_cooldown_until=refresh_state.get(key, {}).get(
+                "refresh_cooldown_until"
+            ),
         )
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        matched_key = find_matching_company_key(key, set(candidate_by_key))
-        candidate = candidate_by_key.get(matched_key) if matched_key else None
-        refresh = refresh_by_key.get(key, {})
-        states.append(
-            OriginConnectorState(
-                company_key=key,
-                has_origin_connector=bool(
-                    candidate and candidate.get("status") == "active_controlled"
-                ),
-                refresh_pending=bool(refresh.get("refresh_pending", False)),
-                refresh_cooldown_until=refresh.get("refresh_cooldown_until"),
-            )
-        )
-    return states
+        for key in sorted(keys)
+        if key
+    ]
 
 
 def persist_origin_signals(
     conn: psycopg.Connection[Any],
     *,
-    source_name: str,
-    search_profile_name: str,
-    search_term: str,
+    scope: tuple[str, str, str],
     review_id: int,
     observations: list[CompanyObservation],
     policy: DecoupledCyclePolicy,
     observed_at: datetime,
 ) -> dict[str, int]:
-    baseline_observations = aggregate_baseline_observations(observations)
-    connector_states = load_origin_connector_states(
-        conn,
-        observations=observations,
-    )
     decisions = plan_origin_refresh_decisions(
-        baseline_observations=baseline_observations,
-        connector_states=connector_states,
+        baseline_observations=aggregate_baseline_observations(observations),
+        connector_states=load_origin_states(conn, observations),
         policy=policy,
         now=observed_at,
     )
@@ -425,50 +389,34 @@ def persist_origin_signals(
     with conn.cursor() as cur:
         for decision in decisions:
             counts[decision.action] = counts.get(decision.action, 0) + 1
-            refresh_pending = decision.action == "trigger_origin_refresh"
-            cooldown_until = (
-                observed_at + timedelta(hours=policy.origin_refresh_cooldown_hours)
-                if refresh_pending
-                else None
-            )
+            pending = decision.action == "trigger_origin_refresh"
+            deduplicated = decision.action.startswith("deduplicated_")
             cur.execute(
                 """
                 INSERT INTO stepstone_origin_refresh_state (
-                    source_name,
-                    search_profile_name,
-                    search_term,
-                    company_key,
-                    company_name,
-                    has_origin_connector,
-                    origin_connector_key,
-                    refresh_pending,
-                    refresh_cooldown_until,
-                    last_triggered_at,
-                    last_baseline_observed_at,
-                    last_baseline_card_count,
-                    last_baseline_card_share,
-                    total_trigger_count,
-                    total_deduplicated_count
+                    source_name, search_profile_name, search_term,
+                    company_key, company_name, has_origin_connector,
+                    refresh_pending, refresh_cooldown_until,
+                    last_triggered_at, last_baseline_observed_at,
+                    last_baseline_card_count, last_baseline_card_share,
+                    total_trigger_count, total_deduplicated_count
                 ) VALUES (
-                    %s, %s, %s, %s, %s,
-                    %s, NULL, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s,
+                    CASE WHEN %s THEN %s ELSE NULL END,
                     CASE WHEN %s THEN %s ELSE NULL END,
                     %s, %s, %s,
                     CASE WHEN %s THEN 1 ELSE 0 END,
                     CASE WHEN %s THEN 1 ELSE 0 END
                 )
                 ON CONFLICT (
-                    source_name,
-                    search_profile_name,
-                    search_term,
-                    company_key
+                    source_name, search_profile_name, search_term, company_key
                 ) DO UPDATE SET
                     company_name = EXCLUDED.company_name,
                     has_origin_connector = EXCLUDED.has_origin_connector,
-                    refresh_pending = CASE
-                        WHEN EXCLUDED.refresh_pending THEN true
-                        ELSE stepstone_origin_refresh_state.refresh_pending
-                    END,
+                    refresh_pending = (
+                        stepstone_origin_refresh_state.refresh_pending
+                        OR EXCLUDED.refresh_pending
+                    ),
                     refresh_cooldown_until = COALESCE(
                         EXCLUDED.refresh_cooldown_until,
                         stepstone_origin_refresh_state.refresh_cooldown_until
@@ -489,46 +437,33 @@ def persist_origin_signals(
                     updated_at = now()
                 """,
                 (
-                    source_name,
-                    search_profile_name,
-                    search_term,
+                    *scope,
                     decision.company_key,
                     decision.company_name,
                     decision.action != "origin_discovery_signal",
-                    refresh_pending,
-                    cooldown_until,
-                    refresh_pending,
+                    pending,
+                    pending,
+                    observed_at
+                    + timedelta(hours=policy.origin_refresh_cooldown_hours),
+                    pending,
                     observed_at,
                     observed_at,
                     decision.card_count,
                     decision.card_share,
-                    refresh_pending,
-                    decision.action.startswith("deduplicated_"),
+                    pending,
+                    deduplicated,
                 ),
             )
             cur.execute(
                 """
                 INSERT INTO stepstone_origin_refresh_signals (
-                    source_name,
-                    search_profile_name,
-                    search_term,
-                    baseline_review_id,
-                    company_key,
-                    company_name,
-                    card_count,
-                    card_share,
-                    action,
-                    reason,
-                    origin_connector_key
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, NULL
-                )
+                    source_name, search_profile_name, search_term,
+                    baseline_review_id, company_key, company_name,
+                    card_count, card_share, action, reason
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    source_name,
-                    search_profile_name,
-                    search_term,
+                    *scope,
                     review_id,
                     decision.company_key,
                     decision.company_name,
@@ -562,6 +497,7 @@ def main() -> None:
         raise SystemExit("ABORT: exact --approval-token is required")
 
     observed_at = datetime.now(UTC)
+    scope = (args.source_name, args.search_profile_name, args.search_term)
     with connect() as conn:
         ensure_runtime_schema(conn)
         activation = load_activation(
@@ -571,50 +507,31 @@ def main() -> None:
             search_term=args.search_term,
             location=args.location,
         )
-        state = load_baseline_cycle_state(
-            conn,
-            source_name=args.source_name,
-            search_profile_name=args.search_profile_name,
-            search_term=args.search_term,
-        )
-        due, run_reason = baseline_is_due(
-            state,
+        due, reason = baseline_is_due(
+            load_baseline_cycle_state(
+                conn,
+                source_name=args.source_name,
+                search_profile_name=args.search_profile_name,
+                search_term=args.search_term,
+            ),
             now=observed_at,
             force=args.force,
         )
         if not due:
             print("StepStone baseline production cycle")
             print("action: skip_not_due")
-            print(f"reason: {run_reason}")
+            print(f"reason: {reason}")
             print("requests: 0/1")
             print("RESULT: STEPSTONE_BASELINE_PRODUCTION_CYCLE_SKIPPED")
             return
 
-        policy = DecoupledCyclePolicy(
-            requested_filter_count=int(activation["requested_filter_count"]),
-            baseline_refresh_interval_hours=int(
-                activation["baseline_refresh_interval_hours"]
-            ),
-            max_filtered_runs_between_baselines=int(
-                activation["max_filtered_runs_between_baselines"]
-            ),
-            vocabulary_staleness_hours=int(
-                activation["vocabulary_staleness_hours"]
-            ),
-            origin_refresh_cooldown_hours=int(
-                activation["origin_refresh_cooldown_hours"]
-            ),
-            dominance_min_cards=int(activation["dominance_min_cards"]),
-            dominance_min_share=float(activation["dominance_min_share"]),
-            policy_version=str(activation["policy_version"]),
-        )
+        policy = policy_from_activation(activation)
         plan = build_baseline_plan(
             source_name=args.source_name,
             search_profile_name=args.search_profile_name,
             search_term=args.search_term,
-            run_reason=run_reason,
+            run_reason=reason,
         )
-
         observations, final_url = fetch_stepstone_observations(plan)
         assessment = assess_discovery_observations(
             search_term=args.search_term,
@@ -631,23 +548,19 @@ def main() -> None:
             observations=observations,
             reviewed_by=args.reviewed_by,
         )
-
         if not observations:
             update_baseline_state(
                 conn,
-                source_name=args.source_name,
-                search_profile_name=args.search_profile_name,
-                search_term=args.search_term,
+                scope=scope,
                 review_id=review_id,
                 observed_at=observed_at,
-                refresh_hours=policy.baseline_refresh_interval_hours,
-                policy_version=policy.policy_version,
+                policy=policy,
                 transport_health_degraded=True,
             )
             conn.commit()
             raise SystemExit(
-                "ABORT: baseline returned zero parseable cards; review persisted, "
-                "transport marked degraded, no candidates created"
+                "ABORT: zero parseable cards; review persisted and transport "
+                "marked degraded; no candidates created"
             )
 
         review_observations = load_unpersisted_review_observations(
@@ -661,11 +574,9 @@ def main() -> None:
             apply=True,
             event_source_mode="baseline",
         )
-        suppression_set_id = persist_suppression_candidate(
+        suppression_id = persist_suppression_candidate(
             conn,
-            source_name=args.source_name,
-            search_profile_name=args.search_profile_name,
-            search_term=args.search_term,
+            scope=scope,
             review_id=review_id,
             observations=observations,
             policy=policy,
@@ -673,9 +584,7 @@ def main() -> None:
         )
         origin_counts = persist_origin_signals(
             conn,
-            source_name=args.source_name,
-            search_profile_name=args.search_profile_name,
-            search_term=args.search_term,
+            scope=scope,
             review_id=review_id,
             observations=observations,
             policy=policy,
@@ -683,13 +592,10 @@ def main() -> None:
         )
         update_baseline_state(
             conn,
-            source_name=args.source_name,
-            search_profile_name=args.search_profile_name,
-            search_term=args.search_term,
+            scope=scope,
             review_id=review_id,
             observed_at=observed_at,
-            refresh_hours=policy.baseline_refresh_interval_hours,
-            policy_version=policy.policy_version,
+            policy=policy,
             transport_health_degraded=False,
         )
         conn.commit()
@@ -704,9 +610,12 @@ def main() -> None:
     print(f"created_discovery_candidates: {created}")
     print(f"matched_existing_candidates: {matched}")
     print(f"title_vocabulary_upserts: {vocabulary}")
-    print(f"suppression_candidate_set_id: {suppression_set_id}")
+    print(f"suppression_candidate_set_id: {suppression_id}")
     print(f"origin_signal_counts: {origin_counts}")
-    print("multi_not_production_status: blocked_pending_transport_and_capacity_validation")
+    print(
+        "multi_not_production_status: "
+        "blocked_pending_transport_and_capacity_validation"
+    )
     print("RESULT: STEPSTONE_BASELINE_PRODUCTION_CYCLE_COMPLETED")
 
 
