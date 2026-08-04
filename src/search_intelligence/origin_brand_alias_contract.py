@@ -16,14 +16,13 @@ query generation and identity scoring.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse
 
 from src.search_intelligence import adaptive_origin_search as adaptive
 import src.search_intelligence.origin_source_discovery_agent as origin_agent
 
 _INSTALL_MARKER = "_origin_brand_alias_contract_installed"
 _ORIGINAL_VARIANTS = "_origin_brand_alias_original_brand_surface_variants"
-_ORIGINAL_SCORE = "_origin_brand_alias_original_company_identity_score"
+_ORIGINAL_TOKENS = "_origin_brand_alias_original_company_identity_tokens"
 
 _ALIAS_STOPWORDS = {
     "ag",
@@ -40,7 +39,19 @@ _ALIAS_STOPWORDS = {
     "limited",
     "corp",
     "corporation",
+    "group",
+    "gruppe",
 }
+_LEGAL_TAIL_PATTERN = re.compile(
+    r"\b(?:gmbh|se|ag|kg|kgaa|mbh|ohg|ug|inc|ltd|limited|corp|corporation)\b.*$",
+    re.IGNORECASE,
+)
+
+
+def _trim_legal_tail(value: str) -> str:
+    """Remove the first legal-form suffix and everything after it."""
+
+    return _LEGAL_TAIL_PATTERN.sub("", str(value or "")).strip(" &,+@.-")
 
 
 def _camel_words(value: str) -> tuple[str, ...]:
@@ -68,9 +79,10 @@ def market_brand_aliases(company_name: str) -> tuple[str, ...]:
     """Return high-value generic aliases in search priority order."""
 
     raw = str(company_name or "").strip()
+    trimmed = _trim_legal_tail(raw) or raw
     aliases: list[str] = []
 
-    first_surface = raw.split(maxsplit=1)[0] if raw else ""
+    first_surface = trimmed.split(maxsplit=1)[0] if trimmed else ""
     if first_surface and (
         re.search(r"[.&+@]", first_surface)
         or re.search(r"[A-Za-z]\d|\d[A-Za-z]", first_surface)
@@ -81,25 +93,20 @@ def market_brand_aliases(company_name: str) -> tuple[str, ...]:
 
     raw_tokens = [
         token
-        for token in re.split(r"[^A-Za-z0-9]+", raw)
+        for token in re.split(r"[^A-Za-z0-9]+", trimmed)
         if token
     ]
     has_internal_camel = any(re.search(r"[a-z][A-Z]", token) for token in raw_tokens)
-    words = _camel_words(raw)
+    words = _camel_words(trimmed)
     lowered = [word.lower() for word in words if word.lower() not in _ALIAS_STOPWORDS]
-    if len(lowered) >= 2:
-        dashed = "-".join(lowered)
-        compact = "".join(lowered)
-        # Internal CamelCase is a strong market-brand signal. Preserve both the
-        # human/domain hyphen form and the compact form.
-        if has_internal_camel:
-            aliases.extend((dashed, compact))
-
+    if len(lowered) >= 2 and has_internal_camel:
         initialism = "".join(part[0] for part in lowered if part)
-        # Initialisms are emitted only when internal CamelCase proves the word
-        # boundary. This avoids generic acronyms for ordinary multi-word names.
-        if has_internal_camel and 3 <= len(initialism) <= 8 and not initialism.isdigit():
+        # Three-plus-letter initials are useful market aliases; two letters are
+        # too collision-prone. Emit the initialism before longer variants so a
+        # bounded four-query Basic search spends its fourth query on it.
+        if 3 <= len(initialism) <= 8 and not initialism.isdigit():
             aliases.append(initialism)
+        aliases.extend(("-".join(lowered), "".join(lowered)))
 
     result: list[str] = []
     for alias in aliases:
@@ -110,28 +117,35 @@ def market_brand_aliases(company_name: str) -> tuple[str, ...]:
     return tuple(result[:4])
 
 
-def _compact_alias_match(hostname: str, aliases: tuple[str, ...]) -> str | None:
-    labels = [re.sub(r"[^a-z0-9]+", "", label.lower()) for label in hostname.split(".")]
-    for alias in aliases:
+def _identity_alias_tokens(company_name: str) -> tuple[str, ...]:
+    """Return distinctive compact and long split tokens for identity scoring."""
+
+    tokens: list[str] = []
+    for alias in market_brand_aliases(company_name):
         compact = re.sub(r"[^a-z0-9]+", "", alias.lower())
-        if len(compact) < 3:
-            continue
-        for label in labels:
-            if compact == label or (len(compact) >= 5 and compact in label):
-                return alias
-    return None
+        if len(compact) >= 3 and compact not in tokens:
+            tokens.append(compact)
+        for part in re.split(r"[^a-z0-9]+", alias.lower()):
+            if (
+                len(part) >= 3
+                and part not in origin_agent.LEGAL_OR_GENERIC_TOKENS
+                and part not in {"and", "und", "the", "der", "die", "das"}
+                and part not in tokens
+            ):
+                tokens.append(part)
+    return tuple(tokens)
 
 
 def install_origin_brand_alias_contract() -> None:
-    """Patch brand-surface generation and compact host identity exactly once."""
+    """Patch brand surfaces and identity tokens exactly once."""
 
     if bool(getattr(adaptive, _INSTALL_MARKER, False)):
         return
 
     original_variants = adaptive.brand_surface_variants
-    original_score = origin_agent.company_identity_score
+    original_tokens = origin_agent.company_identity_tokens
     setattr(adaptive, _ORIGINAL_VARIANTS, original_variants)
-    setattr(origin_agent, _ORIGINAL_SCORE, original_score)
+    setattr(origin_agent, _ORIGINAL_TOKENS, original_tokens)
 
     def brand_surface_variants_with_market_aliases(
         *,
@@ -154,32 +168,26 @@ def install_origin_brand_alias_contract() -> None:
                 result.append(item)
         return tuple(result[:8])
 
-    def company_identity_score_with_compact_market_alias(
+    def company_identity_tokens_with_market_aliases(
         *,
-        url: str | None,
         company_key: str,
         company_name: str,
         source_family_candidate: str | None = None,
-    ) -> tuple[float, tuple[str, ...]]:
-        score, reasons = original_score(
-            url=url,
-            company_key=company_key,
-            company_name=company_name,
-            source_family_candidate=source_family_candidate,
+    ) -> tuple[str, ...]:
+        existing = list(
+            original_tokens(
+                company_key=company_key,
+                company_name=company_name,
+                source_family_candidate=source_family_candidate,
+            )
         )
-        normalized = origin_agent.normalize_candidate_url(url)
-        if normalized is None:
-            return score, reasons
-        hostname = str(urlparse(normalized).hostname or "").lower()
-        matched = _compact_alias_match(hostname, market_brand_aliases(company_name))
-        if matched is None:
-            return score, reasons
-        return max(score, 0.55), tuple(
-            (*reasons, f"compact market-brand alias found in host: {matched}")
-        )
+        for token in _identity_alias_tokens(company_name):
+            if token not in existing:
+                existing.append(token)
+        return tuple(existing)
 
     adaptive.brand_surface_variants = brand_surface_variants_with_market_aliases
-    origin_agent.company_identity_score = company_identity_score_with_compact_market_alias
+    origin_agent.company_identity_tokens = company_identity_tokens_with_market_aliases
     setattr(adaptive, _INSTALL_MARKER, True)
 
 
