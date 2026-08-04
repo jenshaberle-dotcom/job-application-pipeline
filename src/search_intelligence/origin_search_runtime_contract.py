@@ -3,6 +3,7 @@
 The URL finder has several entry points. This module keeps them on one runtime
 contract before the staged controller is imported:
 
+- generic market-brand aliases are shared by search and identity scoring;
 - symbol/numeric brand identity scoring is installed everywhere;
 - legal suffix cleanup cannot leave dangling operators such as ``&``;
 - hard origin-quality gates reject malformed hosts, third-party profiles,
@@ -19,6 +20,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from src.search_intelligence import adaptive_origin_search as adaptive
+from src.search_intelligence.origin_brand_alias_contract import (
+    install_origin_brand_alias_contract,
+)
 from src.search_intelligence.origin_quality_contract import (
     install_origin_quality_contract,
 )
@@ -104,6 +108,9 @@ def is_followup_excluded_domain(hostname: str | None) -> bool:
 def install_origin_search_runtime_contract() -> None:
     """Install the shared contract once per Python process."""
 
+    # Alias generation must be installed before the symbol bridge captures the
+    # adaptive brand-surface function for identity scoring.
+    install_origin_brand_alias_contract()
     install_symbol_brand_identity_bridge()
     install_origin_quality_contract()
 
