@@ -10,6 +10,7 @@ from src.connectors.successfactors import (
     MAX_DETAIL_PAGES_HARD_LIMIT,
     SuccessFactorsConnector,
 )
+from src.connectors.successfactors_preview import SuccessFactorsPreviewConnector
 
 
 def record_summary(record: RawJobRecord) -> dict[str, object]:
@@ -95,7 +96,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    connector = SuccessFactorsConnector(
+    connector = SuccessFactorsPreviewConnector(
         target_key=args.target_key,
         max_detail_pages=args.max_detail_pages,
     )
