@@ -5,15 +5,22 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import json
 from pathlib import Path
+import sys
 from typing import Any, Mapping, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
 
-from src.config import get_database_config
-from src.connectors.base import SearchProfile, SearchTerm
-from src.connectors.successfactors_preview import SuccessFactorsPreviewConnector
-from src.ingestion.eon_controlled_pilot import (
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.config import get_database_config  # noqa: E402
+from src.connectors.base import SearchProfile, SearchTerm  # noqa: E402
+from src.connectors.successfactors_preview import (  # noqa: E402
+    SuccessFactorsPreviewConnector,
+)
+from src.ingestion.eon_controlled_pilot import (  # noqa: E402
     APPROVAL_TOKEN,
     EXPECTED_EXTERNAL_JOB_ID,
     PILOT_KEY,
@@ -27,7 +34,7 @@ from src.ingestion.eon_controlled_pilot import (
     is_authorized_pilot_raw_data,
     load_preview_approval_evidence,
 )
-from src.silver.transformer import transform_raw_job_to_silver
+from src.silver.transformer import transform_raw_job_to_silver  # noqa: E402
 
 
 DRY_RUN_RESULT = "EON_CONTROLLED_PILOT_DRY_RUN_VALIDATED"
