@@ -1,13 +1,9 @@
 """Replay operator origin truth with prior blocked collector evidence.
 
-The command reads two local JSON artifacts only:
-
-* an immutable ``origin_operator_attestation`` artifact; and
-* a prior origin-repair artifact containing an exact-URL HTTP 403 observation.
-
-It performs no network access, retries, browser automation, provider request,
-database write, pipeline mutation, or source activation. HTTP 403 remains a
-blocked collector outcome and is never promoted to collection readiness.
+The command reads local JSON artifacts only. It performs no network access,
+retry, browser automation, provider request, database write, pipeline mutation,
+or source activation. HTTP 403 remains blocked evidence and is never promoted
+to collection readiness.
 """
 
 from __future__ import annotations
@@ -30,22 +26,12 @@ from src.search_intelligence.origin_source_discovery_agent import normalize_cand
 
 MAX_JSON_BYTES = 20_000_000
 URL_KEYS = frozenset(
-    {
-        "canonical_url",
-        "final_url",
-        "normalized_url",
-        "requested_url",
-        "url",
-    }
+    {"canonical_url", "final_url", "normalized_url", "requested_url", "url"}
 )
 STATUS_KEYS = frozenset({"http_status", "status_code"})
 REACHABLE_KEYS = frozenset({"prior_reachable", "reachable"})
 CHALLENGE_BOOLEAN_KEYS = frozenset(
-    {
-        "access_control_blocked",
-        "challenge_detected",
-        "challenge_encountered",
-    }
+    {"access_control_blocked", "challenge_detected", "challenge_encountered"}
 )
 CHALLENGE_TEXT_KEYS = frozenset(
     {
@@ -139,8 +125,7 @@ def _timestamp_from_filename(path: Path) -> datetime | None:
         return None
     try:
         return datetime.strptime(
-            "".join(match.groups()),
-            "%Y%m%d%H%M%S",
+            "".join(match.groups()), "%Y%m%d%H%M%S"
         ).replace(tzinfo=timezone.utc)
     except ValueError:
         return None
@@ -179,6 +164,14 @@ def _flatten(
 
 def _last_key(path: tuple[str, ...]) -> str:
     return path[-1].lower() if path else ""
+
+
+def _nearest_key(path: tuple[str, ...], allowed: frozenset[str]) -> str | None:
+    for segment in reversed(path):
+        normalized = segment.lower()
+        if normalized in allowed:
+            return normalized
+    return None
 
 
 def _as_status(value: object) -> int | None:
@@ -221,8 +214,7 @@ def _exact_url_values(
     for path, value in leaves:
         if _last_key(path) not in URL_KEYS or not isinstance(value, str):
             continue
-        normalized = normalize_candidate_url(value)
-        if normalized == expected_url:
+        if normalize_candidate_url(value) == expected_url:
             matches.append(value)
     return matches
 
@@ -232,15 +224,17 @@ def _challenge_indicators(
 ) -> tuple[str, ...]:
     indicators: list[str] = []
     for path, value in leaves:
-        key = _last_key(path)
-        if key in CHALLENGE_BOOLEAN_KEYS and _as_bool(value) is True:
-            indicators.append(f"{key}=true")
-        if key not in CHALLENGE_TEXT_KEYS:
+        boolean_key = _nearest_key(path, CHALLENGE_BOOLEAN_KEYS)
+        if boolean_key is not None and _as_bool(value) is True:
+            indicators.append(f"{boolean_key}=true")
+
+        text_key = _nearest_key(path, CHALLENGE_TEXT_KEYS)
+        if text_key is None:
             continue
         text = _text(value).lower()
         for marker in CHALLENGE_MARKERS:
             if marker in text:
-                indicators.append(f"{key}:{marker}")
+                indicators.append(f"{text_key}:{marker}")
     return tuple(dict.fromkeys(indicators))
 
 
@@ -266,12 +260,12 @@ def _validate_no_mutation(payload: Mapping[str, object]) -> None:
             normalized = str(key).lower()
             if normalized not in MUTATION_KEYS:
                 continue
-            flag = _as_bool(value)
-            if normalized == "source_activation_allowed":
-                if flag is True:
+            if _as_bool(value) is True:
+                if normalized == "source_activation_allowed":
                     raise ValueError("collector artifact grants source activation")
-            elif flag is True:
-                raise ValueError(f"collector artifact reports prohibited mutation: {normalized}")
+                raise ValueError(
+                    f"collector artifact reports prohibited mutation: {normalized}"
+                )
 
 
 def find_exact_blocked_observation(
@@ -288,9 +282,9 @@ def find_exact_blocked_observation(
     candidates: list[tuple[int, int, dict[str, object]]] = []
     for path, mapping in _walk_mappings(payload):
         leaves = _flatten(mapping)
-        exact_urls = _exact_url_values(leaves, expected)
-        if not exact_urls:
+        if not _exact_url_values(leaves, expected):
             continue
+
         statuses = [
             status
             for leaf_path, value in leaves
@@ -300,6 +294,7 @@ def find_exact_blocked_observation(
         ]
         if 403 not in statuses:
             continue
+
         reachable_values = [
             _as_bool(value)
             for leaf_path, value in leaves
@@ -307,6 +302,7 @@ def find_exact_blocked_observation(
         ]
         if False not in reachable_values or True in reachable_values:
             continue
+
         indicators = _challenge_indicators(leaves)
         if not indicators:
             continue
@@ -315,7 +311,7 @@ def find_exact_blocked_observation(
             (
                 _text(value)
                 for leaf_path, value in leaves
-                if _last_key(leaf_path) in {"page_title", "title"}
+                if _nearest_key(leaf_path, frozenset({"page_title", "title"}))
                 and _text(value).strip()
             ),
             "",
@@ -324,7 +320,8 @@ def find_exact_blocked_observation(
             (
                 _text(value)
                 for leaf_path, value in leaves
-                if _last_key(leaf_path) == "failure_class" and _text(value).strip()
+                if _nearest_key(leaf_path, frozenset({"failure_class"}))
+                and _text(value).strip()
             ),
             "",
         )
@@ -437,8 +434,7 @@ def build_blocked_replay_artifact(
 
     origin_payload, origin_raw = _read_json(origin_artifact_path, label="origin artifact")
     collector_payload, collector_raw = _read_json(
-        collector_artifact_path,
-        label="collector artifact",
+        collector_artifact_path, label="collector artifact"
     )
     origin_evidence = _origin_evidence_from_artifact(
         origin_payload,
@@ -448,8 +444,7 @@ def build_blocked_replay_artifact(
     _validate_zero_provider_requests(collector_payload)
     _validate_no_mutation(collector_payload)
     observation = find_exact_blocked_observation(
-        collector_payload,
-        operator_url=normalized_url,
+        collector_payload, operator_url=normalized_url
     )
 
     replay_time = _parse_timestamp(replay_at, label="replay_at")
@@ -494,7 +489,9 @@ def build_blocked_replay_artifact(
         status_code=403,
         reachable=False,
         challenge_detected=True,
-        failure_class=str(observation.get("failure_class") or "access_control_challenge"),
+        failure_class=str(
+            observation.get("failure_class") or "access_control_challenge"
+        ),
         side_effect_free=True,
         provider_requests=0,
         pipeline_mutation=False,
