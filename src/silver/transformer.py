@@ -34,7 +34,11 @@ def normalize_text(value: object) -> str | None:
     return normalized or None
 
 
-def build_normalized_location(city: object, postal_code: object, country: object) -> str | None:
+def build_normalized_location(
+    city: object,
+    postal_code: object,
+    country: object,
+) -> str | None:
     parts = [
         normalize_text(city),
         normalize_text(postal_code),
@@ -69,6 +73,9 @@ def build_canonical_key_candidate(
 
 
 def canonical_source_type(source_name: object) -> str:
+    if isinstance(source_name, str) and source_name.startswith("successfactors:"):
+        return "employer_origin_ats_backed_career_site"
+
     if isinstance(source_name, str) and (
         source_name.startswith("finanz_informatik:")
         or source_name.startswith("enercity:")
@@ -135,8 +142,7 @@ def transform_greenhouse_raw_job(raw_job: dict) -> dict:
     location = job_data.get("location") or {}
 
     publication_date = parse_date(
-        job_data.get("first_published")
-        or job_data.get("updated_at")
+        job_data.get("first_published") or job_data.get("updated_at")
     )
 
     return add_canonicalization_fields(
@@ -233,8 +239,11 @@ def transform_enercity_raw_job(raw_job: dict) -> dict:
     )
 
 
-
-def transform_employer_origin_raw_job(raw_job: dict, *, default_company_name: str | None = None) -> dict:
+def transform_employer_origin_raw_job(
+    raw_job: dict,
+    *,
+    default_company_name: str | None = None,
+) -> dict:
     raw_data = raw_job["raw_data"]
     job_data = raw_data.get("job", {})
     result_card = raw_data.get("result_card", {})
@@ -302,7 +311,13 @@ def transform_raw_job_to_silver(raw_job: dict) -> dict:
         return transform_enercity_raw_job(raw_job)
 
     if source_name.startswith("hdi:"):
-        return transform_employer_origin_raw_job(raw_job, default_company_name="HDI Group")
+        return transform_employer_origin_raw_job(
+            raw_job,
+            default_company_name="HDI Group",
+        )
+
+    if source_name.startswith("successfactors:"):
+        return transform_employer_origin_raw_job(raw_job)
 
     if source_name == "stepstone":
         return transform_stepstone_raw_job(raw_job)
@@ -318,5 +333,6 @@ def get_supported_source_patterns() -> list[str]:
         "finanz_informatik:%",
         "enercity:%",
         "hdi:%",
+        "successfactors:%",
         "stepstone",
     ]
