@@ -6,6 +6,9 @@ import scripts.run_origin_url_default_repair as default_entry
 from src.search_intelligence.origin_explicit_tavily_disable_contract import (
     normalize_explicit_tavily_disable_outcome,
 )
+from src.search_intelligence.origin_operator_url_precedence_contract import (
+    run_with_operator_url_precedence,
+)
 from src.search_intelligence.origin_url_default_repair import (
     RepairStage,
     compatibility_payload,
@@ -37,6 +40,31 @@ def _selected_payload(url: str) -> dict[str, object]:
     }
 
 
+def _rejected_payload(url: str) -> dict[str, object]:
+    return {
+        "company_key": "example",
+        "company_name": "Example GmbH",
+        "decision": "not_found",
+        "selected_url": None,
+        "confidence_score": 1.0,
+        "candidate_count": 1,
+        "reason": "operator URL remained blocked by access control",
+        "alternatives": [],
+        "rejected": [
+            {
+                "url": url,
+                "provider": "operator_supplied_unvalidated",
+                "probe": {
+                    "status_code": 403,
+                    "reachable": False,
+                    "title": "Just a moment...",
+                },
+            }
+        ],
+        "search_results": [{"url": url}],
+    }
+
+
 def test_operator_url_wins_before_selected_fallback(monkeypatch) -> None:
     fallback_calls = 0
 
@@ -61,7 +89,72 @@ def test_operator_url_wins_before_selected_fallback(monkeypatch) -> None:
     assert repair["selected_url"] == "https://operator.example/karriere"
     assert repair["selected_stage"] == "deterministic_operator_url"
     assert fallback_calls == 0
-    assert payload["operator_url_precedence"]["provider_requests"] == 0
+
+    metadata = payload["operator_url_precedence"]
+    assert isinstance(metadata, dict)
+    assert metadata["provider_requests"] == 0
+    assessment = metadata["assessment"]
+    assert isinstance(assessment, dict)
+    assert assessment["artifact_type"] == "deterministic_operator_url_assessment"
+    assert assessment["review_output_only_not_pipeline_input"] is True
+    assert assessment["provider_requests"] == 0
+    assert assessment["pipeline_mutation"] is False
+    assert assessment["source_activation_allowed"] is False
+    assert assessment["payload"]["selected_url"] == (
+        "https://operator.example/karriere"
+    )
+
+
+def test_failed_operator_assessment_is_retained_separately_from_fallback(
+    monkeypatch,
+) -> None:
+    operator_url = "https://operator.example/karriere"
+    fallback_url = "https://fallback.example/karriere"
+    operator_payload = _rejected_payload(operator_url)
+    fallback_calls = 0
+
+    def fallback(args, company_key):  # type: ignore[no-untyped-def]
+        nonlocal fallback_calls
+        fallback_calls += 1
+        assert args.operator_url == []
+        return _selected_payload(fallback_url)
+
+    monkeypatch.setattr(
+        default_entry.staged.adaptive,
+        "_run_atomic_with_rows",
+        lambda args, *, company_key, rows: operator_payload,
+    )
+
+    payload = run_with_operator_url_precedence(
+        fallback,
+        staged_module=default_entry.staged,
+        args=_args(),
+        company_key="example",
+    )
+
+    assert fallback_calls == 1
+    assert payload["selected_url"] == fallback_url
+    metadata = payload["operator_url_precedence"]
+    assert isinstance(metadata, dict)
+    assert metadata["urls"] == [operator_url]
+    assert metadata["selected_url"] is None
+
+    assessment = metadata["assessment"]
+    assert isinstance(assessment, dict)
+    assert assessment["review_output_only_not_pipeline_input"] is True
+    assert assessment["provider_requests"] == 0
+    assert assessment["pipeline_mutation"] is False
+    assert assessment["source_activation_allowed"] is False
+    assert assessment["payload"] == operator_payload
+
+    retained = assessment["payload"]["rejected"][0]
+    assert retained["url"] == operator_url
+    assert retained["probe"] == {
+        "status_code": 403,
+        "reachable": False,
+        "title": "Just a moment...",
+    }
+    assert operator_url not in str(payload.get("baseline_result", ""))
 
 
 def test_explicit_tavily_disable_preserves_deterministic_manual_review() -> None:
