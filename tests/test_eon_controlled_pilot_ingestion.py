@@ -293,7 +293,7 @@ def test_successfactors_silver_transformer_uses_ats_backed_origin_type() -> None
 
 def test_migration_creates_only_inactive_pilot_profile_and_data_term() -> None:
     migration = Path(
-        "db/migrations/079_create_eon_controlled_pilot_profile.sql"
+        "db/migrations/084_create_eon_controlled_pilot_profile.sql"
     ).read_text(encoding="utf-8")
 
     assert PILOT_PROFILE_NAME in migration
