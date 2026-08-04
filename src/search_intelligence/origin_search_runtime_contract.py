@@ -10,8 +10,10 @@ contract before the staged controller is imported:
 - site-follow-up queries are never generated for job boards, review sites,
   knowledge sites, lead databases, or shared ATS platform hosts.
 
-The exclusions affect only *site-follow-up query generation*. A concrete tenant
-URL on a shared ATS host may still be assessed by the identity and quality gates.
+Reviewed corporate aliases are intentionally installed later by the stable entry
+point, after the generic host-identity gate. This preserves gate ordering: the
+registry may explain a previously weak host identity, but the generic gate cannot
+silently undo that reviewed evidence afterward.
 """
 
 from __future__ import annotations
