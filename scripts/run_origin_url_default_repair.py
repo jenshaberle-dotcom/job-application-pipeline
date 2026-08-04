@@ -38,6 +38,12 @@ from src.search_intelligence.origin_registered_short_alias_live_evidence_contrac
 install_origin_registered_short_alias_live_evidence_contract()
 
 from scripts import run_origin_url_staged_repair as staged  # noqa: E402
+from src.search_intelligence.origin_http_probe_transport_contract import (  # noqa: E402
+    install_origin_http_probe_transport_contract,
+)
+
+install_origin_http_probe_transport_contract()
+
 from src.search_intelligence.origin_explicit_llm_disable_contract import (  # noqa: E402
     normalize_explicit_llm_disable_outcome,
 )
