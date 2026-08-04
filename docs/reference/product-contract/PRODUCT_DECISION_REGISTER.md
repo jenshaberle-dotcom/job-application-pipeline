@@ -102,6 +102,7 @@ This register prevents product behavior from being guessed by DON, implementatio
 | `PD-073` | open_operator_decision | Define which changes are proposals only versus direct bounded mutations. |
 | `PD-074` | open_operator_decision | Define notification and reminder behavior. |
 | `PD-075` | open_operator_decision | Define when provider/LLM calls may be triggered by the product workflow. |
+| `PD-076` | approved | Validated Connector Autonomy A1: after `connector_validation_gate = passed / ready_for_final_approval`, a DB-backed standing authorization may replace the per-connector approval token for registration. Controlled activation remains a separate change and requires exactly `activation_readiness_supported`; manual-overlap, unknown, provider, scheduler, recurring-ingestion, ranking and application actions remain blocked. Approved 2026-08-04. |
 
 ## I. Product V1 and success
 

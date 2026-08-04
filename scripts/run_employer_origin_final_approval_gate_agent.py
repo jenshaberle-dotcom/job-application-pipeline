@@ -10,10 +10,17 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.connector_autonomy import (
+    A1_POLICY_KEY,
+    LEGACY_APPROVAL_TOKEN,
+    ConnectorAutonomyPolicy,
+    authorize_connector_registration,
+    policy_from_row,
+)
 from src.search_intelligence.employer_origin_gate_registry import gate_order
 
 FINAL_APPROVAL_GATE = "final_approval_gate"
-APPROVAL_TOKEN = "approve_connector_registration"
+APPROVAL_TOKEN = LEGACY_APPROVAL_TOKEN
 
 
 @dataclass(frozen=True)
@@ -42,7 +49,11 @@ class ApprovalOutcome:
 
 def validation_ready(gates: dict[str, GateReview]) -> bool:
     gate = gates.get("connector_validation_gate")
-    return bool(gate and gate.gate_status == "passed" and gate.decision == "ready_for_final_approval")
+    return bool(
+        gate
+        and gate.gate_status == "passed"
+        and gate.decision == "ready_for_final_approval"
+    )
 
 
 def evaluate_final_approval(
@@ -51,34 +62,14 @@ def evaluate_final_approval(
     gates: dict[str, GateReview],
     approval_token: str | None,
     approved_by: str,
+    autonomy_policy: ConnectorAutonomyPolicy | None = None,
 ) -> ApprovalOutcome:
-    if candidate.status == "active_controlled":
-        evidence = {
-            "agent": "s4c_final_approval_gate_agent",
-            "generated_at_utc": datetime.now(UTC).isoformat(),
-            "candidate": {
-                "candidate_id": candidate.id,
-                "company_key": candidate.company_key,
-                "source_name_candidate": candidate.source_name_candidate,
-                "status": candidate.status,
-            },
-            "approval_token_required": APPROVAL_TOKEN,
-            "approval_token_provided": approval_token == APPROVAL_TOKEN,
-            "approved_by": approved_by,
-            "boundary": {
-                "connector_registration_allowed_after_this_gate": False,
-                "source_activation_allowed": False,
-                "bronze_persistence_allowed": False,
-                "recurring_ingestion_allowed": False,
-                "csv_or_export_inputs_used": False,
-            },
-        }
-        return ApprovalOutcome(
-            gate_status="not_applicable",
-            decision="monitor_existing_source",
-            stop_reason="candidate is already active_controlled",
-            evidence=evidence,
-        )
+    validated = validation_ready(gates)
+    authorization = authorize_connector_registration(
+        validation_ready=validated,
+        approval_token=approval_token,
+        policy=autonomy_policy,
+    )
 
     evidence = {
         "agent": "s4c_final_approval_gate_agent",
@@ -92,28 +83,60 @@ def evaluate_final_approval(
         "approval_token_required": APPROVAL_TOKEN,
         "approval_token_provided": approval_token == APPROVAL_TOKEN,
         "approved_by": approved_by,
+        "authorization": {
+            "allowed": authorization.allowed,
+            "mode": authorization.mode,
+            "reason": authorization.reason,
+            "policy_key": authorization.policy_key,
+            "policy_version": authorization.policy_version,
+            "standing_authorized_by": authorization.standing_authorized_by,
+        },
         "boundary": {
-            "connector_registration_allowed_after_this_gate": True,
-            "source_activation_allowed": False,
+            "connector_registration_allowed_after_this_gate": (
+                candidate.status != "active_controlled"
+            ),
+            "controlled_activation_requires_exact_readiness": True,
+            "allowed_activation_readiness": "activation_readiness_supported",
+            "source_activation_allowed_by_this_gate": False,
             "bronze_persistence_allowed": False,
             "recurring_ingestion_allowed": False,
+            "scheduler_mutation_allowed": False,
+            "provider_requests_allowed": False,
+            "ranking_mutation_allowed": False,
+            "application_actions_allowed": False,
             "csv_or_export_inputs_used": False,
         },
     }
 
-    if not validation_ready(gates):
+    if candidate.status == "active_controlled":
+        evidence["authorization"] = {
+            "allowed": False,
+            "mode": "not_applicable_existing_source",
+            "reason": "candidate is already active_controlled",
+            "policy_key": authorization.policy_key,
+            "policy_version": authorization.policy_version,
+            "standing_authorized_by": authorization.standing_authorized_by,
+        }
         return ApprovalOutcome(
-            gate_status="manual_review_required",
-            decision="approval_blocked",
-            stop_reason="connector_validation_gate is not passed/ready_for_final_approval",
+            gate_status="not_applicable",
+            decision="monitor_existing_source",
+            stop_reason="candidate is already active_controlled",
             evidence=evidence,
         )
 
-    if approval_token != APPROVAL_TOKEN:
+    if not validated:
+        return ApprovalOutcome(
+            gate_status="manual_review_required",
+            decision="approval_blocked",
+            stop_reason=authorization.reason,
+            evidence=evidence,
+        )
+
+    if not authorization.allowed:
         return ApprovalOutcome(
             gate_status="manual_review_required",
             decision="approval_token_required",
-            stop_reason="explicit approval token is required",
+            stop_reason=authorization.reason,
             evidence=evidence,
         )
 
@@ -130,11 +153,15 @@ def approval_lines(candidate: SourceCandidate, outcome: ApprovalOutcome) -> list
         f"candidate_id: {candidate.id}",
         f"candidate: {candidate.company_key} | {candidate.source_name_candidate}",
         f"{FINAL_APPROVAL_GATE}: {outcome.gate_status} / {outcome.decision}",
+        f"authorization_mode: {outcome.evidence['authorization']['mode']}",
     ]
     if outcome.stop_reason:
         lines.append(f"STOP: {outcome.stop_reason}")
     else:
-        lines.append("NEXT: registration execution plan may be prepared. Controlled activation remains separate.")
+        lines.append(
+            "NEXT: registration may proceed; controlled activation still requires "
+            "exact activation_readiness_supported evidence."
+        )
     return lines
 
 
@@ -142,13 +169,21 @@ class ApprovalRepository:
     def __init__(self, conn: psycopg.Connection[Any]) -> None:
         self.conn = conn
 
-    def load_candidate(self, *, candidate_id: int | None, company_key: str | None) -> SourceCandidate:
+    def load_candidate(
+        self,
+        *,
+        candidate_id: int | None,
+        company_key: str | None,
+    ) -> SourceCandidate:
         if candidate_id is None and not company_key:
             raise ValueError("Either candidate_id or company_key is required.")
 
         with self.conn.cursor(row_factory=dict_row) as cur:
             if candidate_id is not None:
-                cur.execute("select * from employer_origin_source_candidates where id = %s", (candidate_id,))
+                cur.execute(
+                    "select * from employer_origin_source_candidates where id = %s",
+                    (candidate_id,),
+                )
             else:
                 cur.execute(
                     """
@@ -194,7 +229,31 @@ class ApprovalRepository:
             for row in rows
         }
 
-    def record_gate(self, *, candidate_id: int, outcome: ApprovalOutcome) -> None:
+    def load_autonomy_policy(self) -> ConnectorAutonomyPolicy | None:
+        with self.conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                "select to_regclass('public.connector_autonomy_policies') as relation"
+            )
+            relation = cur.fetchone()
+            if relation is None or relation["relation"] is None:
+                return None
+            cur.execute(
+                """
+                select *
+                from connector_autonomy_policies
+                where policy_key = %s
+                """,
+                (A1_POLICY_KEY,),
+            )
+            row = cur.fetchone()
+        return policy_from_row(row)
+
+    def record_gate(
+        self,
+        *,
+        candidate: SourceCandidate,
+        outcome: ApprovalOutcome,
+    ) -> None:
         with self.conn.cursor() as cur:
             cur.execute(
                 """
@@ -218,7 +277,7 @@ class ApprovalRepository:
                     reviewed_by = excluded.reviewed_by
                 """,
                 (
-                    candidate_id,
+                    candidate.id,
                     gate_order(FINAL_APPROVAL_GATE),
                     FINAL_APPROVAL_GATE,
                     outcome.gate_status,
@@ -228,22 +287,65 @@ class ApprovalRepository:
                     outcome.evidence["approved_by"],
                 ),
             )
+            cur.execute(
+                "select to_regclass('public.connector_autonomy_authorization_events')"
+            )
+            relation = cur.fetchone()
+            if relation and relation[0] is not None and outcome.gate_status != "not_applicable":
+                authorization = outcome.evidence["authorization"]
+                decision = (
+                    "allowed"
+                    if outcome.gate_status == "passed"
+                    else "manual_review_required"
+                )
+                cur.execute(
+                    """
+                    insert into connector_autonomy_authorization_events (
+                        candidate_id,
+                        source_name_candidate,
+                        action,
+                        decision,
+                        authorization_mode,
+                        policy_key,
+                        policy_version,
+                        evidence,
+                        recorded_by
+                    )
+                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        candidate.id,
+                        candidate.source_name_candidate,
+                        "connector_registration",
+                        decision,
+                        authorization["mode"],
+                        authorization["policy_key"],
+                        authorization["policy_version"],
+                        json.dumps(outcome.evidence),
+                        outcome.evidence["approved_by"],
+                    ),
+                )
 
 
 def run_agent(args: argparse.Namespace) -> int:
     with psycopg.connect(**get_database_config()) as conn:
         repo = ApprovalRepository(conn)
-        candidate = repo.load_candidate(candidate_id=args.candidate_id, company_key=args.company_key)
+        candidate = repo.load_candidate(
+            candidate_id=args.candidate_id,
+            company_key=args.company_key,
+        )
         gates = repo.load_gates(candidate.id)
+        autonomy_policy = repo.load_autonomy_policy()
         outcome = evaluate_final_approval(
             candidate=candidate,
             gates=gates,
             approval_token=args.approval_token,
             approved_by=args.approved_by,
+            autonomy_policy=autonomy_policy,
         )
 
         if not args.dry_run:
-            repo.record_gate(candidate_id=candidate.id, outcome=outcome)
+            repo.record_gate(candidate=candidate, outcome=outcome)
             conn.commit()
 
     for line in approval_lines(candidate, outcome):
@@ -259,12 +361,17 @@ def run_agent(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Record explicit final approval for connector registration.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Record final connector-registration approval through the exact legacy "
+            "token or the active validated-connector A1 policy."
+        )
+    )
     candidate = parser.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate-id", type=int)
     candidate.add_argument("--company-key")
     parser.add_argument("--approval-token")
-    parser.add_argument("--approved-by", default="jens")
+    parser.add_argument("--approved-by", default="connector_autonomy_a1")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--print-json", action="store_true")
     return parser
