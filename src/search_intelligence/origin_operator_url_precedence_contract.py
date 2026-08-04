@@ -55,6 +55,20 @@ def _operator_urls(args: object, ledger: SearchProgressLedger) -> tuple[str, ...
     return ledger.novel_urls(str(item) for item in values)
 
 
+def _operator_assessment(payload: Mapping[str, object]) -> dict[str, object]:
+    """Preserve the exact deterministic operator assessment as review evidence."""
+
+    return {
+        "artifact_type": "deterministic_operator_url_assessment",
+        "schema_version": "1.0",
+        "review_output_only_not_pipeline_input": True,
+        "provider_requests": 0,
+        "pipeline_mutation": False,
+        "source_activation_allowed": False,
+        "payload": dict(payload),
+    }
+
+
 def _operator_metadata(
     *,
     urls: tuple[str, ...],
@@ -71,6 +85,7 @@ def _operator_metadata(
         "state_fingerprint": fingerprint,
         "state_progressed": progressed,
         "untrusted_hint_still_requires_all_origin_gates": True,
+        "assessment": _operator_assessment(payload),
     }
 
 
