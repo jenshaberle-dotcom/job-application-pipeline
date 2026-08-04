@@ -66,10 +66,10 @@ def test_third_party_path_identity_cannot_become_tib_origin() -> None:
 
 def test_unknown_third_party_host_cannot_win_from_path_and_search_context() -> None:
     assessment = _assess(
-        url="https://career-guides.example/companies/example-employer/jobs",
-        company_key="example_employer",
-        company_name="Example Employer GmbH",
-        title="Example Employer Careers",
+        url="https://career-guides.example/companies/acme-employer/jobs",
+        company_key="acme_employer",
+        company_name="Acme Employer GmbH",
+        title="Acme Employer Careers",
     )
 
     assert assessment.decision == "reject"
