@@ -1,11 +1,11 @@
 """Stable entry point for the mandatory staged origin repair runtime.
 
 The compatibility path installs shared normalization, origin-quality,
-host-identity, reviewed-alias, and execution contracts around the staged
-controller. All callers therefore receive the same rules for symbol brands,
-legal suffixes, site-followup filtering, reusable origin types, third-party
-rejection, transport isolation, explicit LLM-disable semantics, and selected
-entity/locale scope review.
+host-identity, reviewed-alias, live-evidence, operator-precedence, and execution
+contracts around the staged controller. All callers therefore receive the same
+rules for symbol brands, legal suffixes, site-followup filtering, reusable origin
+types, third-party rejection, transport isolation, explicit provider-disable
+semantics, and selected entity/locale scope review.
 """
 
 from __future__ import annotations
@@ -31,9 +31,21 @@ from src.search_intelligence.origin_registered_identity_contract import (  # noq
 
 install_origin_registered_identity_contract()
 
+from src.search_intelligence.origin_registered_short_alias_live_evidence_contract import (  # noqa: E402
+    install_origin_registered_short_alias_live_evidence_contract,
+)
+
+install_origin_registered_short_alias_live_evidence_contract()
+
 from scripts import run_origin_url_staged_repair as staged  # noqa: E402
 from src.search_intelligence.origin_explicit_llm_disable_contract import (  # noqa: E402
     normalize_explicit_llm_disable_outcome,
+)
+from src.search_intelligence.origin_explicit_tavily_disable_contract import (  # noqa: E402
+    normalize_explicit_tavily_disable_outcome,
+)
+from src.search_intelligence.origin_operator_url_precedence_contract import (  # noqa: E402
+    run_with_operator_url_precedence,
 )
 from src.search_intelligence.origin_search_execution_contract import (  # noqa: E402
     install_origin_search_execution_contract,
@@ -48,7 +60,16 @@ _STAGED_RUNNER = staged.run_default_repair_for_company
 
 
 def run_default_repair_for_company(args, company_key):  # type: ignore[no-untyped-def]
-    payload = _STAGED_RUNNER(args, company_key)
+    payload = run_with_operator_url_precedence(
+        _STAGED_RUNNER,
+        staged_module=staged,
+        args=args,
+        company_key=company_key,
+    )
+    payload = normalize_explicit_tavily_disable_outcome(
+        payload,
+        tavily_disabled=bool(getattr(args, "disable_tavily", False)),
+    )
     payload = normalize_explicit_llm_disable_outcome(
         payload,
         llm_disabled=bool(getattr(args, "disable_llm", False)),
