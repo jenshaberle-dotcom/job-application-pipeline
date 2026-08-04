@@ -72,7 +72,9 @@ def seed_urls_from_selected_url(value: object) -> tuple[str, ...]:
     return tuple(candidates)
 
 
-def load_seed_hints(paths: Sequence[Path]) -> tuple[dict[str, tuple[str, ...]], list[dict[str, object]]]:
+def load_seed_hints(
+    paths: Sequence[Path],
+) -> tuple[dict[str, tuple[str, ...]], list[dict[str, object]]]:
     """Load untrusted selected URLs from prior read-only audit artifacts.
 
     The artifacts must explicitly declare their review-only and non-mutating
@@ -87,7 +89,9 @@ def load_seed_hints(paths: Sequence[Path]) -> tuple[dict[str, tuple[str, ...]], 
         if data.get("review_output_only_not_pipeline_input") is not True:
             raise ValueError(f"seed artifact is not review-only: {path}")
         if data.get("database_write") is not False:
-            raise ValueError(f"seed artifact does not prove database_write=false: {path}")
+            raise ValueError(
+                f"seed artifact does not prove database_write=false: {path}"
+            )
         rows = data.get("companies")
         if not isinstance(rows, list):
             raise ValueError(f"seed artifact has no companies array: {path}")
@@ -126,10 +130,33 @@ def _repair_args(
     base = legacy.repair_args(args)
     repair = copy(base)
     repair.operator_url = list(operator_urls)
+    repair.disable_llm = bool(args.disable_llm or args.max_llm_requests == 0)
     if deterministic_only:
         repair.disable_tavily = True
         repair.disable_llm = True
     return repair
+
+
+def _phase_b_budget_exhausted(
+    args: argparse.Namespace,
+    *,
+    provider_total: int,
+    llm_total: int,
+) -> bool:
+    """Return whether phase B must stop before another company.
+
+    A zero LLM ceiling means LLM is disabled, not that Tavily is exhausted.
+    Positive active LLM ceilings keep the existing conservative whole-phase
+    guard, while the external provider ceiling remains authoritative.
+    """
+
+    if provider_total >= args.max_provider_requests:
+        return True
+    return bool(
+        not args.disable_llm
+        and args.max_llm_requests > 0
+        and llm_total >= args.max_llm_requests
+    )
 
 
 def run_company_phases(
@@ -211,9 +238,10 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     for index, company in enumerate(companies, start=1):
         key = str(company.get("company_key") or "")
         hints = seed_hints.get(key, ())
-        if args.phase == "two-stage" and (
-            provider_total >= args.max_provider_requests
-            or llm_total >= args.max_llm_requests
+        if args.phase == "two-stage" and _phase_b_budget_exhausted(
+            args,
+            provider_total=provider_total,
+            llm_total=llm_total,
         ):
             # Phase A is free of Tavily/LLM and is still useful. Execute it, then
             # surface an explicit phase-B budget guard when it remains unresolved.
@@ -251,8 +279,9 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                 )
                 phase_a_payloads.append(phase_a)
                 print(
-                    f"origin_budgeted_audit: {index}/{len(companies)} company_key={key} "
-                    "final_state=not_run_budget_guard phase=phase_b_provider"
+                    f"origin_budgeted_audit: {index}/{len(companies)} "
+                    f"company_key={key} final_state=not_run_budget_guard "
+                    "phase=phase_b_provider"
                 )
                 continue
         else:
@@ -274,8 +303,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                     )
                 )
                 print(
-                    f"origin_budgeted_audit: {index}/{len(companies)} company_key={key} "
-                    f"final_state=error error={message}"
+                    f"origin_budgeted_audit: {index}/{len(companies)} "
+                    f"company_key={key} final_state=error error={message}"
                 )
                 if args.stop_on_error:
                     raise
@@ -357,7 +386,9 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "provider_request_count": provider_total,
             "web_search_request_count": web_search_total,
             "llm_request_count": llm_total,
-            "seeded_company_count": sum(1 for row in rows if row.get("seed_url_count")),
+            "seeded_company_count": sum(
+                1 for row in rows if row.get("seed_url_count")
+            ),
             "final_state_counts": dict(sorted(final_counts.items())),
             "audit_phase_counts": dict(sorted(phase_counts.items())),
             "selected_stage_counts": dict(

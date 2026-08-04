@@ -46,6 +46,7 @@ def _args(*, phase: str = "two-stage") -> SimpleNamespace:
         search_llm_reserved_input_tokens=3500,
         search_llm_timeout_seconds=1.0,
         max_search_llm_cost_usd_per_company=0.01,
+        max_llm_requests=50,
         disable_tavily=False,
         disable_llm=False,
     )
