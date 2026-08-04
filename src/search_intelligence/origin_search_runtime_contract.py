@@ -7,12 +7,13 @@ contract before the staged controller is imported:
 - legal suffix cleanup cannot leave dangling operators such as ``&``;
 - hard origin-quality gates reject malformed hosts, third-party profiles,
   generic homepages, job-detail pages, and unsafe acronym-only selections;
-- reviewed corporate aliases feed bounded search and identity scoring;
 - site-follow-up queries are never generated for job boards, review sites,
   knowledge sites, lead databases, or shared ATS platform hosts.
 
-The exclusions affect only *site-follow-up query generation*. A concrete tenant
-URL on a shared ATS host may still be assessed by the identity and quality gates.
+Reviewed corporate aliases are intentionally installed later by the stable entry
+point, after the generic host-identity gate. This preserves gate ordering: the
+registry may explain a previously weak host identity, but the generic gate cannot
+silently undo that reviewed evidence afterward.
 """
 
 from __future__ import annotations
@@ -22,9 +23,6 @@ from collections.abc import Iterable
 from src.search_intelligence import adaptive_origin_search as adaptive
 from src.search_intelligence.origin_quality_contract import (
     install_origin_quality_contract,
-)
-from src.search_intelligence.origin_registered_identity_contract import (
-    install_origin_registered_identity_contract,
 )
 from src.search_intelligence.symbol_brand_identity_bridge import (
     install_symbol_brand_identity_bridge,
@@ -110,7 +108,6 @@ def install_origin_search_runtime_contract() -> None:
 
     install_symbol_brand_identity_bridge()
     install_origin_quality_contract()
-    install_origin_registered_identity_contract()
 
     if bool(getattr(adaptive, _INSTALL_MARKER, False)):
         return
