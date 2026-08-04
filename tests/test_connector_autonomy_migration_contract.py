@@ -19,11 +19,11 @@ def test_a1_migration_is_fail_closed_and_operator_approved() -> None:
     assert "'connector-autonomy-a1-2026-08-04'" in sql
     assert "'jens'" in sql
     assert "TIMESTAMPTZ '2026-08-04 20:10:00+02'" in sql
-    assert "allow_recurring_ingestion = FALSE" in sql
-    assert "allow_scheduler_mutation = FALSE" in sql
-    assert "allow_provider_requests = FALSE" in sql
-    assert "allow_ranking_mutation = FALSE" in sql
-    assert "allow_application_actions = FALSE" in sql
+    assert "AND NOT allow_recurring_ingestion" in sql
+    assert "AND NOT allow_scheduler_mutation" in sql
+    assert "AND NOT allow_provider_requests" in sql
+    assert "AND NOT allow_ranking_mutation" in sql
+    assert "AND NOT allow_application_actions" in sql
 
 
 def test_a1_policy_has_audit_and_pause_surfaces() -> None:
