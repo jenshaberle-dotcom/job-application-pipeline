@@ -31,6 +31,10 @@ def _content(tmp_path: Path, text: str | None = None) -> Path:
 
 
 def _build(tmp_path: Path, **changes: object) -> dict[str, object]:
+    content_path = changes.pop("content_path", None)
+    if content_path is None:
+        content_path = _content(tmp_path)
+
     values: dict[str, object] = {
         "company_key": "e_on_digital_technology",
         "operator_url": EON_URL,
@@ -39,7 +43,7 @@ def _build(tmp_path: Path, **changes: object) -> dict[str, object]:
         "page_title": "E.ON Digital Technology Careers",
         "entity_tokens": ("digital", "technology"),
         "career_signals": ("karriere", "jobs"),
-        "content_path": _content(tmp_path),
+        "content_path": content_path,
         "screenshot_path": None,
         "observed_at": "2026-08-04T10:00:00+00:00",
         "expires_at": "2026-09-03T10:00:00+00:00",
