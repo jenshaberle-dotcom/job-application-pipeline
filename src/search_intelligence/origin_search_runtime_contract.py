@@ -1,16 +1,17 @@
-"""Install shared origin-search normalization and follow-up safeguards.
+"""Install shared origin-search normalization, quality, and follow-up safeguards.
 
 The URL finder has several entry points. This module keeps them on one runtime
 contract before the staged controller is imported:
 
 - symbol/numeric brand identity scoring is installed everywhere;
 - legal suffix cleanup cannot leave dangling operators such as ``&``;
+- hard origin-quality gates reject malformed hosts, third-party profiles,
+  generic homepages, job-detail pages, and unsafe acronym-only selections;
 - site-follow-up queries are never generated for job boards, review sites,
   knowledge sites, lead databases, or shared ATS platform hosts.
 
 The exclusions affect only *site-follow-up query generation*. A concrete tenant
-URL on a shared ATS host may still be assessed and selected by the existing
-identity and career-evidence gates.
+URL on a shared ATS host may still be assessed by the identity and quality gates.
 """
 
 from __future__ import annotations
@@ -18,6 +19,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from src.search_intelligence import adaptive_origin_search as adaptive
+from src.search_intelligence.origin_quality_contract import (
+    install_origin_quality_contract,
+)
 from src.search_intelligence.symbol_brand_identity_bridge import (
     install_symbol_brand_identity_bridge,
 )
@@ -55,7 +59,18 @@ FOLLOWUP_EXCLUDED_DOMAINS = (
     "jooble.org",
     "adzuna.de",
     "simplyhired.de",
-    "ziprecruiter.com",
+    "levels.fyi",
+    "connecticum.de",
+    "reveliolabs.com",
+    "studysmarter.de",
+    "devjobs.de",
+    "kimeta.de",
+    "finest-jobs.com",
+    "bankjob.de",
+    "karriere.at",
+    "nofluffjobs.com",
+    "owcareers.com",
+    "seat11a.com",
     # Shared ATS / recruiting platforms: concrete tenant URLs remain valid
     # candidates, but platform-wide site searches are noisy and unsafe.
     "smartrecruiters.com",
@@ -89,11 +104,11 @@ def is_followup_excluded_domain(hostname: str | None) -> bool:
 def install_origin_search_runtime_contract() -> None:
     """Install the shared contract once per Python process."""
 
-    if bool(getattr(adaptive, _INSTALL_MARKER, False)):
-        install_symbol_brand_identity_bridge()
-        return
-
     install_symbol_brand_identity_bridge()
+    install_origin_quality_contract()
+
+    if bool(getattr(adaptive, _INSTALL_MARKER, False)):
+        return
 
     # Legal forms observed in the candidate inventory. Extending this set is
     # safer than turning legal words into brand/domain identity.
