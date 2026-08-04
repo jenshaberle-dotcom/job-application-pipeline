@@ -1,11 +1,12 @@
 """Stable entry point for the mandatory staged origin repair runtime.
 
 The compatibility path installs shared normalization, origin-quality,
-host-identity, reviewed-alias, live-evidence, operator-precedence, and execution
-contracts around the staged controller. All callers therefore receive the same
-rules for symbol brands, legal suffixes, site-followup filtering, reusable origin
-types, third-party rejection, transport isolation, explicit provider-disable
-semantics, and selected entity/locale scope review.
+host-identity, reviewed-alias, live-evidence, operator-sitemap,
+operator-precedence, and execution contracts around the staged controller. All
+callers therefore receive the same rules for symbol brands, legal suffixes,
+site-followup filtering, reusable origin types, third-party rejection,
+transport isolation, explicit provider-disable semantics, and selected
+entity/locale scope review.
 """
 
 from __future__ import annotations
@@ -36,6 +37,12 @@ from src.search_intelligence.origin_registered_short_alias_live_evidence_contrac
 )
 
 install_origin_registered_short_alias_live_evidence_contract()
+
+from src.search_intelligence.origin_operator_sitemap_evidence_contract import (  # noqa: E402
+    install_origin_operator_sitemap_evidence_contract,
+)
+
+install_origin_operator_sitemap_evidence_contract()
 
 from scripts import run_origin_url_staged_repair as staged  # noqa: E402
 from src.search_intelligence.origin_explicit_llm_disable_contract import (  # noqa: E402
