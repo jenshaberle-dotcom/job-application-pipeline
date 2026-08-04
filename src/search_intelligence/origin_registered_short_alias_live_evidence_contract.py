@@ -1,17 +1,17 @@
 """Resolve live short-alias false reviews with bounded identity evidence.
 
 The reviewed alias registry may contain short market brands such as ``CGM`` or
-``EON``. A prior safety wrapper deliberately downgraded short pure-letter hosts
-when the probed page title did not repeat the long legal employer name. Real
-career pages may expose generic or client-rendered titles, so this outer contract
-accepts two stronger alternatives while preserving the TIB/IVV collision guards:
+``EON``. Safety wrappers deliberately downgrade short pure-letter hosts when the
+long employer identity is not sufficiently repeated. Real career pages may expose
+generic or client-rendered titles, so this outer contract accepts two stronger
+alternatives while preserving the TIB/IVV collision guards:
 
 - an explicitly audited exact-host identity alias;
 - a registered short host alias plus a distinctive employer token in the origin
   path.
 
-Only candidates already selected by all normal origin gates and then downgraded
-by the short-alias title/path guard are eligible. No URL is allowlisted.
+Only candidates that reached a short-identity manual-review state and have no
+independent hard quality blocker are eligible. No URL is allowlisted.
 """
 
 from __future__ import annotations
@@ -24,9 +24,15 @@ import src.search_intelligence.origin_source_discovery_agent as origin_agent
 
 _INSTALL_MARKER = "_origin_registered_short_alias_live_evidence_installed"
 _ORIGINAL_ASSESS = "_origin_registered_short_alias_live_evidence_original_assess"
-_SHORT_ALIAS_GUARD_REASON = (
-    "short registered alias host lacks full employer identity in probed page title or origin path"
-)
+_SHORT_IDENTITY_REVIEW_REASONS = {
+    "short registered alias host lacks full employer identity in probed page title or origin path",
+    "short brand/acronym host lacks full employer identity evidence",
+    "short-only employer identity is collision-prone and requires review",
+}
+_HARD_MANUAL_REVIEW_REASONS = {
+    "job-detail evidence is not a reusable origin source",
+    "generic company page lacks a career/job origin locator",
+}
 
 REGISTERED_EXACT_HOST_IDENTITY_ALIASES: dict[str, tuple[str, ...]] = {
     "compugroup_medical": ("cgm",),
@@ -107,7 +113,15 @@ def install_origin_registered_short_alias_live_evidence_contract() -> None:
         )
         if assessment.decision != "manual_review_candidate":
             return assessment
-        if _SHORT_ALIAS_GUARD_REASON not in assessment.reasons:
+        if not any(
+            reason in _SHORT_IDENTITY_REVIEW_REASONS
+            for reason in assessment.reasons
+        ):
+            return assessment
+        if any(
+            reason in _HARD_MANUAL_REVIEW_REASONS
+            for reason in assessment.reasons
+        ):
             return assessment
 
         final_url = assessment.final_url or assessment.normalized_url or candidate.url
