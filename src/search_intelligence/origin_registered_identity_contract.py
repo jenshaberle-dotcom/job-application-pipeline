@@ -102,9 +102,34 @@ def _distinctive_long_tokens(company_name: str) -> tuple[str, ...]:
     )
 
 
+def _short_alias_anchored_in_path(final_url: str, alias: str | None) -> bool:
+    """Return whether a short reviewed alias is repeated in the origin path.
+
+    This is stronger than a hostname-only acronym match and remains generic. For
+    example, a corporate path such as ``/die-tib/karriere`` anchors ``TIB`` while
+    an unrelated ``tib.com/de/karriere`` page does not.
+    """
+
+    compact_alias = _compact(alias or "")
+    if not compact_alias:
+        return False
+    segments = [
+        _compact(segment)
+        for segment in urlparse(final_url).path.split("/")
+        if segment
+    ]
+    return any(
+        segment == compact_alias
+        or segment.startswith(compact_alias)
+        or segment.endswith(compact_alias)
+        for segment in segments
+    )
+
+
 def _short_letter_alias_lacks_probe_identity(
     assessment: origin_agent.OriginDiscoveryAssessment,
     *,
+    final_url: str,
     alias: str | None,
     company_name: str,
 ) -> bool:
@@ -113,6 +138,8 @@ def _short_letter_alias_lacks_probe_identity(
         return False
     long_tokens = _distinctive_long_tokens(company_name)
     if not long_tokens:
+        return False
+    if _short_alias_anchored_in_path(final_url, alias):
         return False
     probe_title = origin_agent.ascii_fold(
         "" if assessment.probe is None else str(assessment.probe.title or "")
@@ -132,6 +159,7 @@ def _registered_identity_can_promote(
         return False
     if _short_letter_alias_lacks_probe_identity(
         assessment,
+        final_url=final_url,
         alias=alias,
         company_name=company_name,
     ):
@@ -217,6 +245,7 @@ def install_origin_registered_identity_contract() -> None:
         if assessment.decision == "select_candidate" and (
             _short_letter_alias_lacks_probe_identity(
                 assessment,
+                final_url=final_url,
                 alias=alias,
                 company_name=company_name,
             )
@@ -228,7 +257,7 @@ def install_origin_registered_identity_contract() -> None:
                 reasons=tuple(
                     (
                         *assessment.reasons,
-                        "short registered alias host lacks full employer identity in probed page title",
+                        "short registered alias host lacks full employer identity in probed page title or origin path",
                     )
                 ),
             )
@@ -245,7 +274,10 @@ def install_origin_registered_identity_contract() -> None:
                 decision="select_candidate",
                 risk_level="low",
                 reasons=tuple(
-                    (*assessment.reasons, f"reviewed corporate alias found in origin host: {alias}")
+                    (
+                        *assessment.reasons,
+                        f"reviewed corporate alias found in origin host: {alias}",
+                    )
                 ),
             )
 
