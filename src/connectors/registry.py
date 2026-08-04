@@ -8,6 +8,7 @@ from src.connectors.bundesagentur import BundesagenturConnector
 from src.connectors.greenhouse import GreenhouseConnector
 from src.connectors.personio import PersonioConnector
 from src.connectors.stepstone import StepStoneConnector
+from src.connectors.successfactors import SuccessFactorsConnector
 
 
 class ConnectorFactory(Protocol):
@@ -91,12 +92,17 @@ def stepstone_factory(source_name: str) -> JobSourceConnector:
     return StepStoneConnector()
 
 
+def successfactors_factory(source_name: str) -> JobSourceConnector:
+    return SuccessFactorsConnector(target_key=source_target(source_name))
+
+
 def build_default_connector_registry() -> ConnectorRegistry:
     registry = ConnectorRegistry()
     registry.register_exact("bundesagentur_fuer_arbeit", bundesagentur_factory)
     registry.register_family("greenhouse", greenhouse_factory)
     registry.register_family("personio", personio_factory)
     registry.register_exact("stepstone", stepstone_factory)
+    registry.register_family("successfactors", successfactors_factory)
 
     from src.connectors.employer_origin_registry import register_employer_origin_connectors
 
