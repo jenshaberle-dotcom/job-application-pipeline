@@ -29,7 +29,16 @@ _ORIGINAL_NORMALIZE = "_origin_quality_original_normalize_candidate_url"
 _ORIGINAL_ASSESS = "_origin_quality_original_assess_origin_candidate"
 _ORIGINAL_SEARCH_CONVERSION = "_origin_quality_original_search_results_to_candidates"
 
-ORIGIN_HOST_LABELS = {"career", "careers", "jobs", "karriere", "recruiting"}
+ORIGIN_HOST_LABELS = {
+    "career",
+    "careers",
+    "jobs",
+    "karriere",
+    "recruiting",
+    "joinus",
+    "talent",
+    "talents",
+}
 ORIGIN_PATH_SEGMENTS = {
     "career",
     "careers",
@@ -41,8 +50,10 @@ ORIGIN_PATH_SEGMENTS = {
     "jobbörse",
     "recruiting",
     "vacancies",
-    "join-us",
-    "work-with-us",
+    "bewerbung",
+    "join",
+    "joinus",
+    "work",
 }
 JOB_DETAIL_SEGMENTS = {
     "job",
@@ -81,6 +92,14 @@ def _path_segments(url: str) -> tuple[str, ...]:
         segment.lower()
         for segment in urlparse(url).path.split("/")
         if segment.strip()
+    )
+
+
+def _locator_tokens(value: str) -> tuple[str, ...]:
+    return tuple(
+        token
+        for token in re.split(r"[^a-z0-9]+", origin_agent.ascii_fold(value))
+        if token
     )
 
 
@@ -138,12 +157,14 @@ def _has_origin_locator(url: str | None) -> bool:
     host = str(parsed.hostname or "").lower()
     if not host:
         return False
-    first_label = host.split(".", 1)[0]
-    if first_label in ORIGIN_HOST_LABELS:
-        return True
     if origin_agent.is_known_ats_provider_domain(host):
         return True
-    return any(segment in ORIGIN_PATH_SEGMENTS for segment in _path_segments(raw))
+    host_tokens = set(_locator_tokens(host))
+    path_tokens = set(_locator_tokens(parsed.path or ""))
+    return bool(
+        host_tokens & ORIGIN_HOST_LABELS
+        or path_tokens & ORIGIN_PATH_SEGMENTS
+    )
 
 
 def _candidate_context_without_query(candidate: object, probe_title: str | None) -> str:
@@ -205,6 +226,12 @@ def install_origin_quality_contract() -> None:
 
     if bool(getattr(origin_agent, _INSTALL_MARKER, False)):
         return
+
+    if "onapply.de" not in origin_agent.KNOWN_ATS_PROVIDER_HOST_FRAGMENTS:
+        origin_agent.KNOWN_ATS_PROVIDER_HOST_FRAGMENTS = (
+            *origin_agent.KNOWN_ATS_PROVIDER_HOST_FRAGMENTS,
+            "onapply.de",
+        )
 
     original_normalize = origin_agent.normalize_candidate_url
     original_assess = origin_agent.assess_origin_candidate
