@@ -1,10 +1,11 @@
 """Stable entry point for the mandatory staged origin repair runtime.
 
 The compatibility path installs shared normalization, origin-quality,
-host-identity, and execution contracts around the staged controller. All callers
-therefore receive the same rules for symbol brands, legal suffixes, site-followup
-filtering, reusable origin types, third-party rejection, transport isolation, and
-explicit LLM-disable semantics.
+host-identity, brand-alias, execution, and selection-scope contracts around the
+staged controller. All callers therefore receive the same rules for symbol
+brands, legal suffixes, site-followup filtering, reusable origin types,
+third-party rejection, transport isolation, explicit LLM-disable semantics, and
+entity/locale review.
 """
 
 from __future__ import annotations
@@ -28,6 +29,9 @@ from src.search_intelligence.origin_explicit_llm_disable_contract import (  # no
 from src.search_intelligence.origin_search_execution_contract import (  # noqa: E402
     install_origin_search_execution_contract,
 )
+from src.search_intelligence.origin_selection_scope_contract import (  # noqa: E402
+    normalize_selection_scope_outcome,
+)
 
 install_origin_search_execution_contract()
 
@@ -36,9 +40,13 @@ _STAGED_RUNNER = staged.run_default_repair_for_company
 
 def run_default_repair_for_company(args, company_key):  # type: ignore[no-untyped-def]
     payload = _STAGED_RUNNER(args, company_key)
-    return normalize_explicit_llm_disable_outcome(
+    payload = normalize_explicit_llm_disable_outcome(
         payload,
         llm_disabled=bool(getattr(args, "disable_llm", False)),
+    )
+    return normalize_selection_scope_outcome(
+        payload,
+        target_locale=str(getattr(args, "target_locale", "") or "") or None,
     )
 
 
