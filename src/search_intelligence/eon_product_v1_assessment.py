@@ -14,7 +14,7 @@ from src.ingestion.eon_controlled_pilot import (
 ASSESSMENT_KEY = "EON-PRODUCT-V1-ASSESSMENT-001"
 APPROVAL_TOKEN = ASSESSMENT_KEY
 EXPECTED_CANONICAL_SOURCE_TYPE = "employer_origin_ats_backed_career_site"
-EXPECTED_POST_ASSESSMENT_STATUS = "hard_filter_decision_required"
+EXPECTED_POST_ASSESSMENT_STATUS = "hard_filter_evidence_required"
 DEFAULT_ASSESSED_BY = "deterministic_eon_partial_product_v1"
 
 
