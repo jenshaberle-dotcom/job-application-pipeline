@@ -91,6 +91,10 @@ _SENIORITY_PATTERNS = (
     ),
     re.compile(r"\bmany\s+years(?:\s+of)?\s+(?:professional\s+)?experience\b", re.IGNORECASE),
     re.compile(r"\bmehrjährig\w*\s+(?:relevant\w*\s+|beruflich\w*\s+)*erfahrung\b", re.IGNORECASE),
+    re.compile(
+        r"\bextensive\s+(?:relevant\s+)?professional\s+experience\b",
+        re.IGNORECASE,
+    ),
 )
 
 
@@ -212,7 +216,7 @@ def extract_eon_source_evidence(
         patterns=_SENIORITY_PATTERNS,
         missing_message=(
             "stored E.ON description does not explicitly evidence several years "
-            "of professional experience"
+            "or otherwise extensive professional experience"
         ),
     )
 
