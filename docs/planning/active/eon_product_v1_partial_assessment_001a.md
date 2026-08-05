@@ -59,8 +59,8 @@ source-grounded evidence:
 - profile-direction, data-focus, reliability-focus and evidence-quality scores;
 - overall ranking score.
 
-The approved hard-filter policy therefore keeps the expected Product V1 state at
-`hard_filter_decision_required`.
+The approved hard-filter policy and canonical Product V1 readiness view therefore
+keep the expected Product V1 state at `hard_filter_evidence_required`.
 
 ## Plan-only preflight
 
@@ -93,11 +93,20 @@ conflicting assessment fails closed.
 ```text
 readiness_before: assessment_required
 assessment_inserted: true
-readiness_after: hard_filter_decision_required
+readiness_after: hard_filter_evidence_required
 ```
 
-A different post-assessment readiness aborts the transaction rather than
-silently widening eligibility.
+This state is the honest result while language, exact weekly-hours and capability
+fit evidence remain incomplete. A different post-assessment readiness aborts the
+transaction rather than silently widening eligibility.
+
+## Runtime correction evidence
+
+The first real Apply attempt after the full-time metadata fix derived
+`hard_filter_evidence_required` from the database, but the runner still expected
+the non-canonical value `hard_filter_decision_required`. The mismatch occurred
+inside the transaction and therefore rolled back the assessment insert. The
+runner contract now follows the existing Product V1 readiness view.
 
 ## Repository validation
 
