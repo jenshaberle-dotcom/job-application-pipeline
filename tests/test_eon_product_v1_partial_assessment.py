@@ -14,9 +14,11 @@ from src.ingestion.eon_controlled_pilot import (
 from src.search_intelligence.eon_product_v1_assessment import (
     APPROVAL_TOKEN,
     EXPECTED_CANONICAL_SOURCE_TYPE,
+    EXPECTED_POST_ASSESSMENT_STATUS,
     bind_eon_job,
     build_partial_assessment,
 )
+from src.search_intelligence.product_v1 import ProductJob, product_readiness_status
 
 RUNNER = Path("scripts/run_eon_product_v1_partial_assessment.py").read_text(
     encoding="utf-8"
@@ -128,6 +130,38 @@ def test_builds_partial_assessment_without_scores_or_silent_hard_filter_pass() -
         "Permanent",
         "Part or Full time",
     ]
+
+
+def test_expected_post_assessment_status_matches_canonical_product_v1_gate() -> None:
+    binding = bind_eon_job(
+        row=row(),
+        expected_raw_job_id=26342,
+        expected_silver_job_id=466,
+    )
+    assessment = build_partial_assessment(
+        binding=binding,
+        ranking_policy=ranking_policy(),
+        hard_filter_policy=hard_filter_policy(),
+    )
+    product_job = ProductJob(
+        silver_job_id=assessment.silver_job_id,
+        title=EXPECTED_TITLE,
+        company_name="E.ON Digital Technology GmbH",
+        source_url=None,
+        origin_validation_status=assessment.origin_validation_status,
+        activity_status=assessment.activity_status,
+        hard_filter_status=assessment.hard_filter_status,
+        profile_direction_score=assessment.profile_direction_score,
+        data_focus_score=assessment.data_focus_score,
+        reliability_focus_score=assessment.reliability_focus_score,
+        evidence_quality_score=assessment.evidence_quality_score,
+        work_model=assessment.work_model,
+        commute_minutes=assessment.commute_minutes,
+        public_transport_quality=assessment.public_transport_quality,
+    )
+
+    assert EXPECTED_POST_ASSESSMENT_STATUS == "hard_filter_evidence_required"
+    assert product_readiness_status(product_job) == EXPECTED_POST_ASSESSMENT_STATUS
 
 
 @pytest.mark.parametrize(
