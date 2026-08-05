@@ -8,6 +8,9 @@ from src.silver.relevance import (
     is_relevant_for_silver,
 )
 from src.silver.repository import SilverJobRepository
+from src.silver.successfactors_location_projection import (
+    write_silver_job_with_successfactors_locations,
+)
 from src.silver.transformer import (
     get_supported_source_patterns,
     transform_raw_job_to_silver,
@@ -15,10 +18,15 @@ from src.silver.transformer import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Transform unprocessed Bronze raw_jobs into Silver jobs.")
+    parser = argparse.ArgumentParser(
+        description="Transform unprocessed Bronze raw_jobs into Silver jobs."
+    )
     parser.add_argument(
         "--source",
-        help="Optional exact source name or source-family filter, e.g. enercity:discovery or enercity.",
+        help=(
+            "Optional exact source name or source-family filter, "
+            "e.g. enercity:discovery or enercity."
+        ),
     )
     parser.add_argument("--limit", type=int, default=100)
     return parser
@@ -70,7 +78,7 @@ def main(argv: list[str] | None = None) -> None:
             repository.record_processing_decision(
                 raw_job_id=raw_job["id"],
                 decision="skipped",
-		reason=get_silver_decision_reason(raw_job),
+                reason=get_silver_decision_reason(raw_job),
                 role_matches=role_matches,
                 skill_matches=skill_matches,
                 accessibility_matches=accessibility_matches,
@@ -87,7 +95,11 @@ def main(argv: list[str] | None = None) -> None:
             continue
 
         silver_job = transform_raw_job_to_silver(raw_job)
-        repository.upsert_silver_job(silver_job)
+        write_silver_job_with_successfactors_locations(
+            repository,
+            silver_job=silver_job,
+            raw_job=raw_job,
+        )
         repository.record_processing_decision(
             raw_job_id=raw_job["id"],
             decision="included",
