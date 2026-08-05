@@ -51,7 +51,7 @@ def test_reconstructs_exact_flattened_profile_into_eight_blocks() -> None:
         "experience",
         "experience",
         "experience",
-        "technical_capability",
+        "unclassified",
         "experience",
         "experience",
         "collaboration",
@@ -61,7 +61,7 @@ def test_reconstructs_exact_flattened_profile_into_eight_blocks() -> None:
         "collaboration": 1,
         "experience": 5,
         "language": 1,
-        "technical_capability": 1,
+        "unclassified": 1,
     }
 
 
