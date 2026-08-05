@@ -49,10 +49,10 @@ def raw_data() -> dict:
             "company_name": "E.ON Digital Technology GmbH",
             "location": "Essen",
             "description": (
-                "E.ON Digital Technology GmbH | Permanent | Full time "
+                "E.ON Digital Technology GmbH | Permanent | Part or Full time "
                 "The role works with AI, cloud platforms and enterprise data capabilities."
             ),
-            "employment_metadata": ["Permanent", "Full time"],
+            "employment_metadata": ["Permanent", "Part or Full time"],
         },
         "detail_evidence": {
             "status_code": 200,
@@ -123,6 +123,59 @@ def test_builds_partial_assessment_without_scores_or_silent_hard_filter_pass() -
     assert assessment.evidence_quality_score is None
     assert assessment.overall_quality_score is None
     assert assessment.ranking_factors["scores_intentionally_omitted"] is True
+    assert assessment.explanations[2]["status"] == "permanent_full_time_option"
+    assert assessment.explanations[2]["evidence"] == [
+        "Permanent",
+        "Part or Full time",
+    ]
+
+
+@pytest.mark.parametrize(
+    "full_time_evidence",
+    (
+        "Full time",
+        "Full-time",
+        "Part or Full time",
+        "Full or Part time",
+        "Teilzeit oder Vollzeit",
+    ),
+)
+def test_accepts_source_grounded_full_time_option(full_time_evidence: str) -> None:
+    payload = raw_data()
+    payload["job"]["employment_metadata"] = ["Permanent", full_time_evidence]
+    binding = bind_eon_job(
+        row=row(payload),
+        expected_raw_job_id=26342,
+        expected_silver_job_id=466,
+    )
+
+    assessment = build_partial_assessment(
+        binding=binding,
+        ranking_policy=ranking_policy(),
+        hard_filter_policy=hard_filter_policy(),
+    )
+
+    assert assessment.employment_type == "permanent"
+    assert assessment.weekly_hours_min is None
+    assert assessment.weekly_hours_max is None
+    assert assessment.weekly_hours_evidence_status == "unknown"
+
+
+def test_rejects_part_time_only_employment_evidence() -> None:
+    payload = raw_data()
+    payload["job"]["employment_metadata"] = ["Permanent", "Part time"]
+    binding = bind_eon_job(
+        row=row(payload),
+        expected_raw_job_id=26342,
+        expected_silver_job_id=466,
+    )
+
+    with pytest.raises(ValueError, match="Full-time-compatible metadata"):
+        build_partial_assessment(
+            binding=binding,
+            ranking_policy=ranking_policy(),
+            hard_filter_policy=hard_filter_policy(),
+        )
 
 
 def test_rejects_raw_data_without_exact_pilot_authorization() -> None:
@@ -151,7 +204,7 @@ def test_rejects_provider_tainted_raw_data() -> None:
 
 def test_rejects_missing_permanent_employment_evidence() -> None:
     payload = raw_data()
-    payload["job"]["employment_metadata"] = ["Full time"]
+    payload["job"]["employment_metadata"] = ["Part or Full time"]
     binding = bind_eon_job(
         row=row(payload),
         expected_raw_job_id=26342,

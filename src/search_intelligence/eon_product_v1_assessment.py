@@ -84,6 +84,20 @@ def _sequence_of_strings(value: object, label: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value if item.strip())
 
 
+def _normalize_employment_metadata(value: str) -> str:
+    return " ".join(value.casefold().replace("-", " ").split())
+
+
+def _has_full_time_option(values: tuple[str, ...]) -> bool:
+    normalized = tuple(_normalize_employment_metadata(value) for value in values)
+    return any(
+        "full time" in value
+        or "full or part time" in value
+        or "vollzeit" in value
+        for value in normalized
+    )
+
+
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
@@ -193,9 +207,14 @@ def build_partial_assessment(
         job.get("employment_metadata"),
         "job.employment_metadata",
     )
-    normalized_metadata = {value.casefold() for value in employment_metadata}
+    normalized_metadata = {
+        _normalize_employment_metadata(value) for value in employment_metadata
+    }
     _require("permanent" in normalized_metadata, "Permanent employment is not explicitly evidenced")
-    _require("full time" in normalized_metadata, "Full-time metadata is not explicitly evidenced")
+    _require(
+        _has_full_time_option(employment_metadata),
+        "Full-time-compatible metadata is not explicitly evidenced",
+    )
 
     title = str(job.get("title") or "")
     _require(title == EXPECTED_TITLE, "job title does not support the bounded seniority evidence")
@@ -216,7 +235,7 @@ def build_partial_assessment(
         },
         {
             "factor": "employment",
-            "status": "permanent",
+            "status": "permanent_full_time_option",
             "evidence": list(employment_metadata),
         },
         {

@@ -28,7 +28,8 @@ verifies:
 - zero provider requests in acquisition evidence;
 - exact-job HTTP 200 detail observation;
 - verified E.ON Digital Technology employer identity;
-- explicit `Permanent` and `Full time` SuccessFactors metadata;
+- explicit `Permanent` and full-time-compatible `Part or Full time`
+  SuccessFactors metadata;
 - approved and version-aligned Product V1 ranking and hard-filter policies.
 
 ## Persisted assessment facts
@@ -38,6 +39,7 @@ The bounded assessment records:
 - origin validated;
 - activity observed active through the fresh exact-job HTTP 200 evidence;
 - permanent employment observed;
+- a source-grounded full-time option observed;
 - Senior title marker observed;
 - policy key and version;
 - structured explanations and uncertainties.
@@ -48,7 +50,7 @@ The following values remain unknown because this slice has no sufficient
 source-grounded evidence:
 
 - required languages;
-- numeric weekly hours;
+- numeric weekly hours, despite the observed full-time option;
 - salary range;
 - work model;
 - commute and public-transport quality;
@@ -99,9 +101,10 @@ silently widening eligibility.
 
 ## Repository validation
 
-The implementation passed the full Pipeline CI with 85 tracked migrations,
-hard Ruff and E402 gates, 1471 tests, and the React Control Center build. Exact
-run and head identifiers are retained in PR `#349`.
+The implementation is validated by the full Pipeline CI, including tracked
+migrations, hard Ruff and E402 gates, the complete test suite, and the React
+Control Center build. Exact run and head identifiers are retained in the
+associated pull request.
 
 ## Explicit non-goals
 
