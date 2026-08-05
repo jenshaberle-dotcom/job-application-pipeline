@@ -185,7 +185,7 @@ existing schema, and writes only after the exact confirmation token `SPEICHERN`.
 5. Employer tags are prompts only and are not candidate truth unless you explicitly enter a
    corresponding private fact.
 
-## Plan-only validation after authoring
+## plan-only validation after authoring
 
 After a guided save, validate the draft without Apply:
 
