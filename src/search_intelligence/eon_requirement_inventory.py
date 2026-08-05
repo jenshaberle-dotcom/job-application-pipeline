@@ -7,10 +7,6 @@ from html.parser import HTMLParser
 import re
 from typing import Any
 
-from src.search_intelligence.eon_product_v1_source_evidence import (
-    extract_eon_source_evidence,
-)
-
 
 INVENTORY_KEY = "EON-REQUIREMENT-INVENTORY-001"
 REPORT_SCHEMA = "eon_requirement_inventory.v1"
@@ -62,6 +58,30 @@ _END_HEADING_RE = re.compile(
     r"inclusion|diversity|your benefits)\s*:?.*$",
     re.IGNORECASE,
 )
+_FLUENCY_RE = re.compile(
+    r"\b(?:fluent|fluently|fluency|business[- ]fluent|very good|"
+    r"verhandlungssicher|fließend)\b",
+    re.IGNORECASE,
+)
+_EXPERIENCE_ANCHOR_PATTERNS = (
+    re.compile(
+        r"\b(?:several|multiple)\s+years(?:\s+of)?\s+"
+        r"(?:relevant\s+|professional\s+|hands-on\s+)*experience\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bmany\s+years(?:\s+of)?\s+(?:professional\s+)?experience\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bmehrjährig\w*\s+(?:relevant\w*\s+|beruflich\w*\s+)*erfahrung\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bextensive\s+(?:relevant\s+)?professional\s+experience\b",
+        re.IGNORECASE,
+    ),
+)
 
 _FAMILY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
@@ -94,8 +114,8 @@ _FAMILY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "collaboration",
         re.compile(
-            r"\b(?:stakeholder|team|communication|consulting|collaborat\w*|"
-            r"agile|leadership|customer|business partner)\b",
+            r"\b(?:stakeholders?|teams?|communication|consulting|collaborat\w*|"
+            r"agile|leadership|customers?|business partners?)\b",
             re.IGNORECASE,
         ),
     ),
@@ -173,7 +193,10 @@ def _normalize_line(value: str) -> str:
 
 
 def description_lines(description: object) -> tuple[str, ...]:
-    _require(isinstance(description, str) and bool(description.strip()), "stored E.ON description is missing")
+    _require(
+        isinstance(description, str) and bool(description.strip()),
+        "stored E.ON description is missing",
+    )
     parser = _BlockTextParser()
     parser.feed(description)
     parser.close()
@@ -205,7 +228,10 @@ def _profile_section(lines: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
         first_statement = _normalize_line(match.group(1))
         break
 
-    _require(start_index is not None, "stored E.ON description has no recognized profile section")
+    _require(
+        start_index is not None,
+        "stored E.ON description has no recognized profile section",
+    )
 
     statements: list[str] = []
     if first_statement:
@@ -230,8 +256,34 @@ def _profile_section(lines: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
         seen.add(key)
         normalized.append(text)
 
-    _require(bool(normalized), "recognized E.ON profile section contains no requirement statements")
+    _require(
+        bool(normalized),
+        "recognized E.ON profile section contains no requirement statements",
+    )
     return heading or "Your Profile", tuple(normalized)
+
+
+def _validate_profile_anchors(texts: tuple[str, ...]) -> None:
+    has_language = any(
+        "english" in text.casefold()
+        and "german" in text.casefold()
+        and _FLUENCY_RE.search(text) is not None
+        for text in texts
+    )
+    _require(
+        has_language,
+        "E.ON profile section does not explicitly evidence fluent German and English",
+    )
+
+    has_experience = any(
+        pattern.search(text) is not None
+        for text in texts
+        for pattern in _EXPERIENCE_ANCHOR_PATTERNS
+    )
+    _require(
+        has_experience,
+        "E.ON profile section does not explicitly evidence extensive professional experience",
+    )
 
 
 def classify_requirement_family(text: str) -> str:
@@ -252,15 +304,19 @@ def build_eon_requirement_inventory(
     description: object,
     title: object,
 ) -> EonRequirementInventory:
-    source_evidence = extract_eon_source_evidence(
-        description=description,
-        title=title,
+    _require(
+        isinstance(title, str) and bool(title.strip()),
+        "stored E.ON title is missing",
     )
-    del source_evidence
+    _require(
+        "(senior)" in title.casefold(),
+        "bounded E.ON senior title marker is missing",
+    )
 
     assert isinstance(description, str)
     lines = description_lines(description)
     heading, texts = _profile_section(lines)
+    _validate_profile_anchors(texts)
 
     statements: list[EonRequirementStatement] = []
     statement_keys: set[str] = set()
@@ -280,8 +336,14 @@ def build_eon_requirement_inventory(
 
     language_count = sum(item.family == "language" for item in statements)
     experience_count = sum(item.family == "experience" for item in statements)
-    _require(language_count >= 1, "E.ON profile section contains no classified language requirement")
-    _require(experience_count >= 1, "E.ON profile section contains no classified experience requirement")
+    _require(
+        language_count >= 1,
+        "E.ON profile section contains no classified language requirement",
+    )
+    _require(
+        experience_count >= 1,
+        "E.ON profile section contains no classified experience requirement",
+    )
 
     section_material = "\n".join(
         f"{item.statement_key}|{item.family}|{item.text}" for item in statements
