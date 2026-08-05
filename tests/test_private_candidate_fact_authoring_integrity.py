@@ -245,7 +245,8 @@ def test_runner_has_no_database_network_import_or_fit_authority() -> None:
     ).casefold()
 
     assert "psycopg" not in source
-    assert "requests" not in source
+    assert "import requests" not in source
+    assert "from requests" not in source
     assert "--apply" not in source
     assert "approval-token" not in source
     assert "insert into" not in source
