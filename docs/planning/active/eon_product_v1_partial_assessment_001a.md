@@ -97,6 +97,20 @@ readiness_after: hard_filter_decision_required
 A different post-assessment readiness aborts the transaction rather than
 silently widening eligibility.
 
+## Repository validation
+
+Pipeline CI run `30979421237` passed on head
+`0b3046e8da36bd99a83d35937d0d6cd11a63eedb`:
+
+- dependency consistency passed;
+- active Python paths compiled;
+- PowerShell watcher parsed;
+- migration, tooling and governance contract passed with 85 migrations;
+- hard Ruff correctness gate passed;
+- E402 baseline did not grow;
+- full suite: 1471 passed;
+- React Control Center type-check and build passed.
+
 ## Explicit non-goals
 
 This slice does not:
