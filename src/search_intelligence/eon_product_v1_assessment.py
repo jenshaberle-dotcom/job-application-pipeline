@@ -90,7 +90,12 @@ def _normalize_employment_metadata(value: str) -> str:
 
 def _has_full_time_option(values: tuple[str, ...]) -> bool:
     normalized = tuple(_normalize_employment_metadata(value) for value in values)
-    return any("full time" in value or "vollzeit" in value for value in normalized)
+    return any(
+        "full time" in value
+        or "full or part time" in value
+        or "vollzeit" in value
+        for value in normalized
+    )
 
 
 def _require(condition: bool, message: str) -> None:
