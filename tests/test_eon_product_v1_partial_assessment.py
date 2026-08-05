@@ -185,8 +185,10 @@ def test_rejects_policy_version_drift() -> None:
 
 
 def test_runner_contract_is_one_shot_provider_free_and_honest() -> None:
-    assert APPROVAL_TOKEN in RUNNER
-    assert EXPECTED_POST_ASSESSMENT_STATUS in RUNNER
+    assert APPROVAL_TOKEN == "EON-PRODUCT-V1-ASSESSMENT-001"
+    assert "APPROVAL_TOKEN," in RUNNER
+    assert "args.approval_token != APPROVAL_TOKEN" in RUNNER
+    assert "EXPECTED_POST_ASSESSMENT_STATUS" in RUNNER
     assert "gold_product_v1_job_readiness" in RUNNER
     assert "gold_product_v1_hard_filter_evaluation" in RUNNER
     assert "assessment_rows_max" in RUNNER
