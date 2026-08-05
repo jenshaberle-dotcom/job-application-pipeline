@@ -99,8 +99,8 @@ silently widening eligibility.
 
 ## Repository validation
 
-Pipeline CI run `30979421237` passed on head
-`0b3046e8da36bd99a83d35937d0d6cd11a63eedb`:
+Pipeline CI run `30979518370` passed on head
+`366889da9fa21b7fe8fd6eef53c8846036d3eed4`:
 
 - dependency consistency passed;
 - active Python paths compiled;
