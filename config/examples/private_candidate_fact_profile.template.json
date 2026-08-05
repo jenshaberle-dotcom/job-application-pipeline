@@ -1,0 +1,59 @@
+{
+  "schema_version": "candidate_fact_profile.v1",
+  "profile_key": "default",
+  "profile_version": "replace-with-private-version",
+  "status": "draft",
+  "approved_by": null,
+  "approved_at": null,
+  "facts": [
+    {
+      "fact_key": "example.portfolio.implemented-system",
+      "category": "project",
+      "evidence_class": "portfolio_implementation",
+      "approval_status": "proposed",
+      "statement": "Replace this synthetic statement with a privately reviewed implemented-project fact.",
+      "capability_tags": [
+        "example-capability"
+      ],
+      "limitations": [
+        "synthetic_template_only"
+      ],
+      "provenance": [
+        {
+          "source_type": "repository",
+          "reference": "https://example.invalid/private-repository-evidence",
+          "observed_at": "2026-01-01T00:00:00+00:00"
+        }
+      ],
+      "valid_from": null,
+      "valid_until": null,
+      "approved_by": null,
+      "approved_at": null
+    },
+    {
+      "fact_key": "example.target.direction",
+      "category": "target_direction",
+      "evidence_class": "target_direction",
+      "approval_status": "proposed",
+      "statement": "Replace this synthetic statement with a privately reviewed target direction.",
+      "capability_tags": [
+        "example-target"
+      ],
+      "limitations": [
+        "not_capability_evidence",
+        "synthetic_template_only"
+      ],
+      "provenance": [
+        {
+          "source_type": "operator_assertion",
+          "reference": "private operator review",
+          "observed_at": "2026-01-01T00:00:00+00:00"
+        }
+      ],
+      "valid_from": null,
+      "valid_until": null,
+      "approved_by": null,
+      "approved_at": null
+    }
+  ]
+}
