@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
 
+from scripts.run_eon_requirement_inventory import build_inventory_from_binding
 from src.search_intelligence.eon_flat_requirement_segmentation import (
     END_HEADING,
     EXACT_PROFILE_STATEMENTS,
@@ -61,6 +63,27 @@ def test_reconstructs_exact_flattened_profile_into_eight_blocks() -> None:
         "language": 1,
         "technical_capability": 1,
     }
+
+
+def test_runner_preserves_original_flat_source_fingerprint() -> None:
+    flat_description = _flat_page()
+    inventory = build_inventory_from_binding(
+        {
+            "raw_data": {
+                "job": {
+                    "title": TITLE,
+                    "description": flat_description,
+                }
+            }
+        }
+    )
+
+    assert inventory.description_sha256 == sha256(
+        flat_description.encode("utf-8")
+    ).hexdigest()
+    assert inventory.description_sha256 != sha256(
+        str(prepare_eon_requirement_description(flat_description)).encode("utf-8")
+    ).hexdigest()
 
 
 def test_surrounding_page_chrome_role_and_benefits_are_excluded() -> None:
@@ -133,8 +156,9 @@ def test_fails_closed_on_short_single_line_input() -> None:
 
 def test_runner_uses_bounded_flattened_description_adapter() -> None:
     assert "prepare_eon_requirement_description" in RUNNER
-    assert "description = prepare_eon_requirement_description(" in RUNNER
-    assert "description=description" in RUNNER
+    assert "prepared_description = prepare_eon_requirement_description(" in RUNNER
+    assert "description=prepared_description" in RUNNER
+    assert "original_description_sha256" in RUNNER
     assert 'cur.execute("SET TRANSACTION READ ONLY")' in RUNNER
     assert '"database_writes": 0' in RUNNER
     assert '"candidate_fact_reads": 0' in RUNNER
