@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from hashlib import sha256
 import json
 from typing import Any, Final, Mapping, Sequence
@@ -247,7 +247,10 @@ def _parse_review(
             f"{label}.{key} drifted from the sealed E.ON employer specification",
         )
 
-    operator_review = _mapping(requirement.get("operator_review"), f"{label}.operator_review")
+    operator_review = _mapping(
+        requirement.get("operator_review"),
+        f"{label}.operator_review",
+    )
     _exact_keys(operator_review, _OPERATOR_REVIEW_KEYS, f"{label}.operator_review")
 
     decision = _required_string(
@@ -265,7 +268,10 @@ def _parse_review(
         f"{label}.operator_review.candidate_fact_keys",
     )
     notes = operator_review.get("private_notes")
-    _require(isinstance(notes, str), f"{label}.operator_review.private_notes must be a string")
+    _require(
+        isinstance(notes, str),
+        f"{label}.operator_review.private_notes must be a string",
+    )
 
     if decision == DECISION_EVIDENCE_AVAILABLE:
         _require(
