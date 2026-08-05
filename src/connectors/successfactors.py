@@ -10,6 +10,9 @@ import requests
 
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.capabilities import SourceCapabilities
+from src.search_intelligence.successfactors_locations import (
+    extract_successfactors_locations,
+)
 
 
 SOURCE_FAMILY = "successfactors"
@@ -421,6 +424,16 @@ def build_raw_job_record(
     title = detail.title or candidate.title_hint
     detail_url = detail.final_url or candidate.url
     employment_metadata = _employment_metadata(detail, target)
+    structured_locations = extract_successfactors_locations(detail.text)
+    location_payload = [
+        {
+            "city": location.city,
+            "country_code": location.country,
+            "evidence_source": location.evidence_source,
+            "evidence_text": location.evidence_text,
+        }
+        for location in structured_locations
+    ]
 
     return RawJobRecord(
         source_name=target.source_name,
@@ -452,6 +465,7 @@ def build_raw_job_record(
                 "title": title,
                 "company_name": target.employer_name,
                 "location": candidate.location_hint,
+                "locations": location_payload,
                 "source_url": detail_url,
                 "description": detail.text,
                 "employment_metadata": list(employment_metadata),
@@ -467,6 +481,7 @@ def build_raw_job_record(
                 "status_code": detail.status_code,
                 "html_bytes": detail.html_bytes,
                 "target_employer_verified": True,
+                "structured_location_count": len(location_payload),
                 "raw_html_persisted": False,
             },
             "observed_at_utc": observed_at_utc,

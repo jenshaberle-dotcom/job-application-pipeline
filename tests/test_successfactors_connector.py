@@ -6,7 +6,10 @@ from src.connectors.registry import create_connector
 from src.connectors.successfactors import (
     EON_GERMANY_TARGET,
     MAX_DETAIL_PAGES_HARD_LIMIT,
+    DetailPage,
+    ListingCandidate,
     SuccessFactorsConnector,
+    build_raw_job_record,
     concrete_job_url,
     extract_listing_candidates,
     job_id_from_url,
@@ -50,13 +53,19 @@ def listing_html() -> str:
     )
 
 
-def detail_html(*, company: str, title: str) -> str:
+def detail_html(
+    *,
+    company: str,
+    title: str,
+    location_metadata: str = "",
+) -> str:
     return (
         "<html>"
         f"<title>{title} Job Details | E.ON</title>"
         f"<body><h1>{title}</h1>"
         f"{company} | Permanent | Part or Full time "
-        "Build operational data platforms with Python, SQL, cloud and AI."
+        "Build operational data platforms with Python, SQL, cloud and AI. "
+        f"{location_metadata}"
         "</body></html>"
     )
 
@@ -126,6 +135,10 @@ def test_connector_emits_only_exact_target_employer_records() -> None:
                 detail_html(
                     company="E.ON Digital Technology GmbH",
                     title="(Senior) Data Engineer Data & AI (f/m/d)",
+                    location_metadata=(
+                        "Location: Essen, DE Hannover, DE München, DE "
+                        "Function area: IT/Digital"
+                    ),
                 ),
                 DATA_URL,
                 200,
@@ -165,6 +178,27 @@ def test_connector_emits_only_exact_target_employer_records() -> None:
         "E.ON Digital Technology GmbH"
     )
     assert record.raw_data["result_card"]["location"] == "Essen"
+    assert record.raw_data["job"]["location"] == "Essen"
+    assert record.raw_data["job"]["locations"] == [
+        {
+            "city": "Essen",
+            "country_code": "DE",
+            "evidence_source": "successfactors_detail_location_field",
+            "evidence_text": "Essen, DE Hannover, DE München, DE",
+        },
+        {
+            "city": "Hannover",
+            "country_code": "DE",
+            "evidence_source": "successfactors_detail_location_field",
+            "evidence_text": "Essen, DE Hannover, DE München, DE",
+        },
+        {
+            "city": "München",
+            "country_code": "DE",
+            "evidence_source": "successfactors_detail_location_field",
+            "evidence_text": "Essen, DE Hannover, DE München, DE",
+        },
+    ]
     assert "Data Engineer" in record.raw_data["result_card"]["title"]
     assert "Python" in record.raw_data["job"]["description"]
     boundary = record.raw_data["acquisition_boundary"]
@@ -174,7 +208,45 @@ def test_connector_emits_only_exact_target_employer_records() -> None:
     assert boundary["access_control_bypass_used"] is False
     assert boundary["provider_requests"] == 0
     assert boundary["pipeline_mutation"] is False
-    assert record.raw_data["detail_evidence"]["target_employer_verified"] is True
+    detail_evidence = record.raw_data["detail_evidence"]
+    assert detail_evidence["target_employer_verified"] is True
+    assert detail_evidence["structured_location_count"] == 3
+
+
+def test_raw_builder_does_not_infer_unlabelled_prose_locations() -> None:
+    candidate = ListingCandidate(
+        url=DATA_URL,
+        external_job_id="1414903533",
+        title_hint="(Senior) Data Engineer Data & AI (f/m/d)",
+        location_hint="Essen",
+        matched_terms=("data", "ai"),
+        requested_term_match=False,
+    )
+    detail = DetailPage(
+        requested_url=DATA_URL,
+        final_url=DATA_URL,
+        status_code=200,
+        title="(Senior) Data Engineer Data & AI (f/m/d)",
+        text=(
+            "E.ON Digital Technology GmbH | Permanent | Part or Full time "
+            "Collaborate with teams in Hannover and München."
+        ),
+        html_bytes=200,
+    )
+
+    record = build_raw_job_record(
+        candidate=candidate,
+        detail=detail,
+        target=EON_GERMANY_TARGET,
+        listing_url=LISTING_URL,
+        observed_at_utc="2026-08-05T07:00:00+00:00",
+        request_count=2,
+        max_detail_pages=1,
+    )
+
+    assert record.raw_data["job"]["location"] == "Essen"
+    assert record.raw_data["job"]["locations"] == []
+    assert record.raw_data["detail_evidence"]["structured_location_count"] == 0
 
 
 def test_registry_creates_target_without_activating_ingestion() -> None:
