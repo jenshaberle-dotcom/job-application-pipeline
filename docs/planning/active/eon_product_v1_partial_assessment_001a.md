@@ -99,17 +99,9 @@ silently widening eligibility.
 
 ## Repository validation
 
-Pipeline CI run `30979518370` passed on head
-`366889da9fa21b7fe8fd6eef53c8846036d3eed4`:
-
-- dependency consistency passed;
-- active Python paths compiled;
-- PowerShell watcher parsed;
-- migration, tooling and governance contract passed with 85 migrations;
-- hard Ruff correctness gate passed;
-- E402 baseline did not grow;
-- full suite: 1471 passed;
-- React Control Center type-check and build passed.
+The implementation passed the full Pipeline CI with 85 tracked migrations,
+hard Ruff and E402 gates, 1471 tests, and the React Control Center build. Exact
+run and head identifiers are retained in PR `#349`.
 
 ## Explicit non-goals
 
