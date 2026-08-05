@@ -157,16 +157,37 @@ Target profile version: `{normalized_version}`
 - `{WORKBOOK_FILENAME}` is a review worksheet only. It is not pipeline input.
 - `{README_FILENAME}` is this operating guide.
 
-## Authoring sequence
+## Guided authoring
 
-1. Review each of the eight E.ON employer statements in the workbook.
-2. Decide whether you have explicit evidence for any associated employer tag.
-3. Add only facts you personally verify to `{PROFILE_FILENAME}`.
-4. Give every fact a stable `fact_key`, evidence class, statement, capability tags,
-   limitations, provenance, validity and approval metadata as required by the schema.
-5. Keep portfolio implementation, training and professional employment distinct.
-6. Never treat preferences, target directions or planned capabilities as capability evidence.
-7. Validate plan-only before any Apply:
+Do not edit the nested JSON files directly during the normal operator workflow.
+Start the local guided assistant instead:
+
+```bash
+.venv/bin/python -m scripts.author_private_candidate_facts
+```
+
+The assistant presents each of the eight E.ON statements and its employer tags as prompts,
+requires an explicit operator decision, validates every manually authored fact through the
+existing schema, and writes only after the exact confirmation token `SPEICHERN`.
+
+- `q`, EOF or interruption exits without changing either private file.
+- Confirmed changes create timestamped backups beneath `private_candidate_facts/backups/`.
+- New facts remain `proposed`; the profile remains `draft`.
+- No Candidate Fact import, approval, comparison or database action is performed.
+
+## Evidence rules
+
+1. Add only facts you personally verify.
+2. Give every fact a stable `fact_key`, evidence class, statement, capability tags,
+   limitations, provenance and optional validity dates.
+3. Keep portfolio implementation, training and professional employment distinct.
+4. Never treat preferences, target directions or planned capabilities as capability evidence.
+5. Employer tags are prompts only and are not candidate truth unless you explicitly enter a
+   corresponding private fact.
+
+## plan-only validation after authoring
+
+After a guided save, validate the draft without Apply:
 
 ```bash
 .venv/bin/python -m scripts.import_private_candidate_fact_profile \\
@@ -174,7 +195,13 @@ Target profile version: `{normalized_version}`
   --applied-by <operator-name>
 ```
 
-8. Review the redacted plan-only report. Approval and Apply are separate explicit actions.
+Then run the pair-integrity validator:
+
+```bash
+.venv/bin/python -m scripts.run_private_candidate_fact_authoring_integrity
+```
+
+Approval and Apply remain separate explicit actions.
 
 ## Prohibited shortcuts
 
