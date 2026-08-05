@@ -186,7 +186,10 @@ def test_fails_closed_when_language_is_outside_profile_section() -> None:
         "<h2>What we offer</h2>"
     )
 
-    with pytest.raises(ValueError, match="no classified language requirement"):
+    with pytest.raises(
+        ValueError,
+        match="does not explicitly evidence fluent German and English",
+    ):
         build_eon_requirement_inventory(description=description, title=TITLE)
 
 
@@ -198,7 +201,10 @@ def test_fails_closed_when_experience_is_outside_profile_section() -> None:
         "<h2>What we offer</h2>"
     )
 
-    with pytest.raises(ValueError, match="no classified experience requirement"):
+    with pytest.raises(
+        ValueError,
+        match="does not explicitly evidence extensive professional experience",
+    ):
         build_eon_requirement_inventory(description=description, title=TITLE)
 
 
