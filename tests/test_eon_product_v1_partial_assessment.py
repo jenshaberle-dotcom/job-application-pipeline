@@ -14,7 +14,6 @@ from src.ingestion.eon_controlled_pilot import (
 from src.search_intelligence.eon_product_v1_assessment import (
     APPROVAL_TOKEN,
     EXPECTED_CANONICAL_SOURCE_TYPE,
-    EXPECTED_POST_ASSESSMENT_STATUS,
     bind_eon_job,
     build_partial_assessment,
 )
