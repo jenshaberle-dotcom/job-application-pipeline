@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import re
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Mapping, Protocol
 
 
 AUTOMATIC_EVIDENCE_SOURCE = "successfactors_detail_location_field"
@@ -30,19 +30,6 @@ class SilverLocationRow:
     evidence_source: str
     evidence_text: str
     observed_at_utc: str | None
-
-    def identity(self) -> tuple[str, str]:
-        return self.city.casefold(), self.country_code.casefold()
-
-    def payload(self) -> dict[str, object]:
-        return {
-            "city": self.city,
-            "country_code": self.country_code,
-            "is_primary": self.is_primary,
-            "evidence_source": self.evidence_source,
-            "evidence_text": self.evidence_text,
-            "observed_at_utc": self.observed_at_utc,
-        }
 
 
 @dataclass(frozen=True)
@@ -354,14 +341,15 @@ def _synchronize_locations(
             )
             DO UPDATE SET
                 is_primary = EXCLUDED.is_primary,
-                evidence_source = EXCLUDED.evidence_source,
                 evidence_text = EXCLUDED.evidence_text,
                 observed_at_utc = EXCLUDED.observed_at_utc,
                 updated_at = NOW()
-            WHERE silver_job_locations.is_primary IS DISTINCT FROM EXCLUDED.is_primary
-               OR silver_job_locations.evidence_source IS DISTINCT FROM EXCLUDED.evidence_source
-               OR silver_job_locations.evidence_text IS DISTINCT FROM EXCLUDED.evidence_text
-               OR silver_job_locations.observed_at_utc IS DISTINCT FROM EXCLUDED.observed_at_utc
+            WHERE silver_job_locations.evidence_source = EXCLUDED.evidence_source
+              AND (
+                  silver_job_locations.is_primary IS DISTINCT FROM EXCLUDED.is_primary
+                  OR silver_job_locations.evidence_text IS DISTINCT FROM EXCLUDED.evidence_text
+                  OR silver_job_locations.observed_at_utc IS DISTINCT FROM EXCLUDED.observed_at_utc
+              )
             """,
             (
                 silver_job_id,
