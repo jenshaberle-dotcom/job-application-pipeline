@@ -12,6 +12,9 @@ from psycopg.rows import dict_row
 
 from src.config import get_database_config
 from src.ingestion.eon_controlled_pilot import EXPECTED_TITLE
+from src.search_intelligence.eon_flat_requirement_segmentation import (
+    prepare_eon_requirement_description,
+)
 from src.search_intelligence.eon_product_v1_assessment import bind_eon_job
 from src.search_intelligence.eon_requirement_inventory import (
     INVENTORY_KEY,
@@ -101,8 +104,9 @@ def build_inventory_from_binding(
     if not isinstance(job, Mapping):
         raise ValueError("E.ON raw_data.job must be an object")
     _require(job.get("title") == EXPECTED_TITLE, "stored E.ON job title mismatch")
+    description = prepare_eon_requirement_description(job.get("description"))
     return build_eon_requirement_inventory(
-        description=job.get("description"),
+        description=description,
         title=job.get("title"),
     )
 
