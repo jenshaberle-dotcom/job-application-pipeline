@@ -6,6 +6,7 @@ from hashlib import sha256
 from html.parser import HTMLParser
 import re
 from typing import Any
+import unicodedata
 
 
 INVENTORY_KEY = "EON-REQUIREMENT-INVENTORY-001"
@@ -48,8 +49,10 @@ _BLOCK_TAGS = frozenset(
 _SPACE_RE = re.compile(r"\s+")
 _BULLET_PREFIX_RE = re.compile(r"^(?:[•·▪◦*-]|\d+[.)])\s*")
 _PROFILE_HEADING_RE = re.compile(
-    r"^(?:your profile|your qualifications|qualifications|what you bring|"
-    r"what we are looking for|what you are good at|profile)\s*:?(.*)$",
+    r"^(?P<label>your profile|your qualifications|qualifications|what you bring|"
+    r"what we are looking for|what you are good at|profile)"
+    r"(?:\s*[–—]\s*authentic\s*&\s*open-minded)?"
+    r"(?:\s*:\s*(?P<statement>.*))?$",
     re.IGNORECASE,
 )
 _END_HEADING_RE = re.compile(
@@ -187,7 +190,12 @@ def _require(condition: bool, message: str) -> None:
 
 
 def _normalize_line(value: str) -> str:
-    text = _SPACE_RE.sub(" ", value).strip()
+    text = "".join(
+        character
+        for character in value
+        if unicodedata.category(character) != "Cf"
+    )
+    text = _SPACE_RE.sub(" ", text).strip()
     text = _BULLET_PREFIX_RE.sub("", text).strip()
     return text
 
@@ -224,8 +232,8 @@ def _profile_section(lines: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
         if match is None:
             continue
         start_index = index
-        heading = line[: len(line) - len(match.group(1))].rstrip(" :")
-        first_statement = _normalize_line(match.group(1))
+        heading = _normalize_line(match.group("label"))
+        first_statement = _normalize_line(match.group("statement") or "")
         break
 
     _require(
