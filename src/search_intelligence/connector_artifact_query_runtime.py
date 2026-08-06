@@ -30,7 +30,7 @@ def bounded_query_job_detail_url(*, origin_url: str, candidate_url: str) -> bool
 
     return _safe_query_job_detail_link(
         origin_url=origin_url,
-        candidate_url=candidate_url,
+        absolute_url=candidate_url,
         label=QUERY_DETAIL_EVIDENCE_LABEL,
     )
 
