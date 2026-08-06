@@ -28,6 +28,17 @@ from src.search_intelligence.product_e2e_golden_path import (
 )
 
 RESULT = "PRODUCT_E2E_GOLDEN_PATH_AUDIT_COMPLETED"
+REPO_RECONCILABLE_BUILD_STATUSES = frozenset(
+    {
+        "artifact_generation_allowed",
+        "artifacts_present",
+    }
+)
+CONNECTOR_ARTIFACT_PATH_FIELDS = (
+    "connector_module_path",
+    "connector_test_path",
+    "connector_docs_path",
+)
 
 
 def connect() -> psycopg.Connection[Any]:
@@ -41,11 +52,73 @@ def _text(value: object) -> str | None:
     return text or None
 
 
+def _safe_repo_artifact_paths(
+    build_request: Mapping[str, object] | None,
+    *,
+    repo_root: Path,
+) -> tuple[Path, Path, Path] | None:
+    """Resolve the exact persisted artifact paths without leaving the repo root."""
+
+    if not build_request:
+        return None
+
+    root = repo_root.resolve()
+    resolved: list[Path] = []
+    for field in CONNECTOR_ARTIFACT_PATH_FIELDS:
+        raw_path = _text(build_request.get(field))
+        if not raw_path:
+            return None
+        relative_path = Path(raw_path)
+        if relative_path.is_absolute():
+            return None
+        artifact_path = (root / relative_path).resolve()
+        if not artifact_path.is_relative_to(root):
+            return None
+        resolved.append(artifact_path)
+
+    return resolved[0], resolved[1], resolved[2]
+
+
+def reconcile_connector_build_status(
+    candidate_build_status: str | None,
+    build_request: Mapping[str, object] | None,
+    *,
+    repo_root: Path,
+) -> str | None:
+    """Overlay authorized persisted build state with exact repository artifact truth.
+
+    File existence can only complete a request that already reached the explicit
+    artifact-generation boundary. It never upgrades an unapproved, blocked or
+    manual-review request.
+    """
+
+    request_status = (
+        _text(build_request.get("build_status")) if build_request else None
+    )
+    persisted_status = request_status or candidate_build_status
+    if persisted_status not in REPO_RECONCILABLE_BUILD_STATUSES:
+        return persisted_status
+
+    artifact_paths = _safe_repo_artifact_paths(
+        build_request,
+        repo_root=repo_root,
+    )
+    if artifact_paths and all(path.is_file() for path in artifact_paths):
+        return "artifacts_present"
+    return persisted_status
+
+
 class SnapshotRepository:
     """Read current lifecycle and Product V1 evidence without mutation."""
 
-    def __init__(self, conn: psycopg.Connection[Any]) -> None:
+    def __init__(
+        self,
+        conn: psycopg.Connection[Any],
+        *,
+        repo_root: Path = Path("."),
+    ) -> None:
         self.conn = conn
+        self.repo_root = repo_root.resolve()
         self._relations = self._load_relations()
         self._columns: dict[str, set[str]] = {}
 
@@ -171,6 +244,28 @@ class SnapshotRepository:
             (candidate_id,),
         )
 
+    def _build_request_row(
+        self,
+        candidate_id: int | None,
+    ) -> Mapping[str, object] | None:
+        if candidate_id is None or not self.relation_exists(
+            "employer_origin_connector_build_requests"
+        ):
+            return None
+        return self._fetchone(
+            """
+            SELECT
+                build_status,
+                connector_module_path,
+                connector_test_path,
+                connector_docs_path
+            FROM employer_origin_connector_build_requests
+            WHERE candidate_id = %s
+            LIMIT 1
+            """,
+            (candidate_id,),
+        )
+
     def _source_raw_job_count(self, source_name_candidate: str | None) -> int | None:
         if not source_name_candidate or not self.relation_exists("raw_jobs"):
             return None
@@ -267,6 +362,15 @@ class SnapshotRepository:
             None if candidate is None else _text(candidate.get("source_name_candidate"))
         )
         queue = self._queue_row(candidate_id) or {}
+        build_request = self._build_request_row(candidate_id)
+        candidate_build_status = (
+            None if candidate is None else _text(candidate.get("build_status"))
+        )
+        effective_build_status = reconcile_connector_build_status(
+            candidate_build_status,
+            build_request,
+            repo_root=self.repo_root,
+        )
         return LifecycleSnapshot(
             candidate_id=candidate_id,
             canonical_company_name=canonical_company_name,
@@ -294,9 +398,7 @@ class SnapshotRepository:
             generation_status=(
                 None if candidate is None else _text(candidate.get("generation_status"))
             ),
-            build_status=(
-                None if candidate is None else _text(candidate.get("build_status"))
-            ),
+            build_status=effective_build_status,
             queue_action=_text(queue.get("queue_action")),
             queue_reason=_text(queue.get("queue_reason")),
             gate_states=self._gates(candidate_id),
@@ -348,6 +450,11 @@ def build_report(
         "schema_version": "product_e2e_golden_path_audit.v1",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "review_output_only_not_pipeline_input": True,
+        "repo_truth_reconciliation": {
+            "connector_artifact_paths_from_persisted_build_request": True,
+            "artifact_generation_approval_required_before_overlay": True,
+            "file_presence_does_not_authorize_activation": True,
+        },
         "boundary": AUDIT_BOUNDARY,
         "selection": {
             "selected_case_count": len(cases),
