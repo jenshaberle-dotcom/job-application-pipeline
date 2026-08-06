@@ -43,6 +43,89 @@ type Job = {
   uncertainties?: string[];
 };
 
+type GateState = {
+  status: string;
+  decision?: string | null;
+  passed: boolean;
+  truth_source: string;
+};
+
+type SourceConnector = {
+  source_name: string;
+  source_label: string;
+  source_type: string;
+  candidate_status: string;
+  connector: {
+    implemented: boolean;
+    implementation_status: string;
+    implementation_truth_source: string;
+    code_backed_registered: boolean;
+    registration_status: string;
+    connector_class?: string | null;
+    registration_error?: string | null;
+  };
+  gates: {
+    connector_validation_gate: GateState;
+    final_approval_gate: GateState;
+  };
+  activation: {
+    status: string;
+    active: boolean | null;
+    truth_source: string;
+  };
+  search_profiles: {
+    status: string;
+    profile_count: number;
+    active_profile_count: number;
+    active_search_term_count: number;
+    truth_source: string;
+  };
+  last_ingestion: {
+    status: string;
+    started_at?: string | null;
+    finished_at?: string | null;
+    total_loaded: number;
+    inserted_count: number;
+    error_message?: string | null;
+    truth_source: string;
+  };
+  layers: {
+    status: string;
+    bronze_present: boolean | null;
+    bronze_count: number;
+    silver_present: boolean | null;
+    silver_count: number;
+    truth_source: string;
+  };
+  lifecycle: {
+    implementation: string;
+    validation: string;
+    final_approval: string;
+    registration: string;
+    activation: string;
+    ingestion: string;
+  };
+  inconsistencies: string[];
+  current_blocker?: string | null;
+  next_action: string;
+};
+
+type SourceConnectorOverview = {
+  schema_version: string;
+  summary: {
+    source_count: number;
+    implemented_count: number;
+    validated_count: number;
+    final_approved_count: number;
+    registered_count: number;
+    active_count: number;
+    ingested_count: number;
+    attention_count: number;
+  };
+  sources: SourceConnector[];
+  boundaries: Record<string, boolean>;
+};
+
 type ProductPayload = {
   schema_version: string;
   product: {
@@ -68,22 +151,52 @@ type ProductPayload = {
     base_cv: boolean;
     base_application_letter: boolean;
   };
+  source_connector_overview: SourceConnectorOverview;
   operator_blockers: OperatorBlocker[];
   boundaries: Record<string, boolean>;
 };
 
-type Tab = "overview" | "waves" | "top-jobs" | "applications";
+type Tab = "overview" | "sources" | "waves" | "top-jobs" | "applications";
+type SourceFilter = "all" | "attention" | "active" | "not-activated";
 
 const label = (value: string | undefined) =>
   (value || "unknown").replaceAll("_", " ");
 
+const statusTone = (value: string) => {
+  const normalized = value.toLowerCase();
+  if (
+    normalized.includes("inconsistent") ||
+    normalized.includes("error") ||
+    normalized.includes("failed") ||
+    normalized.includes("blocked")
+  ) return "bad";
+  if (
+    normalized === "passed" ||
+    normalized === "approved" ||
+    normalized === "registered" ||
+    normalized === "implemented" ||
+    normalized === "active" ||
+    normalized === "ingested" ||
+    normalized.includes("available") ||
+    normalized.includes("ready") ||
+    normalized.includes("present") ||
+    normalized === "success"
+  ) return "ok";
+  if (
+    normalized.includes("required") ||
+    normalized.includes("waiting") ||
+    normalized.includes("unknown") ||
+    normalized.includes("not ") ||
+    normalized.includes("not_") ||
+    normalized.includes("inactive") ||
+    normalized.includes("pending") ||
+    normalized.includes("no ingestion")
+  ) return "warn";
+  return "neutral";
+};
+
 function StatusPill({ value }: { value: string }) {
-  const tone = value.includes("available") || value.includes("ready") || value === "approved"
-    ? "ok"
-    : value.includes("required") || value.includes("waiting")
-      ? "warn"
-      : "neutral";
-  return <span className={`status-pill ${tone}`}>{label(value)}</span>;
+  return <span className={`status-pill ${statusTone(value)}`}>{label(value)}</span>;
 }
 
 function Metric({ labelText, value, helper }: { labelText: string; value: number; helper: string }) {
@@ -126,10 +239,66 @@ function JobCard({ job, ranked }: { job: Job; ranked?: boolean }) {
   );
 }
 
+const lifecycleLabels: Array<[keyof SourceConnector["lifecycle"], string]> = [
+  ["implementation", "Implemented"],
+  ["validation", "Validated"],
+  ["final_approval", "Approved"],
+  ["registration", "Registered"],
+  ["activation", "Activated"],
+  ["ingestion", "Ingested"]
+];
+
+function SourceConnectorCard({ source }: { source: SourceConnector }) {
+  return (
+    <article className={`source-card ${source.inconsistencies.length ? "has-inconsistency" : ""}`}>
+      <header>
+        <div>
+          <code>{source.source_name}</code>
+          <h4>{source.source_label}</h4>
+          <p>{label(source.source_type)} · {source.connector.connector_class || "connector class unknown"}</p>
+        </div>
+        <StatusPill value={source.current_blocker ? "attention_required" : "truth_available"} />
+      </header>
+
+      <div className="lifecycle-rail" aria-label={`${source.source_name} lifecycle`}>
+        {lifecycleLabels.map(([key, text]) => (
+          <div className={`lifecycle-step ${statusTone(source.lifecycle[key])}`} key={key}>
+            <i />
+            <span>{text}</span>
+            <small>{label(source.lifecycle[key])}</small>
+          </div>
+        ))}
+      </div>
+
+      <div className="source-facts">
+        <span>Search profiles <b>{label(source.search_profiles.status)} ({source.search_profiles.active_profile_count}/{source.search_profiles.profile_count})</b></span>
+        <span>Last ingestion <b>{label(source.last_ingestion.status)}</b></span>
+        <span>Bronze <b>{source.layers.bronze_count}</b></span>
+        <span>Silver <b>{source.layers.silver_count}</b></span>
+      </div>
+
+      <div className="next-action-panel">
+        <span className="eyebrow">Current blocker / next safe action</span>
+        <strong>{source.current_blocker ? label(source.current_blocker) : "No current blocker"}</strong>
+        <p>{source.next_action}</p>
+      </div>
+
+      <details>
+        <summary>Truth provenance</summary>
+        <p>Implementation and registration: {label(source.connector.implementation_truth_source)}.</p>
+        <p>Validation and approval: employer-origin gate reviews.</p>
+        <p>Activation: {source.activation.truth_source}; ingestion: {source.last_ingestion.truth_source}; layers: {source.layers.truth_source}.</p>
+        {source.inconsistencies.length > 0 && <p className="inconsistency-copy">Detected: {source.inconsistencies.map(label).join(", ")}</p>}
+      </details>
+    </article>
+  );
+}
+
 export default function App() {
   const [payload, setPayload] = useState<ProductPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -150,12 +319,29 @@ export default function App() {
     [payload]
   );
 
+  const filteredSources = useMemo(() => {
+    const sources = payload?.source_connector_overview.sources || [];
+    if (sourceFilter === "attention") return sources.filter((source) => Boolean(source.current_blocker));
+    if (sourceFilter === "active") return sources.filter((source) => source.activation.active === true);
+    if (sourceFilter === "not-activated") return sources.filter((source) => source.activation.active === false);
+    return sources;
+  }, [payload, sourceFilter]);
+
   if (error) {
     return <main className="fatal"><h1>Control Center unavailable</h1><pre>{error}</pre></main>;
   }
   if (!payload) {
     return <main className="loading"><div className="sonar" /><p>Reading Deep Ocean product state…</p></main>;
   }
+
+  const tabTitle: Record<Tab, string> = {
+    overview: "Product V1 command surface",
+    sources: "Source & Connector Overview",
+    waves: "StepStone Waves",
+    "top-jobs": "Top Jobs",
+    applications: "Applications"
+  };
+  const sourceOverview = payload.source_connector_overview;
 
   return (
     <div className="app-shell">
@@ -169,6 +355,7 @@ export default function App() {
         <nav>
           {([
             ["overview", "Overview"],
+            ["sources", "Sources & Connectors"],
             ["waves", "StepStone Waves"],
             ["top-jobs", "Top 5"],
             ["applications", "Applications"]
@@ -188,7 +375,7 @@ export default function App() {
         <header className="page-header">
           <div>
             <span className="eyebrow">Intent locked · implementation adaptive</span>
-            <h2>{tab === "overview" ? "Product V1 command surface" : label(tab)}</h2>
+            <h2>{tabTitle[tab]}</h2>
           </div>
           <span className="live-indicator"><i /> repository & DB truth</span>
         </header>
@@ -210,7 +397,7 @@ export default function App() {
               <Metric labelText="Wave terms" value={payload.summary.wave_term_count} helper="bounded StepStone search spaces" />
               <Metric labelText="Observed jobs" value={payload.summary.observed_job_count} helper="Silver jobs in Product V1 view" />
               <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="origin + activity + hard gates passed" />
-              <Metric labelText="Top jobs" value={payload.summary.top_job_count} helper="only after approved ranking policy" />
+              <Metric labelText="Registered sources" value={sourceOverview.summary.registered_count} helper="registration is not activation" />
             </section>
             <section className="pillar-grid">
               {payload.pillars.map((pillar, index) => (
@@ -223,6 +410,37 @@ export default function App() {
               ))}
             </section>
           </>
+        )}
+
+        {tab === "sources" && (
+          <section className="content-panel source-overview-panel">
+            <header>
+              <span className="eyebrow">Separate lifecycle truths · no optimistic defaults</span>
+              <h3>Sources and code-backed connectors</h3>
+              <p>Implementation, validation, final approval, registration, activation and ingestion are reported independently from runtime registry and database evidence.</p>
+            </header>
+            <section className="source-metrics">
+              <Metric labelText="Known sources" value={sourceOverview.summary.source_count} helper="registry or DB-backed identity" />
+              <Metric labelText="Validated" value={sourceOverview.summary.validated_count} helper="connector validation passed" />
+              <Metric labelText="Active" value={sourceOverview.summary.active_count} helper="active search profile present" />
+              <Metric labelText="Ingested" value={sourceOverview.summary.ingested_count} helper="Bronze or Silver rows present" />
+              <Metric labelText="Needs attention" value={sourceOverview.summary.attention_count} helper="blocker or next bounded action" />
+            </section>
+            <div className="source-filter" aria-label="Filter source overview">
+              {([
+                ["all", "All"],
+                ["attention", "Needs attention"],
+                ["active", "Active"],
+                ["not-activated", "Not activated"]
+              ] as Array<[SourceFilter, string]>).map(([id, text]) => (
+                <button className={sourceFilter === id ? "active" : ""} key={id} onClick={() => setSourceFilter(id)}>{text}</button>
+              ))}
+            </div>
+            <div className="source-card-grid">
+              {filteredSources.map((source) => <SourceConnectorCard source={source} key={source.source_name} />)}
+              {filteredSources.length === 0 && <p className="empty">No source matches this filter.</p>}
+            </div>
+          </section>
         )}
 
         {tab === "waves" && (

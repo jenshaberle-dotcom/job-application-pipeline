@@ -18,6 +18,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+from src.connectors.registry import build_default_connector_registry
 from src.search_intelligence.product_v1 import (
     OperatorDecisionRequired,
     ProductJob,
@@ -25,6 +26,9 @@ from src.search_intelligence.product_v1 import (
     rank_product_jobs,
 )
 from src.search_intelligence.product_v1_service import build_product_v1_payload
+from src.search_intelligence.source_connector_overview import (
+    build_source_connector_overview,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -173,10 +177,200 @@ def _build_top_jobs(
     return result
 
 
+def _load_source_candidates(
+    conn: psycopg.Connection[object],
+) -> list[dict[str, object]]:
+    if not _relation_exists(conn, "employer_origin_source_candidates"):
+        return []
+
+    lifecycle_join = ""
+    module_path_column = "NULL::text AS connector_module_path"
+    if _relation_exists(conn, "gold_candidate_lifecycle_status"):
+        lifecycle_join = (
+            "LEFT JOIN gold_candidate_lifecycle_status lifecycle "
+            "ON lifecycle.candidate_id = candidate.id"
+        )
+        module_path_column = "lifecycle.connector_module_path"
+
+    gate_join = ""
+    gate_columns = """
+        NULL::text AS connector_validation_gate_status,
+        NULL::text AS connector_validation_gate_decision,
+        NULL::text AS final_approval_gate_status,
+        NULL::text AS final_approval_gate_decision
+    """
+    if _relation_exists(conn, "employer_origin_candidate_gate_reviews"):
+        gate_join = """
+            LEFT JOIN employer_origin_candidate_gate_reviews validation
+              ON validation.candidate_id = candidate.id
+             AND validation.gate_name = 'connector_validation_gate'
+            LEFT JOIN employer_origin_candidate_gate_reviews approval
+              ON approval.candidate_id = candidate.id
+             AND approval.gate_name = 'final_approval_gate'
+        """
+        gate_columns = """
+            validation.gate_status AS connector_validation_gate_status,
+            validation.decision AS connector_validation_gate_decision,
+            approval.gate_status AS final_approval_gate_status,
+            approval.decision AS final_approval_gate_decision
+        """
+
+    return _fetch_all(
+        conn,
+        f"""
+        SELECT
+            candidate.id AS candidate_id,
+            candidate.company_name,
+            candidate.source_name_candidate AS source_name,
+            candidate.source_type_candidate AS source_type,
+            candidate.status AS candidate_status,
+            candidate.updated_at,
+            {module_path_column},
+            {gate_columns}
+        FROM employer_origin_source_candidates candidate
+        {lifecycle_join}
+        {gate_join}
+        ORDER BY candidate.updated_at, candidate.id
+        """,
+    )
+
+
+def _load_search_profile_summary(
+    conn: psycopg.Connection[object],
+) -> list[dict[str, object]]:
+    if not _relation_exists(conn, "search_profiles"):
+        return []
+    if _relation_exists(conn, "search_terms"):
+        return _fetch_all(
+            conn,
+            """
+            SELECT
+                profile.source_name,
+                count(DISTINCT profile.id) AS profile_count,
+                count(DISTINCT profile.id) FILTER (
+                    WHERE profile.is_active
+                ) AS active_profile_count,
+                count(term.id) FILTER (
+                    WHERE profile.is_active AND term.is_active
+                ) AS active_search_term_count
+            FROM search_profiles profile
+            LEFT JOIN search_terms term
+              ON term.search_profile_id = profile.id
+            GROUP BY profile.source_name
+            ORDER BY profile.source_name
+            """,
+        )
+    return _fetch_all(
+        conn,
+        """
+        SELECT
+            source_name,
+            count(*) AS profile_count,
+            count(*) FILTER (WHERE is_active) AS active_profile_count,
+            0::bigint AS active_search_term_count
+        FROM search_profiles
+        GROUP BY source_name
+        ORDER BY source_name
+        """,
+    )
+
+
+def _load_latest_ingestion_runs(
+    conn: psycopg.Connection[object],
+) -> list[dict[str, object]]:
+    if not _relation_exists(conn, "ingestion_runs"):
+        return []
+    return _fetch_all(
+        conn,
+        """
+        SELECT DISTINCT ON (source_name)
+            source_name,
+            status AS last_ingestion_status,
+            started_at,
+            finished_at,
+            total_loaded,
+            inserted_count,
+            error_message
+        FROM ingestion_runs
+        ORDER BY source_name, started_at DESC, id DESC
+        """,
+    )
+
+
+def _load_layer_presence(
+    conn: psycopg.Connection[object],
+) -> list[dict[str, object]]:
+    counts: dict[str, dict[str, object]] = {}
+    if _relation_exists(conn, "raw_jobs"):
+        for row in _fetch_all(
+            conn,
+            """
+            SELECT source_name, count(*) AS bronze_count
+            FROM raw_jobs
+            GROUP BY source_name
+            """,
+        ):
+            source_name = str(row["source_name"])
+            counts.setdefault(source_name, {"source_name": source_name})[
+                "bronze_count"
+            ] = row["bronze_count"]
+    if _relation_exists(conn, "silver_jobs"):
+        for row in _fetch_all(
+            conn,
+            """
+            SELECT source_name, count(*) AS silver_count
+            FROM silver_jobs
+            GROUP BY source_name
+            """,
+        ):
+            source_name = str(row["source_name"])
+            counts.setdefault(source_name, {"source_name": source_name})[
+                "silver_count"
+            ] = row["silver_count"]
+    return [counts[source_name] for source_name in sorted(counts)]
+
+
+def _connector_artifact_exists(candidate: dict[str, object]) -> bool:
+    raw_path = candidate.get("connector_module_path")
+    if not raw_path:
+        return False
+    path = Path(str(raw_path))
+    if not path.is_absolute():
+        path = ROOT / path
+    return path.is_file()
+
+
+def _load_source_connector_overview(
+    conn: psycopg.Connection[object],
+) -> dict[str, object]:
+    return build_source_connector_overview(
+        registry=build_default_connector_registry(),
+        candidates=_load_source_candidates(conn),
+        search_profiles=_load_search_profile_summary(conn),
+        ingestion_runs=_load_latest_ingestion_runs(conn),
+        layer_presence=_load_layer_presence(conn),
+        implementation_probe=_connector_artifact_exists,
+        truth_availability={
+            "search_profiles": _relation_exists(conn, "search_profiles"),
+            "ingestion_runs": _relation_exists(conn, "ingestion_runs"),
+            "raw_jobs": _relation_exists(conn, "raw_jobs"),
+            "silver_jobs": _relation_exists(conn, "silver_jobs"),
+        },
+    )
+
+
+def load_source_connector_overview_payload() -> dict[str, object]:
+    with psycopg.connect(
+        DatabaseConfig.from_environment().dsn(), row_factory=dict_row
+    ) as conn:
+        return _load_source_connector_overview(conn)
+
+
 def load_product_v1_payload() -> dict[str, object]:
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
     ) as conn:
+        source_connector_overview = _load_source_connector_overview(conn)
         required_relations = {
             "search_term_cycle_state",
             "product_v1_ranking_policy",
@@ -200,6 +394,7 @@ def load_product_v1_payload() -> dict[str, object]:
                 application_sources=[],
                 migration_ready=False,
                 hard_filter_policy=None,
+                source_connector_overview=source_connector_overview,
             )
 
         wave_states = _fetch_all(
@@ -295,6 +490,7 @@ def load_product_v1_payload() -> dict[str, object]:
         application_sources=application_sources,
         migration_ready=True,
         hard_filter_policy=hard_filter_policy,
+        source_connector_overview=source_connector_overview,
     )
 
 
@@ -386,6 +582,19 @@ class ProductV1Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/v1/product-v1":
             try:
                 self._send_json(load_product_v1_payload())
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_json(
+                    {
+                        "status": "error",
+                        "error_type": type(exc).__name__,
+                        "message": str(exc),
+                    },
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
+            return
+        if parsed.path == "/api/v1/source-connectors":
+            try:
+                self._send_json(load_source_connector_overview_payload())
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_json(
                     {
