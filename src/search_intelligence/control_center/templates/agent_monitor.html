@@ -27,7 +27,7 @@
         <div class="status-row">
           <i class="dot bad"></i>
           <div><strong>Blocked / failed</strong><span>Latest persisted run did not complete cleanly</span></div>
-          <em>{{ agent_summary.blocked }}</em>
+          <em>{{ agent_summary.blocked | default(0) }}</em>
         </div>
         <div class="status-row">
           <i class="dot neutral"></i>
@@ -42,7 +42,7 @@
     <article class="kpi ok"><span>Total agents</span><strong>{{ agent_summary.total }}</strong><small>displayed monitor cards</small></article>
     <article class="kpi ok"><span>Healthy</span><strong>{{ agent_summary.healthy }}</strong><small>usable output</small></article>
     <article class="kpi warn"><span>Needs review</span><strong>{{ agent_summary.needs_review }}</strong><small>human review required</small></article>
-    <article class="kpi bad"><span>Blocked</span><strong>{{ agent_summary.blocked }}</strong><small>latest run blocked or failed</small></article>
+    <article class="kpi bad"><span>Blocked</span><strong>{{ agent_summary.blocked | default(0) }}</strong><small>latest run blocked or failed</small></article>
     <article class="kpi"><span>No signal</span><strong>{{ agent_summary.no_signal }}</strong><small>not faked, explicitly marked</small></article>
   </section>
 
@@ -61,8 +61,8 @@
           <div><dt>Output quality</dt><dd>{{ agent.output_quality }}</dd></div>
           <div><dt>Latest decision</dt><dd>{{ agent.latest_decision }}</dd></div>
           <div><dt>Affected candidates</dt><dd>{{ agent.affected_candidates }}</dd></div>
-          <div><dt>Signal scope</dt><dd>{{ agent.signal_scope }}</dd></div>
-          <div><dt>Last persisted signal</dt><dd>{{ agent.last_signal_at }}</dd></div>
+          <div><dt>Signal scope</dt><dd>{{ agent.signal_scope | default('Current Control Center ViewModel state') }}</dd></div>
+          <div><dt>Last persisted signal</dt><dd>{{ agent.last_signal_at | default('No persisted timestamp') }}</dd></div>
         </dl>
 
         <section class="agent-narrative">
@@ -77,7 +77,7 @@
 
         <section class="agent-narrative">
           <h4>Truth provenance</h4>
-          <p>{{ agent.truth_sources }}</p>
+          <p>{{ agent.truth_sources | default('Existing lifecycle, gate and orchestrator inputs') }}</p>
         </section>
 
         <section class="agent-next-action">
