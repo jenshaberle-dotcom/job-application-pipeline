@@ -15,6 +15,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.employer_origin_gate_registry import gate_order
 
 VALIDATION_GATE = "connector_validation_gate"
 
@@ -382,6 +383,7 @@ class ValidationRepository:
                 """,
                 (
                     candidate_id,
+                    gate_order(VALIDATION_GATE),
                     VALIDATION_GATE,
                     result.gate_status,
                     result.decision,
