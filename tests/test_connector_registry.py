@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from src.connectors.accompio import AccompioConnector
+from src.connectors.computacenter import ComputacenterConnector
 from src.connectors.enercity import EnercityConnector
 from src.connectors.finanz_informatik import FinanzInformatikConnector
 from src.connectors.greenhouse import GreenhouseConnector
@@ -46,6 +48,20 @@ def test_default_registry_creates_enercity_employer_origin_connector_without_act
     assert connector.source_name == "enercity:discovery"
 
 
+def test_default_registry_creates_accompio_connector_without_activation() -> None:
+    connector = create_connector("accompio:discovery")
+
+    assert isinstance(connector, AccompioConnector)
+    assert connector.source_name == "accompio:discovery"
+
+
+def test_default_registry_creates_computacenter_connector_without_activation() -> None:
+    connector = create_connector("computacenter:discovery")
+
+    assert isinstance(connector, ComputacenterConnector)
+    assert connector.source_name == "computacenter:discovery"
+
+
 def test_registry_rejects_duplicate_registration_without_replace() -> None:
     registry = ConnectorRegistry()
     registry.register_family("greenhouse", greenhouse_factory)
@@ -62,7 +78,6 @@ def test_registry_keeps_registration_separate_from_activation() -> None:
 
     assert isinstance(connector, PersonioConnector)
     assert not hasattr(registry, "activate")
-
 
 
 def test_default_registry_can_create_hdi_connector() -> None:
