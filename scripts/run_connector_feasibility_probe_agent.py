@@ -8,7 +8,7 @@ import psycopg
 
 from src.config import get_database_config
 from src.search_intelligence.connector_feasibility import OriginCandidate
-from src.search_intelligence.connector_feasibility_runtime import (
+from src.search_intelligence.connector_feasibility_query_runtime import (
     build_connector_feasibility_review,
 )
 
