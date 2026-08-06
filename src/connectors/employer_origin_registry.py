@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.connectors.accompio import AccompioConnector
+from src.connectors.computacenter import ComputacenterConnector
 from src.connectors.enercity import EnercityConnector
 from src.connectors.finanz_informatik import FinanzInformatikConnector
 from src.connectors.hdi import HdiConnector
@@ -17,9 +19,16 @@ def enercity_discovery_factory(source_name: str) -> EnercityConnector:
     return EnercityConnector()
 
 
-
 def hdi_hannover_factory(source_name: str) -> HdiConnector:
     return HdiConnector()
+
+
+def accompio_discovery_factory(source_name: str) -> AccompioConnector:
+    return AccompioConnector()
+
+
+def computacenter_discovery_factory(source_name: str) -> ComputacenterConnector:
+    return ComputacenterConnector()
 
 
 def register_employer_origin_connectors(registry: ConnectorRegistry) -> None:
@@ -35,4 +44,11 @@ def register_employer_origin_connectors(registry: ConnectorRegistry) -> None:
         "hdi:hannover",
         hdi_hannover_factory,
     )
-
+    registry.register_exact(
+        "accompio:discovery",
+        accompio_discovery_factory,
+    )
+    registry.register_exact(
+        "computacenter:discovery",
+        computacenter_discovery_factory,
+    )
