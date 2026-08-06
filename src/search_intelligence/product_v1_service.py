@@ -5,6 +5,10 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Mapping, Sequence
 
+from src.search_intelligence.source_connector_overview import (
+    empty_source_connector_overview,
+)
+
 
 def _value(item: Mapping[str, Any], key: str, default: Any = None) -> Any:
     return item.get(key, default)
@@ -32,6 +36,7 @@ def build_product_v1_payload(
     application_sources: Sequence[Mapping[str, Any]],
     migration_ready: bool,
     hard_filter_policy: Mapping[str, Any] | None = None,
+    source_connector_overview: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     policy = dict(ranking_policy or {})
     policy_status = str(policy.get("status") or "operator_decision_required")
@@ -168,6 +173,9 @@ def build_product_v1_payload(
         "application_readiness": list(application_readiness),
         "application_sources": list(application_sources),
         "application_sources_ready": application_sources_ready,
+        "source_connector_overview": dict(
+            source_connector_overview or empty_source_connector_overview()
+        ),
         "operator_blockers": operator_blockers,
         "boundaries": {
             "read_only_api": True,

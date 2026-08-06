@@ -12,6 +12,7 @@ SCHEMA_VERSION = "expand003.candidate_review_delta_report.v1"
 WORK_ITEM = "EXPAND-003 Result Interpretation / Candidate Review Delta Report"
 INPUT_SCHEMA_PREFIX = "expand002.controlled_external_probe_trial_run"
 EXPAND002_EXPORT_PREFIX = "expand002_controlled_external_probe_trial_run_"
+EXPAND002_TIMESTAMP_FORMATS = ("%Y%m%dT%H%M%SZ", "%Y%m%d-%H%M%S")
 NO_MUTATION_BOUNDARY = (
     "result_interpretation_review_artifact_only_no_candidate_creation_no_gate_decision_no_connector_activation"
 )
@@ -101,17 +102,20 @@ def load_expand002_report(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _expand002_report_order_key(path: Path) -> float:
+def _expand002_report_order_key(path: Path) -> tuple[float, str]:
+    order_value = path.stat().st_mtime
     directory_name = path.parent.name
     if directory_name.startswith(EXPAND002_EXPORT_PREFIX):
         timestamp = directory_name.removeprefix(EXPAND002_EXPORT_PREFIX)
-        try:
-            return datetime.strptime(timestamp, "%Y%m%dT%H%M%SZ").replace(
-                tzinfo=timezone.utc
-            ).timestamp()
-        except ValueError:
-            pass
-    return path.stat().st_mtime
+        for timestamp_format in EXPAND002_TIMESTAMP_FORMATS:
+            try:
+                order_value = datetime.strptime(timestamp, timestamp_format).replace(
+                    tzinfo=timezone.utc
+                ).timestamp()
+                break
+            except ValueError:
+                continue
+    return order_value, path.as_posix()
 
 
 def find_latest_expand002_report(exports_dir: Path = Path("exports")) -> Path | None:
