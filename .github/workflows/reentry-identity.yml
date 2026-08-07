@@ -1,0 +1,49 @@
+name: Pipeline re-entry target identity
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-identity:
+    name: Repository identity (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - name: Check out tested commit
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify live target before re-entry authority
+        shell: bash
+        if: runner.os == 'Linux'
+        run: |
+          python scripts/check_reentry_identity.py \
+            --root . \
+            --live-repository-id "$GITHUB_REPOSITORY_ID" \
+            --live-repository "$GITHUB_REPOSITORY" \
+            --self-test
+
+      - name: Verify live target before re-entry authority
+        shell: pwsh
+        if: runner.os == 'Windows'
+        run: |
+          python scripts/check_reentry_identity.py `
+            --root . `
+            --live-repository-id "$env:GITHUB_REPOSITORY_ID" `
+            --live-repository "$env:GITHUB_REPOSITORY" `
+            --self-test
