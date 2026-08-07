@@ -1,0 +1,43 @@
+{
+  "schema": "reentry.repository_identity.v1",
+  "identity_contract_id": "PIPELINE-PRODUCT-REPOSITORY-IDENTITY-001A",
+  "execution_target": {
+    "repository_id": 1230805345,
+    "canonical_name": "jenshaberle-dotcom/job-application-pipeline",
+    "repository_role": "product_authority_and_pipeline_repository",
+    "canonical_default_branch": "main"
+  },
+  "reentry_binding": {
+    "bound_repository_id": 1230805345,
+    "contract_paths": [
+      "docs/current/operations.md"
+    ],
+    "authority_rule": "Live repository identity must be established independently before repository-backed re-entry records or next actions can supply continuation authority."
+  },
+  "relationship_policy": {
+    "execution_target_is_not_inferred_from_relationships": true,
+    "authority_source_does_not_become_execution_target": true,
+    "related_repositories": [
+      {
+        "repository_id": 1316856786,
+        "canonical_name": "jenshaberle-dotcom/job-pipeline-runtime",
+        "role": "runtime_and_operational_authority_source",
+        "may_supply_product_authority": false,
+        "may_supply_runtime_authority": true,
+        "may_supply_evidence_authority": true,
+        "may_supply_reentry_authority": false,
+        "may_be_mutation_target": false
+      }
+    ]
+  },
+  "classifications": {
+    "verified": "IDENTITY_VERIFIED",
+    "target_unresolved": "TARGET_UNRESOLVED",
+    "target_ambiguous": "TARGET_AMBIGUOUS",
+    "identity_unverified": "REPOSITORY_IDENTITY_UNVERIFIED",
+    "contract_unbound": "REENTRY_CONTRACT_UNBOUND",
+    "target_mismatch": "REENTRY_CONTRACT_TARGET_MISMATCH",
+    "related_not_target": "RELATED_REPOSITORY_NOT_EXECUTION_TARGET",
+    "name_drift": "REPOSITORY_NAME_DRIFT"
+  }
+}

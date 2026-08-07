@@ -28,6 +28,30 @@ mechanism. It is a bounded continuation from durable repository, PR, CI and
 runtime truth after an external operational outage, governance/operator gate,
 technical boundary or demonstrated context boundary.
 
+### Target identity preflight
+
+Before any freeze record, handover, issue, PR, runtime observation or next
+action can supply continuation authority, authenticate the execution target
+independently from live GitHub repository metadata.
+
+- Machine-readable identity authority:
+  `docs/current/REPOSITORY-IDENTITY.json`.
+- The Pipeline execution target is immutable GitHub repository ID `1230805345`.
+- `job-pipeline-runtime` is a related runtime/evidence authority source, not the
+  Pipeline mutation target.
+- A repository-ID mismatch fails closed as
+  `REENTRY_CONTRACT_TARGET_MISMATCH` or
+  `RELATED_REPOSITORY_NOT_EXECUTION_TARGET`.
+- A changed repository name with the same immutable ID is
+  `REPOSITORY_NAME_DRIFT`; it requires contract maintenance but is not evidence
+  that execution moved to another repository.
+- Filesystem location, project-name similarity, chat context, a freeze record,
+  or authority supplied by a related repository cannot establish target
+  identity by themselves.
+
+Only after `IDENTITY_VERIFIED` may the repository-backed re-entry sequence below
+supply project-state authority.
+
 ### Freeze record at every bounded stop
 
 The active PR or issue must contain one explicit re-entry record with:
