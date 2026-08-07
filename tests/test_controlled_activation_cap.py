@@ -138,7 +138,7 @@ def test_exact_profile_execution_can_select_controlled_non_recurring_profile() -
 
 def test_migration_preserves_existing_recurring_behavior_and_adds_boundary() -> None:
     migration = Path(
-        "db/migrations/086_decouple_controlled_activation_from_recurring_ingestion.sql"
+        "db/migrations/087_decouple_controlled_activation_from_recurring_ingestion.sql"
     ).read_text(encoding="utf-8")
 
     assert "recurring_ingestion_enabled BOOLEAN NOT NULL DEFAULT TRUE" in migration
