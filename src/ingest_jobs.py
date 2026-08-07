@@ -60,19 +60,63 @@ def format_available_profiles(profiles: Sequence[SearchProfile]) -> str:
     return "\n".join(lines)
 
 
+def load_recurring_profile_names(
+    repository: JobIngestionRepository,
+    profiles: Sequence[SearchProfile],
+) -> set[str]:
+    """Return active profiles eligible for unscoped/source-family ingestion.
+
+    Exact explicit profile execution intentionally bypasses this selector. Test
+    doubles can provide ``load_recurring_search_profile_names``; the production
+    repository is queried directly so this safety boundary does not require a
+    broader repository API change.
+    """
+
+    loader = getattr(repository, "load_recurring_search_profile_names", None)
+    if callable(loader):
+        return {str(value) for value in loader()}
+
+    connection_factory = getattr(repository, "get_connection", None)
+    if connection_factory is None:
+        # Lightweight test doubles predating the recurring-ingestion boundary.
+        return {profile.profile_name for profile in profiles}
+
+    with connection_factory() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT profile_name
+                FROM search_profiles
+                WHERE is_active = TRUE
+                  AND recurring_ingestion_enabled = TRUE
+                ORDER BY source_name, profile_name;
+                """
+            )
+            return {str(row[0]) for row in cur.fetchall()}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run job ingestion for all active profiles, a source family, or one profile."
+        description=(
+            "Run job ingestion for recurring-enabled active profiles, a source "
+            "family, or one exact active profile."
+        )
     )
 
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--profile",
-        help="Run exactly one active search profile by profile name.",
+        help=(
+            "Run exactly one active search profile by profile name, including "
+            "controlled profiles with recurring ingestion disabled."
+        ),
     )
     mode.add_argument(
         "--source",
-        help="Run all active profiles for one source family, e.g. greenhouse.",
+        help=(
+            "Run recurring-enabled active profiles for one source family, "
+            "e.g. greenhouse."
+        ),
     )
     mode.add_argument(
         "--list-profiles",
@@ -116,6 +160,9 @@ def select_profiles(
 ) -> list[SearchProfile]:
     profiles = repository.load_active_search_profiles()
 
+    # An exact profile name is an explicit one-shot/manual execution boundary.
+    # It may intentionally select an active controlled profile whose recurring
+    # ingestion flag is false.
     if profile_name:
         selected_profiles = [
             profile
@@ -131,10 +178,15 @@ def select_profiles(
             f"{format_available_profiles(profiles)}"
         )
 
+    recurring_names = load_recurring_profile_names(repository, profiles)
+    recurring_profiles = [
+        profile for profile in profiles if profile.profile_name in recurring_names
+    ]
+
     if source_filter:
         selected_profiles = [
             profile
-            for profile in profiles
+            for profile in recurring_profiles
             if source_matches(
                 source_name=profile.source_name,
                 source_filter=source_filter,
@@ -145,29 +197,32 @@ def select_profiles(
             return selected_profiles
 
         raise ValueError(
-            f"No active search profiles found for source: {source_filter}\n\n"
-            f"{format_available_profiles(profiles)}"
+            f"No recurring-enabled active search profiles found for source: {source_filter}\n\n"
+            f"{format_available_profiles(recurring_profiles)}"
         )
 
-    if not profiles:
-        raise ValueError("No active search profiles found.")
+    if not recurring_profiles:
+        raise ValueError("No recurring-enabled active search profiles found.")
 
-    return profiles
+    return recurring_profiles
 
 
 def print_profiles(repository: JobIngestionRepository) -> None:
     profiles = repository.load_active_search_profiles()
+    recurring_names = load_recurring_profile_names(repository, profiles)
 
     print()
     print("=== Active Search Profiles ===")
     print()
 
     for profile in profiles:
+        recurring = "yes" if profile.profile_name in recurring_names else "no"
         print(
             f"[{profile.id}] {profile.profile_name} "
             f"source={profile.source_name} "
             f"location={profile.search_location} "
-            f"radius_km={profile.search_radius_km}"
+            f"radius_km={profile.search_radius_km} "
+            f"recurring={recurring}"
         )
 
         terms = repository.load_active_search_terms(profile.profile_name)
