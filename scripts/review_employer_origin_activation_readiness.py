@@ -110,6 +110,27 @@ class ActivationReadinessRow:
     reason: str
 
 
+def trusted_query_detail_labels(record: RawJobRecord) -> tuple[str, ...]:
+    raw_data = record.raw_data or {}
+    containers = (
+        raw_data.get("job"),
+        raw_data.get("result_card"),
+        raw_data.get("detail_evidence"),
+        raw_data.get("listing_evidence"),
+    )
+    keys = ("title", "title", "page_title", "listing_text")
+    labels: list[str] = []
+
+    for container, key in zip(containers, keys, strict=True):
+        if not isinstance(container, dict):
+            continue
+        label = str(container.get(key) or "").strip()
+        if label and label not in labels:
+            labels.append(label)
+
+    return tuple(labels)
+
+
 def is_probable_job_detail_record(
     record: RawJobRecord,
     *,
@@ -126,8 +147,10 @@ def is_probable_job_detail_record(
     if not origin_url:
         return False
 
-    title = candidate_from_raw_record(record).page_title
-    return is_trusted_query_job_detail_link(origin_url, record.source_url, title)
+    return any(
+        is_trusted_query_job_detail_link(origin_url, record.source_url, label)
+        for label in trusted_query_detail_labels(record)
+    )
 
 
 def non_job_preview_records(

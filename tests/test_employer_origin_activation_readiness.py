@@ -123,6 +123,59 @@ def test_query_parameter_job_detail_reuses_s7n_safety_contract() -> None:
     assert non_job_preview_records([job], origin_url=origin_url) == []
 
 
+def test_query_parameter_job_detail_uses_trusted_record_evidence() -> None:
+    origin_url = "https://karriere.example.com/de"
+    url = "https://karriere.example.com/de?id=458ccb"
+    job = RawJobRecord(
+        source_name="example:discovery",
+        source_url=url,
+        external_job_id="de:example",
+        raw_data={
+            "job": {
+                "title": "Details",
+                "company_name": "Example GmbH",
+                "location": "Deutschland",
+                "source_url": url,
+                "profile_terms": ["ai"],
+            },
+            "result_card": {
+                "title": "Details",
+                "company_name": "Example GmbH",
+                "location": "Deutschland",
+                "detail_url": url,
+            },
+            "detail_evidence": {
+                "page_title": "Bid Manager (m/w/d) Enterprise Ausschreibungen",
+            },
+            "listing_evidence": {
+                "listing_text": "Mehr erfahren",
+            },
+        },
+    )
+
+    assert candidate_from_raw_record(job).page_title == "Details"
+    assert is_probable_job_detail_record(job, origin_url=origin_url)
+    assert non_job_preview_records([job], origin_url=origin_url) == []
+
+
+def test_query_parameter_job_detail_stays_blocked_with_only_generic_record_labels() -> None:
+    origin_url = "https://karriere.example.com/de"
+    url = "https://karriere.example.com/de?id=458ccb"
+    generic = RawJobRecord(
+        source_name="example:discovery",
+        source_url=url,
+        external_job_id="de:example",
+        raw_data={
+            "job": {"title": "Details"},
+            "result_card": {"title": "Details"},
+            "detail_evidence": {"page_title": "Karriere"},
+            "listing_evidence": {"listing_text": "Mehr erfahren"},
+        },
+    )
+
+    assert not is_probable_job_detail_record(generic, origin_url=origin_url)
+
+
 def test_query_parameter_job_detail_fails_closed_without_trusted_origin() -> None:
     origin_url = "https://karriere.example.com/de"
     tracking = raw_record(
