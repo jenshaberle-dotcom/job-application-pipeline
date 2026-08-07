@@ -24,6 +24,9 @@ from scripts.review_finanz_informatik_incremental_uniqueness import (
 from src.config import get_database_config
 from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.registry import create_connector
+from src.search_intelligence.connector_feasibility_query_runtime import (
+    _safe_query_job_detail_link as is_trusted_query_job_detail_link,
+)
 
 
 DEFAULT_EXPORT_DIR = Path("docs/planning/active/source-candidates")
@@ -107,17 +110,36 @@ class ActivationReadinessRow:
     reason: str
 
 
-def is_probable_job_detail_record(record: RawJobRecord) -> bool:
+def is_probable_job_detail_record(
+    record: RawJobRecord,
+    *,
+    origin_url: str | None = None,
+) -> bool:
     path = urlparse(record.source_url).path.lower()
 
     if any(marker in path for marker in NON_JOB_URL_PATH_MARKERS):
         return False
 
-    return any(marker in path for marker in JOB_DETAIL_URL_PATH_MARKERS)
+    if any(marker in path for marker in JOB_DETAIL_URL_PATH_MARKERS):
+        return True
+
+    if not origin_url:
+        return False
+
+    title = candidate_from_raw_record(record).page_title
+    return is_trusted_query_job_detail_link(origin_url, record.source_url, title)
 
 
-def non_job_preview_records(records: list[RawJobRecord]) -> list[RawJobRecord]:
-    return [record for record in records if not is_probable_job_detail_record(record)]
+def non_job_preview_records(
+    records: list[RawJobRecord],
+    *,
+    origin_url: str | None = None,
+) -> list[RawJobRecord]:
+    return [
+        record
+        for record in records
+        if not is_probable_job_detail_record(record, origin_url=origin_url)
+    ]
 
 
 def terms_to_text(value: object) -> str:
@@ -470,7 +492,7 @@ def run_activation_readiness(
     active_profiles = load_active_profiles(conn, candidate.source_name_candidate)
 
     records, requested_url = preview_connector_records(candidate, connector=connector, page_size=page_size)
-    non_job_records = non_job_preview_records(records)
+    non_job_records = non_job_preview_records(records, origin_url=requested_url)
     evaluable_records = [record for record in records if record not in non_job_records]
     candidates = [candidate_from_raw_record(record) for record in evaluable_records]
 

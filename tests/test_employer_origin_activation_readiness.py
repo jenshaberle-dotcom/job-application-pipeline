@@ -111,6 +111,41 @@ def test_non_job_preview_records_detect_product_pages() -> None:
     assert non_job_preview_records([job, product]) == [product]
 
 
+def test_query_parameter_job_detail_reuses_s7n_safety_contract() -> None:
+    origin_url = "https://karriere.example.com/de"
+    job = raw_record(
+        "Data Engineer (m/w/d)",
+        "https://karriere.example.com/de?id=51980f",
+        ["data"],
+    )
+
+    assert is_probable_job_detail_record(job, origin_url=origin_url)
+    assert non_job_preview_records([job], origin_url=origin_url) == []
+
+
+def test_query_parameter_job_detail_fails_closed_without_trusted_origin() -> None:
+    origin_url = "https://karriere.example.com/de"
+    tracking = raw_record(
+        "Data Engineer (m/w/d)",
+        "https://karriere.example.com/de?utm_source=newsletter",
+        ["data"],
+    )
+    unrelated = raw_record(
+        "Data Engineer (m/w/d)",
+        "https://jobs.example.net/de?id=51980f",
+        ["data"],
+    )
+    generic = raw_record(
+        "Details",
+        "https://karriere.example.com/de?id=51980f",
+        ["data"],
+    )
+
+    assert not is_probable_job_detail_record(tracking, origin_url=origin_url)
+    assert not is_probable_job_detail_record(unrelated, origin_url=origin_url)
+    assert not is_probable_job_detail_record(generic, origin_url=origin_url)
+
+
 def test_overall_readiness_blocks_non_job_preview_records() -> None:
     assert (
         summarize_overall_readiness(
