@@ -137,7 +137,10 @@ def test_select_profiles_unknown_source_lists_available_source_filters() -> None
     else:
         raise AssertionError("Expected ValueError")
 
-    assert "No active search profiles found for source: personoi" in message
+    assert (
+        "No recurring-enabled active search profiles found for source: personoi"
+        in message
+    )
     assert "Available source filters:" in message
     assert "personio" in message
     assert "greenhouse" in message
