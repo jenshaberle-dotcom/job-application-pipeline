@@ -1,6 +1,9 @@
 from datetime import date
 
 
+EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE = "employer_origin_career_site"
+
+
 def parse_date(value: object) -> date | None:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -81,12 +84,28 @@ def canonical_source_type(source_name: object) -> str:
         or source_name.startswith("enercity:")
         or source_name.startswith("hdi:")
     ):
-        return "employer_origin_career_site"
+        return EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE
 
     return "unknown"
 
 
-def add_canonicalization_fields(job: dict) -> dict:
+def supported_bronze_source_type(raw_job: dict) -> str | None:
+    raw_data = raw_job.get("raw_data")
+    if not isinstance(raw_data, dict):
+        return None
+
+    source_type = raw_data.get("source_type")
+    if source_type == EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE:
+        return source_type
+
+    return None
+
+
+def add_canonicalization_fields(
+    job: dict,
+    *,
+    canonical_source_type_override: str | None = None,
+) -> dict:
     normalized_title = normalize_text(job.get("title"))
     normalized_company_name = normalize_text(job.get("company_name"))
     normalized_location = build_normalized_location(
@@ -99,7 +118,11 @@ def add_canonicalization_fields(job: dict) -> dict:
     job["normalized_company_name"] = normalized_company_name
     job["normalized_location"] = normalized_location
     job["canonical_status"] = "discovery_only"
-    job["canonical_source_type"] = canonical_source_type(job.get("source_name"))
+    job["canonical_source_type"] = (
+        canonical_source_type_override
+        if canonical_source_type_override is not None
+        else canonical_source_type(job.get("source_name"))
+    )
     job["canonical_key_candidate"] = build_canonical_key_candidate(
         normalized_company_name,
         normalized_title,
@@ -243,6 +266,7 @@ def transform_employer_origin_raw_job(
     raw_job: dict,
     *,
     default_company_name: str | None = None,
+    canonical_source_type_override: str | None = None,
 ) -> dict:
     raw_data = raw_job["raw_data"]
     job_data = raw_data.get("job", {})
@@ -268,7 +292,8 @@ def transform_employer_origin_raw_job(
             "postal_code": None,
             "country": "DE",
             "publication_date": None,
-        }
+        },
+        canonical_source_type_override=canonical_source_type_override,
     )
 
 
@@ -321,6 +346,13 @@ def transform_raw_job_to_silver(raw_job: dict) -> dict:
 
     if source_name == "stepstone":
         return transform_stepstone_raw_job(raw_job)
+
+    bronze_source_type = supported_bronze_source_type(raw_job)
+    if bronze_source_type == EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE:
+        return transform_employer_origin_raw_job(
+            raw_job,
+            canonical_source_type_override=bronze_source_type,
+        )
 
     raise ValueError(f"No Silver transformer implemented for source: {source_name}")
 
