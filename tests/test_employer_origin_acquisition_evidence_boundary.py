@@ -1,3 +1,4 @@
+from src.connectors.base import RawJobRecord
 from src.silver.relevance import (
     build_relevance_text,
     get_accessibility_matches,
@@ -48,8 +49,11 @@ def generated_gate_raw_job(
                 "company_name": "Computacenter AG & Co. oHG",
                 "location": heuristic_location,
                 "source_url": source_url,
-                "profile_terms": profile_terms
-                or ["data", "analyst", "sql", "ui", "bi", "ki", "ai"],
+                "profile_terms": (
+                    ["data", "analyst", "sql", "ui", "bi", "ki", "ai"]
+                    if profile_terms is None
+                    else profile_terms
+                ),
             },
             "listing_evidence": {
                 "candidate_path": "/job/Bangalore-Bengaluru-Technical-Analyst/1266548901/",
@@ -62,6 +66,31 @@ def generated_gate_raw_job(
             },
         },
     }
+
+
+def test_raw_job_record_moves_generated_heuristics_into_acquisition_evidence() -> None:
+    raw_job = generated_gate_raw_job()
+    record = RawJobRecord(
+        source_name=raw_job["source_name"],
+        source_url=raw_job["source_url"],
+        external_job_id=raw_job["external_job_id"],
+        raw_data=raw_job["raw_data"],
+    )
+
+    assert "location" not in record.raw_data["job"]
+    assert "location" not in record.raw_data["result_card"]
+    assert "profile_terms" not in record.raw_data["job"]
+    assert record.raw_data["acquisition_evidence"] == {
+        "heuristic_profile_terms": ["data", "analyst", "sql", "ui", "bi", "ki", "ai"],
+        "heuristic_job_location": "deutschland",
+        "heuristic_result_card_location": "deutschland",
+    }
+
+    # The source evidence remains available for audit/relevance review.
+    assert record.raw_data["listing_evidence"]["listing_text"] == (
+        "Technical Analyst-Genesys Administrator"
+    )
+    assert record.raw_data["acquisition_boundary"]["relevance_gated"] is True
 
 
 def test_generated_gate_heuristics_do_not_create_silver_relevance() -> None:
