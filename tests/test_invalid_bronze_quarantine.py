@@ -71,7 +71,7 @@ def test_normalize_expectations_requires_exact_id_url_set() -> None:
 
 
 def test_plan_fails_closed_when_requested_row_is_missing() -> None:
-    with pytest.raises(ValueError, match="missing=\[30948\]"):
+    with pytest.raises(ValueError, match=r"missing=\[30948\]"):
         build_quarantine_plan(
             expectations=expectations(),
             observed_rows=[observed(30947, URL_1)],

@@ -134,7 +134,8 @@ def build_quarantine_plan(
             )
         if row.silver_job_id is not None:
             raise ValueError(
-                f"raw_job_id={row.raw_job_id} already has silver_job_id={row.silver_job_id}; "
+                f"raw_job_id={row.raw_job_id} already has "
+                f"silver_job_id={row.silver_job_id}; "
                 "quarantine refuses to rewrite downstream truth."
             )
 
@@ -146,8 +147,10 @@ def build_quarantine_plan(
                 action = "already_quarantined"
             else:
                 raise ValueError(
-                    f"raw_job_id={row.raw_job_id} has conflicting processing decision: "
-                    f"decision={row.processing_decision!r} reason={row.processing_reason!r}"
+                    f"raw_job_id={row.raw_job_id} has conflicting "
+                    "processing decision: "
+                    f"decision={row.processing_decision!r} "
+                    f"reason={row.processing_reason!r}"
                 )
         else:
             action = "insert_skipped_decision"
@@ -196,7 +199,11 @@ def load_observed_rows(
             source_name=str(row["source_name"]),
             external_job_id=str(row["external_job_id"] or ""),
             source_url=str(row["source_url"]),
-            silver_job_id=(int(row["silver_job_id"]) if row["silver_job_id"] is not None else None),
+            silver_job_id=(
+                int(row["silver_job_id"])
+                if row["silver_job_id"] is not None
+                else None
+            ),
             processing_decision=(
                 str(row["processing_decision"])
                 if row["processing_decision"] is not None
@@ -216,11 +223,14 @@ def apply_quarantine(
     conn: psycopg.Connection[Any], *, plan: list[PlannedRow], reason: str
 ) -> int:
     reason_value = full_reason(reason)
-    to_insert = [row.raw_job_id for row in plan if row.action == "insert_skipped_decision"]
+    to_insert = [
+        row.raw_job_id for row in plan if row.action == "insert_skipped_decision"
+    ]
     if not to_insert:
         return 0
 
-    with conn.cursor() as cur:
+    inserted_count = 0
+    with conn.cursor(row_factory=dict_row) as cur:
         for raw_job_id in to_insert:
             cur.execute(
                 """
@@ -237,6 +247,7 @@ def apply_quarantine(
                 """,
                 (raw_job_id, DECISION, reason_value),
             )
+            inserted_count += cur.rowcount
 
         cur.execute(
             """
@@ -249,15 +260,19 @@ def apply_quarantine(
         )
         verified = cur.fetchall()
 
-    verified_by_id = {int(row[0]): (str(row[1]), str(row[2])) for row in verified}
+    verified_by_id = {
+        int(row["raw_job_id"]): (str(row["decision"]), str(row["reason"]))
+        for row in verified
+    }
     for row in plan:
         actual = verified_by_id.get(row.raw_job_id)
         if actual != (DECISION, reason_value):
             raise RuntimeError(
-                f"Post-apply verification failed for raw_job_id={row.raw_job_id}: {actual!r}"
+                "Post-apply verification failed for "
+                f"raw_job_id={row.raw_job_id}: {actual!r}"
             )
 
-    return len(to_insert)
+    return inserted_count
 
 
 def build_manifest(
@@ -270,13 +285,25 @@ def build_manifest(
     apply_requested: bool,
     inserted_count: int | None,
 ) -> dict[str, Any]:
-    planned_inserts = sum(row.action == "insert_skipped_decision" for row in plan)
-    already_quarantined = sum(row.action == "already_quarantined" for row in plan)
+    planned_inserts = sum(
+        row.action == "insert_skipped_decision" for row in plan
+    )
+    already_quarantined = sum(
+        row.action == "already_quarantined" for row in plan
+    )
 
     if apply_requested:
-        status = "invalid_bronze_quarantine_applied" if inserted_count else "invalid_bronze_quarantine_already_satisfied"
+        status = (
+            "invalid_bronze_quarantine_applied"
+            if inserted_count
+            else "invalid_bronze_quarantine_already_satisfied"
+        )
     else:
-        status = "invalid_bronze_quarantine_apply_ready" if planned_inserts else "invalid_bronze_quarantine_already_satisfied"
+        status = (
+            "invalid_bronze_quarantine_apply_ready"
+            if planned_inserts
+            else "invalid_bronze_quarantine_already_satisfied"
+        )
 
     observed_by_id = {row.raw_job_id: row for row in observed_rows}
     return {
@@ -290,13 +317,25 @@ def build_manifest(
             {
                 "raw_job_id": expectation.raw_job_id,
                 "expected_source_url": expectation.expected_source_url,
-                "actual_source_name": observed_by_id[expectation.raw_job_id].source_name,
-                "actual_source_url": observed_by_id[expectation.raw_job_id].source_url,
-                "existing_silver_job_id": observed_by_id[expectation.raw_job_id].silver_job_id,
-                "existing_processing_decision": observed_by_id[expectation.raw_job_id].processing_decision,
-                "existing_processing_reason": observed_by_id[expectation.raw_job_id].processing_reason,
+                "actual_source_name": (
+                    observed_by_id[expectation.raw_job_id].source_name
+                ),
+                "actual_source_url": (
+                    observed_by_id[expectation.raw_job_id].source_url
+                ),
+                "existing_silver_job_id": (
+                    observed_by_id[expectation.raw_job_id].silver_job_id
+                ),
+                "existing_processing_decision": (
+                    observed_by_id[expectation.raw_job_id].processing_decision
+                ),
+                "existing_processing_reason": (
+                    observed_by_id[expectation.raw_job_id].processing_reason
+                ),
                 "planned_action": next(
-                    row.action for row in plan if row.raw_job_id == expectation.raw_job_id
+                    row.action
+                    for row in plan
+                    if row.raw_job_id == expectation.raw_job_id
                 ),
             }
             for expectation in expectations
@@ -311,7 +350,9 @@ def build_manifest(
             "raw_jobs_delete": False,
             "raw_jobs_update": False,
             "silver_jobs_mutation": False,
-            "silver_processing_decision_insert": bool(apply_requested and planned_inserts),
+            "silver_processing_decision_insert": bool(
+                apply_requested and planned_inserts
+            ),
             "provider_calls": False,
             "scheduler_change": False,
             "recurring_ingestion_change": False,
@@ -345,7 +386,9 @@ def main() -> None:
     expectations = normalize_expectations(args.raw_job_id, args.expected_url)
 
     with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
-        observed_rows = load_observed_rows(conn, [item.raw_job_id for item in expectations])
+        observed_rows = load_observed_rows(
+            conn, [item.raw_job_id for item in expectations]
+        )
         plan = build_quarantine_plan(
             expectations=expectations,
             observed_rows=observed_rows,
@@ -355,7 +398,9 @@ def main() -> None:
 
         inserted_count: int | None = None
         if args.apply:
-            inserted_count = apply_quarantine(conn, plan=plan, reason=args.reason)
+            inserted_count = apply_quarantine(
+                conn, plan=plan, reason=args.reason
+            )
             conn.commit()
         else:
             conn.rollback()
