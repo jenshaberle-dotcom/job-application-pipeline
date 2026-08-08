@@ -230,6 +230,15 @@ def has_known_detail_url(url: str) -> bool:
     return url.split("#", 1)[0] in KNOWN_DETAIL_URLS
 
 
+def is_structural_job_detail_url(url: str) -> bool:
+    parsed = urlparse(url)
+    if parsed.netloc.lower() not in ALLOWED_HOSTS:
+        return False
+
+    parts = [part for part in parsed.path.split("/") if part]
+    return len(parts) >= 3 and parts[0] == "job" and parts[-1].isdigit()
+
+
 def extract_candidate_links(html: str, base_url: str) -> list[CandidateLink]:
     parser = LinkExtractor(base_url)
     parser.feed(html)
@@ -244,6 +253,9 @@ def extract_candidate_links(html: str, base_url: str) -> list[CandidateLink]:
         seen.add(clean_url)
 
         if not allowed_host(clean_url):
+            continue
+
+        if not is_structural_job_detail_url(clean_url):
             continue
 
         parsed = urlparse(clean_url)
@@ -318,6 +330,11 @@ def parse_detail_page(url: str, final_url: str, status_code: int, html: str) -> 
 
 def detail_supports_record(candidate: CandidateLink, detail: DetailPage) -> bool:
     if detail.status_code >= 400:
+        return False
+
+    if not is_structural_job_detail_url(candidate.url):
+        return False
+    if not is_structural_job_detail_url(detail.final_url or candidate.url):
         return False
 
     evidence_text = " ".join([candidate.url, candidate.path, candidate.text, detail.title, detail.text])
