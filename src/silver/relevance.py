@@ -2,6 +2,8 @@ import re
 from typing import Any
 
 
+EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE = "employer_origin_career_site"
+
 ROLE_PHRASES = (
     "data engineer",
     "analytics engineer",
@@ -136,7 +138,54 @@ def matching_phrases(text: str, phrases: tuple[str, ...]) -> list[str]:
     return [phrase for phrase in phrases if phrase_matches(text, phrase)]
 
 
+def is_generated_employer_origin_gate_evidence(raw_job: dict) -> bool:
+    raw_data = raw_job.get("raw_data")
+    if not isinstance(raw_data, dict):
+        return False
+
+    if raw_data.get("source_type") != EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE:
+        return False
+
+    acquisition_boundary = raw_data.get("acquisition_boundary")
+    if not isinstance(acquisition_boundary, dict):
+        return False
+
+    return acquisition_boundary.get("generated_from_gate_evidence") is True
+
+
+def build_generated_employer_origin_relevance_text(raw_job: dict) -> str:
+    raw_data = raw_job.get("raw_data") or {}
+    job_data = raw_data.get("job") or {}
+    result_card = raw_data.get("result_card") or {}
+    listing_evidence = raw_data.get("listing_evidence") or {}
+    detail_evidence = raw_data.get("detail_evidence") or {}
+
+    return " ".join(
+        part
+        for part in (
+            flatten_value(raw_job.get("source_name")),
+            flatten_value(raw_job.get("source_url")),
+            flatten_value(job_data.get("title")),
+            flatten_value(job_data.get("titel")),
+            flatten_value(job_data.get("description")),
+            flatten_value(job_data.get("beschreibung")),
+            flatten_value(job_data.get("content")),
+            flatten_value(job_data.get("company_name")),
+            flatten_value(job_data.get("arbeitgeber")),
+            flatten_value(result_card.get("title")),
+            flatten_value(result_card.get("company_name")),
+            flatten_value(result_card.get("detail_url")),
+            flatten_value(listing_evidence.get("listing_text")),
+            flatten_value(detail_evidence.get("page_title")),
+        )
+        if part
+    )
+
+
 def build_relevance_text(raw_job: dict) -> str:
+    if is_generated_employer_origin_gate_evidence(raw_job):
+        return build_generated_employer_origin_relevance_text(raw_job)
+
     raw_data = raw_job.get("raw_data") or {}
     job_data = raw_data.get("job", raw_data)
 
@@ -192,6 +241,7 @@ def is_relevant_for_silver(raw_job: dict) -> bool:
         return True
 
     return False
+
 
 def get_silver_decision_reason(raw_job: dict) -> str:
     role_matches = get_role_matches(raw_job)
