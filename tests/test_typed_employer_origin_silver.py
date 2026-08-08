@@ -16,6 +16,7 @@ def employer_origin_raw_job(
     company_name: str,
     location: str,
     source_type: str = EMPLOYER_ORIGIN_SOURCE_TYPE,
+    country: str | None = None,
 ) -> dict:
     return {
         "id": raw_job_id,
@@ -28,12 +29,14 @@ def employer_origin_raw_job(
                 "title": title,
                 "company_name": company_name,
                 "location": location,
+                "country": country,
                 "detail_url": source_url,
             },
             "job": {
                 "title": title,
                 "company_name": company_name,
                 "location": location,
+                "country": country,
                 "source_url": source_url,
                 "profile_terms": ["data", "ai"],
             },
@@ -62,12 +65,12 @@ def test_computacenter_typed_employer_origin_uses_generic_silver_path() -> None:
     assert result["title"] == "Lead Consultant (m/w/d) Data Center AI Infrastructures"
     assert result["company_name"] == "Computacenter AG & Co. oHG"
     assert result["city"] == "deutschland; bundesweit; hybrid"
-    assert result["country"] == "DE"
+    assert result["country"] is None
     assert result["canonical_source_type"] == EMPLOYER_ORIGIN_SOURCE_TYPE
     assert result["canonical_key_candidate"] == (
         "computacenter ag & co. ohg :: "
         "lead consultant (m/w/d) data center ai infrastructures :: "
-        "deutschland; bundesweit; hybrid | de"
+        "deutschland; bundesweit; hybrid"
     )
 
 
@@ -89,7 +92,30 @@ def test_accompio_typed_employer_origin_uses_same_generic_silver_path() -> None:
     assert result["title"] == "Senior Data Engineer (m/w/d)"
     assert result["company_name"] == "accompio GmbH"
     assert result["city"] == "hannover; remote; deutschland"
-    assert result["country"] == "DE"
+    assert result["country"] is None
+    assert result["canonical_source_type"] == EMPLOYER_ORIGIN_SOURCE_TYPE
+
+
+def test_typed_employer_origin_preserves_explicit_structured_country() -> None:
+    raw_job = employer_origin_raw_job(
+        raw_job_id=40002,
+        source_name="computacenter:discovery",
+        external_job_id="1266548901:594bd00b6602",
+        source_url=(
+            "https://jobs.computacenter.com/job/Bangalore-Bengaluru-"
+            "%28Bangalore-Technical-Analyst-Genesys-Administrator-560025/"
+            "1266548901/"
+        ),
+        title="Technical Analyst - Genesys Administrator",
+        company_name="Computacenter",
+        location="Bangalore / Bengaluru",
+        country="IN",
+    )
+
+    result = transform_raw_job_to_silver(raw_job)
+
+    assert result["country"] == "IN"
+    assert result["normalized_location"] == "bangalore / bengaluru | in"
     assert result["canonical_source_type"] == EMPLOYER_ORIGIN_SOURCE_TYPE
 
 
