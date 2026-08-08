@@ -101,6 +101,32 @@ def supported_bronze_source_type(raw_job: dict) -> str | None:
     return None
 
 
+def is_generated_employer_origin_gate_evidence(raw_job: dict) -> bool:
+    raw_data = raw_job.get("raw_data")
+    if not isinstance(raw_data, dict):
+        return False
+
+    if raw_data.get("source_type") != EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE:
+        return False
+
+    acquisition_boundary = raw_data.get("acquisition_boundary")
+    if not isinstance(acquisition_boundary, dict):
+        return False
+
+    return acquisition_boundary.get("generated_from_gate_evidence") is True
+
+
+def employer_origin_location(
+    raw_job: dict,
+    job_data: dict,
+    result_card: dict,
+) -> object:
+    if is_generated_employer_origin_gate_evidence(raw_job):
+        return None
+
+    return job_data.get("location") or result_card.get("location")
+
+
 def add_canonicalization_fields(
     job: dict,
     *,
@@ -225,7 +251,7 @@ def transform_finanz_informatik_raw_job(raw_job: dict) -> dict:
                 or result_card.get("company_name")
                 or "Finanz Informatik GmbH & Co. KG"
             ),
-            "city": job_data.get("location") or result_card.get("location"),
+            "city": employer_origin_location(raw_job, job_data, result_card),
             "postal_code": None,
             "country": "DE",
             "publication_date": None,
@@ -254,7 +280,7 @@ def transform_enercity_raw_job(raw_job: dict) -> dict:
                 or result_card.get("company_name")
                 or "enercity AG"
             ),
-            "city": job_data.get("location") or result_card.get("location"),
+            "city": employer_origin_location(raw_job, job_data, result_card),
             "postal_code": None,
             "country": "DE",
             "publication_date": None,
@@ -289,7 +315,7 @@ def transform_employer_origin_raw_job(
                 or result_card.get("company_name")
                 or default_company_name
             ),
-            "city": job_data.get("location") or result_card.get("location"),
+            "city": employer_origin_location(raw_job, job_data, result_card),
             "postal_code": None,
             "country": (
                 job_data.get("country")
