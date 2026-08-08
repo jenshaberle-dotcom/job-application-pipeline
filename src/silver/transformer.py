@@ -266,6 +266,7 @@ def transform_employer_origin_raw_job(
     raw_job: dict,
     *,
     default_company_name: str | None = None,
+    default_country: str | None = "DE",
     canonical_source_type_override: str | None = None,
 ) -> dict:
     raw_data = raw_job["raw_data"]
@@ -290,7 +291,11 @@ def transform_employer_origin_raw_job(
             ),
             "city": job_data.get("location") or result_card.get("location"),
             "postal_code": None,
-            "country": "DE",
+            "country": (
+                job_data.get("country")
+                or result_card.get("country")
+                or default_country
+            ),
             "publication_date": None,
         },
         canonical_source_type_override=canonical_source_type_override,
@@ -351,6 +356,7 @@ def transform_raw_job_to_silver(raw_job: dict) -> dict:
     if bronze_source_type == EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE:
         return transform_employer_origin_raw_job(
             raw_job,
+            default_country=None,
             canonical_source_type_override=bronze_source_type,
         )
 
