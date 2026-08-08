@@ -159,3 +159,23 @@ def test_generated_listing_reason_remote_cannot_create_accessibility() -> None:
 
     assert "remote" not in build_relevance_text(raw_job)
     assert get_accessibility_matches(raw_job) == []
+
+
+def test_generated_url_slug_cannot_create_accessibility() -> None:
+    raw_job = generated_gate_raw_job(
+        raw_job_id=30970,
+        source_url="https://jobs.computacenter.com/job/Berlin-Cloud-Engineer/1412345679/",
+        title="Cloud Engineer",
+        listing_text="Cloud Engineer",
+        heuristic_location="",
+        profile_terms=[],
+        listing_reason="Candidate admitted by bounded acquisition evidence.",
+    )
+
+    relevance_text = build_relevance_text(raw_job)
+
+    assert "berlin" not in relevance_text
+    assert "cloud engineer" in get_role_matches(raw_job)
+    assert get_accessibility_matches(raw_job) == []
+    assert is_relevant_for_silver(raw_job) is False
+    assert get_silver_decision_reason(raw_job) == "missing_accessibility_signal"

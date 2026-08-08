@@ -164,7 +164,6 @@ def build_generated_employer_origin_relevance_text(raw_job: dict) -> str:
         part
         for part in (
             flatten_value(raw_job.get("source_name")),
-            flatten_value(raw_job.get("source_url")),
             flatten_value(job_data.get("title")),
             flatten_value(job_data.get("titel")),
             flatten_value(job_data.get("description")),
@@ -174,7 +173,6 @@ def build_generated_employer_origin_relevance_text(raw_job: dict) -> str:
             flatten_value(job_data.get("arbeitgeber")),
             flatten_value(result_card.get("title")),
             flatten_value(result_card.get("company_name")),
-            flatten_value(result_card.get("detail_url")),
             flatten_value(listing_evidence.get("listing_text")),
             flatten_value(detail_evidence.get("page_title")),
         )
