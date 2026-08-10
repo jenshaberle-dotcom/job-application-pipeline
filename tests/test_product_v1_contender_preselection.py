@@ -55,7 +55,7 @@ def row(
         ("Cloud Data Engineer", "bridge"),
         ("Staff Engineer Data Platform", "bridge"),
         ("Analytics Engineer", "bridge"),
-        ("AI Reliability Engineer", "primary"),
+        ("AI Reliability Engineer", "strategic_probe"),
         ("Data Reliability Specialist", "strategic_probe"),
     ],
 )
