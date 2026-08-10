@@ -141,6 +141,10 @@ def job_detail_url_shape(url: str) -> bool:
         return False
     if successfactors_like_job_detail_url(url):
         return True
+    # Common ATS invite/detail route. Keep this deliberately strict: only a
+    # root-level job-invite path with a numeric requisition identifier counts.
+    if search(r"^/job-invite/[0-9]+$", path):
+        return True
     detail_markers = (
         "/job/",
         "/jobs/",
