@@ -1,0 +1,307 @@
+from __future__ import annotations
+
+import argparse
+import json
+from typing import Iterable
+
+import psycopg
+from psycopg.rows import dict_row
+
+from scripts.run_employer_origin_detail_evidence_repair_agent import (
+    SourceCandidate,
+    discover_link_candidates,
+)
+from src.config import get_database_config
+from src.job_lifecycle_health import fetch_exact_detail
+from src.search_intelligence.product_v1_contenders import (
+    DEFAULT_CONTENDER_LIMIT,
+    build_contender_manifest,
+)
+from src.search_intelligence.product_v1_origin_vacancy_bridge import (
+    ExactDetailAttempt,
+    OriginCandidateSnapshot,
+    contender_from_manifest_row,
+    evaluate_exact_detail_attempts,
+    origin_candidate_from_row,
+    resolution_payload,
+    resolve_origin_candidate,
+)
+
+
+DEFAULT_NETWORK_LIMIT = 5
+DEFAULT_MAX_SEED_PAGES = 3
+DEFAULT_MAX_DETAIL_PAGES = 8
+
+
+def bounded_positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+def load_read_only_state() -> tuple[str, list[dict], list[OriginCandidateSnapshot]]:
+    with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION READ ONLY")
+            cur.execute("SHOW transaction_read_only")
+            read_only = str(cur.fetchone()["transaction_read_only"])
+            if read_only != "on":
+                raise RuntimeError("origin vacancy bridge requires a read-only transaction")
+
+            cur.execute(
+                "SELECT "
+                "silver_job_id, title, company_name, city, country, "
+                "publication_date, source_name, source_url, canonical_source_type, "
+                "origin_validation_status, work_model, commute_minutes, "
+                "lifecycle_status "
+                "FROM gold_product_v1_job_readiness "
+                "ORDER BY silver_job_id"
+            )
+            inventory_rows = [dict(row) for row in cur.fetchall()]
+
+            cur.execute(
+                "SELECT "
+                "id, company_key, company_name, candidate_url, "
+                "source_name_candidate, source_family_candidate, "
+                "source_target_candidate, source_type_candidate, status, risk_level "
+                "FROM employer_origin_source_candidates "
+                "ORDER BY id"
+            )
+            candidate_rows = [
+                origin_candidate_from_row(dict(row)) for row in cur.fetchall()
+            ]
+        conn.rollback()
+
+    return read_only, inventory_rows, candidate_rows
+
+
+def select_contenders(
+    manifest: dict[str, object],
+    *,
+    requested_silver_job_ids: Iterable[int],
+    limit: int,
+) -> list[dict]:
+    rows = list(manifest["rows"])
+    by_id = {int(row["silver_job_id"]): row for row in rows}
+    requested = list(dict.fromkeys(int(value) for value in requested_silver_job_ids))
+    if len(requested) > DEFAULT_NETWORK_LIMIT:
+        raise ValueError(
+            f"At most {DEFAULT_NETWORK_LIMIT} explicit Silver targets are allowed."
+        )
+    if requested:
+        missing = [value for value in requested if value not in by_id]
+        if missing:
+            raise ValueError(
+                "Explicit targets are not present in the current bounded Product V1 "
+                f"contender pool: {missing}"
+            )
+        return [by_id[value] for value in requested]
+
+    return rows[:limit]
+
+
+def _source_candidate(snapshot: OriginCandidateSnapshot) -> SourceCandidate:
+    return SourceCandidate(
+        id=snapshot.candidate_id,
+        company_key=snapshot.company_key,
+        company_name=snapshot.company_name,
+        candidate_url=snapshot.candidate_url or "",
+        source_name_candidate=snapshot.source_name_candidate,
+        source_family_candidate=snapshot.source_family_candidate,
+        source_target_candidate=snapshot.source_target_candidate,
+        source_type_candidate=snapshot.source_type_candidate,
+        status=snapshot.status,
+        risk_level=snapshot.risk_level,
+    )
+
+
+def run_bridge_for_contender(
+    row: dict,
+    *,
+    candidates: list[OriginCandidateSnapshot],
+    max_seed_pages: int,
+    max_detail_pages: int,
+) -> dict[str, object]:
+    contender = contender_from_manifest_row(row)
+    resolution = resolve_origin_candidate(contender, candidates)
+    result: dict[str, object] = {
+        "inspection_priority": contender.inspection_priority,
+        "silver_job_id": contender.silver_job_id,
+        "title": contender.title,
+        "company_name": contender.company_name,
+        "geography_bucket": contender.geography_bucket,
+        "historical_source": {
+            "source_name": contender.source_name,
+            "source_url": contender.source_url,
+            "canonical_source_type": contender.canonical_source_type,
+            "treated_as_current_activity_truth": False,
+        },
+        "origin_candidate_resolution": resolution_payload(resolution),
+        "detail_discovery": None,
+        "exact_vacancy": None,
+    }
+
+    if resolution.status != "ready_for_bounded_detail_discovery":
+        return result
+
+    assert resolution.candidate is not None
+    candidate = _source_candidate(resolution.candidate)
+    location_terms = tuple(
+        dict.fromkeys(
+            value
+            for value in (contender.city, "Hannover", "remote", "Deutschland")
+            if value
+        )
+    )
+    link_candidates, rejected_urls, requested_urls, discovery_evidence = (
+        discover_link_candidates(
+            candidate=candidate,
+            gates={},
+            profile_terms=(contender.title,),
+            location_terms=location_terms,
+            max_seed_pages=max_seed_pages,
+            enable_search_discovery=False,
+            max_search_queries=1,
+            max_search_results=1,
+        )
+    )
+
+    bounded_links = link_candidates[:max_detail_pages]
+    attempts = [
+        ExactDetailAttempt(
+            url=link.url,
+            link_text=link.text,
+            probe=fetch_exact_detail(link.url),
+        )
+        for link in bounded_links
+    ]
+    exact_vacancy = evaluate_exact_detail_attempts(contender, attempts)
+    result["detail_discovery"] = {
+        "external_search_discovery_enabled": False,
+        "provider_requests": 0,
+        "preliminary_detail_candidate_count": len(link_candidates),
+        "detail_pages_checked": len(attempts),
+        "requested_seed_urls": list(requested_urls),
+        "rejected_urls": list(rejected_urls),
+        "discovery_evidence": discovery_evidence,
+    }
+    result["exact_vacancy"] = exact_vacancy
+    return result
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Resolve bounded Product V1 Silver contenders to exact employer-origin "
+            "vacancy URLs with provider-free read-only evidence."
+        )
+    )
+    parser.add_argument(
+        "--silver-job-id",
+        action="append",
+        type=bounded_positive_int,
+        default=[],
+        help=(
+            "Exact Silver target from the current bounded Product V1 contender pool. "
+            "Repeat up to five times. Defaults to the first bounded contenders."
+        ),
+    )
+    parser.add_argument(
+        "--limit",
+        type=bounded_positive_int,
+        default=DEFAULT_NETWORK_LIMIT,
+        help="Maximum number of contenders to inspect when no exact target is supplied.",
+    )
+    parser.add_argument(
+        "--contender-pool-limit",
+        type=bounded_positive_int,
+        default=DEFAULT_CONTENDER_LIMIT,
+    )
+    parser.add_argument(
+        "--max-seed-pages",
+        type=bounded_positive_int,
+        default=DEFAULT_MAX_SEED_PAGES,
+    )
+    parser.add_argument(
+        "--max-detail-pages",
+        type=bounded_positive_int,
+        default=DEFAULT_MAX_DETAIL_PAGES,
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.limit > DEFAULT_NETWORK_LIMIT:
+        raise SystemExit(f"--limit must be <= {DEFAULT_NETWORK_LIMIT}")
+    if args.contender_pool_limit < args.limit:
+        raise SystemExit("--contender-pool-limit must be >= --limit")
+
+    read_only, inventory_rows, candidates = load_read_only_state()
+    manifest = build_contender_manifest(
+        inventory_rows,
+        transaction_read_only=read_only,
+        limit=args.contender_pool_limit,
+    )
+    try:
+        selected = select_contenders(
+            manifest,
+            requested_silver_job_ids=args.silver_job_id,
+            limit=args.limit,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    results = [
+        run_bridge_for_contender(
+            row,
+            candidates=candidates,
+            max_seed_pages=args.max_seed_pages,
+            max_detail_pages=args.max_detail_pages,
+        )
+        for row in selected
+    ]
+    payload = {
+        "status": "product_v1_origin_vacancy_bridge",
+        "transaction_read_only": read_only,
+        "purpose": "bounded_exact_origin_vacancy_evidence_not_ranking",
+        "contender_pool": {
+            "limit": args.contender_pool_limit,
+            "selected_for_network_inspection": len(results),
+            "source_manifest_counts": manifest["counts"],
+        },
+        "results": results,
+        "boundary": {
+            "database_writes": False,
+            "health_observation_writes": False,
+            "candidate_or_origin_url_writes": False,
+            "bronze_or_silver_writes": False,
+            "hard_filter_or_assessment_writes": False,
+            "ranking_or_top5_writes": False,
+            "application_writes": False,
+            "source_or_scheduler_writes": False,
+            "external_search_discovery": False,
+            "provider_or_llm": False,
+            "browser_automation": False,
+            "bounded_ordinary_http_only": True,
+            "max_network_contenders": DEFAULT_NETWORK_LIMIT,
+            "max_seed_pages_per_contender": args.max_seed_pages,
+            "max_detail_pages_per_contender": args.max_detail_pages,
+            "transient_health_classification_only": True,
+        },
+    }
+    print(
+        json.dumps(
+            payload,
+            indent=2,
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
