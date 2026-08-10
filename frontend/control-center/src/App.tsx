@@ -32,6 +32,10 @@ type Job = {
   publication_date?: string | null;
   source_url?: string | null;
   product_readiness_status?: string;
+  lifecycle_status?: string;
+  last_positive_observed_at?: string | null;
+  last_health_checked_at?: string | null;
+  lifecycle_evidence_reason?: string | null;
   overall_quality_score?: number | null;
   profile_direction_score?: number | null;
   data_focus_score?: number | null;
@@ -137,6 +141,10 @@ type ProductPayload = {
   summary: {
     wave_term_count: number;
     observed_job_count: number;
+    current_active_job_count: number;
+    stale_job_count: number;
+    inactive_confirmed_job_count: number;
+    unverifiable_job_count: number;
     rankable_job_count: number;
     origin_blocker_count: number;
     top_job_count: number;
@@ -168,7 +176,8 @@ const statusTone = (value: string) => {
     normalized.includes("inconsistent") ||
     normalized.includes("error") ||
     normalized.includes("failed") ||
-    normalized.includes("blocked")
+    normalized.includes("blocked") ||
+    normalized === "inactive_confirmed"
   ) return "bad";
   if (
     normalized === "passed" ||
@@ -176,6 +185,7 @@ const statusTone = (value: string) => {
     normalized === "registered" ||
     normalized === "implemented" ||
     normalized === "active" ||
+    normalized === "active_confirmed" ||
     normalized === "ingested" ||
     normalized.includes("available") ||
     normalized.includes("ready") ||
@@ -186,6 +196,8 @@ const statusTone = (value: string) => {
     normalized.includes("required") ||
     normalized.includes("waiting") ||
     normalized.includes("unknown") ||
+    normalized.includes("stale") ||
+    normalized.includes("unverifiable") ||
     normalized.includes("not ") ||
     normalized.includes("not_") ||
     normalized.includes("inactive") ||
@@ -220,6 +232,7 @@ function JobCard({ job, ranked }: { job: Job; ranked?: boolean }) {
         </div>
         {job.overall_quality_score != null && <strong className="score">{job.overall_quality_score}</strong>}
       </header>
+      {job.lifecycle_status && <StatusPill value={job.lifecycle_status} />}
       <div className="signal-grid">
         <span>ML direction <b>{job.profile_direction_score ?? "–"}</b></span>
         <span>Data focus <b>{job.data_focus_score ?? "–"}</b></span>
@@ -227,6 +240,9 @@ function JobCard({ job, ranked }: { job: Job; ranked?: boolean }) {
         <span>Evidence <b>{job.evidence_quality_score ?? "–"}</b></span>
         <span>Model <b>{label(job.work_model)}</b></span>
         <span>Commute <b>{job.commute_minutes == null ? "unknown" : `${job.commute_minutes} min`}</b></span>
+        <span>Last health <b>{job.last_health_checked_at || "not checked"}</b></span>
+        <span>Last positive <b>{job.last_positive_observed_at || "not observed"}</b></span>
+        <span>Health reason <b>{label(job.lifecycle_evidence_reason || undefined)}</b></span>
       </div>
       {(job.explanations?.length || job.uncertainties?.length) ? (
         <div className="evidence-panel">
@@ -368,6 +384,7 @@ export default function App() {
           <span>No provider call</span>
           <span>No auto-apply</span>
           <span>No source activation</span>
+          <span>Lifecycle-gated Top 5</span>
         </div>
       </aside>
 
@@ -395,8 +412,10 @@ export default function App() {
           <>
             <section className="metrics">
               <Metric labelText="Wave terms" value={payload.summary.wave_term_count} helper="bounded StepStone search spaces" />
-              <Metric labelText="Observed jobs" value={payload.summary.observed_job_count} helper="Silver jobs in Product V1 view" />
-              <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="origin + activity + hard gates passed" />
+              <Metric labelText="Observed jobs" value={payload.summary.observed_job_count} helper="historical Silver inventory" />
+              <Metric labelText="Current active" value={payload.summary.current_active_job_count} helper="explicit lifecycle-confirmed vacancies" />
+              <Metric labelText="Needs refresh" value={payload.summary.stale_job_count + payload.summary.unverifiable_job_count} helper="not safe for current Top 5" />
+              <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="lifecycle + origin + hard gates passed" />
               <Metric labelText="Registered sources" value={sourceOverview.summary.registered_count} helper="registration is not activation" />
             </section>
             <section className="pillar-grid">
@@ -460,7 +479,7 @@ export default function App() {
 
         {tab === "top-jobs" && (
           <section className="content-panel">
-            <header><span className="eyebrow">Origin validated · explainable</span><h3>Top-5 job review</h3><p>Authoritative ranks stay empty until the operator-owned ranking policy is approved.</p></header>
+            <header><span className="eyebrow">Lifecycle confirmed · origin validated · explainable</span><h3>Top-5 job review</h3><p>Historical Silver presence alone never qualifies a vacancy. Current lifecycle evidence is required before ranking.</p></header>
             <div className="job-grid">
               {(payload.top_jobs.length ? payload.top_jobs : readinessPreview).map((item) => <JobCard job={item} ranked={payload.top_jobs.length > 0} key={item.silver_job_id} />)}
               {!payload.top_jobs.length && !readinessPreview.length && <p className="empty">No Product V1 job assessments are available.</p>}
