@@ -17,6 +17,18 @@ from src.silver.transformer import (
 )
 
 
+def positive_integer(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Transform unprocessed Bronze raw_jobs into Silver jobs."
@@ -27,6 +39,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Optional exact source name or source-family filter, "
             "e.g. enercity:discovery or enercity."
         ),
+    )
+    parser.add_argument(
+        "--ingestion-run-id",
+        type=positive_integer,
+        help="Optional exact ingestion run id to bind Bronze selection.",
     )
     parser.add_argument("--limit", type=int, default=100)
     return parser
@@ -60,6 +77,7 @@ def main(argv: list[str] | None = None) -> None:
     raw_jobs = repository.load_unprocessed_raw_jobs(
         limit=args.limit,
         source_patterns=resolve_source_patterns(args.source),
+        ingestion_run_id=args.ingestion_run_id,
     )
 
     if not raw_jobs:
