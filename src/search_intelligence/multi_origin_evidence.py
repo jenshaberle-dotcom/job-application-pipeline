@@ -236,12 +236,20 @@ def plausible_sibling_origin_urls(candidate_url: str, *, company_key: str) -> tu
     normalized = normalize_url(candidate_url)
     if not normalized:
         return ()
+    parsed = urlparse(normalized)
     base = registrable_domain_like(normalized)
     original_host = host(normalized)
+    original_origin = f"{parsed.scheme}://{parsed.netloc}"
     host_prefixes = ("careers", "career", "jobs", "job", "karriere")
     paths = ("/", "/jobs", "/job", "/careers", "/karriere/jobs", "/de/karriere/jobs")
     candidates: list[UrlEvidenceCandidate] = [
         UrlEvidenceCandidate(normalized, "candidate_url", 0.90, "persisted candidate URL"),
+        UrlEvidenceCandidate(
+            f"{original_origin}/search",
+            "plausible_same_host_listing",
+            0.78,
+            "common same-host job listing path on the validated candidate origin",
+        ),
     ]
     for prefix in host_prefixes:
         sibling_host = f"{prefix}.{base}"
