@@ -20,10 +20,11 @@ class SilverJobRepository:
         self,
         limit: int = 100,
         source_patterns: list[str] | None = None,
+        ingestion_run_id: int | None = None,
     ) -> list[dict]:
         source_patterns = source_patterns or []
 
-        source_filter = ""
+        filters: list[str] = []
         params: list[object] = []
 
         if source_patterns:
@@ -37,7 +38,17 @@ class SilverJobRepository:
 
                 params.append(pattern)
 
-            source_filter = "AND (" + " OR ".join(source_clauses) + ")"
+            filters.append("(" + " OR ".join(source_clauses) + ")")
+
+        if ingestion_run_id is not None:
+            if ingestion_run_id <= 0:
+                raise ValueError("ingestion_run_id must be a positive integer")
+            filters.append("r.ingestion_run_id = %s")
+            params.append(ingestion_run_id)
+
+        filter_sql = ""
+        if filters:
+            filter_sql = "AND " + " AND ".join(filters)
 
         with self.get_connection() as conn:
             with conn.cursor() as cur:
@@ -56,7 +67,7 @@ class SilverJobRepository:
                         ON d.raw_job_id = r.id
                     WHERE s.id IS NULL
                       AND d.id IS NULL
-                      {source_filter}
+                      {filter_sql}
                     ORDER BY r.id
                     LIMIT %s;
                     """,
