@@ -10,6 +10,14 @@ from src.search_intelligence.source_connector_overview import (
 )
 
 
+CURRENT_LIFECYCLE_STATES = {
+    "active_confirmed",
+    "stale_needs_refresh",
+    "inactive_confirmed",
+    "unverifiable",
+}
+
+
 def _value(item: Mapping[str, Any], key: str, default: Any = None) -> Any:
     return item.get(key, default)
 
@@ -55,6 +63,18 @@ def build_product_v1_payload(
         if _value(job, "product_readiness_status")
         in {"blocked_origin", "origin_validation_required"}
     )
+    lifecycle_contract_ready = not job_readiness or all(
+        _value(job, "lifecycle_status") in CURRENT_LIFECYCLE_STATES
+        for job in job_readiness
+    )
+    lifecycle_counts = {
+        state: sum(
+            1
+            for job in job_readiness
+            if _value(job, "lifecycle_status") == state
+        )
+        for state in CURRENT_LIFECYCLE_STATES
+    }
     approved_source_types = {
         str(_value(source, "document_type"))
         for source in application_sources
@@ -73,6 +93,14 @@ def build_product_v1_payload(
                 "code": "migration_required",
                 "title": "Product V1 migration not applied",
                 "detail": "Apply the reviewed migrations before DB-backed Product V1 state can be served.",
+            }
+        )
+    if job_readiness and not lifecycle_contract_ready:
+        operator_blockers.append(
+            {
+                "code": "job_lifecycle_health_required",
+                "title": "Job lifecycle health contract required",
+                "detail": "Historical Silver presence cannot be treated as current vacancy truth. Apply the reviewed lifecycle migration before Top-5 or application readiness is served.",
             }
         )
     if policy_status != "approved":
@@ -109,8 +137,13 @@ def build_product_v1_payload(
         )
 
     top_jobs_available = (
-        policy_status == "approved"
+        lifecycle_contract_ready
+        and policy_status == "approved"
         and (hard_filter_policy is None or hard_policy_status == "approved")
+    )
+    safe_top_jobs = list(top_jobs) if lifecycle_contract_ready else []
+    safe_application_readiness = (
+        list(application_readiness) if lifecycle_contract_ready else []
     )
     payload = {
         "schema_version": "pipeline.product_v1.control_center.v1",
@@ -134,7 +167,7 @@ def build_product_v1_payload(
                 "status": "available"
                 if top_jobs_available
                 else "operator_decision_required",
-                "summary": "Only current, origin-validated, hard-filter-passing jobs can enter authoritative ranking.",
+                "summary": "Only lifecycle-confirmed, origin-validated, hard-filter-passing jobs can enter authoritative ranking.",
             },
             {
                 "id": "application_assistant",
@@ -154,12 +187,18 @@ def build_product_v1_payload(
         "summary": {
             "wave_term_count": len(wave_states),
             "observed_job_count": len(job_readiness),
-            "rankable_job_count": rankable_count,
+            "current_active_job_count": lifecycle_counts["active_confirmed"],
+            "stale_job_count": lifecycle_counts["stale_needs_refresh"],
+            "inactive_confirmed_job_count": lifecycle_counts[
+                "inactive_confirmed"
+            ],
+            "unverifiable_job_count": lifecycle_counts["unverifiable"],
+            "rankable_job_count": rankable_count if lifecycle_contract_ready else 0,
             "origin_blocker_count": origin_blocker_count,
-            "top_job_count": len(top_jobs),
+            "top_job_count": len(safe_top_jobs),
             "application_ready_count": sum(
                 1
-                for item in application_readiness
+                for item in safe_application_readiness
                 if _value(item, "application_readiness_status")
                 == "ready_for_generation"
             ),
@@ -169,8 +208,8 @@ def build_product_v1_payload(
         "hard_filter_policy": hard_policy
         or {"status": "operator_decision_required"},
         "job_readiness": list(job_readiness),
-        "top_jobs": list(top_jobs),
-        "application_readiness": list(application_readiness),
+        "top_jobs": safe_top_jobs,
+        "application_readiness": safe_application_readiness,
         "application_sources": list(application_sources),
         "application_sources_ready": application_sources_ready,
         "source_connector_overview": dict(
@@ -184,6 +223,7 @@ def build_product_v1_payload(
             "no_source_activation": True,
             "no_scheduler_mutation": True,
             "aggregator_evidence_is_not_top5_truth": True,
+            "historical_job_presence_is_not_current_activity": True,
             "current_compensation_is_local_runtime_context_only": True,
         },
     }
