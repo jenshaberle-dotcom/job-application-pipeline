@@ -22,6 +22,7 @@ from src.search_intelligence.cand001_validated_origin_url_persistence import (
     build_persistence_plan_item,
     evidence_from_origin_discovery_payload,
     markdown_report,
+    normalize_url,
     report_payload,
 )
 
@@ -43,22 +44,43 @@ def _db_object_exists(conn: psycopg.Connection[Any], object_name: str) -> bool:
 def load_candidate(
     conn: psycopg.Connection[Any],
     company_key: str,
+    *,
+    candidate_id: int | None = None,
 ) -> CandidatePersistenceSnapshot:
     with conn.cursor(row_factory=dict_row) as cur:
-        cur.execute(
-            """
-            SELECT id, company_key, company_name, status, candidate_url, risk_level
-            FROM employer_origin_source_candidates
-            WHERE company_key = %s
-            ORDER BY updated_at DESC NULLS LAST, id DESC
-            LIMIT 1
-            """,
-            (company_key,),
-        )
+        if candidate_id is None:
+            cur.execute(
+                """
+                SELECT id, company_key, company_name, status, candidate_url, risk_level
+                FROM employer_origin_source_candidates
+                WHERE company_key = %s
+                ORDER BY updated_at DESC NULLS LAST, id DESC
+                LIMIT 1
+                """,
+                (company_key,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, company_key, company_name, status, candidate_url, risk_level
+                FROM employer_origin_source_candidates
+                WHERE id = %s
+                """,
+                (candidate_id,),
+            )
         row = cur.fetchone()
     if not row:
+        target = (
+            f"candidate_id={candidate_id} company_key={company_key!r}"
+            if candidate_id is not None
+            else f"company_key={company_key!r}"
+        )
+        raise SystemExit(f"No employer-origin candidate found for {target}.")
+    if candidate_id is not None and str(row["company_key"]) != company_key:
         raise SystemExit(
-            f"No employer-origin candidate found for company_key={company_key!r}."
+            "Exact candidate identity mismatch: "
+            f"candidate_id={candidate_id} has company_key={row['company_key']!r}, "
+            f"not {company_key!r}."
         )
     return CandidatePersistenceSnapshot(
         candidate_id=int(row["id"]),
@@ -112,6 +134,7 @@ def write_review_and_candidate_url(
         "sz1_candidate_metadata_transition": True,
         "explicit_apply_required": True,
         "default_repair_required_before_apply": True,
+        "exact_candidate_identity_required": True,
         "no_gate_write": True,
         "no_evidence_write": True,
         "no_connector_registration": True,
@@ -127,6 +150,40 @@ def write_review_and_candidate_url(
         "risk_level": evidence.risk_level,
     }
     with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id, company_key, status, candidate_url
+            FROM employer_origin_source_candidates
+            WHERE id = %s
+            FOR UPDATE
+            """,
+            (item.candidate_id,),
+        )
+        locked = cur.fetchone()
+        if locked is None:
+            raise SystemExit(
+                f"Exact candidate {item.candidate_id} disappeared before URL apply."
+            )
+        if str(locked["company_key"]) != item.company_key:
+            raise SystemExit(
+                "Exact candidate company_key drift before URL apply: "
+                f"candidate_id={item.candidate_id} expected={item.company_key!r} "
+                f"actual={locked['company_key']!r}."
+            )
+        if str(locked["status"]) != item.candidate_status:
+            raise SystemExit(
+                "Exact candidate status drift before URL apply: "
+                f"candidate_id={item.candidate_id} expected={item.candidate_status!r} "
+                f"actual={locked['status']!r}."
+            )
+        if normalize_url(locked["candidate_url"]) != normalize_url(
+            item.previous_candidate_url
+        ):
+            raise SystemExit(
+                "Exact candidate URL drift before URL apply: "
+                f"candidate_id={item.candidate_id}."
+            )
+
         cur.execute(
             """
             INSERT INTO candidate_origin_url_persistence_reviews (
@@ -182,15 +239,21 @@ def write_review_and_candidate_url(
             SET candidate_url = %s,
                 updated_at = now()
             WHERE id = %s
+              AND company_key = %s
+              AND status = %s
               AND (candidate_url IS NULL OR btrim(candidate_url) = '')
-              AND status <> 'active_controlled'
             """,
-            (item.selected_url, item.candidate_id),
+            (
+                item.selected_url,
+                item.candidate_id,
+                item.company_key,
+                item.candidate_status,
+            ),
         )
         if cur.rowcount != 1:
             raise SystemExit(
-                "Candidate URL write did not update exactly one row for "
-                f"{item.company_key}; transaction will abort."
+                "Candidate URL write did not update exactly the locked target row for "
+                f"{item.candidate_id}:{item.company_key}; transaction will abort."
             )
     return review_id
 
@@ -228,6 +291,21 @@ def origin_args_from_cli(args: argparse.Namespace) -> SimpleNamespace:
     )
 
 
+def _exact_candidate_id_for_company(
+    args: argparse.Namespace,
+    company_key: str,
+) -> int | None:
+    exact_map = getattr(args, "candidate_id_by_company_key", None)
+    if exact_map is None:
+        return None
+    if company_key not in exact_map:
+        raise SystemExit(
+            "Exact candidate identity map is present but missing company_key="
+            f"{company_key!r}; refusing company-key-only fallback."
+        )
+    return int(exact_map[company_key])
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     output_dir = DEFAULT_OUTPUT_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -236,7 +314,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     with connect() as conn:
         for company_key in args.company_key:
-            candidate = load_candidate(conn, company_key)
+            exact_candidate_id = _exact_candidate_id_for_company(args, company_key)
+            candidate = load_candidate(
+                conn,
+                company_key,
+                candidate_id=exact_candidate_id,
+            )
             if args.single_pass_diagnostic:
                 payload = run_atomic_origin_discovery(origin_args, company_key)
             else:
