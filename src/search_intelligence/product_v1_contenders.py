@@ -84,8 +84,19 @@ def has_phrase(text: str, phrase: str) -> bool:
 
 def classify_role_title(title: str) -> RoleSignal | None:
     text = normalize_text(title)
-    signals: list[str] = []
 
+    if "reliability" in text and any(
+        has_phrase(text, phrase)
+        for phrase in ("ai", "ml", "machine learning", "data")
+    ):
+        return RoleSignal(
+            tier="strategic_probe",
+            tier_order=2,
+            family="ai_ml_data_reliability",
+            signals=("ai_ml_data_reliability",),
+        )
+
+    signals: list[str] = []
     if has_phrase(text, "mlops") or has_phrase(text, "ml ops"):
         signals.append("mlops")
     if "engineer" in text and (
@@ -123,17 +134,6 @@ def classify_role_title(title: str) -> RoleSignal | None:
             tier_order=1,
             family=bridge_signals[0],
             signals=tuple(dict.fromkeys(bridge_signals)),
-        )
-
-    if "reliability" in text and any(
-        has_phrase(text, phrase)
-        for phrase in ("ai", "ml", "machine learning", "data")
-    ):
-        return RoleSignal(
-            tier="strategic_probe",
-            tier_order=2,
-            family="ai_ml_data_reliability",
-            signals=("ai_ml_data_reliability",),
         )
 
     return None
