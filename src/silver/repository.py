@@ -16,12 +16,14 @@ class SilverJobRepository:
             row_factory=dict_row,
         )
 
-    def load_unprocessed_raw_jobs(
+    def _load_unprocessed_raw_jobs(
         self,
-        limit: int = 100,
-        source_patterns: list[str] | None = None,
-        ingestion_run_id: int | None = None,
-    ) -> list[dict]:
+        *,
+        limit: int,
+        source_patterns: list[str] | None,
+        ingestion_run_id: int | None,
+        enforce_read_only: bool,
+    ) -> tuple[list[dict], str | None]:
         source_patterns = source_patterns or []
 
         filters: list[str] = []
@@ -52,6 +54,19 @@ class SilverJobRepository:
 
         with self.get_connection() as conn:
             with conn.cursor() as cur:
+                transaction_read_only: str | None = None
+                if enforce_read_only:
+                    cur.execute("SET TRANSACTION READ ONLY")
+                    cur.execute("SHOW transaction_read_only")
+                    row = cur.fetchone()
+                    transaction_read_only = (
+                        str(row["transaction_read_only"]) if row else None
+                    )
+                    if transaction_read_only != "on":
+                        raise RuntimeError(
+                            "Silver preflight transaction is not read-only"
+                        )
+
                 cur.execute(
                     f"""
                     SELECT
@@ -74,7 +89,37 @@ class SilverJobRepository:
                     (*params, limit),
                 )
 
-                return list(cur.fetchall())
+                return list(cur.fetchall()), transaction_read_only
+
+    def load_unprocessed_raw_jobs(
+        self,
+        limit: int = 100,
+        source_patterns: list[str] | None = None,
+        ingestion_run_id: int | None = None,
+    ) -> list[dict]:
+        rows, _ = self._load_unprocessed_raw_jobs(
+            limit=limit,
+            source_patterns=source_patterns,
+            ingestion_run_id=ingestion_run_id,
+            enforce_read_only=False,
+        )
+        return rows
+
+    def preview_unprocessed_raw_jobs(
+        self,
+        limit: int = 100,
+        source_patterns: list[str] | None = None,
+        ingestion_run_id: int | None = None,
+    ) -> tuple[list[dict], str]:
+        rows, transaction_read_only = self._load_unprocessed_raw_jobs(
+            limit=limit,
+            source_patterns=source_patterns,
+            ingestion_run_id=ingestion_run_id,
+            enforce_read_only=True,
+        )
+        if transaction_read_only is None:
+            raise RuntimeError("Missing transaction read-only proof")
+        return rows, transaction_read_only
 
     def upsert_silver_job(self, job: dict) -> None:
         with self.get_connection() as conn:
