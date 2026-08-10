@@ -105,6 +105,9 @@ class FakeRepo:
 def install_fake_runtime(monkeypatch, outcome: RepairOutcome) -> FakeConnection:
     conn = FakeConnection()
     FakeRepo.wrote = False
+    monkeypatch.setenv("POSTGRES_DB", "test_db")
+    monkeypatch.setenv("POSTGRES_USER", "test_user")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "test_password")
     monkeypatch.setattr(apply_pass.psycopg, "connect", lambda *_args, **_kwargs: conn)
     monkeypatch.setattr(apply_pass, "GateStateRepository", FakeRepo)
     monkeypatch.setattr(apply_pass, "load_local_env_file", lambda: None)
