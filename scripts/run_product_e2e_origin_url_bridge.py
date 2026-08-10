@@ -79,9 +79,13 @@ def cand001_args(
     selected: Iterable[OriginUrlBridgePlan],
     run_dir: Path,
 ) -> SimpleNamespace:
+    selected_plans = tuple(selected)
     return SimpleNamespace(
         benchmark_label=f"product_e2e_origin_url_bridge_{run_dir.name}",
-        company_key=[plan.company_key for plan in selected],
+        company_key=[plan.company_key for plan in selected_plans],
+        candidate_id_by_company_key={
+            plan.company_key: plan.candidate_id for plan in selected_plans
+        },
         target_location=args.target_location,
         target_locale=args.target_locale,
         reviewed_by=args.reviewed_by,
@@ -196,6 +200,7 @@ def write_bridge_report(
             "ordinary_bounded_http_probe_only": True,
             "cand001_is_only_url_writer": True,
             "exact_target_required_for_apply": True,
+            "exact_candidate_identity_forwarded_to_cand001": True,
             "exact_approval_token_required_for_apply": True,
             "connector_generation_or_registration": False,
             "source_activation": False,
