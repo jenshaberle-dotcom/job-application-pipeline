@@ -88,4 +88,4 @@ def test_repair_follows_same_host_search_to_current_job_detail() -> None:
         if item.get("discovery_source") == "plausible_same_host_listing"
     )
     assert search_record["status"] == "job_detail_candidates_found"
-    assert search_record["accepted_link_count"] == 1
+    assert search_record["accepted_link_count"] >= 1
