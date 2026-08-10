@@ -232,6 +232,20 @@ def _passed_gate(snapshot: LifecycleSnapshot, name: str) -> bool:
     return bool(gate and gate.gate_status == "passed")
 
 
+def _upstream_blocking_gate(
+    snapshot: LifecycleSnapshot,
+) -> tuple[str, str] | None:
+    """Return a concrete pre-detail blocking gate that the audit must preserve."""
+
+    gate_name = snapshot.blocking_gate
+    gate_status = snapshot.blocking_gate_status
+    if not gate_name or gate_name == "detail_evidence_gate" or not gate_status:
+        return None
+    if gate_status not in {"manual_review_required", "failed", "deferred"}:
+        return None
+    return gate_name, gate_status
+
+
 def _stage(
     stage: str,
     status: str,
@@ -364,6 +378,35 @@ def trace_case(case: DiscoveryCase, snapshot: LifecycleSnapshot) -> CaseTrace:
         or bool(snapshot.product_readiness_counts)
     )
     if not inventory_passed:
+        upstream_blocker = _upstream_blocking_gate(snapshot)
+        if upstream_blocker is not None:
+            blocking_gate, blocking_status = upstream_blocker
+            manual = blocking_status == "manual_review_required"
+            stages.append(
+                _stage(
+                    "origin_inventory",
+                    "operator_decision_required" if manual else "missing_evidence",
+                    f"{blocking_gate}_{blocking_status}",
+                    snapshot.blocker_reason
+                    or (
+                        f"Upstream employer-origin gate {blocking_gate!r} is "
+                        f"{blocking_status!r}; origin inventory must not be inferred past it."
+                    ),
+                    operator_decision=(
+                        "Resolve the explicit upstream employer-origin manual-review gate "
+                        "before treating origin inventory as missing evidence."
+                        if manual
+                        else None
+                    ),
+                    evidence={
+                        "blocking_gate": blocking_gate,
+                        "blocking_gate_status": blocking_status,
+                        "current_stage": snapshot.current_stage,
+                    },
+                )
+            )
+            return _finish(case, stages)
+
         manual = bool(
             inventory_gate and inventory_gate.gate_status == "manual_review_required"
         )
