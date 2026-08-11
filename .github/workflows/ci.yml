@@ -45,20 +45,29 @@ jobs:
       - name: Compile active Python paths
         run: python -m compileall -q src scripts tests
 
-      - name: Parse Windows PowerShell watcher
+      - name: Parse active Windows PowerShell scripts
         shell: pwsh
         run: |
-          $Tokens = $null
-          $Errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
+          $Paths = @(
             "scripts/install_windows_origin_runtime_lease_watcher.ps1",
-            [ref]$Tokens,
-            [ref]$Errors
-          ) | Out-Null
+            "scripts/windows/install_or_update_job_pipeline_scheduler.ps1",
+            "scripts/windows/run_scheduled_pipeline.ps1"
+          )
 
-          if ($Errors.Count -gt 0) {
-            $Errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($Path in $Paths) {
+            $Tokens = $null
+            $Errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $Path,
+              [ref]$Tokens,
+              [ref]$Errors
+            ) | Out-Null
+
+            if ($Errors.Count -gt 0) {
+              Write-Error "PowerShell parse failed: $Path"
+              $Errors | ForEach-Object { Write-Error $_.Message }
+              exit 1
+            }
           }
 
       - name: Validate migration, tooling, and governance contracts
