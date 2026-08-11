@@ -14,6 +14,9 @@ from scripts.run_employer_origin_detail_evidence_repair_agent import (
 from scripts.run_origin_source_discovery_agent import http_probe
 from src.config import get_database_config
 from src.job_lifecycle_health import fetch_exact_detail
+from src.search_intelligence.bounded_origin_candidate_hypotheses import (
+    generate_bounded_origin_candidate_hypotheses,
+)
 from src.search_intelligence.origin_seed_pool import normalize_company_key
 from src.search_intelligence.origin_source_discovery_agent import (
     discover_origin_source,
@@ -166,22 +169,33 @@ def run_transient_origin_discovery(
     origin_timeout_seconds: float,
 ) -> tuple[SourceCandidate | None, dict[str, object]]:
     company_key = normalize_company_key(contender.company_name)
+    deterministic_candidates = generate_bounded_origin_candidate_hypotheses(
+        company_key=company_key,
+        company_name=contender.company_name,
+        source_family_candidate=company_key,
+        max_candidates=max_origin_candidates,
+    )
     discovery = discover_origin_source(
         company_key=company_key,
         company_name=contender.company_name,
         source_family_candidate=company_key,
         market_evidence_urls=(),
+        search_result_candidates=deterministic_candidates,
         search_results=(),
         target_location=contender.city or "Hannover",
         probe=lambda url: http_probe(
             url,
             timeout_seconds=origin_timeout_seconds,
         ),
-        max_generated_candidates=max_origin_candidates,
+        max_generated_candidates=0,
     )
     classified = classify_transient_origin_result(discovery)
     evidence = result_to_json(discovery)
     evidence["classification"] = transient_origin_resolution_payload(classified)
+    evidence["deterministic_candidate_strategy"] = "diverse_brand_tld_bounded"
+    evidence["deterministic_candidate_urls"] = [
+        candidate.url for candidate in deterministic_candidates
+    ]
     evidence["provider_requests"] = 0
     evidence["external_search_discovery_enabled"] = False
     evidence["persisted_candidate_created"] = False
