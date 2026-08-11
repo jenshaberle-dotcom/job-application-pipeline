@@ -11,8 +11,14 @@ from scripts.run_employer_origin_detail_evidence_repair_agent import (
     SourceCandidate,
     discover_link_candidates,
 )
+from scripts.run_origin_source_discovery_agent import http_probe
 from src.config import get_database_config
 from src.job_lifecycle_health import fetch_exact_detail
+from src.search_intelligence.origin_seed_pool import normalize_company_key
+from src.search_intelligence.origin_source_discovery_agent import (
+    discover_origin_source,
+    result_to_json,
+)
 from src.search_intelligence.product_v1_contenders import (
     DEFAULT_CONTENDER_LIMIT,
     build_contender_manifest,
@@ -20,15 +26,24 @@ from src.search_intelligence.product_v1_contenders import (
 from src.search_intelligence.product_v1_origin_vacancy_bridge import (
     ExactDetailAttempt,
     OriginCandidateSnapshot,
+    SilverContender,
     contender_from_manifest_row,
     evaluate_exact_detail_attempts,
     origin_candidate_from_row,
     resolution_payload,
     resolve_origin_candidate,
 )
+from src.search_intelligence.product_v1_transient_origin import (
+    classify_transient_origin_result,
+    should_attempt_transient_origin,
+    transient_origin_resolution_payload,
+)
 
 
 DEFAULT_NETWORK_LIMIT = 5
+DEFAULT_MAX_ORIGIN_CANDIDATES = 12
+MAX_ORIGIN_CANDIDATES = 30
+DEFAULT_ORIGIN_TIMEOUT_SECONDS = 5.0
 DEFAULT_MAX_SEED_PAGES = 3
 DEFAULT_MAX_DETAIL_PAGES = 8
 
@@ -37,6 +52,13 @@ def bounded_positive_int(value: str) -> int:
     parsed = int(value)
     if parsed <= 0:
         raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+def bounded_positive_float(value: str) -> float:
+    parsed = float(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive number")
     return parsed
 
 
@@ -116,10 +138,77 @@ def _source_candidate(snapshot: OriginCandidateSnapshot) -> SourceCandidate:
     )
 
 
+def _transient_source_candidate(
+    contender: SilverContender,
+    *,
+    selected_url: str,
+    risk_level: str,
+) -> SourceCandidate:
+    company_key = normalize_company_key(contender.company_name)
+    return SourceCandidate(
+        id=0,
+        company_key=company_key,
+        company_name=contender.company_name,
+        candidate_url=selected_url,
+        source_name_candidate=f"{company_key}:transient_product_v1_origin",
+        source_family_candidate=company_key,
+        source_target_candidate=None,
+        source_type_candidate="employer_origin_career_site",
+        status="transient_read_only",
+        risk_level=risk_level,
+    )
+
+
+def run_transient_origin_discovery(
+    contender: SilverContender,
+    *,
+    max_origin_candidates: int,
+    origin_timeout_seconds: float,
+) -> tuple[SourceCandidate | None, dict[str, object]]:
+    company_key = normalize_company_key(contender.company_name)
+    discovery = discover_origin_source(
+        company_key=company_key,
+        company_name=contender.company_name,
+        source_family_candidate=company_key,
+        market_evidence_urls=(),
+        search_results=(),
+        target_location=contender.city or "Hannover",
+        probe=lambda url: http_probe(
+            url,
+            timeout_seconds=origin_timeout_seconds,
+        ),
+        max_generated_candidates=max_origin_candidates,
+    )
+    classified = classify_transient_origin_result(discovery)
+    evidence = result_to_json(discovery)
+    evidence["classification"] = transient_origin_resolution_payload(classified)
+    evidence["provider_requests"] = 0
+    evidence["external_search_discovery_enabled"] = False
+    evidence["persisted_candidate_created"] = False
+    evidence["candidate_or_origin_url_writes"] = False
+
+    if (
+        classified.status != "ready_for_bounded_detail_discovery"
+        or not classified.selected_url
+    ):
+        return None, evidence
+
+    return (
+        _transient_source_candidate(
+            contender,
+            selected_url=classified.selected_url,
+            risk_level=classified.risk_level,
+        ),
+        evidence,
+    )
+
+
 def run_bridge_for_contender(
     row: dict,
     *,
     candidates: list[OriginCandidateSnapshot],
+    max_origin_candidates: int,
+    origin_timeout_seconds: float,
     max_seed_pages: int,
     max_detail_pages: int,
 ) -> dict[str, object]:
@@ -138,15 +227,27 @@ def run_bridge_for_contender(
             "treated_as_current_activity_truth": False,
         },
         "origin_candidate_resolution": resolution_payload(resolution),
+        "transient_origin_discovery": None,
         "detail_discovery": None,
         "exact_vacancy": None,
     }
 
-    if resolution.status != "ready_for_bounded_detail_discovery":
+    candidate: SourceCandidate | None = None
+    if resolution.status == "ready_for_bounded_detail_discovery":
+        assert resolution.candidate is not None
+        candidate = _source_candidate(resolution.candidate)
+    elif should_attempt_transient_origin(resolution.status):
+        candidate, evidence = run_transient_origin_discovery(
+            contender,
+            max_origin_candidates=max_origin_candidates,
+            origin_timeout_seconds=origin_timeout_seconds,
+        )
+        result["transient_origin_discovery"] = evidence
+        if candidate is None:
+            return result
+    else:
         return result
 
-    assert resolution.candidate is not None
-    candidate = _source_candidate(resolution.candidate)
     location_terms = tuple(
         dict.fromkeys(
             value
@@ -219,6 +320,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_CONTENDER_LIMIT,
     )
     parser.add_argument(
+        "--max-origin-candidates",
+        type=bounded_positive_int,
+        default=DEFAULT_MAX_ORIGIN_CANDIDATES,
+        help=(
+            "Maximum deterministic employer-origin URL candidates probed for a "
+            "contender that has no persisted employer-origin candidate row."
+        ),
+    )
+    parser.add_argument(
+        "--origin-timeout-seconds",
+        type=bounded_positive_float,
+        default=DEFAULT_ORIGIN_TIMEOUT_SECONDS,
+    )
+    parser.add_argument(
         "--max-seed-pages",
         type=bounded_positive_int,
         default=DEFAULT_MAX_SEED_PAGES,
@@ -237,6 +352,10 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"--limit must be <= {DEFAULT_NETWORK_LIMIT}")
     if args.contender_pool_limit < args.limit:
         raise SystemExit("--contender-pool-limit must be >= --limit")
+    if args.max_origin_candidates > MAX_ORIGIN_CANDIDATES:
+        raise SystemExit(
+            f"--max-origin-candidates must be <= {MAX_ORIGIN_CANDIDATES}"
+        )
 
     read_only, inventory_rows, candidates = load_read_only_state()
     manifest = build_contender_manifest(
@@ -257,6 +376,8 @@ def main(argv: list[str] | None = None) -> int:
         run_bridge_for_contender(
             row,
             candidates=candidates,
+            max_origin_candidates=args.max_origin_candidates,
+            origin_timeout_seconds=args.origin_timeout_seconds,
             max_seed_pages=args.max_seed_pages,
             max_detail_pages=args.max_detail_pages,
         )
@@ -276,6 +397,7 @@ def main(argv: list[str] | None = None) -> int:
             "database_writes": False,
             "health_observation_writes": False,
             "candidate_or_origin_url_writes": False,
+            "transient_origin_candidate_persistence": False,
             "bronze_or_silver_writes": False,
             "hard_filter_or_assessment_writes": False,
             "ranking_or_top5_writes": False,
@@ -286,6 +408,9 @@ def main(argv: list[str] | None = None) -> int:
             "browser_automation": False,
             "bounded_ordinary_http_only": True,
             "max_network_contenders": DEFAULT_NETWORK_LIMIT,
+            "max_generated_origin_candidates_per_missing_candidate": (
+                args.max_origin_candidates
+            ),
             "max_seed_pages_per_contender": args.max_seed_pages,
             "max_detail_pages_per_contender": args.max_detail_pages,
             "transient_health_classification_only": True,
