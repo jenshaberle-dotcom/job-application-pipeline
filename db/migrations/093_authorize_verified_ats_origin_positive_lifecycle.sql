@@ -60,6 +60,7 @@ WITH authority_epoch AS (
                             #>> '{acquisition_boundary,detail_pages_fetched}',
                         'false'
                     ) = 'true'
+                AND NULLIF(btrim(observation.source_url), '') IS NOT NULL
             )
             OR
             (
@@ -74,6 +75,8 @@ WITH authority_epoch AS (
                         btrim(raw_job.raw_data #>> '{job,source_url}'),
                         ''
                     ) = NULLIF(btrim(observation.source_url), '')
+                AND NULLIF(btrim(raw_job.source_url), '')
+                    = NULLIF(btrim(observation.source_url), '')
             )
           )
       AND coalesce(
@@ -83,8 +86,6 @@ WITH authority_epoch AS (
       AND (
             raw_job.raw_data #>> '{detail_evidence,status_code}'
           )::integer BETWEEN 200 AND 399
-      AND NULLIF(btrim(raw_job.source_url), '')
-            = NULLIF(btrim(observation.source_url), '')
     GROUP BY observation.raw_job_id
 ), latest_health AS (
     SELECT DISTINCT ON (raw_job_id)

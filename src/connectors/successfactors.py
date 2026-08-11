@@ -13,6 +13,9 @@ from src.connectors.capabilities import SourceCapabilities
 from src.search_intelligence.successfactors_locations import (
     extract_successfactors_locations,
 )
+from src.search_intelligence.vacancy_page_signals import (
+    explicit_vacancy_closure_marker,
+)
 
 
 SOURCE_FAMILY = "successfactors"
@@ -389,6 +392,8 @@ def detail_supports_record(
     if detail.status_code >= 400:
         return False
     if not concrete_job_url(detail.final_url or candidate.url, target):
+        return False
+    if explicit_vacancy_closure_marker(detail.text) is not None:
         return False
     if not employer_matches(detail, target):
         return False
