@@ -17,6 +17,10 @@ from src.job_lifecycle_health import fetch_exact_detail
 from src.search_intelligence.bounded_origin_candidate_hypotheses import (
     generate_bounded_origin_candidate_hypotheses,
 )
+from src.search_intelligence.detail_candidate_budget import (
+    DETAIL_CANDIDATE_SELECTION_VERSION,
+    prioritize_detail_candidates,
+)
 from src.search_intelligence.origin_seed_pool import normalize_company_key
 from src.search_intelligence.origin_source_discovery_agent import (
     discover_origin_source,
@@ -282,7 +286,12 @@ def run_bridge_for_contender(
         )
     )
 
-    bounded_links = link_candidates[:max_detail_pages]
+    bounded_links, selection_evidence = prioritize_detail_candidates(
+        target_title=contender.title,
+        company_name=contender.company_name,
+        candidates=link_candidates,
+        limit=max_detail_pages,
+    )
     attempts = [
         ExactDetailAttempt(
             url=link.url,
@@ -297,6 +306,10 @@ def run_bridge_for_contender(
         "provider_requests": 0,
         "preliminary_detail_candidate_count": len(link_candidates),
         "detail_pages_checked": len(attempts),
+        "detail_candidate_selection_version": DETAIL_CANDIDATE_SELECTION_VERSION,
+        "detail_candidate_selection": [
+            item.to_evidence() for item in selection_evidence
+        ],
         "requested_seed_urls": list(requested_urls),
         "rejected_urls": list(rejected_urls),
         "discovery_evidence": discovery_evidence,
