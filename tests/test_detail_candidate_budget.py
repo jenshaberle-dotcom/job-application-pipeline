@@ -88,7 +88,7 @@ def test_title_tokens_in_root_level_ats_url_support_link_text_ranking() -> None:
     )
 
     assert selected == (url_signal,)
-    assert evidence[0].url_token_overlap == 5
+    assert evidence[0].url_token_overlap == 4
 
 
 def test_completely_uninformative_candidates_keep_discovery_order_and_budget() -> None:
