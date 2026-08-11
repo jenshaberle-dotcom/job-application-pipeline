@@ -22,13 +22,13 @@ set -u
 printf '%s\\n' \"$*\" >> \"$CALL_LOG\"
 if [ \"${1:-}\" = \"-\" ]; then
   cat >/dev/null
-  exit \"${DB_READY_EXIT:-0}\"
+  exit \"${FAKE_DB_READY_EXIT:-0}\"
 fi
 case \"$*\" in
-  *\"-m src.ingest_jobs --role employer_origin\"*) exit \"${ORIGIN_EXIT:-0}\" ;;
-  *\"-m src.ingest_jobs --role sensor\"*) exit \"${SENSOR_EXIT:-0}\" ;;
-  *\"-m src.run_silver_jobs\"*) exit \"${SILVER_EXIT:-0}\" ;;
-  *\"-m scripts.create_source_value_snapshot\"*) exit \"${SNAPSHOT_EXIT:-0}\" ;;
+  *\"-m src.ingest_jobs --role employer_origin\"*) exit \"${FAKE_ORIGIN_EXIT:-0}\" ;;
+  *\"-m src.ingest_jobs --role sensor\"*) exit \"${FAKE_SENSOR_EXIT:-0}\" ;;
+  *\"-m src.run_silver_jobs\"*) exit \"${FAKE_SILVER_EXIT:-0}\" ;;
+  *\"-m scripts.create_source_value_snapshot\"*) exit \"${FAKE_SNAPSHOT_EXIT:-0}\" ;;
   *) echo \"unexpected fake python invocation: $*\" >&2; exit 91 ;;
 esac
 """,
@@ -59,10 +59,13 @@ def _run_daily(
         {
             "HOME": str(home),
             "CALL_LOG": str(call_log),
-            "ORIGIN_EXIT": str(origin_exit),
-            "SENSOR_EXIT": str(sensor_exit),
-            "SILVER_EXIT": str(silver_exit),
-            "SNAPSHOT_EXIT": str(snapshot_exit),
+            # Use names that the production shell does not reuse for its own
+            # component result variables. Otherwise Bash legitimately overwrites
+            # the inherited test controls before the fake child process starts.
+            "FAKE_ORIGIN_EXIT": str(origin_exit),
+            "FAKE_SENSOR_EXIT": str(sensor_exit),
+            "FAKE_SILVER_EXIT": str(silver_exit),
+            "FAKE_SNAPSHOT_EXIT": str(snapshot_exit),
         }
     )
     completed = subprocess.run(
