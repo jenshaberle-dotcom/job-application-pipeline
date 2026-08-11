@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.job_lifecycle_health import HttpProbeResult
@@ -68,6 +70,13 @@ def probe(
     )
 
 
+def active_body(title: str, location: str = "Hannover, Germany") -> str:
+    return (
+        f"<html><title>{title}</title><body>"
+        f"<div>Location:</div><div>{location}</div></body></html>"
+    )
+
+
 def test_unique_generic_origin_candidate_is_ready() -> None:
     resolution = resolve_origin_candidate(contender(), [candidate(7)])
     assert resolution.status == "ready_for_bounded_detail_discovery"
@@ -108,7 +117,57 @@ def test_unique_candidate_without_origin_root_reports_cand_prerequisite() -> Non
     assert resolution.candidate is not None
 
 
-def test_active_exact_detail_requires_persisted_silver_title_match() -> None:
+def test_active_exact_detail_requires_title_and_geography_identity() -> None:
+    url = "https://jobs.example.test/jobs/senior-machine-learning-engineer-42"
+    result = evaluate_exact_detail_attempts(
+        contender(),
+        [
+            ExactDetailAttempt(
+                url=url,
+                link_text="Senior Machine Learning Engineer",
+                probe=probe(
+                    url,
+                    body=active_body("Senior Machine Learning Engineer"),
+                ),
+            )
+        ],
+    )
+    assert result["status"] == "current_vacancy_confirmed"
+    assert result["resolved_url"] == url
+    assert result["health_outcome"] == "seen_active"
+    assessment = result["assessments"][0]
+    assert assessment["geography_identity"]["status"] == "compatible"
+    assert assessment["exact_vacancy_identity_confirmed"] is True
+
+
+def test_same_title_current_foreign_location_is_not_exact_vacancy() -> None:
+    url = "https://jobs.example.test/jobs/senior-machine-learning-engineer-north-macedonia"
+    result = evaluate_exact_detail_attempts(
+        contender(),
+        [
+            ExactDetailAttempt(
+                url=url,
+                link_text="Apply now",
+                probe=probe(
+                    url,
+                    body=active_body(
+                        "Senior Machine Learning Engineer - North Macedonia",
+                        "Skopje, North Macedonia",
+                    ),
+                ),
+            )
+        ],
+    )
+
+    assert result["status"] == "exact_vacancy_not_found"
+    assert result["resolved_url"] is None
+    assessment = result["assessments"][0]
+    assert assessment["page_title_match"] is True
+    assert assessment["geography_identity"]["status"] == "conflict"
+    assert assessment["exact_vacancy_identity_confirmed"] is False
+
+
+def test_active_title_without_current_location_evidence_fails_closed() -> None:
     url = "https://jobs.example.test/jobs/senior-machine-learning-engineer-42"
     result = evaluate_exact_detail_attempts(
         contender(),
@@ -123,9 +182,59 @@ def test_active_exact_detail_requires_persisted_silver_title_match() -> None:
             )
         ],
     )
+
+    assert result["status"] == "exact_vacancy_current_state_unverifiable"
+    assert result["resolved_url"] is None
+    assert result["assessments"][0]["geography_identity"]["status"] == "evidence_required"
+
+
+def test_germany_remote_current_location_is_geography_compatible() -> None:
+    remote = replace(
+        contender(),
+        city="Berlin",
+        country="Germany",
+        geography_bucket="germany_remote",
+    )
+    url = "https://jobs.example.test/jobs/senior-machine-learning-engineer-remote"
+    result = evaluate_exact_detail_attempts(
+        remote,
+        [
+            ExactDetailAttempt(
+                url=url,
+                link_text="Senior Machine Learning Engineer",
+                probe=probe(
+                    url,
+                    body=active_body(
+                        "Senior Machine Learning Engineer",
+                        "Remote",
+                    ),
+                ),
+            )
+        ],
+    )
+
     assert result["status"] == "current_vacancy_confirmed"
-    assert result["resolved_url"] == url
-    assert result["health_outcome"] == "seen_active"
+    assert result["assessments"][0]["geography_identity"]["status"] == "compatible"
+
+
+def test_json_ld_job_location_is_accepted_as_current_geography_evidence() -> None:
+    url = "https://jobs.example.test/jobs/senior-machine-learning-engineer-42"
+    body = """
+    <html><title>Senior Machine Learning Engineer</title>
+    <script type="application/ld+json">
+    {"@type":"JobPosting","jobLocation":{"@type":"Place","address":{
+      "@type":"PostalAddress","addressLocality":"Hanover","addressCountry":"Germany"
+    }}}
+    </script></html>
+    """
+    result = evaluate_exact_detail_attempts(
+        contender(),
+        [ExactDetailAttempt(url=url, link_text="Apply", probe=probe(url, body=body))],
+    )
+
+    assert result["status"] == "current_vacancy_confirmed"
+    evidence = result["assessments"][0]["geography_identity"]["location_evidence"]
+    assert evidence[0]["source"] == "json_ld_job_location"
 
 
 def test_detail_page_without_exact_silver_title_is_not_resolved() -> None:
@@ -189,12 +298,18 @@ def test_multiple_distinct_exact_title_urls_fail_closed() -> None:
             ExactDetailAttempt(
                 url=first,
                 link_text="Senior Machine Learning Engineer",
-                probe=probe(first, body="Senior Machine Learning Engineer"),
+                probe=probe(
+                    first,
+                    body=active_body("Senior Machine Learning Engineer"),
+                ),
             ),
             ExactDetailAttempt(
                 url=second,
                 link_text="Senior Machine Learning Engineer",
-                probe=probe(second, body="Senior Machine Learning Engineer"),
+                probe=probe(
+                    second,
+                    body=active_body("Senior Machine Learning Engineer"),
+                ),
             ),
         ],
     )
