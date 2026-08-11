@@ -12,6 +12,9 @@ from src.job_lifecycle_health import (
     title_is_confirmed,
 )
 from src.search_intelligence.origin_seed_pool import normalize_company_key
+from src.search_intelligence.product_v1_geography_identity import (
+    assess_current_geography_identity,
+)
 
 
 SUPPORTED_ORIGIN_SOURCE_TYPES = {
@@ -207,19 +210,35 @@ def evaluate_exact_detail_attempts(
 ) -> dict[str, object]:
     assessments: list[dict[str, object]] = []
     identity_confirmed_by_url: dict[str, dict[str, object]] = {}
+    active_title_matches_blocked_by_geography: list[dict[str, object]] = []
 
     for attempt in attempts:
         target = _transient_health_target(contender, attempt.url)
         classification = classify_exact_detail(target, attempt.probe)
         link_title_match = title_is_confirmed(contender.title, attempt.link_text)
         page_title_match = bool(classification.evidence.get("title_match"))
-        identity_confirmed = link_title_match or page_title_match
+        title_identity_confirmed = link_title_match or page_title_match
+        geography = assess_current_geography_identity(
+            city=contender.city,
+            country=contender.country,
+            geography_bucket=contender.geography_bucket,
+            response_text=attempt.probe.response_text,
+        )
+        geography_required = classification.outcome == "seen_active"
+        geography_identity_confirmed = geography.status == "compatible"
+        identity_confirmed = bool(
+            title_identity_confirmed
+            and (not geography_required or geography_identity_confirmed)
+        )
 
         assessment = {
             "url": attempt.url,
             "link_text": attempt.link_text,
             "link_title_match": link_title_match,
             "page_title_match": page_title_match,
+            "title_identity_confirmed": title_identity_confirmed,
+            "geography_required_for_active_confirmation": geography_required,
+            "geography_identity": geography.to_json(),
             "exact_vacancy_identity_confirmed": identity_confirmed,
             "health_outcome": classification.outcome,
             "health_coverage": classification.coverage,
@@ -227,6 +246,12 @@ def evaluate_exact_detail_attempts(
             "health_evidence": classification.evidence,
         }
         assessments.append(assessment)
+        if (
+            title_identity_confirmed
+            and geography_required
+            and not geography_identity_confirmed
+        ):
+            active_title_matches_blocked_by_geography.append(assessment)
         if identity_confirmed:
             identity_confirmed_by_url.setdefault(
                 normalize_url_identity(attempt.url),
@@ -235,6 +260,33 @@ def evaluate_exact_detail_attempts(
 
     confirmed = list(identity_confirmed_by_url.values())
     if not confirmed:
+        if active_title_matches_blocked_by_geography:
+            statuses = {
+                str(item["geography_identity"]["status"])
+                for item in active_title_matches_blocked_by_geography
+            }
+            if "evidence_required" in statuses:
+                return {
+                    "status": "exact_vacancy_current_state_unverifiable",
+                    "resolved_url": None,
+                    "health_outcome": None,
+                    "reason": (
+                        "A current employer-origin detail confirmed the persisted Silver "
+                        "title, but current geography identity evidence is insufficient."
+                    ),
+                    "assessments": assessments,
+                }
+            return {
+                "status": "exact_vacancy_not_found",
+                "resolved_url": None,
+                "health_outcome": None,
+                "reason": (
+                    "Current employer-origin detail title evidence was found, but its "
+                    "explicit geography conflicts with the persisted Silver vacancy."
+                ),
+                "assessments": assessments,
+            }
+
         return {
             "status": (
                 "exact_vacancy_not_found"
