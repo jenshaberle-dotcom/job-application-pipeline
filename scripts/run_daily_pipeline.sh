@@ -5,6 +5,8 @@ set -uo pipefail
 PROJECT_DIR="$HOME/projects/job-application-pipeline"
 LOG_DIR="$HOME/job-pipeline-logs"
 LOCK_DIR="/tmp/job-pipeline-daily.lock"
+DB_READY_MAX_ATTEMPTS="${DB_READY_MAX_ATTEMPTS:-30}"
+DB_READY_SLEEP_SECONDS="${DB_READY_SLEEP_SECONDS:-10}"
 
 mkdir -p "$LOG_DIR"
 
@@ -40,8 +42,10 @@ source .venv/bin/activate || {
   exit 1
 }
 
-log "Checking configured Postgres dependency"
-python - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+DB_READY_EXIT=1
+for ((attempt = 1; attempt <= DB_READY_MAX_ATTEMPTS; attempt++)); do
+  log "Checking configured Postgres dependency attempt=$attempt/$DB_READY_MAX_ATTEMPTS"
+  python - <<'PY' 2>&1 | tee -a "$LOG_FILE"
 from src.config import get_database_config
 import psycopg
 
@@ -52,9 +56,17 @@ with psycopg.connect(**config, connect_timeout=10) as conn:
         assert cur.fetchone()[0] == 1
 print("Postgres configured connection ready")
 PY
-DB_READY_EXIT=${PIPESTATUS[0]}
+  DB_READY_EXIT=${PIPESTATUS[0]}
+  if [ "$DB_READY_EXIT" -eq 0 ]; then
+    break
+  fi
+  if [ "$attempt" -lt "$DB_READY_MAX_ATTEMPTS" ]; then
+    sleep "$DB_READY_SLEEP_SECONDS"
+  fi
+done
+
 if [ "$DB_READY_EXIT" -ne 0 ]; then
-  log "FAILED configured Postgres dependency unavailable exit_code=$DB_READY_EXIT"
+  log "FAILED configured Postgres dependency unavailable after $DB_READY_MAX_ATTEMPTS attempts exit_code=$DB_READY_EXIT"
   exit "$DB_READY_EXIT"
 fi
 
