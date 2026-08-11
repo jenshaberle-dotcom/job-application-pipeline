@@ -40,6 +40,7 @@ from src.search_intelligence.product_v1_origin_vacancy_bridge import (
     resolution_payload,
     resolve_origin_candidate,
 )
+from src.search_intelligence.product_v1_refill import run_bounded_refill
 from src.search_intelligence.product_v1_transient_origin import (
     classify_transient_origin_result,
     should_attempt_transient_origin,
@@ -47,7 +48,8 @@ from src.search_intelligence.product_v1_transient_origin import (
 )
 
 
-DEFAULT_NETWORK_LIMIT = 5
+DEFAULT_CURRENT_TARGET = 5
+MAX_EXPLICIT_TARGETS = 5
 DEFAULT_MAX_ORIGIN_CANDIDATES = 12
 MAX_ORIGIN_CANDIDATES = 30
 DEFAULT_ORIGIN_TIMEOUT_SECONDS = 5.0
@@ -109,14 +111,13 @@ def select_contenders(
     manifest: dict[str, object],
     *,
     requested_silver_job_ids: Iterable[int],
-    limit: int,
 ) -> list[dict]:
     rows = list(manifest["rows"])
     by_id = {int(row["silver_job_id"]): row for row in rows}
     requested = list(dict.fromkeys(int(value) for value in requested_silver_job_ids))
-    if len(requested) > DEFAULT_NETWORK_LIMIT:
+    if len(requested) > MAX_EXPLICIT_TARGETS:
         raise ValueError(
-            f"At most {DEFAULT_NETWORK_LIMIT} explicit Silver targets are allowed."
+            f"At most {MAX_EXPLICIT_TARGETS} explicit Silver targets are allowed."
         )
     if requested:
         missing = [value for value in requested if value not in by_id]
@@ -127,7 +128,7 @@ def select_contenders(
             )
         return [by_id[value] for value in requested]
 
-    return rows[:limit]
+    return rows
 
 
 def _source_candidate(snapshot: OriginCandidateSnapshot) -> SourceCandidate:
@@ -332,19 +333,27 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help=(
             "Exact Silver target from the current bounded Product V1 contender pool. "
-            "Repeat up to five times. Defaults to the first bounded contenders."
+            "Repeat up to five times. Without explicit targets, inspect the bounded "
+            "pool lazily until the current-vacancy target is reached or exhausted."
         ),
     )
     parser.add_argument(
         "--limit",
         type=bounded_positive_int,
-        default=DEFAULT_NETWORK_LIMIT,
-        help="Maximum number of contenders to inspect when no exact target is supplied.",
+        default=DEFAULT_CURRENT_TARGET,
+        help=(
+            "Maximum current vacancies to confirm before stopping. Product V1 "
+            "remains at-most-five/no-fill."
+        ),
     )
     parser.add_argument(
         "--contender-pool-limit",
         type=bounded_positive_int,
         default=DEFAULT_CONTENDER_LIMIT,
+        help=(
+            "Hard maximum contender/network-inspection envelope. Product V1 is "
+            f"bounded to {DEFAULT_CONTENDER_LIMIT}."
+        ),
     )
     parser.add_argument(
         "--max-origin-candidates",
@@ -375,10 +384,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.limit > DEFAULT_NETWORK_LIMIT:
-        raise SystemExit(f"--limit must be <= {DEFAULT_NETWORK_LIMIT}")
+    if args.limit > DEFAULT_CURRENT_TARGET:
+        raise SystemExit(f"--limit must be <= {DEFAULT_CURRENT_TARGET}")
     if args.contender_pool_limit < args.limit:
         raise SystemExit("--contender-pool-limit must be >= --limit")
+    if args.contender_pool_limit > DEFAULT_CONTENDER_LIMIT:
+        raise SystemExit(
+            f"--contender-pool-limit must be <= {DEFAULT_CONTENDER_LIMIT}"
+        )
     if args.max_origin_candidates > MAX_ORIGIN_CANDIDATES:
         raise SystemExit(
             f"--max-origin-candidates must be <= {MAX_ORIGIN_CANDIDATES}"
@@ -394,22 +407,40 @@ def main(argv: list[str] | None = None) -> int:
         selected = select_contenders(
             manifest,
             requested_silver_job_ids=args.silver_job_id,
-            limit=args.limit,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
-    results = [
-        run_bridge_for_contender(
-            row,
-            candidates=candidates,
-            max_origin_candidates=args.max_origin_candidates,
-            origin_timeout_seconds=args.origin_timeout_seconds,
-            max_seed_pages=args.max_seed_pages,
-            max_detail_pages=args.max_detail_pages,
+    explicit_targets = bool(args.silver_job_id)
+    refill_target = min(args.limit, len(selected)) if explicit_targets else args.limit
+    refill_maximum = len(selected) if explicit_targets else args.contender_pool_limit
+    if not selected:
+        results: list[dict[str, object]] = []
+        refill_evidence = {
+            "strategy": "lazy_until_current_target_or_pool_exhausted",
+            "target_current_vacancies": refill_target,
+            "max_network_contenders": refill_maximum,
+            "network_contenders_available": 0,
+            "network_contenders_inspected": 0,
+            "current_vacancies_confirmed": 0,
+            "remaining_uninspected": 0,
+            "stop_reason": "bounded_pool_exhausted",
+        }
+    else:
+        results, refill_evidence = run_bounded_refill(
+            selected,
+            inspect=lambda row: run_bridge_for_contender(
+                row,
+                candidates=candidates,
+                max_origin_candidates=args.max_origin_candidates,
+                origin_timeout_seconds=args.origin_timeout_seconds,
+                max_seed_pages=args.max_seed_pages,
+                max_detail_pages=args.max_detail_pages,
+            ),
+            target_current_vacancies=refill_target,
+            max_network_contenders=refill_maximum,
         )
-        for row in selected
-    ]
+
     payload = {
         "status": "product_v1_origin_vacancy_bridge",
         "transaction_read_only": read_only,
@@ -417,6 +448,17 @@ def main(argv: list[str] | None = None) -> int:
         "contender_pool": {
             "limit": args.contender_pool_limit,
             "selected_for_network_inspection": len(results),
+            "target_current_vacancies": args.limit,
+            "current_vacancies_confirmed": refill_evidence[
+                "current_vacancies_confirmed"
+            ],
+            "remaining_uninspected": refill_evidence["remaining_uninspected"],
+            "network_contenders_available": refill_evidence[
+                "network_contenders_available"
+            ],
+            "max_network_contenders": args.contender_pool_limit,
+            "stop_reason": refill_evidence["stop_reason"],
+            "refill_strategy": refill_evidence["strategy"],
             "source_manifest_counts": manifest["counts"],
         },
         "results": results,
@@ -434,7 +476,9 @@ def main(argv: list[str] | None = None) -> int:
             "provider_or_llm": False,
             "browser_automation": False,
             "bounded_ordinary_http_only": True,
-            "max_network_contenders": DEFAULT_NETWORK_LIMIT,
+            "max_network_contenders": args.contender_pool_limit,
+            "target_current_vacancies": args.limit,
+            "refill_strategy": "lazy_until_current_target_or_pool_exhausted",
             "max_generated_origin_candidates_per_missing_candidate": (
                 args.max_origin_candidates
             ),
