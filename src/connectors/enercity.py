@@ -11,6 +11,10 @@ import requests
 
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.capabilities import SourceCapabilities
+from src.connectors.relevance_terms import find_relevance_terms
+from src.search_intelligence.vacancy_page_signals import (
+    explicit_vacancy_closure_marker,
+)
 
 
 SOURCE_NAME = 'enercity:discovery'
@@ -228,14 +232,7 @@ def normalize_text(value: str | None) -> str:
 
 
 def find_terms(value: str, terms: tuple[str, ...]) -> tuple[str, ...]:
-    lowered = normalize_text(value)
-    matches: list[str] = []
-
-    for term in terms:
-        if normalize_text(term) in lowered and term not in matches:
-            matches.append(term)
-
-    return tuple(matches)
+    return find_relevance_terms(value, terms)
 
 
 def allowed_host(url: str) -> bool:
@@ -350,6 +347,9 @@ def detail_supports_record(candidate: CandidateLink, detail: DetailPage) -> bool
         return False
 
     if not is_concrete_job_detail_url(candidate.url):
+        return False
+
+    if explicit_vacancy_closure_marker(detail.text) is not None:
         return False
 
     evidence_text = " ".join([candidate.url, candidate.path, candidate.text, detail.title, detail.text])
