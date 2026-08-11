@@ -44,7 +44,7 @@ function Write-Success-State($PipelineExitCode) {
         last_successful_timestamp_local = $Now.ToString("o")
         last_successful_log_file = $LogFile
         last_pipeline_exit_code = $PipelineExitCode
-        wrapper_version = "s2p-catchup-watchdog"
+        wrapper_version = "s2p-origin-freshness-v2"
     }
 
     $State | ConvertTo-Json | Set-Content -Path $StateFile -Encoding UTF8
@@ -67,45 +67,32 @@ if (-not $Force -and $State -and $State.last_successful_local_date -eq $Today) {
     exit 0
 }
 
+# Docker Desktop may host the configured local database, so starting it remains a
+# harmless availability aid. Docker CLI presence inside WSL is deliberately NOT
+# used as readiness authority; the Pipeline itself probes its configured Postgres
+# connection directly with psycopg.
 $DockerDesktop = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 if (Test-Path $DockerDesktop) {
-    Log "Starting Docker Desktop"
+    Log "Starting Docker Desktop if needed"
     Start-Process $DockerDesktop
 }
 else {
-    Log "WARN Docker Desktop executable not found at $DockerDesktop"
+    Log "INFO Docker Desktop executable not present; configured DB may be external"
 }
 
-$MaxAttempts = 30
-$SleepSeconds = 10
-$Ready = $false
+Log "Verifying and fast-forwarding persistent Pipeline checkout"
+$PreflightCommand = "cd $ProjectPath && .venv/bin/python scripts/prepare_scheduled_pipeline_checkout.py --root ."
+$PreflightOutput = & wsl -d $Distro -- bash -lc $PreflightCommand 2>&1
+$PreflightExitCode = $LASTEXITCODE
+Add-Content -Path $LogFile -Value $PreflightOutput
+Log "checkout_preflight_exit_code=$PreflightExitCode"
 
-for ($i = 1; $i -le $MaxAttempts; $i++) {
-    Log "Docker/Postgres readiness attempt $i/$MaxAttempts"
-
-    $Command = 'docker ps && docker exec -i job_pipeline_postgres pg_isready -U job_user -d job_pipeline'
-    $Output = & wsl -d $Distro -- bash -lc $Command 2>&1
-    $ExitCode = $LASTEXITCODE
-
-    Add-Content -Path $LogFile -Value $Output
-    Log "readiness_exit_code=$ExitCode"
-
-    if ($ExitCode -eq 0 -and ($Output -join "`n") -match "accepting connections") {
-        Log "SUCCESS Docker/Postgres ready"
-        $Ready = $true
-        break
-    }
-
-    Start-Sleep -Seconds $SleepSeconds
-}
-
-if (-not $Ready) {
-    Log "FAILED Docker/Postgres not ready after retries"
-    exit 1
+if ($PreflightExitCode -ne 0) {
+    Log "FAILED scheduled checkout preflight; refusing to run stale/diverged/unverified Pipeline"
+    exit $PreflightExitCode
 }
 
 Log "Running WSL daily pipeline script"
-
 $PipelineCommand = "cd $ProjectPath && ./scripts/run_daily_pipeline.sh"
 $PipelineOutput = & wsl -d $Distro -- bash -lc $PipelineCommand 2>&1
 $PipelineExitCode = $LASTEXITCODE
