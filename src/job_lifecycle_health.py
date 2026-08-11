@@ -11,6 +11,9 @@ import requests
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.vacancy_page_signals import (
+    explicit_vacancy_closure_marker,
+)
 
 
 APPROVAL_TOKEN = "JOB-LIFECYCLE-HEALTH-001"
@@ -280,7 +283,9 @@ def classify_exact_detail(
         normalize_url_identity(target.source_url)
         == normalize_url_identity(probe.final_url)
     )
-    title_match = title_is_confirmed(target.title, probe.response_text)
+    response_scope = probe.response_text[:MAX_CLASSIFICATION_BODY_CHARS]
+    title_match = title_is_confirmed(target.title, response_scope)
+    closure_marker = explicit_vacancy_closure_marker(response_scope)
     response_bytes = len(probe.response_text.encode("utf-8"))
 
     evidence: dict[str, object] = {
@@ -290,6 +295,7 @@ def classify_exact_detail(
         "redirect_count": probe.redirect_count,
         "url_identity_match": url_identity_match,
         "title_match": title_match,
+        "explicit_closure_marker": closure_marker,
         "response_bytes": response_bytes,
         "error_type": probe.error_type,
     }
@@ -324,6 +330,13 @@ def classify_exact_detail(
                 outcome=OUTCOME_UNVERIFIABLE,
                 coverage=COVERAGE_EXACT_DETAIL,
                 evidence_reason="final_url_changed_concrete_identity",
+                evidence=evidence,
+            )
+        if closure_marker is not None:
+            return HealthClassification(
+                outcome=OUTCOME_CLOSED,
+                coverage=COVERAGE_EXACT_DETAIL,
+                evidence_reason="explicit_vacancy_unavailable_on_exact_detail",
                 evidence=evidence,
             )
         if not title_match:
