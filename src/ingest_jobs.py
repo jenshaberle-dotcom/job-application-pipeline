@@ -6,7 +6,9 @@ import sys
 from collections.abc import Sequence
 
 from src.connectors.base import SearchProfile
+from src.connectors.registry import SourceRole
 from src.connectors.registry import create_connector as registry_create_connector
+from src.connectors.registry import source_role as registry_source_role
 from src.ingestion.repository import JobIngestionRepository
 from src.ingestion.runner import JobIngestionRunner
 
@@ -34,6 +36,16 @@ def source_family(source_name: str) -> str:
     return source_name.split(":", 1)[0]
 
 
+def profile_source_role(profile: SearchProfile) -> SourceRole:
+    try:
+        return registry_source_role(profile.source_name)
+    except ValueError as exc:
+        raise ValueError(
+            "Active search profile has no registered source role: "
+            f"profile={profile.profile_name!r} source={profile.source_name!r}"
+        ) from exc
+
+
 def format_available_profiles(profiles: Sequence[SearchProfile]) -> str:
     if not profiles:
         return "No active profiles are available."
@@ -46,9 +58,14 @@ def format_available_profiles(profiles: Sequence[SearchProfile]) -> str:
     lines = ["Available active profiles:"]
 
     for profile in profiles:
+        try:
+            role = profile_source_role(profile).value
+        except ValueError:
+            role = "unclassified"
         lines.append(
             f"- {profile.profile_name} "
-            f"(source={profile.source_name}, family={source_family(profile.source_name)})"
+            f"(source={profile.source_name}, family={source_family(profile.source_name)}, "
+            f"role={role})"
         )
 
     lines.append("")
@@ -99,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Run job ingestion for recurring-enabled active profiles, a source "
-            "family, or one exact active profile."
+            "family, one source role, or one exact active profile."
         )
     )
 
@@ -116,6 +133,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Run recurring-enabled active profiles for one source family, "
             "e.g. greenhouse."
+        ),
+    )
+    mode.add_argument(
+        "--role",
+        choices=[role.value for role in SourceRole],
+        help=(
+            "Run recurring-enabled active profiles for one registered source role. "
+            "Use employer_origin for authoritative employer connectors or sensor "
+            "for market-observation sources."
         ),
     )
     mode.add_argument(
@@ -145,8 +171,11 @@ def normalize_arguments(
     args: argparse.Namespace,
 ) -> argparse.Namespace:
     if args.legacy_profile_name:
-        if args.profile or args.source or args.list_profiles:
-            parser.error("Do not combine positional profile names with --profile, --source or --list-profiles.")
+        if args.profile or args.source or args.role or args.list_profiles:
+            parser.error(
+                "Do not combine positional profile names with --profile, --source, "
+                "--role or --list-profiles."
+            )
 
         args.profile = args.legacy_profile_name
 
@@ -157,6 +186,7 @@ def select_profiles(
     repository: JobIngestionRepository,
     profile_name: str | None,
     source_filter: str | None,
+    role_filter: SourceRole | None = None,
 ) -> list[SearchProfile]:
     profiles = repository.load_active_search_profiles()
 
@@ -201,6 +231,19 @@ def select_profiles(
             f"{format_available_profiles(recurring_profiles)}"
         )
 
+    if role_filter is not None:
+        selected_profiles = [
+            profile
+            for profile in recurring_profiles
+            if profile_source_role(profile) == role_filter
+        ]
+        if selected_profiles:
+            return selected_profiles
+        raise ValueError(
+            "No recurring-enabled active search profiles found for role: "
+            f"{role_filter.value}\n\n{format_available_profiles(recurring_profiles)}"
+        )
+
     if not recurring_profiles:
         raise ValueError("No recurring-enabled active search profiles found.")
 
@@ -217,9 +260,14 @@ def print_profiles(repository: JobIngestionRepository) -> None:
 
     for profile in profiles:
         recurring = "yes" if profile.profile_name in recurring_names else "no"
+        try:
+            role = profile_source_role(profile).value
+        except ValueError:
+            role = "unclassified"
         print(
             f"[{profile.id}] {profile.profile_name} "
             f"source={profile.source_name} "
+            f"role={role} "
             f"location={profile.search_location} "
             f"radius_km={profile.search_radius_km} "
             f"recurring={recurring}"
@@ -308,6 +356,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             repository=repository,
             profile_name=args.profile,
             source_filter=args.source,
+            role_filter=SourceRole(args.role) if args.role else None,
         )
     except ValueError as exc:
         parser.exit(

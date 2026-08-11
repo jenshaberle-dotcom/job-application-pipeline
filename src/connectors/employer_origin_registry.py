@@ -5,7 +5,7 @@ from src.connectors.computacenter import ComputacenterConnector
 from src.connectors.enercity import EnercityConnector
 from src.connectors.finanz_informatik import FinanzInformatikConnector
 from src.connectors.hdi import HdiConnector
-from src.connectors.registry import ConnectorRegistry
+from src.connectors.registry import ConnectorRegistry, SourceRole
 
 
 # Employer-origin connector registration is intentionally code-backed.
@@ -35,20 +35,25 @@ def register_employer_origin_connectors(registry: ConnectorRegistry) -> None:
     registry.register_exact(
         "finanz_informatik:hannover",
         finanz_informatik_hannover_factory,
+        role=SourceRole.EMPLOYER_ORIGIN,
     )
     registry.register_exact(
         "enercity:discovery",
         enercity_discovery_factory,
+        role=SourceRole.EMPLOYER_ORIGIN,
     )
     registry.register_exact(
         "hdi:hannover",
         hdi_hannover_factory,
+        role=SourceRole.EMPLOYER_ORIGIN,
     )
     registry.register_exact(
         "accompio:discovery",
         accompio_discovery_factory,
+        role=SourceRole.EMPLOYER_ORIGIN,
     )
     registry.register_exact(
         "computacenter:discovery",
         computacenter_discovery_factory,
+        role=SourceRole.EMPLOYER_ORIGIN,
     )
