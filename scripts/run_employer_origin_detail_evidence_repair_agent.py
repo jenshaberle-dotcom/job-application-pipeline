@@ -16,6 +16,7 @@ import requests
 from psycopg.rows import dict_row
 
 from src.search_intelligence.multi_origin_evidence import (
+    DETAIL_URL_SHAPE_VERSION,
     EvidenceDecision,
     EvidenceFailureReason,
     SearchDiscoveryQuery,
@@ -1010,6 +1011,7 @@ def discover_link_candidates(
         "requested_search_queries": list(requested_search_queries),
         "search_discovery_enabled": enable_search_discovery,
         "detail_link_discovery_version": "DETAIL-004B",
+        "detail_url_shape_version": DETAIL_URL_SHAPE_VERSION,
         "embedded_detail_url_extraction_enabled": True,
         "search_provider": search_provider,
     }

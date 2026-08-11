@@ -16,6 +16,9 @@ from typing import Iterable
 from urllib.parse import parse_qs, unquote, urljoin, urlparse, urlunparse
 
 
+DETAIL_URL_SHAPE_VERSION = "DETAIL-006"
+
+
 class EvidenceDecision(StrEnum):
     ACCEPTED = "accepted"
     REJECTED = "rejected"
@@ -134,16 +137,80 @@ def successfactors_like_job_detail_url(url: str) -> bool:
     return bool(search(r"(^|/)job/[^/]+/[0-9]+[-_][A-Za-z]{2,}(?:_[A-Z]{2})?/?$", path))
 
 
+def _has_strong_query_job_identifier(url: str) -> bool:
+    """Recognize bounded ATS detail routes that encode requisition identity in query parameters.
+
+    Explicit job/requisition keys are strong enough with a non-trivial value.
+    The generic ``id`` key is intentionally stricter because it is common on
+    unrelated pages: only an opaque alphanumeric token with both letters and
+    digits qualifies. This function only identifies a detail *candidate*; same
+    origin, fetched page content and exact vacancy identity remain downstream
+    authorities.
+    """
+
+    parsed = urlparse(url)
+    query: dict[str, list[str]] = {}
+    for raw_key, values in parse_qs(parsed.query, keep_blank_values=False).items():
+        key = raw_key.casefold().replace("-", "_")
+        query.setdefault(key, []).extend(values)
+
+    strong_keys = {
+        "jobid",
+        "job_id",
+        "reqid",
+        "req_id",
+        "requisitionid",
+        "requisition_id",
+        "requisition",
+    }
+    for key in strong_keys:
+        for value in query.get(key, []):
+            token = unquote(value).strip()
+            if len(token) >= 4 and search(r"[a-z0-9]", token.casefold()):
+                return True
+
+    for value in query.get("id", []):
+        token = unquote(value).strip().casefold()
+        if (
+            len(token) >= 6
+            and search(r"[a-z]", token)
+            and search(r"[0-9]", token)
+            and not search(r"[^a-z0-9_-]", token)
+        ):
+            return True
+
+    return False
+
+
 def job_detail_url_shape(url: str) -> bool:
     parsed = urlparse(url)
     path = sub(r"/{2,}", "/", parsed.path.casefold() or "").rstrip("/")
     if not path:
+        return False
+    if any(
+        fragment in path
+        for fragment in (
+            "/privacy",
+            "/datenschutz",
+            "/impressum",
+            "/imprint",
+            "/contact",
+            "/kontakt",
+            "/faq",
+        )
+    ):
         return False
     if successfactors_like_job_detail_url(url):
         return True
     # Common ATS invite/detail route. Keep this deliberately strict: only a
     # root-level job-invite path with a numeric requisition identifier counts.
     if search(r"^/job-invite/[0-9]+$", path):
+        return True
+    if _has_strong_query_job_identifier(url):
+        return True
+    # Common rexx/ATS-style root-level vacancy file with a strong requisition
+    # suffix, e.g. /Software-Engineer-mwd-de-j3471.html.
+    if search(r"^/[^/]{6,}-j[0-9]{2,}\.html$", path):
         return True
     detail_markers = (
         "/job/",
