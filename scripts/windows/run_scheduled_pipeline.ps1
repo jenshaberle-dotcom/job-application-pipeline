@@ -81,7 +81,7 @@ else {
 }
 
 Log "Verifying and fast-forwarding persistent Pipeline checkout"
-$PreflightCommand = "cd $ProjectPath && .venv/bin/python scripts/prepare_scheduled_pipeline_checkout.py --root ."
+$PreflightCommand = "cd $ProjectPath && .venv/bin/python -m scripts.prepare_scheduled_pipeline_checkout --root ."
 $PreflightOutput = & wsl -d $Distro -- bash -lc $PreflightCommand 2>&1
 $PreflightExitCode = $LASTEXITCODE
 Add-Content -Path $LogFile -Value $PreflightOutput
