@@ -38,7 +38,7 @@ def test_long_relevance_terms_preserve_useful_compound_matching() -> None:
     )
 
 
-def test_enercity_lab_title_is_not_selected_from_bi_substring() -> None:
+def test_enercity_lab_can_be_weakly_inspected_but_not_emitted_from_bi_substring() -> None:
     html = (
         "<html><body>"
         "<a href='/karriere/jobsuche/"
@@ -53,7 +53,24 @@ def test_enercity_lab_title_is_not_selected_from_bi_substring() -> None:
         "https://www.enercity.de/karriere/jobsuche",
     )
 
-    assert candidates == []
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate.profile_terms == ()
+    assert candidate.location_terms == ("hannover",)
+    assert candidate.recommendation == "weak_listing_candidate_for_review"
+
+    detail = EnercityDetailPage(
+        url=candidate.url,
+        final_url=candidate.url,
+        status_code=200,
+        title="BTA/CTA/UTA für mikrobiologisches Trinkwasserlabor",
+        text=(
+            "BTA/CTA/UTA für mikrobiologisches Trinkwasserlabor Hannover. "
+            "Mikrobiologische Untersuchungen und Trinkwasserproben."
+        ),
+        html_bytes=100,
+    )
+    assert not enercity_detail_supports_record(candidate, detail)
 
 
 def _enercity_candidate() -> EnercityCandidateLink:
