@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import subprocess
 
 
 SCRIPT = Path("scripts/run_daily_pipeline.sh").resolve()
+WINDOWS_WRAPPER = Path("scripts/windows/run_scheduled_pipeline.ps1").resolve()
+REPOSITORY_ID = 1230805345
+REPOSITORY = "jenshaberle-dotcom/job-application-pipeline"
+RUNNER_NAME = "job-pipeline-runtime-linux"
 
 
-def _prepare_fake_home(tmp_path: Path) -> tuple[Path, Path]:
+def _prepare_fake_home(tmp_path: Path) -> tuple[Path, Path, Path]:
     home = tmp_path / "home"
-    project = home / "projects" / "job-application-pipeline"
+    project = home / "managed" / "relocated-pipeline"
     venv_bin = project / ".venv" / "bin"
     venv_bin.mkdir(parents=True)
 
@@ -36,13 +41,61 @@ esac
     )
     fake_python.chmod(0o755)
 
-    activate = venv_bin / "activate"
-    activate.write_text(
-        'export PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd):$PATH"\n',
+    env_file = project / ".env"
+    env_file.write_text("POSTGRES_HOST=example.invalid\n", encoding="utf-8")
+
+    context_dir = (
+        home
+        / ".config"
+        / "DeepOceanInfrastructure"
+        / "RCC"
+        / "runtime-contexts"
+    )
+    context_dir.mkdir(parents=True)
+    context_file = context_dir / f"{REPOSITORY_ID}-{RUNNER_NAME}.json"
+    required_checks = [
+        "repository_identity",
+        "checkout",
+        "checkout_repository",
+        "env_file",
+        "env_keys",
+        "interpreter",
+        "interpreter_probe",
+        "capability:postgresql",
+    ]
+    context_file.write_text(
+        json.dumps(
+            {
+                "RepositoryId": REPOSITORY_ID,
+                "Repository": REPOSITORY,
+                "RunnerName": RUNNER_NAME,
+                "Platform": "linux-wsl",
+                "Status": "PASS",
+                "PrimaryFailure": "",
+                "ValidatedAt": "2026-08-12T08:00:00+00:00",
+                "CheckoutRoot": str(project),
+                "EnvFile": str(env_file),
+                "Interpreter": str(fake_python),
+                "ProjectionPath": str(context_file),
+                "RequiredEnvKeys": [
+                    "POSTGRES_HOST",
+                    "POSTGRES_PORT",
+                    "POSTGRES_DB",
+                    "POSTGRES_USER",
+                    "POSTGRES_PASSWORD",
+                ],
+                "Capabilities": ["postgresql"],
+                "Checks": [
+                    {"Id": check_id, "Status": "PASS", "Detail": "test"}
+                    for check_id in required_checks
+                ],
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
-    return home, call_log
+    return home, call_log, context_file
 
 
 def _run_daily(
@@ -52,8 +105,18 @@ def _run_daily(
     sensor_exit: int = 0,
     silver_exit: int = 0,
     snapshot_exit: int = 0,
+    context_status: str = "PASS",
+    remove_context: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], list[str], str]:
-    home, call_log = _prepare_fake_home(tmp_path)
+    home, call_log, context_file = _prepare_fake_home(tmp_path)
+    if remove_context:
+        context_file.unlink()
+    elif context_status != "PASS":
+        context = json.loads(context_file.read_text(encoding="utf-8"))
+        context["Status"] = context_status
+        context["PrimaryFailure"] = "RUNTIME_CONTEXT_STALE"
+        context_file.write_text(json.dumps(context, indent=2), encoding="utf-8")
+
     env = os.environ.copy()
     env.update(
         {
@@ -76,7 +139,11 @@ def _run_daily(
         timeout=30,
         check=False,
     )
-    calls = call_log.read_text(encoding="utf-8").splitlines()
+    calls = (
+        call_log.read_text(encoding="utf-8").splitlines()
+        if call_log.exists()
+        else []
+    )
     logs = sorted((home / "job-pipeline-logs").glob("daily_pipeline_*.log"))
     assert len(logs) == 1
     log_text = logs[0].read_text(encoding="utf-8")
@@ -113,3 +180,34 @@ def test_silver_failure_is_hard_failure_and_skips_snapshot(tmp_path: Path) -> No
     assert not any("-m scripts.create_source_value_snapshot" in call for call in calls)
     assert "SKIP source value snapshot because Silver normalization failed" in log_text
     assert "FAILED_AUTHORITATIVE_CORE" in log_text
+
+
+def test_missing_rcc_runtime_context_fails_closed_before_pipeline_work(tmp_path: Path) -> None:
+    completed, calls, log_text = _run_daily(tmp_path, remove_context=True)
+
+    assert completed.returncode == 1
+    assert calls == []
+    assert "RUNTIME_CONTEXT_NOT_REGISTERED" in log_text
+
+
+def test_stale_rcc_runtime_context_fails_closed_before_pipeline_work(tmp_path: Path) -> None:
+    completed, calls, log_text = _run_daily(tmp_path, context_status="STALE")
+
+    assert completed.returncode == 1
+    assert calls == []
+    assert "RCC runtime context rejected" in log_text
+
+
+def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
+    daily = SCRIPT.read_text(encoding="utf-8")
+    wrapper = WINDOWS_WRAPPER.read_text(encoding="utf-8")
+
+    assert '$HOME/projects/job-application-pipeline' not in daily
+    assert "source .venv/bin/activate" not in daily
+    assert "RCC_CONTEXT_FILE" in daily
+    assert "RUNTIME_PYTHON" in daily
+
+    assert '~/projects/job-application-pipeline' not in wrapper
+    assert '[string]$ProjectPath' not in wrapper
+    assert "runtime-contexts/$RepositoryId-$RunnerName.json" in wrapper
+    assert "--cd $ProjectPath" in wrapper
