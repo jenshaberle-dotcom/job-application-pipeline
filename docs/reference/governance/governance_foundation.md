@@ -113,6 +113,14 @@ For every meaningful fix, check whether the recurrence path needs one of:
 
 A local fix is not complete until recurrence is either blocked or consciously documented as follow-up.
 
+Failure handling is evidence-driven, not attempt-count-driven. There is no
+project-wide "three attempts" stop rule. Preserve the failure fingerprint,
+avoid repeating an unchanged action against unchanged conditions, and change
+the hypothesis or approach when the evidence says the current approach is
+exhausted. A bounded stop must be justified by a real operational,
+governance/operator, technical or context boundary, as defined by
+`docs/current/operations.md`.
+
 ---
 
 ## 4. White Whale Backlog

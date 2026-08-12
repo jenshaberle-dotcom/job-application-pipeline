@@ -72,6 +72,27 @@ Exports are `review_output_only_not_pipeline_input`. No CSV, Excel, Markdown, JS
 
 If state cannot be verified, the correct output is `unknown`, `stale`, `inconsistent`, or `needs_inspection`, not a guessed recommendation.
 
+## Failure and retry authority rule
+
+The project has no global fixed retry or implementation-attempt limit. A numeric
+attempt count is diagnostic history, not stop authority.
+
+Current retry/stop authority is `docs/current/operations.md`:
+
+- preserve and classify the failure fingerprint;
+- do not repeat an unchanged action against an unchanged unresolved failure;
+- retry only when a relevant precondition changed, an infrastructure incident
+  was independently resolved, or the approach materially changed;
+- replace an exhausted approach with a specific technical boundary or another
+  approach instead of treating an arbitrary attempt number as governance;
+- stop only at an actual external operational, governance/operator, technical
+  or demonstrated context boundary.
+
+Historical issue-local wording such as "maximum three implementation attempts"
+must not be imported into new work as project-wide governance. A specific issue
+may still prohibit repeating a demonstrably exhausted or unsafe technique, but
+that boundary is technical/evidence-based, not created by the number three.
+
 ## Active planning governance anchors
 
 PLAN-001 Future Readiness and Assumption Governance remains the canonical
