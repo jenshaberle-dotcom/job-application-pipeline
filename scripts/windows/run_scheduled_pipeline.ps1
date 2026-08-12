@@ -8,6 +8,9 @@ $ErrorActionPreference = "Continue"
 $RepositoryId = 1230805345
 $Repository = "jenshaberle-dotcom/job-application-pipeline"
 $RunnerName = "job-pipeline-runtime-linux"
+$RccInstallRoot = Join-Path $env:LOCALAPPDATA "RunnerControlCenterWinUI"
+$RccExe = Join-Path $RccInstallRoot "RunnerControlCenter.exe"
+$ExpectedRccPublisher = "CN=Jens Haberle"
 $SchedulerDir = Join-Path $env:USERPROFILE "job-pipeline-scheduler"
 $LogDir = Join-Path $env:USERPROFILE "job-pipeline-scheduler-logs"
 $StateDir = Join-Path $SchedulerDir "state"
@@ -46,7 +49,7 @@ function Write-Success-State($PipelineExitCode) {
         last_successful_timestamp_local = $Now.ToString("o")
         last_successful_log_file = $LogFile
         last_pipeline_exit_code = $PipelineExitCode
-        wrapper_version = "rcc-runtime-context-v1"
+        wrapper_version = "rcc-runtime-context-v2"
     }
 
     $State | ConvertTo-Json | Set-Content -Path $StateFile -Encoding UTF8
@@ -83,6 +86,34 @@ else {
     Log "INFO Docker Desktop executable not present; configured DB may be external"
 }
 
+# The WSL projection is derived RCC state. Refresh it from the authoritative
+# machine-local RCC registry before every scheduled run so a restart or projection
+# cleanup cannot turn a valid registration into a false RUNTIME_CONTEXT_NOT_REGISTERED.
+# The stable RCC installation path is infrastructure-owned and contains no workload
+# checkout assumption.
+Log "Refreshing RCC runtime context projection"
+if (-not (Test-Path -LiteralPath $RccExe -PathType Leaf)) {
+    Log "FAILED RCC executable unavailable: $RccExe"
+    exit 1
+}
+
+$RccSignature = Get-AuthenticodeSignature -LiteralPath $RccExe
+if ([string]$RccSignature.Status -ne "Valid" -or
+    -not $RccSignature.SignerCertificate -or
+    $RccSignature.SignerCertificate.Subject -ne $ExpectedRccPublisher) {
+    Log "FAILED RCC executable trust validation"
+    exit 1
+}
+
+$RccPreflightOutput = & $RccExe --runtime-context-preflight --repository-id $RepositoryId --runner-name $RunnerName 2>&1
+$RccPreflightExitCode = $LASTEXITCODE
+Add-Content -Path $LogFile -Value $RccPreflightOutput
+Log "rcc_preflight_exit_code=$RccPreflightExitCode"
+if ($RccPreflightExitCode -ne 0) {
+    Log "FAILED RCC runtime context preflight"
+    exit $RccPreflightExitCode
+}
+
 Log "Resolving RCC-owned WSL runtime context"
 $WslHomeOutput = & wsl -d $Distro -- sh -lc 'printf "%s" "$HOME"' 2>&1
 $WslHomeExitCode = $LASTEXITCODE
@@ -102,7 +133,7 @@ $ContextOutput = & wsl -d $Distro -- cat $ContextPath 2>&1
 $ContextExitCode = $LASTEXITCODE
 if ($ContextExitCode -ne 0) {
     Add-Content -Path $LogFile -Value $ContextOutput
-    Log "FAILED RCC runtime context unavailable: RUNTIME_CONTEXT_NOT_REGISTERED"
+    Log "FAILED RCC runtime context unavailable after preflight: RUNTIME_CONTEXT_NOT_REGISTERED"
     exit $ContextExitCode
 }
 
