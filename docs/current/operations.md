@@ -21,6 +21,31 @@ temporary full-repository ZIP review, and later MCP-backed state.
 Merge blocks must derive the PR number automatically from the current feature
 branch; they must not require manual `<PR_NUMBER>` replacement.
 
+## Failure and retry governance
+
+There is **no global fixed attempt-count ceiling** for implementation, runtime,
+infrastructure or recovery work. In particular, an old issue-local statement
+such as "maximum three implementation attempts" is not current project
+governance unless a current governance document explicitly reinstates it.
+
+Retries are evidence-driven:
+
+- classify the observed failure family and preserve its exact evidence;
+- do not repeat an unchanged action against an unchanged unresolved failure
+  merely to increase an attempt counter;
+- retry when new evidence changes a relevant precondition, the failure was an
+  independently resolved infrastructure incident, or the implementation or
+  diagnostic approach materially changes;
+- when evidence shows an approach itself is exhausted or unsafe, change the
+  approach or bind a specific technical boundary rather than relying on a
+  numeric retry limit;
+- stop only at a real external operational, governance/operator, technical or
+  demonstrated context boundary.
+
+Attempt counts may remain useful diagnostic history, but they do not create a
+stop condition by themselves. Historical issues and comments remain evidence of
+what happened at that time; they do not override this current-truth rule.
+
 ## Repository-backed re-entry contract
 
 Re-entry is not a chat handover and must not recreate the retired restart
