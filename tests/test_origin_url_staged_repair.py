@@ -310,7 +310,6 @@ def test_both_model_misses_defer_unique_queries_to_tavily(monkeypatch) -> None:
         model = str(kwargs["model"])
         ledger = kwargs["ledger"]
         if model == "gpt-5.4-mini":
-            # Mirror the real provider contract: validate through the shared ledger.
             queries = ledger.novel_queries(["site:1und1.de karriere", "1und1 jobs"])
             urls = ledger.novel_urls(["https://wrong-one.example/"])
         else:
@@ -404,10 +403,11 @@ def test_llm_disabled_preserves_deterministic_then_tavily_fallback(monkeypatch) 
         "run_atomic_origin_discovery",
         lambda args, company_key: _baseline(),
     )
+    residual_url = "https://residual-origin.example/jobs/"
 
     def fake_atomic(args, *, company_key, rows):  # type: ignore[no-untyped-def]
         if _providers(rows) == {"tavily_adaptive_search"}:
-            return _selected("https://karriere.1und1.de/")
+            return _selected(residual_url)
         return _baseline()
 
     monkeypatch.setattr(staged.adaptive, "_run_atomic_with_rows", fake_atomic)
@@ -427,21 +427,26 @@ def test_llm_disabled_preserves_deterministic_then_tavily_fallback(monkeypatch) 
         ledger,
         maximum_results,
     ):  # type: ignore[no-untyped-def]
-        url = ledger.novel_urls(["https://karriere.1und1.de/"])[0]
-        return (
-            [
-                {
-                    "company_key": company_key,
-                    "url": url,
-                    "provider": "tavily_adaptive_search",
-                    "title": "1&1 Karriere",
-                    "snippet": "Offizielle Karriereseite",
-                    "query": str(queries[0]),
-                }
-            ],
-            1,
-        )
+        if not search_calls:
+            url = ledger.novel_urls([residual_url])[0]
+            search_calls.append(list(queries))
+            return (
+                [
+                    {
+                        "company_key": company_key,
+                        "url": url,
+                        "provider": "tavily_adaptive_search",
+                        "title": "Residual official career surface",
+                        "snippet": "Residual provider result",
+                        "query": str(queries[0]),
+                    }
+                ],
+                1,
+            )
+        search_calls.append(list(queries))
+        return [], 0
 
+    search_calls: list[list[str]] = []
     monkeypatch.setattr(staged.adaptive, "_search_rows", fake_search)
 
     payload = staged.run_default_repair_for_company(
