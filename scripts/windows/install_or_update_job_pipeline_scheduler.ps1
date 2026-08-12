@@ -2,7 +2,6 @@ param(
     [string]$TaskName = "Job Pipeline Daily Run",
     [string]$DailyTime = "02:30",
     [string]$Distro = "Ubuntu",
-    [string]$WslProjectPath = "~/projects/job-application-pipeline",
     [string]$SchedulerDir = "$env:USERPROFILE\job-pipeline-scheduler"
 )
 
@@ -15,7 +14,10 @@ $TargetScript = Join-Path $SchedulerDir "run_scheduled_pipeline.ps1"
 New-Item -ItemType Directory -Force $SchedulerDir | Out-Null
 Copy-Item -Path $SourceScript -Destination $TargetScript -Force
 
-$Argument = "-NoProfile -ExecutionPolicy Bypass -File `"$TargetScript`" -Distro `"$Distro`" -ProjectPath `"$WslProjectPath`""
+# The scheduled wrapper resolves checkout, environment and interpreter exclusively
+# through the RCC runtime-context projection. Machine-specific project paths are
+# therefore no longer scheduler configuration and must not be passed as arguments.
+$Argument = "-NoProfile -ExecutionPolicy Bypass -File `"$TargetScript`" -Distro `"$Distro`""
 $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $Argument -WorkingDirectory $SchedulerDir
 
 $DailyTrigger = New-ScheduledTaskTrigger -Daily -At $DailyTime
@@ -29,7 +31,7 @@ $Settings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit (New-TimeSpan -Hours 4)
 
-$Description = "Runs the local job-application-pipeline daily and at logon. The wrapper skips duplicate same-day runs and catches up after missed days."
+$Description = "Runs the RCC-resolved local job-application-pipeline daily and at logon. The wrapper skips duplicate same-day runs and catches up after missed days."
 
 Register-ScheduledTask `
     -TaskName $TaskName `
@@ -43,4 +45,4 @@ Write-Host "Installed/updated scheduled task: $TaskName"
 Write-Host "Daily trigger: $DailyTime"
 Write-Host "Logon catch-up trigger: enabled"
 Write-Host "Wrapper script: $TargetScript"
-Write-Host "WSL project path: $WslProjectPath"
+Write-Host "Runtime context authority: RCC"
