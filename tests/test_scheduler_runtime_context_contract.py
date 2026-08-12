@@ -26,3 +26,19 @@ def test_scheduler_stack_has_no_machine_checkout_guess() -> None:
     assert "Runtime context authority: RCC" in installer
     assert "runtime-contexts/$RepositoryId-$RunnerName.json" in wrapper
     assert "RCC_CONTEXT_FILE" in daily
+
+
+def test_windows_wrapper_refreshes_projection_from_trusted_rcc_before_consuming_it() -> None:
+    wrapper = WRAPPER.read_text(encoding="utf-8")
+
+    assert 'Join-Path $env:LOCALAPPDATA "RunnerControlCenterWinUI"' in wrapper
+    assert 'Join-Path $RccInstallRoot "RunnerControlCenter.exe"' in wrapper
+    assert '$ExpectedRccPublisher = "CN=Jens Haberle"' in wrapper
+    assert "Get-AuthenticodeSignature -LiteralPath $RccExe" in wrapper
+    assert "--runtime-context-preflight" in wrapper
+    assert "--repository-id $RepositoryId" in wrapper
+    assert "--runner-name $RunnerName" in wrapper
+
+    preflight = wrapper.index("--runtime-context-preflight")
+    projection = wrapper.index('runtime-contexts/$RepositoryId-$RunnerName.json')
+    assert preflight < projection
