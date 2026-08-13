@@ -23,11 +23,21 @@ def candidate() -> SourceCandidate:
     )
 
 
-def args(*, approval_token: str = apply_pass.APPROVAL_TOKEN) -> Namespace:
+def args(
+    *,
+    approval_token: str = apply_pass.APPROVAL_TOKEN,
+    enable_greenhouse_delegation: bool = False,
+    expected_detail_gate_status: str | None = None,
+    expected_detail_gate_decision: str | None = None,
+    expected_detail_reviewed_by: str | None = None,
+) -> Namespace:
     return Namespace(
         candidate_id=46,
         expected_company_key="1_1",
         expected_candidate_status="discovery",
+        expected_detail_gate_status=expected_detail_gate_status,
+        expected_detail_gate_decision=expected_detail_gate_decision,
+        expected_detail_reviewed_by=expected_detail_reviewed_by,
         approval_token=approval_token,
         target_location="hannover",
         profile_term=None,
@@ -38,6 +48,7 @@ def args(*, approval_token: str = apply_pass.APPROVAL_TOKEN) -> Namespace:
         max_search_results=6,
         search_provider="duckduckgo_html",
         disable_search_discovery=False,
+        enable_greenhouse_delegation=enable_greenhouse_delegation,
         reviewed_by="jens",
     )
 
@@ -67,14 +78,27 @@ def non_pass_outcome() -> RepairOutcome:
 
 
 class FakeConnection:
-    def __init__(self) -> None:
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.active = False
         self.committed = False
+        self.rolled_back = False
+        self.executed: list[str] = []
 
     def __enter__(self):
+        self.active = True
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
+        self.active = False
         return False
+
+    def execute(self, query: str, *_args, **_kwargs):
+        self.executed.append(query)
+        return self
+
+    def rollback(self) -> None:
+        self.rolled_back = True
 
     def commit(self) -> None:
         self.committed = True
@@ -82,6 +106,7 @@ class FakeConnection:
 
 class FakeRepo:
     wrote = False
+    gates: dict[str, dict[str, object]] = {}
 
     def __init__(self, conn) -> None:
         self.conn = conn
@@ -93,7 +118,7 @@ class FakeRepo:
 
     def load_gates(self, candidate_id):
         assert candidate_id == 46
-        return {}
+        return dict(type(self).gates)
 
     def record_detail_evidence_gate(self, *, candidate_id, outcome, reviewed_by):
         assert candidate_id == 46
@@ -102,27 +127,79 @@ class FakeRepo:
         type(self).wrote = True
 
 
-def install_fake_runtime(monkeypatch, outcome: RepairOutcome) -> FakeConnection:
-    conn = FakeConnection()
+def install_fake_runtime(
+    monkeypatch,
+    outcome: RepairOutcome,
+    *,
+    greenhouse_outcome: RepairOutcome | None = None,
+    gates: dict[str, dict[str, object]] | None = None,
+):
+    connections: list[FakeConnection] = []
+    builder_calls = {"ordinary": 0, "greenhouse": 0}
+
+    def connect(*_args, **_kwargs):
+        conn = FakeConnection(f"conn-{len(connections) + 1}")
+        connections.append(conn)
+        return conn
+
+    def assert_network_phase_has_no_open_db_transaction() -> None:
+        assert len(connections) == 1
+        assert connections[0].active is False
+        assert connections[0].rolled_back is True
+
+    def ordinary_builder(**_kwargs):
+        builder_calls["ordinary"] += 1
+        assert_network_phase_has_no_open_db_transaction()
+        return outcome
+
+    def greenhouse_builder(**_kwargs):
+        builder_calls["greenhouse"] += 1
+        assert_network_phase_has_no_open_db_transaction()
+        return greenhouse_outcome if greenhouse_outcome is not None else outcome
+
     FakeRepo.wrote = False
+    FakeRepo.gates = gates or {}
     monkeypatch.setenv("POSTGRES_DB", "test_db")
     monkeypatch.setenv("POSTGRES_USER", "test_user")
     monkeypatch.setenv("POSTGRES_PASSWORD", "test_password")
-    monkeypatch.setattr(apply_pass.psycopg, "connect", lambda *_args, **_kwargs: conn)
+    monkeypatch.setattr(apply_pass.psycopg, "connect", connect)
     monkeypatch.setattr(apply_pass, "GateStateRepository", FakeRepo)
     monkeypatch.setattr(apply_pass, "load_local_env_file", lambda: None)
-    monkeypatch.setattr(apply_pass, "build_repair_outcome", lambda **_kwargs: outcome)
+    monkeypatch.setattr(apply_pass, "build_repair_outcome", ordinary_builder)
+    monkeypatch.setattr(apply_pass, "build_greenhouse_delegated_repair_outcome", greenhouse_builder)
     monkeypatch.setattr(apply_pass, "repair_report_lines", lambda *_args: [])
     monkeypatch.setattr(apply_pass, "lock_and_revalidate_candidate", lambda *_args, **_kwargs: None)
-    return conn
+    monkeypatch.setattr(apply_pass, "lock_and_revalidate_detail_gate", lambda *_args, **_kwargs: None)
+    return connections, builder_calls
 
 
-def test_reviewed_pass_apply_writes_only_after_exact_fresh_pass(monkeypatch) -> None:
-    conn = install_fake_runtime(monkeypatch, passed_outcome())
+def test_reviewed_pass_apply_uses_short_read_snapshot_then_existing_writer(monkeypatch) -> None:
+    connections, calls = install_fake_runtime(monkeypatch, passed_outcome())
 
     assert apply_pass.run_apply(args()) == 0
+
+    assert calls == {"ordinary": 1, "greenhouse": 0}
+    assert len(connections) == 2
+    assert "SET TRANSACTION READ ONLY" in connections[0].executed
+    assert connections[0].rolled_back is True
+    assert connections[0].committed is False
     assert FakeRepo.wrote is True
-    assert conn.committed is True
+    assert connections[1].committed is True
+
+
+def test_greenhouse_mode_uses_delegated_builder_not_ordinary_builder(monkeypatch) -> None:
+    connections, calls = install_fake_runtime(
+        monkeypatch,
+        non_pass_outcome(),
+        greenhouse_outcome=passed_outcome(),
+    )
+
+    assert apply_pass.run_apply(args(enable_greenhouse_delegation=True)) == 0
+
+    assert calls == {"ordinary": 0, "greenhouse": 1}
+    assert len(connections) == 2
+    assert FakeRepo.wrote is True
+    assert connections[1].committed is True
 
 
 def test_wrong_approval_token_stops_before_connection(monkeypatch) -> None:
@@ -134,6 +211,20 @@ def test_wrong_approval_token_stops_before_connection(monkeypatch) -> None:
 
     with pytest.raises(apply_pass.ReviewedPassApplyError, match="approval_token_mismatch"):
         apply_pass.run_apply(args(approval_token="wrong"))
+
+
+def test_incomplete_detail_gate_precondition_stops_before_connection(monkeypatch) -> None:
+    monkeypatch.setattr(
+        apply_pass.psycopg,
+        "connect",
+        lambda *_args, **_kwargs: pytest.fail("DB connection must not occur for incomplete gate precondition"),
+    )
+
+    with pytest.raises(
+        apply_pass.ReviewedPassApplyError,
+        match="incomplete_expected_detail_gate_precondition",
+    ):
+        apply_pass.run_apply(args(expected_detail_gate_status="manual_review_required"))
 
 
 def test_company_key_only_apply_is_not_a_supported_cli_shape() -> None:
@@ -152,14 +243,84 @@ def test_company_key_only_apply_is_not_a_supported_cli_shape() -> None:
         )
 
 
-def test_fresh_non_pass_stops_before_gate_write(monkeypatch) -> None:
-    conn = install_fake_runtime(monkeypatch, non_pass_outcome())
+def test_fresh_non_pass_stops_before_write_connection(monkeypatch) -> None:
+    connections, calls = install_fake_runtime(monkeypatch, non_pass_outcome())
 
     with pytest.raises(apply_pass.ReviewedPassApplyError, match="fresh_detail_evidence_not_passed"):
         apply_pass.run_apply(args())
 
+    assert calls == {"ordinary": 1, "greenhouse": 0}
+    assert len(connections) == 1
+    assert connections[0].rolled_back is True
     assert FakeRepo.wrote is False
-    assert conn.committed is False
+    assert connections[0].committed is False
+
+
+def test_snapshot_detail_gate_drift_stops_before_network_or_write(monkeypatch) -> None:
+    connections, calls = install_fake_runtime(
+        monkeypatch,
+        passed_outcome(),
+        gates={
+            apply_pass.DETAIL_EVIDENCE_GATE: {
+                "gate_status": "passed",
+                "decision": "passed",
+                "reviewed_by": "other",
+            }
+        },
+    )
+
+    with pytest.raises(
+        apply_pass.ReviewedPassApplyError,
+        match="detail_gate_status_mismatch_before_evidence_refresh",
+    ):
+        apply_pass.run_apply(
+            args(
+                expected_detail_gate_status="manual_review_required",
+                expected_detail_gate_decision="manual_review_required",
+                expected_detail_reviewed_by="pipeline_514_runtime",
+            )
+        )
+
+    assert calls == {"ordinary": 0, "greenhouse": 0}
+    assert len(connections) == 1
+    assert FakeRepo.wrote is False
+
+
+def test_write_time_detail_gate_drift_stops_before_existing_writer(monkeypatch) -> None:
+    current_gate = {
+        apply_pass.DETAIL_EVIDENCE_GATE: {
+            "gate_status": "manual_review_required",
+            "decision": "manual_review_required",
+            "reviewed_by": "pipeline_514_runtime",
+        }
+    }
+    connections, calls = install_fake_runtime(
+        monkeypatch,
+        passed_outcome(),
+        gates=current_gate,
+    )
+
+    def reject_gate_drift(*_args, **_kwargs):
+        raise apply_pass.ReviewedPassApplyError("detail_gate_status_drift_before_write")
+
+    monkeypatch.setattr(apply_pass, "lock_and_revalidate_detail_gate", reject_gate_drift)
+
+    with pytest.raises(
+        apply_pass.ReviewedPassApplyError,
+        match="detail_gate_status_drift_before_write",
+    ):
+        apply_pass.run_apply(
+            args(
+                expected_detail_gate_status="manual_review_required",
+                expected_detail_gate_decision="manual_review_required",
+                expected_detail_reviewed_by="pipeline_514_runtime",
+            )
+        )
+
+    assert calls == {"ordinary": 1, "greenhouse": 0}
+    assert len(connections) == 2
+    assert FakeRepo.wrote is False
+    assert connections[1].committed is False
 
 
 def test_candidate_identity_guard_rejects_state_drift() -> None:
