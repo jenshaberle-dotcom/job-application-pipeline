@@ -57,7 +57,7 @@ class ModelCallObservation:
             "request_contract_sha256": self.request_contract_sha256,
             "latency_ms": self.latency_ms,
             "estimated_cost_usd": round(self.estimated_cost_usd, 8),
-            "result": self.result.to_json(),
+            "provider_result": self.result.to_json(),
         }
 
 
