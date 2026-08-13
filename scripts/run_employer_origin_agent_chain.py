@@ -13,13 +13,14 @@ from psycopg.rows import dict_row
 from src.config import get_database_config
 
 DETAIL_EVIDENCE_GATE = "detail_evidence_gate"
+INCREMENTAL_UNIQUENESS_GATE = "incremental_uniqueness_gate"
 CONNECTOR_CANDIDATE_GATE = "connector_candidate_gate"
 CONNECTOR_VALIDATION_GATE = "connector_validation_gate"
 FINAL_APPROVAL_GATE = "final_approval_gate"
 SOURCE_LIFECYCLE_GATE = "source_lifecycle_tracking"
 APPROVAL_TOKEN = "approve_connector_registration"
 
-REQUIRED_CONNECTOR_ARTIFACT_GATES = (
+EARLY_CONNECTOR_PRECONDITION_GATES = (
     "company_candidate",
     "source_discovery",
     "risk_gate",
@@ -27,9 +28,13 @@ REQUIRED_CONNECTOR_ARTIFACT_GATES = (
     "scope_gate",
     "defensive_preview_gate",
     "relevance_gate",
-    "detail_evidence_gate",
-    "incremental_uniqueness_gate",
-    "connector_candidate_gate",
+)
+
+REQUIRED_CONNECTOR_ARTIFACT_GATES = (
+    *EARLY_CONNECTOR_PRECONDITION_GATES,
+    DETAIL_EVIDENCE_GATE,
+    INCREMENTAL_UNIQUENESS_GATE,
+    CONNECTOR_CANDIDATE_GATE,
 )
 
 
@@ -154,12 +159,45 @@ def gate_passed(gate: GateReview | None, *, decision: str | None = None) -> bool
     return True
 
 
+def _present_unpassed(gates: dict[str, GateReview], gate_names: tuple[str, ...]) -> tuple[str, ...]:
+    """Return neutral/failed canonical rows that are present but not passed.
+
+    Migration 094 guarantees the complete registry for live candidates. Keeping
+    missing rows out of this helper preserves compatibility with historical unit
+    fixtures while the connector-candidate agent remains fail-closed for a truly
+    missing canonical row.
+    """
+
+    return tuple(
+        name
+        for name in gate_names
+        if name in gates and not gate_passed(gates.get(name))
+    )
+
+
+def early_preconnector_revalidation_gates(gates: dict[str, GateReview]) -> tuple[str, ...]:
+    return _present_unpassed(gates, EARLY_CONNECTOR_PRECONDITION_GATES)
+
+
+def uniqueness_revalidation_needed(gates: dict[str, GateReview]) -> bool:
+    return (
+        gate_passed(gates.get(DETAIL_EVIDENCE_GATE))
+        and INCREMENTAL_UNIQUENESS_GATE in gates
+        and not gate_passed(gates.get(INCREMENTAL_UNIQUENESS_GATE))
+    )
+
+
 def needs_detail_evidence_repair(gates: dict[str, GateReview]) -> bool:
     return not gate_passed(gates.get(DETAIL_EVIDENCE_GATE))
 
 
 def connector_candidate_ready(gates: dict[str, GateReview]) -> bool:
-    return gate_passed(gates.get(CONNECTOR_CANDIDATE_GATE), decision="build_connector_candidate")
+    gate = gates.get(CONNECTOR_CANDIDATE_GATE)
+    if not gate_passed(gate):
+        return False
+    # `passed` is the canonical decision vocabulary. The legacy action-like
+    # value remains readable while old evidence is retired naturally.
+    return gate.decision in {"passed", "build_connector_candidate"}
 
 
 def connector_validation_ready(gates: dict[str, GateReview]) -> bool:
@@ -284,6 +322,18 @@ def next_decision(
     approval_token: str | None = None,
     write_registration_plan: bool = False,
 ) -> ChainDecision:
+    early_unpassed = early_preconnector_revalidation_gates(gates)
+    if early_unpassed:
+        return ChainDecision(
+            action="run_preconnector_precondition_recovery",
+            reason=(
+                "canonical connector preconditions are present but not passed: "
+                + ", ".join(early_unpassed)
+            ),
+            module="scripts.run_employer_origin_preconnector_precondition_agent",
+            args=repair_args(company_key, target_location, reviewed_by),
+        )
+
     if needs_detail_evidence_repair(gates):
         detail_gate = gates.get(DETAIL_EVIDENCE_GATE)
         reason = "detail_evidence_gate is not passed"
@@ -303,10 +353,18 @@ def next_decision(
             reason=f"{reason}; rerun with --attempt-repair for bounded same-domain repair.",
         )
 
+    if uniqueness_revalidation_needed(gates):
+        return ChainDecision(
+            action="run_preconnector_precondition_recovery",
+            reason="detail_evidence_gate is passed but incremental_uniqueness_gate is not passed",
+            module="scripts.run_employer_origin_preconnector_precondition_agent",
+            args=repair_args(company_key, target_location, reviewed_by),
+        )
+
     if not connector_candidate_ready(gates):
         return ChainDecision(
             action="run_connector_candidate_gate",
-            reason="detail_evidence_gate is passed but connector_candidate_gate is not ready",
+            reason="all observed preconditions are passed but connector_candidate_gate is not ready",
             module="scripts.run_employer_origin_connector_candidate_agent",
             args=connector_candidate_args(company_key, reviewed_by),
         )
@@ -384,6 +442,7 @@ def review_evidence_child_plan(decision: ChainDecision) -> int:
     print("decision_evidence_only: child execution retired by CONSISTENCY-001B")
     print("execution_boundary: future execution must use MCP policy/capability/audit/rollback controls")
     return 0
+
 
 def child_exit_interpretation_lines(exit_code: int) -> list[str]:
     if exit_code == 0:
