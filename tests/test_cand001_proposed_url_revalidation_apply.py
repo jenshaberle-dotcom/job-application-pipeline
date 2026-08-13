@@ -102,12 +102,12 @@ def _payload(url: str | None) -> dict[str, object]:
 def _evidence(url: str) -> OriginUrlValidationEvidence:
     return OriginUrlValidationEvidence(
         selected_url=url,
-        source="live_url_finder_validation",
+        success_tier="A",
         decision="origin_url_candidate_selected",
         confidence_score=1.0,
-        url_finder_tier="A",
         reason="validated",
         risk_level="low",
+        source="live_url_finder_validation",
     )
 
 
@@ -170,7 +170,7 @@ def test_exact_selected_url_can_apply_without_stochastic_rediscovery(
             decision="persist_validated_candidate_url",
             review_status="write_recommended",
             reason=evidence.reason,
-            url_finder_tier=evidence.url_finder_tier,
+            url_finder_tier=evidence.success_tier,
             url_finder_decision=evidence.decision,
             confidence_score=evidence.confidence_score,
             apply_allowed=True,
@@ -233,7 +233,7 @@ def test_alternate_selected_url_is_rejected_and_never_written(
             decision="no_selected_url",
             review_status="manual_review_required",
             reason=evidence.reason,
-            url_finder_tier=evidence.url_finder_tier,
+            url_finder_tier=evidence.success_tier,
             url_finder_decision=evidence.decision,
             confidence_score=evidence.confidence_score,
             apply_allowed=False,
@@ -261,5 +261,5 @@ def test_alternate_selected_url_is_rejected_and_never_written(
     assert evidence.selected_url is None
     assert evidence.source == proposed.PROVENANCE
     assert evidence.decision == "proposed_url_revalidation_failed"
-    assert evidence.url_finder_tier is None
+    assert evidence.success_tier is None
     assert "No alternate URL may be substituted" in evidence.reason
