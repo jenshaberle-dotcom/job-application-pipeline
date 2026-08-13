@@ -10,6 +10,7 @@ import pytest
 import scripts.run_cand001_proposed_url_revalidation_apply as proposed
 from src.search_intelligence.cand001_validated_origin_url_persistence import (
     CandidatePersistenceSnapshot,
+    OriginUrlValidationEvidence,
 )
 
 
@@ -98,6 +99,18 @@ def _payload(url: str | None) -> dict[str, object]:
     }
 
 
+def _evidence(url: str) -> OriginUrlValidationEvidence:
+    return OriginUrlValidationEvidence(
+        selected_url=url,
+        source="live_url_finder_validation",
+        decision="origin_url_candidate_selected",
+        confidence_score=1.0,
+        url_finder_tier="A",
+        reason="validated",
+        risk_level="low",
+    )
+
+
 def _install_common(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(proposed.cand001, "connect", _connection)
     monkeypatch.setattr(
@@ -141,15 +154,7 @@ def test_exact_selected_url_can_apply_without_stochastic_rediscovery(
     monkeypatch.setattr(
         proposed,
         "evidence_from_origin_discovery_payload",
-        lambda payload: SimpleNamespace(
-            selected_url="https://careers.example.com/",
-            source="live_url_finder_validation",
-            decision="origin_url_candidate_selected",
-            confidence_score=1.0,
-            url_finder_tier="A",
-            reason="validated",
-            risk_level="low",
-        ),
+        lambda payload: _evidence("https://careers.example.com/"),
     )
     monkeypatch.setattr(
         proposed,
@@ -211,15 +216,7 @@ def test_alternate_selected_url_is_rejected_and_never_written(
     monkeypatch.setattr(
         proposed,
         "evidence_from_origin_discovery_payload",
-        lambda payload: SimpleNamespace(
-            selected_url="https://jobs.example.com/",
-            source="live_url_finder_validation",
-            decision="origin_url_candidate_selected",
-            confidence_score=1.0,
-            url_finder_tier="A",
-            reason="validated alternate",
-            risk_level="low",
-        ),
+        lambda payload: _evidence("https://jobs.example.com/"),
     )
     captured: dict[str, object] = {}
 
