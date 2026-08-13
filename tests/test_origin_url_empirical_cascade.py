@@ -48,9 +48,10 @@ def _args(**overrides: object) -> argparse.Namespace:
         "search_llm_reasoning_effort": "medium",
         "search_llm_max_reasoning_effort": "max",
         "search_llm_max_output_tokens": 500,
+        "search_llm_max_reasoning_output_tokens": 6000,
         "search_llm_reserved_input_tokens": 3500,
         "search_llm_timeout_seconds": 1.0,
-        "search_llm_max_timeout_seconds": 1.0,
+        "search_llm_max_reasoning_timeout_seconds": 1.0,
         "max_search_llm_cost_usd_per_company": 0.01,
         "max_search_llm_escalation_cost_usd_per_company": 0.02,
         "max_search_llm_sol_cost_usd_per_company": 0.05,
@@ -114,7 +115,8 @@ def test_parser_defaults_match_measured_production_order() -> None:
     assert args.search_llm_max_model == "gpt-5.6-luna"
     assert args.search_llm_reasoning_effort == "medium"
     assert args.search_llm_max_reasoning_effort == "max"
-    assert args.search_llm_max_output_tokens == 6000
+    assert args.search_llm_max_output_tokens == 500
+    assert args.search_llm_max_reasoning_output_tokens == 6000
 
 
 def test_price_reservations_cover_all_empirical_models() -> None:
@@ -138,7 +140,9 @@ def test_price_reservations_cover_all_empirical_models() -> None:
     ) == pytest.approx(0.0395)
 
 
-def test_medium_models_then_luna_max_share_one_ledger(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_medium_models_then_luna_max_share_one_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _install_deterministic_miss(monkeypatch)
     calls: list[tuple[str, str, str, int]] = []
     ledger_ids: list[int] = []
@@ -173,7 +177,7 @@ def test_medium_models_then_luna_max_share_one_ledger(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(cascade.model_first, "_run_direct_model_stage", fake_stage)
 
-    payload = cascade.run_default_repair_for_company(_args(), "example")
+    payload = cascade.run_empirical_repair_for_company(_args(), "example")
     repair = payload["default_repair"]
     assert isinstance(repair, Mapping)
     assert repair["selected_stage"] == cascade.MAX_STAGE
@@ -191,7 +195,9 @@ def test_medium_models_then_luna_max_share_one_ledger(monkeypatch: pytest.Monkey
     assert payload["empirical_origin_cascade"]["pro_mode_enabled"] is False
 
 
-def test_sol_success_stops_before_max_and_tavily(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sol_success_stops_before_max_and_tavily(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _install_deterministic_miss(monkeypatch)
     calls: list[str] = []
 
@@ -211,7 +217,7 @@ def test_sol_success_stops_before_max_and_tavily(monkeypatch: pytest.MonkeyPatch
         )
 
     monkeypatch.setattr(cascade.model_first, "_run_direct_model_stage", fake_stage)
-    payload = cascade.run_default_repair_for_company(_args(), "example")
+    payload = cascade.run_empirical_repair_for_company(_args(), "example")
     repair = payload["default_repair"]
     assert calls == [cascade.PRIMARY_STAGE, cascade.TERRA_STAGE, cascade.SOL_STAGE]
     assert repair["selected_stage"] == cascade.SOL_STAGE
@@ -232,7 +238,7 @@ def test_explicit_llm_disable_skips_all_four_model_stages(
         ),
     )
 
-    payload = cascade.run_default_repair_for_company(
+    payload = cascade.run_empirical_repair_for_company(
         _args(disable_llm=True, disable_tavily=True),
         "example",
     )
