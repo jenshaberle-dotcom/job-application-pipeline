@@ -92,6 +92,29 @@ The active PR or issue must contain one explicit re-entry record with:
 
 The record is evidence, not authority over newer repository truth.
 
+### Technical interruption checkpoint
+
+A chat/context timeout, connector/tool failure, transient transport error or
+similar execution interruption is **not** evidence of a product or runtime
+failure by itself. It must not trigger replay, provider calls, state mutation or
+an attempt-count increment merely to reconstruct a prior chat narrative.
+
+Before starting the next material slice after such an interruption:
+
+1. re-authenticate the immutable repository identity plus the exact live
+   Pipeline `main` commit SHA and every related runtime/evidence repository SHA;
+2. re-read the active issue/PR freeze and the newest durable runtime evidence;
+3. explicitly reconcile any disagreement between prior chat/intermediate
+   summaries and live repository/runtime truth, including commit-vs-tree SHA,
+   candidate set, queue state and already-completed side effects;
+4. persist a corrected active-issue freeze when the interruption exposed drift,
+   ambiguity or stale continuation data; and
+5. resume only from the newest legal durable state, preserving completed work
+   and leaving unrelated or operator-bound work untouched.
+
+Technical interruption recovery therefore restores **continuation context**, not
+business state. Repository/runtime evidence always wins over a chat handover.
+
 ### Re-entry sequence
 
 1. Inspect the repository, current `main`, branch head, PR state, review threads,
