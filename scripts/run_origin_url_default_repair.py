@@ -55,7 +55,7 @@ from src.search_intelligence.origin_selection_scope_contract import (  # noqa: E
 
 install_origin_search_execution_contract()
 
-_STAGED_RUNNER = staged.run_default_repair_for_company
+_STAGED_RUNNER = staged.run_empirical_repair_for_company
 
 
 def run_default_repair_for_company(args, company_key):  # type: ignore[no-untyped-def]
