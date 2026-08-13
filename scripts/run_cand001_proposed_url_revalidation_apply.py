@@ -10,7 +10,7 @@ This adapter exists for the two-phase portfolio flow authorized by Pipeline #514
    still classify it A/B-tier before the existing exact-row `FOR UPDATE` writer
    may persist it.
 
-The adapter never turns a prior model result into persistence truth.  It only
+The adapter never turns a prior model result into persistence truth. It only
 removes nondeterministic rediscovery from the Apply phase while retaining fresh
 HTTP/company-identity/career-origin validation, duplicate checks, exact candidate
 identity checks, and the existing CAND-001 audit/write boundary.
@@ -79,7 +79,7 @@ def _exact_revalidation_evidence(
         selected_url=None,
         decision="proposed_url_revalidation_failed",
         confidence_score=0.0,
-        url_finder_tier=None,
+        success_tier=None,
         reason=(
             "Fresh stable validation did not reselect the exact proposed URL; "
             f"proposed={proposed_url!r}, selected={selected!r}. No alternate URL "
