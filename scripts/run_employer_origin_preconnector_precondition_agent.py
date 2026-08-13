@@ -30,7 +30,6 @@ from scripts.run_employer_origin_detail_uniqueness_agent import (
     incremental_uniqueness_outcome,
 )
 from scripts.run_employer_origin_gate_agent import (
-    DEFAULT_PROFILE_TERMS,
     GateOutcome,
     company_candidate_gate,
     defensive_preview_gate,
@@ -264,8 +263,16 @@ def supported_detail_candidates_from_evidence(
         url = str(raw.get("final_url") or raw.get("url") or "").strip()
         if not url.startswith(("http://", "https://")) or url in seen:
             continue
-        profile_hits = tuple(str(item) for item in (raw.get("profile_terms") or raw.get("profile_hits") or []) if str(item))
-        location_hits = tuple(str(item) for item in (raw.get("location_terms") or raw.get("location_hits") or []) if str(item))
+        profile_hits = tuple(
+            str(item)
+            for item in (raw.get("profile_terms") or raw.get("profile_hits") or [])
+            if str(item)
+        )
+        location_hits = tuple(
+            str(item)
+            for item in (raw.get("location_terms") or raw.get("location_hits") or [])
+            if str(item)
+        )
         if not profile_hits or not location_hits:
             continue
         seen.add(url)
@@ -314,7 +321,6 @@ def run_agent(args: argparse.Namespace) -> int:
         for gate_name, builder in (
             ("company_candidate", lambda: company_candidate_gate(gate_args)),
             ("source_discovery", lambda: source_discovery_gate(gate_args)),
-            ("risk_gate", lambda: prefetch_risk_gate(gate_args)),
         ):
             if gate_passed(gates, gate_name):
                 continue
@@ -328,9 +334,26 @@ def run_agent(args: argparse.Namespace) -> int:
                 return 2
             gates = repo.load_gates(candidate.id)
 
-        needs_fetch = any(
+        pending_risk: GateOutcome | None = None
+        if not gate_passed(gates, "risk_gate"):
+            pending_risk = prefetch_risk_gate(gate_args)
+            if pending_risk.gate_status != "passed":
+                if _record_and_stop_if_needed(
+                    repo,
+                    candidate_id=candidate.id,
+                    outcome=pending_risk,
+                    reviewed_by=args.reviewed_by,
+                ):
+                    return 2
+                pending_risk = None
+
+        needs_fetch = pending_risk is not None or any(
             not gate_passed(gates, gate_name)
-            for gate_name in ("technical_reachability_gate", "defensive_preview_gate", "relevance_gate")
+            for gate_name in (
+                "technical_reachability_gate",
+                "defensive_preview_gate",
+                "relevance_gate",
+            )
         )
         fetch = None
         if needs_fetch:
@@ -342,8 +365,13 @@ def run_agent(args: argparse.Namespace) -> int:
                     source_family_candidate=candidate.source_family_candidate,
                 )
             except requests.RequestException as exc:
+                failure_gate = (
+                    "technical_reachability_gate"
+                    if not gate_passed(gates, "technical_reachability_gate")
+                    else "risk_gate"
+                )
                 outcome = GateOutcome(
-                    gate_name="technical_reachability_gate",
+                    gate_name=failure_gate,
                     gate_status="manual_review_required",
                     decision="manual_review_required",
                     stop_reason=f"bounded candidate fetch failed: {type(exc).__name__}",
@@ -368,12 +396,13 @@ def run_agent(args: argparse.Namespace) -> int:
                 return 2
             gates = repo.load_gates(candidate.id)
 
-        if fetch is not None and not gate_passed(gates, "risk_gate"):
+        if fetch is not None and pending_risk is not None:
             risk_after_fetch = postfetch_risk_gate(fetch)
-            if risk_after_fetch is not None and _record_and_stop_if_needed(
+            final_risk = risk_after_fetch or pending_risk
+            if _record_and_stop_if_needed(
                 repo,
                 candidate_id=candidate.id,
-                outcome=risk_after_fetch,
+                outcome=final_risk,
                 reviewed_by=args.reviewed_by,
             ):
                 return 2
@@ -413,7 +442,9 @@ def run_agent(args: argparse.Namespace) -> int:
             gates = repo.load_gates(candidate.id)
 
         gates = repo.load_gates(candidate.id)
-        remaining_early = [name for name in EARLY_PRECONDITION_GATES if not gate_passed(gates, name)]
+        remaining_early = [
+            name for name in EARLY_PRECONDITION_GATES if not gate_passed(gates, name)
+        ]
         if remaining_early:
             print("STOP: early preconditions remain unpassed: " + ", ".join(remaining_early))
             return 2
@@ -435,7 +466,9 @@ def run_agent(args: argparse.Namespace) -> int:
                 stop_reason="passed detail_evidence_gate contains no authoritative supported detail rows",
                 evidence={
                     "detail_gate_status": gates[DETAIL_EVIDENCE_GATE].get("gate_status"),
-                    "detail_evidence_keys": sorted((gates[DETAIL_EVIDENCE_GATE].get("evidence") or {}).keys()),
+                    "detail_evidence_keys": sorted(
+                        (gates[DETAIL_EVIDENCE_GATE].get("evidence") or {}).keys()
+                    ),
                     "provider_requests": 0,
                 },
             )
@@ -472,7 +505,9 @@ def run_agent(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Recover canonical preconnector lifecycle gates without provider calls.")
+    parser = argparse.ArgumentParser(
+        description="Recover canonical preconnector lifecycle gates without provider calls."
+    )
     candidate = parser.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate-id", type=int)
     candidate.add_argument("--company-key")
