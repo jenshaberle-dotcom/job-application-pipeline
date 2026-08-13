@@ -88,12 +88,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="max",
     )
     parser.add_argument(
-        "--search-llm-max-output-tokens",
+        "--search-llm-max-reasoning-output-tokens",
         type=int,
         default=6000,
     )
     parser.add_argument(
-        "--search-llm-max-timeout-seconds",
+        "--search-llm-max-reasoning-timeout-seconds",
         type=float,
         default=180.0,
     )
@@ -221,7 +221,9 @@ def _model_stage(
 
 
 def _model_specs(args: argparse.Namespace) -> tuple[dict[str, object], ...]:
-    medium_effort = str(_value(args, "search_llm_reasoning_effort", "medium") or "medium")
+    medium_effort = str(
+        _value(args, "search_llm_reasoning_effort", "medium") or "medium"
+    )
     medium_output = int(_value(args, "search_llm_max_output_tokens", 500))
     medium_timeout = float(_value(args, "search_llm_timeout_seconds", 90.0))
     return (
@@ -231,17 +233,25 @@ def _model_specs(args: argparse.Namespace) -> tuple[dict[str, object], ...]:
             "reasoning": medium_effort,
             "max_output_tokens": medium_output,
             "timeout": medium_timeout,
-            "ceiling": float(_value(args, "max_search_llm_cost_usd_per_company", 0.01)),
+            "ceiling": float(
+                _value(args, "max_search_llm_cost_usd_per_company", 0.01)
+            ),
             "provider": "llm_primary_direct_url_hypothesis",
         },
         {
             "stage": TERRA_STAGE,
-            "model": str(_value(args, "search_llm_escalation_model", "gpt-5.6-terra")),
+            "model": str(
+                _value(args, "search_llm_escalation_model", "gpt-5.6-terra")
+            ),
             "reasoning": medium_effort,
             "max_output_tokens": medium_output,
             "timeout": medium_timeout,
             "ceiling": float(
-                _value(args, "max_search_llm_escalation_cost_usd_per_company", 0.02)
+                _value(
+                    args,
+                    "max_search_llm_escalation_cost_usd_per_company",
+                    0.02,
+                )
             ),
             "provider": "llm_terra_direct_url_hypothesis",
         },
@@ -251,16 +261,26 @@ def _model_specs(args: argparse.Namespace) -> tuple[dict[str, object], ...]:
             "reasoning": medium_effort,
             "max_output_tokens": medium_output,
             "timeout": medium_timeout,
-            "ceiling": float(_value(args, "max_search_llm_sol_cost_usd_per_company", 0.05)),
+            "ceiling": float(
+                _value(args, "max_search_llm_sol_cost_usd_per_company", 0.05)
+            ),
             "provider": "llm_sol_direct_url_hypothesis",
         },
         {
             "stage": MAX_STAGE,
             "model": str(_value(args, "search_llm_max_model", "gpt-5.6-luna")),
-            "reasoning": str(_value(args, "search_llm_max_reasoning_effort", "max") or "max"),
-            "max_output_tokens": int(_value(args, "search_llm_max_output_tokens", 6000)),
-            "timeout": float(_value(args, "search_llm_max_timeout_seconds", 180.0)),
-            "ceiling": float(_value(args, "max_search_llm_max_cost_usd_per_company", 0.05)),
+            "reasoning": str(
+                _value(args, "search_llm_max_reasoning_effort", "max") or "max"
+            ),
+            "max_output_tokens": int(
+                _value(args, "search_llm_max_reasoning_output_tokens", 6000)
+            ),
+            "timeout": float(
+                _value(args, "search_llm_max_reasoning_timeout_seconds", 180.0)
+            ),
+            "ceiling": float(
+                _value(args, "max_search_llm_max_cost_usd_per_company", 0.05)
+            ),
             "provider": "llm_max_direct_url_hypothesis",
         },
     )
@@ -442,7 +462,10 @@ def run_default_repair_for_company(
                     trace=trace,
                     ledger=ledger,
                     observations=observations,
-                    reason=f"{spec['model']} produced a deterministically validated direct URL.",
+                    reason=(
+                        f"{spec['model']} produced a deterministically validated "
+                        "direct URL."
+                    ),
                 )
 
     if bool(_value(args, "disable_tavily", False)):
@@ -455,7 +478,8 @@ def run_default_repair_for_company(
                 ),
                 skipped_stage(
                     "evidence_and_llm_repair",
-                    "Deep evidence requires a provider-enriched residual candidate set after model misses.",
+                    "Deep evidence requires a provider-enriched residual candidate "
+                    "set after model misses.",
                 ),
             ]
         )
@@ -516,7 +540,9 @@ def run_default_repair_for_company(
             maximum=min(initial_limit, remaining_slots),
         )
     )
-    initial_queries: Sequence[str] = tuple(selected_deferred) + tuple(deterministic_queries)
+    initial_queries: Sequence[str] = tuple(selected_deferred) + tuple(
+        deterministic_queries
+    )
     initial_rows, initial_requests = adaptive._search_rows(
         args,
         company_key=company_key,
@@ -552,7 +578,9 @@ def run_default_repair_for_company(
         tavily = dict(latest)
         tavily["decision"] = "not_found"
         tavily["selected_url"] = None
-        tavily["reason"] = "Residual Tavily search returned no novel origin URL candidate."
+        tavily["reason"] = (
+            "Residual Tavily search returned no novel origin URL candidate."
+        )
     discovery_payloads.append(tavily)
     tavily_fingerprint, tavily_progressed = ledger.record_state(tavily)
     tavily["adaptive_search_round"] = {
@@ -634,6 +662,11 @@ def run_default_repair_for_company(
     )
 
 
+# Stable reference retained even if the compatibility entry point wraps the
+# module-global runner for operator precedence and disable/locale normalization.
+run_empirical_repair_for_company = run_default_repair_for_company
+
+
 def _validate_args(args: argparse.Namespace) -> None:
     model_first._validate_args(args)
     for name in (
@@ -642,15 +675,19 @@ def _validate_args(args: argparse.Namespace) -> None:
     ):
         if float(_value(args, name, 0.0)) < 0:
             raise SystemExit(f"{name.replace('_', '-')} must not be negative")
-    if int(_value(args, "search_llm_max_output_tokens", 6000)) < 1:
-        raise SystemExit("--search-llm-max-output-tokens must be positive")
-    if float(_value(args, "search_llm_max_timeout_seconds", 180.0)) <= 0:
-        raise SystemExit("--search-llm-max-timeout-seconds must be positive")
+    if int(_value(args, "search_llm_max_reasoning_output_tokens", 6000)) < 1:
+        raise SystemExit("--search-llm-max-reasoning-output-tokens must be positive")
+    if float(
+        _value(args, "search_llm_max_reasoning_timeout_seconds", 180.0)
+    ) <= 0:
+        raise SystemExit("--search-llm-max-reasoning-timeout-seconds must be positive")
 
 
 def run(args: argparse.Namespace) -> int:
     _validate_args(args)
-    payloads = [run_default_repair_for_company(args, key) for key in args.company_key]
+    payloads = [
+        run_default_repair_for_company(args, key) for key in args.company_key
+    ]
     for payload in payloads:
         repair = payload.get("default_repair")
         repair_map = repair if isinstance(repair, Mapping) else {}
