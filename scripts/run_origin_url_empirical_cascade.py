@@ -12,9 +12,9 @@ for the current portfolio:
 7. residual Tavily only when explicitly enabled and operational;
 8. deep evidence and optional late adjudication.
 
-All model URLs remain untrusted hypotheses.  The unchanged deterministic
+All model URLs remain untrusted hypotheses. The unchanged deterministic
 origin-discovery HTTP/company-identity/career-origin gates are the only authority
-that may select them.  One SearchProgressLedger spans the full cascade so a model
+that may select them. One SearchProgressLedger spans the full cascade so a model
 or search provider cannot repeat an already-considered URL/query or turn an
 unchanged state into an unbounded retry loop.
 
@@ -139,25 +139,14 @@ def _complete(
         payload["search_llm_sol_observation"] = dict(observations[SOL_STAGE] or {})
     if observations.get(MAX_STAGE) is not None:
         payload["search_llm_max_observation"] = dict(observations[MAX_STAGE] or {})
+    model_config = trace.get("model_stage_config")
     payload["empirical_origin_cascade"] = {
         "canonical": True,
         "pro_mode_enabled": False,
         "model_stage_order": list(MODEL_STAGE_NAMES),
-        "model_config": {
-            PRIMARY_STAGE: {
-                "model": str(_value(args_for_payload := _PayloadArgs(payload), "primary_model", "gpt-5.6-luna")),
-                "reasoning_effort": "medium",
-            }
-        } if False else trace.get("model_stage_config", {}),
+        "model_config": dict(model_config) if isinstance(model_config, Mapping) else {},
     }
     return payload
-
-
-class _PayloadArgs:
-    """Never instantiated; keeps static analyzers from treating payload as argparse."""
-
-    def __init__(self, _payload: Mapping[str, object]) -> None:
-        self.primary_model = ""
 
 
 def _finish_selected(
