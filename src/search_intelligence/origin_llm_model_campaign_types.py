@@ -11,8 +11,10 @@ from src.search_intelligence.origin_llm_adjudication import LLMAdjudicationResul
 
 MODEL_PRICES_USD_PER_MILLION: dict[str, tuple[float, float]] = {
     "gpt-5.4-mini": (0.75, 4.50),
+    "gpt-5.6-luna": (1.00, 6.00),
     "gpt-5.6-terra": (2.50, 15.00),
     "gpt-5.5": (5.00, 30.00),
+    "gpt-5.6-sol": (5.00, 30.00),
 }
 DEFAULT_BENCHMARK_MODELS = (
     "gpt-5.4-mini",
