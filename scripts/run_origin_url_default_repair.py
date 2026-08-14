@@ -2,9 +2,10 @@
 
 The compatibility path installs shared normalization, origin-quality,
 host-identity, reviewed-alias, live-evidence, operator-precedence, and execution
-contracts around the empirically validated controller. All callers therefore
-receive the same deterministic -> Luna -> Terra -> Sol -> Luna(max) -> residual
-Tavily rules plus the existing selected-entity/locale safeguards.
+contracts around the LLM-BOOST-001 controller. All callers therefore receive
+the same deterministic -> Tavily when fundable -> Luna -> Terra -> Sol ->
+Luna(max) -> deep-evidence order plus the existing selected-entity/locale
+safeguards.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ from src.search_intelligence.origin_registered_short_alias_live_evidence_contrac
 
 install_origin_registered_short_alias_live_evidence_contract()
 
-from scripts import run_origin_url_empirical_cascade as staged  # noqa: E402
+from scripts import run_origin_url_search_first_repair as staged  # noqa: E402
 from src.search_intelligence.origin_explicit_llm_disable_contract import (  # noqa: E402
     normalize_explicit_llm_disable_outcome,
 )
