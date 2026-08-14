@@ -140,6 +140,19 @@ class ListingRouteHypothesisObservation:
         return payload
 
 
+def _novel_urls_without_consuming(
+    ledger: SearchProgressLedger,
+    raw_urls: list[object],
+) -> tuple[str, ...]:
+    probe = SearchProgressLedger(
+        attempted_queries=set(ledger.attempted_queries),
+        attempted_urls=set(ledger.attempted_urls),
+        observed_domains=set(ledger.observed_domains),
+        fingerprints=list(ledger.fingerprints),
+    )
+    return probe.novel_urls(str(item) for item in raw_urls[:3])
+
+
 def request_listing_route_hypotheses(
     *,
     company_key: str,
@@ -171,7 +184,9 @@ def request_listing_route_hypotheses(
         },
         "attempted_urls": sorted(ledger.attempted_urls),
         "observed_domains": sorted(ledger.observed_domains),
-        "attempted_candidate_summaries": [dict(item) for item in attempted_candidate_summaries[-8:]],
+        "attempted_candidate_summaries": [
+            dict(item) for item in attempted_candidate_summaries[-8:]
+        ],
     }
     packet_json = json.dumps(packet, ensure_ascii=False, sort_keys=True)
     packet_sha = hashlib.sha256(packet_json.encode("utf-8")).hexdigest()
@@ -218,7 +233,7 @@ def request_listing_route_hypotheses(
         raw_urls = decoded.get("urls")
         if not isinstance(raw_urls, list):
             raise ValueError("listing route hypothesis response requires urls array")
-        urls = ledger.novel_urls(str(item) for item in raw_urls[:3])
+        urls = _novel_urls_without_consuming(ledger, raw_urls)
         usage = response.get("usage")
         usage_map = usage if isinstance(usage, Mapping) else None
         return ListingRouteHypothesisObservation(
