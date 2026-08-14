@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from scripts.run_provider001b_provider_evidence_discovery import PROVIDER_PATTERNS
 from src.search_intelligence.ats_provider_registry import (
     ATS_PROVIDER_REGISTRY_VERSION,
     classify_provider_names,
@@ -50,6 +51,10 @@ def test_registry_covers_existing_provider_evidence_families() -> None:
         "icims",
         "oracle",
     }.issubset(projected)
+
+
+def test_legacy_provider_evidence_patterns_cannot_drift_from_registry() -> None:
+    assert provider_pattern_dicts() == PROVIDER_PATTERNS
 
 
 def test_text_classification_is_evidence_only_and_can_find_multiple_providers() -> None:
