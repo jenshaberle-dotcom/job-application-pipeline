@@ -24,6 +24,7 @@ def test_existing_personio_fixture_can_bind_exact_target_to_employer() -> None:
 
     assert evidence.target_key == "schluetersche-mediengruppe"
     assert evidence.host_identity_valid is True
+    assert evidence.feed_route_valid is True
     assert evidence.xml_valid is True
     assert evidence.position_count == 2
     assert evidence.employer_identity_bound is True
@@ -57,6 +58,7 @@ def test_bridgingit_company_identity_can_validate_personio_target_without_llm_au
     )
 
     assert evidence.target_key == "bridgingit"
+    assert evidence.feed_route_valid is True
     assert evidence.matched_company_name == "BridgingIT GmbH"
     assert evidence.employer_identity_bound is True
     assert evidence.authority_validated is True
@@ -84,9 +86,29 @@ def test_personio_target_host_lookalike_cannot_gain_authority() -> None:
     )
 
     assert evidence.host_identity_valid is False
+    assert evidence.feed_route_valid is False
     assert evidence.employer_identity_bound is True
     assert evidence.authority_validated is False
     assert evidence.to_validated_authority() is None
+
+
+def test_personio_same_host_non_feed_xml_cannot_gain_authority() -> None:
+    xml = b"<workzag-jobs><position><company>BridgingIT GmbH</company></position></workzag-jobs>"
+    non_feed = "https://bridgingit.jobs.personio.de/jobs"
+    evidence = validate_personio_target_authority(
+        candidate_url="https://bridgingit.jobs.personio.de/",
+        requested_url=non_feed,
+        final_url=non_feed,
+        xml_content=xml,
+        company_key="bridgingit",
+        company_name="BridgingIT GmbH",
+    )
+
+    assert evidence.host_identity_valid is True
+    assert evidence.feed_route_valid is False
+    assert evidence.employer_identity_bound is True
+    assert evidence.authority_validated is False
+    assert "personio_public_xml_feed_route_not_proven" in evidence.reason_codes
 
 
 def test_personio_wrong_employer_identity_fails_closed() -> None:
@@ -102,6 +124,7 @@ def test_personio_wrong_employer_identity_fails_closed() -> None:
     )
 
     assert evidence.host_identity_valid is True
+    assert evidence.feed_route_valid is True
     assert evidence.employer_identity_bound is False
     assert evidence.authority_validated is False
     assert "personio_company_identity_does_not_match_employer" in evidence.reason_codes
