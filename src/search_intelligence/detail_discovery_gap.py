@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
-from typing import Any, Mapping, Sequence
+from typing import Mapping, Sequence
 
 from src.search_intelligence.llm_booster_policy import (
     BoosterPlan,
