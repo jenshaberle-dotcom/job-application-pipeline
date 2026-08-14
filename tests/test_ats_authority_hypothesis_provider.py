@@ -87,9 +87,22 @@ def test_provider_packet_declares_candidate_only_no_authority() -> None:
     text = json.dumps(captured)
     assert "ats_authority_evidence_hypotheses" in text
     assert '"maxItems": 3' in text
-    assert '"tenant_authority": false' in text
-    assert '"delegation_permitted": false' in text
-    assert '"product_authority": false' in text
+
+    inputs = captured.get("input")
+    assert isinstance(inputs, list)
+    user_input = inputs[1]
+    assert isinstance(user_input, dict)
+    content = user_input.get("content")
+    assert isinstance(content, list)
+    packet_text = content[0].get("text")
+    assert isinstance(packet_text, str)
+    packet = json.loads(packet_text)
+    assert packet["authority_constraints"] == {
+        "candidate_only": True,
+        "tenant_authority": False,
+        "delegation_permitted": False,
+        "product_authority": False,
+    }
 
 
 def test_provider_fails_closed_on_invalid_json() -> None:
