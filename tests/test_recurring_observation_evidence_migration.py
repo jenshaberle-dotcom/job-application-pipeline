@@ -10,6 +10,14 @@ def migration_sql() -> str:
     return MIGRATION.read_text(encoding="utf-8")
 
 
+def executable_sql() -> str:
+    return "\n".join(
+        line
+        for line in migration_sql().splitlines()
+        if not line.lstrip().startswith("--")
+    ).casefold()
+
+
 def test_migration_adds_nullable_hash_and_contract_columns() -> None:
     sql = migration_sql()
 
@@ -21,22 +29,18 @@ def test_migration_adds_nullable_hash_and_contract_columns() -> None:
 
 
 def test_migration_does_not_invent_historical_hashes() -> None:
-    sql = migration_sql().casefold()
+    sql = executable_sql()
 
     assert "update job_observations" not in sql
     assert "insert into job_observations" not in sql
-    assert "backfill old observations" not in sql
 
 
 def test_migration_has_no_product_or_lifecycle_side_effects() -> None:
-    sql = migration_sql().casefold()
+    sql = executable_sql()
 
     assert "update raw_jobs" not in sql
     assert "update silver_jobs" not in sql
     assert "insert into silver_jobs" not in sql
     assert "job_lifecycle_health" not in sql
-    assert "ranking" not in sql.replace("-- source-activation or scheduler state", "")
-    assert "application" not in sql.replace(
-        "-- boundary: observability only. no lifecycle, silver, ranking, application,",
-        "",
-    )
+    assert "ranking" not in sql
+    assert "application" not in sql
