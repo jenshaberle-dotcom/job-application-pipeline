@@ -282,7 +282,7 @@ def test_non_available_tavily_states_still_allow_luna(
     calls = _install_luna_success(monkeypatch)
 
     payload = cascade.run_default_repair_for_company(_args(**overrides), "example")
-    plan = payload["default_repair"]["trace"]["search_first_plan"]
+    plan = payload["adaptive_search"]["search_first_plan"]
     assert plan["tavily_budget"]["state"] == expected_state
     assert calls == [cascade.PRIMARY_STAGE]
 
@@ -311,7 +311,7 @@ def test_advanced_credit_budget_caps_actual_search_requests(
         "example",
     )
     assert len(seen_queries) == 1
-    trace = payload["default_repair"]["trace"]["search_first_tavily_round"]
+    trace = payload["adaptive_search"]["search_first_tavily_round"]
     assert trace["provider_requests"] == 1
     assert trace["credits_consumed"] == 2
     assert trace["budget"]["affordable_max_requests"] == 1
