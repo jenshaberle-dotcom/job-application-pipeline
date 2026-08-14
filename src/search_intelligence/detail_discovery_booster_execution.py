@@ -57,6 +57,11 @@ class DetailDiscoveryHypothesisObservation:
     rationale: str = ""
     product_authority: bool = False
 
+    def to_json(self) -> dict[str, object]:
+        payload = asdict(self)
+        payload["urls"] = list(self.urls)
+        return payload
+
 
 ValidateCallback = Callable[[str], DetailCandidateValidationObservation]
 ModelCallback = Callable[
@@ -75,6 +80,7 @@ class DetailDiscoveryBoosterStageEvidence:
     proposed_urls: tuple[str, ...] = ()
     validated_candidate_count: int = 0
     resolved_url: str | None = None
+    estimated_cost_usd: float = 0.0
     product_authority: bool = False
 
     def to_json(self) -> dict[str, object]:
@@ -102,6 +108,10 @@ class DetailDiscoveryBoosterExecution:
     def resolved(self) -> bool:
         return self.deterministic_resolved or self.resolved_url is not None
 
+    @property
+    def estimated_model_cost_usd(self) -> float:
+        return sum(item.estimated_cost_usd for item in self.stages)
+
     def to_json(self) -> dict[str, object]:
         return {
             "gap_fingerprint": self.gap_fingerprint,
@@ -116,6 +126,7 @@ class DetailDiscoveryBoosterExecution:
             ),
             "provider_requests": self.provider_requests,
             "llm_requests": self.llm_requests,
+            "estimated_model_cost_usd": round(self.estimated_model_cost_usd, 8),
             "product_writes": self.product_writes,
             "product_authority": self.product_authority,
         }
@@ -159,6 +170,10 @@ def _skipped_stage(stage: PlannedStage, reason: str) -> DetailDiscoveryBoosterSt
     )
 
 
+def _summary_url(item: Mapping[str, object]) -> str:
+    return str(item.get("final_url") or item.get("candidate_url") or item.get("url") or "").strip()
+
+
 def _validate_urls(
     *,
     urls: Sequence[str],
@@ -196,15 +211,21 @@ def execute_detail_discovery_booster(
     validate: ValidateCallback,
     model: ModelCallback,
     seed_urls: Sequence[str] = (),
+    initial_candidate_summaries: Sequence[Mapping[str, object]] = (),
 ) -> DetailDiscoveryBoosterExecution:
     """Execute search-first Detail Discovery without granting provider authority."""
 
     stage_records: list[DetailDiscoveryBoosterStageEvidence] = []
-    summaries: list[Mapping[str, object]] = []
+    summaries: list[Mapping[str, object]] = [
+        dict(item) for item in initial_candidate_summaries
+    ]
     provider_requests = 0
     llm_requests = 0
     ledger = ListingProgressLedger()
-    ledger.novel_urls((candidate_url, *seed_urls))
+    summary_urls = tuple(
+        url for url in (_summary_url(item) for item in summaries) if url
+    )
+    ledger.novel_urls((candidate_url, *seed_urls, *summary_urls))
 
     deterministic = decision.booster_plan.stages[0]
     stage_records.append(
@@ -237,7 +258,7 @@ def execute_detail_discovery_booster(
             unchanged_gap_skip=decision.unchanged_gap_skip,
             deterministic_resolved=decision.deterministic_resolved,
             stages=tuple(stage_records),
-            candidate_evidence=(),
+            candidate_evidence=tuple(summaries),
             resolved_url=None,
             resolved_validation=None,
             provider_requests=0,
@@ -330,6 +351,7 @@ def execute_detail_discovery_booster(
                 proposed_urls=proposed,
                 validated_candidate_count=validated,
                 resolved_url=resolved_url,
+                estimated_cost_usd=observation.estimated_cost_usd,
             )
         )
         if resolved_url and validation:
