@@ -105,9 +105,58 @@ if ([string]$RccSignature.Status -ne "Valid" -or
     exit 1
 }
 
-$RccPreflightOutput = & $RccExe --runtime-context-preflight --repository-id $RepositoryId --runner-name $RunnerName 2>&1
-$RccPreflightExitCode = $LASTEXITCODE
-Add-Content -Path $LogFile -Value $RccPreflightOutput
+# RunnerControlCenter.exe is a WinUI executable. Invoking it with PowerShell's
+# call operator does not provide a reliable synchronous $LASTEXITCODE contract.
+# Use Start-Process with Wait/PassThru and explicit output capture so an absent or
+# non-zero RCC result can never collapse into a successful wrapper exit.
+$RccStdoutFile = [System.IO.Path]::GetTempFileName()
+$RccStderrFile = [System.IO.Path]::GetTempFileName()
+$RccPreflightExitCode = $null
+try {
+    $RccProcess = Start-Process `
+        -FilePath $RccExe `
+        -ArgumentList @(
+            "--runtime-context-preflight",
+            "--repository-id", [string]$RepositoryId,
+            "--runner-name", $RunnerName
+        ) `
+        -Wait `
+        -PassThru `
+        -RedirectStandardOutput $RccStdoutFile `
+        -RedirectStandardError $RccStderrFile
+
+    if ($null -eq $RccProcess -or -not $RccProcess.HasExited) {
+        Log "FAILED RCC runtime context preflight returned no completed process"
+        exit 1
+    }
+
+    $RccPreflightExitCode = [int]$RccProcess.ExitCode
+    if (Test-Path -LiteralPath $RccStdoutFile -PathType Leaf) {
+        $RccPreflightStdout = @(Get-Content -LiteralPath $RccStdoutFile -ErrorAction SilentlyContinue)
+        if ($RccPreflightStdout.Count -gt 0) {
+            Add-Content -Path $LogFile -Value $RccPreflightStdout
+        }
+    }
+    if (Test-Path -LiteralPath $RccStderrFile -PathType Leaf) {
+        $RccPreflightStderr = @(Get-Content -LiteralPath $RccStderrFile -ErrorAction SilentlyContinue)
+        if ($RccPreflightStderr.Count -gt 0) {
+            Add-Content -Path $LogFile -Value $RccPreflightStderr
+        }
+    }
+}
+catch {
+    Log "FAILED RCC runtime context preflight launch: $($_.Exception.Message)"
+    exit 1
+}
+finally {
+    Remove-Item -LiteralPath $RccStdoutFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $RccStderrFile -Force -ErrorAction SilentlyContinue
+}
+
+if ($null -eq $RccPreflightExitCode) {
+    Log "FAILED RCC runtime context preflight produced no exit code"
+    exit 1
+}
 Log "rcc_preflight_exit_code=$RccPreflightExitCode"
 if ($RccPreflightExitCode -ne 0) {
     Log "FAILED RCC runtime context preflight"

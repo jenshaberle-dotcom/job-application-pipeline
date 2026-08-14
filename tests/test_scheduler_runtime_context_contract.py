@@ -36,9 +36,25 @@ def test_windows_wrapper_refreshes_projection_from_trusted_rcc_before_consuming_
     assert '$ExpectedRccPublisher = "CN=Jens Haberle"' in wrapper
     assert "Get-AuthenticodeSignature -LiteralPath $RccExe" in wrapper
     assert "--runtime-context-preflight" in wrapper
-    assert "--repository-id $RepositoryId" in wrapper
-    assert "--runner-name $RunnerName" in wrapper
+    assert "--repository-id" in wrapper
+    assert '"--runner-name", $RunnerName' in wrapper
 
     preflight = wrapper.index("--runtime-context-preflight")
     projection = wrapper.index('runtime-contexts/$RepositoryId-$RunnerName.json')
     assert preflight < projection
+
+
+def test_windows_wrapper_waits_for_rcc_preflight_and_fails_closed_on_missing_exit_code() -> None:
+    wrapper = WRAPPER.read_text(encoding="utf-8")
+
+    assert "$RccPreflightOutput = & $RccExe" not in wrapper
+    assert "Start-Process" in wrapper
+    assert "-FilePath $RccExe" in wrapper
+    assert "-Wait" in wrapper
+    assert "-PassThru" in wrapper
+    assert "-RedirectStandardOutput $RccStdoutFile" in wrapper
+    assert "-RedirectStandardError $RccStderrFile" in wrapper
+    assert "$RccPreflightExitCode = [int]$RccProcess.ExitCode" in wrapper
+    assert "if ($null -eq $RccPreflightExitCode)" in wrapper
+    assert 'Log "FAILED RCC runtime context preflight produced no exit code"' in wrapper
+    assert "exit $RccPreflightExitCode" in wrapper
