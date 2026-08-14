@@ -1,10 +1,10 @@
 """Deterministic Personio target/employer authority validation for LLM-BOOST-001.
 
-This module consumes already-bounded public Personio XML evidence.  It performs
+This module consumes already-bounded public Personio XML evidence. It performs
 no HTTP request, provider call, database access, activation, or product write.
 A Personio hostname/target hint is only routing evidence; authority additionally
-requires exact feed-host identity and employer identity observed inside at least
-one returned position.
+requires exact public-feed identity and employer identity observed inside at
+least one returned position.
 """
 
 from __future__ import annotations
@@ -48,6 +48,7 @@ class PersonioTargetAuthorityEvidence:
     expected_host: str | None
     observed_host: str
     host_identity_valid: bool
+    feed_route_valid: bool
     xml_valid: bool
     position_count: int
     observed_company_names: tuple[str, ...]
@@ -79,6 +80,7 @@ class PersonioTargetAuthorityEvidence:
             "expected_host": self.expected_host,
             "observed_host": self.observed_host,
             "host_identity_valid": self.host_identity_valid,
+            "feed_route_valid": self.feed_route_valid,
             "xml_valid": self.xml_valid,
             "position_count": self.position_count,
             "observed_company_names": list(self.observed_company_names),
@@ -160,13 +162,15 @@ def validate_personio_target_authority(
     company_name: str,
     employer_aliases: tuple[str, ...] = (),
 ) -> PersonioTargetAuthorityEvidence:
-    """Validate exact Personio target identity plus employer identity in XML."""
+    """Validate exact Personio target/feed identity plus employer identity."""
 
     recognition = recognize_ats_provider(candidate_url)
     target_key = recognition.target_hint if recognition and recognition.provider == "personio" else None
     expected_host = f"{target_key}.jobs.personio.de" if target_key else None
-    observed_host = (urlparse(final_url).hostname or "").casefold().rstrip(".")
-    requested_host = (urlparse(requested_url).hostname or "").casefold().rstrip(".")
+    requested = urlparse(requested_url)
+    observed = urlparse(final_url)
+    observed_host = (observed.hostname or "").casefold().rstrip(".")
+    requested_host = (requested.hostname or "").casefold().rstrip(".")
     host_identity_valid = bool(
         expected_host
         and observed_host == expected_host
@@ -175,12 +179,21 @@ def validate_personio_target_authority(
         and recognition.provider == "personio"
         and normalize_target_key(expected_host) == target_key
     )
+    feed_route_valid = bool(
+        host_identity_valid
+        and requested.scheme.casefold() == "https"
+        and observed.scheme.casefold() == "https"
+        and requested.path.rstrip("/") == "/xml"
+        and observed.path.rstrip("/") == "/xml"
+    )
 
     reason_codes: list[str] = []
     if target_key is None:
         reason_codes.append("personio_target_not_recognized")
     if not host_identity_valid:
         reason_codes.append("personio_exact_feed_host_identity_not_proven")
+    elif not feed_route_valid:
+        reason_codes.append("personio_public_xml_feed_route_not_proven")
 
     xml_valid = False
     company_names: tuple[str, ...] = ()
@@ -200,7 +213,6 @@ def validate_personio_target_authority(
             )
         )
     except (ET.ParseError, UnicodeError, ValueError):
-        positions = []
         reason_codes.append("personio_xml_invalid")
 
     if xml_valid and position_count == 0:
@@ -219,11 +231,11 @@ def validate_personio_target_authority(
         reason_codes.append("personio_company_identity_does_not_match_employer")
     if employer_identity_bound:
         reason_codes.append("personio_position_company_matches_employer_identity")
-    if host_identity_valid:
-        reason_codes.append("personio_exact_target_feed_host_proven")
+    if feed_route_valid:
+        reason_codes.append("personio_exact_public_xml_feed_proven")
 
     authority_validated = bool(
-        host_identity_valid
+        feed_route_valid
         and xml_valid
         and position_count > 0
         and employer_identity_bound
@@ -241,6 +253,7 @@ def validate_personio_target_authority(
         "expected_host": expected_host,
         "observed_host": observed_host,
         "host_identity_valid": host_identity_valid,
+        "feed_route_valid": feed_route_valid,
         "xml_valid": xml_valid,
         "position_count": position_count,
         "observed_company_names": company_names,
@@ -258,6 +271,7 @@ def validate_personio_target_authority(
         expected_host=expected_host,
         observed_host=observed_host,
         host_identity_valid=host_identity_valid,
+        feed_route_valid=feed_route_valid,
         xml_valid=xml_valid,
         position_count=position_count,
         observed_company_names=company_names,
