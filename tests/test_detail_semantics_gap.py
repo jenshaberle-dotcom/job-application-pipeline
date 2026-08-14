@@ -15,6 +15,7 @@ def decide(
     detail_supported: bool = True,
     profile_contract_satisfied: bool = False,
     geography_contract_satisfied: bool = False,
+    requested: tuple[str, ...] = ("role", "location"),
     fields: dict[str, object] | None = None,
     references: tuple[dict[str, object], ...] = (),
     tavily_state: TavilyState = TavilyState.AVAILABLE,
@@ -28,6 +29,7 @@ def decide(
         detail_supported=detail_supported,
         profile_contract_satisfied=profile_contract_satisfied,
         geography_contract_satisfied=geography_contract_satisfied,
+        requested_semantic_fields=requested,
         deterministic_semantic_fields=fields or {},
         evidence_references=references,
         tavily_state=tavily_state,
@@ -39,24 +41,40 @@ def stage(decision, target: BoosterStage):  # type: ignore[no-untyped-def]
     return next(item for item in decision.booster_plan.stages if item.stage == target)
 
 
-def test_deterministic_profile_and_geography_success_resolves_semantics() -> None:
+def test_requested_semantics_resolve_independently_of_product_support() -> None:
     decision = decide(
-        profile_contract_satisfied=True,
-        geography_contract_satisfied=True,
-        fields={
-            "role": "Data Engineer",
-            "location": "Hannover",
-            "remote": "hybrid",
-        },
+        profile_contract_satisfied=False,
+        geography_contract_satisfied=False,
+        fields={"role": "Data Engineer", "location": "Hannover"},
     )
 
     assert decision.classification == "detail_semantics_resolved"
     assert decision.deterministic_resolved is True
-    assert decision.missing_contracts == ()
+    assert decision.resolved_semantic_fields == ("role", "location")
+    assert decision.missing_semantic_fields == ()
+    assert decision.missing_contracts == ("profile", "geography")
     assert decision.semantic_booster_eligible is False
     assert decision.semantic_authority is False
     assert decision.product_authority is False
     assert all(not item.eligible for item in decision.booster_plan.stages[1:])
+
+
+def test_supported_product_evidence_does_not_fake_semantic_completeness() -> None:
+    decision = decide(
+        profile_contract_satisfied=True,
+        geography_contract_satisfied=True,
+        requested=("role", "seniority", "skills", "location", "remote"),
+        fields={"role": "Data Engineer", "location": "Hannover"},
+    )
+
+    assert decision.classification == "detail_semantics_ambiguity_gap"
+    assert decision.deterministic_resolved is False
+    assert decision.missing_contracts == ()
+    assert decision.resolved_semantic_fields == ("role", "location")
+    assert decision.missing_semantic_fields == ("seniority", "skills", "remote")
+    assert decision.semantic_booster_eligible is True
+    assert stage(decision, BoosterStage.TAVILY).eligible is False
+    assert stage(decision, BoosterStage.LUNA_MEDIUM).eligible is True
 
 
 def test_unexecuted_deterministic_semantics_blocks_external_stages() -> None:
@@ -78,14 +96,10 @@ def test_unsupported_detail_truth_blocks_semantic_booster() -> None:
 
 
 def test_semantic_ambiguity_skips_tavily_and_allows_model_hypotheses() -> None:
-    decision = decide(
-        profile_contract_satisfied=True,
-        geography_contract_satisfied=False,
-        fields={"role": "Data Engineer", "skills": ["Python", "SQL"]},
-    )
+    decision = decide(fields={"role": "Data Engineer"})
 
     assert decision.classification == "detail_semantics_ambiguity_gap"
-    assert decision.missing_contracts == ("geography",)
+    assert decision.missing_semantic_fields == ("location",)
     assert decision.external_information_gap is False
     assert decision.semantic_booster_eligible is True
     assert stage(decision, BoosterStage.TAVILY).eligible is False
@@ -101,6 +115,13 @@ def test_tavily_state_never_turns_ordinary_semantic_ambiguity_into_search() -> N
         decision = decide(tavily_state=state)
         assert stage(decision, BoosterStage.TAVILY).eligible is False
         assert stage(decision, BoosterStage.LUNA_MEDIUM).eligible is True
+
+
+def test_requested_field_scope_is_part_of_fingerprint() -> None:
+    role_only = decide(requested=("role",))
+    role_location = decide(requested=("role", "location"))
+
+    assert role_only.evidence_fingerprint != role_location.evidence_fingerprint
 
 
 def test_unchanged_semantic_fingerprint_suppresses_model_spend() -> None:
@@ -149,6 +170,16 @@ def test_evidence_reference_change_invalidates_semantic_fingerprint() -> None:
     assert reference.source_url == DETAIL_URL
     assert reference.span_start == 10
     assert reference.span_end == 30
+
+
+def test_unknown_requested_semantic_field_fails_closed() -> None:
+    with pytest.raises(ValueError, match="unsupported requested Detail Semantics field"):
+        decide(requested=("role", "salary"))
+
+
+def test_empty_requested_semantic_scope_fails_closed() -> None:
+    with pytest.raises(ValueError, match="at least one requested Detail Semantics field"):
+        decide(requested=())
 
 
 def test_unknown_semantic_reference_field_fails_closed() -> None:
