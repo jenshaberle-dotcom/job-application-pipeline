@@ -12,8 +12,8 @@ from dataclasses import asdict, dataclass
 from typing import Callable, Mapping, Sequence
 from urllib.parse import urlparse
 
-from src.search_intelligence.adaptive_origin_search import SearchProgressLedger
 from src.search_intelligence.connector_feasibility import ProbeFetchResult
+from src.search_intelligence.listing_booster_progress import ListingProgressLedger
 from src.search_intelligence.listing_route_hypothesis_provider import (
     ListingRouteHypothesisObservation,
 )
@@ -32,7 +32,7 @@ from src.search_intelligence.llm_booster_policy import (
 SearchCallback = Callable[[str], Sequence[str]]
 FetchCallback = Callable[[str], ProbeFetchResult]
 ModelCallback = Callable[
-    [BoosterStage, tuple[Mapping[str, object], ...], SearchProgressLedger],
+    [BoosterStage, tuple[Mapping[str, object], ...], ListingProgressLedger],
     ListingRouteHypothesisObservation,
 ]
 
@@ -109,9 +109,11 @@ def deterministic_listing_queries(
     if host:
         queries.append(f"site:{host} jobs")
     result: list[str] = []
+    seen: set[str] = set()
     for query in queries:
         normalized = " ".join(query.lower().split())
-        if normalized and normalized not in {" ".join(item.lower().split()) for item in result}:
+        if normalized and normalized not in seen:
+            seen.add(normalized)
             result.append(query)
         if len(result) >= max(0, maximum):
             break
@@ -180,7 +182,7 @@ def _validate_urls(
     *,
     urls: Sequence[str],
     source_stage: BoosterStage,
-    ledger: SearchProgressLedger,
+    ledger: ListingProgressLedger,
     fetch: FetchCallback,
     candidate_summaries: list[Mapping[str, object]],
 ) -> tuple[str | None, ListingSurfaceEvidence | None, tuple[str, ...], int]:
@@ -221,7 +223,7 @@ def execute_listing_booster(
     candidate_summaries: list[Mapping[str, object]] = []
     provider_requests = 0
     llm_requests = 0
-    ledger = SearchProgressLedger()
+    ledger = ListingProgressLedger()
 
     seed_urls = [
         deterministic_evidence.origin_url or "",
@@ -293,7 +295,8 @@ def execute_listing_booster(
                 maximum=max_tavily_requests,
             )
         )
-        for query in queries[:max_tavily_requests]:
+        attempted_queries = queries[:max_tavily_requests]
+        for query in attempted_queries:
             all_urls.extend(str(url) for url in search(query))
             provider_requests += 1
         resolved_url, resolved_evidence, proposed, validated = _validate_urls(
@@ -306,10 +309,10 @@ def execute_listing_booster(
         stage_records.append(
             ListingBoosterStageEvidence(
                 stage=BoosterStage.TAVILY,
-                attempted=bool(queries),
+                attempted=bool(attempted_queries),
                 status=("resolved" if resolved_url else "unresolved"),
                 reason_code=tavily_stage.reason_code,
-                provider_requests=len(queries[:max_tavily_requests]),
+                provider_requests=len(attempted_queries),
                 proposed_urls=proposed,
                 validated_candidate_count=validated,
                 resolved_url=resolved_url,
@@ -334,7 +337,7 @@ def execute_listing_booster(
     else:
         stage_records.append(_skipped_stage(tavily_stage, tavily_stage.reason_code))
 
-    for planned in plan.stages[2:6]:
+    for planned_index, planned in enumerate(plan.stages[2:6], start=2):
         observation = model(planned.stage, tuple(candidate_summaries), ledger)
         request_count = int(observation.request_attempted)
         provider_requests += request_count
@@ -370,9 +373,9 @@ def execute_listing_booster(
             )
         )
         if resolved_url and resolved_evidence:
-            remaining = plan.stages[plan.stages.index(planned) + 1 :]
             stage_records.extend(
-                _skipped_stage(stage, "prior_stage_resolved") for stage in remaining
+                _skipped_stage(stage, "prior_stage_resolved")
+                for stage in plan.stages[planned_index + 1 :]
             )
             return ListingBoosterExecution(
                 deterministic_evidence_fingerprint=deterministic_evidence.evidence_fingerprint,
