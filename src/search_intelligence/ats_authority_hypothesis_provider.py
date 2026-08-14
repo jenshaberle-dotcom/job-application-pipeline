@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from time import perf_counter
 from typing import Callable, Mapping
 
 import requests
@@ -200,7 +199,6 @@ def request_ats_authority_hypotheses(
         },
     }
 
-    started = perf_counter()
     try:
         response = transport(
             OPENAI_RESPONSES_URL,
@@ -221,8 +219,6 @@ def request_ats_authority_hypotheses(
         usage = response.get("usage")
         usage_map = usage if isinstance(usage, Mapping) else None
         rationale = str(decoded.get("rationale") or "").strip()[:600]
-        # Trace identity stays in rationale-free packet/evidence logs owned by the
-        # caller; this observation intentionally carries no raw prompt/body.
         return ATSAuthorityHypothesisObservation(
             status="completed",
             request_attempted=True,
