@@ -129,7 +129,7 @@ def test_unchanged_external_gap_fingerprint_spends_zero_again() -> None:
 
 def test_tavily_success_is_deterministically_revalidated_and_skips_models() -> None:
     evidence = gap_evidence()
-    listing_url = "https://jobs.example.com/open-positions"
+    listing_url = "https://jobs.example.com/positions"
     model_calls: list[BoosterStage] = []
 
     def search(query: str) -> Sequence[str]:
@@ -140,7 +140,7 @@ def test_tavily_success_is_deterministically_revalidated_and_skips_models() -> N
         return fetched(
             url,
             '<form class="job-search"><input name="keyword"></form>'
-            '<section class="job-list"><a href="/open-positions/42/data-engineer">Data Engineer</a></section>',
+            '<section class="job-list"><a href="/positions/42/data-engineer">Data Engineer</a></section>',
         )
 
     def model(stage, summaries, ledger):  # type: ignore[no-untyped-def]
