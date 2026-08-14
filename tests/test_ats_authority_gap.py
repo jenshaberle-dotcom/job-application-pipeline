@@ -48,10 +48,11 @@ def test_known_provider_requires_deterministic_attempt_before_booster() -> None:
     assert decision.semantic_booster_eligible is False
     assert decision.deterministic_request_replay_blocked is False
     assert decision.next_action == "validate_personio_target_authority"
-    assert all(not stage.eligible for stage in decision.booster_plan.stages[1:]) is False
-    assert decision.booster_plan.stages[1].stage == BoosterStage.TAVILY
-    assert decision.booster_plan.stages[1].eligible is False
-    assert decision.booster_plan.stages[1].reason_code == "external_search_not_indicated"
+    assert all(not stage.eligible for stage in decision.booster_plan.stages[1:])
+    assert all(
+        stage.reason_code == "deterministic_authority_path_not_exhausted"
+        for stage in decision.booster_plan.stages[1:]
+    )
     assert decision.product_authority is False
 
 
@@ -101,6 +102,11 @@ def test_unchanged_authority_gap_spends_nothing_again() -> None:
     assert second.semantic_booster_eligible is False
     assert second.deterministic_request_replay_blocked is True
     assert second.next_action == "await_changed_authority_evidence"
+    assert all(not stage.eligible for stage in second.booster_plan.stages[1:])
+    assert all(
+        stage.reason_code == "unchanged_ats_authority_gap_fingerprint"
+        for stage in second.booster_plan.stages[1:]
+    )
 
 
 def test_tavily_shortage_never_blocks_luna_after_exhausted_authority_attempt() -> None:
