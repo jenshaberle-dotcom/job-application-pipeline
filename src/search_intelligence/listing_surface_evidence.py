@@ -16,6 +16,7 @@ import re
 from typing import Iterable, Mapping
 from urllib.parse import urljoin, urlparse
 
+from src.search_intelligence.ats_provider_registry import is_known_ats_host
 from src.search_intelligence.connector_feasibility import (
     KNOWN_AGGREGATOR_DOMAINS,
     SOCIAL_OR_EXTERNAL_NOISE_DOMAINS,
@@ -59,21 +60,6 @@ _JOB_ROUTE_PARTS = {
     "iframe",
 }
 _LOCALE_PARTS = {"de", "de-de", "en", "en-gb", "en-us", "at", "ch"}
-# External iframe/delegated destinations need stronger evidence than a generic
-# host label such as ``jobs``. Same-registered-domain destinations are preferred;
-# these suffixes cover ATS families already represented by Pipeline connectors /
-# provider evidence without trusting arbitrary lookalike job hosts.
-_TRUSTED_ATS_HOST_SUFFIXES = (
-    "greenhouse.io",
-    "lever.co",
-    "personio.de",
-    "personio.com",
-    "myworkdayjobs.com",
-    "workdayjobs.com",
-    "successfactors.com",
-    "dvinci.de",
-    "dvinci.com",
-)
 _JSON_LD_SCRIPT = re.compile(
     r"<script\b[^>]*type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
     flags=re.IGNORECASE | re.DOTALL,
@@ -147,11 +133,7 @@ def _same_registered_domain(left: str | None, right: str | None) -> bool:
 
 
 def _trusted_ats_host(url: str) -> bool:
-    host = (urlparse(url).hostname or "").lower().rstrip(".")
-    return any(
-        host == suffix or host.endswith(f".{suffix}")
-        for suffix in _TRUSTED_ATS_HOST_SUFFIXES
-    )
+    return is_known_ats_host(url)
 
 
 def _job_route_path(url: str) -> bool:
