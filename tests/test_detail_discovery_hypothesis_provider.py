@@ -87,10 +87,24 @@ def test_provider_packet_declares_candidate_only_deterministic_validation() -> N
     text = json.dumps(captured)
     assert "detail_discovery_url_hypotheses" in text
     assert '"maxItems": 3' in text
-    assert '"same_employer_source_validation_required": true' in text
-    assert '"concrete_detail_validation_required": true' in text
-    assert '"gate_pass": false' in text
-    assert '"product_authority": false' in text
+
+    input_items = captured["input"]
+    assert isinstance(input_items, list)
+    user_item = next(
+        item
+        for item in input_items
+        if isinstance(item, dict) and item.get("role") == "user"
+    )
+    content = user_item["content"]
+    assert isinstance(content, list)
+    packet_text = content[0]["text"]
+    assert isinstance(packet_text, str)
+    packet = json.loads(packet_text)
+    constraints = packet["authority_constraints"]
+    assert constraints["same_employer_source_validation_required"] is True
+    assert constraints["concrete_detail_validation_required"] is True
+    assert constraints["gate_pass"] is False
+    assert constraints["product_authority"] is False
 
 
 def test_provider_fails_closed_on_invalid_json() -> None:
