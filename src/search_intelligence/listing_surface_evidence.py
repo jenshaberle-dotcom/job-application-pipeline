@@ -1,6 +1,6 @@
 """Deterministic Listing Discovery evidence fusion for LLM-BOOST-001.
 
-This module does not fetch, search, call a model, or mutate product state.  It
+This module does not fetch, search, call a model, or mutate product state. It
 combines already-bounded HTTP evidence with the existing connector-feasibility
 link classifiers so Listing Discovery can distinguish a real external
 information gap from a deterministic projection/follow-up task.
@@ -39,6 +39,7 @@ from src.search_intelligence.llm_booster_policy import (
 )
 
 LISTING_EVIDENCE_CONTRACT_VERSION = "LLM-BOOST-001.listing-evidence.v1"
+LISTING_LINK_INVENTORY_LIMIT = 500
 
 _JOB_ROUTE_PARTS = {
     "job",
@@ -57,16 +58,22 @@ _JOB_ROUTE_PARTS = {
     "open-positions",
     "iframe",
 }
-_JOB_HOST_LABELS = {
-    "job",
-    "jobs",
-    "career",
-    "careers",
-    "karriere",
-    "recruiting",
-    "recruitment",
-}
 _LOCALE_PARTS = {"de", "de-de", "en", "en-gb", "en-us", "at", "ch"}
+# External iframe/delegated destinations need stronger evidence than a generic
+# host label such as ``jobs``. Same-registered-domain destinations are preferred;
+# these suffixes cover ATS families already represented by Pipeline connectors /
+# provider evidence without trusting arbitrary lookalike job hosts.
+_TRUSTED_ATS_HOST_SUFFIXES = (
+    "greenhouse.io",
+    "lever.co",
+    "personio.de",
+    "personio.com",
+    "myworkdayjobs.com",
+    "workdayjobs.com",
+    "successfactors.com",
+    "dvinci.de",
+    "dvinci.com",
+)
 _JSON_LD_SCRIPT = re.compile(
     r"<script\b[^>]*type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
     flags=re.IGNORECASE | re.DOTALL,
@@ -139,13 +146,12 @@ def _same_registered_domain(left: str | None, right: str | None) -> bool:
     return bool(left_domain and left_domain == _registered_domain(right))
 
 
-def _job_host(url: str) -> bool:
-    labels = {
-        part
-        for part in (urlparse(url).hostname or "").lower().split(".")
-        if part
-    }
-    return bool(labels.intersection(_JOB_HOST_LABELS))
+def _trusted_ats_host(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower().rstrip(".")
+    return any(
+        host == suffix or host.endswith(f".{suffix}")
+        for suffix in _TRUSTED_ATS_HOST_SUFFIXES
+    )
 
 
 def _job_route_path(url: str) -> bool:
@@ -175,7 +181,7 @@ def _safe_route_candidate(
     related = _same_registered_domain(origin_url, candidate_url) or _same_registered_domain(
         reference_url, candidate_url
     )
-    if not (related or _job_host(candidate_url)):
+    if not (related or _trusted_ats_host(candidate_url)):
         return False
     return _job_route_path(candidate_url)
 
@@ -220,7 +226,7 @@ def extract_jsonld_types(html: str) -> tuple[str, ...]:
     for raw in _JSON_LD_SCRIPT.findall(html):
         try:
             payload = json.loads(unescape(raw).strip())
-        except (TypeError, ValueError, json.JSONDecodeError):
+        except (TypeError, ValueError):
             continue
         for value in _jsonld_type_values(payload):
             normalized = value.strip()
@@ -303,7 +309,11 @@ def analyze_listing_surface(
         and _same_registered_domain(origin_url, final_url)
     )
 
-    classification = classify_evidence_links(final_url, html)
+    classification = classify_evidence_links(
+        final_url,
+        html,
+        limit=LISTING_LINK_INVENTORY_LIMIT,
+    )
     current_job_urls = list(classification.job_detail_candidate_urls)
     current_job_urls.extend(
         link.url
@@ -311,7 +321,11 @@ def analyze_listing_surface(
     )
     current_job_urls_tuple = _dedupe_sorted(current_job_urls)
 
-    delegated = extract_trusted_delegated_job_board_urls(final_url, html)
+    delegated = tuple(
+        url
+        for url in extract_trusted_delegated_job_board_urls(final_url, html)
+        if _safe_route_candidate(origin_url, final_url, url)
+    )
     iframe_routes = _iframe_route_candidates(origin_url, final_url, html)
     route_candidates: list[str] = list(iframe_routes)
     if same_host_redirect and _safe_route_candidate(origin_url, origin_url, final_url):
@@ -420,6 +434,7 @@ def build_listing_booster_plan(
 
 __all__ = [
     "LISTING_EVIDENCE_CONTRACT_VERSION",
+    "LISTING_LINK_INVENTORY_LIMIT",
     "ListingSurfaceEvidence",
     "analyze_listing_surface",
     "build_listing_booster_plan",
