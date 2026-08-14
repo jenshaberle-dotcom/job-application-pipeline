@@ -56,6 +56,13 @@ from src.search_intelligence.origin_selection_scope_contract import (  # noqa: E
 
 install_origin_search_execution_contract()
 
+# The existing operator-precedence contract intentionally receives a staged
+# runtime module and consumes its deterministic adaptive helper surface. The new
+# search-first runtime reuses that exact helper implementation through its
+# empirical reference module; expose only that compatibility alias here rather
+# than duplicating deterministic operator validation.
+staged.adaptive = staged.empirical.adaptive
+
 _STAGED_RUNNER = staged.run_empirical_repair_for_company
 
 
