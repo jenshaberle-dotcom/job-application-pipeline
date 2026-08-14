@@ -88,6 +88,7 @@ class DetailDiscoveryBoosterStageEvidence:
 class DetailDiscoveryBoosterExecution:
     gap_fingerprint: str
     unchanged_gap_skip: bool
+    deterministic_resolved: bool
     stages: tuple[DetailDiscoveryBoosterStageEvidence, ...]
     candidate_evidence: tuple[Mapping[str, object], ...]
     resolved_url: str | None
@@ -99,12 +100,13 @@ class DetailDiscoveryBoosterExecution:
 
     @property
     def resolved(self) -> bool:
-        return self.resolved_url is not None
+        return self.deterministic_resolved or self.resolved_url is not None
 
     def to_json(self) -> dict[str, object]:
         return {
             "gap_fingerprint": self.gap_fingerprint,
             "unchanged_gap_skip": self.unchanged_gap_skip,
+            "deterministic_resolved": self.deterministic_resolved,
             "stages": [item.to_json() for item in self.stages],
             "candidate_evidence": [dict(item) for item in self.candidate_evidence],
             "resolved": self.resolved,
@@ -216,7 +218,7 @@ def execute_detail_discovery_booster(
             ),
             reason_code=deterministic.reason_code,
             provider_requests=0,
-            resolved_url=(candidate_url if decision.deterministic_resolved else None),
+            resolved_url=None,
         )
     )
 
@@ -233,9 +235,10 @@ def execute_detail_discovery_booster(
         return DetailDiscoveryBoosterExecution(
             gap_fingerprint=decision.evidence_fingerprint,
             unchanged_gap_skip=decision.unchanged_gap_skip,
+            deterministic_resolved=decision.deterministic_resolved,
             stages=tuple(stage_records),
             candidate_evidence=(),
-            resolved_url=(candidate_url if decision.deterministic_resolved else None),
+            resolved_url=None,
             resolved_validation=None,
             provider_requests=0,
             llm_requests=0,
@@ -281,6 +284,7 @@ def execute_detail_discovery_booster(
             return DetailDiscoveryBoosterExecution(
                 gap_fingerprint=decision.evidence_fingerprint,
                 unchanged_gap_skip=False,
+                deterministic_resolved=False,
                 stages=tuple(stage_records),
                 candidate_evidence=tuple(summaries),
                 resolved_url=resolved_url,
@@ -336,6 +340,7 @@ def execute_detail_discovery_booster(
             return DetailDiscoveryBoosterExecution(
                 gap_fingerprint=decision.evidence_fingerprint,
                 unchanged_gap_skip=False,
+                deterministic_resolved=False,
                 stages=tuple(stage_records),
                 candidate_evidence=tuple(summaries),
                 resolved_url=resolved_url,
@@ -357,6 +362,7 @@ def execute_detail_discovery_booster(
     return DetailDiscoveryBoosterExecution(
         gap_fingerprint=decision.evidence_fingerprint,
         unchanged_gap_skip=False,
+        deterministic_resolved=False,
         stages=tuple(stage_records),
         candidate_evidence=tuple(summaries),
         resolved_url=None,
