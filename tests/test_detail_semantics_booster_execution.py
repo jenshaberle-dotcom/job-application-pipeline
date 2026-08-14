@@ -16,6 +16,8 @@ DETAIL_URL = "https://jobs.example.com/jobs/42-data-engineer"
 
 def decision(
     *,
+    requested: tuple[str, ...] = ("role", "location"),
+    fields: dict[str, object] | None = None,
     profile: bool = False,
     geography: bool = False,
     previous_semantic_fingerprint: str | None = None,
@@ -28,7 +30,8 @@ def decision(
         detail_supported=True,
         profile_contract_satisfied=profile,
         geography_contract_satisfied=geography,
-        deterministic_semantic_fields={},
+        requested_semantic_fields=requested,
+        deterministic_semantic_fields=fields or {},
         tavily_state=TavilyState.AVAILABLE,
         previous_semantic_fingerprint=previous_semantic_fingerprint,
     )
@@ -74,10 +77,12 @@ def validation(
     observation: DetailSemanticsHypothesisObservation,
     *,
     accepted: bool,
-    profile: bool,
-    geography: bool,
+    profile: bool = False,
+    geography: bool = False,
     classification: str = "validated_semantic_evidence",
     product_authority: bool = False,
+    accepted_fields: dict[str, object] | None = None,
+    accepted_references: tuple[SemanticEvidenceReference, ...] | None = None,
 ) -> DetailSemanticsValidationObservation:
     return DetailSemanticsValidationObservation(
         accepted=accepted,
@@ -85,12 +90,16 @@ def validation(
         profile_contract_satisfied=profile,
         geography_contract_satisfied=geography,
         accepted_semantic_fields=(
-            dict(observation.semantic_fields) if accepted else {}
+            accepted_fields
+            if accepted_fields is not None
+            else (dict(observation.semantic_fields) if accepted else {})
         ),
         accepted_evidence_references=(
-            observation.evidence_references if accepted else ()
+            accepted_references
+            if accepted_references is not None
+            else (observation.evidence_references if accepted else ())
         ),
-        failure_reason=None if accepted else "existing_product_contract_rejected",
+        failure_reason=None if accepted else "deterministic_semantic_validation_rejected",
         product_authority=product_authority,
     )
 
@@ -99,24 +108,61 @@ def no_model(stage, fields, references, ledger):  # type: ignore[no-untyped-def]
     raise AssertionError(f"model must not run: {stage}")
 
 
-def test_deterministic_resolution_calls_no_model() -> None:
+def test_deterministic_semantic_resolution_calls_no_model_even_if_product_support_false() -> None:
     validate_calls: list[str] = []
+    initial = {"role": "Data Engineer", "location": "Hannover"}
 
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
-        decision=decision(profile=True, geography=True),
-        initial_semantic_fields={"role": "Data Engineer", "location": "Hannover"},
+        decision=decision(fields=initial, profile=False, geography=False),
+        initial_semantic_fields=initial,
         initial_evidence_references=(),
         model=no_model,
         validate=lambda observation: validate_calls.append("called")
-        or validation(observation, accepted=True, profile=True, geography=True),
+        or validation(observation, accepted=True),
     )
 
     assert validate_calls == []
     assert result.resolved is True
+    assert result.missing_semantic_fields == ()
+    assert result.profile_contract_satisfied is False
+    assert result.geography_contract_satisfied is False
     assert result.provider_requests == 0
     assert result.llm_requests == 0
     assert all(not item.attempted for item in result.stages[1:])
+
+
+def test_product_support_alone_does_not_resolve_missing_semantics() -> None:
+    model_calls: list[BoosterStage] = []
+
+    def model(stage, fields, references, ledger):  # type: ignore[no-untyped-def]
+        model_calls.append(stage)
+        return hypothesis(
+            fields={"role": "Data Engineer", "location": "Hannover"},
+            references=(
+                reference("role", "Data Engineer", value="Data Engineer"),
+                reference("location", "Arbeitsort Hannover", value="Hannover"),
+            ),
+        )
+
+    result = execute_detail_semantics_booster(
+        detail_url=DETAIL_URL,
+        decision=decision(profile=True, geography=True),
+        initial_semantic_fields={},
+        initial_evidence_references=(),
+        model=model,
+        validate=lambda observation: validation(
+            observation,
+            accepted=True,
+            profile=True,
+            geography=True,
+        ),
+    )
+
+    assert model_calls == [BoosterStage.LUNA_MEDIUM]
+    assert result.resolved is True
+    assert result.semantic_fields == {"role": "Data Engineer", "location": "Hannover"}
+    assert result.product_authority is False
 
 
 def test_semantic_ambiguity_starts_luna_without_tavily_and_requires_validation() -> None:
@@ -135,12 +181,7 @@ def test_semantic_ambiguity_starts_luna_without_tavily_and_requires_validation()
 
     def validate(observation):  # type: ignore[no-untyped-def]
         validate_calls.append(dict(observation.semantic_fields))
-        return validation(
-            observation,
-            accepted=True,
-            profile=True,
-            geography=True,
-        )
+        return validation(observation, accepted=True)
 
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
@@ -159,21 +200,9 @@ def test_semantic_ambiguity_starts_luna_without_tavily_and_requires_validation()
     tavily = next(item for item in result.stages if item.stage == BoosterStage.TAVILY)
     assert tavily.attempted is False
     assert tavily.reason_code == "external_search_not_indicated"
-    later = [
-        item
-        for item in result.stages
-        if item.stage
-        in {
-            BoosterStage.TERRA_MEDIUM,
-            BoosterStage.SOL_MEDIUM,
-            BoosterStage.LUNA_MAX,
-            BoosterStage.DEEP_EVIDENCE,
-        }
-    ]
-    assert all(item.attempted is False for item in later)
 
 
-def test_partial_validated_progress_is_reused_by_next_model_stage() -> None:
+def test_partial_validated_semantic_progress_is_reused_by_next_model_stage() -> None:
     model_calls: list[BoosterStage] = []
     terra_context: list[dict[str, object]] = []
 
@@ -190,34 +219,48 @@ def test_partial_validated_progress_is_reused_by_next_model_stage() -> None:
             references=(reference("location", "Arbeitsort Hannover", value="Hannover"),),
         )
 
-    def validate(observation):  # type: ignore[no-untyped-def]
-        if "role" in observation.semantic_fields:
-            return validation(
-                observation,
-                accepted=True,
-                profile=True,
-                geography=False,
-            )
-        return validation(
-            observation,
-            accepted=True,
-            profile=True,
-            geography=True,
-        )
-
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
         decision=decision(),
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=model,
-        validate=validate,
+        validate=lambda observation: validation(observation, accepted=True),
     )
 
     assert model_calls == [BoosterStage.LUNA_MEDIUM, BoosterStage.TERRA_MEDIUM]
     assert terra_context == [{"role": "Data Engineer"}]
     assert result.resolved is True
     assert result.semantic_fields == {"role": "Data Engineer", "location": "Hannover"}
+
+
+def test_unrequested_semantic_field_does_not_fake_resolution() -> None:
+    stages: list[BoosterStage] = []
+
+    def model(stage, fields, references, ledger):  # type: ignore[no-untyped-def]
+        stages.append(stage)
+        return hypothesis(
+            fields={"seniority": "Senior"},
+            references=(reference("seniority", "Senior Data Engineer", value="Senior"),),
+        )
+
+    result = execute_detail_semantics_booster(
+        detail_url=DETAIL_URL,
+        decision=decision(requested=("role",)),
+        initial_semantic_fields={},
+        initial_evidence_references=(),
+        model=model,
+        validate=lambda observation: validation(observation, accepted=True),
+    )
+
+    assert stages == [
+        BoosterStage.LUNA_MEDIUM,
+        BoosterStage.TERRA_MEDIUM,
+        BoosterStage.SOL_MEDIUM,
+        BoosterStage.LUNA_MAX,
+    ]
+    assert result.resolved is False
+    assert result.missing_semantic_fields == ("role",)
 
 
 def test_duplicate_semantic_hypothesis_is_deterministically_validated_once() -> None:
@@ -233,16 +276,11 @@ def test_duplicate_semantic_hypothesis_is_deterministically_validated_once() -> 
 
     def validate(observation):  # type: ignore[no-untyped-def]
         validate_calls.append(current_stage[0])
-        return validation(
-            observation,
-            accepted=False,
-            profile=False,
-            geography=False,
-        )
+        return validation(observation, accepted=False)
 
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
-        decision=decision(),
+        decision=decision(requested=("seniority",)),
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=model,
@@ -268,36 +306,28 @@ def test_missing_model_evidence_span_fails_closed_then_allows_next_stage() -> No
         current_stage[:] = [stage]
         if stage == BoosterStage.LUNA_MEDIUM:
             return hypothesis(
-                fields={"location": "Hannover"},
+                fields={"role": "Data Engineer"},
                 references=(
                     reference(
-                        "location",
-                        "Arbeitsort Hannover",
+                        "role",
+                        "Data Engineer",
                         span_start=None,
                         span_end=None,
                     ),
                 ),
             )
         return hypothesis(
-            fields={"role": "Data Engineer", "location": "Hannover"},
-            references=(
-                reference("role", "Data Engineer", value="Data Engineer"),
-                reference("location", "Arbeitsort Hannover", value="Hannover"),
-            ),
+            fields={"role": "Data Engineer"},
+            references=(reference("role", "Data Engineer", value="Data Engineer"),),
         )
 
     def validate(observation):  # type: ignore[no-untyped-def]
         validate_calls.append(current_stage[0])
-        return validation(
-            observation,
-            accepted=True,
-            profile=True,
-            geography=True,
-        )
+        return validation(observation, accepted=True)
 
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
-        decision=decision(),
+        decision=decision(requested=("role",)),
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=model,
@@ -330,41 +360,25 @@ def test_cross_detail_evidence_reference_never_reaches_validator() -> None:
 
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
-        decision=decision(),
+        decision=decision(requested=("remote",)),
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=model,
         validate=lambda observation: validate_calls.append("called")
-        or validation(observation, accepted=True, profile=True, geography=True),
+        or validation(observation, accepted=True),
     )
 
     assert validate_calls == []
     assert result.resolved is False
-    assert all(
-        item.deterministic_validation_outcome is None
-        for item in result.stages
-        if item.stage
-        in {
-            BoosterStage.LUNA_MEDIUM,
-            BoosterStage.TERRA_MEDIUM,
-            BoosterStage.SOL_MEDIUM,
-            BoosterStage.LUNA_MAX,
-        }
-    )
 
 
 def test_attractive_model_semantics_cannot_resolve_when_validator_rejects() -> None:
     def model(stage, fields, references, ledger):  # type: ignore[no-untyped-def]
         return hypothesis(
-            fields={
-                "role": "Data Engineer",
-                "location": "Hannover",
-                "remote": True,
-            },
+            fields={"role": "Data Engineer", "location": "Hannover"},
             references=(
                 reference("role", "Data Engineer", value="Data Engineer"),
                 reference("location", "Hannover", value="Hannover"),
-                reference("remote", "Remote möglich", value="true"),
             ),
         )
 
@@ -374,12 +388,7 @@ def test_attractive_model_semantics_cannot_resolve_when_validator_rejects() -> N
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=model,
-        validate=lambda observation: validation(
-            observation,
-            accepted=False,
-            profile=False,
-            geography=False,
-        ),
+        validate=lambda observation: validation(observation, accepted=False),
     )
 
     assert result.resolved is False
@@ -387,6 +396,64 @@ def test_attractive_model_semantics_cannot_resolve_when_validator_rejects() -> N
     assert result.product_authority is False
     assert result.semantic_authority is False
     assert result.product_writes == 0
+
+
+def test_validator_cannot_broaden_model_hypothesis() -> None:
+    calls: list[BoosterStage] = []
+
+    def model(stage, fields, references, ledger):  # type: ignore[no-untyped-def]
+        calls.append(stage)
+        return hypothesis(
+            fields={"role": "Data Engineer"},
+            references=(reference("role", "Data Engineer", value="Data Engineer"),),
+        )
+
+    result = execute_detail_semantics_booster(
+        detail_url=DETAIL_URL,
+        decision=decision(requested=("role",)),
+        initial_semantic_fields={},
+        initial_evidence_references=(),
+        model=model,
+        validate=lambda observation: validation(
+            observation,
+            accepted=True,
+            accepted_fields={"role": "Data Engineer", "location": "Hannover"},
+        ),
+    )
+
+    assert calls == [BoosterStage.LUNA_MEDIUM]
+    luna = next(item for item in result.stages if item.stage == BoosterStage.LUNA_MEDIUM)
+    assert luna.status == "failed_closed"
+    assert luna.reason_code == "validator_broadened_semantic_hypothesis"
+    assert result.resolved is False
+
+
+def test_validator_cannot_broaden_evidence_references() -> None:
+    extra = reference("role", "Another Data Engineer", span_start=40, span_end=61)
+
+    def model(stage, fields, references, ledger):  # type: ignore[no-untyped-def]
+        return hypothesis(
+            fields={"role": "Data Engineer"},
+            references=(reference("role", "Data Engineer", value="Data Engineer"),),
+        )
+
+    result = execute_detail_semantics_booster(
+        detail_url=DETAIL_URL,
+        decision=decision(requested=("role",)),
+        initial_semantic_fields={},
+        initial_evidence_references=(),
+        model=model,
+        validate=lambda observation: validation(
+            observation,
+            accepted=True,
+            accepted_references=observation.evidence_references + (extra,),
+        ),
+    )
+
+    luna = next(item for item in result.stages if item.stage == BoosterStage.LUNA_MEDIUM)
+    assert luna.status == "failed_closed"
+    assert luna.reason_code == "validator_broadened_evidence_reference"
+    assert result.resolved is False
 
 
 def test_model_cost_ceiling_exceedance_stops_later_stages() -> None:
@@ -403,12 +470,12 @@ def test_model_cost_ceiling_exceedance_stops_later_stages() -> None:
 
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
-        decision=decision(),
+        decision=decision(requested=("role",)),
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=model,
         validate=lambda observation: validate_calls.append("called")
-        or validation(observation, accepted=True, profile=True, geography=True),
+        or validation(observation, accepted=True),
     )
 
     assert model_calls == [BoosterStage.LUNA_MEDIUM]
@@ -432,16 +499,11 @@ def test_model_product_authority_claim_stops_later_stages() -> None:
 
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
-        decision=decision(),
+        decision=decision(requested=("role",)),
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=model,
-        validate=lambda observation: validation(
-            observation,
-            accepted=True,
-            profile=True,
-            geography=True,
-        ),
+        validate=lambda observation: validation(observation, accepted=True),
     )
 
     assert model_calls == [BoosterStage.LUNA_MEDIUM]
@@ -453,7 +515,7 @@ def test_model_product_authority_claim_stops_later_stages() -> None:
 
 
 def test_unchanged_semantic_gap_calls_nothing() -> None:
-    first = decision()
+    first = decision(requested=("role",))
     unchanged = analyze_detail_semantics_gap(
         candidate_id=42,
         company_key="example",
@@ -462,6 +524,7 @@ def test_unchanged_semantic_gap_calls_nothing() -> None:
         detail_supported=True,
         profile_contract_satisfied=False,
         geography_contract_satisfied=False,
+        requested_semantic_fields=("role",),
         deterministic_semantic_fields={},
         tavily_state=TavilyState.AVAILABLE,
         previous_semantic_fingerprint=first.evidence_fingerprint,
@@ -473,12 +536,7 @@ def test_unchanged_semantic_gap_calls_nothing() -> None:
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=no_model,
-        validate=lambda observation: validation(
-            observation,
-            accepted=True,
-            profile=True,
-            geography=True,
-        ),
+        validate=lambda observation: validation(observation, accepted=True),
     )
 
     assert result.unchanged_evidence_skip is True
@@ -499,16 +557,11 @@ def test_stage_order_has_no_pro_mode() -> None:
 
     result = execute_detail_semantics_booster(
         detail_url=DETAIL_URL,
-        decision=decision(),
+        decision=decision(requested=("role",)),
         initial_semantic_fields={},
         initial_evidence_references=(),
         model=model,
-        validate=lambda observation: validation(
-            observation,
-            accepted=False,
-            profile=False,
-            geography=False,
-        ),
+        validate=lambda observation: validation(observation, accepted=False),
     )
 
     assert [item.stage for item in result.stages] == [

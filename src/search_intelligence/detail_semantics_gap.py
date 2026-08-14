@@ -2,14 +2,15 @@
 
 Detail Semantics starts only after concrete detail truth has already been
 established by the existing deterministic DETAIL-001 validators.  This module
-does not extract source truth itself.  It classifies whether the existing
-profile/geography contracts already resolve the semantic surface, whether a
-bounded semantic ambiguity may proceed to the model cascade, or whether the
-case must remain stopped before any provider/model stage.
+does not extract source truth itself.  It classifies semantic-field completeness
+separately from the existing profile/geography product-support contracts.
 
-Provider/model output remains hypothesis-only.  This module performs no HTTP,
-provider, model, database, lifecycle, gate, ranking, application, or product
-mutation and never grants semantic/product authority.
+That separation is intentional: a DETAIL-001 page can already be supported for
+profile/geography while role, seniority, skills, location or remote semantics
+remain unextracted or ambiguous.  Provider/model output remains hypothesis-only.
+This module performs no HTTP, provider, model, database, lifecycle, gate,
+ranking, application or product mutation and never grants semantic/product
+authority.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from src.search_intelligence.llm_booster_policy import (
     build_booster_plan,
 )
 
-DETAIL_SEMANTICS_GAP_CONTRACT_VERSION = "LLM-BOOST-001.detail-semantics-gap.v1"
+DETAIL_SEMANTICS_GAP_CONTRACT_VERSION = "LLM-BOOST-001.detail-semantics-gap.v2"
 SEMANTIC_FIELD_NAMES = ("role", "seniority", "skills", "location", "remote")
 
 
@@ -56,6 +57,9 @@ class DetailSemanticsGapDecision:
     profile_contract_satisfied: bool
     geography_contract_satisfied: bool
     missing_contracts: tuple[str, ...]
+    requested_semantic_fields: tuple[str, ...]
+    resolved_semantic_fields: tuple[str, ...]
+    missing_semantic_fields: tuple[str, ...]
     semantic_booster_eligible: bool
     unchanged_evidence_skip: bool
     external_information_gap: bool
@@ -69,7 +73,9 @@ class DetailSemanticsGapDecision:
 
     def to_json(self) -> dict[str, object]:
         payload = asdict(self)
-        payload["evidence_references"] = [item.to_json() for item in self.evidence_references]
+        payload["evidence_references"] = [
+            item.to_json() for item in self.evidence_references
+        ]
         payload["booster_plan"] = self.booster_plan.to_json()
         return payload
 
@@ -97,14 +103,32 @@ def _semantic_fields(fields: Mapping[str, object]) -> dict[str, object]:
     return {
         field: _normalize_json(fields[field])
         for field in SEMANTIC_FIELD_NAMES
-        if field in fields
+        if field in fields and fields[field] is not None
     }
+
+
+def _requested_fields(values: Sequence[str]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        field = str(value or "").strip().lower()
+        if not field or field in seen:
+            continue
+        if field not in SEMANTIC_FIELD_NAMES:
+            raise ValueError(f"unsupported requested Detail Semantics field: {field}")
+        seen.add(field)
+        normalized.append(field)
+    if not normalized:
+        raise ValueError("at least one requested Detail Semantics field is required")
+    return tuple(normalized)
 
 
 def _reference(record: Mapping[str, object]) -> SemanticEvidenceReference:
     field = str(record.get("field") or "").strip().lower()
     if field not in SEMANTIC_FIELD_NAMES:
-        raise ValueError(f"unsupported Detail Semantics evidence field: {field or '<empty>'}")
+        raise ValueError(
+            f"unsupported Detail Semantics evidence field: {field or '<empty>'}"
+        )
 
     source_url = str(record.get("source_url") or "").strip()
     evidence = str(record.get("evidence") or "").strip()
@@ -162,12 +186,14 @@ def detail_semantics_gap_fingerprint(
     detail_supported: bool,
     profile_contract_satisfied: bool,
     geography_contract_satisfied: bool,
+    requested_semantic_fields: Sequence[str],
     deterministic_semantic_fields: Mapping[str, object],
     evidence_references: Sequence[Mapping[str, object]],
 ) -> str:
     """Stable identity for one already-normalized deterministic semantic state."""
 
     references = _references(evidence_references)
+    requested = _requested_fields(requested_semantic_fields)
     payload = {
         "contract_version": DETAIL_SEMANTICS_GAP_CONTRACT_VERSION,
         "candidate_id": int(candidate_id),
@@ -177,6 +203,7 @@ def detail_semantics_gap_fingerprint(
         "detail_supported": bool(detail_supported),
         "profile_contract_satisfied": bool(profile_contract_satisfied),
         "geography_contract_satisfied": bool(geography_contract_satisfied),
+        "requested_semantic_fields": requested,
         "semantic_fields": _semantic_fields(deterministic_semantic_fields),
         "evidence_references": [item.to_json() for item in references],
     }
@@ -224,24 +251,30 @@ def analyze_detail_semantics_gap(
     profile_contract_satisfied: bool,
     geography_contract_satisfied: bool,
     deterministic_semantic_fields: Mapping[str, object],
+    requested_semantic_fields: Sequence[str] = SEMANTIC_FIELD_NAMES,
     evidence_references: Sequence[Mapping[str, object]] = (),
     tavily_state: TavilyState = TavilyState.UNKNOWN,
     previous_semantic_fingerprint: str | None = None,
 ) -> DetailSemanticsGapDecision:
-    """Classify deterministic Detail Semantics sufficiency and booster eligibility.
+    """Classify deterministic semantic completeness and booster eligibility.
 
-    ``profile_contract_satisfied`` and ``geography_contract_satisfied`` are
-    authoritative observations from the existing deterministic product
-    contracts.  This classifier may react to them but cannot replace them.
+    Profile/geography observations remain authoritative product-support facts,
+    but they do not define whether the Detail Semantics surface is complete.
+    Semantic completeness is defined only by the bounded requested field set.
+    This prevents an already-supported DETAIL-001 page from being incorrectly
+    treated as semantically complete merely because product relevance is known.
 
-    Ordinary semantic ambiguity is not an external-information acquisition gap,
-    so Tavily stays ineligible while the bounded model cascade may become
-    eligible.  Unsupported detail truth, an unexecuted deterministic stage, and
+    Ordinary semantic incompleteness is not an external-information acquisition
+    gap, so Tavily stays ineligible while the bounded model cascade may become
+    eligible. Unsupported detail truth, an unexecuted deterministic stage and
     unchanged semantic evidence remain fail-closed with zero external stages.
     """
 
     references = _references(evidence_references)
     semantic_fields = _semantic_fields(deterministic_semantic_fields)
+    requested = _requested_fields(requested_semantic_fields)
+    resolved_fields = tuple(field for field in requested if field in semantic_fields)
+    missing_fields = tuple(field for field in requested if field not in semantic_fields)
     fingerprint = detail_semantics_gap_fingerprint(
         candidate_id=candidate_id,
         company_key=company_key,
@@ -250,18 +283,16 @@ def analyze_detail_semantics_gap(
         detail_supported=detail_supported,
         profile_contract_satisfied=profile_contract_satisfied,
         geography_contract_satisfied=geography_contract_satisfied,
+        requested_semantic_fields=requested,
         deterministic_semantic_fields=semantic_fields,
         evidence_references=[item.to_json() for item in references],
     )
-    missing = _missing_contracts(
+    missing_contracts = _missing_contracts(
         profile_contract_satisfied=profile_contract_satisfied,
         geography_contract_satisfied=geography_contract_satisfied,
     )
     resolved = bool(
-        deterministic_attempted
-        and detail_supported
-        and profile_contract_satisfied
-        and geography_contract_satisfied
+        deterministic_attempted and detail_supported and not missing_fields
     )
     plan = build_booster_plan(
         surface=BoosterSurface.DETAIL_SEMANTICS,
@@ -313,7 +344,10 @@ def analyze_detail_semantics_gap(
         detail_supported=detail_supported,
         profile_contract_satisfied=profile_contract_satisfied,
         geography_contract_satisfied=geography_contract_satisfied,
-        missing_contracts=missing,
+        missing_contracts=missing_contracts,
+        requested_semantic_fields=requested,
+        resolved_semantic_fields=resolved_fields,
+        missing_semantic_fields=missing_fields,
         semantic_booster_eligible=eligible,
         unchanged_evidence_skip=unchanged,
         external_information_gap=False,
