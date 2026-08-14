@@ -18,6 +18,12 @@ def test_functional_query_identity_is_preserved() -> None:
     assert first != second
 
 
+def test_plausible_listing_route_is_not_rejected_before_listing_validation() -> None:
+    assert normalize_listing_candidate_url(
+        "https://jobs.example.com/open-positions"
+    ) == "https://jobs.example.com/open-positions"
+
+
 def test_tracking_only_differences_dedupe() -> None:
     ledger = ListingProgressLedger()
     urls = ledger.novel_urls(
