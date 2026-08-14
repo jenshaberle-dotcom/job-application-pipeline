@@ -5,6 +5,10 @@ a stable career origin. Listing discovery cannot reuse that identity rule:
 query parameters can be the actual job/listing identity on current jobboards.
 This ledger removes only obvious tracking parameters while preserving functional
 query keys and prevents repeated provider/fetch work on unchanged hypotheses.
+
+The prefilter is intentionally shape-only. Listing/career route semantics belong
+to ``ListingSurfaceEvidence`` after a bounded fetch; this ledger must not discard
+a plausible route merely because Origin Discovery would reject it as an origin.
 """
 
 from __future__ import annotations
@@ -20,7 +24,6 @@ from src.search_intelligence.connector_feasibility import (
     is_public_https_origin_url,
     is_technical_or_asset_url,
 )
-from src.search_intelligence.origin_url_policy import has_disallowed_source_url_shape
 
 _TRACKING_QUERY_KEYS = {
     "gclid",
@@ -30,10 +33,30 @@ _TRACKING_QUERY_KEYS = {
     "referrer",
     "source",
 }
+_AUTH_HOST_SEGMENTS = {"login", "signin", "sign-in", "auth", "sso", "oauth"}
+_AUTH_PATH_SEGMENTS = {"login", "signin", "sign-in", "auth", "sso", "oauth", "saml"}
+_AUTH_QUERY_KEYS = {"login", "signin", "auth", "sso", "oauth", "saml", "redirect_uri"}
+_AUTH_QUERY_VALUES = {"login", "signin", "sign-in", "sso", "oauth", "saml"}
 
 
 def normalize_listing_query(query: str) -> str:
     return re.sub(r"\s+", " ", str(query or "").strip().lower())
+
+
+def _has_auth_shape(url: str) -> bool:
+    parsed = urlparse(url)
+    host_segments = {segment.lower() for segment in (parsed.hostname or "").split(".") if segment}
+    if host_segments.intersection(_AUTH_HOST_SEGMENTS):
+        return True
+    path_segments = {segment.lower() for segment in parsed.path.split("/") if segment}
+    if path_segments.intersection(_AUTH_PATH_SEGMENTS):
+        return True
+    for key, value in parse_qsl(parsed.query or "", keep_blank_values=True):
+        normalized_key = key.strip().lower().replace("-", "_")
+        normalized_value = value.strip().lower().replace("-", "_")
+        if normalized_key in _AUTH_QUERY_KEYS or normalized_value in _AUTH_QUERY_VALUES:
+            return True
+    return False
 
 
 def normalize_listing_candidate_url(url: str) -> str | None:
@@ -50,9 +73,7 @@ def normalize_listing_candidate_url(url: str) -> str | None:
         return None
     if host in KNOWN_AGGREGATOR_DOMAINS or host in SOCIAL_OR_EXTERNAL_NOISE_DOMAINS:
         return None
-    if is_technical_or_asset_url(raw):
-        return None
-    if has_disallowed_source_url_shape(raw) is not None:
+    if is_technical_or_asset_url(raw) or _has_auth_shape(raw):
         return None
 
     path = re.sub(r"/{2,}", "/", parsed.path or "/")
