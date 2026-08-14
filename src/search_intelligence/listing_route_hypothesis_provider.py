@@ -17,7 +17,7 @@ from typing import Callable, Mapping
 
 import requests
 
-from src.search_intelligence.adaptive_origin_search import SearchProgressLedger
+from src.search_intelligence.listing_booster_progress import ListingProgressLedger
 from src.search_intelligence.origin_llm_adjudication import OPENAI_RESPONSES_URL
 from src.search_intelligence.origin_llm_model_campaign_types import (
     MODEL_PRICES_USD_PER_MILLION,
@@ -141,16 +141,10 @@ class ListingRouteHypothesisObservation:
 
 
 def _novel_urls_without_consuming(
-    ledger: SearchProgressLedger,
+    ledger: ListingProgressLedger,
     raw_urls: list[object],
 ) -> tuple[str, ...]:
-    probe = SearchProgressLedger(
-        attempted_queries=set(ledger.attempted_queries),
-        attempted_urls=set(ledger.attempted_urls),
-        observed_domains=set(ledger.observed_domains),
-        fingerprints=list(ledger.fingerprints),
-    )
-    return probe.novel_urls(str(item) for item in raw_urls[:3])
+    return ledger.clone().novel_urls(str(item) for item in raw_urls[:3])
 
 
 def request_listing_route_hypotheses(
@@ -160,7 +154,7 @@ def request_listing_route_hypotheses(
     origin_url: str,
     deterministic_evidence: Mapping[str, object],
     attempted_candidate_summaries: tuple[Mapping[str, object], ...],
-    ledger: SearchProgressLedger,
+    ledger: ListingProgressLedger,
     api_key: str,
     model: str,
     reasoning_effort: str = "medium",
