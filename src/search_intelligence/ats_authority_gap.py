@@ -1,18 +1,18 @@
 """Deterministic ATS authority-attempt and gap observations for LLM-BOOST-001.
 
 This module turns an already executed provider-specific authority validation
-attempt into a stable, replay-safe observation.  It performs no network,
+attempt into a stable, replay-safe observation. It performs no network,
 provider, database, connector activation, or product mutation.
 
-A provider/search/model response can never grant tenant authority here.  An
-exhausted deterministic attempt may only establish that an *external evidence
-gap* exists and therefore make the shared search-first booster eligible to look
-for alternate evidence which must subsequently pass deterministic validation.
+Search/model output can never grant tenant authority here. An exhausted
+deterministic attempt may only establish an external evidence gap and make the
+shared search-first booster eligible to look for alternate evidence which must
+subsequently pass deterministic validation.
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
 import hashlib
 from urllib.parse import parse_qsl, urlencode, urlparse
@@ -20,6 +20,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 from src.search_intelligence.ats_delegation_evidence import ATSDelegationEvidence
 from src.search_intelligence.llm_booster_policy import (
     BoosterPlan,
+    BoosterStage,
     BoosterSurface,
     TavilyState,
     build_booster_plan,
@@ -135,6 +136,27 @@ def _normalize_request_url(value: str) -> str:
     ).geturl()
 
 
+def _gate_external_stages(plan: BoosterPlan, *, reason_code: str) -> BoosterPlan:
+    """Project a shared plan into a deterministic-only ATS decision.
+
+    The shared planner deliberately keeps model fallback eligible when Tavily is
+    unavailable. ATS adds a stricter station gate: before provider-specific
+    authority validation is actually exhausted, *no* semantic stage may run.
+    This function changes eligibility only; it does not duplicate stage order,
+    model configuration, budget, or cost policy.
+    """
+
+    return replace(
+        plan,
+        stages=tuple(
+            stage
+            if stage.stage == BoosterStage.DETERMINISTIC
+            else replace(stage, eligible=False, reason_code=reason_code)
+            for stage in plan.stages
+        ),
+    )
+
+
 def ats_authority_request_fingerprint(
     *,
     provider: str,
@@ -213,6 +235,20 @@ def ats_authority_gap_fingerprint(
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
 
 
+def _shared_plan(
+    *,
+    tavily_state: TavilyState,
+    deterministic_resolved: bool,
+    external_information_gap: bool,
+) -> BoosterPlan:
+    return build_booster_plan(
+        surface=BoosterSurface.ATS_DELEGATION,
+        tavily_state=tavily_state,
+        deterministic_resolved=deterministic_resolved,
+        external_information_gap=external_information_gap,
+    )
+
+
 def analyze_ats_authority_gap(
     *,
     delegation_evidence: ATSDelegationEvidence,
@@ -220,13 +256,7 @@ def analyze_ats_authority_gap(
     authority_attempt: ATSAuthorityAttemptObservation | None = None,
     previous_gap_fingerprint: str | None = None,
 ) -> ATSAuthorityGapDecision:
-    """Decide whether ATS may escalate beyond deterministic authority validation.
-
-    A recognized provider without an executed provider-specific authority attempt
-    remains deterministic-only.  Once such an attempt has completed fail-closed,
-    the *exact request* is replay-blocked and a search-first semantic booster may
-    seek alternate authority evidence.  That evidence still has no authority.
-    """
+    """Decide whether ATS may escalate beyond deterministic authority validation."""
 
     fingerprint = ats_authority_gap_fingerprint(
         delegation_evidence=delegation_evidence,
@@ -234,12 +264,6 @@ def analyze_ats_authority_gap(
     )
 
     if delegation_evidence.delegation_permitted:
-        plan = build_booster_plan(
-            surface=BoosterSurface.ATS_DELEGATION,
-            tavily_state=tavily_state,
-            deterministic_resolved=True,
-            external_information_gap=False,
-        )
         return ATSAuthorityGapDecision(
             contract_version=ATS_AUTHORITY_GAP_CONTRACT_VERSION,
             classification="ats_authority_resolved",
@@ -249,17 +273,23 @@ def analyze_ats_authority_gap(
             unchanged_gap_skip=False,
             next_action="use_validated_ats_delegation_evidence",
             evidence_fingerprint=fingerprint,
-            booster_plan=plan,
+            booster_plan=_shared_plan(
+                tavily_state=tavily_state,
+                deterministic_resolved=True,
+                external_information_gap=False,
+            ),
             tenant_authority=delegation_evidence.tenant_authority,
             delegation_permitted=True,
         )
 
     if delegation_evidence.classification == "ats_provider_conflict":
-        plan = build_booster_plan(
-            surface=BoosterSurface.ATS_DELEGATION,
-            tavily_state=tavily_state,
-            deterministic_resolved=False,
-            external_information_gap=False,
+        plan = _gate_external_stages(
+            _shared_plan(
+                tavily_state=tavily_state,
+                deterministic_resolved=False,
+                external_information_gap=False,
+            ),
+            reason_code="ats_provider_conflict_deterministic_only",
         )
         return ATSAuthorityGapDecision(
             contract_version=ATS_AUTHORITY_GAP_CONTRACT_VERSION,
@@ -274,11 +304,13 @@ def analyze_ats_authority_gap(
         )
 
     if delegation_evidence.provider is not None and authority_attempt is None:
-        plan = build_booster_plan(
-            surface=BoosterSurface.ATS_DELEGATION,
-            tavily_state=tavily_state,
-            deterministic_resolved=False,
-            external_information_gap=False,
+        plan = _gate_external_stages(
+            _shared_plan(
+                tavily_state=tavily_state,
+                deterministic_resolved=False,
+                external_information_gap=False,
+            ),
+            reason_code="deterministic_authority_path_not_exhausted",
         )
         return ATSAuthorityGapDecision(
             contract_version=ATS_AUTHORITY_GAP_CONTRACT_VERSION,
@@ -298,12 +330,16 @@ def analyze_ats_authority_gap(
         unchanged = bool(
             previous_gap_fingerprint and previous_gap_fingerprint == fingerprint
         )
-        plan = build_booster_plan(
-            surface=BoosterSurface.ATS_DELEGATION,
+        plan = _shared_plan(
             tavily_state=tavily_state,
             deterministic_resolved=False,
             external_information_gap=True,
         )
+        if unchanged:
+            plan = _gate_external_stages(
+                plan,
+                reason_code="unchanged_ats_authority_gap_fingerprint",
+            )
         return ATSAuthorityGapDecision(
             contract_version=ATS_AUTHORITY_GAP_CONTRACT_VERSION,
             classification=(
@@ -324,16 +360,17 @@ def analyze_ats_authority_gap(
             booster_plan=plan,
         )
 
-    # An unrecognized ATS provider is already a diagnosed external-information
-    # gap from the deterministic recognition layer.  The booster may help locate
-    # a supported ATS candidate, but it still cannot grant delegation authority.
     external_gap = bool(delegation_evidence.semantic_booster_eligible)
-    plan = build_booster_plan(
-        surface=BoosterSurface.ATS_DELEGATION,
+    plan = _shared_plan(
         tavily_state=tavily_state,
         deterministic_resolved=False,
         external_information_gap=external_gap,
     )
+    if not external_gap:
+        plan = _gate_external_stages(
+            plan,
+            reason_code="deterministic_ats_resolution_required",
+        )
     return ATSAuthorityGapDecision(
         contract_version=ATS_AUTHORITY_GAP_CONTRACT_VERSION,
         classification="ats_provider_external_information_gap",
