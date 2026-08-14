@@ -1,6 +1,6 @@
 # LLM-BOOST-001 — Detail Semantics deterministic gap boundary
 
-Status: Slice 8C corrected implementation contract
+Status: Slice 8D live-adapter validation contract
 Authority: Issue #522
 
 ## Purpose
@@ -43,6 +43,36 @@ The authority-neutral executor resolves only when all requested semantic fields 
 
 A deterministic validator may accept only canonical fields that were actually present in the model hypothesis and may retain only evidence references already supplied by that hypothesis. It may narrow or reject a hypothesis, but it may not broaden fields or evidence. Product authority remains false.
 
+## Live span-verification contract
+
+`detail_semantics_hypothesis_provider.py` and `scripts/run_detail_semantics_booster.py` form the first live semantic adapter.
+
+The runner:
+
+1. accepts exactly one public HTTPS detail URL;
+2. reuses the existing DETAIL-001 bounded fetch and plain-text extractor;
+3. rejects a cross-base-domain redirect;
+4. bounds provider-visible text to 16,000 characters and never persists raw HTML;
+5. calculates existing profile/geography support independently from the bounded detail text;
+6. runs provider-free deterministic term extraction for the requested semantic fields;
+7. invokes only the still-missing requested fields through the canonical Luna → Terra → Sol → Luna-max sequence;
+8. never invokes Tavily for ordinary Detail Semantics ambiguity.
+
+The OpenAI provider uses the existing Responses API boundary with `store=false`, a strict JSON schema and the canonical per-stage price/ceiling configuration. Each returned claim contains `field`, `value`, `evidence`, `span_start` and `span_end`.
+
+Before a provider result can reach the executor, the adapter requires all of the following:
+
+- the field belongs to the explicit requested scope;
+- the evidence span is inside the exact bounded detail text;
+- `detail_text[span_start:span_end] == evidence`;
+- the returned value occurs inside that evidence;
+- role, seniority, location and remote occur at most once per response; skills may produce multiple grounded values;
+- every evidence reference is forced to the one fetched final detail URL.
+
+The runner repeats the same-detail span and value checks before deterministic validation accepts the evidence. This second check protects against mutation or adapter drift between provider parsing and execution.
+
+A span-grounded semantic result is still evidence/hypothesis output only. `semantic_authority=false` and `product_authority=false` remain invariant. No database, gate, lifecycle, ranking, application or product write path exists in the live runner.
+
 ## Evidence fingerprint
 
 The semantic fingerprint binds:
@@ -77,4 +107,4 @@ The shared LLM-BOOST-001 plan remains a side-effect-free eligibility description
 
 ## Promotion boundary
 
-The corrected completeness contract and executor must pass exact-head Pipeline CI and re-entry before any provider/runtime semantic smoke. A live semantic adapter must additionally verify model evidence spans against the exact bounded detail text before deterministic validation can accept any field.
+Slice 8D must pass exact-head Pipeline CI and re-entry before a private Runtime Detail Semantics shadow is created. Runtime acceptance must preserve the same immutable repo/head checks, bounded provider budget, read-only data access and zero-write/product-authority invariants already proven by the Detail Discovery shadow transport.
