@@ -354,7 +354,9 @@ def execute_recurring_shadow(
             cost != 0.0 or latency != 0 or observation.hypothesis
         ):
             boundary_failure = "non_attempted_shadow_stage_has_effects"
-        elif observation.request_attempted and observation.status != "completed":
+        elif not observation.request_attempted:
+            boundary_failure = "eligible_shadow_stage_not_attempted"
+        elif observation.status != "completed":
             boundary_failure = "shadow_provider_stage_not_completed"
         else:
             try:
