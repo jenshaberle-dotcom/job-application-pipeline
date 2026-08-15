@@ -27,7 +27,7 @@ from src.search_intelligence.recurring_connector_economics import (
 )
 
 RECURRING_OBSERVATION_DELTA_PROJECTION_VERSION = (
-    "LLM-BOOST-001.recurring-observation-delta-projection.v2"
+    "LLM-BOOST-001.recurring-observation-delta-projection.v3"
 )
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -155,6 +155,7 @@ class RecurringObservationDeltaEvidence:
     previous_observed_at: datetime | None
     current_execution_id: str | None
     previous_execution_id: str | None
+    current_normalized_evidence_hash: str | None
     evidence_contract_version: str | None
     comparable_pair: bool
     reason_code: str
@@ -194,6 +195,7 @@ def _event(
         previous_observed_at=(previous.observed_at if previous else None),
         current_execution_id=current.execution_id,
         previous_execution_id=(previous.execution_id if previous else None),
+        current_normalized_evidence_hash=current.normalized_evidence_hash,
         evidence_contract_version=current.evidence_contract_version,
         comparable_pair=comparable_pair,
         reason_code=reason_code,
