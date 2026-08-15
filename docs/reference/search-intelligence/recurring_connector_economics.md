@@ -1,13 +1,20 @@
 # LLM-BOOST-001 — Recurring Connector delta and economics boundary
 
-Status: Slice 10 observation-hash instrumentation contract  
+Status: execution-aware recurring delta + shadow-selection contract  
 Authority: Issue #522
 
 ## Purpose
 
 Recurring connector execution is economically different from one-time source discovery. A connector may observe the same source-local job many times. Re-running Tavily or the model cascade for unchanged evidence would create recurring spend without creating new information.
 
-Slice 9 added the pure cache/delta and economics contract. Slice 10 adds the smallest truthful observation instrumentation needed to classify **future** repeated sightings as unchanged or changed. It does not activate a booster, execute a provider, alter lifecycle truth or backfill historical evidence.
+The recurring contract therefore separates four concerns:
+
+1. observation instrumentation and lineage;
+2. truthful cross-execution delta classification;
+3. deterministic-first economics planning;
+4. later shadow-sample candidacy.
+
+None of these pure contracts executes a provider/model stage or grants product authority.
 
 ## Canonical cache identity
 
@@ -22,86 +29,86 @@ connector_id
 
 `src/search_intelligence/recurring_connector_economics.py` reuses the shared `recurring_evidence_fingerprint()` implementation from `llm_booster_policy.py`.
 
-For source-local identity the contract prefers the connector-provided `external_job_id`. This matches the existing ingestion duplicate identity boundary in `JobIngestionRunner` / `JobIngestionRepository`. The exact source URL is used only when the connector has no external job ID.
+For source-local identity the contract prefers the connector-provided `external_job_id`. The exact source URL is used only when the connector has no external job ID. No fuzzy employer, ATS or URL lookalike matching belongs at this cache/economic boundary.
 
 The generic evidence hash normalizes Unicode/whitespace, mapping-key order and JSON-compatible values conservatively. Sequence order is retained so a potentially meaningful source change is not silently conflated.
 
 ## Observation-level evidence projection
 
-Runtime Issue #137 proved that the historical database did not contain enough information to apply that cache identity honestly:
+Runtime Issue #137 originally proved that historical observations did not contain enough per-sighting evidence to classify repeated identity as unchanged content. Migration `095_add_recurring_observation_evidence_hash.sql` therefore added nullable:
 
-- recurring-enabled profiles: `30` (`12` employer-origin, `18` sensor);
-- recurring observation rows: `24,186`;
-- source-local identities: `1,470`;
-- repeated identities: `909` covering `23,625` observation rows;
-- all `24,186` observations already had external source-local IDs;
-- `429` repeated identities showed source-URL variation;
-- repeated identities with usable `raw_jobs.content_hash`: `0`;
-- observation-level hash/payload columns: `0 / 0`.
+- `job_observations.normalized_evidence_hash`;
+- `job_observations.evidence_contract_version`.
 
-The read-only Runtime result therefore correctly reported `historical_payload_delta_classifiable=false`. Repeated identity is **not** evidence of unchanged content.
+Historical rows remain `NULL`; there is no inferred hash backfill.
 
-Migration `095_add_recurring_observation_evidence_hash.sql` adds two nullable columns to `job_observations`:
+For each later sighting, `src/ingestion/recurring_observation_evidence.py` hashes the exact current source URL plus connector-provided structural evidence after removing run/query metadata containers such as `search_profile`, `search_context`, `extraction`, `matching`, `quality_signals` and `acquisition_evidence`.
 
-- `normalized_evidence_hash`;
-- `evidence_contract_version`.
+The evidence projection is versioned as `recurring-observation-evidence.v1`. Hashes are comparable only when both observations have non-null hashes and the same evidence-contract version.
 
-Historical rows remain `NULL`. The migration performs no inferred backfill because the exact old per-sighting payload no longer exists.
+## Explicit ingestion-execution correlation
 
-For each future sighting, `src/ingestion/recurring_observation_evidence.py` hashes:
+The first live pair audit exposed an additional ambiguity: one `src.ingest_jobs` invocation can execute multiple profiles/search terms, each with a separate `ingestion_runs` row. Adjacent observation rows from that single invocation must not be mistaken for later recurrence.
 
-- the exact current `source_url`;
-- the connector-provided current raw job/structural evidence after removing top-level execution/query metadata.
+Migration `096_add_ingestion_execution_correlation.sql` adds nullable `ingestion_runs.execution_id`. Canonical `src.ingest_jobs` creates one opaque UUID per invocation and propagates it through PostgreSQL `application_name` (`job-pipeline-ingest:<uuid>`). All profile/search-term ingestion runs inside that invocation therefore share one explicit execution identity.
 
-Excluded top-level containers are:
+Historical ingestion runs remain `NULL`. There is no time-window inference, synthesis or execution-ID backfill.
 
-- `search_profile`;
-- `search_context`;
-- `extraction`;
-- `matching`;
-- `quality_signals`;
-- `acquisition_evidence`.
+The execution-aware projection in `recurring_observation_delta_projection.py` therefore follows these rules:
 
-This matters because current connectors legitimately place run-variant data there. For example Personio and StepStone record `observed_at_utc`, while Bundesagentur embeds the search profile/term. Those values must not make the same source evidence look changed merely because another recurring run or search term observed it.
+1. missing execution correlation is incomparable;
+2. repeated identical evidence inside one execution is duplicate volume only;
+3. conflicting hash/contract evidence inside one execution fails closed;
+4. the first valid correlated execution is baseline only;
+5. only a later **distinct** valid execution can be `unchanged` or `evidence_changed`;
+6. contract-version changes are comparison boundaries, not content-change evidence;
+7. identity mismatch, execution re-entry and non-forward timestamps fail closed.
 
-The current evidence projection contract is explicitly versioned as `recurring-observation-evidence.v1`. Hashes are comparable only when both observations have non-null hashes and the same evidence-contract version.
+The projection also carries the exact current normalized evidence hash. This cryptographically binds later economics/shadow selection to the exact current evidence record without exposing raw payload.
 
-The existing Bronze duplicate identity remains unchanged. `raw_jobs` is not rewritten when a known source-local job is seen again. Instead, the already-append-only `job_observations` sighting stores the **current** hash for that run, including duplicate Bronze sightings.
+## Mandatory deterministic-first economics boundary
 
-## Delta classification
+A truthful changed pair is still not automatically booster-eligible.
 
-A current evidence record is classified against the cache record for the same connector + source-local job identity:
+`build_recurring_connector_decision_for_delta()` accepts an already-authoritative recurring delta while preserving the same economics policy as the legacy current/previous cache API.
 
-- `new` — no prior comparable cache record;
-- `unchanged` — exact same fingerprint;
-- `evidence_changed` — durable evidence changed under the same contract;
-- `contract_changed` — evidence/booster contract version changed and therefore invalidates the cache;
-- `cache_identity_mismatch` — caller supplied a cache record for another connector/job identity; fail closed.
+The gates remain:
 
-A contract-version change invalidates the cache even when evidence text itself is unchanged.
-
-## Mandatory deterministic-first boundary
-
-New, changed or contract-invalidated evidence is not automatically booster-eligible.
-
-1. Run the ordinary deterministic connector parse/validation first.
-2. If deterministic evidence is supported, no external stage is eligible.
-3. If deterministic processing has not run, the recurring booster is ineligible.
-4. If deterministic processing is unresolved, escalation still requires one explicit recurring gap family:
+1. deterministic connector parse/validation is authority first;
+2. `NOT_RUN` is ineligible;
+3. `SUPPORTED` is ineligible;
+4. `UNRESOLVED` still requires an explicit recurring gap family:
    - `external_information_gap`;
    - `semantic_ambiguity`;
-   - `structural_drift`.
-5. An unresolved but unclassified delta fails closed without external escalation.
+   - `structural_drift`;
+5. unresolved + `NONE` fails closed;
+6. `UNCHANGED` suppresses every external stage regardless of older unresolved state.
 
-For `semantic_ambiguity` and `structural_drift`, Tavily is not a routine fetch substitute: the model cascade may be eligible while Tavily remains skipped. Only `external_information_gap` makes Tavily eligible when its independent runtime budget/provider state is `available`.
+For semantic ambiguity and structural drift, Tavily is not a routine fetch substitute; the model cascade may be planned while search remains skipped. Only an explicit external-information gap makes Tavily eligible when its independent state is `AVAILABLE`.
+
+## Truthful shadow-candidate boundary
+
+`recurring_shadow_selection.py` is the pure join between persisted pair truth and recurring economics.
+
+A projection can be a later shadow-sample candidate only when all of the following are true:
+
+- exact projected identity equals `connector_id + source-local job identity` of the current economics record;
+- projected current evidence hash exactly equals the current economics-record hash;
+- the projection is a comparable pair from two distinct non-null execution IDs;
+- the projection classification and delta are both `EVIDENCE_CHANGED`;
+- the current deterministic outcome is `UNRESOLVED`;
+- an explicit non-`NONE` recurring gap exists;
+- the canonical recurring economics decision is booster-eligible.
+
+`BASELINE_ONLY`, `CONTRACT_BOUNDARY`, missing execution/evidence, same-execution duplicate/conflict, execution re-entry, identity mismatch and non-forward timestamp are shadow-ineligible. `UNCHANGED` may flow into the economics planner only to preserve and prove its zero-spend suppression; it can never become a shadow sample.
+
+The selector itself performs no provider, LLM, network, database or product operation and reports `product_authority=false`.
 
 ## Zero duplicate-spend invariant
 
-An `unchanged` fingerprint suppresses **every provider/model stage**, even if the older deterministic result remained unresolved.
+An unchanged recurring fingerprint suppresses **every provider/model stage**. A later retry requires a materially changed relevant precondition represented by a new truthful cross-execution evidence change or a separately governed contract change; ordinary repetition is not such a precondition.
 
-This contract intentionally chooses economic safety over automatic unchanged retries. A later retry requires a materially changed relevant precondition represented by new evidence or a new contract version; ordinary daily repetition is not such a precondition.
-
-The decision object itself is side-effect free and reports:
+Pure decisions report zero requests/writes:
 
 ```text
 provider_requests = 0
@@ -111,35 +118,26 @@ product_writes = 0
 product_authority = false
 ```
 
-The shared `llm_booster_policy` plan remains the stage-order authority.
+The shared `llm_booster_policy` remains the canonical stage-order authority.
 
 ## Opportunity-cost ledger
 
-`RecurringOpportunityCostLedger` is a pure in-memory evidence ledger for later shadow/canary campaigns. It records per fingerprint + booster stage:
+`RecurringOpportunityCostLedger` remains a pure in-memory evidence ledger for later shadow/canary campaigns. It records per fingerprint + booster stage request counts, observed cost, latency, validated rescue/progression state, delta and gap family.
 
-- provider/model request counts;
-- observed cost;
-- latency;
-- whether deterministic validation accepted a rescue;
-- whether the case progressed;
-- delta and gap family.
-
-Duplicate observations for the same fingerprint + stage are suppressed. The ledger refuses any non-zero provider/model spend for `unchanged` evidence.
-
-The ledger computes observed total cost, cost per validated rescue, request counts, latency and stage-observation distribution. It intentionally does **not** assign a monetary value to a job opportunity, rank candidates or authorize execution.
+Duplicate observations for the same fingerprint + stage are suppressed. The ledger rejects non-zero provider/model spend for unchanged evidence. It does not assign monetary value to an opportunity, rank candidates or authorize execution.
 
 ## Promotion sequence
 
-Slice 10 must pass exact-head Pipeline CI and re-entry before the schema/instrumentation can be promoted.
+Migration 095 and migration 096 are already governed live schema facts. Historical and the first post-095 observations predate execution correlation and intentionally remain incomparable. Current truthful Runtime evidence therefore has no accepted unchanged/changed cross-execution distribution yet.
 
-After migration 095 is applied through the normal governed migration path, the first hash-bearing sighting for an identity establishes a baseline only. A later sighting with the same evidence-contract version is required before that identity can be classified `unchanged` or `evidence_changed`.
+Provider-free selector plumbing can be implemented and validated now because its contract is purely deterministic and synthetic-testable. That does **not** authorize live shadow sampling.
 
-The next Runtime step is therefore provider-free:
+The live promotion sequence is:
 
-1. verify migration 095 on the live schema;
-2. allow ordinary already-authorized recurring ingestion to produce hash-bearing observations;
-3. compare only post-instrumentation observation pairs with non-null, same-contract hashes;
-4. measure the real `unchanged` / `changed` distribution;
-5. only then sample deterministic unresolved changed/new cases for semantic gaps.
+1. allow an ordinary, already-authorized future `src.ingest_jobs` execution to create the first execution-correlated baseline;
+2. allow a later distinct ordinary execution to create truthful cross-execution pairs;
+3. measure the real unchanged/changed distribution read-only;
+4. consider only truthful `EVIDENCE_CHANGED` + deterministic `UNRESOLVED` + explicit-gap cases as shadow candidates;
+5. authorize any actual provider/model shadow separately with bounded economics/evidence gates.
 
-Paid provider/model shadow, canary/default activation, connector activation, scheduler mutation, lifecycle mutation, ranking and application mutation remain later gates.
+Do not force a Daily merely to manufacture continuity evidence. Paid provider/model shadow, canary/default activation, connector activation, scheduler mutation, lifecycle mutation, ranking and application mutation remain separate later gates.
