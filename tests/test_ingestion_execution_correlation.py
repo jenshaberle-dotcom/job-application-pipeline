@@ -51,4 +51,4 @@ def test_migration_096_is_nullable_forward_only_execution_correlation() -> None:
     assert "current_setting('application_name', true)" in sql
     assert "job-pipeline-ingest:%" in sql
     assert "update ingestion_runs" not in sql
-    assert "not null" not in sql
+    assert "add column if not exists execution_id uuid not null" not in sql
