@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
+import uuid
 from collections.abc import Sequence
 
 from src.connectors.base import SearchProfile
@@ -11,6 +13,9 @@ from src.connectors.registry import create_connector as registry_create_connecto
 from src.connectors.registry import source_role as registry_source_role
 from src.ingestion.repository import JobIngestionRepository
 from src.ingestion.runner import JobIngestionRunner
+
+
+INGESTION_EXECUTION_APPLICATION_PREFIX = "job-pipeline-ingest:"
 
 
 def create_connector(source_name: str):
@@ -26,6 +31,19 @@ def configure_logging(log_level: str) -> None:
         format=LOG_FORMAT,
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+
+def configure_ingestion_execution_application_name() -> str:
+    """Bind one opaque correlation ID to all DB connections in this invocation.
+
+    libpq consumes ``PGAPPNAME`` when an explicit ``application_name`` connection
+    parameter is absent. Migration 096 uses only the canonical prefix below, so
+    unrelated processes cannot accidentally acquire ingestion execution lineage.
+    """
+
+    execution_id = str(uuid.uuid4())
+    os.environ["PGAPPNAME"] = f"{INGESTION_EXECUTION_APPLICATION_PREFIX}{execution_id}"
+    return execution_id
 
 
 def source_matches(source_name: str, source_filter: str) -> bool:
@@ -350,6 +368,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.list_profiles:
         print_profiles(repository)
         return
+
+    execution_id = configure_ingestion_execution_application_name()
+    print(f"Ingestion execution ID: {execution_id}")
 
     try:
         profiles = select_profiles(
