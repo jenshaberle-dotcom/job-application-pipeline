@@ -2,12 +2,12 @@
 
 The recurring connector surface has a stricter economic boundary than one-time
 source discovery: unchanged evidence must never trigger a provider or model
-request.  This module therefore owns only pure normalization, cache/delta
+request. This module therefore owns only pure normalization, cache/delta
 classification, booster-plan eligibility and in-memory economics accounting.
 It performs no network, database, lifecycle, ranking, application or product
 write.
 
-Field selection for ``normalized_evidence_hash`` remains caller authority.  The
+Field selection for ``normalized_evidence_hash`` remains caller authority. The
 caller must pass only durable evidence fields and exclude transport timestamps,
 request IDs or other volatile metadata that should not invalidate the semantic
 cache.
@@ -83,8 +83,6 @@ def _canonical_evidence_value(value: object) -> object:
             normalized[_normalized_text(key)] = _canonical_evidence_value(nested)
         return {key: normalized[key] for key in sorted(normalized)}
     if isinstance(value, (list, tuple)):
-        # Preserve sequence order.  Reordering may be source-significant and it
-        # is safer to cause an extra deterministic pass than to conflate change.
         return [_canonical_evidence_value(item) for item in value]
     raise TypeError(
         "recurring evidence must contain only JSON-compatible scalar, mapping "
@@ -110,12 +108,7 @@ def source_local_job_identity(
     external_job_id: str | None,
     source_url: str | None,
 ) -> str:
-    """Return the canonical source-local identity used by the recurring cache.
-
-    A connector-provided external ID is preferred because current ingestion
-    already uses it for duplicate identity.  The exact source URL is the
-    explicit fallback required by LLM-BOOST-001 when no external ID exists.
-    """
+    """Return the canonical source-local identity used by the recurring cache."""
 
     if external_job_id is not None and external_job_id.strip():
         return f"external_id:{external_job_id.strip()}"
@@ -187,9 +180,6 @@ def classify_recurring_delta(
         previous.connector_id != current.connector_id
         or previous.source_job_identity != current.source_job_identity
     ):
-        # Cache lookup must be scoped by connector + source-local identity.  A
-        # mismatch is an integration error, not evidence that semantic work is
-        # safe to execute for a different job.
         return RecurringDeltaKind.CACHE_IDENTITY_MISMATCH
     if previous.fingerprint == current.fingerprint:
         return RecurringDeltaKind.UNCHANGED
@@ -230,34 +220,32 @@ class RecurringConnectorDecision:
         }
 
 
-def build_recurring_connector_decision(
+def build_recurring_connector_decision_for_delta(
     *,
     current: RecurringEvidenceRecord,
-    previous: RecurringEvidenceRecord | None,
+    delta_kind: RecurringDeltaKind,
     gap_kind: RecurringGapKind,
     tavily_state: TavilyState,
 ) -> RecurringConnectorDecision:
-    """Classify one recurring case without performing any external stage.
+    """Plan economics for an already-authoritative recurring delta.
 
-    The current deterministic parse must run before changed/new unresolved
-    evidence can become booster-eligible.  Unchanged fingerprints suppress all
-    provider/model eligibility even when an older case remained unresolved.
-    This is the zero-duplicate-spend boundary required by LLM-BOOST-001.
+    This entry point exists for execution-aware observation projection, whose
+    persisted pair truth is authoritative and must not be reconstructed by
+    fabricating an in-memory previous cache record. It performs no external
+    stage and retains all existing deterministic-first and zero-spend gates.
     """
 
-    delta = classify_recurring_delta(current=current, previous=previous)
-
-    if delta == RecurringDeltaKind.CACHE_IDENTITY_MISMATCH:
+    if delta_kind == RecurringDeltaKind.CACHE_IDENTITY_MISMATCH:
         return RecurringConnectorDecision(
             fingerprint=current.fingerprint,
-            delta_kind=delta,
+            delta_kind=delta_kind,
             gap_kind=gap_kind,
             reason_code="recurring_cache_identity_mismatch",
             booster_eligible=False,
             booster_plan=None,
         )
 
-    if delta == RecurringDeltaKind.UNCHANGED:
+    if delta_kind == RecurringDeltaKind.UNCHANGED:
         plan = build_booster_plan(
             surface=BoosterSurface.RECURRING_CONNECTOR,
             tavily_state=tavily_state,
@@ -266,7 +254,7 @@ def build_recurring_connector_decision(
         )
         return RecurringConnectorDecision(
             fingerprint=current.fingerprint,
-            delta_kind=delta,
+            delta_kind=delta_kind,
             gap_kind=gap_kind,
             reason_code="unchanged_recurring_evidence_fingerprint",
             booster_eligible=False,
@@ -276,7 +264,7 @@ def build_recurring_connector_decision(
     if current.deterministic_outcome == RecurringDeterministicOutcome.NOT_RUN:
         return RecurringConnectorDecision(
             fingerprint=current.fingerprint,
-            delta_kind=delta,
+            delta_kind=delta_kind,
             gap_kind=gap_kind,
             reason_code="deterministic_parse_required_before_booster",
             booster_eligible=False,
@@ -292,7 +280,7 @@ def build_recurring_connector_decision(
         )
         return RecurringConnectorDecision(
             fingerprint=current.fingerprint,
-            delta_kind=delta,
+            delta_kind=delta_kind,
             gap_kind=gap_kind,
             reason_code="deterministic_recurring_evidence_supported",
             booster_eligible=False,
@@ -302,7 +290,7 @@ def build_recurring_connector_decision(
     if gap_kind == RecurringGapKind.NONE:
         return RecurringConnectorDecision(
             fingerprint=current.fingerprint,
-            delta_kind=delta,
+            delta_kind=delta_kind,
             gap_kind=gap_kind,
             reason_code="unclassified_recurring_unresolved",
             booster_eligible=False,
@@ -318,11 +306,29 @@ def build_recurring_connector_decision(
     )
     return RecurringConnectorDecision(
         fingerprint=current.fingerprint,
-        delta_kind=delta,
+        delta_kind=delta_kind,
         gap_kind=gap_kind,
-        reason_code=f"recurring_{gap_kind.value}_eligible_after_{delta.value}",
+        reason_code=f"recurring_{gap_kind.value}_eligible_after_{delta_kind.value}",
         booster_eligible=True,
         booster_plan=plan,
+    )
+
+
+def build_recurring_connector_decision(
+    *,
+    current: RecurringEvidenceRecord,
+    previous: RecurringEvidenceRecord | None,
+    gap_kind: RecurringGapKind,
+    tavily_state: TavilyState,
+) -> RecurringConnectorDecision:
+    """Classify one recurring case without performing any external stage."""
+
+    delta = classify_recurring_delta(current=current, previous=previous)
+    return build_recurring_connector_decision_for_delta(
+        current=current,
+        delta_kind=delta,
+        gap_kind=gap_kind,
+        tavily_state=tavily_state,
     )
 
 
@@ -362,13 +368,7 @@ class OpportunityCostObservation:
 
 
 class RecurringOpportunityCostLedger:
-    """Pure in-memory ledger for shadow/canary economics evidence.
-
-    It intentionally does not choose a monetary value for a job opportunity and
-    therefore has no ranking or product authority.  Later runtime campaigns can
-    populate observed cost, latency and validated-rescue evidence; duplicate
-    stage observations for the same fingerprint are suppressed deterministically.
-    """
+    """Pure in-memory ledger for shadow/canary economics evidence."""
 
     def __init__(self) -> None:
         self._observations: dict[tuple[str, BoosterStage], OpportunityCostObservation] = {}
