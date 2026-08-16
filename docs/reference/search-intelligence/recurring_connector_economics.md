@@ -1,6 +1,6 @@
 # LLM-BOOST-001 — Recurring Connector delta and economics boundary
 
-Status: execution-aware recurring delta + shadow-selection contract  
+Status: execution-aware recurring delta + per-sighting evidence authority hardening  
 Authority: Issue #522
 
 ## Purpose
@@ -45,6 +45,12 @@ Historical rows remain `NULL`; there is no inferred hash backfill.
 For each later sighting, `src/ingestion/recurring_observation_evidence.py` hashes the exact current source URL plus connector-provided structural evidence after removing run/query metadata containers such as `search_profile`, `search_context`, `extraction`, `matching`, `quality_signals` and `acquisition_evidence`.
 
 The evidence projection is versioned as `recurring-observation-evidence.v1`. Hashes are comparable only when both observations have non-null hashes and the same evidence-contract version.
+
+The first truthful cross-execution audit later exposed a second authority gap. `raw_jobs` deliberately remains deduplicated by `source_name + external_job_id`, so a repeated observation may point at the first Bronze row even when the current sighting produced a different evidence hash. Joining that historical raw row back to the changed observation would therefore misrepresent old evidence as current evidence.
+
+Migration `097_add_recurring_observation_evidence_projection.sql` adds nullable `job_observations.normalized_evidence` JSONB. For new sightings the repository writes exactly the `recurring_observation_evidence()` projection used to calculate `normalized_evidence_hash` onto the observation itself. The migration performs no historical backfill; pre-097 observations remain `NULL` even when they already have a valid hash. A fail-closed schema constraint permits only an object containing string `source_url` and object `raw_evidence` when the projection is present.
+
+`raw_jobs` duplicate semantics remain unchanged. Per-sighting evidence authority belongs to the append-only observation, not to a rewritten Bronze identity row.
 
 ## Explicit ingestion-execution correlation
 
@@ -100,6 +106,8 @@ A projection can be a later shadow-sample candidate only when all of the followi
 - an explicit non-`NONE` recurring gap exists;
 - the canonical recurring economics decision is booster-eligible.
 
+A deterministic classifier for a changed sighting must consume the per-sighting `job_observations.normalized_evidence` bound to that observation and verify its hash before interpreting it. It must never substitute `raw_jobs.raw_data` when the observation refers to a deduplicated historical raw row. Missing per-sighting evidence fails closed.
+
 `BASELINE_ONLY`, `CONTRACT_BOUNDARY`, missing execution/evidence, same-execution duplicate/conflict, execution re-entry, identity mismatch and non-forward timestamp are shadow-ineligible. `UNCHANGED` may flow into the economics planner only to preserve and prove its zero-spend suppression; it can never become a shadow sample.
 
 The selector itself performs no provider, LLM, network, database or product operation and reports `product_authority=false`.
@@ -128,16 +136,23 @@ Duplicate observations for the same fingerprint + stage are suppressed. The ledg
 
 ## Promotion sequence
 
-Migration 095 and migration 096 are already governed live schema facts. Historical and the first post-095 observations predate execution correlation and intentionally remain incomparable. Current truthful Runtime evidence therefore has no accepted unchanged/changed cross-execution distribution yet.
+Migrations 095 and 096 are governed live schema facts. Runtime run `31934969237` established the first truthful execution-aware cross-execution distribution on 2026-08-16:
 
-Provider-free selector plumbing can be implemented and validated now because its contract is purely deterministic and synthetic-testable. That does **not** authorize live shadow sampling.
+- `24` comparable distinct-execution pairs;
+- `20` `UNCHANGED`;
+- `4` `EVIDENCE_CHANGED`;
+- provider/model/product effects `0`.
 
-The live promotion sequence is:
+Those four historical changed pairs are **not** retroactively shadow candidates. Their exact current changed evidence projection was not persisted, so the system cannot truthfully re-run the deterministic classifier for those sightings from local state.
 
-1. allow an ordinary, already-authorized future `src.ingest_jobs` execution to create the first execution-correlated baseline;
-2. allow a later distinct ordinary execution to create truthful cross-execution pairs;
-3. measure the real unchanged/changed distribution read-only;
-4. consider only truthful `EVIDENCE_CHANGED` + deterministic `UNRESOLVED` + explicit-gap cases as shadow candidates;
-5. authorize any actual provider/model shadow separately with bounded economics/evidence gates.
+The safe promotion sequence from that evidence is:
 
-Do not force a Daily merely to manufacture continuity evidence. Paid provider/model shadow, canary/default activation, connector activation, scheduler mutation, lifecycle mutation, ranking and application mutation remain separate later gates.
+1. validate the migration-097 + repository-write source slice on an exact Pipeline PR head;
+2. apply migration 097 through a separately guarded Runtime migration path while the old Pipeline source is still safe with the new nullable column;
+3. merge the exact tested Pipeline source only after the live schema is verified;
+4. allow ordinary already-authorized future ingestion to persist hash-bound per-sighting evidence naturally; do not force a Daily merely to manufacture a sample;
+5. when a later truthful `EVIDENCE_CHANGED` pair has current per-sighting evidence, classify that exact evidence deterministically and fail closed if the projection/hash binding is invalid or absent;
+6. consider only deterministic `UNRESOLVED` + explicit-gap cases for shadow selection;
+7. authorize any actual provider/model shadow separately with bounded economics/evidence gates.
+
+Paid provider/model shadow, canary/default activation, connector activation, scheduler mutation, lifecycle mutation, ranking and application mutation remain separate later gates.
