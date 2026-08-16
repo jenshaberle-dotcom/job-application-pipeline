@@ -38,6 +38,16 @@ class _CapturingConnection:
         return self._cursor
 
 
+def _repository(connection: _CapturingConnection) -> JobIngestionRepository:
+    repository = JobIngestionRepository.__new__(JobIngestionRepository)
+
+    def get_connection() -> _CapturingConnection:
+        return connection
+
+    repository.get_connection = get_connection  # type: ignore[method-assign]
+    return repository
+
+
 def _record(title: str, observed_at: str) -> RawJobRecord:
     return RawJobRecord(
         source_name="personio:example",
@@ -56,9 +66,7 @@ def _record(title: str, observed_at: str) -> RawJobRecord:
 
 def test_distinct_executions_keep_distinct_observation_evidence_with_same_raw_job_id() -> None:
     cursor = _CapturingCursor()
-    connection = _CapturingConnection(cursor)
-    repository = JobIngestionRepository.__new__(JobIngestionRepository)
-    repository.get_connection = lambda: connection  # type: ignore[method-assign]
+    repository = _repository(_CapturingConnection(cursor))
 
     repository.save_job_observation(
         record=_record("Data Engineer", "2026-08-15T10:00:00Z"),
@@ -111,9 +119,7 @@ def test_distinct_executions_keep_distinct_observation_evidence_with_same_raw_jo
 
 def test_run_query_metadata_is_not_persisted_as_recurring_evidence() -> None:
     cursor = _CapturingCursor()
-    connection = _CapturingConnection(cursor)
-    repository = JobIngestionRepository.__new__(JobIngestionRepository)
-    repository.get_connection = lambda: connection  # type: ignore[method-assign]
+    repository = _repository(_CapturingConnection(cursor))
 
     repository.save_job_observation(
         record=_record("Data Engineer", "2026-08-16T10:00:00Z"),
