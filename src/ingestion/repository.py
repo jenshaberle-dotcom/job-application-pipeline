@@ -5,6 +5,7 @@ from src.config import get_database_config
 from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
 from src.ingestion.recurring_observation_evidence import (
     RECURRING_OBSERVATION_EVIDENCE_CONTRACT_VERSION,
+    recurring_observation_evidence,
     recurring_observation_evidence_hash,
 )
 from src.normalization.company_keys import normalize_company_key
@@ -387,6 +388,7 @@ class JobIngestionRepository:
         ingestion_run_id: int,
         raw_job_id: int | None,
     ) -> None:
+        evidence = recurring_observation_evidence(record)
         evidence_hash = recurring_observation_evidence_hash(record)
 
         with self.get_connection() as conn:
@@ -399,11 +401,12 @@ class JobIngestionRepository:
                         source_url,
                         ingestion_run_id,
                         raw_job_id,
+                        normalized_evidence,
                         normalized_evidence_hash,
                         evidence_contract_version,
                         is_seen
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
+                    VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, TRUE)
                     ON CONFLICT (
                         ingestion_run_id,
                         source_name,
@@ -416,6 +419,7 @@ class JobIngestionRepository:
                             job_observations.raw_job_id,
                             EXCLUDED.raw_job_id
                         ),
+                        normalized_evidence = EXCLUDED.normalized_evidence,
                         normalized_evidence_hash = EXCLUDED.normalized_evidence_hash,
                         evidence_contract_version = EXCLUDED.evidence_contract_version,
                         is_seen = TRUE;
@@ -426,6 +430,7 @@ class JobIngestionRepository:
                         record.source_url,
                         ingestion_run_id,
                         raw_job_id,
+                        json.dumps(evidence, ensure_ascii=False),
                         evidence_hash,
                         RECURRING_OBSERVATION_EVIDENCE_CONTRACT_VERSION,
                     ),
