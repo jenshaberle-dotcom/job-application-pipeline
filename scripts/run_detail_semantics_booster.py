@@ -2,7 +2,7 @@
 
 The command fetches exactly one public HTTPS detail page with the existing
 DETAIL-001 HTTP helper, extracts bounded plain text without persisting raw HTML,
-runs deterministic semantic term extraction first, and only then permits the
+runs deterministic semantic extraction first, and only then permits the
 canonical Luna -> Terra -> Sol -> Luna-max semantic hypothesis cascade for the
 explicitly requested missing fields.
 
@@ -35,6 +35,9 @@ from src.search_intelligence.detail_semantics_booster_execution import (
     DetailSemanticsHypothesisObservation,
     DetailSemanticsValidationObservation,
     execute_detail_semantics_booster,
+)
+from src.search_intelligence.detail_semantics_deterministic import (
+    deterministic_detail_semantics,
 )
 from src.search_intelligence.detail_semantics_gap import (
     SEMANTIC_FIELD_NAMES,
@@ -177,6 +180,7 @@ def _deterministic_semantics(
     target_location: str,
     requested_fields: tuple[str, ...],
 ) -> tuple[dict[str, object], tuple[SemanticEvidenceReference, ...]]:
+    """Legacy lexical helper retained temporarily for regression compatibility."""
     fields: dict[str, object] = {}
     references: list[SemanticEvidenceReference] = []
 
@@ -379,8 +383,10 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         and profile_contract_satisfied
         and geography_contract_satisfied
     )
-    deterministic_fields, deterministic_references = _deterministic_semantics(
+    deterministic_fields, deterministic_references = deterministic_detail_semantics(
+        html=html,
         text=detail_text,
+        page_title=extractor.title,
         detail_url=final_url,
         target_location=args.target_location,
         requested_fields=requested_fields,
