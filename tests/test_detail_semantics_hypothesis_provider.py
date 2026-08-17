@@ -36,18 +36,11 @@ def transport_returning(
     return transport
 
 
-def span(value: str, evidence: str, *, field: str) -> dict[str, object]:
-    start = DETAIL_TEXT.index(evidence)
-    return {
-        "field": field,
-        "value": value,
-        "evidence": evidence,
-        "span_start": start,
-        "span_end": start + len(evidence),
-    }
+def hypothesis(value: str, evidence: str, *, field: str) -> dict[str, object]:
+    return {"field": field, "value": value, "evidence": evidence}
 
 
-def test_exact_spans_become_same_detail_evidence_references() -> None:
+def test_exact_quotes_receive_deterministic_same_detail_offsets() -> None:
     observation = request_detail_semantics_hypotheses(
         company_name="Example GmbH",
         detail_url=DETAIL_URL,
@@ -59,10 +52,10 @@ def test_exact_spans_become_same_detail_evidence_references() -> None:
         transport=transport_returning(
             response_for(
                 [
-                    span("Data Engineer", "Senior Data Engineer", field="role"),
-                    span("Senior", "Senior Data Engineer", field="seniority"),
-                    span("Hannover", "in Hannover", field="location"),
-                    span("Hybrid", "Hybrid work", field="remote"),
+                    hypothesis("Data Engineer", "Senior Data Engineer", field="role"),
+                    hypothesis("Senior", "Senior Data Engineer", field="seniority"),
+                    hypothesis("Hannover", "in Hannover", field="location"),
+                    hypothesis("Hybrid", "Hybrid work", field="remote"),
                 ]
             )
         ),
@@ -79,11 +72,42 @@ def test_exact_spans_become_same_detail_evidence_references() -> None:
     assert len(observation.evidence_references) == 4
     assert all(item.source_url == DETAIL_URL for item in observation.evidence_references)
     assert all(
-        DETAIL_TEXT[item.span_start : item.span_end] == item.evidence
+        item.span_start is not None
+        and item.span_end is not None
+        and DETAIL_TEXT[item.span_start : item.span_end] == item.evidence
         for item in observation.evidence_references
-        if item.span_start is not None and item.span_end is not None
     )
     assert observation.product_authority is False
+
+
+def test_provider_contract_no_longer_asks_model_for_python_offsets() -> None:
+    captured: list[dict[str, object]] = []
+
+    def transport(url, headers, payload, timeout_seconds):  # type: ignore[no-untyped-def]
+        captured.append(payload)
+        return response_for([])
+
+    observation = request_detail_semantics_hypotheses(
+        company_name="Example GmbH",
+        detail_url=DETAIL_URL,
+        detail_text=DETAIL_TEXT,
+        requested_semantic_fields=("role",),
+        current_semantic_fields={},
+        api_key="test-key",
+        model="gpt-5.6-luna",
+        transport=transport,
+    )
+
+    assert observation.status == "completed"
+    schema = captured[0]["text"]["format"]["schema"]  # type: ignore[index]
+    item_schema = schema["properties"]["hypotheses"]["items"]  # type: ignore[index]
+    assert item_schema["required"] == ["field", "value", "evidence"]
+    assert "span_start" not in item_schema["properties"]
+    assert "span_end" not in item_schema["properties"]
+
+    packet = json.loads(captured[0]["input"][1]["content"][0]["text"])  # type: ignore[index]
+    assert packet["authority_constraints"]["exact_evidence_quote_required"] is True
+    assert packet["authority_constraints"]["deterministic_unique_span_required"] is True
 
 
 def test_multiple_skill_hypotheses_are_aggregated_without_authority() -> None:
@@ -98,8 +122,8 @@ def test_multiple_skill_hypotheses_are_aggregated_without_authority() -> None:
         transport=transport_returning(
             response_for(
                 [
-                    span("Python", "Python und SQL", field="skills"),
-                    span("SQL", "Python und SQL", field="skills"),
+                    hypothesis("Python", "Python und SQL", field="skills"),
+                    hypothesis("SQL", "Python und SQL", field="skills"),
                 ]
             )
         ),
@@ -111,10 +135,7 @@ def test_multiple_skill_hypotheses_are_aggregated_without_authority() -> None:
     assert observation.product_authority is False
 
 
-def test_mismatched_span_fails_closed_before_executor() -> None:
-    bad = span("Data Engineer", "Senior Data Engineer", field="role")
-    bad["span_end"] = int(bad["span_end"]) - 1
-
+def test_quote_missing_from_bounded_detail_fails_closed() -> None:
     observation = request_detail_semantics_hypotheses(
         company_name="Example GmbH",
         detail_url=DETAIL_URL,
@@ -123,19 +144,38 @@ def test_mismatched_span_fails_closed_before_executor() -> None:
         current_semantic_fields={},
         api_key="test-key",
         model="gpt-5.6-luna",
-        transport=transport_returning(response_for([bad])),
+        transport=transport_returning(
+            response_for([hypothesis("Data Engineer", "Data Engineer Berlin", field="role")])
+        ),
     )
 
     assert observation.status == "failed_closed"
     assert observation.semantic_fields == {}
     assert observation.evidence_references == ()
-    assert "span does not match" in observation.rationale
+    assert "does not occur in bounded detail text" in observation.rationale
     assert observation.product_authority is False
 
 
-def test_value_must_occur_verbatim_inside_evidence() -> None:
-    bad = span("Principal", "Senior Data Engineer", field="seniority")
+def test_repeated_exact_quote_is_ambiguous_and_fails_closed() -> None:
+    repeated_text = "Python ist erforderlich. Python ist ein Plus."
+    observation = request_detail_semantics_hypotheses(
+        company_name="Example GmbH",
+        detail_url=DETAIL_URL,
+        detail_text=repeated_text,
+        requested_semantic_fields=("skills",),
+        current_semantic_fields={},
+        api_key="test-key",
+        model="gpt-5.6-luna",
+        transport=transport_returning(
+            response_for([hypothesis("Python", "Python", field="skills")])
+        ),
+    )
 
+    assert observation.status == "failed_closed"
+    assert "ambiguous in bounded detail text" in observation.rationale
+
+
+def test_value_must_occur_verbatim_inside_evidence() -> None:
     observation = request_detail_semantics_hypotheses(
         company_name="Example GmbH",
         detail_url=DETAIL_URL,
@@ -144,7 +184,9 @@ def test_value_must_occur_verbatim_inside_evidence() -> None:
         current_semantic_fields={},
         api_key="test-key",
         model="gpt-5.6-luna",
-        transport=transport_returning(response_for([bad])),
+        transport=transport_returning(
+            response_for([hypothesis("Principal", "Senior Data Engineer", field="seniority")])
+        ),
     )
 
     assert observation.status == "failed_closed"
@@ -161,7 +203,7 @@ def test_unrequested_field_fails_closed() -> None:
         api_key="test-key",
         model="gpt-5.6-luna",
         transport=transport_returning(
-            response_for([span("Hannover", "in Hannover", field="location")])
+            response_for([hypothesis("Hannover", "in Hannover", field="location")])
         ),
     )
 
@@ -181,8 +223,8 @@ def test_duplicate_scalar_field_fails_closed() -> None:
         transport=transport_returning(
             response_for(
                 [
-                    span("Data Engineer", "Senior Data Engineer", field="role"),
-                    span("Senior Data Engineer", "Senior Data Engineer", field="role"),
+                    hypothesis("Data Engineer", "Senior Data Engineer", field="role"),
+                    hypothesis("Senior Data Engineer", "Senior Data Engineer", field="role"),
                 ]
             )
         ),
