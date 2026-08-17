@@ -11,7 +11,7 @@ from __future__ import annotations
 from html.parser import HTMLParser
 import json
 import re
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from src.search_intelligence.detail_semantics_gap import SemanticEvidenceReference
 
