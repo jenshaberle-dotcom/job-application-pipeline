@@ -2,9 +2,9 @@
 
 The provider receives only already-bounded public detail-page text and may return
 hypotheses for an explicit requested semantic-field subset. Every returned field
-must carry an exact evidence substring and Python character offsets into that
-same bounded text. The adapter verifies those offsets before an observation can
-reach the authority-neutral semantic executor.
+must carry an exact evidence substring from that same bounded text. Python
+character offsets are computed and validated deterministically after the model
+response; ambiguous repeated evidence fails closed.
 
 Provider output has no semantic, gate, product, lifecycle, ranking or write
 authority.
@@ -26,6 +26,7 @@ from src.search_intelligence.detail_semantics_gap import (
     SEMANTIC_FIELD_NAMES,
     SemanticEvidenceReference,
 )
+from src.search_intelligence.detail_semantics_grounding import locate_unique_evidence_span
 from src.search_intelligence.origin_llm_adjudication import OPENAI_RESPONSES_URL
 from src.search_intelligence.origin_llm_model_campaign_types import (
     MODEL_PRICES_USD_PER_MILLION,
@@ -42,9 +43,9 @@ MAX_EVIDENCE_CHARS = 1_200
 
 SYSTEM_INSTRUCTIONS = """You extract bounded semantic evidence from one already-supported public job-detail page.
 Return hypotheses only for the explicitly requested fields: role, seniority, skills, location, remote.
-Every hypothesis must quote an exact contiguous substring from the supplied detail_text and must provide
-zero-based Python character offsets span_start/span_end such that detail_text[span_start:span_end] equals
-the evidence string exactly. The value must itself occur verbatim inside that evidence substring.
+Every hypothesis must quote an exact contiguous substring from the supplied detail_text. Do not calculate
+or return character offsets; the deterministic validator locates the exact quote afterwards and rejects
+missing or ambiguous repeated evidence. The value must itself occur verbatim inside that evidence substring.
 Use one hypothesis for role, seniority, location or remote. Skills may have multiple hypotheses, one per
 skill. Omit any field that cannot be supported by an exact quote. Never infer from outside knowledge,
 never use another URL, never claim relevance, gate pass or product authority, and never invent evidence.
@@ -140,13 +141,7 @@ def _schema(requested_fields: tuple[str, ...]) -> dict[str, object]:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": [
-                        "field",
-                        "value",
-                        "evidence",
-                        "span_start",
-                        "span_end",
-                    ],
+                    "required": ["field", "value", "evidence"],
                     "properties": {
                         "field": {"type": "string", "enum": list(requested_fields)},
                         "value": {
@@ -159,8 +154,6 @@ def _schema(requested_fields: tuple[str, ...]) -> dict[str, object]:
                             "minLength": 1,
                             "maxLength": MAX_EVIDENCE_CHARS,
                         },
-                        "span_start": {"type": "integer", "minimum": 0},
-                        "span_end": {"type": "integer", "minimum": 1},
                     },
                 },
             },
@@ -195,20 +188,17 @@ def _verified_observation_payload(
             raise ValueError(f"unrequested semantic field returned: {field or '<empty>'}")
         value = str(item.get("value") or "").strip()
         evidence = str(item.get("evidence") or "")
-        span_start = item.get("span_start")
-        span_end = item.get("span_end")
         if not value or len(value) > MAX_VALUE_CHARS:
             raise ValueError("semantic hypothesis value is empty or oversized")
         if not evidence or len(evidence) > MAX_EVIDENCE_CHARS:
             raise ValueError("semantic evidence is empty or oversized")
-        if type(span_start) is not int or type(span_end) is not int:
-            raise ValueError("semantic evidence offsets must be integers")
-        if span_start < 0 or span_end <= span_start or span_end > len(detail_text):
-            raise ValueError("semantic evidence offsets are out of bounds")
-        if detail_text[span_start:span_end] != evidence:
-            raise ValueError("semantic evidence span does not match bounded detail text")
         if value.casefold() not in evidence.casefold():
             raise ValueError("semantic value must occur verbatim inside its evidence")
+
+        span_start, span_end = locate_unique_evidence_span(
+            detail_text=detail_text,
+            evidence=evidence,
+        )
 
         if field == "skills":
             if value not in skill_values:
@@ -249,7 +239,7 @@ def request_detail_semantics_hypotheses(
     timeout_seconds: float = 60.0,
     transport: Transport = _transport,
 ) -> DetailSemanticsHypothesisObservation:
-    """Request span-grounded semantic hypotheses with zero authority."""
+    """Request quote-grounded semantic hypotheses with zero authority."""
 
     requested = _requested_fields(requested_semantic_fields)
     bounded_text = str(detail_text or "")[:MAX_DETAIL_TEXT_CHARS]
@@ -264,7 +254,8 @@ def request_detail_semantics_hypotheses(
         "detail_text": bounded_text,
         "detail_text_char_count": len(bounded_text),
         "authority_constraints": {
-            "exact_span_required": True,
+            "exact_evidence_quote_required": True,
+            "deterministic_unique_span_required": True,
             "same_detail_url_only": True,
             "hypothesis_only": True,
             "gate_pass": False,
