@@ -436,19 +436,6 @@ def deterministic_detail_semantics(
                     ),
                 ),
             )
-            if "location" not in fields:
-                _put_scalar(
-                    fields,
-                    references,
-                    "location",
-                    _title_reference(
-                        field="location",
-                        terms=location_terms,
-                        page_title=page_title,
-                        text=text,
-                        detail_url=detail_url,
-                    ),
-                )
 
     if "remote" in requested:
         for job in job_postings:
