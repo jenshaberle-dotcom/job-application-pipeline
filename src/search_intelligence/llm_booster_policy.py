@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 import hashlib
+import json
 from typing import Iterable
 
 BOOSTER_CONTRACT_VERSION = "LLM-BOOST-001.v1"
@@ -25,6 +26,9 @@ class BoosterSurface(StrEnum):
     DETAIL_DISCOVERY = "detail_discovery"
     DETAIL_SEMANTICS = "detail_semantics"
     RECURRING_CONNECTOR = "recurring_connector"
+    PRODUCT_V1_ASSESSMENT = "product_v1_assessment"
+    PRODUCT_V1_RANKING = "product_v1_ranking"
+    PRODUCT_V1_APPLICATION = "product_v1_application"
 
 
 class BoosterStage(StrEnum):
@@ -154,6 +158,131 @@ class BoosterPlan:
                 nominal_model_cost_if_all_eligible_reached(self), 8
             ),
         }
+
+
+@dataclass(frozen=True)
+class BoosterReplayDecision:
+    """Pure provider-eligibility decision for one canonical booster input.
+
+    ``prior_terminal_input_fingerprints`` is caller-supplied cache truth. Callers
+    must only provide fingerprints whose previous evaluation reached a terminal
+    reusable outcome. Transient provider failures are intentionally not terminal
+    and therefore must not be inserted into that set.
+    """
+
+    surface: BoosterSurface
+    input_fingerprint: str
+    provider_eligible: bool
+    replay_suppressed: bool
+    reason_code: str
+    provider_requests: int = 0
+    llm_requests: int = 0
+    database_requests: int = 0
+    product_writes: int = 0
+    product_authority: bool = False
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "surface": self.surface.value,
+            "input_fingerprint": self.input_fingerprint,
+            "provider_eligible": self.provider_eligible,
+            "replay_suppressed": self.replay_suppressed,
+            "reason_code": self.reason_code,
+            "provider_requests": self.provider_requests,
+            "llm_requests": self.llm_requests,
+            "database_requests": self.database_requests,
+            "product_writes": self.product_writes,
+            "product_authority": self.product_authority,
+        }
+
+
+def booster_input_fingerprint(
+    *,
+    surface: BoosterSurface,
+    source_identity: str,
+    normalized_input_hash: str,
+    unresolved_scope: Iterable[str],
+    contract_version: str = BOOSTER_CONTRACT_VERSION,
+) -> str:
+    """Build a stable replay identity before any provider/model request.
+
+    The caller owns source normalization and the choice of durable input fields.
+    Volatile request IDs, timestamps or transport metadata must never enter
+    ``normalized_input_hash``. Scope is canonicalized as a sorted set so caller
+    ordering cannot create false deltas and unnecessary provider spend.
+    """
+
+    source = source_identity.strip()
+    input_hash = normalized_input_hash.strip()
+    version = contract_version.strip()
+    scope = tuple(
+        sorted(
+            {
+                normalized
+                for item in unresolved_scope
+                if (normalized := str(item).strip())
+            }
+        )
+    )
+    if not source or not input_hash or not version:
+        raise ValueError("booster replay fingerprint fields must be non-empty")
+    if not scope:
+        raise ValueError("booster replay fingerprint requires unresolved scope")
+
+    encoded = json.dumps(
+        {
+            "contract_version": version,
+            "surface": surface.value,
+            "source_identity": source,
+            "normalized_input_hash": input_hash,
+            "unresolved_scope": list(scope),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def build_booster_replay_decision(
+    *,
+    surface: BoosterSurface,
+    source_identity: str,
+    normalized_input_hash: str,
+    unresolved_scope: Iterable[str],
+    prior_terminal_input_fingerprints: Iterable[str] = (),
+    contract_version: str = BOOSTER_CONTRACT_VERSION,
+) -> BoosterReplayDecision:
+    """Fail closed on an unchanged previously-terminal booster input.
+
+    This function performs no cache lookup or persistence. It only evaluates
+    caller-supplied terminal cache truth and always records zero side effects.
+    """
+
+    fingerprint = booster_input_fingerprint(
+        surface=surface,
+        source_identity=source_identity,
+        normalized_input_hash=normalized_input_hash,
+        unresolved_scope=unresolved_scope,
+        contract_version=contract_version,
+    )
+    terminal = {
+        normalized
+        for item in prior_terminal_input_fingerprints
+        if (normalized := str(item).strip())
+    }
+    replay_suppressed = fingerprint in terminal
+    return BoosterReplayDecision(
+        surface=surface,
+        input_fingerprint=fingerprint,
+        provider_eligible=not replay_suppressed,
+        replay_suppressed=replay_suppressed,
+        reason_code=(
+            "unchanged_terminal_booster_input_fingerprint"
+            if replay_suppressed
+            else "new_or_changed_booster_input_fingerprint"
+        ),
+    )
 
 
 def recurring_evidence_fingerprint(
