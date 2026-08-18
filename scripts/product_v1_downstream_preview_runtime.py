@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import psycopg
 from psycopg.rows import dict_row
 
@@ -35,6 +37,16 @@ WHERE readiness.silver_job_id = %s
 """
 
 
+@dataclass(frozen=True)
+class DownstreamEvidenceMaterialization:
+    """One DB-authoritative Product V1 target plus its current bounded detail text."""
+
+    row: dict[str, object]
+    final_url: str
+    fetched_title: str
+    detail_text: str
+
+
 def _load_preview_job(silver_job_id: int) -> dict[str, object]:
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(),
@@ -48,8 +60,15 @@ def _load_preview_job(silver_job_id: int) -> dict[str, object]:
     return dict(row)
 
 
-def load_downstream_evidence_preview_payload(silver_job_id: int) -> dict[str, object]:
-    """Load one authoritative row and return provider-free deterministic preview."""
+def load_downstream_evidence_materialization(
+    silver_job_id: int,
+) -> DownstreamEvidenceMaterialization:
+    """Load one authoritative row and fetch its current public detail text.
+
+    This is the shared read-only boundary for deterministic preview and bounded
+    Product V1 AI-booster campaigns. It performs no provider/model call and no
+    database/product write.
+    """
 
     if silver_job_id <= 0:
         raise DownstreamPreviewStop("silver_job_id must be positive")
@@ -63,7 +82,7 @@ def load_downstream_evidence_preview_payload(silver_job_id: int) -> dict[str, ob
 
     source_url = str(row.get("source_url") or "")
     final_url, fetched_title, detail_text = fetch_public_https_detail_text(source_url)
-    return build_product_v1_downstream_preview(
+    return DownstreamEvidenceMaterialization(
         row=row,
         final_url=final_url,
         fetched_title=fetched_title,
@@ -71,4 +90,20 @@ def load_downstream_evidence_preview_payload(silver_job_id: int) -> dict[str, ob
     )
 
 
-__all__ = ["load_downstream_evidence_preview_payload"]
+def load_downstream_evidence_preview_payload(silver_job_id: int) -> dict[str, object]:
+    """Load one authoritative row and return provider-free deterministic preview."""
+
+    materialization = load_downstream_evidence_materialization(silver_job_id)
+    return build_product_v1_downstream_preview(
+        row=materialization.row,
+        final_url=materialization.final_url,
+        fetched_title=materialization.fetched_title,
+        detail_text=materialization.detail_text,
+    )
+
+
+__all__ = [
+    "DownstreamEvidenceMaterialization",
+    "load_downstream_evidence_materialization",
+    "load_downstream_evidence_preview_payload",
+]
