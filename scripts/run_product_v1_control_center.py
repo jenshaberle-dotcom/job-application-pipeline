@@ -2,7 +2,7 @@
 
 The canonical launcher preserves the existing Product V1 and source-connector
 read models and adds one read-only deterministic downstream evidence-preview
-GET endpoint. POST remains blocked by the inherited reviewed read-only contract.
+GET endpoint. POST remains explicitly blocked by the reviewed read-only contract.
 """
 
 from __future__ import annotations
@@ -29,6 +29,9 @@ from src.search_intelligence.product_v1_downstream_preview import DownstreamPrev
 build_parser = _base.build_parser
 load_product_v1_payload = _base.load_product_v1_payload
 load_source_connector_overview_payload = _base.load_source_connector_overview_payload
+build_source_connector_overview = _base.build_source_connector_overview
+rank_product_jobs = _base.rank_product_jobs
+_HARD_FILTER_POLICY_RELATION = "product_v1_hard_filter_policy"
 
 
 class ProductV1Handler(_base.ProductV1Handler):
@@ -38,6 +41,12 @@ class ProductV1Handler(_base.ProductV1Handler):
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/product-v1":
+            super().do_GET()
+            return
+        if parsed.path == "/api/v1/source-connectors":
+            super().do_GET()
+            return
         if parsed.path != "/api/v1/product-v1/evidence-preview":
             super().do_GET()
             return
@@ -96,6 +105,15 @@ class ProductV1Handler(_base.ProductV1Handler):
                 },
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
+
+    def do_POST(self) -> None:  # noqa: N802 - explicit canonical read-only boundary
+        self._send_json(
+            {
+                "status": "blocked",
+                "reason": "Product V1 API is read-only; operator actions require separate reviewed contracts.",
+            },
+            status=HTTPStatus.METHOD_NOT_ALLOWED,
+        )
 
 
 def run_server(args: argparse.Namespace) -> None:
