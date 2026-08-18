@@ -121,10 +121,19 @@ def test_canonical_preview_query_fails_closed_before_loader(monkeypatch) -> None
 
 
 def test_canonical_handler_preserves_reviewed_post_block() -> None:
-    assert (
-        canonical_server.ProductV1Handler.do_POST
-        is canonical_server._base.ProductV1Handler.do_POST
-    )
+    handler, responses = _handler("/api/v1/product-v1")
+
+    handler.do_POST()
+
+    assert responses == [
+        (
+            {
+                "status": "blocked",
+                "reason": "Product V1 API is read-only; operator actions require separate reviewed contracts.",
+            },
+            HTTPStatus.METHOD_NOT_ALLOWED,
+        )
+    ]
     assert canonical_server.load_product_v1_payload is canonical_server._base.load_product_v1_payload
 
 
