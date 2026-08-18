@@ -104,7 +104,7 @@ def test_missing_fit_signals_are_not_invented() -> None:
 
 
 def test_evidence_quality_requires_origin_activity_and_assessment_coverage() -> None:
-    title = "Data Engineer"
+    title = "Senior Data Engineer"
     description = (
         "Permanent employment. Hybrid work model. Fluent German and English. "
         "35-40 hours per week. We require a senior-level professional."
