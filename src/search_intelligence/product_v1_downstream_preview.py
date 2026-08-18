@@ -9,7 +9,6 @@ or Top-5 authority, or persists raw HTML.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from hashlib import sha256
 from html.parser import HTMLParser
 import ipaddress
