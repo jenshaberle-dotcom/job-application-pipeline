@@ -57,6 +57,7 @@ def test_accompio_and_computacenter_are_registered_but_not_activated_or_ingested
     assert payload["schema_version"] == SCHEMA_VERSION
     for source_name in ("accompio:discovery", "computacenter:discovery"):
         source = source_by_name(payload, source_name)
+        assert source["candidate_id"] == 1
         assert source["connector"]["implemented"] is True
         assert source["connector"]["code_backed_registered"] is True
         assert source["gates"]["connector_validation_gate"]["passed"] is True
@@ -74,6 +75,37 @@ def test_accompio_and_computacenter_are_registered_but_not_activated_or_ingested
             "ingestion": "not_ingested",
         }
         assert source["current_blocker"] == "controlled_activation_not_completed"
+
+
+def test_overview_projects_latest_candidate_id_for_exact_final_approval_target() -> None:
+    source_name = "review:source"
+    older = approved_candidate(source_name, "Review Source")
+    older.update(
+        {
+            "candidate_id": 7,
+            "updated_at": "2026-08-17T10:00:00+00:00",
+            "final_approval_gate_status": "manual_review_required",
+            "final_approval_gate_decision": None,
+        }
+    )
+    latest = dict(older)
+    latest.update(
+        {
+            "candidate_id": 9,
+            "updated_at": "2026-08-18T10:00:00+00:00",
+        }
+    )
+
+    payload = build_source_connector_overview(
+        registry=FakeRegistry(),
+        candidates=[latest, older],
+    )
+
+    source = source_by_name(payload, source_name)
+    assert source["candidate_id"] == 9
+    assert source["current_blocker"] == "final_approval_incomplete"
+    assert source["gates"]["connector_validation_gate"]["passed"] is True
+    assert source["gates"]["final_approval_gate"]["passed"] is False
 
 
 def test_active_source_reports_search_profiles_ingestion_and_layers_separately() -> None:
