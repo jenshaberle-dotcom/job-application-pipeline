@@ -2,9 +2,11 @@
 
 The provider receives only already-bounded public detail-page text and may return
 hypotheses for an explicit requested semantic-field subset. Every returned field
-must carry an exact evidence substring from that same bounded text. Python
-character offsets are computed and validated deterministically after the model
-response; ambiguous repeated evidence fails closed.
+must carry an exact evidence substring and an observed source value from that same
+bounded text. Python character offsets are computed and validated deterministically
+after the model response; ambiguous repeated evidence fails closed. Canonical
+semantic values are derived only by deterministic field normalization after the
+source value has been grounded.
 
 Provider output has no semantic, gate, product, lifecycle, ranking or write
 authority.
@@ -27,6 +29,9 @@ from src.search_intelligence.detail_semantics_gap import (
     SemanticEvidenceReference,
 )
 from src.search_intelligence.detail_semantics_grounding import locate_unique_evidence_span
+from src.search_intelligence.detail_semantics_normalization import (
+    normalize_detail_semantic_value,
+)
 from src.search_intelligence.origin_llm_adjudication import OPENAI_RESPONSES_URL
 from src.search_intelligence.origin_llm_model_campaign_types import (
     MODEL_PRICES_USD_PER_MILLION,
@@ -43,12 +48,14 @@ MAX_EVIDENCE_CHARS = 1_200
 
 SYSTEM_INSTRUCTIONS = """You extract bounded semantic evidence from one already-supported public job-detail page.
 Return hypotheses only for the explicitly requested fields: role, seniority, skills, location, remote.
-Every hypothesis must quote an exact contiguous substring from the supplied detail_text. Do not calculate
-or return character offsets; the deterministic validator locates the exact quote afterwards and rejects
-missing or ambiguous repeated evidence. The value must itself occur verbatim inside that evidence substring.
-Use one hypothesis for role, seniority, location or remote. Skills may have multiple hypotheses, one per
-skill. Omit any field that cannot be supported by an exact quote. Never infer from outside knowledge,
-never use another URL, never claim relevance, gate pass or product authority, and never invent evidence.
+Every hypothesis must quote an exact contiguous substring from the supplied detail_text and copy the
+observed_value exactly from that quoted evidence. Do not canonicalize, translate, generalize or infer the
+observed_value. Do not calculate or return character offsets; deterministic code locates the exact quote
+and then derives the canonical field value from the grounded observed source phrase. Use one hypothesis
+for role, seniority, location or remote. Skills may have multiple hypotheses, one per skill. Omit any field
+that cannot be supported by an exact quote. Years of experience are not a seniority label. Never infer from
+outside knowledge, never use another URL, never claim relevance, gate pass or product authority, and never
+invent evidence.
 """
 
 
@@ -141,10 +148,10 @@ def _schema(requested_fields: tuple[str, ...]) -> dict[str, object]:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["field", "value", "evidence"],
+                    "required": ["field", "observed_value", "evidence"],
                     "properties": {
                         "field": {"type": "string", "enum": list(requested_fields)},
-                        "value": {
+                        "observed_value": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": MAX_VALUE_CHARS,
@@ -186,34 +193,38 @@ def _verified_observation_payload(
         field = str(item.get("field") or "").strip().lower()
         if field not in requested:
             raise ValueError(f"unrequested semantic field returned: {field or '<empty>'}")
-        value = str(item.get("value") or "").strip()
+        observed_value = str(item.get("observed_value") or "").strip()
         evidence = str(item.get("evidence") or "")
-        if not value or len(value) > MAX_VALUE_CHARS:
-            raise ValueError("semantic hypothesis value is empty or oversized")
+        if not observed_value or len(observed_value) > MAX_VALUE_CHARS:
+            raise ValueError("semantic observed source value is empty or oversized")
         if not evidence or len(evidence) > MAX_EVIDENCE_CHARS:
             raise ValueError("semantic evidence is empty or oversized")
-        if value.casefold() not in evidence.casefold():
-            raise ValueError("semantic value must occur verbatim inside its evidence")
+        if observed_value.casefold() not in evidence.casefold():
+            raise ValueError("semantic observed source value must occur verbatim inside its evidence")
 
         span_start, span_end = locate_unique_evidence_span(
             detail_text=detail_text,
             evidence=evidence,
         )
+        canonical_value = normalize_detail_semantic_value(
+            field=field,
+            observed_value=observed_value,
+        )
 
         if field == "skills":
-            if value not in skill_values:
-                skill_values.append(value)
+            if canonical_value not in skill_values:
+                skill_values.append(canonical_value)
         elif field in scalar_fields:
             raise ValueError(f"duplicate scalar semantic field returned: {field}")
         else:
-            scalar_fields[field] = value
+            scalar_fields[field] = canonical_value
 
         references.append(
             SemanticEvidenceReference(
                 field=field,
                 source_url=detail_url,
                 evidence=evidence,
-                value=value,
+                value=observed_value,
                 span_start=span_start,
                 span_end=span_end,
             )
@@ -255,6 +266,8 @@ def request_detail_semantics_hypotheses(
         "detail_text_char_count": len(bounded_text),
         "authority_constraints": {
             "exact_evidence_quote_required": True,
+            "observed_source_value_required": True,
+            "deterministic_field_normalization_required": True,
             "deterministic_unique_span_required": True,
             "same_detail_url_only": True,
             "hypothesis_only": True,
