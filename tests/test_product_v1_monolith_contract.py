@@ -98,13 +98,17 @@ def test_monolith_runner_is_read_only_and_provider_free_by_default() -> None:
     assert "--write-review-state requires --fetch-stepstone" in source
 
 
-def test_product_v1_api_has_no_mutating_route() -> None:
+def test_product_v1_api_has_only_reviewed_final_approval_mutation() -> None:
     source = API.read_text(encoding="utf-8")
 
     assert 'parsed.path == "/api/v1/product-v1"' in source
+    assert 'parsed.path == "/api/v1/source-connectors"' in source
+    assert "FINAL_APPROVAL_ACTION_PATH" in source
+    assert "parse_final_approval_action_payload" in source
+    assert "apply_final_approval_action" in source
     assert "def do_POST" in source
     assert "METHOD_NOT_ALLOWED" in source
-    assert "read-only" in source
+    assert '"approval_token"' not in source
     assert "subprocess" not in source
     assert "provider" in source
     assert "rank_product_jobs" in source
@@ -159,7 +163,7 @@ def test_approved_policies_leave_only_application_source_blockers() -> None:
     )
 
 
-def test_react_control_center_consumes_the_read_only_product_api() -> None:
+def test_react_control_center_consumes_the_product_api() -> None:
     package = (FRONTEND / "package.json").read_text(encoding="utf-8")
     app = (FRONTEND / "src" / "App.tsx").read_text(encoding="utf-8")
     styles = (FRONTEND / "src" / "styles.css").read_text(encoding="utf-8")

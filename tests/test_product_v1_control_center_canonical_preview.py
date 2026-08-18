@@ -120,7 +120,7 @@ def test_canonical_preview_query_fails_closed_before_loader(monkeypatch) -> None
     assert responses[0][0]["product_authority"] is False
 
 
-def test_canonical_handler_preserves_reviewed_post_block() -> None:
+def test_canonical_handler_preserves_post_block_outside_reviewed_action() -> None:
     handler, responses = _handler("/api/v1/product-v1")
 
     handler.do_POST()
@@ -129,7 +129,7 @@ def test_canonical_handler_preserves_reviewed_post_block() -> None:
         (
             {
                 "status": "blocked",
-                "reason": "Product V1 API is read-only; operator actions require separate reviewed contracts.",
+                "reason": "Product V1 POST route is not in the reviewed action allowlist.",
             },
             HTTPStatus.METHOD_NOT_ALLOWED,
         )
