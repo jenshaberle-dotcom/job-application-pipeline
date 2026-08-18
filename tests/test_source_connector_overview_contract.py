@@ -8,6 +8,9 @@ from src.search_intelligence.source_connector_overview import (
 
 API = Path("scripts/run_product_v1_control_center.py")
 APP = Path("frontend/control-center/src/App.tsx")
+FINAL_APPROVAL_DIALOG = Path(
+    "frontend/control-center/src/FinalApprovalReviewDialog.tsx"
+)
 
 
 def test_product_payload_embeds_read_only_source_connector_overview() -> None:
@@ -59,3 +62,31 @@ def test_react_overview_names_all_distinct_lifecycle_stages() -> None:
     assert "registration is not activation" in source
     assert "No source activation" in source
     assert "activateSource" not in source
+
+
+def test_final_approval_ui_reuses_only_the_reviewed_3a_action_and_refetches_truth() -> None:
+    app = APP.read_text(encoding="utf-8")
+    dialog = FINAL_APPROVAL_DIALOG.read_text(encoding="utf-8")
+
+    assert "candidate_id: number | null" in app
+    assert 'source.current_blocker === "final_approval_incomplete"' in app
+    assert "FinalApprovalReviewDialog" in app
+    assert 'fetch("/api/v1/product-v1"' in app
+
+    assert (
+        'FINAL_APPROVAL_ACTION_PATH = "/api/v1/source-connectors/final-approval"'
+        in dialog
+    )
+    assert (
+        'FINAL_APPROVAL_CONFIRMATION = "approve_final_registration_gate"'
+        in dialog
+    )
+    assert 'source.current_blocker !== "final_approval_incomplete"' in dialog
+    assert "candidate_id: candidateId" in dialog
+    assert "confirmation: FINAL_APPROVAL_CONFIRMATION" in dialog
+    assert "await refreshProductTruth()" in dialog
+    assert "Evidence" in dialog
+    assert "Boundary" in dialog
+    assert "Confirmation" in dialog
+    assert "approval_token" not in dialog
+    assert "activateSource" not in dialog

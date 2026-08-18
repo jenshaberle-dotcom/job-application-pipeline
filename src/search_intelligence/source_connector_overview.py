@@ -321,6 +321,9 @@ def build_source_connector_overview(
             )
         )
         candidate_status = str(_get(candidate, "candidate_status") or "unknown")
+        candidate_id = int(
+            _get(candidate, "candidate_id") or _get(candidate, "id") or 0
+        ) or None
         issues = _issues(
             candidate_status,
             validation,
@@ -347,6 +350,7 @@ def build_source_connector_overview(
         company_name = str(_get(candidate, "company_name") or "").strip()
         sources.append(
             {
+                "candidate_id": candidate_id,
                 "source_name": source_name,
                 "source_label": company_name
                 or source_name.replace(":", " · ").replace("_", " ").title(),

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import FinalApprovalReviewDialog from "./FinalApprovalReviewDialog";
 
 type Pillar = {
   id: string;
@@ -55,6 +56,7 @@ type GateState = {
 };
 
 type SourceConnector = {
+  candidate_id: number | null;
   source_name: string;
   source_label: string;
   source_type: string;
@@ -207,6 +209,15 @@ const statusTone = (value: string) => {
   return "neutral";
 };
 
+async function readProductTruth(signal?: AbortSignal): Promise<ProductPayload> {
+  const response = await fetch("/api/v1/product-v1", {
+    ...(signal ? { signal } : {}),
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`API returned ${response.status}`);
+  return response.json() as Promise<ProductPayload>;
+}
+
 function StatusPill({ value }: { value: string }) {
   return <span className={`status-pill ${statusTone(value)}`}>{label(value)}</span>;
 }
@@ -264,7 +275,19 @@ const lifecycleLabels: Array<[keyof SourceConnector["lifecycle"], string]> = [
   ["ingestion", "Ingested"]
 ];
 
-function SourceConnectorCard({ source }: { source: SourceConnector }) {
+function SourceConnectorCard({
+  source,
+  onReviewFinalApproval,
+}: {
+  source: SourceConnector;
+  onReviewFinalApproval: (source: SourceConnector) => void;
+}) {
+  const canReviewFinalApproval =
+    source.current_blocker === "final_approval_incomplete" &&
+    source.candidate_id !== null &&
+    Number.isInteger(source.candidate_id) &&
+    source.candidate_id > 0;
+
   return (
     <article className={`source-card ${source.inconsistencies.length ? "has-inconsistency" : ""}`}>
       <header>
@@ -297,6 +320,15 @@ function SourceConnectorCard({ source }: { source: SourceConnector }) {
         <span className="eyebrow">Current blocker / next safe action</span>
         <strong>{source.current_blocker ? label(source.current_blocker) : "No current blocker"}</strong>
         <p>{source.next_action}</p>
+        {canReviewFinalApproval && (
+          <button
+            className="final-approval-trigger"
+            type="button"
+            onClick={() => onReviewFinalApproval(source)}
+          >
+            Review final approval
+          </button>
+        )}
       </div>
 
       <details>
@@ -315,20 +347,23 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [finalApprovalSource, setFinalApprovalSource] = useState<SourceConnector | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/v1/product-v1", { signal: controller.signal, headers: { Accept: "application/json" } })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`API returned ${response.status}`);
-        return response.json() as Promise<ProductPayload>;
-      })
+    readProductTruth(controller.signal)
       .then(setPayload)
       .catch((reason: unknown) => {
         if ((reason as Error).name !== "AbortError") setError(String(reason));
       });
     return () => controller.abort();
   }, []);
+
+  const refreshProductTruth = async () => {
+    const nextPayload = await readProductTruth();
+    setPayload(nextPayload);
+    setError(null);
+  };
 
   const readinessPreview = useMemo(
     () => payload?.job_readiness.slice(0, 12) || [],
@@ -456,7 +491,13 @@ export default function App() {
               ))}
             </div>
             <div className="source-card-grid">
-              {filteredSources.map((source) => <SourceConnectorCard source={source} key={source.source_name} />)}
+              {filteredSources.map((source) => (
+                <SourceConnectorCard
+                  source={source}
+                  key={source.source_name}
+                  onReviewFinalApproval={setFinalApprovalSource}
+                />
+              ))}
               {filteredSources.length === 0 && <p className="empty">No source matches this filter.</p>}
             </div>
           </section>
@@ -502,6 +543,12 @@ export default function App() {
           </section>
         )}
       </main>
+
+      <FinalApprovalReviewDialog
+        source={finalApprovalSource}
+        refreshProductTruth={refreshProductTruth}
+        onClose={() => setFinalApprovalSource(null)}
+      />
     </div>
   );
 }
