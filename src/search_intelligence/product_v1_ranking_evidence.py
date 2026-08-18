@@ -22,11 +22,14 @@ from src.search_intelligence.product_v1_assessment_evidence import (
     normalize_job_text,
 )
 
+RUBRIC_VERSION = "product-v1-ranking-evidence-v1"
+
 
 @dataclass(frozen=True)
 class RankingSignalReference:
     factor: str
     signal: str
+    source_surface: str
     evidence: str
     span_start: int
     span_end: int
@@ -45,6 +48,7 @@ class ProductV1RankingEvidence:
     references: tuple[RankingSignalReference, ...]
     explanations: tuple[str, ...]
     uncertainties: tuple[str, ...]
+    rubric_version: str = RUBRIC_VERSION
     ranking_authority: bool = False
     product_authority: bool = False
 
@@ -59,6 +63,7 @@ class ProductV1RankingEvidence:
     def canonical_payload(self) -> dict[str, Any]:
         return {
             **self.ranking_scores_patch(),
+            "rubric_version": self.rubric_version,
             "references": [reference.canonical_payload() for reference in self.references],
             "explanations": list(self.explanations),
             "uncertainties": list(self.uncertainties),
@@ -109,8 +114,15 @@ _PROFILE_SUPPORT_RULES = (
     _SignalRule("ml_frameworks", 3.0, re.compile(r"\b(?:pytorch|tensorflow|scikit-learn)\b", re.IGNORECASE)),
 )
 
-_DATA_RULES = (
-    _SignalRule("data_role_title", 20.0, re.compile(r"\b(?:data|analytics)\s+engineer\b", re.IGNORECASE)),
+_DATA_TITLE_RULES = (
+    _SignalRule(
+        "data_role_title",
+        20.0,
+        re.compile(r"\b(?:data|analytics)\s+engineer\b", re.IGNORECASE),
+    ),
+)
+
+_DATA_DESCRIPTION_RULES = (
     _SignalRule("data_pipelines", 15.0, re.compile(r"\bdata\s+pipelines?\b", re.IGNORECASE)),
     _SignalRule("sql", 15.0, re.compile(r"\bsql\b", re.IGNORECASE)),
     _SignalRule("distributed_data", 15.0, re.compile(r"\b(?:spark|pyspark)\b", re.IGNORECASE)),
@@ -137,15 +149,18 @@ def _reference(
     *,
     factor: str,
     rule: _SignalRule,
+    source_surface: str,
     match: re.Match[str],
-    offset: int = 0,
 ) -> RankingSignalReference:
+    if source_surface not in {"title", "description"}:
+        raise ValueError(f"unsupported ranking evidence surface: {source_surface}")
     return RankingSignalReference(
         factor=factor,
         signal=rule.signal,
+        source_surface=source_surface,
         evidence=match.group(0),
-        span_start=offset + match.start(),
-        span_end=offset + match.end(),
+        span_start=match.start(),
+        span_end=match.end(),
         points=rule.points,
     )
 
@@ -154,6 +169,7 @@ def _additive_score(
     *,
     factor: str,
     text: str,
+    source_surface: str,
     rules: Iterable[_SignalRule],
 ) -> tuple[float, list[RankingSignalReference]]:
     score = 0.0
@@ -163,14 +179,19 @@ def _additive_score(
         if match is None:
             continue
         score += rule.points
-        references.append(_reference(factor=factor, rule=rule, match=match))
+        references.append(
+            _reference(
+                factor=factor,
+                rule=rule,
+                source_surface=source_surface,
+                match=match,
+            )
+        )
     return min(100.0, round(score, 2)), references
 
 
 def _profile_score(
-    *,
-    title: str,
-    text: str,
+    *, title: str, text: str
 ) -> tuple[float, list[RankingSignalReference]]:
     title_references: list[RankingSignalReference] = []
     base = 0.0
@@ -181,11 +202,17 @@ def _profile_score(
         if rule.points > base:
             base = rule.points
             title_references = [
-                _reference(factor="profile_direction", rule=rule, match=match)
+                _reference(
+                    factor="profile_direction",
+                    rule=rule,
+                    source_surface="title",
+                    match=match,
+                )
             ]
     support, support_references = _additive_score(
         factor="profile_direction",
         text=text,
+        source_surface="description",
         rules=_PROFILE_SUPPORT_RULES,
     )
     if base == 0.0 and support > 0:
@@ -193,6 +220,27 @@ def _profile_score(
     return min(100.0, round(base + support, 2)), [
         *title_references,
         *support_references,
+    ]
+
+
+def _data_score(
+    *, title: str, text: str
+) -> tuple[float, list[RankingSignalReference]]:
+    title_score, title_references = _additive_score(
+        factor="data_focus",
+        text=title,
+        source_surface="title",
+        rules=_DATA_TITLE_RULES,
+    )
+    description_score, description_references = _additive_score(
+        factor="data_focus",
+        text=text,
+        source_surface="description",
+        rules=_DATA_DESCRIPTION_RULES,
+    )
+    return min(100.0, round(title_score + description_score, 2)), [
+        *title_references,
+        *description_references,
     ]
 
 
@@ -244,17 +292,15 @@ def build_product_v1_ranking_evidence(
 
     if not isinstance(title, str) or not title.strip():
         raise ValueError("job title is missing")
+    canonical_title = title.strip()
     text = normalize_job_text(description)
 
-    profile_score, profile_refs = _profile_score(title=title.strip(), text=text)
-    data_score, data_refs = _additive_score(
-        factor="data_focus",
-        text=f"{title.strip()} {text}",
-        rules=_DATA_RULES,
-    )
+    profile_score, profile_refs = _profile_score(title=canonical_title, text=text)
+    data_score, data_refs = _data_score(title=canonical_title, text=text)
     reliability_score, reliability_refs = _additive_score(
         factor="reliability_focus",
         text=text,
+        source_surface="description",
         rules=_RELIABILITY_RULES,
     )
     evidence_score, uncertainties = _evidence_quality_score(
@@ -282,6 +328,7 @@ def build_product_v1_ranking_evidence(
 
 
 __all__ = [
+    "RUBRIC_VERSION",
     "ProductV1RankingEvidence",
     "RankingSignalReference",
     "build_product_v1_ranking_evidence",
