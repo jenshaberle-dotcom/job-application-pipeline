@@ -22,7 +22,7 @@ from src.search_intelligence.product_v1_assessment_evidence import (
     normalize_job_text,
 )
 
-RUBRIC_VERSION = "product-v1-ranking-evidence-v1"
+RUBRIC_VERSION = "product-v1-ranking-evidence-v2"
 
 
 @dataclass(frozen=True)
@@ -145,6 +145,31 @@ def _first_match(text: str, rule: _SignalRule) -> re.Match[str] | None:
     return rule.pattern.search(text)
 
 
+def _spans_overlap(
+    left_start: int,
+    left_end: int,
+    right_start: int,
+    right_end: int,
+) -> bool:
+    return left_start < right_end and right_start < left_end
+
+
+def _first_non_overlapping_match(
+    text: str,
+    rule: _SignalRule,
+    references: Iterable[RankingSignalReference],
+) -> re.Match[str] | None:
+    occupied = tuple((reference.span_start, reference.span_end) for reference in references)
+    for match in rule.pattern.finditer(text):
+        if any(
+            _spans_overlap(match.start(), match.end(), span_start, span_end)
+            for span_start, span_end in occupied
+        ):
+            continue
+        return match
+    return None
+
+
 def _reference(
     *,
     factor: str,
@@ -175,7 +200,7 @@ def _additive_score(
     score = 0.0
     references: list[RankingSignalReference] = []
     for rule in rules:
-        match = _first_match(text, rule)
+        match = _first_non_overlapping_match(text, rule, references)
         if match is None:
             continue
         score += rule.points
@@ -313,7 +338,7 @@ def build_product_v1_ranking_evidence(
     explanations = (
         "Profile direction uses explicit role/title and ML/AI evidence only.",
         "Data focus is additive across distinct explicit data-engineering signal families.",
-        "Reliability focus is additive across distinct explicit reliability/quality/operations signal families.",
+        "Reliability focus is additive across distinct non-overlapping reliability/quality/operations evidence spans.",
         "Evidence quality reflects employer-origin/current-activity authority plus deterministic assessment coverage.",
     )
     return ProductV1RankingEvidence(
