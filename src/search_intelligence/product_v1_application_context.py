@@ -14,7 +14,7 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from hashlib import sha256
 import re
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Sequence
 
 
 TOP5_AUTHORITY_SOURCE = "gold_product_v1_top_jobs"
