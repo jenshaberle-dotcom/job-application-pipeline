@@ -37,6 +37,12 @@ def test_extracts_source_grounded_hard_filter_evidence() -> None:
     assert evidence.conflicted_fields == ()
     assert evidence.unresolved_fields == ()
 
+    weekly_refs = [
+        reference for reference in evidence.references if reference.field == "weekly_hours"
+    ]
+    assert len(weekly_refs) == 1
+    assert weekly_refs[0].canonical_value == "35-40"
+
     patch = evidence.assessment_patch()
     assert patch["employment_evidence_status"] == "observed"
     assert patch["language_evidence_status"] == "observed"
@@ -50,6 +56,20 @@ def test_extracts_source_grounded_hard_filter_evidence() -> None:
         assert reference.canonical_value
         assert reference.evidence
         assert reference.span_end > reference.span_start
+
+
+def test_distinct_weekly_hours_observations_still_fail_closed() -> None:
+    evidence = _extract(
+        description=(
+            "One section states 35 hours per week. "
+            "Another section states 40 hours per week."
+        )
+    )
+
+    assert evidence.weekly_hours_min is None
+    assert evidence.weekly_hours_max is None
+    assert "weekly_hours" in evidence.conflicted_fields
+    assert "weekly_hours" in evidence.unresolved_fields
 
 
 def test_experience_wording_never_becomes_requirements_seniority() -> None:
