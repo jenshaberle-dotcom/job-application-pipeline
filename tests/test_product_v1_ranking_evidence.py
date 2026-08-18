@@ -83,6 +83,55 @@ def test_data_engineer_score_is_generic_and_transparent() -> None:
     assert data_signals == {"data_role_title", "data_pipelines", "sql"}
 
 
+def test_overlapping_reliability_evidence_is_not_double_counted() -> None:
+    title = "Data Engineer"
+    description = "Test automation is required for this role."
+    assessment = _assessment(description, title=title)
+
+    evidence = build_product_v1_ranking_evidence(
+        title=title,
+        description=description,
+        origin_validation_status="validated",
+        activity_status="active",
+        assessment_evidence=assessment,
+    )
+
+    reliability_references = [
+        reference
+        for reference in evidence.references
+        if reference.factor == "reliability_focus"
+    ]
+    assert evidence.reliability_focus_score == 20
+    assert [reference.signal for reference in reliability_references] == ["testing_quality"]
+    assert reliability_references[0].evidence.casefold() == "test automation"
+
+
+def test_separate_iac_evidence_remains_additive_after_overlap_skip() -> None:
+    title = "Data Engineer"
+    description = "Test automation is required. Terraform is also required."
+    assessment = _assessment(description, title=title)
+
+    evidence = build_product_v1_ranking_evidence(
+        title=title,
+        description=description,
+        origin_validation_status="validated",
+        activity_status="active",
+        assessment_evidence=assessment,
+    )
+
+    reliability_references = [
+        reference
+        for reference in evidence.references
+        if reference.factor == "reliability_focus"
+    ]
+    assert evidence.reliability_focus_score == 40
+    assert [reference.signal for reference in reliability_references] == [
+        "testing_quality",
+        "automation_iac",
+    ]
+    assert reliability_references[1].evidence.casefold() == "terraform"
+
+
 def test_missing_fit_signals_are_not_invented() -> None:
     title = "Project Coordinator"
     description = "Coordinate stakeholders and maintain project documentation."
