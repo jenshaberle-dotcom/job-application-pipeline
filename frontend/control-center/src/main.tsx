@@ -2,7 +2,11 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import EvidencePreviewPanel from "./EvidencePreviewPanel";
+import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
+import { installProductPayloadRuntimeAdapter } from "./productPayloadRuntimeAdapter";
 import "./styles.css";
+
+installProductPayloadRuntimeAdapter();
 
 const root = document.getElementById("root");
 if (!root) {
@@ -11,7 +15,9 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App />
-    <EvidencePreviewPanel />
+    <RuntimeErrorBoundary>
+      <App />
+      <EvidencePreviewPanel />
+    </RuntimeErrorBoundary>
   </StrictMode>
 );
