@@ -14,7 +14,7 @@ def test_control_center_supports_direct_operator_launcher() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "Serve the canonical Product V1 Control Center" in result.stdout
+    assert "usage: run_product_v1_control_center.py" in result.stdout
     assert "--frontend-dist" in result.stdout
     assert "ModuleNotFoundError" not in result.stderr
 
@@ -30,3 +30,4 @@ def test_control_center_still_supports_module_launcher() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "--frontend-dist" in result.stdout
+    assert "ModuleNotFoundError" not in result.stderr
