@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 
 from src.connectors.base import SearchProfile, SearchTerm
@@ -20,7 +19,7 @@ ONEKOMMA5_XML = b"""<?xml version='1.0' encoding='UTF-8'?>
   <position>
     <id>1001</id>
     <name>Senior Analytics Engineer</name>
-    <subcompany>1KOMMA5Â    <subcompany>1KOMMA5\xc2°    <subcompany>1KOMMA5\xc2\xb0 GmbH</subcompany>
+    <subcompany>1KOMMA5 GmbH</subcompany>
     <office>Hamburg</office>
   </position>
   <position>
