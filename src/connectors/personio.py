@@ -9,9 +9,13 @@ import requests
 
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.capabilities import SourceCapabilities
+from src.search_intelligence.personio_legacy_authority_bindings import (
+    reviewed_personio_authority_binding,
+)
 
 
 REQUEST_TIMEOUT_SECONDS = 20
+ATS_BACKED_SOURCE_TYPE = "employer_origin_ats_backed_career_site"
 
 USER_AGENT = (
     "job-application-pipeline-personio-connector/0.1 "
@@ -27,6 +31,9 @@ class PersonioConnector(JobSourceConnector):
     - no detail pages
     - no pagination
     - local keyword matching is handled after RawJobRecord creation
+    - recurring lifecycle authority is emitted only for explicitly reviewed legacy
+      targets whose full feed passes the existing deterministic Personio target-
+      authority validator on that exact fetch
     """
 
     capabilities = SourceCapabilities(
@@ -66,8 +73,16 @@ class PersonioConnector(JobSourceConnector):
         response.raise_for_status()
 
         observed_at_utc = datetime.now(UTC).isoformat()
-
+        final_url = str(getattr(response, "url", requested_url) or requested_url)
+        http_status_code = int(getattr(response, "status_code", 200) or 200)
         positions = extract_positions(response.content)
+        feed_authority = _reviewed_feed_authority(
+            connector=self,
+            requested_url=requested_url,
+            final_url=final_url,
+            http_status_code=http_status_code,
+            xml_content=response.content,
+        )
 
         records = [
             build_raw_job_record(
@@ -75,11 +90,64 @@ class PersonioConnector(JobSourceConnector):
                 connector=self,
                 requested_url=requested_url,
                 observed_at_utc=observed_at_utc,
+                feed_authority=feed_authority,
             )
             for position in positions
         ]
 
         return records, requested_url
+
+
+def _reviewed_feed_authority(
+    *,
+    connector: PersonioConnector,
+    requested_url: str,
+    final_url: str,
+    http_status_code: int,
+    xml_content: bytes,
+) -> dict[str, Any] | None:
+    binding = reviewed_personio_authority_binding(connector.target_key)
+    if binding is None:
+        return None
+
+    # Local import avoids a module cycle: the deterministic validator reuses the
+    # XML helpers defined by this connector but owns no network access itself.
+    from src.search_intelligence.personio_target_authority import (
+        validate_personio_target_authority,
+    )
+
+    evidence = validate_personio_target_authority(
+        candidate_url=f"https://{connector.host}",
+        requested_url=requested_url,
+        final_url=final_url,
+        xml_content=xml_content,
+        company_key=binding.company_key,
+        company_name=binding.company_name,
+        employer_aliases=binding.employer_aliases,
+    )
+    payload = evidence.to_json()
+    return {
+        "contract_version": "personio-recurring-feed-authority.v1",
+        "reviewed_binding_contract": binding.evidence_contract,
+        "provider": "personio",
+        "target_key": connector.target_key,
+        "authority_validated": bool(evidence.authority_validated),
+        "employer_identity_bound": bool(evidence.employer_identity_bound),
+        "feed_inventory_complete": bool(
+            evidence.authority_validated and evidence.position_count > 0
+        ),
+        "http_status_code": http_status_code,
+        "requested_url": requested_url,
+        "final_url": final_url,
+        "matched_company_name": evidence.matched_company_name,
+        "matched_employer_alias": evidence.matched_employer_alias,
+        "position_count": evidence.position_count,
+        "reason_codes": list(evidence.reason_codes),
+        "evidence_fingerprint": evidence.evidence_fingerprint,
+        "validator_contract_version": evidence.contract_version,
+        "product_authority": False,
+        "validator_evidence": payload,
+    }
 
 
 def normalize_target_key(value: str) -> str:
@@ -190,6 +258,7 @@ def build_raw_job_record(
     connector: PersonioConnector,
     requested_url: str,
     observed_at_utc: str,
+    feed_authority: dict[str, Any] | None = None,
 ) -> RawJobRecord:
     external_job_id = first_text(position, {"id"}) or None
     title = first_text(position, {"name", "title", "jobtitle"})
@@ -209,47 +278,52 @@ def build_raw_job_record(
         )
 
     raw_position = element_to_dict(position)
+    raw_data: dict[str, Any] = {
+        "source_target": {
+            "source_family": "personio",
+            "target_key": connector.target_key,
+            "host": connector.host,
+            "language": connector.language,
+        },
+        "job": {
+            "id": external_job_id,
+            "title": title,
+            "company_name": company_name,
+            "location": location,
+            "department": department,
+            "employment_type": employment_type,
+            "schedule": schedule,
+            "description": description,
+            "source_url": source_url,
+        },
+        "source_specific": {
+            "raw_position": raw_position,
+        },
+        "extraction": {
+            "extracted_from": "public_xml_feed",
+            "detail_page_fetched": False,
+            "pagination_used": False,
+            "local_keyword_filtering_used": False,
+            "connector_mode": "personio_public_xml_feed",
+            "observed_at_utc": observed_at_utc,
+            "requested_url": requested_url,
+        },
+        "quality_signals": {
+            "has_external_job_id": external_job_id is not None,
+            "has_title": bool(title),
+            "has_company": bool(company_name),
+            "has_location": bool(location),
+            "has_source_url": bool(source_url),
+        },
+    }
+    if feed_authority is not None:
+        raw_data["ats_feed_authority"] = feed_authority
+        if feed_authority.get("authority_validated") is True:
+            raw_data["source_type"] = ATS_BACKED_SOURCE_TYPE
 
     return RawJobRecord(
         source_name=connector.source_name,
         source_url=source_url,
         external_job_id=external_job_id,
-        raw_data={
-            "source_target": {
-                "source_family": "personio",
-                "target_key": connector.target_key,
-                "host": connector.host,
-                "language": connector.language,
-            },
-            "job": {
-                "id": external_job_id,
-                "title": title,
-                "company_name": company_name,
-                "location": location,
-                "department": department,
-                "employment_type": employment_type,
-                "schedule": schedule,
-                "description": description,
-                "source_url": source_url,
-            },
-            "source_specific": {
-                "raw_position": raw_position,
-            },
-            "extraction": {
-                "extracted_from": "public_xml_feed",
-                "detail_page_fetched": False,
-                "pagination_used": False,
-                "local_keyword_filtering_used": False,
-                "connector_mode": "personio_public_xml_feed",
-                "observed_at_utc": observed_at_utc,
-                "requested_url": requested_url,
-            },
-            "quality_signals": {
-                "has_external_job_id": external_job_id is not None,
-                "has_title": bool(title),
-                "has_company": bool(company_name),
-                "has_location": bool(location),
-                "has_source_url": bool(source_url),
-            },
-        },
+        raw_data=raw_data,
     )
