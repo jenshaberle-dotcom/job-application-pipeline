@@ -18,6 +18,9 @@ from pathlib import Path
 import sys
 from urllib.parse import parse_qs, urlparse
 
+import psycopg
+from psycopg.rows import dict_row
+
 if not __package__:  # direct ``python scripts/...`` execution
     root = Path(__file__).resolve().parents[1]
     if str(root) not in sys.path:
@@ -33,11 +36,11 @@ from scripts.product_v1_control_center_actions import (
 from scripts.product_v1_downstream_preview_runtime import (
     load_downstream_evidence_preview_payload,
 )
+from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from src.search_intelligence.product_v1_downstream_preview import DownstreamPreviewStop
 
 
 build_parser = _base.build_parser
-load_product_v1_payload = _base.load_product_v1_payload
 load_source_connector_overview_payload = _base.load_source_connector_overview_payload
 build_source_connector_overview = _base.build_source_connector_overview
 rank_product_jobs = _base.rank_product_jobs
@@ -45,15 +48,115 @@ _HARD_FILTER_POLICY_RELATION = "product_v1_hard_filter_policy"
 _MAX_ACTION_BODY_BYTES = 4096
 
 
+def _merge_structured_job_locations(
+    payload: dict[str, object],
+    location_rows: list[dict[str, object]],
+) -> dict[str, object]:
+    """Attach explicit one-to-many Silver locations without rewriting legacy city truth."""
+
+    by_job: dict[int, list[dict[str, object]]] = {}
+    for row in location_rows:
+        raw_id = row.get("silver_job_id")
+        if raw_id is None:
+            continue
+        try:
+            silver_job_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        by_job.setdefault(silver_job_id, []).append(
+            {
+                "city": str(row.get("city") or "").strip(),
+                "country_code": str(row.get("country_code") or "").strip(),
+                "is_primary": bool(row.get("is_primary")),
+                "evidence_source": str(row.get("evidence_source") or "").strip(),
+            }
+        )
+
+    result = dict(payload)
+    for collection_name in ("job_readiness", "top_jobs"):
+        raw_collection = result.get(collection_name)
+        if not isinstance(raw_collection, list):
+            continue
+        enriched: list[object] = []
+        for item in raw_collection:
+            if not isinstance(item, dict):
+                enriched.append(item)
+                continue
+            copied = dict(item)
+            raw_id = copied.get("silver_job_id")
+            try:
+                silver_job_id = int(raw_id) if raw_id is not None else None
+            except (TypeError, ValueError):
+                silver_job_id = None
+            copied["structured_locations"] = (
+                list(by_job.get(silver_job_id, [])) if silver_job_id is not None else []
+            )
+            enriched.append(copied)
+        result[collection_name] = enriched
+    return result
+
+
+def load_product_v1_payload() -> dict[str, object]:
+    """Load canonical Product V1 truth plus existing structured location evidence."""
+
+    payload = _base.load_product_v1_payload()
+    raw_jobs = payload.get("job_readiness")
+    if not isinstance(raw_jobs, list):
+        return payload
+
+    silver_job_ids = sorted(
+        {
+            int(item["silver_job_id"])
+            for item in raw_jobs
+            if isinstance(item, dict) and item.get("silver_job_id") is not None
+        }
+    )
+    if not silver_job_ids:
+        return payload
+
+    with psycopg.connect(
+        DatabaseConfig.from_environment().dsn(), row_factory=dict_row
+    ) as conn:
+        if not _base._relation_exists(conn, "silver_job_locations"):
+            return payload
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    silver_job_id,
+                    city,
+                    country_code,
+                    is_primary,
+                    evidence_source
+                FROM silver_job_locations
+                WHERE silver_job_id = ANY(%s)
+                ORDER BY silver_job_id, is_primary DESC, id
+                """,
+                (silver_job_ids,),
+            )
+            location_rows = [dict(row) for row in cur.fetchall()]
+    return _merge_structured_job_locations(payload, location_rows)
+
+
 class ProductV1Handler(_base.ProductV1Handler):
     """Canonical read-mostly handler with one reviewed final-approval action."""
 
-    server_version = "DeepOceanProductV1/0.3"
+    server_version = "DeepOceanProductV1/0.4"
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
         if parsed.path == "/api/v1/product-v1":
-            super().do_GET()
+            try:
+                self._send_json(load_product_v1_payload())
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_json(
+                    {
+                        "status": "error",
+                        "error_type": type(exc).__name__,
+                        "message": str(exc),
+                    },
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
             return
         if parsed.path == "/api/v1/source-connectors":
             super().do_GET()
