@@ -33,11 +33,11 @@ def gate(name: str, status: str = "passed", decision: str = "continue", evidence
     )
 
 
-def passed_gates() -> dict[str, GateReview]:
+def passed_gates(*, connector_candidate_decision: str = "passed") -> dict[str, GateReview]:
     gates = {name: gate(name) for name in REQUIRED_PASSED_GATES}
     gates["connector_candidate_gate"] = gate(
         "connector_candidate_gate",
-        decision="build_connector_candidate",
+        decision=connector_candidate_decision,
         evidence={
             "connector_candidate_spec": {
                 "detail_evidence": {
@@ -49,7 +49,7 @@ def passed_gates() -> dict[str, GateReview]:
     return gates
 
 
-def test_readiness_is_ready_when_required_gates_and_spec_are_present() -> None:
+def test_readiness_is_ready_for_canonical_passed_connector_candidate_decision() -> None:
     outcome = evaluate_readiness(candidate(), passed_gates())
 
     assert outcome.status == "ready"
@@ -57,6 +57,27 @@ def test_readiness_is_ready_when_required_gates_and_spec_are_present() -> None:
     assert outcome.evidence["boundary"]["connector_registration_allowed"] is False
     assert outcome.evidence["boundary"]["bronze_persistence_allowed"] is False
     assert outcome.evidence["agent"] == "s4a_connector_build_readiness_agent"
+
+
+def test_readiness_retains_legacy_build_connector_candidate_compatibility() -> None:
+    outcome = evaluate_readiness(
+        candidate(),
+        passed_gates(connector_candidate_decision="build_connector_candidate"),
+    )
+
+    assert outcome.status == "ready"
+    assert outcome.decision == "connector_generation_allowed_before_final_approval"
+
+
+def test_readiness_stops_for_unrecognized_connector_candidate_decision() -> None:
+    outcome = evaluate_readiness(
+        candidate(),
+        passed_gates(connector_candidate_decision="continue"),
+    )
+
+    assert outcome.status == "manual_review_required"
+    assert outcome.decision == "stop_before_connector_generation"
+    assert outcome.reason == "connector_candidate_gate does not carry a recognized passed decision"
 
 
 def test_readiness_stops_when_candidate_is_active_controlled() -> None:
@@ -87,7 +108,7 @@ def test_readiness_stops_without_connector_candidate_spec() -> None:
     gates = passed_gates()
     gates["connector_candidate_gate"] = gate(
         "connector_candidate_gate",
-        decision="build_connector_candidate",
+        decision="passed",
         evidence={},
     )
 
@@ -101,7 +122,7 @@ def test_readiness_stops_when_spec_has_no_detail_urls() -> None:
     gates = passed_gates()
     gates["connector_candidate_gate"] = gate(
         "connector_candidate_gate",
-        decision="build_connector_candidate",
+        decision="passed",
         evidence={"connector_candidate_spec": {"detail_evidence": {"detail_urls": []}}},
     )
 
