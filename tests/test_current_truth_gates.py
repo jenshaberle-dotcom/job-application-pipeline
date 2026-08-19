@@ -145,6 +145,15 @@ def test_explicit_vacancy_closure_marker_is_narrow() -> None:
         )
         == "job_not_available_at_this_time"
     )
+    assert (
+        explicit_vacancy_closure_marker("Sorry, this position has been filled.")
+        == "position_has_been_filled"
+    )
+    assert (
+        explicit_vacancy_closure_marker("This job has been filled. Browse other roles.")
+        == "job_has_been_filled"
+    )
+    assert explicit_vacancy_closure_marker("We are filling positions in our data team.") is None
     assert explicit_vacancy_closure_marker("Careers page. Job search unavailable.") is None
 
 
@@ -187,6 +196,33 @@ def test_2xx_explicit_closed_content_is_exact_detail_closure() -> None:
     assert (
         classification.evidence["explicit_closure_marker"]
         == "job_not_available_at_this_time"
+    )
+
+
+def test_2xx_filled_position_content_is_exact_detail_closure() -> None:
+    target = _health_target()
+    classification = classify_exact_detail(
+        target,
+        HttpProbeResult(
+            status_code=200,
+            final_url=target.source_url,
+            response_text=(
+                "<title>Data Engineer</title>"
+                "Sorry, this position has been filled."
+            ),
+            redirect_count=0,
+        ),
+    )
+
+    assert classification.outcome == OUTCOME_CLOSED
+    assert classification.coverage == COVERAGE_EXACT_DETAIL
+    assert (
+        classification.evidence_reason
+        == "explicit_vacancy_unavailable_on_exact_detail"
+    )
+    assert (
+        classification.evidence["explicit_closure_marker"]
+        == "position_has_been_filled"
     )
 
 
