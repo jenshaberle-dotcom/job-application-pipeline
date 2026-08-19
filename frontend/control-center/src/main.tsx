@@ -5,6 +5,7 @@ import EvidencePreviewPanel from "./EvidencePreviewPanel";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
 import { installProductPayloadRuntimeAdapter } from "./productPayloadRuntimeAdapter";
 import "./styles.css";
+import "./compact-control-center.css";
 
 installProductPayloadRuntimeAdapter();
 
