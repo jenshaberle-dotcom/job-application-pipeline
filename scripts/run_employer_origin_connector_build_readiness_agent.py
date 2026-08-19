@@ -30,6 +30,11 @@ DEFERRED_ACTIVATION_GATES = (
     "silver_validation",
 )
 
+CONNECTOR_CANDIDATE_READY_DECISIONS = {
+    "passed",
+    "build_connector_candidate",
+}
+
 
 @dataclass(frozen=True)
 class DatabaseConfig:
@@ -217,11 +222,12 @@ def evaluate_readiness(candidate: SourceCandidate, gates: dict[str, GateReview])
             evidence=evidence,
         )
 
-    if gate_decision(gates, "connector_candidate_gate") != "build_connector_candidate":
+    connector_candidate_decision = gate_decision(gates, "connector_candidate_gate")
+    if connector_candidate_decision not in CONNECTOR_CANDIDATE_READY_DECISIONS:
         return ReadinessOutcome(
             status="manual_review_required",
             decision="stop_before_connector_generation",
-            reason="connector_candidate_gate is not build_connector_candidate",
+            reason="connector_candidate_gate does not carry a recognized passed decision",
             evidence=evidence,
         )
 
