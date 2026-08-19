@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 
 from src.search_intelligence.market_opportunity_bridge import (
     MarketOpportunity,
@@ -77,3 +79,21 @@ def test_runner_reuses_existing_cascade_and_disables_tavily() -> None:
     assert "approve_market_opportunity_verification" in runner
     assert "INSERT INTO market_opportunity_verification_observations" in runner
     assert "INSERT INTO silver_jobs" not in runner
+
+
+def test_bridge_cli_entrypoint_runs_as_direct_script() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/run_market_opportunity_vacancy_bridge_cli.py"),
+            "--help",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "--opportunity-id" in completed.stdout
+    assert "--execute-provider-booster" in completed.stdout
