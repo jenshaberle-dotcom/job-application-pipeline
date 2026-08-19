@@ -37,12 +37,29 @@ function normalizeEvidence(value: unknown): string[] {
   return value.map(evidenceItemText);
 }
 
+export function structuredLocationText(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+
+  const labels: string[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const city = compactValue(item.city);
+    if (!city) continue;
+    const countryCode = compactValue(item.country_code);
+    const display = countryCode ? `${city}, ${countryCode}` : city;
+    if (!labels.includes(display)) labels.push(display);
+  }
+  return labels.length ? labels.join(" · ") : null;
+}
+
 function normalizeJobs(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
   return value.map((job) => {
     if (!isRecord(job)) return job;
+    const structuredLocation = structuredLocationText(job.structured_locations);
     return {
       ...job,
+      city: structuredLocation || job.city,
       explanations: normalizeEvidence(job.explanations),
       uncertainties: normalizeEvidence(job.uncertainties),
     };

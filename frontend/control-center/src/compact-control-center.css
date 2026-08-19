@@ -1,0 +1,112 @@
+/* Operator-density pass from the live #522 Control Center test.
+   This file intentionally overrides layout only; no state or authority semantics. */
+
+.topbar {
+  height: 48px;
+  padding: 0 18px;
+}
+.brand-mark { width: 26px; height: 26px; }
+.topnav button { padding: 0 16px; font-size: 11px; }
+
+.app-main { padding: 10px 14px 18px; }
+.page-stack { gap: 9px; }
+.page-toolbar {
+  min-height: 30px;
+  align-items: center;
+  gap: 12px;
+}
+.page-toolbar h1 { font-size: 22px; margin-top: 1px; }
+.toolbar-note { max-width: 760px; font-size: 9px; }
+
+.dashboard-card { padding: 10px; }
+.card-heading-row { margin-bottom: 8px; }
+.card-heading-row h2, .card-heading-row h3 { font-size: 14px; }
+.card-heading-row > strong { font-size: 15px; }
+.honest-empty { padding: 10px 12px; }
+.honest-empty p { line-height: 1.4; }
+
+.jobs-metrics { gap: 7px; }
+.metric-card { min-height: 62px; padding: 9px 10px; }
+.metric-card strong { margin: 2px 0 1px; font-size: 19px; }
+.metric-card span, .metric-card small { font-size: 8px; }
+
+.jobs-top-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(300px, .8fr);
+  gap: 8px;
+}
+.top-job { padding: 7px 8px; }
+.fit-explainer-card p { margin: 4px 0; line-height: 1.4; }
+.mini-stats { margin-top: 8px; }
+
+.jobs-list-toolbar { padding: 8px 9px; }
+.jobs-split {
+  grid-template-columns: minmax(0, 1.15fr) minmax(460px, .85fr);
+  min-height: 0;
+  align-items: start;
+}
+.jobs-table-wrap { max-height: 390px; }
+.jobs-table th, .jobs-table td { padding: 6px 7px; }
+.job-detail-panel {
+  padding: 11px;
+  max-height: 390px;
+}
+.job-detail-panel h2 { font-size: 15px; }
+.score-breakdown { margin-top: 10px; }
+.detail-facts { margin-top: 9px; }
+.evidence-columns { margin-top: 9px; }
+.evidence-columns ul { max-height: 120px; overflow: auto; }
+
+.source-workspace {
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+  align-items: start;
+}
+.source-list-panel { padding: 8px; }
+.source-list { max-height: 610px; }
+.source-detail { padding: 10px; }
+.source-detail-header h2 { font-size: 17px; }
+.lifecycle-rail { margin: 9px 0; }
+.lifecycle-step { padding-top: 7px; padding-bottom: 7px; }
+.source-diagnosis, .source-fact-grid, .source-bottom-grid { gap: 6px; }
+.source-diagnosis article, .source-fact-grid article, .source-bottom-grid article { padding: 8px; }
+.source-fact-grid, .source-bottom-grid, .next-action-strip { margin-top: 6px; }
+.next-action-strip { padding: 8px; }
+
+.approval-focus-grid {
+  grid-template-columns: 260px minmax(0, 1fr) 280px;
+  gap: 8px;
+  min-height: 0;
+  align-items: start;
+}
+.approval-list { max-height: 520px; }
+.approval-review-panel h2 { font-size: 17px; margin-bottom: 7px; }
+.approval-decision-card { margin-top: 7px; padding: 9px; }
+.product-gate { padding: 6px 0; }
+
+.operations-grid {
+  grid-template-columns: minmax(0, 1.65fr) minmax(320px, .85fr);
+  gap: 8px;
+}
+.operations-wide { grid-column: auto; }
+.operations-grid > article:first-child { grid-column: 1 / -1; }
+.operations-grid > article:nth-child(3) { grid-column: 1; }
+.operations-grid > article:nth-child(4) { grid-column: 2; }
+.operations-grid > article:nth-child(5) { grid-column: 1 / -1; }
+.pipeline-stage-card { padding: 7px; }
+.pipeline-stage-card strong { font-size: 15px; }
+.health-grid div { padding: 8px; }
+.health-grid strong { font-size: 16px; }
+.blocker-table div { padding: 6px 7px; }
+.wave-table { gap: 3px; }
+.application-readiness-grid div { padding: 7px; }
+
+@media (max-width: 1180px) {
+  .jobs-split { grid-template-columns: 1fr; }
+  .job-detail-panel { max-height: none; }
+  .operations-grid { grid-template-columns: 1fr; }
+  .operations-grid > article:first-child,
+  .operations-grid > article:nth-child(3),
+  .operations-grid > article:nth-child(4),
+  .operations-grid > article:nth-child(5) { grid-column: auto; }
+}
