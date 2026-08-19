@@ -45,6 +45,7 @@ def build_product_v1_payload(
     migration_ready: bool,
     hard_filter_policy: Mapping[str, Any] | None = None,
     source_connector_overview: Mapping[str, Any] | None = None,
+    observed_opportunities: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     policy = dict(ranking_policy or {})
     policy_status = str(policy.get("status") or "operator_decision_required")
@@ -75,6 +76,23 @@ def build_product_v1_payload(
         )
         for state in CURRENT_LIFECYCLE_STATES
     }
+    observed_opportunity_count = len(observed_opportunities)
+    verified_market_opportunity_count = sum(
+        1
+        for item in observed_opportunities
+        if _value(item, "opportunity_stage") == "vacancy_verified_active"
+    )
+    pending_market_opportunity_count = sum(
+        1
+        for item in observed_opportunities
+        if _value(item, "opportunity_stage")
+        in {
+            "employer_candidate_missing",
+            "origin_source_required",
+            "risk_review",
+            "vacancy_verification_pending",
+        }
+    )
     approved_source_types = {
         str(_value(source, "document_type"))
         for source in application_sources
@@ -187,6 +205,9 @@ def build_product_v1_payload(
         "summary": {
             "wave_term_count": len(wave_states),
             "observed_job_count": len(job_readiness),
+            "observed_opportunity_count": observed_opportunity_count,
+            "verified_market_opportunity_count": verified_market_opportunity_count,
+            "pending_market_opportunity_count": pending_market_opportunity_count,
             "current_active_job_count": lifecycle_counts["active_confirmed"],
             "stale_job_count": lifecycle_counts["stale_needs_refresh"],
             "inactive_confirmed_job_count": lifecycle_counts[
@@ -204,6 +225,7 @@ def build_product_v1_payload(
             ),
         },
         "wave_states": list(wave_states),
+        "observed_opportunities": list(observed_opportunities),
         "ranking_policy": policy or {"status": "operator_decision_required"},
         "hard_filter_policy": hard_policy
         or {"status": "operator_decision_required"},
@@ -223,6 +245,8 @@ def build_product_v1_payload(
             "no_source_activation": True,
             "no_scheduler_mutation": True,
             "aggregator_evidence_is_not_top5_truth": True,
+            "manual_market_evidence_is_not_job_truth": True,
+            "observed_opportunity_is_not_ranking_authority": True,
             "historical_job_presence_is_not_current_activity": True,
             "current_compensation_is_local_runtime_context_only": True,
         },
