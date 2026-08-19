@@ -49,11 +49,11 @@ def test_source_connector_endpoint_is_read_only() -> None:
     assert "subprocess" not in source
 
 
-def test_react_overview_names_all_distinct_lifecycle_stages() -> None:
+def test_react_source_workspace_names_all_distinct_lifecycle_stages() -> None:
     source = APP.read_text(encoding="utf-8")
 
     assert "Source & connector lifecycle" in source
-    assert "Employer-origin truth" in source
+    assert "Connector & source control" in source
     assert '["implementation", "Implemented"]' in source
     assert '["validation", "Validated"]' in source
     assert '["final_approval", "Approved"]' in source
@@ -61,7 +61,7 @@ def test_react_overview_names_all_distinct_lifecycle_stages() -> None:
     assert '["activation", "Activated"]' in source
     assert '["ingestion", "Ingested"]' in source
     assert "No connector registration or activation" in source
-    assert "No reviewed mutation available" in source
+    assert "No reviewed write action here" in source
     assert "activateSource" not in source
 
 
