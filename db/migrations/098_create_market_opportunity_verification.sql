@@ -107,7 +107,10 @@ LEFT JOIN LATERAL (
     ORDER BY v.observed_at DESC, v.id DESC
     LIMIT 1
 ) latest ON TRUE
-WHERE me.evidence_kind = 'external_market_observation';
+WHERE
+    me.evidence_kind = 'manual_market_observation'
+    OR me.evidence_source = 'manual_market_observation'
+    OR me.evidence ->> 'observation_origin' = 'external_market_observation';
 
 COMMENT ON VIEW gold_market_opportunity_status IS
 'Observed market opportunities and exact-vacancy verification state. This view has no ranking or application authority; canonical Silver/Product V1 admission remains separate.';
