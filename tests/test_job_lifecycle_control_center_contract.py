@@ -96,6 +96,7 @@ def test_react_control_center_surfaces_job_health_truth() -> None:
     assert "last_positive_observed_at?: string | null" in source
     assert "last_health_checked_at?: string | null" in source
     assert "Current active" in source
-    assert "Needs refresh" in source
-    assert "Lifecycle-gated Top 5" in source
-    assert "Historical Silver presence alone never qualifies a vacancy" in source
+    assert "Stale / refresh" in source
+    assert "not safe for current Top 5" in source
+    assert "Product V1 job-readiness row" in source
+    assert "The UI does not infer one." in source

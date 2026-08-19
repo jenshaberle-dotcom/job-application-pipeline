@@ -52,15 +52,16 @@ def test_source_connector_endpoint_is_read_only() -> None:
 def test_react_overview_names_all_distinct_lifecycle_stages() -> None:
     source = APP.read_text(encoding="utf-8")
 
-    assert "Sources & Connectors" in source
+    assert "Source & connector lifecycle" in source
+    assert "Employer-origin truth" in source
     assert '["implementation", "Implemented"]' in source
     assert '["validation", "Validated"]' in source
     assert '["final_approval", "Approved"]' in source
     assert '["registration", "Registered"]' in source
     assert '["activation", "Activated"]' in source
     assert '["ingestion", "Ingested"]' in source
-    assert "registration is not activation" in source
-    assert "No source activation" in source
+    assert "No connector registration or activation" in source
+    assert "No reviewed mutation available" in source
     assert "activateSource" not in source
 
 
