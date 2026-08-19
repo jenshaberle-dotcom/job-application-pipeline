@@ -138,15 +138,17 @@ def load_product_v1_payload() -> dict[str, object]:
 
     payload = _base.load_product_v1_payload()
     raw_jobs = payload.get("job_readiness")
-    silver_job_ids = sorted(
-        {
-            int(item["silver_job_id"])
-            for item in raw_jobs
-            if isinstance(raw_jobs, list)
-            for item in raw_jobs
-            if isinstance(item, dict) and item.get("silver_job_id") is not None
-        }
-    ) if isinstance(raw_jobs, list) else []
+    silver_job_ids = (
+        sorted(
+            {
+                int(item["silver_job_id"])
+                for item in raw_jobs
+                if isinstance(item, dict) and item.get("silver_job_id") is not None
+            }
+        )
+        if isinstance(raw_jobs, list)
+        else []
+    )
 
     location_rows: list[dict[str, object]] = []
     opportunity_rows: list[dict[str, object]] = []
