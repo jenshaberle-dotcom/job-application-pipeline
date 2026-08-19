@@ -96,52 +96,125 @@ def _merge_structured_job_locations(
     return result
 
 
+def _merge_observed_opportunities(
+    payload: dict[str, object],
+    opportunity_rows: list[dict[str, object]],
+) -> dict[str, object]:
+    """Expose market evidence without promoting it into canonical job truth."""
+
+    result = dict(payload)
+    result["observed_opportunities"] = opportunity_rows
+    summary = dict(result.get("summary") or {})
+    summary["observed_opportunity_count"] = len(opportunity_rows)
+    summary["verified_market_opportunity_count"] = sum(
+        row.get("opportunity_stage") == "vacancy_verified_active"
+        for row in opportunity_rows
+    )
+    summary["pending_market_opportunity_count"] = sum(
+        row.get("opportunity_stage")
+        in {
+            "employer_candidate_missing",
+            "origin_source_required",
+            "risk_review",
+            "vacancy_verification_pending",
+        }
+        for row in opportunity_rows
+    )
+    result["summary"] = summary
+    boundaries = dict(result.get("boundaries") or {})
+    boundaries.update(
+        {
+            "manual_market_evidence_is_not_job_truth": True,
+            "observed_opportunity_is_not_ranking_authority": True,
+            "observed_opportunity_is_not_application_authority": True,
+        }
+    )
+    result["boundaries"] = boundaries
+    return result
+
+
 def load_product_v1_payload() -> dict[str, object]:
-    """Load canonical Product V1 truth plus existing structured location evidence."""
+    """Load canonical Product V1 truth plus structured locations and observed opportunities."""
 
     payload = _base.load_product_v1_payload()
     raw_jobs = payload.get("job_readiness")
-    if not isinstance(raw_jobs, list):
-        return payload
-
     silver_job_ids = sorted(
         {
             int(item["silver_job_id"])
             for item in raw_jobs
+            if isinstance(raw_jobs, list)
+            for item in raw_jobs
             if isinstance(item, dict) and item.get("silver_job_id") is not None
         }
-    )
-    if not silver_job_ids:
-        return payload
+    ) if isinstance(raw_jobs, list) else []
 
+    location_rows: list[dict[str, object]] = []
+    opportunity_rows: list[dict[str, object]] = []
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
     ) as conn:
-        if not _base._relation_exists(conn, "silver_job_locations"):
-            return payload
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    silver_job_id,
-                    city,
-                    country_code,
-                    is_primary,
-                    evidence_source
-                FROM silver_job_locations
-                WHERE silver_job_id = ANY(%s)
-                ORDER BY silver_job_id, is_primary DESC, id
-                """,
-                (silver_job_ids,),
-            )
-            location_rows = [dict(row) for row in cur.fetchall()]
-    return _merge_structured_job_locations(payload, location_rows)
+        if silver_job_ids and _base._relation_exists(conn, "silver_job_locations"):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        silver_job_id,
+                        city,
+                        country_code,
+                        is_primary,
+                        evidence_source
+                    FROM silver_job_locations
+                    WHERE silver_job_id = ANY(%s)
+                    ORDER BY silver_job_id, is_primary DESC, id
+                    """,
+                    (silver_job_ids,),
+                )
+                location_rows = [dict(row) for row in cur.fetchall()]
+
+        if _base._relation_exists(conn, "gold_market_opportunity_status"):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        opportunity_id,
+                        evidence_source,
+                        observation_channel,
+                        normalized_company_key,
+                        company_name,
+                        title,
+                        evidence_url,
+                        search_profile_name,
+                        search_term,
+                        source_seen_at,
+                        observed_at,
+                        market_evidence ->> 'location' AS location,
+                        market_evidence ->> 'remote_signal' AS remote_signal,
+                        candidate_id,
+                        candidate_status,
+                        candidate_risk_level,
+                        employer_origin_url,
+                        verification_outcome,
+                        verified_vacancy_url,
+                        verification_reason,
+                        verification_observed_at,
+                        opportunity_stage,
+                        ranking_authority,
+                        application_authority
+                    FROM gold_market_opportunity_status
+                    ORDER BY observed_at DESC, opportunity_id DESC
+                    LIMIT 250
+                    """
+                )
+                opportunity_rows = [dict(row) for row in cur.fetchall()]
+
+    enriched = _merge_structured_job_locations(payload, location_rows)
+    return _merge_observed_opportunities(enriched, opportunity_rows)
 
 
 class ProductV1Handler(_base.ProductV1Handler):
     """Canonical read-mostly handler with one reviewed final-approval action."""
 
-    server_version = "DeepOceanProductV1/0.4"
+    server_version = "DeepOceanProductV1/0.5"
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
@@ -297,7 +370,7 @@ def run_server(args: argparse.Namespace) -> None:
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
     print(f"Deep Ocean Product V1 Control Center: http://{args.host}:{args.port}/")
     print(
-        "Boundary: read models + deterministic evidence preview + reviewed final-approval gate action; "
+        "Boundary: read models + observed opportunities + deterministic evidence preview + reviewed final-approval gate action; "
         "no provider call, connector registration, source activation, ingestion, ranking mutation or application submission."
     )
     try:
