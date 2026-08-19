@@ -23,6 +23,12 @@ OUTCOME_CLOSED = "closed"
 OUTCOME_UNVERIFIABLE = "unverifiable"
 REQUEST_TIMEOUT_SECONDS = 15.0
 MAX_CLASSIFICATION_BODY_CHARS = 1_000_000
+EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES = frozenset(
+    {
+        "employer_origin_career_site",
+        "employer_origin_ats_backed_career_site",
+    }
+)
 USER_AGENT = (
     "job-application-pipeline-vacancy-health/0.1 "
     "(bounded exact-detail lifecycle probe)"
@@ -230,11 +236,13 @@ def ensure_expected_target(
         )
     if not target.title.strip():
         raise ValueError("Target Silver title is empty")
-    if target.canonical_source_type != "employer_origin_career_site" and (
-        target.raw_source_type != "employer_origin_career_site"
+    if (
+        target.canonical_source_type not in EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
+        and target.raw_source_type not in EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
     ):
         raise ValueError(
-            "Target is not an employer_origin_career_site vacancy"
+            "Target is not an employer_origin_career_site or "
+            "employer_origin_ats_backed_career_site vacancy"
         )
 
     parsed = urlsplit(target.source_url)
