@@ -134,7 +134,9 @@ def test_canonical_handler_preserves_post_block_outside_reviewed_action() -> Non
             HTTPStatus.METHOD_NOT_ALLOWED,
         )
     ]
-    assert canonical_server.load_product_v1_payload is canonical_server._base.load_product_v1_payload
+    # The canonical GET loader may add read-only projections such as structured
+    # locations. POST authority remains independently and explicitly allowlisted.
+    assert canonical_server.ProductV1Handler.do_POST is not canonical_server._base.ProductV1Handler.do_POST
 
 
 def test_shared_preview_runtime_is_provider_free_and_authority_gated(monkeypatch) -> None:
