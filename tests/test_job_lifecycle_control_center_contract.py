@@ -98,5 +98,6 @@ def test_react_control_center_surfaces_job_health_truth() -> None:
     assert "Current active" in source
     assert "Stale / refresh" in source
     assert "not safe for current Top 5" in source
-    assert "Product V1 job-readiness row" in source
-    assert "The UI does not infer one." in source
+    assert "Authoritative Top 5" in source
+    assert "job.source_url" in source
+    assert "The UI will not manufacture a shortlist" in source

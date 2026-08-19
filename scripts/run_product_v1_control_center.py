@@ -14,31 +14,25 @@ import argparse
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 import json
+from pathlib import Path
+import sys
 from urllib.parse import parse_qs, urlparse
 
-if __package__:
-    from scripts import product_v1_control_center_base as _base
-    from scripts.product_v1_control_center_actions import (
-        ControlCenterActionStop,
-        FINAL_APPROVAL_ACTION_PATH,
-        apply_final_approval_action,
-        parse_final_approval_action_payload,
-    )
-    from scripts.product_v1_downstream_preview_runtime import (
-        load_downstream_evidence_preview_payload,
-    )
-else:  # pragma: no cover - direct script execution
-    import product_v1_control_center_base as _base
-    from product_v1_control_center_actions import (
-        ControlCenterActionStop,
-        FINAL_APPROVAL_ACTION_PATH,
-        apply_final_approval_action,
-        parse_final_approval_action_payload,
-    )
-    from product_v1_downstream_preview_runtime import (
-        load_downstream_evidence_preview_payload,
-    )
+if not __package__:  # direct ``python scripts/...`` execution
+    root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
 
+from scripts import product_v1_control_center_base as _base
+from scripts.product_v1_control_center_actions import (
+    ControlCenterActionStop,
+    FINAL_APPROVAL_ACTION_PATH,
+    apply_final_approval_action,
+    parse_final_approval_action_payload,
+)
+from scripts.product_v1_downstream_preview_runtime import (
+    load_downstream_evidence_preview_payload,
+)
 from src.search_intelligence.product_v1_downstream_preview import DownstreamPreviewStop
 
 

@@ -172,10 +172,11 @@ def test_react_control_center_consumes_the_product_api() -> None:
     assert '"build": "tsc --noEmit && vite build"' in package
     assert 'fetch("/api/v1/product-v1"' in app
     assert "StepStone waves" in app
-    assert "Top jobs" in app
+    assert "Authoritative Top 5" in app
     assert "Application preparation" in app
-    assert "Product-level operator gates" in app
+    assert "Product-level gates" in app
     assert "Draft generation is separate from application submission" in app
     assert "--ocean-950" in styles
-    assert ".candidate-workspace" in styles
+    assert ".jobs-workspace" in styles
+    assert ".source-workspace" in styles
     assert ".operations-grid" in styles
