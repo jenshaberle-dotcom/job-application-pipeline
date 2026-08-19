@@ -18,6 +18,14 @@ EXPLICIT_VACANCY_CLOSURE_MARKERS: tuple[tuple[str, str], ...] = (
         "this position is no longer available",
     ),
     (
+        "position_has_been_filled",
+        "this position has been filled",
+    ),
+    (
+        "job_has_been_filled",
+        "this job has been filled",
+    ),
+    (
         "stelle_nicht_mehr_verfuegbar",
         "diese stelle ist nicht mehr verfügbar",
     ),
@@ -42,7 +50,7 @@ def explicit_vacancy_closure_marker(response_text: str) -> str | None:
 
     Generic 404 wording, title mismatch, navigation text and listing absence are
     deliberately not closure authority. This helper recognizes only explicit
-    phrases that state the vacancy/position itself is unavailable.
+    phrases that state the vacancy/position itself is unavailable or filled.
     """
 
     normalized_response = normalize_page_text(response_text)
