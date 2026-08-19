@@ -1,35 +1,20 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import FinalApprovalReviewDialog from "./FinalApprovalReviewDialog";
 
-type Pillar = {
-  id: string;
-  title: string;
-  status: string;
-  summary: string;
-};
-
-type OperatorBlocker = {
-  code: string;
-  title: string;
-  detail: string;
-};
-
+type OperatorBlocker = { code: string; title: string; detail: string };
 type WaveState = {
   search_term: string;
   is_not_exclusion_enabled: boolean;
   current_exclusion_wave_index: number;
   current_interval_days: number;
-  next_due_at?: string | null;
-  last_new_company_count?: number | null;
-  last_quality_score?: number | null;
 };
-
 type Job = {
   silver_job_id: number;
   product_rank?: number;
   title?: string | null;
   company_name?: string | null;
   city?: string | null;
+  country?: string | null;
   publication_date?: string | null;
   source_url?: string | null;
   product_readiness_status?: string;
@@ -47,14 +32,7 @@ type Job = {
   explanations?: string[];
   uncertainties?: string[];
 };
-
-type GateState = {
-  status: string;
-  decision?: string | null;
-  passed: boolean;
-  truth_source: string;
-};
-
+type GateState = { status: string; decision?: string | null; passed: boolean; truth_source: string };
 type SourceConnector = {
   candidate_id: number | null;
   source_name: string;
@@ -70,15 +48,8 @@ type SourceConnector = {
     connector_class?: string | null;
     registration_error?: string | null;
   };
-  gates: {
-    connector_validation_gate: GateState;
-    final_approval_gate: GateState;
-  };
-  activation: {
-    status: string;
-    active: boolean | null;
-    truth_source: string;
-  };
+  gates: { connector_validation_gate: GateState; final_approval_gate: GateState };
+  activation: { status: string; active: boolean | null; truth_source: string };
   search_profiles: {
     status: string;
     profile_count: number;
@@ -115,7 +86,6 @@ type SourceConnector = {
   current_blocker?: string | null;
   next_action: string;
 };
-
 type SourceConnectorOverview = {
   schema_version: string;
   summary: {
@@ -131,15 +101,8 @@ type SourceConnectorOverview = {
   sources: SourceConnector[];
   boundaries: Record<string, boolean>;
 };
-
 type ProductPayload = {
   schema_version: string;
-  product: {
-    name: string;
-    character: string;
-    target_profile: string;
-  };
-  pillars: Pillar[];
   summary: {
     wave_term_count: number;
     observed_job_count: number;
@@ -157,65 +120,63 @@ type ProductPayload = {
   job_readiness: Job[];
   top_jobs: Job[];
   application_readiness: Array<Record<string, unknown>>;
-  application_sources_ready: {
-    base_cv: boolean;
-    base_application_letter: boolean;
-  };
+  application_sources_ready: { base_cv: boolean; base_application_letter: boolean };
   source_connector_overview: SourceConnectorOverview;
   operator_blockers: OperatorBlocker[];
   boundaries: Record<string, boolean>;
 };
 
-type Tab = "overview" | "candidates" | "approvals" | "operations";
-type CandidateFilter = "all" | "attention" | "active" | "ingested";
+type Tab = "jobs" | "sources" | "approvals" | "operations";
+type JobFilter = "current" | "all" | "stale" | "rankable";
+type SourceFilter = "attention" | "all" | "active" | "ingested";
+type BlockerKind = "TECH" | "APPROVAL" | "CONFIG" | "OBSERVABILITY" | "OPERATION" | "CLEAR";
 
-const label = (value: string | undefined | null) =>
-  (value || "unknown").replaceAll("_", " ");
-
-const normalize = (value: string | undefined | null) =>
-  (value || "").trim().toLocaleLowerCase();
+const label = (value: string | undefined | null) => (value || "unknown").replaceAll("_", " ");
+const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
+const lifecycleLabels: Array<[keyof SourceConnector["lifecycle"], string]> = [
+  ["implementation", "Implemented"], ["validation", "Validated"], ["final_approval", "Approved"],
+  ["registration", "Registered"], ["activation", "Activated"], ["ingestion", "Ingested"],
+];
 
 const statusTone = (value: string | undefined | null) => {
-  const normalized = normalize(value);
-  if (
-    normalized.includes("inconsistent") ||
-    normalized.includes("error") ||
-    normalized.includes("failed") ||
-    normalized.includes("blocked") ||
-    normalized === "inactive confirmed"
-  ) return "bad";
-  if (
-    normalized === "passed" ||
-    normalized === "approved" ||
-    normalized === "registered" ||
-    normalized === "implemented" ||
-    normalized === "active" ||
-    normalized === "active confirmed" ||
-    normalized === "ingested" ||
-    normalized.includes("available") ||
-    normalized.includes("ready") ||
-    normalized.includes("present") ||
-    normalized === "success"
-  ) return "ok";
-  if (
-    normalized.includes("required") ||
-    normalized.includes("waiting") ||
-    normalized.includes("unknown") ||
-    normalized.includes("stale") ||
-    normalized.includes("unverifiable") ||
-    normalized.includes("inactive") ||
-    normalized.includes("pending") ||
-    normalized.includes("attention") ||
-    normalized.includes("no ingestion")
-  ) return "warn";
+  const v = normalize(value);
+  if (v.includes("error") || v.includes("failed") || v.includes("blocked") || v.includes("inconsistent")) return "bad";
+  if (["passed", "approved", "registered", "implemented", "active", "active confirmed", "ingested", "success", "rankable"].includes(v)) return "ok";
+  if (v.includes("required") || v.includes("stale") || v.includes("unknown") || v.includes("pending") || v.includes("attention") || v.includes("not ")) return "warn";
   return "neutral";
 };
 
+function blockerKind(blocker: string | null | undefined): BlockerKind {
+  if (!blocker) return "CLEAR";
+  if (["final_approval_incomplete", "controlled_activation_not_completed"].includes(blocker)) return "APPROVAL";
+  if (["activation_truth_unavailable", "ingestion_truth_unavailable"].includes(blocker)) return "OBSERVABILITY";
+  if (["persisted_ingestion_data_without_active_search_profile", "candidate_marked_active_without_active_search_profile"].includes(blocker)) return "CONFIG";
+  if (["no_persisted_ingestion", "silver_processing_pending"].includes(blocker)) return "OPERATION";
+  return "TECH";
+}
+
+function blockerKindLabel(kind: BlockerKind) {
+  return ({ TECH: "Technical", APPROVAL: "Approval / authority", CONFIG: "Configuration", OBSERVABILITY: "Truth / observability", OPERATION: "Operational step", CLEAR: "Clear" })[kind];
+}
+
+function sourceInitials(source: SourceConnector) {
+  return (source.source_label.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("") || "DO").toUpperCase();
+}
+function jobFit(job: Job) {
+  return job.overall_quality_score ?? null;
+}
+function jobCurrent(job: Job) {
+  return normalize(job.lifecycle_status) === "active confirmed" || normalize(job.lifecycle_status) === "active_confirmed";
+}
+function jobStale(job: Job) {
+  return normalize(job.lifecycle_status).includes("stale");
+}
+function scoreText(value: number | null | undefined) {
+  return value == null ? "—" : `${Math.round(value)}%`;
+}
+
 async function readProductTruth(signal?: AbortSignal): Promise<ProductPayload> {
-  const response = await fetch("/api/v1/product-v1", {
-    ...(signal ? { signal } : {}),
-    headers: { Accept: "application/json" },
-  });
+  const response = await fetch("/api/v1/product-v1", { ...(signal ? { signal } : {}), headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`API returned ${response.status}`);
   return response.json() as Promise<ProductPayload>;
 }
@@ -223,685 +184,149 @@ async function readProductTruth(signal?: AbortSignal): Promise<ProductPayload> {
 function StatusPill({ value }: { value: string }) {
   return <span className={`status-pill ${statusTone(value)}`}>{label(value)}</span>;
 }
-
-function Metric({
-  labelText,
-  value,
-  helper,
-  tone = "cyan",
-}: {
-  labelText: string;
-  value: number;
-  helper: string;
-  tone?: "cyan" | "green" | "amber" | "violet";
-}) {
-  return (
-    <article className={`metric-card tone-${tone}`}>
-      <span>{labelText}</span>
-      <strong>{value}</strong>
-      <small>{helper}</small>
-    </article>
-  );
+function KindPill({ blocker }: { blocker?: string | null }) {
+  const kind = blockerKind(blocker);
+  return <span className={`kind-pill kind-${kind.toLowerCase()}`}>{kind}</span>;
 }
-
-const lifecycleLabels: Array<[keyof SourceConnector["lifecycle"], string]> = [
-  ["implementation", "Implemented"],
-  ["validation", "Validated"],
-  ["final_approval", "Approved"],
-  ["registration", "Registered"],
-  ["activation", "Activated"],
-  ["ingestion", "Ingested"],
-];
-
-const sourceLifecycleStages = (
-  summary: SourceConnectorOverview["summary"]
-): Array<{ key: string; label: string; value: number; helper: string }> => [
-  { key: "known", label: "Known", value: summary.source_count, helper: "DB / registry identity" },
-  { key: "implemented", label: "Implemented", value: summary.implemented_count, helper: "code-backed connector" },
-  { key: "validated", label: "Validated", value: summary.validated_count, helper: "validation gate passed" },
-  { key: "approved", label: "Final approved", value: summary.final_approved_count, helper: "reviewed gate truth" },
-  { key: "registered", label: "Registered", value: summary.registered_count, helper: "registry truth" },
-  { key: "active", label: "Active", value: summary.active_count, helper: "active profile truth" },
-  { key: "ingested", label: "Ingested", value: summary.ingested_count, helper: "Bronze / Silver present" },
-];
-
-function lifecycleProgress(source: SourceConnector) {
-  const passed = lifecycleLabels.filter(([key]) => statusTone(source.lifecycle[key]) === "ok").length;
-  return Math.round((passed / lifecycleLabels.length) * 100);
+function Metric({ labelText, value, helper, tone = "cyan" }: { labelText: string; value: number; helper: string; tone?: "cyan" | "green" | "amber" | "violet" }) {
+  return <article className={`metric-card tone-${tone}`}><span>{labelText}</span><strong>{value}</strong><small>{helper}</small></article>;
 }
-
-function currentStage(source: SourceConnector) {
-  if (source.current_blocker) return label(source.current_blocker);
-  const lastPassed = [...lifecycleLabels]
-    .reverse()
-    .find(([key]) => statusTone(source.lifecycle[key]) === "ok");
-  return lastPassed?.[1] || "Candidate review";
-}
-
-function truthCount(payload: ProductPayload) {
-  return payload.job_readiness.reduce(
-    (total, job) => total + (job.explanations?.length || 0),
-    0
-  );
-}
-
-function uncertaintyCount(payload: ProductPayload) {
-  return payload.job_readiness.reduce(
-    (total, job) => total + (job.uncertainties?.length || 0),
-    0
-  );
-}
-
-function sourceInitials(source: SourceConnector) {
-  const parts = source.source_label.split(/\s+/).filter(Boolean);
-  return (parts.slice(0, 2).map((part) => part[0]).join("") || "DO").toUpperCase();
-}
-
-function CandidateListItem({
-  source,
-  selected,
-  onSelect,
-}: {
-  source: SourceConnector;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button className={`candidate-row ${selected ? "selected" : ""}`} type="button" onClick={onSelect}>
-      <span className="candidate-avatar">{sourceInitials(source)}</span>
-      <span className="candidate-row-copy">
-        <strong>{source.source_label}</strong>
-        <small>{label(source.source_type)} · #{source.candidate_id ?? "–"}</small>
-        <em>{currentStage(source)}</em>
-      </span>
-      <StatusPill value={source.current_blocker ? "attention_required" : source.candidate_status} />
-    </button>
-  );
-}
-
 function SourceLifecycleRail({ source }: { source: SourceConnector }) {
-  return (
-    <div className="lifecycle-rail" aria-label={`${source.source_name} lifecycle`}>
-      {lifecycleLabels.map(([key, text]) => (
-        <div className={`lifecycle-step ${statusTone(source.lifecycle[key])}`} key={key}>
-          <i />
-          <span>{text}</span>
-          <small>{label(source.lifecycle[key])}</small>
-        </div>
-      ))}
-    </div>
-  );
+  return <div className="lifecycle-rail">{lifecycleLabels.map(([key, text]) => <div className={`lifecycle-step ${statusTone(source.lifecycle[key])}`} key={key}><i /><span>{text}</span><small>{label(source.lifecycle[key])}</small></div>)}</div>;
 }
 
-function ProductJobMiniCard({ job }: { job: Job }) {
-  return (
-    <article className="job-mini-card">
-      <div>
-        <span className="eyebrow">Silver #{job.silver_job_id}</span>
-        <h4>{job.title || "Untitled job"}</h4>
-        <p>{job.company_name || "Unknown employer"} · {job.city || "Location unconfirmed"}</p>
-      </div>
-      <div className="job-mini-meta">
-        <StatusPill value={job.product_readiness_status || "unknown"} />
-        {job.overall_quality_score != null && <strong>{job.overall_quality_score}</strong>}
-      </div>
-    </article>
-  );
-}
-
-function OverviewScreen({
-  payload,
-  onSelectCandidate,
-  onNavigate,
-}: {
-  payload: ProductPayload;
-  onSelectCandidate: (source: SourceConnector) => void;
-  onNavigate: (tab: Tab) => void;
-}) {
-  const overview = payload.source_connector_overview;
-  const finalApprovals = overview.sources.filter(
-    (source) => source.current_blocker === "final_approval_incomplete"
-  );
-  const attentionSources = overview.sources.filter((source) => Boolean(source.current_blocker));
-  const blockerGroups = Array.from(
-    attentionSources.reduce((groups, source) => {
-      const key = source.current_blocker || "attention_required";
-      groups.set(key, (groups.get(key) || 0) + 1);
-      return groups;
-    }, new Map<string, number>())
-  ).sort((left, right) => right[1] - left[1]);
-  const stages = sourceLifecycleStages(overview.summary);
-  const recentJobs = payload.top_jobs.length > 0
-    ? payload.top_jobs.slice(0, 5)
-    : payload.job_readiness.slice(0, 5);
-
-  return (
-    <div className="screen-stack">
-      <section className="screen-heading">
-        <div>
-          <span className="eyebrow">Repository & DB truth · operator first</span>
-          <h2>Pipeline Overview</h2>
-          <p>One control surface for real lifecycle state, blockers, approvals and Product V1 readiness.</p>
-        </div>
-        <div className="truth-stamp"><i /> Live readmodel</div>
-      </section>
-
-      <section className="metrics overview-metrics">
-        <Metric labelText="Employer candidates" value={overview.summary.source_count} helper="known source candidates" />
-        <Metric labelText="Needs attention" value={overview.summary.attention_count} helper="real blocker / next action" tone="amber" />
-        <Metric labelText="Final approval" value={finalApprovals.length} helper="reviewed GUI action available" tone="green" />
-        <Metric labelText="Active sources" value={overview.summary.active_count} helper="activation truth, not registration" tone="green" />
-        <Metric labelText="Rankable jobs" value={payload.summary.rankable_job_count} helper="hard gates + lifecycle passed" tone="violet" />
-        <Metric labelText="Top jobs" value={payload.summary.top_job_count} helper="bounded Product V1 output" tone="cyan" />
-      </section>
-
-      <section className="dashboard-card lifecycle-map-card">
-        <header className="card-heading-row">
-          <div><span className="eyebrow">Validated source pipeline</span><h3>Source & connector lifecycle</h3></div>
-          <button className="text-action" type="button" onClick={() => onNavigate("operations")}>Open operations →</button>
-        </header>
-        <div className="pipeline-map">
-          {stages.map((stage, index) => (
-            <div className="pipeline-stage" key={stage.key}>
-              <div className="pipeline-stage-card">
-                <span>{stage.label}</span>
-                <strong>{stage.value}</strong>
-                <small>{stage.helper}</small>
-              </div>
-              {index < stages.length - 1 && <div className="pipeline-connector" aria-hidden="true"><i /></div>}
-            </div>
-          ))}
-        </div>
-        <p className="truth-note">This map intentionally reports the source/connector lifecycle already exposed by Product V1. It does not invent unprojected candidate stages.</p>
-      </section>
-
-      <section className="dashboard-grid dashboard-grid-primary">
-        <article className="dashboard-card queue-card">
-          <header className="card-heading-row"><div><span className="eyebrow">Operator queue</span><h3>Needs attention</h3></div><strong>{attentionSources.length}</strong></header>
-          <div className="compact-list">
-            {attentionSources.slice(0, 6).map((source) => (
-              <button key={source.source_name} type="button" onClick={() => onSelectCandidate(source)}>
-                <span className="compact-dot warn" />
-                <span><b>{source.source_label}</b><small>{currentStage(source)}</small></span>
-                <em>Review</em>
-              </button>
-            ))}
-            {attentionSources.length === 0 && <p className="empty">No source candidate currently needs attention.</p>}
-          </div>
-          <button className="text-action footer-link" type="button" onClick={() => onNavigate("candidates")}>View candidate workspace →</button>
-        </article>
-
-        <article className="dashboard-card">
-          <header className="card-heading-row"><div><span className="eyebrow">Product progression</span><h3>Current job intelligence</h3></div><strong>{payload.summary.observed_job_count}</strong></header>
-          <div className="compact-list job-progress-list">
-            {recentJobs.map((job) => (
-              <div className="progress-row" key={job.silver_job_id}>
-                <span className={`compact-dot ${statusTone(job.product_readiness_status)}`} />
-                <span><b>{job.title || "Untitled job"}</b><small>{job.company_name || "Unknown employer"}</small></span>
-                <StatusPill value={job.product_readiness_status || "unknown"} />
-              </div>
-            ))}
-            {recentJobs.length === 0 && <p className="empty">No Product V1 job readiness rows are available.</p>}
-          </div>
-        </article>
-
-        <article className="dashboard-card next-safe-card">
-          <header className="card-heading-row"><div><span className="eyebrow">Do what matters</span><h3>Next safe actions</h3></div><span className="safe-icon">◇</span></header>
-          <div className="safe-action-list">
-            {blockerGroups.slice(0, 5).map(([blocker, count]) => (
-              <button type="button" key={blocker} onClick={() => onNavigate(blocker === "final_approval_incomplete" ? "approvals" : "candidates")}>
-                <span><b>{label(blocker)}</b><small>{count} candidate{count === 1 ? "" : "s"}</small></span>
-                <em>Review →</em>
-              </button>
-            ))}
-            {blockerGroups.length === 0 && <p className="empty">No blocker-driven action is currently exposed.</p>}
-          </div>
-        </article>
-      </section>
-
-      <section className="dashboard-grid dashboard-grid-secondary">
-        <article className="dashboard-card blocker-card">
-          <header className="card-heading-row"><div><span className="eyebrow">Real blocker mix</span><h3>Attention distribution</h3></div></header>
-          <div className="bar-stack">
-            {blockerGroups.slice(0, 6).map(([blocker, count]) => {
-              const width = attentionSources.length ? Math.max(8, Math.round((count / attentionSources.length) * 100)) : 0;
-              return (
-                <div className="bar-row" key={blocker}>
-                  <div><span>{label(blocker)}</span><b>{count}</b></div>
-                  <i><span style={{ width: `${width}%` }} /></i>
-                </div>
-              );
-            })}
-            {blockerGroups.length === 0 && <p className="empty">No blocker distribution to report.</p>}
-          </div>
-        </article>
-
-        <article className="dashboard-card truth-model-card">
-          <header className="card-heading-row"><div><span className="eyebrow">PED lesson: never mix layers</span><h3>Evidence, truth & uncertainty</h3></div></header>
-          <div className="truth-model-grid">
-            <div className="truth-tile evidence"><span>Observed evidence</span><strong>{payload.summary.observed_job_count}</strong><small>Product readiness rows backed by current readmodel inputs.</small></div>
-            <div className="truth-tile truth"><span>Verified truth signals</span><strong>{truthCount(payload)}</strong><small>Explainable positive signals currently projected for jobs.</small></div>
-            <div className="truth-tile hypothesis"><span>Known uncertainties</span><strong>{uncertaintyCount(payload)}</strong><small>Unresolved statements stay explicitly separate from truth.</small></div>
-          </div>
-        </article>
-
-        <article className="dashboard-card boundary-summary-card">
-          <header className="card-heading-row"><div><span className="eyebrow">Authority boundary</span><h3>What this UI may do</h3></div></header>
-          <div className="boundary-lines">
-            <span><i className="ok" /> Read Product / DB truth</span>
-            <span><i className="ok" /> Run provider-free evidence preview</span>
-            <span><i className="ok" /> Review the existing final-approval action</span>
-            <span><i /> No connector registration or activation</span>
-            <span><i /> No provider / ranking / application mutation</span>
-          </div>
-        </article>
-      </section>
-    </div>
-  );
-}
-
-function CandidatesScreen({
-  payload,
-  selectedSource,
-  onSelectSource,
-  onReviewFinalApproval,
-}: {
-  payload: ProductPayload;
-  selectedSource: SourceConnector | null;
-  onSelectSource: (source: SourceConnector) => void;
-  onReviewFinalApproval: (source: SourceConnector) => void;
-}) {
+function JobsScreen({ payload }: { payload: ProductPayload }) {
+  const [filter, setFilter] = useState<JobFilter>("current");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<CandidateFilter>("all");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const currentJobs = payload.job_readiness.filter(jobCurrent);
+  const rankableJobs = payload.job_readiness.filter((job) => job.product_readiness_status === "rankable");
+  const assessedJobs = payload.job_readiness.filter((job) => jobFit(job) != null).sort((a, b) => Number(jobFit(b) || 0) - Number(jobFit(a) || 0));
+  const filtered = useMemo(() => {
+    const q = normalize(search);
+    return payload.job_readiness.filter((job) => {
+      if (filter === "current" && !jobCurrent(job)) return false;
+      if (filter === "stale" && !jobStale(job)) return false;
+      if (filter === "rankable" && job.product_readiness_status !== "rankable") return false;
+      return !q || normalize(`${job.title} ${job.company_name} ${job.city} ${job.source_url}`).includes(q);
+    });
+  }, [filter, payload.job_readiness, search]);
+  const selected = payload.job_readiness.find((job) => job.silver_job_id === selectedId) || filtered[0] || null;
+  const topJobs = payload.top_jobs.slice(0, 5);
+
+  return <div className="page-stack jobs-page">
+    <section className="page-toolbar">
+      <div><span className="eyebrow">Job market · current Product V1 truth</span><h1>Jobs</h1></div>
+      <div className="toolbar-note">CV source: <b>{payload.application_sources_ready.base_cv ? "approved" : "not approved"}</b> · current scoring is profile-fit, not a CV-match claim.</div>
+    </section>
+
+    <section className="metrics jobs-metrics">
+      <Metric labelText="Current active" value={payload.summary.current_active_job_count} helper="lifecycle-confirmed vacancies" tone="green" />
+      <Metric labelText="Observed" value={payload.summary.observed_job_count} helper="all Product V1 readiness rows" />
+      <Metric labelText="Stale / refresh" value={payload.summary.stale_job_count} helper="not safe for current Top 5" tone="amber" />
+      <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="all hard gates passed" tone="violet" />
+      <Metric labelText="Top 5 now" value={payload.summary.top_job_count} helper="authoritative application shortlist" />
+    </section>
+
+    <section className="jobs-top-grid">
+      <article className="dashboard-card top-five-card">
+        <header className="card-heading-row"><div><span className="eyebrow">What should I apply to now?</span><h2>Authoritative Top 5</h2></div><strong>{topJobs.length}/5</strong></header>
+        {topJobs.length > 0 ? <div className="top-five-list">{topJobs.map((job, index) => <article key={job.silver_job_id} className="top-job"><span className="rank-badge">#{job.product_rank || index + 1}</span><div><h3>{job.title || "Untitled job"}</h3><p>{job.company_name || "Unknown employer"} · {job.city || "Location unconfirmed"}</p><small>{scoreText(job.overall_quality_score)} profile fit · {label(job.work_model)}</small></div>{job.source_url ? <a href={job.source_url} target="_blank" rel="noreferrer">Open job ↗</a> : <span className="missing-link">No source URL</span>}</article>)}</div> : <div className="honest-empty"><strong>No authoritative application recommendation yet.</strong><p>Current truth is {payload.summary.current_active_job_count} active, {payload.summary.rankable_job_count} rankable and therefore {payload.summary.top_job_count} Top-5 jobs. The UI will not manufacture a shortlist from stale or incomplete evidence.</p></div>}
+      </article>
+
+      <article className="dashboard-card fit-explainer-card">
+        <header className="card-heading-row"><div><span className="eyebrow">Matching truth</span><h2>Profile fit ≠ CV match</h2></div></header>
+        <p>Product V1 currently scores profile direction, data focus, reliability focus and evidence quality. A job-wise score explicitly grounded in the approved base CV is not projected yet.</p>
+        <div className="mini-stats"><div><span>Assessed jobs</span><strong>{assessedJobs.length}</strong></div><div><span>Approved base CV</span><strong>{payload.application_sources_ready.base_cv ? "Yes" : "No"}</strong></div><div><span>CV-match metric</span><strong>Not available</strong></div></div>
+      </article>
+    </section>
+
+    <section className="jobs-workspace dashboard-card">
+      <header className="jobs-list-toolbar">
+        <div className="filter-chips">{([ ["current", "Current", currentJobs.length], ["rankable", "Rankable", rankableJobs.length], ["stale", "Stale", payload.summary.stale_job_count], ["all", "All observed", payload.job_readiness.length] ] as Array<[JobFilter, string, number]>).map(([id, text, count]) => <button type="button" className={filter === id ? "active" : ""} onClick={() => setFilter(id)} key={id}>{text} <b>{count}</b></button>)}</div>
+        <label className="search-box jobs-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, employer, location…" /></label>
+      </header>
+      <div className="jobs-split">
+        <div className="jobs-table-wrap">
+          <table className="jobs-table"><thead><tr><th>Fit</th><th>Job</th><th>Location</th><th>Lifecycle</th><th>Product gate</th><th>Published</th><th>Link</th></tr></thead><tbody>{filtered.map((job) => <tr key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><td><strong className="fit-score">{scoreText(job.overall_quality_score)}</strong></td><td><b>{job.title || "Untitled job"}</b><small>{job.company_name || "Unknown employer"}</small></td><td>{job.city || job.country || "—"}<small>{label(job.work_model)}</small></td><td><StatusPill value={job.lifecycle_status || "unknown"} /></td><td><StatusPill value={job.product_readiness_status || "unknown"} /></td><td>{job.publication_date || "—"}</td><td>{job.source_url ? <a href={job.source_url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open ↗</a> : "—"}</td></tr>)}</tbody></table>
+          {filtered.length === 0 && <p className="empty">No jobs match this truth filter.</p>}
+        </div>
+        <aside className="job-detail-panel">{selected ? <><span className="eyebrow">Silver #{selected.silver_job_id}</span><h2>{selected.title || "Untitled job"}</h2><p>{selected.company_name || "Unknown employer"} · {selected.city || "Location unconfirmed"}</p>{selected.source_url ? <a className="primary-link" href={selected.source_url} target="_blank" rel="noreferrer">Open original job ↗</a> : <span className="missing-link">No source URL projected</span>}
+          <section className="score-breakdown"><h3>Profile-fit signals</h3>{([ ["Overall", selected.overall_quality_score], ["Profile direction", selected.profile_direction_score], ["Data focus", selected.data_focus_score], ["Reliability", selected.reliability_focus_score], ["Evidence quality", selected.evidence_quality_score] ] as Array<[string, number | null | undefined]>).map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}</section>
+          <section className="detail-facts"><div><span>Lifecycle</span><StatusPill value={selected.lifecycle_status || "unknown"} /></div><div><span>Product gate</span><StatusPill value={selected.product_readiness_status || "unknown"} /></div><div><span>Work model</span><b>{label(selected.work_model)}</b></div><div><span>Commute</span><b>{selected.commute_minutes == null ? "—" : `${selected.commute_minutes} min`}</b></div></section>
+          <section className="evidence-columns"><div><span className="eyebrow">Verified / explanations</span>{selected.explanations?.length ? <ul>{selected.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="muted-copy">No explanation signals projected.</p>}</div><div><span className="eyebrow">Uncertainty / hypothesis</span>{selected.uncertainties?.length ? <ul>{selected.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="muted-copy">No uncertainty statements projected.</p>}</div></section>
+        </> : <p className="empty">Select a job.</p>}</aside>
+      </div>
+    </section>
+  </div>;
+}
+
+function SourcesScreen({ payload, selectedSource, onSelectSource, onReviewFinalApproval }: { payload: ProductPayload; selectedSource: SourceConnector | null; onSelectSource: (source: SourceConnector) => void; onReviewFinalApproval: (source: SourceConnector) => void }) {
+  const [filter, setFilter] = useState<SourceFilter>("attention");
+  const [search, setSearch] = useState("");
   const sources = payload.source_connector_overview.sources;
   const filtered = useMemo(() => {
-    const searchValue = normalize(search);
+    const q = normalize(search);
     return sources.filter((source) => {
-      if (searchValue && !normalize(`${source.source_label} ${source.source_name} ${source.source_type}`).includes(searchValue)) return false;
+      if (q && !normalize(`${source.source_label} ${source.source_name} ${source.current_blocker}`).includes(q)) return false;
       if (filter === "attention") return Boolean(source.current_blocker);
       if (filter === "active") return source.activation.active === true;
-      if (filter === "ingested") return statusTone(source.lifecycle.ingestion) === "ok";
+      if (filter === "ingested") return source.layers.bronze_present === true || source.layers.silver_present === true;
       return true;
     });
   }, [filter, search, sources]);
+  const source = selectedSource && filtered.some((item) => item.candidate_id === selectedSource.candidate_id) ? selectedSource : filtered[0] || sources[0] || null;
+  const kindCounts = sources.reduce((counts, item) => { const kind = blockerKind(item.current_blocker); counts[kind] = (counts[kind] || 0) + (item.current_blocker ? 1 : 0); return counts; }, {} as Record<BlockerKind, number>);
+  const canFinalApprove = Boolean(source?.current_blocker === "final_approval_incomplete" && source.candidate_id && source.candidate_id > 0);
 
-  const source = selectedSource && sources.some((item) => item.candidate_id === selectedSource.candidate_id)
-    ? selectedSource
-    : filtered[0] || sources[0] || null;
-  const readiness = source ? lifecycleProgress(source) : 0;
-  const matchingJobs = source
-    ? payload.job_readiness.filter((job) => normalize(job.company_name) === normalize(source.source_label)).slice(0, 4)
-    : [];
-  const canFinalApprove = Boolean(
-    source?.current_blocker === "final_approval_incomplete" &&
-    source.candidate_id !== null &&
-    source.candidate_id > 0
-  );
-
-  return (
-    <div className="candidate-workspace">
-      <aside className="candidate-queue-panel">
-        <header><span className="eyebrow">Employer-origin truth</span><h2>Candidate Queue <small>{sources.length}</small></h2></header>
-        <label className="search-box"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search candidates…" /></label>
-        <div className="filter-chips">
-          {([
-            ["all", "All", sources.length],
-            ["attention", "Attention", sources.filter((item) => Boolean(item.current_blocker)).length],
-            ["active", "Active", sources.filter((item) => item.activation.active === true).length],
-            ["ingested", "Ingested", sources.filter((item) => statusTone(item.lifecycle.ingestion) === "ok").length],
-          ] as Array<[CandidateFilter, string, number]>).map(([id, text, count]) => (
-            <button className={filter === id ? "active" : ""} type="button" key={id} onClick={() => setFilter(id)}>{text} <b>{count}</b></button>
-          ))}
-        </div>
-        <div className="candidate-list">
-          {filtered.map((item) => (
-            <CandidateListItem
-              key={`${item.candidate_id}-${item.source_name}`}
-              source={item}
-              selected={source?.candidate_id === item.candidate_id}
-              onSelect={() => onSelectSource(item)}
-            />
-          ))}
-          {filtered.length === 0 && <p className="empty">No candidate matches this view.</p>}
-        </div>
-      </aside>
-
-      <main className="candidate-detail-panel">
-        {source ? (
-          <>
-            <header className="candidate-detail-header">
-              <div className="candidate-title-block">
-                <span className="candidate-avatar large">{sourceInitials(source)}</span>
-                <div><span className="eyebrow">Candidate #{source.candidate_id ?? "–"} · {label(source.source_type)}</span><h2>{source.source_label}</h2><p><code>{source.source_name}</code> · {label(source.candidate_status)}</p></div>
-              </div>
-              <StatusPill value={source.current_blocker || source.candidate_status} />
-            </header>
-
-            <section className="candidate-timeline-card">
-              <SourceLifecycleRail source={source} />
-            </section>
-
-            <section className="candidate-content-grid">
-              <article className="candidate-card summary-card">
-                <span className="eyebrow">Summary</span>
-                <h3>{source.current_blocker ? "Operator attention required" : "Lifecycle truth available"}</h3>
-                <p>{source.current_blocker ? `Current blocker: ${label(source.current_blocker)}.` : "No current blocker is exposed by the source/connector readmodel."}</p>
-                <dl className="fact-list">
-                  <div><dt>Candidate status</dt><dd>{label(source.candidate_status)}</dd></div>
-                  <div><dt>Source type</dt><dd>{label(source.source_type)}</dd></div>
-                  <div><dt>Connector class</dt><dd>{source.connector.connector_class || "not materialized"}</dd></div>
-                  <div><dt>Search profiles</dt><dd>{source.search_profiles.active_profile_count}/{source.search_profiles.profile_count} active</dd></div>
-                </dl>
-              </article>
-
-              <article className="candidate-card evidence-card wide">
-                <header className="card-heading-row"><div><span className="eyebrow">Evidence observed</span><h3>Repository / DB-backed signals</h3></div></header>
-                <div className="evidence-fact-grid">
-                  <div><span>Implementation</span><strong>{label(source.connector.implementation_status)}</strong><small>{label(source.connector.implementation_truth_source)}</small></div>
-                  <div><span>Validation gate</span><strong>{label(source.gates.connector_validation_gate.status)}</strong><small>{label(source.gates.connector_validation_gate.truth_source)}</small></div>
-                  <div><span>Final approval gate</span><strong>{label(source.gates.final_approval_gate.status)}</strong><small>{label(source.gates.final_approval_gate.truth_source)}</small></div>
-                  <div><span>Activation</span><strong>{label(source.activation.status)}</strong><small>{label(source.activation.truth_source)}</small></div>
-                  <div><span>Ingestion</span><strong>{label(source.last_ingestion.status)}</strong><small>{source.last_ingestion.inserted_count} inserted</small></div>
-                  <div><span>Data layers</span><strong>{label(source.layers.status)}</strong><small>Bronze {source.layers.bronze_count} · Silver {source.layers.silver_count}</small></div>
-                </div>
-              </article>
-
-              <article className="candidate-card truth-card">
-                <span className="eyebrow">Verified truth</span>
-                <h3>Gate and lifecycle truth</h3>
-                <div className="truth-list">
-                  <span><i className={source.connector.implemented ? "ok" : ""} /> Connector implementation <b>{source.connector.implemented ? "verified" : "not verified"}</b></span>
-                  <span><i className={source.gates.connector_validation_gate.passed ? "ok" : ""} /> Validation <b>{label(source.gates.connector_validation_gate.decision)}</b></span>
-                  <span><i className={source.gates.final_approval_gate.passed ? "ok" : ""} /> Final approval <b>{label(source.gates.final_approval_gate.decision)}</b></span>
-                  <span><i className={source.activation.active === true ? "ok" : ""} /> Activation <b>{label(source.activation.status)}</b></span>
-                </div>
-              </article>
-
-              <article className="candidate-card hypothesis-card">
-                <span className="eyebrow">Uncertainty / hypothesis</span>
-                <h3>Never promoted to truth</h3>
-                <p>{source.current_blocker ? `Unresolved: ${label(source.current_blocker)}.` : "No unresolved source blocker is projected."}</p>
-                {source.inconsistencies.length > 0 ? (
-                  <ul>{source.inconsistencies.map((item) => <li key={item}>{label(item)}</li>)}</ul>
-                ) : (
-                  <p className="muted-copy">No readmodel inconsistency is currently reported. AI hypotheses, when present elsewhere, remain non-authoritative.</p>
-                )}
-              </article>
-
-              <article className="candidate-card next-action-card wide">
-                <div className="safe-icon">◇</div>
-                <div><span className="eyebrow">Next safe action</span><h3>{source.current_blocker ? label(source.current_blocker) : "Continue from current lifecycle truth"}</h3><p>{source.next_action}</p></div>
-                {canFinalApprove ? (
-                  <button className="primary-action" type="button" onClick={() => onReviewFinalApproval(source)}>Review final approval</button>
-                ) : (
-                  <button className="secondary-action" type="button" disabled>No reviewed write action here</button>
-                )}
-              </article>
-            </section>
-
-            <section className="candidate-jobs-section">
-              <header className="card-heading-row"><div><span className="eyebrow">Downstream Product V1</span><h3>Jobs linked by current employer name</h3></div><span>{matchingJobs.length} shown</span></header>
-              <div className="job-mini-grid">
-                {matchingJobs.map((job) => <ProductJobMiniCard key={job.silver_job_id} job={job} />)}
-                {matchingJobs.length === 0 && <p className="empty">No Product V1 job-readiness row currently matches this employer label. The UI does not infer one.</p>}
-              </div>
-            </section>
-          </>
-        ) : <p className="empty">No employer-origin candidate is available.</p>}
-      </main>
-
-      <aside className="candidate-side-panel">
-        {source ? (
-          <>
-            <article className="side-card readiness-card">
-              <span className="eyebrow">Lifecycle readiness</span>
-              <div className="readiness-display">
-                <div className="readiness-ring" style={{ "--progress": `${readiness}%` } as CSSProperties}><strong>{readiness}%</strong><small>verified</small></div>
-                <div><h3>{readiness >= 80 ? "Advanced" : readiness >= 50 ? "In progress" : "Early stage"}</h3><p>Based only on six exposed source lifecycle steps.</p></div>
-              </div>
-            </article>
-
-            <article className="side-card">
-              <span className="eyebrow">Current boundary</span>
-              <h3>{source.current_blocker ? label(source.current_blocker) : "No blocker exposed"}</h3>
-              <p>{source.next_action}</p>
-            </article>
-
-            <article className="side-card checklist-card">
-              <span className="eyebrow">Truth checklist</span>
-              <div className="truth-list">
-                <span><i className={source.connector.implemented ? "ok" : ""} /> Implementation</span>
-                <span><i className={source.gates.connector_validation_gate.passed ? "ok" : ""} /> Validation</span>
-                <span><i className={source.gates.final_approval_gate.passed ? "ok" : ""} /> Final approval</span>
-                <span><i className={source.connector.code_backed_registered ? "ok" : ""} /> Registration</span>
-                <span><i className={source.activation.active === true ? "ok" : ""} /> Activation</span>
-                <span><i className={statusTone(source.lifecycle.ingestion) === "ok" ? "ok" : ""} /> Ingestion</span>
-              </div>
-            </article>
-
-            <article className="side-card action-card">
-              <span className="eyebrow">Actions</span>
-              {canFinalApprove ? (
-                <button className="primary-action" type="button" onClick={() => onReviewFinalApproval(source)}>Review final approval</button>
-              ) : (
-                <button className="secondary-action" type="button" disabled>No reviewed mutation available</button>
-              )}
-              <small>All other progression remains on existing repository-backed operator/runtime paths.</small>
-            </article>
-          </>
-        ) : null}
-      </aside>
-    </div>
-  );
+  return <div className="page-stack sources-page">
+    <section className="page-toolbar"><div><span className="eyebrow">Connector & source control</span><h1>Sources</h1></div><div className="blocker-kind-summary"><span><b>{kindCounts.TECH || 0}</b> tech</span><span><b>{kindCounts.APPROVAL || 0}</b> approval</span><span><b>{kindCounts.CONFIG || 0}</b> config</span><span><b>{kindCounts.OBSERVABILITY || 0}</b> truth</span><span><b>{kindCounts.OPERATION || 0}</b> operation</span></div></section>
+    <section className="source-workspace">
+      <aside className="source-list-panel dashboard-card"><div className="filter-chips">{([ ["attention", "Attention", sources.filter((item) => item.current_blocker).length], ["all", "All", sources.length], ["active", "Active", sources.filter((item) => item.activation.active === true).length], ["ingested", "Ingested", sources.filter((item) => item.layers.bronze_present || item.layers.silver_present).length] ] as Array<[SourceFilter, string, number]>).map(([id, text, count]) => <button type="button" key={id} className={filter === id ? "active" : ""} onClick={() => setFilter(id)}>{text} <b>{count}</b></button>)}</div><label className="search-box"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search source or blocker…" /></label><div className="source-list">{filtered.map((item) => <button key={`${item.candidate_id}-${item.source_name}`} type="button" className={source?.candidate_id === item.candidate_id ? "selected" : ""} onClick={() => onSelectSource(item)}><span className="candidate-avatar">{sourceInitials(item)}</span><span><b>{item.source_label}</b><small>{label(item.current_blocker || item.candidate_status)}</small></span><KindPill blocker={item.current_blocker} /></button>)}</div></aside>
+      <main className="source-detail dashboard-card">{source ? <><header className="source-detail-header"><div><span className="eyebrow">Candidate #{source.candidate_id ?? "–"} · {label(source.source_type)}</span><h2>{source.source_label}</h2><code>{source.source_name}</code></div><div className="source-state"><KindPill blocker={source.current_blocker} /><StatusPill value={source.current_blocker || source.candidate_status} /></div></header><SourceLifecycleRail source={source} />
+        <section className="source-diagnosis"><article className="diagnosis-primary"><span className="eyebrow">Where does it stick?</span><h3>{source.current_blocker ? label(source.current_blocker) : "No blocker exposed"}</h3><p>{source.current_blocker ? blockerKindLabel(blockerKind(source.current_blocker)) : "Lifecycle currently has no blocking state."}</p></article><article><span className="eyebrow">Next safe action</span><h3>{source.next_action}</h3><p>Evidence and confidence never grant authority by themselves.</p></article></section>
+        <section className="source-fact-grid"><article><span>Implementation</span><strong>{label(source.connector.implementation_status)}</strong><small>{label(source.connector.implementation_truth_source)}</small></article><article><span>Validation</span><strong>{label(source.gates.connector_validation_gate.status)}</strong><small>{label(source.gates.connector_validation_gate.decision)}</small></article><article><span>Final approval</span><strong>{label(source.gates.final_approval_gate.status)}</strong><small>{label(source.gates.final_approval_gate.decision)}</small></article><article><span>Registration</span><strong>{label(source.connector.registration_status)}</strong><small>{source.connector.connector_class || "not materialized"}</small></article><article><span>Activation</span><strong>{label(source.activation.status)}</strong><small>{source.search_profiles.active_profile_count}/{source.search_profiles.profile_count} profiles active</small></article><article><span>Ingestion / layers</span><strong>{label(source.last_ingestion.status)}</strong><small>Bronze {source.layers.bronze_count} · Silver {source.layers.silver_count}</small></article></section>
+        <section className="source-bottom-grid"><article><span className="eyebrow">Evidence observed</span><h3>Repository / DB-backed signals</h3><p>Implementation, gate, profile, ingestion and layer truth are shown independently.</p></article><article><span className="eyebrow">Verified truth</span><h3>{source.inconsistencies.length ? "Lifecycle inconsistency detected" : "No readmodel inconsistency reported"}</h3>{source.inconsistencies.length ? <ul>{source.inconsistencies.map((item) => <li key={item}>{label(item)}</li>)}</ul> : <p className="muted-copy">Registration is not activation; historical data is not current source health.</p>}</article><article><span className="eyebrow">Uncertainty / hypothesis</span><h3>Never promoted to truth</h3><p>Unknown states remain unknown. No model hypothesis can complete a gate or activation step.</p></article></section>
+        <section className="next-action-strip"><div><span className="eyebrow">Next safe action</span><strong>{source.next_action}</strong></div>{canFinalApprove ? <button className="primary-action" type="button" onClick={() => onReviewFinalApproval(source)}>Review final approval</button> : <button className="secondary-action" type="button" disabled>No reviewed write action here</button>}</section>
+      </> : <p className="empty">No source is available.</p>}</main>
+    </section>
+  </div>;
 }
 
-function ApprovalsScreen({
-  payload,
-  selectedSource,
-  onSelectSource,
-  onReviewFinalApproval,
-}: {
-  payload: ProductPayload;
-  selectedSource: SourceConnector | null;
-  onSelectSource: (source: SourceConnector) => void;
-  onReviewFinalApproval: (source: SourceConnector) => void;
-}) {
-  const sources = payload.source_connector_overview.sources;
-  const approvalQueue = sources.filter((source) => Boolean(source.current_blocker));
-  const finalApprovalQueue = approvalQueue.filter((source) => source.current_blocker === "final_approval_incomplete");
-  const source = selectedSource && approvalQueue.some((item) => item.candidate_id === selectedSource.candidate_id)
-    ? selectedSource
-    : finalApprovalQueue[0] || approvalQueue[0] || null;
-  const canFinalApprove = Boolean(source?.current_blocker === "final_approval_incomplete" && source.candidate_id !== null && source.candidate_id > 0);
-
-  return (
-    <div className="approval-screen screen-stack">
-      <section className="screen-heading">
-        <div><span className="eyebrow">Safe operator decisions</span><h2>Approval Center</h2><p>Review evidence and authority boundaries before any existing write action is exposed.</p></div>
-        <div className="truth-stamp"><i /> Audit-first</div>
-      </section>
-
-      <section className="approval-tabs">
-        <div className="approval-tab active"><span>Final approval</span><strong>{finalApprovalQueue.length}</strong><small>existing reviewed GUI action</small></div>
-        <div className="approval-tab"><span>Other lifecycle blockers</span><strong>{Math.max(0, approvalQueue.length - finalApprovalQueue.length)}</strong><small>review-only in this UI</small></div>
-        <div className="approval-tab"><span>Product decisions</span><strong>{payload.operator_blockers.length}</strong><small>policy / source-document boundaries</small></div>
-      </section>
-
-      <section className="approval-layout">
-        <aside className="approval-queue dashboard-card">
-          <header><span className="eyebrow">Review queue</span><h3>{approvalQueue.length} items</h3></header>
-          <div className="approval-list">
-            {approvalQueue.map((item) => (
-              <button className={source?.candidate_id === item.candidate_id ? "selected" : ""} key={`${item.candidate_id}-${item.source_name}`} type="button" onClick={() => onSelectSource(item)}>
-                <span className={`priority-mark ${item.current_blocker === "final_approval_incomplete" ? "ready" : "review"}`} />
-                <span><b>{item.source_label}</b><small>{label(item.current_blocker)}</small></span>
-                <em>#{item.candidate_id ?? "–"}</em>
-              </button>
-            ))}
-            {approvalQueue.length === 0 && <p className="empty">No approval or blocker review is currently exposed.</p>}
-          </div>
-        </aside>
-
-        <main className="approval-review-panel dashboard-card">
-          {source ? (
-            <>
-              <header className="approval-review-header">
-                <div><span className="eyebrow">Candidate #{source.candidate_id ?? "–"}</span><h2>{source.source_label}</h2><p><code>{source.source_name}</code> · {label(source.source_type)}</p></div>
-                <StatusPill value={source.current_blocker || "review_required"} />
-              </header>
-
-              <section className="approval-review-grid">
-                <article><span className="eyebrow">What we know</span><h3>Verified lifecycle evidence</h3><ul className="review-points positive"><li>Implementation: {label(source.connector.implementation_status)}</li><li>Validation: {label(source.gates.connector_validation_gate.status)}</li><li>Registration: {label(source.connector.registration_status)}</li><li>Activation: {label(source.activation.status)}</li></ul></article>
-                <article><span className="eyebrow">What is still uncertain</span><h3>Explicit open state</h3><ul className="review-points uncertain"><li>{source.current_blocker ? label(source.current_blocker) : "No blocker exposed"}</li>{source.inconsistencies.map((item) => <li key={item}>{label(item)}</li>)}</ul></article>
-                <article><span className="eyebrow">Why approval is needed</span><h3>Authority does not follow confidence</h3><p>{source.next_action}</p><small>Evidence may support a decision; it never grants authority by itself.</small></article>
-              </section>
-
-              <section className="approval-evidence-grid">
-                <article><span>Validation gate</span><strong>{label(source.gates.connector_validation_gate.status)}</strong><small>{label(source.gates.connector_validation_gate.decision)}</small></article>
-                <article><span>Final approval gate</span><strong>{label(source.gates.final_approval_gate.status)}</strong><small>{label(source.gates.final_approval_gate.decision)}</small></article>
-                <article><span>Search profiles</span><strong>{source.search_profiles.active_profile_count}/{source.search_profiles.profile_count}</strong><small>{label(source.search_profiles.status)}</small></article>
-                <article><span>Data evidence</span><strong>{source.layers.silver_count} Silver</strong><small>{source.layers.bronze_count} Bronze</small></article>
-              </section>
-
-              <section className="approval-decision-card">
-                <div><span className="eyebrow">Decision boundary</span><h3>{canFinalApprove ? "Reviewed final-approval action available" : "Review only — no GUI mutation authorized"}</h3><p>{canFinalApprove ? "The existing 3A action records only the final approval gate and then reloads Product / DB truth." : "Continue through the existing repository-backed operator path. This UX does not invent a second action."}</p></div>
-                {canFinalApprove ? <button className="primary-action large" type="button" onClick={() => onReviewFinalApproval(source)}>Open final approval review</button> : <button className="secondary-action large" type="button" disabled>No reviewed action</button>}
-              </section>
-            </>
-          ) : <p className="empty">No approval item is available.</p>}
-        </main>
-
-        <aside className="approval-side-panel">
-          <article className="side-card"><span className="eyebrow">Product-level operator gates</span><h3>{payload.operator_blockers.length}</h3><div className="operator-blocker-list">{payload.operator_blockers.map((blocker) => <div key={blocker.code}><b>{blocker.title}</b><small>{blocker.detail}</small></div>)}{payload.operator_blockers.length === 0 && <p className="empty">No Product V1 operator blocker is exposed.</p>}</div></article>
-          <article className="side-card boundary-summary-card"><span className="eyebrow">Hard boundary</span><div className="boundary-lines"><span><i className="ok" /> Final gate recording only</span><span><i /> No registration</span><span><i /> No activation</span><span><i /> No ingestion</span><span><i /> No provider / application action</span></div></article>
-        </aside>
-      </section>
-    </div>
-  );
+function ApprovalsScreen({ payload, selectedSource, onSelectSource, onReviewFinalApproval }: { payload: ProductPayload; selectedSource: SourceConnector | null; onSelectSource: (source: SourceConnector) => void; onReviewFinalApproval: (source: SourceConnector) => void }) {
+  const finalQueue = payload.source_connector_overview.sources.filter((source) => source.current_blocker === "final_approval_incomplete");
+  const source = selectedSource && finalQueue.some((item) => item.candidate_id === selectedSource.candidate_id) ? selectedSource : finalQueue[0] || null;
+  return <div className="page-stack approvals-page"><section className="page-toolbar"><div><span className="eyebrow">Human authority only</span><h1>Approvals</h1></div><div className="toolbar-note">Only actual approval gates appear here. Technical blockers stay in Sources.</div></section>
+    <section className="approval-focus-grid"><article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Final approval queue</span><h2>{finalQueue.length} waiting</h2></div></header><div className="approval-list">{finalQueue.map((item) => <button className={source?.candidate_id === item.candidate_id ? "selected" : ""} type="button" key={item.candidate_id} onClick={() => onSelectSource(item)}><span><b>{item.source_label}</b><small>{label(item.gates.connector_validation_gate.status)} validation · candidate #{item.candidate_id}</small></span><KindPill blocker={item.current_blocker} /></button>)}{finalQueue.length === 0 && <div className="honest-empty"><strong>No approval is waiting.</strong><p>The previous 63-count mixed technical blockers with approval work. This queue now reports authority decisions only.</p></div>}</div></article>
+      <article className="dashboard-card approval-review-panel">{source ? <><span className="eyebrow">What we know</span><h2>{source.source_label}</h2><div className="approval-review-grid"><article><span>Validation</span><strong>{label(source.gates.connector_validation_gate.status)}</strong><small>{label(source.gates.connector_validation_gate.decision)}</small></article><article><span>Final approval</span><strong>{label(source.gates.final_approval_gate.status)}</strong><small>{label(source.gates.final_approval_gate.decision)}</small></article><article><span>Registration</span><strong>{label(source.connector.registration_status)}</strong><small>not implied by approval</small></article></div><section className="approval-decision-card"><div><span className="eyebrow">Why approval is needed</span><h3>Authority does not follow confidence</h3><p>{source.next_action}</p><small>Evidence may support a decision; it never grants authority by itself.</small></div><button className="primary-action large" type="button" onClick={() => onReviewFinalApproval(source)}>Open final approval review</button></section></> : <div className="honest-empty"><strong>Nothing to approve right now.</strong><p>Use Sources for technical, configuration, observability and operational blockers.</p></div>}</article>
+      <aside className="dashboard-card product-gates-card"><span className="eyebrow">Product-level gates</span><h2>{payload.operator_blockers.length}</h2>{payload.operator_blockers.map((blocker) => <div className="product-gate" key={blocker.code}><b>{blocker.title}</b><small>{blocker.detail}</small></div>)}<div className="boundary-lines"><span><i className="ok" /> Final gate recording only</span><span><i /> No connector registration or activation</span><span><i /> No provider / ranking / application action</span></div></aside>
+    </section></div>;
 }
 
 function OperationsScreen({ payload }: { payload: ProductPayload }) {
   const overview = payload.source_connector_overview;
-  const stages = sourceLifecycleStages(overview.summary);
-  const boundaryEntries = Object.entries({ ...payload.boundaries, ...overview.boundaries });
-  const lifecycleHealth = [
-    ["Current active", payload.summary.current_active_job_count, "lifecycle-confirmed vacancies"],
-    ["Stale / refresh", payload.summary.stale_job_count, "not safe for current Top 5"],
-    ["Unverifiable", payload.summary.unverifiable_job_count, "evidence cannot confirm current state"],
-    ["Inactive", payload.summary.inactive_confirmed_job_count, "confirmed inactive"],
-  ] as const;
-
-  return (
-    <div className="screen-stack operations-screen">
-      <section className="screen-heading"><div><span className="eyebrow">System truth & runtime-facing state</span><h2>Operations & Observability</h2><p>Lifecycle coverage, Product V1 health, waves, data layers and authority boundaries without invented telemetry.</p></div><div className="truth-stamp"><i /> Read-only observability</div></section>
-
-      <section className="operations-grid operations-grid-top">
-        <article className="dashboard-card lifecycle-map-card compact-map"><header className="card-heading-row"><div><span className="eyebrow">Source pipeline</span><h3>Lifecycle map</h3></div></header><div className="pipeline-map">{stages.map((stage, index) => <div className="pipeline-stage" key={stage.key}><div className="pipeline-stage-card"><span>{stage.label}</span><strong>{stage.value}</strong><small>{stage.helper}</small></div>{index < stages.length - 1 && <div className="pipeline-connector"><i /></div>}</div>)}</div></article>
-
-        <article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Product V1 jobs</span><h3>Lifecycle health</h3></div></header><div className="health-grid">{lifecycleHealth.map(([name, value, helper]) => <div key={name}><span>{name}</span><strong>{value}</strong><small>{helper}</small></div>)}</div></article>
-      </section>
-
-      <section className="operations-grid operations-grid-middle">
-        <article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Deterministic scope rotation</span><h3>StepStone waves</h3></div><strong>{payload.wave_states.length}</strong></header><div className="wave-table">{payload.wave_states.slice(0, 10).map((wave) => <div key={wave.search_term}><span><b>{wave.search_term}</b><small>{wave.current_interval_days} day interval</small></span><StatusPill value={wave.is_not_exclusion_enabled ? "wave_enabled" : "baseline_only"} /><em>Wave {wave.current_exclusion_wave_index}</em></div>)}{payload.wave_states.length === 0 && <p className="empty">No DB-backed wave state is available.</p>}</div></article>
-
-        <article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Source truth</span><h3>Data layers & ingestion</h3></div></header><div className="operations-source-list">{overview.sources.slice(0, 10).map((source) => <div key={source.source_name}><span><b>{source.source_label}</b><small>{label(source.last_ingestion.status)}</small></span><em>Bronze {source.layers.bronze_count}</em><em>Silver {source.layers.silver_count}</em></div>)}</div></article>
-
-        <article className="dashboard-card replay-card"><header className="card-heading-row"><div><span className="eyebrow">Determinism contract</span><h3>Replay-safe by design</h3></div><span className="safe-icon">◇</span></header><p>Provider execution is not a dashboard effect. Current Product V1 readmodels are served without provider calls, and deterministic evidence preview remains read-only.</p><div className="boundary-lines"><span><i className="ok" /> Readmodel has no provider call</span><span><i className="ok" /> Evidence preview has no DB write</span><span><i className="ok" /> Uncertainty remains explicit</span><span><i /> No hidden auto-apply</span></div></article>
-      </section>
-
-      <section className="operations-grid operations-grid-bottom">
-        <article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Authority matrix</span><h3>Product boundaries</h3></div></header><div className="boundary-matrix">{boundaryEntries.map(([name, enabled]) => <div key={name}><span>{label(name)}</span><StatusPill value={enabled ? "enforced" : "not_enforced"} /></div>)}</div></article>
-
-        <article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Application preparation</span><h3>Source document readiness</h3></div></header><div className="application-readiness-grid"><div><span>Base CV</span><strong>{payload.application_sources_ready.base_cv ? "Approved" : "Required"}</strong></div><div><span>Base letter</span><strong>{payload.application_sources_ready.base_application_letter ? "Approved" : "Required"}</strong></div><div><span>Generation-ready jobs</span><strong>{payload.summary.application_ready_count}</strong></div></div><p className="truth-note">Draft generation is separate from application submission. This screen exposes no auto-apply action.</p></article>
-      </section>
-    </div>
-  );
+  const stages = [ ["Known", overview.summary.source_count], ["Implemented", overview.summary.implemented_count], ["Validated", overview.summary.validated_count], ["Approved", overview.summary.final_approved_count], ["Registered", overview.summary.registered_count], ["Activated", overview.summary.active_count], ["Ingested", overview.summary.ingested_count] ] as Array<[string, number]>;
+  const blockerGroups = Array.from(overview.sources.reduce((m, source) => { if (source.current_blocker) { const key = `${blockerKind(source.current_blocker)} · ${label(source.current_blocker)}`; m.set(key, (m.get(key) || 0) + 1); } return m; }, new Map<string, number>())).sort((a, b) => b[1] - a[1]);
+  return <div className="page-stack operations-page"><section className="page-toolbar"><div><span className="eyebrow">System truth & runtime-facing state</span><h1>Operations</h1></div><div className="toolbar-note">Read-only observability · without invented telemetry</div></section>
+    <section className="operations-grid"><article className="dashboard-card operations-wide"><header className="card-heading-row"><div><span className="eyebrow">Source & connector lifecycle</span><h2>Lifecycle map</h2></div></header><div className="pipeline-map">{stages.map(([name, value], index) => <div className="pipeline-stage" key={name}><div className="pipeline-stage-card"><span>{name}</span><strong>{value}</strong></div>{index < stages.length - 1 && <div className="pipeline-connector"><i /></div>}</div>)}</div><p className="truth-note">Registration is not activation. Historical Silver presence alone never qualifies a vacancy.</p></article>
+      <article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Product V1 jobs</span><h2>Lifecycle health</h2></div></header><div className="health-grid"><div><span>Current active</span><strong>{payload.summary.current_active_job_count}</strong></div><div><span>Stale / refresh</span><strong>{payload.summary.stale_job_count}</strong></div><div><span>Unverifiable</span><strong>{payload.summary.unverifiable_job_count}</strong></div><div><span>Inactive</span><strong>{payload.summary.inactive_confirmed_job_count}</strong></div></div></article>
+      <article className="dashboard-card operations-wide"><header className="card-heading-row"><div><span className="eyebrow">Connector diagnosis</span><h2>What is blocking progress?</h2></div><strong>{overview.summary.attention_count}</strong></header><div className="blocker-table">{blockerGroups.map(([name, count]) => <div key={name}><span>{name}</span><strong>{count}</strong></div>)}</div></article>
+      <article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Deterministic scope rotation</span><h2>StepStone waves</h2></div><strong>{payload.wave_states.length}</strong></header><div className="wave-table">{payload.wave_states.slice(0, 8).map((wave) => <div key={wave.search_term}><span><b>{wave.search_term}</b><small>{wave.current_interval_days} day interval</small></span><StatusPill value={wave.is_not_exclusion_enabled ? "wave_enabled" : "baseline_only"} /><em>Wave {wave.current_exclusion_wave_index}</em></div>)}</div></article>
+      <article className="dashboard-card"><header className="card-heading-row"><div><span className="eyebrow">Application preparation</span><h2>Source document readiness</h2></div></header><div className="application-readiness-grid"><div><span>Base CV</span><strong>{payload.application_sources_ready.base_cv ? "Approved" : "Required"}</strong></div><div><span>Base letter</span><strong>{payload.application_sources_ready.base_application_letter ? "Approved" : "Required"}</strong></div><div><span>Generation-ready jobs</span><strong>{payload.summary.application_ready_count}</strong></div></div><p className="truth-note">Draft generation is separate from application submission. No hidden auto-apply.</p></article>
+    </section></div>;
 }
 
 export default function App() {
   const [payload, setPayload] = useState<ProductPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>("jobs");
   const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
   const [finalApprovalSource, setFinalApprovalSource] = useState<SourceConnector | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    readProductTruth(controller.signal)
-      .then(setPayload)
-      .catch((reason: unknown) => {
-        if ((reason as Error).name !== "AbortError") setError(String(reason));
-      });
-    return () => controller.abort();
-  }, []);
-
-  const refreshProductTruth = async () => {
-    const nextPayload = await readProductTruth();
-    setPayload(nextPayload);
-    setError(null);
-  };
-
-  const selectedSource = useMemo(() => {
-    const sources = payload?.source_connector_overview.sources || [];
-    if (selectedCandidateId !== null) {
-      const exact = sources.find((source) => source.candidate_id === selectedCandidateId);
-      if (exact) return exact;
-    }
-    return sources.find((source) => Boolean(source.current_blocker)) || sources[0] || null;
-  }, [payload, selectedCandidateId]);
-
-  const chooseCandidate = (source: SourceConnector) => {
-    setSelectedCandidateId(source.candidate_id);
-    setTab("candidates");
-  };
-
-  if (error) {
-    return <main className="fatal"><div className="fatal-card"><span className="eyebrow">Fail closed</span><h1>Control Center unavailable</h1><pre>{error}</pre></div></main>;
-  }
-  if (!payload) {
-    return <main className="loading"><div className="sonar" /><p>Reading Deep Ocean product state…</p></main>;
-  }
-
-  return (
-    <div className="control-center-shell">
-      <header className="topbar">
-        <div className="topbar-brand"><div className="brand-mark"><span>DO</span></div><div><strong>Deep Ocean</strong><small>Intelligence</small></div></div>
-        <nav className="topnav" aria-label="Primary navigation">
-          {([
-            ["overview", "Overview"],
-            ["candidates", "Candidates"],
-            ["approvals", "Approvals"],
-            ["operations", "Operations"],
-          ] as Array<[Tab, string]>).map(([id, text]) => (
-            <button type="button" className={tab === id ? "active" : ""} key={id} onClick={() => setTab(id)}>{text}{id === "approvals" && payload.source_connector_overview.summary.attention_count > 0 ? <span>{payload.source_connector_overview.summary.attention_count}</span> : null}</button>
-          ))}
-        </nav>
-        <div className="topbar-status"><span className="truth-stamp"><i /> DB truth</span><button type="button" className="refresh-button" onClick={() => void refreshProductTruth()}>↻ Refresh</button></div>
-      </header>
-
-      <div className="app-body">
-        <aside className="icon-rail" aria-label="Quick navigation">
-          <button type="button" className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")} title="Overview">⌘</button>
-          <button type="button" className={tab === "candidates" ? "active" : ""} onClick={() => setTab("candidates")} title="Candidates">◉</button>
-          <button type="button" className={tab === "approvals" ? "active" : ""} onClick={() => setTab("approvals")} title="Approvals">◇</button>
-          <button type="button" className={tab === "operations" ? "active" : ""} onClick={() => setTab("operations")} title="Operations">⌁</button>
-          <div className="rail-spacer" />
-          <span title="Product schema">v1</span>
-        </aside>
-
-        <main className="app-main">
-          {tab === "overview" && <OverviewScreen payload={payload} onSelectCandidate={chooseCandidate} onNavigate={setTab} />}
-          {tab === "candidates" && <CandidatesScreen payload={payload} selectedSource={selectedSource} onSelectSource={(source) => setSelectedCandidateId(source.candidate_id)} onReviewFinalApproval={setFinalApprovalSource} />}
-          {tab === "approvals" && <ApprovalsScreen payload={payload} selectedSource={selectedSource} onSelectSource={(source) => setSelectedCandidateId(source.candidate_id)} onReviewFinalApproval={setFinalApprovalSource} />}
-          {tab === "operations" && <OperationsScreen payload={payload} />}
-        </main>
-      </div>
-
-      <FinalApprovalReviewDialog
-        source={finalApprovalSource}
-        refreshProductTruth={refreshProductTruth}
-        onClose={() => setFinalApprovalSource(null)}
-      />
-    </div>
-  );
+  useEffect(() => { const controller = new AbortController(); readProductTruth(controller.signal).then(setPayload).catch((reason: unknown) => { if ((reason as Error).name !== "AbortError") setError(String(reason)); }); return () => controller.abort(); }, []);
+  const refreshProductTruth = async () => { setPayload(await readProductTruth()); setError(null); };
+  const selectedSource = useMemo(() => { const sources = payload?.source_connector_overview.sources || []; return sources.find((source) => source.candidate_id === selectedCandidateId) || sources.find((source) => Boolean(source.current_blocker)) || sources[0] || null; }, [payload, selectedCandidateId]);
+  if (error) return <main className="fatal"><div className="fatal-card"><span className="eyebrow">Fail closed</span><h1>Control Center unavailable</h1><pre>{error}</pre></div></main>;
+  if (!payload) return <main className="loading"><div className="sonar" /><p>Reading Deep Ocean product state…</p></main>;
+  const finalApprovalCount = payload.source_connector_overview.sources.filter((source) => source.current_blocker === "final_approval_incomplete").length;
+  return <div className="control-center-shell"><header className="topbar"><div className="topbar-brand"><div className="brand-mark"><span>DO</span></div><div><strong>Deep Ocean</strong><small>Intelligence</small></div></div><nav className="topnav" aria-label="Primary navigation">{([ ["jobs", "Jobs"], ["sources", "Sources"], ["approvals", "Approvals"], ["operations", "Operations"] ] as Array<[Tab, string]>).map(([id, text]) => <button type="button" className={tab === id ? "active" : ""} key={id} onClick={() => setTab(id)}>{text}{id === "approvals" && finalApprovalCount > 0 ? <span>{finalApprovalCount}</span> : null}</button>)}</nav><div className="topbar-status"><span className="truth-stamp"><i /> DB truth</span><button type="button" className="refresh-button" onClick={() => void refreshProductTruth()}>↻ Refresh</button></div></header><main className="app-main">{tab === "jobs" && <JobsScreen payload={payload} />}{tab === "sources" && <SourcesScreen payload={payload} selectedSource={selectedSource} onSelectSource={(source) => setSelectedCandidateId(source.candidate_id)} onReviewFinalApproval={setFinalApprovalSource} />}{tab === "approvals" && <ApprovalsScreen payload={payload} selectedSource={selectedSource} onSelectSource={(source) => setSelectedCandidateId(source.candidate_id)} onReviewFinalApproval={setFinalApprovalSource} />}{tab === "operations" && <OperationsScreen payload={payload} />}</main><FinalApprovalReviewDialog source={finalApprovalSource} refreshProductTruth={refreshProductTruth} onClose={() => setFinalApprovalSource(null)} /></div>;
 }
