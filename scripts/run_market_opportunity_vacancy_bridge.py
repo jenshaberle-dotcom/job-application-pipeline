@@ -135,14 +135,12 @@ def _provider_args(
     candidate: OriginCandidateSnapshot,
     *,
     previous_gap_fingerprint: str | None,
-) -> argparse.Namespace:
-    city, country, _bucket = (
-        opportunity_to_contender(opportunity).city,
-        opportunity_to_contender(opportunity).country,
-        opportunity_to_contender(opportunity).geography_bucket,
-    )
+) -> SimpleNamespace:
+    contender = opportunity_to_contender(opportunity)
+    city = contender.city
+    country = contender.country
     location_terms = [value for value in (opportunity.location, city, country, "remote") if value]
-    return argparse.Namespace(
+    return SimpleNamespace(
         candidate_id=candidate.candidate_id,
         company_key=candidate.company_key,
         company_name=candidate.company_name,
