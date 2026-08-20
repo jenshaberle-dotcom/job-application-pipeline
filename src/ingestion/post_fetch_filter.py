@@ -43,12 +43,19 @@ def flatten_value(value: Any) -> str:
 def build_search_text(record: RawJobRecord) -> str:
     raw_data = record.raw_data
     job_data = raw_data.get("job", {})
+    result_card = raw_data.get("result_card", {})
+
+    if not isinstance(job_data, dict):
+        job_data = {}
+    if not isinstance(result_card, dict):
+        result_card = {}
 
     values: list[Any] = []
 
     for field in SEARCHABLE_JOB_FIELDS:
         values.append(job_data.get(field))
         values.append(raw_data.get(field))
+        values.append(result_card.get(field))
 
     return " ".join(
         flattened
