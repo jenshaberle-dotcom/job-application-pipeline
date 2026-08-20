@@ -16,7 +16,7 @@ from typing import Iterable
 from urllib.parse import parse_qs, unquote, urljoin, urlparse, urlunparse
 
 
-DETAIL_URL_SHAPE_VERSION = "DETAIL-006"
+DETAIL_URL_SHAPE_VERSION = "DETAIL-007"
 
 
 class EvidenceDecision(StrEnum):
@@ -211,6 +211,17 @@ def job_detail_url_shape(url: str) -> bool:
     # Common rexx/ATS-style root-level vacancy file with a strong requisition
     # suffix, e.g. /Software-Engineer-mwd-de-j3471.html.
     if search(r"^/[^/]{6,}-j[0-9]{2,}\.html$", path):
+        return True
+    # Some employer portals keep concrete vacancies under a named German job
+    # container instead of the origin root. Require both that bounded container
+    # and a terminal numeric requisition suffix, e.g.:
+    # /stellenmarkt/AI-DevOps-Engineer-mwd-de-j2036.html
+    # /stellenanzeige/Verkaeufer-m-w-d-1-171884.html
+    # This deliberately rejects generic listing pages and template placeholders.
+    if search(
+        r"(?:^|/)(?:stellenanzeige|stellenmarkt)/[^/]{6,}-(?:j)?[0-9]{3,}\.html$",
+        path,
+    ):
         return True
     detail_markers = (
         "/job/",
