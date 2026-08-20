@@ -1,4 +1,4 @@
-name: Approval-gated connector artifact batch
+name: Bottom-up connector Cluster 0
 
 on:
   pull_request:
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: connector-artifact-batch
+  group: bottom-up-connector-cluster0
   cancel-in-progress: false
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Verify bounded batch contract
+      - name: Verify Cluster 0 contract
         shell: bash
         run: |
           set -euo pipefail
@@ -30,25 +30,27 @@ jobs:
           f=.github/workflows/connector-artifact-batch.yml
           t=scripts/run_approved_connector_artifact_batch.py
           grep -Fq "github.event.issue.number == 522" "$f"
-          grep -Fq "PIPELINE-BUILD CONNECTOR-ARTIFACTS" "$f"
+          grep -Fq "PIPELINE-CLUSTER0 CONNECTORS" "$f"
           grep -Fq 'SET TRANSACTION READ ONLY' "$t"
-          grep -Fq 'EXPECTED_BUILD_MODE = "connector_candidate_from_gate_evidence"' "$t"
-          grep -Fq 'artifact_generation_allowed' "$t"
-          grep -Fq 'generated artifact path collision' "$t"
+          grep -Fq 'bottom_up_cluster0_connector_creation' "$t"
+          grep -Fq 'already_exists' "$t"
+          grep -Fq 'shared_missing_connector_family' "$t"
+          grep -Fq 'cluster0_result=' "$t"
           grep -Fq 'database_mutation=0' "$t"
+          grep -Fq 'network_requests=0' "$t"
+          grep -Fq 'connector_execution=0' "$t"
           grep -Fq 'source_activation=0' "$t"
           grep -Fq 'provider_requests=0' "$t"
-          grep -Fq 'auto_pr_allowed' "$t"
 
-  build:
+  cluster0:
     if: >-
       github.event_name == 'issue_comment' &&
       github.event.action == 'created' &&
       github.event.issue.number == 522 &&
       github.event.comment.user.login == github.repository_owner &&
-      startsWith(github.event.comment.body, 'PIPELINE-BUILD CONNECTOR-ARTIFACTS ')
+      startsWith(github.event.comment.body, 'PIPELINE-CLUSTER0 CONNECTORS ')
     runs-on: job-pipeline-runtime-linux
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write
       issues: write
@@ -69,14 +71,13 @@ jobs:
           if int(os.environ.get('GITHUB_REPOSITORY_ID') or 0) != 1230805345:
               raise SystemExit('Pipeline repository ID mismatch')
           match = re.fullmatch(
-              r'PIPELINE-BUILD CONNECTOR-ARTIFACTS ([0-9a-f]{40}) ([1-9][0-9]*(?:,[1-9][0-9]*)*)',
+              r'PIPELINE-CLUSTER0 CONNECTORS ([0-9a-f]{40})',
               os.environ['REQUEST_TEXT'].strip(),
           )
           if not match:
-              raise SystemExit('invalid connector artifact batch request')
+              raise SystemExit('invalid Cluster 0 request')
           with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
               output.write(f'pipeline_sha={match.group(1)}\n')
-              output.write(f'candidate_ids={match.group(2)}\n')
           PY
 
       - name: Authenticate exact current Pipeline main
@@ -111,27 +112,27 @@ jobs:
           print(f'pipeline_main={observed}')
           PY
 
-      - name: Check out exact approved Pipeline main
+      - name: Check out exact Pipeline main
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.request.outputs.pipeline_sha }}
           persist-credentials: true
           fetch-depth: 1
 
-      - name: Create isolated artifact branch
+      - name: Create isolated Cluster 0 branch
         id: branch
         shell: bash
         run: |
           set -euo pipefail
-          branch="agent/522-connector-artifacts-${GITHUB_RUN_ID}"
+          branch="agent/522-cluster0-connectors-${GITHUB_RUN_ID}"
           git switch -c "$branch"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
 
-      - name: Generate and validate approved connector artifacts
+      - name: Create missing connector artifacts bottom-up
         id: build
         env:
           LOCAL_RUNTIME_ROOT: ${{ vars.JOB_PIPELINE_LOCAL_RUNTIME_ROOT }}
-          MANIFEST_PATH: ${{ runner.temp }}/connector-artifact-batch.json
+          MANIFEST_PATH: ${{ runner.temp }}/connector-cluster0.json
         shell: bash
         run: |
           set -euo pipefail
@@ -144,15 +145,25 @@ jobs:
             --pipeline-root "$GITHUB_WORKSPACE" \
             --local-runtime-root "$root" \
             --requested-pipeline-sha "${{ steps.request.outputs.pipeline_sha }}" \
-            --candidate-ids "${{ steps.request.outputs.candidate_ids }}" \
-            --reviewed-by "pipeline_522_connector_artifact_batch" \
             --manifest "$MANIFEST_PATH"
 
           test -f "$MANIFEST_PATH"
-          echo "manifest=$MANIFEST_PATH" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+          payload=json.loads(Path(os.environ['MANIFEST_PATH']).read_text(encoding='utf-8'))
+          print(f"manifest={os.environ['MANIFEST_PATH']}")
+          print(f"generated_count={len(payload['generated_paths']) // 3}")
+          print(f"blocked_count={payload['counts'].get('blocked', 0)}")
+          print(f"created_count={payload['counts'].get('created', 0)}")
+          print(f"already_exists_count={payload['counts'].get('already_exists', 0)}")
+          print(f"cluster0_closed={str(bool(payload['cluster0_closed'])).lower()}")
+          PY
 
-      - name: Verify exact generated scope and publish branch
+      - name: Verify generated scope and publish Cluster 0 branch
         id: publish
+        if: steps.build.outputs.generated_count != '0'
         env:
           MANIFEST_PATH: ${{ steps.build.outputs.manifest }}
           BRANCH: ${{ steps.branch.outputs.branch }}
@@ -201,34 +212,47 @@ jobs:
           test -n "$(git diff --cached --name-only)"
           git config user.name 'jenshaberle-dotcom'
           git config user.email 'jens.haberle@gmail.com'
-          git commit -m 'Generate approval-gated connector candidates'
+          git commit -m 'Generate bottom-up Cluster 0 connector artifacts'
           commit_sha="$(git rev-parse HEAD)"
           git push origin "HEAD:refs/heads/$BRANCH"
           echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
 
-      - name: Report bounded build result
+      - name: Report Cluster 0 result
         if: always()
         env:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
           PIPELINE_SHA: ${{ steps.request.outputs.pipeline_sha }}
-          CANDIDATE_IDS: ${{ steps.request.outputs.candidate_ids }}
+          MANIFEST_PATH: ${{ steps.build.outputs.manifest }}
+          GENERATED_COUNT: ${{ steps.build.outputs.generated_count }}
+          CREATED_COUNT: ${{ steps.build.outputs.created_count }}
+          ALREADY_EXISTS_COUNT: ${{ steps.build.outputs.already_exists_count }}
+          BLOCKED_COUNT: ${{ steps.build.outputs.blocked_count }}
+          CLUSTER0_CLOSED: ${{ steps.build.outputs.cluster0_closed }}
           BRANCH: ${{ steps.branch.outputs.branch }}
           COMMIT_SHA: ${{ steps.publish.outputs.commit_sha }}
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+            let blocked = {};
+            if (process.env.MANIFEST_PATH && fs.existsSync(process.env.MANIFEST_PATH)) {
+              const payload = JSON.parse(fs.readFileSync(process.env.MANIFEST_PATH, 'utf8'));
+              blocked = payload.blocked_causes || {};
+            }
             const body = [
-              '## Approval-gated connector artifact batch',
+              '## Bottom-up Connector Cluster 0',
               '',
               `- Base Pipeline main: \`${process.env.PIPELINE_SHA || 'unknown'}\``,
-              `- Candidate IDs: \`${process.env.CANDIDATE_IDS || 'unknown'}\``,
+              `- Created / already existed / blocked: \`${process.env.CREATED_COUNT || '0'} / ${process.env.ALREADY_EXISTS_COUNT || '0'} / ${process.env.BLOCKED_COUNT || '0'}\``,
+              `- Blocked causes: \`${JSON.stringify(blocked)}\``,
+              `- Cluster 0 closed: \`${process.env.CLUSTER0_CLOSED || 'false'}\``,
               `- Build / publish: \`${process.env.BUILD_OUTCOME || 'not_run'} / ${process.env.PUBLISH_OUTCOME || 'not_run'}\``,
               `- Branch: \`${process.env.BRANCH || 'none'}\``,
               `- Commit: \`${process.env.COMMIT_SHA || 'none'}\``,
               `- Run: \`${context.runId}\``,
-              '- Validation: generated unit tests + py_compile + Ruff are mandatory before commit.',
-              '- Boundary: DB read-only; no connector registration, source activation, Bronze persistence, recurring ingestion, scheduler change, provider/LLM/Tavily calls, or auto-PR.'
+              '- Semantics: every DB candidate is classified as `already_exists`, `created`, or `blocked:<cause>`; candidate-level failures do not hide progress for the rest of the cohort.',
+              '- Boundary: DB read-only; zero network connector execution; no registration, source activation, Bronze persistence, recurring ingestion, scheduler change, provider/LLM/Tavily calls, or auto-PR.'
             ].join('\n');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -237,9 +261,11 @@ jobs:
               body,
             });
 
-      - name: Enforce successful bounded build
+      - name: Enforce infrastructure success
         if: always()
         shell: bash
         run: |
           test "${{ steps.build.outcome }}" = "success"
-          test "${{ steps.publish.outcome }}" = "success"
+          if test "${{ steps.build.outputs.generated_count }}" != "0"; then
+            test "${{ steps.publish.outcome }}" = "success"
+          fi
