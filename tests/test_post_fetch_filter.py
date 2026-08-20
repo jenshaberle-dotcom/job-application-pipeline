@@ -123,11 +123,22 @@ def test_generated_result_card_job_fields_participate_without_heuristic_location
     assert record.raw_data["acquisition_evidence"]["heuristic_result_card_location"] == "Hannover"
 
 
+def test_generated_profile_terms_preserve_detail_page_job_signal() -> None:
+    record = make_record(
+        title="Office Manager",
+        description="People operations",
+    )
+    record.raw_data["job"]["profile_terms"] = ["software"]
+
+    assert job_matches_search_term(record, "software") is True
+
+
 def test_non_job_evidence_metadata_does_not_create_keyword_match() -> None:
     record = make_result_card_record(title="Office Manager", location="Hamburg")
-    record.raw_data["acquisition_boundary"]["diagnostic_note"] = "data pipeline"
+    record.raw_data["acquisition_boundary"]["diagnostic_note"] = "software"
+    record.raw_data["detail_evidence"] = {"matched_profile_terms": ["software"]}
 
-    assert job_matches_search_term(record, "data") is False
+    assert job_matches_search_term(record, "software") is False
 
 
 def test_ml_engineer_does_not_match_ml_substring_inside_html() -> None:

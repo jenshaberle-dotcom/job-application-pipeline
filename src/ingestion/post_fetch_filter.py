@@ -57,6 +57,10 @@ def build_search_text(record: RawJobRecord) -> str:
         values.append(raw_data.get(field))
         values.append(result_card.get(field))
 
+    # Generated employer-origin connectors preserve exact profile signals proven
+    # by the detail page here instead of persisting the full detail-page body.
+    values.append(job_data.get("profile_terms"))
+
     return " ".join(
         flattened
         for value in values
