@@ -4,6 +4,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from src.search_intelligence.connector_candidate_contract import (
+    connector_candidate_decision_ready,
+    connector_candidate_detail_urls,
+    connector_candidate_spec_from_evidence,
+)
+
 
 EARLY_BUILD_GATE_NAMES = (
     "company_candidate",
@@ -191,7 +197,12 @@ def unpassed_early_build_gates(gates: dict[str, GateReview]) -> tuple[dict[str, 
 
 
 def connector_candidate_gate_ready(gates: dict[str, GateReview]) -> bool:
-    return gate_passed(gates, CONNECTOR_CANDIDATE_GATE) and gate_decision(gates, CONNECTOR_CANDIDATE_GATE) == "build_connector_candidate"
+    if not gate_passed(gates, CONNECTOR_CANDIDATE_GATE):
+        return False
+    if not connector_candidate_decision_ready(gate_decision(gates, CONNECTOR_CANDIDATE_GATE)):
+        return False
+    spec = connector_candidate_spec(gates)
+    return bool(spec and connector_candidate_detail_urls(spec))
 
 
 def connector_validation_ready(gates: dict[str, GateReview]) -> bool:
@@ -249,9 +260,7 @@ def connector_candidate_spec(gates: dict[str, GateReview]) -> dict[str, Any]:
     gate = gates.get(CONNECTOR_CANDIDATE_GATE)
     if not gate:
         return {}
-    evidence = gate.evidence or {}
-    spec = evidence.get("connector_candidate_spec") or {}
-    return spec if isinstance(spec, dict) else {}
+    return connector_candidate_spec_from_evidence(gate.evidence)
 
 
 def build_boundary(*, approval_provided: bool) -> dict[str, Any]:
