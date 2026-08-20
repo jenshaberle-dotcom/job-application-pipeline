@@ -35,6 +35,29 @@ def test_root_level_requisition_filename_is_concrete() -> None:
     assert concrete_job_detail_url(url)
 
 
+def test_nested_html_requisition_files_are_concrete() -> None:
+    urls = (
+        "https://karriere.example.com/stellenmarkt/AI-DevOps-Engineer-mwd-de-j2036.html",
+        "https://jobs.example.com/stellenanzeige/Verkaeufer-m-w-d-teilzeit-1-171884.html",
+    )
+
+    for url in urls:
+        assert job_detail_url_shape(url)
+        assert concrete_job_detail_url(url)
+
+
+def test_nested_html_requisition_shape_rejects_listing_and_template_paths() -> None:
+    assert not job_detail_url_shape(
+        "https://karriere.example.com/stellenmarkt/stellenangebote.html"
+    )
+    assert not job_detail_url_shape(
+        "https://jobs.example.com/stellenanzeige/%7C%25uid%25%7C.html"
+    )
+    assert not job_detail_url_shape(
+        "https://jobs.example.com/stellenanzeige/arbeiten-bei-uns.html"
+    )
+
+
 def test_obvious_legal_path_stays_rejected_even_with_jobid() -> None:
     url = "https://jobs.example.com/privacy?jobid=abc123"
 
@@ -80,4 +103,4 @@ def test_discovery_accepts_query_detail_and_exposes_shape_version() -> None:
     assert detail_url not in "\n".join(rejected)
     assert requested == (candidate.candidate_url,)
     assert evidence["detail_url_shape_version"] == DETAIL_URL_SHAPE_VERSION
-    assert DETAIL_URL_SHAPE_VERSION == "DETAIL-006"
+    assert DETAIL_URL_SHAPE_VERSION == "DETAIL-007"
