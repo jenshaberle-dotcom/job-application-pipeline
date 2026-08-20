@@ -31,6 +31,7 @@ from src.connectors.employer_origin_acquisition import (
 )
 from src.connectors.employer_origin_ats_navigation import (
     authorized_ats_provider,
+    provider_detail_urls,
     provider_listing_urls,
 )
 from src.search_intelligence.connector_feasibility_query_runtime import (
@@ -183,13 +184,33 @@ def _provider_route_candidates(
     if provider is None:
         return None, []
 
-    routes = provider_listing_urls(
+    detail_routes = provider_detail_urls(
+        provider=provider,
+        page_url=page.final_url,
+        body=page.html,
+        allowed_hosts=effective_allowed_hosts,
+    )
+    listing_routes = provider_listing_urls(
         provider=provider,
         page_url=page.final_url,
         html=page.html,
         allowed_hosts=effective_allowed_hosts,
     )
-    items = [
+    detail_items = [
+        (
+            NavigationCandidate(
+                url,
+                "detail",
+                f"{provider}_provider_detail",
+                "",
+                False,
+            ),
+            depth + 1,
+        )
+        for url in detail_routes
+        if canonical_url(url) not in fetched
+    ]
+    listing_items = [
         (
             NavigationCandidate(
                 url,
@@ -200,10 +221,10 @@ def _provider_route_candidates(
             ),
             depth + 1,
         )
-        for url in routes
+        for url in listing_routes
         if canonical_url(url) not in fetched
     ]
-    return provider, items
+    return provider, [*detail_items, *listing_items]
 
 
 def _trusted_query_boundary_items(
