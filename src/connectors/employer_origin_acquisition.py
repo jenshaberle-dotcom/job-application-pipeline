@@ -1,10 +1,9 @@
 """Bounded acquisition-first helpers for generated employer-origin connectors.
 
 This module answers one narrow question: can an employer-origin connector reach a
-real job-detail page?  It deliberately does not decide whether that job is a
-profile, role, skill, or location match.  Callers inject the fetcher and choose
-a small follow-up budget; this module performs no persistence and no provider
-calls.
+real job-detail page? It deliberately does not decide whether that job is a
+profile, role, skill, or location match. Callers inject the fetcher and choose a
+small follow-up budget; this module performs no persistence and no provider calls.
 """
 
 from __future__ import annotations
@@ -15,6 +14,10 @@ from html import unescape
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
+from src.search_intelligence.connector_feasibility import classify_evidence_links
+from src.search_intelligence.connector_feasibility_query_runtime import (
+    extract_trusted_query_job_detail_links,
+)
 from src.search_intelligence.multi_origin_evidence import job_detail_url_shape
 
 
@@ -190,7 +193,9 @@ class PageExtractor(HTMLParser):
         if lowered == "title":
             self._in_title = False
         if lowered == "a" and self._href:
-            self.links.append((canonical_url(self._href), normalize_whitespace(" ".join(self._link_text))))
+            self.links.append(
+                (canonical_url(self._href), normalize_whitespace(" ".join(self._link_text)))
+            )
             self._href = None
             self._link_text = []
 
@@ -260,7 +265,7 @@ def extract_embedded_detail_urls(
     allowed_hosts: tuple[str, ...] | set[str],
     limit: int = 12,
 ) -> tuple[str, ...]:
-    """Reuse the deterministic DETAIL-002 idea for JS/JSON-backed job portals."""
+    """Reuse bounded deterministic detail URL extraction for JS/JSON-backed portals."""
 
     decoded = _decode_embedded_url_text(html)
     patterns = (
@@ -299,7 +304,10 @@ def looks_like_listing_navigation(url: str, anchor_text: str) -> bool:
 
 def _non_delegated_host(hostname: str) -> bool:
     lowered = hostname.casefold().strip(".")
-    return any(lowered == suffix or lowered.endswith(f".{suffix}") for suffix in NON_DELEGATED_HOST_SUFFIXES)
+    return any(
+        lowered == suffix or lowered.endswith(f".{suffix}")
+        for suffix in NON_DELEGATED_HOST_SUFFIXES
+    )
 
 
 def explicit_root_delegated_listing_hosts(
@@ -329,6 +337,82 @@ def explicit_root_delegated_listing_hosts(
     return tuple(delegated)
 
 
+def _add_candidate(
+    target: list[NavigationCandidate],
+    seen: set[str],
+    *,
+    url: str,
+    kind: str,
+    discovery_source: str,
+    anchor_text: str = "",
+    known_detail: bool = False,
+    allowed_hosts: tuple[str, ...] | set[str],
+) -> None:
+    clean = canonical_url(url)
+    if (
+        not clean
+        or clean in seen
+        or not allowed_host(clean, allowed_hosts)
+        or non_job_url(clean)
+    ):
+        return
+    seen.add(clean)
+    target.append(
+        NavigationCandidate(
+            clean,
+            kind,
+            discovery_source,
+            anchor_text,
+            known_detail,
+        )
+    )
+
+
+def _classified_navigation_candidates(
+    page: PageSnapshot,
+    *,
+    allowed_hosts: tuple[str, ...] | set[str],
+) -> tuple[NavigationCandidate, ...]:
+    """Project already-qualified deterministic Listing/Detail link evidence."""
+
+    classification = classify_evidence_links(page.final_url, page.html, limit=500)
+    result: list[NavigationCandidate] = []
+    seen: set[str] = set()
+    for item in classification.accepted:
+        if item.evidence_type == "job_detail_candidate_evidence":
+            _add_candidate(
+                result,
+                seen,
+                url=item.url,
+                kind="detail",
+                discovery_source="classified_detail",
+                anchor_text=item.label,
+                allowed_hosts=allowed_hosts,
+            )
+        elif item.evidence_type == "job_search_page_evidence":
+            _add_candidate(
+                result,
+                seen,
+                url=item.url,
+                kind="listing",
+                discovery_source="classified_listing",
+                anchor_text=item.label,
+                allowed_hosts=allowed_hosts,
+            )
+
+    for item in extract_trusted_query_job_detail_links(page.final_url, page.html):
+        _add_candidate(
+            result,
+            seen,
+            url=item.url,
+            kind="detail",
+            discovery_source="query_detail",
+            anchor_text=item.label,
+            allowed_hosts=allowed_hosts,
+        )
+    return tuple(result)
+
+
 def discover_navigation_candidates(
     page: PageSnapshot,
     *,
@@ -343,17 +427,14 @@ def discover_navigation_candidates(
     intermediate: list[NavigationCandidate] = []
 
     for url in known_detail_urls:
-        clean = canonical_url(url)
-        if not clean or clean in seen or not allowed_host(clean, allowed_hosts) or non_job_url(clean):
-            continue
-        seen.add(clean)
-        direct.append(
-            NavigationCandidate(
-                clean,
-                "detail",
-                "known_detail_evidence",
-                known_detail=True,
-            )
+        _add_candidate(
+            direct,
+            seen,
+            url=url,
+            kind="detail",
+            discovery_source="known_detail_evidence",
+            known_detail=True,
+            allowed_hosts=allowed_hosts,
         )
 
     for url, anchor_text in page.links:
@@ -361,22 +442,52 @@ def discover_navigation_candidates(
         if not clean or clean in seen or not allowed_host(clean, allowed_hosts) or non_job_url(clean):
             continue
         if job_detail_url_shape(clean):
-            seen.add(clean)
-            direct.append(NavigationCandidate(clean, "detail", "anchor_detail", anchor_text))
+            _add_candidate(
+                direct,
+                seen,
+                url=clean,
+                kind="detail",
+                discovery_source="anchor_detail",
+                anchor_text=anchor_text,
+                allowed_hosts=allowed_hosts,
+            )
             continue
         if looks_like_listing_navigation(clean, anchor_text):
-            seen.add(clean)
-            intermediate.append(NavigationCandidate(clean, "listing", "anchor_listing", anchor_text))
+            _add_candidate(
+                intermediate,
+                seen,
+                url=clean,
+                kind="listing",
+                discovery_source="anchor_listing",
+                anchor_text=anchor_text,
+                allowed_hosts=allowed_hosts,
+            )
+
+    for item in _classified_navigation_candidates(page, allowed_hosts=allowed_hosts):
+        target = direct if item.kind == "detail" else intermediate
+        _add_candidate(
+            target,
+            seen,
+            url=item.url,
+            kind=item.kind,
+            discovery_source=item.discovery_source,
+            anchor_text=item.anchor_text,
+            allowed_hosts=allowed_hosts,
+        )
 
     for clean in extract_embedded_detail_urls(
         page.html,
         page.final_url,
         allowed_hosts=allowed_hosts,
     ):
-        if clean in seen:
-            continue
-        seen.add(clean)
-        direct.append(NavigationCandidate(clean, "detail", "embedded_detail"))
+        _add_candidate(
+            direct,
+            seen,
+            url=clean,
+            kind="detail",
+            discovery_source="embedded_detail",
+            allowed_hosts=allowed_hosts,
+        )
 
     return tuple([*direct, *intermediate])
 
@@ -441,8 +552,14 @@ def acquire_genuine_job_pages(
     if not allowed_host(root.final_url, allowed_hosts):
         raise RuntimeError("listing source binding mismatch")
 
-    root_known = canonical_url(listing_url) in {canonical_url(url) for url in known_detail_urls}
-    root_proof = genuine_job_detail_proof(root, allowed_hosts=allowed_hosts, known_detail=root_known)
+    root_known = canonical_url(listing_url) in {
+        canonical_url(url) for url in known_detail_urls
+    }
+    root_proof = genuine_job_detail_proof(
+        root,
+        allowed_hosts=allowed_hosts,
+        known_detail=root_known,
+    )
     if root_proof:
         return [
             AcquiredJobPage(
@@ -457,7 +574,10 @@ def acquire_genuine_job_pages(
             )
         ], root.final_url
 
-    delegated_hosts = explicit_root_delegated_listing_hosts(root, allowed_hosts=allowed_hosts)
+    delegated_hosts = explicit_root_delegated_listing_hosts(
+        root,
+        allowed_hosts=allowed_hosts,
+    )
     effective_allowed_hosts = tuple(dict.fromkeys([*allowed_hosts, *delegated_hosts]))
 
     remaining = max_followup_requests
@@ -469,7 +589,10 @@ def acquire_genuine_job_pages(
             known_detail_urls=known_detail_urls,
         )
     ]
-    fetched: set[str] = {canonical_url(root.requested_url), canonical_url(root.final_url)}
+    fetched: set[str] = {
+        canonical_url(root.requested_url),
+        canonical_url(root.final_url),
+    }
     results: list[AcquiredJobPage] = []
 
     while queue and remaining > 0 and len(results) < max_results:
