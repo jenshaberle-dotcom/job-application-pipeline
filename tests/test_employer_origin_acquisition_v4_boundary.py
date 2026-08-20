@@ -11,6 +11,15 @@ QUERY_DETAIL = "https://jobs.example.invalid/job?vacancieid=2026-114"
 PATH_DETAIL = "https://jobs.example.invalid/jobs/backend-engineer-12345"
 
 
+def _root_with_two_listing_candidates() -> str:
+    return (
+        "<html><body>"
+        f"<a href='{LISTING_ONE}'>Open positions</a>"
+        f"<a href='{LISTING_TWO}'>Jobs</a>"
+        "</body></html>"
+    )
+
+
 def _job_content(title: str) -> str:
     return (
         f"<html><title>{title}</title><body>"
@@ -25,9 +34,9 @@ def test_trusted_query_detail_at_budget_boundary_gets_single_extra_followup() ->
     def fetcher(url: str):
         calls.append(url)
         if url == ROOT:
-            return f"<html><a href='{LISTING_ONE}'>Open positions</a></html>", ROOT, 200
+            return _root_with_two_listing_candidates(), ROOT, 200
         if url == LISTING_ONE:
-            return f"<html><a href='{LISTING_TWO}'>Jobs</a></html>", LISTING_ONE, 200
+            return "<html><title>Open positions</title></html>", LISTING_ONE, 200
         if url == LISTING_TWO:
             return (
                 f"<html><a href='{QUERY_DETAIL}'>DevOps Engineer (m/w/d)</a></html>",
@@ -59,9 +68,9 @@ def test_path_detail_at_budget_boundary_does_not_widen_extra_grant() -> None:
     def fetcher(url: str):
         calls.append(url)
         if url == ROOT:
-            return f"<html><a href='{LISTING_ONE}'>Open positions</a></html>", ROOT, 200
+            return _root_with_two_listing_candidates(), ROOT, 200
         if url == LISTING_ONE:
-            return f"<html><a href='{LISTING_TWO}'>Jobs</a></html>", LISTING_ONE, 200
+            return "<html><title>Open positions</title></html>", LISTING_ONE, 200
         if url == LISTING_TWO:
             return (
                 f"<html><a href='{PATH_DETAIL}'>Backend Engineer</a></html>",
