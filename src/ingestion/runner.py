@@ -16,6 +16,7 @@ from src.ingestion.post_fetch_filter import (
     apply_multi_term_keyword_filter,
 )
 from src.ingestion.repository import JobIngestionRepository
+from src.ingestion.run_stage_telemetry import record_ingestion_stage_counts
 
 
 MISSING_DISPLAY_VALUE = "<missing>"
@@ -225,6 +226,13 @@ class JobIngestionRunner:
                 records = filter_result.kept_records
                 suppressed_aggregator_records = filter_result.suppressed_records
 
+            record_ingestion_stage_counts(
+                self.repository,
+                ingestion_run_id=ingestion_run_id,
+                connector_record_count=loaded_before_local_filter,
+                post_filter_count=len(records),
+            )
+
             inserted_count = 0
             duplicate_count = 0
 
@@ -365,6 +373,13 @@ class JobIngestionRunner:
             search_terms=active_terms,
         )
         loaded_after_local_filter = len(records)
+
+        record_ingestion_stage_counts(
+            self.repository,
+            ingestion_run_id=ingestion_run_id,
+            connector_record_count=loaded_before_local_filter,
+            post_filter_count=loaded_after_local_filter,
+        )
 
         if profile.page_size and profile.page_size > 0:
             records = records[: profile.page_size]
