@@ -26,6 +26,28 @@ def make_record(
     )
 
 
+def make_result_card_record(
+    title: str = "Senior Data Engineer",
+    location: str = "Hannover",
+) -> RawJobRecord:
+    return RawJobRecord(
+        source_name="example:discovery",
+        source_url="https://example.com/jobs/senior-data-engineer",
+        external_job_id="generated-1",
+        raw_data={
+            "source_type": "employer_origin_career_site",
+            "acquisition_boundary": {
+                "generated_from_gate_evidence": True,
+            },
+            "result_card": {
+                "title": title,
+                "company_name": "Example GmbH",
+                "location": location,
+            },
+        },
+    )
+
+
 def test_get_matching_search_terms_returns_all_matching_terms() -> None:
     record = make_record()
 
@@ -91,6 +113,21 @@ def test_apply_multi_term_keyword_filter_keeps_only_matching_records() -> None:
         "Analytics Engineer",
         "ETL",
     ]
+
+
+def test_generated_result_card_job_fields_participate_without_heuristic_location() -> None:
+    record = make_result_card_record()
+
+    assert job_matches_search_term(record, "data") is True
+    assert job_matches_search_term(record, "Hannover") is False
+    assert record.raw_data["acquisition_evidence"]["heuristic_result_card_location"] == "Hannover"
+
+
+def test_non_job_evidence_metadata_does_not_create_keyword_match() -> None:
+    record = make_result_card_record(title="Office Manager", location="Hamburg")
+    record.raw_data["acquisition_boundary"]["diagnostic_note"] = "data pipeline"
+
+    assert job_matches_search_term(record, "data") is False
 
 
 def test_ml_engineer_does_not_match_ml_substring_inside_html() -> None:
