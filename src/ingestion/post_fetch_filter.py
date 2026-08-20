@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from src.connectors.base import RawJobRecord, SearchTerm
@@ -56,6 +57,16 @@ def build_search_text(record: RawJobRecord) -> str:
     )
 
 
+def contains_whole_token(search_text: str, token: str) -> bool:
+    """Match one normalized token without accepting substrings inside words."""
+
+    return re.search(
+        rf"(?<!\w){re.escape(token)}(?!\w)",
+        search_text,
+        flags=re.IGNORECASE,
+    ) is not None
+
+
 def job_matches_search_term(record: RawJobRecord, search_term: str) -> bool:
     normalized_search_term = normalize_text(search_term)
 
@@ -69,7 +80,8 @@ def job_matches_search_term(record: RawJobRecord, search_term: str) -> bool:
 
     tokens = normalized_search_term.split()
 
-    return all(token in search_text for token in tokens)
+    return all(contains_whole_token(search_text, token) for token in tokens)
+
 
 def apply_keyword_filter(
     records: list[RawJobRecord],
