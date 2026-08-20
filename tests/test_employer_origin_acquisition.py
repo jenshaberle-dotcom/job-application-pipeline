@@ -86,7 +86,10 @@ def test_job_url_and_content_can_prove_without_jsonld() -> None:
         requested_url=DETAIL,
         html=(
             "<html><title>Backend Engineer Berlin</title><body>"
-            "Your responsibilities. Requirements. Apply now."
+            "Your responsibilities include building and operating distributed backend services, "
+            "reviewing production changes, and improving platform reliability. "
+            "Requirements include Python experience, API design, and collaborative engineering. "
+            "Apply now."
             "</body></html>"
         ),
         final_url=DETAIL,
