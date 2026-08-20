@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.connectors.employer_origin_ats_navigation import (
     authorized_ats_provider,
+    provider_detail_urls,
     provider_listing_urls,
 )
 
@@ -11,6 +12,8 @@ BRANDED_ATS = "https://jobs.example.invalid/"
 CANONICAL_ATS = "https://acme.wd5.myworkdayjobs.com/en-US/acme"
 GERMANY = "https://jobs.example.invalid/go/germany/4411601"
 BELGIUM = "https://jobs.example.invalid/go/belgium/4411501"
+PERSONIO = "https://x1f.jobs.personio.de/"
+PERSONIO_XML = "https://x1f.jobs.personio.de/xml?language=de"
 
 
 def successfactors_html() -> str:
@@ -71,6 +74,55 @@ def test_successfactors_go_routes_are_bounded_to_same_authorized_host() -> None:
         html=html,
         allowed_hosts=("jobs.example.invalid",),
     ) == (GERMANY, BELGIUM)
+
+
+def test_canonical_personio_host_exposes_existing_public_xml_inventory_route() -> None:
+    assert provider_listing_urls(
+        provider="personio",
+        page_url=PERSONIO,
+        html="<html><body>Jobs</body></html>",
+        allowed_hosts=("x1f.jobs.personio.de",),
+    ) == (PERSONIO_XML,)
+
+
+def test_personio_xml_inventory_exposes_bounded_same_tenant_detail_urls() -> None:
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <workzag-jobs>
+      <position><id>123456</id><name>Data Engineer</name></position>
+      <position><id>abc-789</id><name>Platform Engineer</name></position>
+    </workzag-jobs>
+    """
+
+    assert provider_detail_urls(
+        provider="personio",
+        page_url=PERSONIO_XML,
+        body=xml,
+        allowed_hosts=("x1f.jobs.personio.de",),
+    ) == (
+        "https://x1f.jobs.personio.de/job/123456?language=de",
+        "https://x1f.jobs.personio.de/job/abc-789?language=de",
+    )
+
+
+def test_personio_routes_fail_closed_for_branded_or_malformed_surfaces() -> None:
+    assert provider_listing_urls(
+        provider="personio",
+        page_url="https://jobs.example.invalid/",
+        html="https://x1f.jobs.personio.de/",
+        allowed_hosts=("jobs.example.invalid",),
+    ) == ()
+    assert provider_detail_urls(
+        provider="personio",
+        page_url=PERSONIO_XML,
+        body="<workzag-jobs><position><id>bad id!</id></position></workzag-jobs>",
+        allowed_hosts=("x1f.jobs.personio.de",),
+    ) == ()
+    assert provider_detail_urls(
+        provider="personio",
+        page_url="https://other.jobs.personio.de/xml?language=de",
+        body="<position><id>12345</id></position>",
+        allowed_hosts=("x1f.jobs.personio.de",),
+    ) == ()
 
 
 def test_unknown_or_unsupported_provider_exposes_no_listing_route() -> None:
