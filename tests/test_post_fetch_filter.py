@@ -2,6 +2,7 @@ from src.connectors.base import RawJobRecord, SearchTerm
 from src.ingestion.post_fetch_filter import (
     apply_multi_term_keyword_filter,
     get_matching_search_terms,
+    job_matches_search_term,
     with_matched_search_terms,
 )
 
@@ -90,3 +91,39 @@ def test_apply_multi_term_keyword_filter_keeps_only_matching_records() -> None:
         "Analytics Engineer",
         "ETL",
     ]
+
+
+def test_ml_engineer_does_not_match_ml_substring_inside_html() -> None:
+    record = make_record(
+        title="Software Engineer",
+        description="Builds HTML templates and web applications",
+    )
+
+    assert job_matches_search_term(record, "ML Engineer") is False
+
+
+def test_ai_engineer_does_not_match_ai_substring_inside_unrelated_word() -> None:
+    record = make_record(
+        title="Software Engineer",
+        description="Maintains reliable backend services",
+    )
+
+    assert job_matches_search_term(record, "AI Engineer") is False
+
+
+def test_non_contiguous_whole_tokens_remain_supported() -> None:
+    record = make_record(
+        title="Software Engineer",
+        description="Works on ML platforms and model delivery",
+    )
+
+    assert job_matches_search_term(record, "ML Engineer") is True
+
+
+def test_exact_phrase_match_remains_case_insensitive() -> None:
+    record = make_record(
+        title="Senior MACHINE LEARNING ENGINEER",
+        description="Model platform role",
+    )
+
+    assert job_matches_search_term(record, "Machine Learning Engineer") is True
