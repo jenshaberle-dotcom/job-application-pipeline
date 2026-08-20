@@ -10,15 +10,15 @@ from src.connectors.employer_origin_acquisition import (
 )
 
 
-HOSTS = ("jobs.example.test",)
-ROOT = "https://jobs.example.test/careers"
-JOB_HOST_ROOT = "https://jobs.example.test"
-INFO = "https://jobs.example.test/about-us"
-LISTING = "https://jobs.example.test/open-positions"
-DETAIL = "https://jobs.example.test/jobs/backend-engineer-berlin-12345"
-CLASSIFIED_DETAIL = "https://jobs.example.test/careers/platform-engineer"
-QUERY_DETAIL = "https://jobs.example.test/careers?positionId=AB12CD34"
-PRIVACY = "https://jobs.example.test/privacy-policy"
+HOSTS = ("jobs.example.invalid",)
+ROOT = "https://jobs.example.invalid/careers"
+JOB_HOST_ROOT = "https://jobs.example.invalid"
+INFO = "https://jobs.example.invalid/about-us"
+LISTING = "https://jobs.example.invalid/open-positions"
+DETAIL = "https://jobs.example.invalid/jobs/backend-engineer-berlin-12345"
+CLASSIFIED_DETAIL = "https://jobs.example.invalid/careers/platform-engineer"
+QUERY_DETAIL = "https://jobs.example.invalid/careers?positionId=AB12CD34"
+PRIVACY = "https://jobs.example.invalid/privacy-policy"
 ATS_LISTING = "https://acme.wd5.myworkdayjobs.com/en-US/acme"
 ATS_DETAIL = "https://acme.wd5.myworkdayjobs.com/en-US/acme/job/Berlin/Platform-Engineer_R123"
 SOCIAL_JOBS = "https://www.linkedin.com/jobs/acme"
