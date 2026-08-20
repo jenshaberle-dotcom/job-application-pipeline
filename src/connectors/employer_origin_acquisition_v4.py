@@ -1,14 +1,17 @@
-"""ATS-aware deterministic acquisition proof lane.
+"""Deterministic acquisition proof lane with one tightly bounded extra hop.
 
-V4 preserves the V3 genuine-job acceptance boundary while testing one narrower
-navigation hypothesis: after an employer-bound recruiting host is reached, a
-recognized ATS family may expose one additional deterministic listing route.
+V4 preserves the V3 genuine-job acceptance boundary while allowing exactly one
+additional follow-up beyond the normal root + two-follow-up budget in two
+high-confidence situations:
 
-The normal budget remains one root request plus two follow-ups. Exactly one extra
-follow-up can be granted only when the already-authorized page is recognized as a
-supported ATS family and exposes a provider-specific bounded listing route in the
-same response. No relevance qualification, persistence, provider call, or product
-authority is introduced here.
+1. an already-authorized page is recognized as a supported ATS family and
+   exposes a provider-specific bounded listing route; or
+2. the final already-authorized listing page exposes a trusted query-ID detail
+   candidate that passed the strict generic query-detail extractor.
+
+The two cases share one extra-hop grant, so the absolute request cap remains four.
+No relevance qualification, persistence, provider call, or product authority is
+introduced here.
 """
 
 from __future__ import annotations
@@ -36,7 +39,10 @@ from src.search_intelligence.connector_feasibility_query_runtime import (
 from src.search_intelligence.multi_origin_evidence import job_detail_url_shape
 
 
-ATS_EXTRA_FOLLOWUP_LIMIT = 1
+EXTRA_FOLLOWUP_LIMIT = 1
+# Backward-compatible name retained for Runtime evidence contracts that predate
+# the trusted-query boundary-hop case. Both cases share the same single grant.
+ATS_EXTRA_FOLLOWUP_LIMIT = EXTRA_FOLLOWUP_LIMIT
 
 
 def _add_candidate(
@@ -200,6 +206,20 @@ def _provider_route_candidates(
     return provider, items
 
 
+def _trusted_query_boundary_items(
+    items: list[tuple[NavigationCandidate, int]],
+) -> list[tuple[NavigationCandidate, int]]:
+    """Return only detail candidates strong enough to earn the single extra hop."""
+
+    return [
+        item
+        for item in items
+        if item[0].kind == "detail"
+        and item[0].known_detail
+        and item[0].discovery_source == "query_detail"
+    ]
+
+
 def acquire_genuine_job_pages(
     *,
     listing_url: str,
@@ -209,7 +229,7 @@ def acquire_genuine_job_pages(
     max_followup_requests: int = 2,
     max_results: int = 1,
 ) -> tuple[list[AcquiredJobPage], str]:
-    """Acquire one genuine job with one optional provider-recognized extra hop."""
+    """Acquire one genuine job with at most one strict extra follow-up."""
 
     if max_followup_requests < 0:
         raise ValueError("max_followup_requests must be >= 0")
@@ -257,7 +277,7 @@ def acquire_genuine_job_pages(
     effective_allowed_hosts = tuple(dict.fromkeys([*allowed_hosts, *delegated_hosts]))
 
     remaining = max_followup_requests
-    ats_extra_grants = 0
+    extra_followup_grants = 0
     fetched: set[str] = {
         canonical_url(root.requested_url),
         canonical_url(root.final_url),
@@ -278,9 +298,9 @@ def acquire_genuine_job_pages(
         fetched=fetched,
         depth=-1,
     )
-    if root_provider_items and ats_extra_grants < ATS_EXTRA_FOLLOWUP_LIMIT:
+    if root_provider_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
         remaining += 1
-        ats_extra_grants += 1
+        extra_followup_grants += 1
         queue = [*root_provider_items, *queue]
 
     results: list[AcquiredJobPage] = []
@@ -319,7 +339,7 @@ def acquire_genuine_job_pages(
             )
             continue
 
-        if candidate.kind != "listing" or remaining <= 0:
+        if candidate.kind != "listing":
             continue
 
         discovered = discover_navigation_candidates(
@@ -333,6 +353,22 @@ def acquire_genuine_job_pages(
             if item.kind == "detail" and canonical_url(item.url) not in fetched
         ]
 
+        # The normal budget may end on a genuine listing page. If that final page
+        # exposes a role-labelled, strict query-ID detail candidate, spend the one
+        # globally shared extra grant on exactly that proof request. Broader path
+        # shapes, embedded candidates, generic links, and untrusted query params do
+        # not qualify for this boundary grant.
+        if remaining <= 0:
+            boundary_items = _trusted_query_boundary_items(detail_items)
+            if (
+                boundary_items
+                and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT
+            ):
+                remaining += 1
+                extra_followup_grants += 1
+                queue = [*boundary_items, *queue]
+            continue
+
         provider_items: list[tuple[NavigationCandidate, int]] = []
         if depth == 0:
             _provider, provider_items = _provider_route_candidates(
@@ -342,9 +378,12 @@ def acquire_genuine_job_pages(
                 fetched=fetched,
                 depth=depth,
             )
-            if provider_items and ats_extra_grants < ATS_EXTRA_FOLLOWUP_LIMIT:
+            if (
+                provider_items
+                and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT
+            ):
                 remaining += 1
-                ats_extra_grants += 1
+                extra_followup_grants += 1
 
         queue = [*detail_items, *provider_items, *queue]
 
@@ -353,6 +392,7 @@ def acquire_genuine_job_pages(
 
 __all__ = [
     "ATS_EXTRA_FOLLOWUP_LIMIT",
+    "EXTRA_FOLLOWUP_LIMIT",
     "acquire_genuine_job_pages",
     "discover_navigation_candidates",
 ]
