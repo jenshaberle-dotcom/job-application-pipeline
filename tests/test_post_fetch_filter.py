@@ -115,11 +115,12 @@ def test_apply_multi_term_keyword_filter_keeps_only_matching_records() -> None:
     ]
 
 
-def test_generated_result_card_fields_participate_in_keyword_matching() -> None:
+def test_generated_result_card_job_fields_participate_without_heuristic_location() -> None:
     record = make_result_card_record()
 
     assert job_matches_search_term(record, "data") is True
-    assert job_matches_search_term(record, "Hannover") is True
+    assert job_matches_search_term(record, "Hannover") is False
+    assert record.raw_data["acquisition_evidence"]["heuristic_result_card_location"] == "Hannover"
 
 
 def test_non_job_evidence_metadata_does_not_create_keyword_match() -> None:
