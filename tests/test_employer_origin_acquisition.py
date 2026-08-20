@@ -4,12 +4,15 @@ from src.connectors.employer_origin_acquisition import (
     acquire_genuine_job_pages,
     extract_embedded_detail_urls,
     genuine_job_detail_proof,
+    looks_like_listing_navigation,
     parse_page,
 )
 
 
 HOSTS = ("jobs.example.test",)
 ROOT = "https://jobs.example.test/careers"
+JOB_HOST_ROOT = "https://jobs.example.test"
+INFO = "https://jobs.example.test/about-us"
 LISTING = "https://jobs.example.test/open-positions"
 DETAIL = "https://jobs.example.test/jobs/backend-engineer-berlin-12345"
 PRIVACY = "https://jobs.example.test/privacy-policy"
@@ -61,6 +64,50 @@ def test_acquisition_uses_one_bounded_listing_hop_without_relevance_gate() -> No
     assert len(jobs) == 1
     assert jobs[0].final_url == DETAIL
     assert jobs[0].proof_kind == "jsonld_jobposting"
+
+
+def test_jobs_hostname_does_not_make_unrelated_path_listing_navigation() -> None:
+    assert looks_like_listing_navigation(INFO, "About us") is False
+    assert looks_like_listing_navigation(LISTING, "Open positions") is True
+
+
+def test_jobs_hostname_noise_does_not_exhaust_bounded_listing_budget() -> None:
+    calls: list[str] = []
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == JOB_HOST_ROOT:
+            return (
+                "<html><title>Careers</title><body>"
+                f"<a href='{INFO}'>About us</a>"
+                f"<a href='{LISTING}'>Open positions</a>"
+                "</body></html>",
+                JOB_HOST_ROOT,
+                200,
+            )
+        if url == LISTING:
+            return (
+                f"<html><title>Open positions</title><a href='{DETAIL}'>Backend Engineer Berlin</a></html>",
+                LISTING,
+                200,
+            )
+        if url == DETAIL:
+            return job_html(), DETAIL, 200
+        raise AssertionError(url)
+
+    jobs, final_url = acquire_genuine_job_pages(
+        listing_url=JOB_HOST_ROOT,
+        allowed_hosts=HOSTS,
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert final_url == JOB_HOST_ROOT
+    assert calls == [JOB_HOST_ROOT, LISTING, DETAIL]
+    assert INFO not in calls
+    assert len(jobs) == 1
+    assert jobs[0].final_url == DETAIL
 
 
 def test_embedded_detail_url_is_discovered_without_anchor() -> None:
