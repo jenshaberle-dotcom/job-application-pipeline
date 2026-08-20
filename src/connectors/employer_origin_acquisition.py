@@ -273,9 +273,10 @@ def extract_embedded_detail_urls(
 def looks_like_listing_navigation(url: str, anchor_text: str) -> bool:
     if non_job_url(url) or job_detail_url_shape(url):
         return False
-    lowered_url = canonical_url(url).casefold()
+    parsed = urlparse(canonical_url(url))
+    lowered_url_surface = f"{parsed.path}?{parsed.query}".casefold()
     lowered_text = normalize_whitespace(anchor_text).casefold()
-    return any(marker in lowered_url for marker in LISTING_URL_MARKERS) or any(
+    return any(marker in lowered_url_surface for marker in LISTING_URL_MARKERS) or any(
         marker in lowered_text for marker in LISTING_TEXT_MARKERS
     )
 
