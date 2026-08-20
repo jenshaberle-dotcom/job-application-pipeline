@@ -69,6 +69,22 @@ LISTING_TEXT_MARKERS = (
     "our offers",
     "job board",
     "job search",
+    "view jobs",
+    "to the jobs",
+    "search jobs",
+    "see jobs",
+    "job opportunities",
+    "stellen entdecken",
+)
+
+NON_DELEGATED_HOST_SUFFIXES = (
+    "facebook.com",
+    "instagram.com",
+    "linkedin.com",
+    "tiktok.com",
+    "twitter.com",
+    "x.com",
+    "youtube.com",
 )
 
 JOB_CONTENT_MARKERS = (
@@ -281,6 +297,38 @@ def looks_like_listing_navigation(url: str, anchor_text: str) -> bool:
     )
 
 
+def _non_delegated_host(hostname: str) -> bool:
+    lowered = hostname.casefold().strip(".")
+    return any(lowered == suffix or lowered.endswith(f".{suffix}") for suffix in NON_DELEGATED_HOST_SUFFIXES)
+
+
+def explicit_root_delegated_listing_hosts(
+    page: PageSnapshot,
+    *,
+    allowed_hosts: tuple[str, ...] | set[str],
+) -> tuple[str, ...]:
+    """Derive one-hop host delegation only from explicit employer-root job anchors."""
+
+    delegated: list[str] = []
+    seen: set[str] = set()
+    for raw_url, anchor_text in page.links:
+        clean = canonical_url(raw_url)
+        parsed = urlparse(clean)
+        hostname = (parsed.hostname or "").casefold()
+        if parsed.scheme.casefold() != "https" or not hostname:
+            continue
+        if allowed_host(clean, allowed_hosts) or non_job_url(clean) or _non_delegated_host(hostname):
+            continue
+        lowered_text = normalize_whitespace(anchor_text).casefold()
+        if not lowered_text or not any(marker in lowered_text for marker in LISTING_TEXT_MARKERS):
+            continue
+        if hostname in seen:
+            continue
+        seen.add(hostname)
+        delegated.append(hostname)
+    return tuple(delegated)
+
+
 def discover_navigation_candidates(
     page: PageSnapshot,
     *,
@@ -371,8 +419,9 @@ def acquire_genuine_job_pages(
     """Acquire genuine jobs without profile/location qualification.
 
     The default budget is exactly three logical requests total: one root/listing
-    request plus at most two follow-ups.  A follow-up may be an intermediate
-    jobs-list page, after which the final request can prove one concrete detail.
+    request plus at most two follow-ups. A direct employer-root jobs anchor may
+    delegate one exact external recruiting host for this proof only; delegation
+    is never transitive.
     """
 
     if max_followup_requests < 0:
@@ -408,12 +457,15 @@ def acquire_genuine_job_pages(
             )
         ], root.final_url
 
+    delegated_hosts = explicit_root_delegated_listing_hosts(root, allowed_hosts=allowed_hosts)
+    effective_allowed_hosts = tuple(dict.fromkeys([*allowed_hosts, *delegated_hosts]))
+
     remaining = max_followup_requests
     queue: list[tuple[NavigationCandidate, int]] = [
         (candidate, 0)
         for candidate in discover_navigation_candidates(
             root,
-            allowed_hosts=allowed_hosts,
+            allowed_hosts=effective_allowed_hosts,
             known_detail_urls=known_detail_urls,
         )
     ]
@@ -436,7 +488,7 @@ def acquire_genuine_job_pages(
         )
         proof = genuine_job_detail_proof(
             page,
-            allowed_hosts=allowed_hosts,
+            allowed_hosts=effective_allowed_hosts,
             known_detail=candidate.known_detail,
         )
         if proof:
@@ -454,13 +506,10 @@ def acquire_genuine_job_pages(
             )
             continue
 
-        # Exactly one intermediate-list hop is allowed.  This lets a generic
-        # career root reach a jobs/offers page and then one concrete vacancy
-        # without turning the connector into a crawler.
         if candidate.kind == "listing" and depth == 0 and remaining > 0:
             discovered = discover_navigation_candidates(
                 page,
-                allowed_hosts=allowed_hosts,
+                allowed_hosts=effective_allowed_hosts,
                 known_detail_urls=(),
             )
             next_items = [

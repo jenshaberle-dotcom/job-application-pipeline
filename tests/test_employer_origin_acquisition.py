@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.connectors.employer_origin_acquisition import (
     acquire_genuine_job_pages,
+    explicit_root_delegated_listing_hosts,
     extract_embedded_detail_urls,
     genuine_job_detail_proof,
     looks_like_listing_navigation,
@@ -16,6 +17,9 @@ INFO = "https://jobs.example.test/about-us"
 LISTING = "https://jobs.example.test/open-positions"
 DETAIL = "https://jobs.example.test/jobs/backend-engineer-berlin-12345"
 PRIVACY = "https://jobs.example.test/privacy-policy"
+ATS_LISTING = "https://acme.wd5.myworkdayjobs.com/en-US/acme"
+ATS_DETAIL = "https://acme.wd5.myworkdayjobs.com/en-US/acme/job/Berlin/Platform-Engineer_R123"
+SOCIAL_JOBS = "https://www.linkedin.com/jobs/acme"
 
 
 def job_html(title: str = "Backend Engineer Berlin") -> str:
@@ -108,6 +112,64 @@ def test_jobs_hostname_noise_does_not_exhaust_bounded_listing_budget() -> None:
     assert INFO not in calls
     assert len(jobs) == 1
     assert jobs[0].final_url == DETAIL
+
+
+def test_explicit_root_jobs_anchor_delegates_one_external_https_host() -> None:
+    page = parse_page(
+        requested_url=ROOT,
+        html=(
+            "<html><title>Careers</title><body>"
+            f"<a href='{SOCIAL_JOBS}'>Jobs</a>"
+            f"<a href='{ATS_LISTING}'>View jobs</a>"
+            "</body></html>"
+        ),
+        final_url=ROOT,
+        status_code=200,
+    )
+
+    assert explicit_root_delegated_listing_hosts(page, allowed_hosts=HOSTS) == (
+        "acme.wd5.myworkdayjobs.com",
+    )
+
+
+def test_acquisition_can_follow_explicit_root_ats_delegation_without_transitive_authority() -> None:
+    calls: list[str] = []
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == ROOT:
+            return (
+                "<html><title>Careers</title><body>"
+                f"<a href='{SOCIAL_JOBS}'>Jobs</a>"
+                f"<a href='{ATS_LISTING}'>To the jobs</a>"
+                "</body></html>",
+                ROOT,
+                200,
+            )
+        if url == ATS_LISTING:
+            return (
+                f"<html><title>Open positions</title><a href='{ATS_DETAIL}'>Platform Engineer</a></html>",
+                ATS_LISTING,
+                200,
+            )
+        if url == ATS_DETAIL:
+            return job_html("Platform Engineer"), ATS_DETAIL, 200
+        raise AssertionError(url)
+
+    jobs, final_url = acquire_genuine_job_pages(
+        listing_url=ROOT,
+        allowed_hosts=HOSTS,
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert final_url == ROOT
+    assert calls == [ROOT, ATS_LISTING, ATS_DETAIL]
+    assert SOCIAL_JOBS not in calls
+    assert len(jobs) == 1
+    assert jobs[0].final_url == ATS_DETAIL
+    assert jobs[0].proof_kind == "jsonld_jobposting"
 
 
 def test_embedded_detail_url_is_discovered_without_anchor() -> None:
