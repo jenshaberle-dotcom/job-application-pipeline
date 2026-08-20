@@ -66,6 +66,44 @@ def test_non_ats_navigation_keeps_original_three_request_budget() -> None:
     assert len(jobs) == 1
 
 
+def test_trusted_query_detail_can_prove_without_jsonld_or_path_detail_shape() -> None:
+    calls: list[str] = []
+    listing = "https://jobs.example.invalid/jobs"
+    detail = "https://jobs.example.invalid/job?vacancieid=2026-114"
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == listing:
+            return (
+                f"<html><title>Jobs</title><a href='{detail}'>DevOps Engineer (m/w/d)</a></html>",
+                listing,
+                200,
+            )
+        if url == detail:
+            return (
+                "<html><title>DevOps Engineer (m/w/d)</title><body>"
+                "Apply now. Responsibilities, requirements and your profile."
+                "</body></html>",
+                detail,
+                200,
+            )
+        raise AssertionError(url)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=listing,
+        allowed_hosts=(ATS_HOST,),
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert calls == [listing, detail]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == detail
+    assert jobs[0].discovery_source == "query_detail"
+    assert jobs[0].proof_kind == "known_detail_and_job_content"
+
+
 def test_successfactors_branded_host_gets_exactly_one_provider_listing_hop() -> None:
     calls: list[str] = []
 
