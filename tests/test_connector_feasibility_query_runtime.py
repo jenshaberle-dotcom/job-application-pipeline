@@ -72,6 +72,16 @@ def test_query_detail_allows_bounded_company_scope_parameter() -> None:
     assert tuple(link.url for link in links) == (detail_url,)
 
 
+def test_query_detail_accepts_legacy_vacancie_identifier_on_job_board() -> None:
+    origin_url = "https://karriere.example.com/jobs"
+    detail_url = "https://karriere.example.com/job?vacancieid=2026-114"
+    html = f'<a href="{detail_url}">DevOps Engineer (m/w/d)</a>'
+
+    links = extract_trusted_query_job_detail_links(origin_url, html)
+
+    assert tuple(link.url for link in links) == (detail_url,)
+
+
 def test_query_detail_rejects_generic_label_without_role_evidence() -> None:
     origin_url = "https://jobs.example.com/de"
     detail_url = "https://jobs.example.com/de?id=458ccb"

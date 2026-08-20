@@ -70,6 +70,7 @@ QUERY_JOB_IDENTIFIER_KEYS = {
     "id",
     "jobid",
     "vacancyid",
+    "vacancieid",
     "postingid",
     "requisitionid",
     "reqid",

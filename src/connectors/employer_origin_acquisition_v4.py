@@ -139,6 +139,7 @@ def discover_navigation_candidates(
             kind="detail",
             discovery_source="query_detail",
             anchor_text=item.label,
+            known_detail=True,
             allowed_hosts=allowed_hosts,
         )
 
