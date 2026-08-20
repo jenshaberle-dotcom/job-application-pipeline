@@ -44,6 +44,7 @@ def test_v2_generator_defers_relevance_and_uses_shared_acquisition_helper() -> N
     candidate = make_candidate()
     module = connector_module_content_v2(candidate=candidate, spec={"detail_evidence": {"detail_urls": []}})
 
+    compile(module, "<generated-connector>", "exec")
     assert GENERATOR_SEMANTICS == "employer_origin_acquisition_first.v2"
     assert "acquire_genuine_job_pages" in module
     assert '"relevance_gated": False' in module
@@ -57,6 +58,7 @@ def test_v2_generator_defers_relevance_and_uses_shared_acquisition_helper() -> N
 def test_v2_generated_fixture_proves_irrelevant_real_job_and_rejects_privacy() -> None:
     content = connector_test_content_v2(make_candidate())
 
+    compile(content, "<generated-connector-test>", "exec")
     assert "Backend Engineer Berlin" in content
     assert 'search_location="Hannover"' in content
     assert "PRIVACY_URL not in calls" in content
