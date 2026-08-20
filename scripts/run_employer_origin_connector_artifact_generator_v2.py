@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Acquisition-first adapter for the approval-gated connector artifact generator.
 
 The legacy generator owns repository/DB gate identity and artifact write
@@ -7,6 +5,8 @@ boundaries. V2 intentionally changes only generated connector semantics:
 connector health means reaching a genuine employer-origin job detail, while
 profile/role/skill/location qualification is deferred downstream.
 """
+
+from __future__ import annotations
 
 from urllib.parse import urlparse
 
