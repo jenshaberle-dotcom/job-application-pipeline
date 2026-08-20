@@ -3,14 +3,14 @@ from __future__ import annotations
 """Acquisition-first adapter for the approval-gated connector artifact generator.
 
 The legacy generator owns repository/DB gate identity and artifact write
-boundaries.  V2 intentionally changes only generated connector semantics:
+boundaries. V2 intentionally changes only generated connector semantics:
 connector health means reaching a genuine employer-origin job detail, while
 profile/role/skill/location qualification is deferred downstream.
 """
 
 from urllib.parse import urlparse
 
-import run_employer_origin_connector_artifact_generator as legacy
+from scripts import run_employer_origin_connector_artifact_generator as legacy
 
 
 GENERATOR_SEMANTICS = "employer_origin_acquisition_first.v2"
@@ -102,7 +102,7 @@ class {class_name}(JobSourceConnector):
         profile: SearchProfile,
         search_term: SearchTerm,
     ) -> tuple[list[RawJobRecord], str]:
-        # profile/search_term are intentionally not acquisition gates.  They are
+        # profile/search_term are intentionally not acquisition gates. They are
         # accepted for the common connector interface and evaluated downstream.
         del profile, search_term
         jobs, final_url = acquire_genuine_job_pages(
@@ -115,7 +115,12 @@ class {class_name}(JobSourceConnector):
         )
         observed_at_utc = datetime.now(UTC).isoformat()
         records = [
-            build_raw_job_record(job=job, requested_listing_url=final_url, observed_at_utc=observed_at_utc)
+            build_raw_job_record(
+                job=job,
+                requested_listing_url=final_url,
+                observed_at_utc=observed_at_utc,
+                max_followup_requests=self.max_detail_pages,
+            )
             for job in jobs
         ]
         return records, final_url
@@ -140,7 +145,13 @@ def stable_external_job_id(url: str) -> str:
     return f"{{slug}}:{{digest}}"
 
 
-def build_raw_job_record(*, job, requested_listing_url: str, observed_at_utc: str) -> RawJobRecord:
+def build_raw_job_record(
+    *,
+    job,
+    requested_listing_url: str,
+    observed_at_utc: str,
+    max_followup_requests: int,
+) -> RawJobRecord:
     title = normalize_whitespace(job.title) or normalize_whitespace(job.anchor_text) or "Job"
     detail_url = job.final_url or job.requested_url
     return RawJobRecord(
@@ -153,7 +164,7 @@ def build_raw_job_record(*, job, requested_listing_url: str, observed_at_utc: st
             "source_type": SOURCE_TYPE,
             "acquisition_boundary": {{
                 "listing_url": requested_listing_url,
-                "max_followup_requests": self_or_constant_max_detail_pages(),
+                "max_followup_requests": max_followup_requests,
                 "browser_automation_used": False,
                 "raw_html_persisted": False,
                 "relevance_gated": False,
@@ -180,11 +191,6 @@ def build_raw_job_record(*, job, requested_listing_url: str, observed_at_utc: st
             "observed_at_utc": observed_at_utc,
         }},
     )
-
-
-def self_or_constant_max_detail_pages() -> int:
-    # Keep the emitted evidence deterministic and independent of SearchProfile.
-    return MAX_DETAIL_PAGES
 '''
 
 
@@ -322,9 +328,17 @@ def install_v2_semantics() -> None:
     legacy.connector_docs_content = connector_docs_content_v2
 
 
-def main() -> None:
+def run_agent(args) -> int:
     install_v2_semantics()
-    legacy.main()
+    return legacy.run_agent(args)
+
+
+def build_parser():
+    return legacy.build_parser()
+
+
+def main() -> None:
+    raise SystemExit(run_agent(build_parser().parse_args()))
 
 
 if __name__ == "__main__":
