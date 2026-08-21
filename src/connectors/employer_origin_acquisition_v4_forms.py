@@ -9,7 +9,6 @@ the caller; the helper never performs requests itself.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from src.connectors.employer_origin_acquisition import (
     AcquiredJobPage,
