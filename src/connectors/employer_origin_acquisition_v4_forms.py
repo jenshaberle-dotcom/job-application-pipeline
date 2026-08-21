@@ -1,9 +1,10 @@
 """Form-aware extension of the V4 deterministic acquisition proof lane.
 
 This module preserves V4 host authority, genuine-job proof, and the single
-shared extra-follow-up grant while allowing strict metered search forms and
-provider-backed inventory fallbacks. Network I/O remains injected by the caller;
-the helper never performs requests itself.
+shared extra-follow-up grant while allowing strict metered search forms,
+provider-backed inventory fallbacks, and one explicit same-host job-link web-app
+path. Network I/O remains injected by the caller; the helper never performs
+requests itself.
 """
 
 from __future__ import annotations
@@ -31,6 +32,11 @@ from src.connectors.employer_origin_acquisition_v4 import (
     _trusted_query_boundary_items,
     discover_navigation_candidates,
 )
+from src.connectors.employer_origin_explicit_job_link_inventory import (
+    explicit_job_detail_urls_from_inventory,
+    explicit_same_host_job_link_inventory_url,
+    strict_same_host_application_script_url,
+)
 from src.connectors.employer_origin_form_navigation import (
     discover_strict_job_search_form_requests,
 )
@@ -42,6 +48,9 @@ from src.connectors.employer_origin_sitemap_navigation import (
 
 STRICT_FORM_SOURCE = "strict_job_search_form"
 SUCCESSFACTORS_SITEMAP_SOURCE = "successfactors_standard_sitemap_inventory"
+EXPLICIT_JOB_LINK_ASSET_SOURCE = "explicit_job_link_application_asset"
+EXPLICIT_JOB_LINK_API_SOURCE = "explicit_job_link_inventory_api"
+EXPLICIT_JOB_LINK_DETAIL_SOURCE = "explicit_job_link_inventory_detail"
 
 
 @dataclass(frozen=True)
@@ -140,14 +149,7 @@ def _successfactors_sitemap_items(
     fetched_urls: set[str],
     root_form_items: list[tuple[QueueCandidate, int]],
 ) -> list[tuple[QueueCandidate, int]]:
-    """Prefer an explicit root search form; otherwise try one standard SF sitemap.
-
-    V12 evidence proves that branded SuccessFactors career hosts can expose large
-    same-host concrete job inventories at ``/sitemap.xml``. The route is derived
-    only after the already-authorized root is deterministically recognized as
-    SuccessFactors. It remains an optional fallback: transport failure consumes
-    its metered request but does not turn the connector into a transport failure.
-    """
+    """Prefer an explicit root search form; otherwise try one standard SF sitemap."""
 
     if provider != "successfactors" or root_form_items:
         return []
@@ -201,6 +203,114 @@ def _sitemap_stage_items(
     ]
 
 
+def _root_explicit_job_link_asset_items(
+    root: PageSnapshot,
+    *,
+    effective_allowed_hosts: tuple[str, ...],
+    fetched_urls: set[str],
+    root_detail_items: list[tuple[QueueCandidate, int]],
+    root_form_items: list[tuple[QueueCandidate, int]],
+    root_listing_items: list[tuple[QueueCandidate, int]],
+    root_greenhouse_items: list[tuple[QueueCandidate, int]],
+    root_provider_items: list[tuple[QueueCandidate, int]],
+) -> list[tuple[QueueCandidate, int]]:
+    """Offer one strict app-asset route only ahead of weak generic listing navigation.
+
+    Existing strong root detail, form and provider-family mechanisms keep priority.
+    Requiring exactly one weak listing candidate makes this a narrow alternative to
+    the normal listing path rather than a general static-asset crawl.
+    """
+
+    if (
+        root_detail_items
+        or root_form_items
+        or root_greenhouse_items
+        or root_provider_items
+        or len(root_listing_items) != 1
+    ):
+        return []
+    asset_url = strict_same_host_application_script_url(
+        page_url=root.final_url,
+        html=root.html,
+        allowed_hosts=effective_allowed_hosts,
+    )
+    if not asset_url or canonical_url(asset_url) in fetched_urls:
+        return []
+    return [
+        (
+            NavigationCandidate(
+                asset_url,
+                "listing",
+                EXPLICIT_JOB_LINK_ASSET_SOURCE,
+                "",
+                False,
+            ),
+            0,
+        )
+    ]
+
+
+def _explicit_job_link_asset_stage_items(
+    candidate: QueueCandidate,
+    page: PageSnapshot,
+    *,
+    effective_allowed_hosts: tuple[str, ...],
+    fetched_urls: set[str],
+    depth: int,
+) -> list[tuple[QueueCandidate, int]]:
+    if candidate.discovery_source != EXPLICIT_JOB_LINK_ASSET_SOURCE:
+        return []
+    api_url = explicit_same_host_job_link_inventory_url(
+        asset_url=page.final_url,
+        javascript=page.html,
+        allowed_hosts=effective_allowed_hosts,
+    )
+    if not api_url or canonical_url(api_url) in fetched_urls:
+        return []
+    return [
+        (
+            NavigationCandidate(
+                api_url,
+                "listing",
+                EXPLICIT_JOB_LINK_API_SOURCE,
+                "",
+                False,
+            ),
+            depth + 1,
+        )
+    ]
+
+
+def _explicit_job_link_api_stage_items(
+    candidate: QueueCandidate,
+    page: PageSnapshot,
+    *,
+    effective_allowed_hosts: tuple[str, ...],
+    fetched_urls: set[str],
+    depth: int,
+) -> list[tuple[QueueCandidate, int]]:
+    if candidate.discovery_source != EXPLICIT_JOB_LINK_API_SOURCE:
+        return []
+    return [
+        (
+            NavigationCandidate(
+                url,
+                "detail",
+                EXPLICIT_JOB_LINK_DETAIL_SOURCE,
+                "",
+                True,
+            ),
+            depth + 1,
+        )
+        for url in explicit_job_detail_urls_from_inventory(
+            api_url=page.final_url,
+            body=page.html,
+            allowed_hosts=effective_allowed_hosts,
+        )
+        if canonical_url(url) not in fetched_urls
+    ]
+
+
 def acquire_genuine_job_pages(
     *,
     listing_url: str,
@@ -214,10 +324,8 @@ def acquire_genuine_job_pages(
     """Acquire genuine job proof with strict metered deterministic transitions.
 
     The base budget remains root + two follow-ups. Exactly one extra grant is
-    shared across provider routes, trusted query-boundary details and strict form
-    transitions. A unique root form or direct SuccessFactors sitemap inventory can
-    reach a detail inside the normal three-request path. The absolute caller-side
-    request cap remains unchanged.
+    shared across provider, query, form and explicit job-link transitions. The
+    absolute caller-side request cap remains unchanged.
     """
 
     if max_followup_requests < 0:
@@ -286,18 +394,7 @@ def acquire_genuine_job_pages(
         depth=-1,
         request_executor=request_executor,
     )
-    queue: list[tuple[QueueCandidate, int]] = [
-        *root_detail_items,
-        *root_form_items,
-        *root_listing_items,
-    ]
-
-    root_greenhouse_items = _greenhouse_root_items(root, fetched=fetched_urls)
-    if root_greenhouse_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
-        remaining += 1
-        extra_followup_grants += 1
-        queue = [*root_greenhouse_items, *queue]
-
+    root_greenhouse_items = list(_greenhouse_root_items(root, fetched=fetched_urls))
     root_provider, raw_root_provider_items = _provider_route_candidates(
         root,
         effective_allowed_hosts=effective_allowed_hosts,
@@ -316,6 +413,29 @@ def acquire_genuine_job_pages(
         *root_sitemap_items,
         *raw_root_provider_items,
     ]
+    root_asset_items = _root_explicit_job_link_asset_items(
+        root,
+        effective_allowed_hosts=effective_allowed_hosts,
+        fetched_urls=fetched_urls,
+        root_detail_items=root_detail_items,
+        root_form_items=root_form_items,
+        root_listing_items=root_listing_items,
+        root_greenhouse_items=root_greenhouse_items,
+        root_provider_items=root_provider_items,
+    )
+
+    queue: list[tuple[QueueCandidate, int]] = [
+        *root_detail_items,
+        *root_form_items,
+        *root_asset_items,
+        *root_listing_items,
+    ]
+
+    if root_greenhouse_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
+        remaining += 1
+        extra_followup_grants += 1
+        queue = [*root_greenhouse_items, *queue]
+
     if root_provider_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
         remaining += 1
         extra_followup_grants += 1
@@ -356,13 +476,14 @@ def acquire_genuine_job_pages(
                 request_executor=request_executor,
             )
         except requests.RequestException:
-            # A root request is intentionally outside this loop and remains fatal.
-            # Once root authority is established, one stale/blocked deterministic
-            # follow-up must not preempt other already-authorized queue candidates.
-            # The caller's metered executor still records the failed attempt and
-            # this request still consumes budget; there is no retry or new grant.
             executed_requests.add(request_key)
             fetched_urls.add(clean)
+            if (
+                candidate.discovery_source == EXPLICIT_JOB_LINK_ASSET_SOURCE
+                and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT
+            ):
+                remaining += 1
+                extra_followup_grants += 1
             continue
         except Exception:
             executed_requests.add(request_key)
@@ -381,8 +502,12 @@ def acquire_genuine_job_pages(
             status_code=int(status_code),
         )
         if page.status_code >= 400:
-            # Injected transports may return status codes instead of raising. The
-            # same follow-up-only fallback applies without granting another call.
+            if (
+                candidate.discovery_source == EXPLICIT_JOB_LINK_ASSET_SOURCE
+                and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT
+            ):
+                remaining += 1
+                extra_followup_grants += 1
             continue
         proof = genuine_job_detail_proof(
             page,
@@ -405,6 +530,42 @@ def acquire_genuine_job_pages(
             continue
 
         if candidate.kind != "listing":
+            continue
+
+        if candidate.discovery_source == EXPLICIT_JOB_LINK_ASSET_SOURCE:
+            api_items = _explicit_job_link_asset_stage_items(
+                candidate,
+                page,
+                effective_allowed_hosts=effective_allowed_hosts,
+                fetched_urls=fetched_urls,
+                depth=depth,
+            )
+            if api_items:
+                queue = [*api_items, *queue]
+            elif extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
+                # Restore the weak-listing opportunity displaced by this optional
+                # evidence-backed asset probe; total requests still remain <= 4.
+                remaining += 1
+                extra_followup_grants += 1
+            continue
+
+        if candidate.discovery_source == EXPLICIT_JOB_LINK_API_SOURCE:
+            explicit_detail_items = _explicit_job_link_api_stage_items(
+                candidate,
+                page,
+                effective_allowed_hosts=effective_allowed_hosts,
+                fetched_urls=fetched_urls,
+                depth=depth,
+            )
+            if not explicit_detail_items:
+                continue
+            if remaining <= 0:
+                if extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
+                    remaining += 1
+                    extra_followup_grants += 1
+                    queue = [*explicit_detail_items, *queue]
+                continue
+            queue = [*explicit_detail_items, *queue]
             continue
 
         discovered = discover_navigation_candidates(
@@ -478,6 +639,9 @@ def acquire_genuine_job_pages(
 
 
 __all__ = [
+    "EXPLICIT_JOB_LINK_API_SOURCE",
+    "EXPLICIT_JOB_LINK_ASSET_SOURCE",
+    "EXPLICIT_JOB_LINK_DETAIL_SOURCE",
     "MeteredRequest",
     "STRICT_FORM_SOURCE",
     "SUCCESSFACTORS_SITEMAP_SOURCE",
