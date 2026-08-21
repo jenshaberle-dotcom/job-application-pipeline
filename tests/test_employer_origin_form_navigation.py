@@ -38,6 +38,38 @@ def test_discovers_same_host_post_filter_form_without_user_data() -> None:
     )
 
 
+def test_compact_q_is_allowed_only_for_exact_job_context_search_route() -> None:
+    html = """
+    <html><body>
+      <form method="get" action="/search">
+        <input name="q" type="text" value="">
+      </form>
+    </body></html>
+    """
+
+    requests = discover_strict_job_search_form_requests(
+        page_url="https://jobs.example.invalid/",
+        html=html,
+        allowed_hosts=("jobs.example.invalid",),
+    )
+
+    assert len(requests) == 1
+    assert requests[0].url == "https://jobs.example.invalid/search"
+    assert requests[0].method == "GET"
+    assert requests[0].fields == (("q", ""),)
+
+    assert discover_strict_job_search_form_requests(
+        page_url="https://www.example.invalid/",
+        html=html,
+        allowed_hosts=("www.example.invalid",),
+    ) == ()
+    assert discover_strict_job_search_form_requests(
+        page_url="https://careers.example.invalid/",
+        html=html.replace("/search", "/global-search"),
+        allowed_hosts=("careers.example.invalid",),
+    ) == ()
+
+
 def test_login_and_application_forms_fail_closed() -> None:
     html = """
     <html><body>
