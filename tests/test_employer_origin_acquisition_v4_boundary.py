@@ -18,6 +18,13 @@ PERSONIO_HOST = "x1f.jobs.personio.de"
 PERSONIO_ROOT = f"https://{PERSONIO_HOST}/"
 PERSONIO_XML = f"https://{PERSONIO_HOST}/xml?language=de"
 PERSONIO_DETAIL = f"https://{PERSONIO_HOST}/job/123456?language=de"
+EMPLOYER_HOST = "www.example.invalid"
+EMPLOYER_ROOT = f"https://{EMPLOYER_HOST}/careers"
+EMPLOYER_LISTING = f"https://{EMPLOYER_HOST}/careers/our-offers"
+SMART_DETAIL = (
+    "https://jobs.smartrecruiters.com/Wavestone1/"
+    "744000143599414-junior-ai-engineer-pittsburgh-pa"
+)
 
 
 def _root_with_two_listing_candidates() -> str:
@@ -75,6 +82,42 @@ def test_personio_provider_inventory_reaches_real_detail_within_bounded_budget()
     assert jobs[0].final_url == PERSONIO_DETAIL
     assert jobs[0].discovery_source == "personio_provider_detail"
     assert jobs[0].proof_kind == "jsonld_jobposting"
+
+
+def test_explicit_embedded_canonical_ats_detail_reuses_provider_delegation_contract() -> None:
+    calls: list[str] = []
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == EMPLOYER_ROOT:
+            return (
+                f"<html><a href='{EMPLOYER_LISTING}'>Our offers</a></html>",
+                EMPLOYER_ROOT,
+                200,
+            )
+        if url == EMPLOYER_LISTING:
+            return (
+                f'<html><script>window.jobs={{"detail":"{SMART_DETAIL}"}}</script></html>',
+                EMPLOYER_LISTING,
+                200,
+            )
+        if url == SMART_DETAIL:
+            return _job_content("Junior AI Engineer"), SMART_DETAIL, 200
+        raise AssertionError(url)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=EMPLOYER_ROOT,
+        allowed_hosts=(EMPLOYER_HOST,),
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert calls == [EMPLOYER_ROOT, EMPLOYER_LISTING, SMART_DETAIL]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == SMART_DETAIL
+    assert jobs[0].discovery_source == "smartrecruiters_provider_delegated_detail"
+    assert jobs[0].proof_kind == "job_url_and_job_content"
 
 
 def test_strong_html_requisition_detail_wins_remaining_base_followup() -> None:
