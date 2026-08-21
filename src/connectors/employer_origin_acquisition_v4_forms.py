@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import requests
+
 from src.connectors.employer_origin_acquisition import (
     AcquiredJobPage,
     NavigationCandidate,
@@ -109,14 +111,14 @@ def _strict_form_items(
 ) -> list[tuple[QueueCandidate, int]]:
     if request_executor is None:
         return []
-    requests = discover_strict_job_search_form_requests(
+    requests_found = discover_strict_job_search_form_requests(
         page_url=page.final_url,
         html=page.html,
         allowed_hosts=effective_allowed_hosts,
     )
-    if len(requests) != 1:
+    if len(requests_found) != 1:
         return []
-    form = requests[0]
+    form = requests_found[0]
     request = MeteredRequest(form.url, form.method, form.fields)
     if _request_key(request) in executed_requests:
         return []
@@ -353,6 +355,15 @@ def acquire_genuine_job_pages(
                 fetcher=fetcher,
                 request_executor=request_executor,
             )
+        except requests.RequestException:
+            # A root request is intentionally outside this loop and remains fatal.
+            # Once root authority is established, one stale/blocked deterministic
+            # follow-up must not preempt other already-authorized queue candidates.
+            # The caller's metered executor still records the failed attempt and
+            # this request still consumes budget; there is no retry or new grant.
+            executed_requests.add(request_key)
+            fetched_urls.add(clean)
+            continue
         except Exception:
             executed_requests.add(request_key)
             fetched_urls.add(clean)
@@ -369,6 +380,10 @@ def acquire_genuine_job_pages(
             final_url=str(final_url),
             status_code=int(status_code),
         )
+        if page.status_code >= 400:
+            # Injected transports may return status codes instead of raising. The
+            # same follow-up-only fallback applies without granting another call.
+            continue
         proof = genuine_job_detail_proof(
             page,
             allowed_hosts=effective_allowed_hosts,
