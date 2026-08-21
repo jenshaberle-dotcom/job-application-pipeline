@@ -28,7 +28,9 @@ def test_authorized_listing_can_delegate_one_strict_same_provider_detail() -> No
         if url == DVINCI_DETAIL:
             return (
                 "<html><title>Initiativbewerbung</title><body>"
-                "Jetzt bewerben. Aufgaben, Anforderungen und Ihr Profil."
+                "Jetzt bewerben. Aufgaben, Anforderungen und Ihr Profil. "
+                "Wir suchen engagierte Kolleginnen und Kollegen für anspruchsvolle "
+                "Beratungsaufgaben und beschreiben hier die konkrete Position."
                 "</body></html>",
                 DVINCI_DETAIL,
                 200,
