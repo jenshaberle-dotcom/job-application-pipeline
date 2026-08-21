@@ -14,6 +14,10 @@ GERMANY = "https://jobs.example.invalid/go/germany/4411601"
 BELGIUM = "https://jobs.example.invalid/go/belgium/4411501"
 PERSONIO = "https://x1f.jobs.personio.de/"
 PERSONIO_XML = "https://x1f.jobs.personio.de/xml?language=de"
+SMART_DETAIL = (
+    "https://jobs.smartrecruiters.com/Wavestone1/"
+    "744000143599414-junior-ai-engineer-pittsburgh-pa"
+)
 
 
 def successfactors_html() -> str:
@@ -58,6 +62,32 @@ def test_canonical_ats_host_recognition_does_not_depend_on_html_hint() -> None:
             allowed_hosts=("acme.wd5.myworkdayjobs.com",),
         )
         == "workday"
+    )
+
+
+def test_strict_embedded_canonical_detail_can_recognize_provider_on_employer_page() -> None:
+    assert (
+        authorized_ats_provider(
+            page_url=EMPLOYER,
+            html=f'<script>window.jobUrl="{SMART_DETAIL}"</script>',
+            allowed_hosts=("www.example.invalid",),
+        )
+        == "smartrecruiters"
+    )
+
+
+def test_provider_text_or_internal_route_without_public_detail_does_not_authorize() -> None:
+    html = (
+        "smartrecruiters "
+        "https://jobs.smartrecruiters.com/oneclick-ui/company/122/job/151/publication/0"
+    )
+    assert (
+        authorized_ats_provider(
+            page_url=EMPLOYER,
+            html=html,
+            allowed_hosts=("www.example.invalid",),
+        )
+        is None
     )
 
 
