@@ -25,6 +25,10 @@ _LINK_INVENTORY_ROUTE = re.compile(
     flags=re.IGNORECASE,
 )
 _APPLICATION_BASENAME = re.compile(r"^(?:main|app)(?:[._-]|$)", flags=re.IGNORECASE)
+_EXPLICIT_VACANCY_DETAIL_PATH = re.compile(
+    r"^/stellenausschreibung(?:en)?/[^/?#]{6,}-[0-9]{3,}\.html$",
+    flags=re.IGNORECASE,
+)
 _REJECT_SCRIPT_MARKERS = (
     "jquery",
     "bootstrap",
@@ -49,6 +53,11 @@ def _host(value: str) -> str:
 def _allowed_host(url: str, allowed_hosts: tuple[str, ...] | set[str]) -> bool:
     allowed = {str(item).casefold().strip(".") for item in allowed_hosts if str(item)}
     return bool(_host(url) and _host(url) in allowed)
+
+
+def _strict_inventory_detail_shape(url: str) -> bool:
+    path = urlparse(str(url or "")).path or ""
+    return bool(job_detail_url_shape(url) or _EXPLICIT_VACANCY_DETAIL_PATH.fullmatch(path))
 
 
 class _ScriptSourceParser(HTMLParser):
@@ -148,7 +157,13 @@ def explicit_job_detail_urls_from_inventory(
     allowed_hosts: tuple[str, ...] | set[str],
     limit: int = 8,
 ) -> tuple[str, ...]:
-    """Extract bounded strict job-detail URLs from one JSON link inventory."""
+    """Extract bounded strict job-detail URLs from one JSON link inventory.
+
+    Besides the repository-wide detail registry, this lane accepts the explicit
+    German vacancy container ``/stellenausschreibung(en)/<slug>-<numeric>.html``.
+    That shape does not become global URL authority: callers must mark a returned
+    URL as known detail only because it came from this explicit same-host inventory.
+    """
 
     if limit < 1 or not _allowed_host(api_url, allowed_hosts):
         return ()
@@ -184,7 +199,7 @@ def explicit_job_detail_urls_from_inventory(
         if parsed.scheme.casefold() != "https" or not _allowed_host(target, allowed_hosts):
             return
         clean = parsed._replace(query="", fragment="").geturl().rstrip("/")
-        if clean in seen or not job_detail_url_shape(clean):
+        if clean in seen or not _strict_inventory_detail_shape(clean):
             return
         seen.add(clean)
         result.append(clean)
