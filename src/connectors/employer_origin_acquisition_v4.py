@@ -9,9 +9,14 @@ high-confidence situations:
 2. the final already-authorized listing page exposes a trusted query-ID detail
    candidate that passed the strict generic query-detail extractor.
 
-The two cases share one extra-hop grant, so the absolute request cap remains four.
-No relevance qualification, persistence, provider call, or product authority is
-introduced here.
+Provider-specific second-hop detail delegation does not itself add request budget:
+an already-authorized listing page may expose a concrete detail only when the
+cross-host target is a canonical host of the same uniquely recognized provider
+and matches that provider's strict detail route.
+
+The two budget-granting cases share one extra-hop grant, so the absolute request
+cap remains four. No relevance qualification, persistence, provider call, or
+product authority is introduced here.
 """
 
 from __future__ import annotations
@@ -34,6 +39,10 @@ from src.connectors.employer_origin_ats_navigation import (
     provider_detail_urls,
     provider_listing_urls,
 )
+from src.connectors.employer_origin_provider_delegation import (
+    canonical_provider_delegated_detail_urls,
+    canonical_provider_detail_host,
+)
 from src.search_intelligence.connector_feasibility_query_runtime import (
     extract_trusted_query_job_detail_links,
 )
@@ -44,6 +53,7 @@ EXTRA_FOLLOWUP_LIMIT = 1
 # Backward-compatible name retained for Runtime evidence contracts that predate
 # the trusted-query boundary-hop case. Both cases share the same single grant.
 ATS_EXTRA_FOLLOWUP_LIMIT = EXTRA_FOLLOWUP_LIMIT
+_PROVIDER_DELEGATED_DETAIL_SUFFIX = "_provider_delegated_detail"
 
 
 def _add_candidate(
@@ -190,6 +200,12 @@ def _provider_route_candidates(
         body=page.html,
         allowed_hosts=effective_allowed_hosts,
     )
+    delegated_detail_routes = canonical_provider_delegated_detail_urls(
+        provider=provider,
+        page_url=page.final_url,
+        html=page.html,
+        allowed_hosts=effective_allowed_hosts,
+    )
     listing_routes = provider_listing_urls(
         provider=provider,
         page_url=page.final_url,
@@ -210,6 +226,20 @@ def _provider_route_candidates(
         for url in detail_routes
         if canonical_url(url) not in fetched
     ]
+    delegated_detail_items = [
+        (
+            NavigationCandidate(
+                url,
+                "detail",
+                f"{provider}{_PROVIDER_DELEGATED_DETAIL_SUFFIX}",
+                "",
+                True,
+            ),
+            depth + 1,
+        )
+        for url in delegated_detail_routes
+        if canonical_url(url) not in fetched
+    ]
     listing_items = [
         (
             NavigationCandidate(
@@ -224,7 +254,7 @@ def _provider_route_candidates(
         for url in listing_routes
         if canonical_url(url) not in fetched
     ]
-    return provider, [*detail_items, *listing_items]
+    return provider, [*detail_items, *delegated_detail_items, *listing_items]
 
 
 def _trusted_query_boundary_items(
@@ -239,6 +269,22 @@ def _trusted_query_boundary_items(
         and item[0].known_detail
         and item[0].discovery_source == "query_detail"
     ]
+
+
+def _extend_provider_detail_host(
+    candidate: NavigationCandidate,
+    effective_allowed_hosts: tuple[str, ...],
+) -> tuple[str, ...] | None:
+    """Authorize only the exact canonical provider host proven by an internal route item."""
+
+    source = candidate.discovery_source
+    if not source.endswith(_PROVIDER_DELEGATED_DETAIL_SUFFIX):
+        return effective_allowed_hosts if allowed_host(candidate.url, effective_allowed_hosts) else None
+    provider = source.removesuffix(_PROVIDER_DELEGATED_DETAIL_SUFFIX)
+    delegated_host = canonical_provider_detail_host(provider=provider, url=candidate.url)
+    if not delegated_host:
+        return None
+    return tuple(dict.fromkeys([*effective_allowed_hosts, delegated_host]))
 
 
 def acquire_genuine_job_pages(
@@ -331,6 +377,10 @@ def acquire_genuine_job_pages(
         clean = canonical_url(candidate.url)
         if not clean or clean in fetched:
             continue
+        candidate_hosts = _extend_provider_detail_host(candidate, effective_allowed_hosts)
+        if candidate_hosts is None:
+            continue
+        effective_allowed_hosts = candidate_hosts
         fetched.add(clean)
         remaining -= 1
         html, final_url, status_code = fetcher(candidate.url)
@@ -381,10 +431,7 @@ def acquire_genuine_job_pages(
         # not qualify for this boundary grant.
         if remaining <= 0:
             boundary_items = _trusted_query_boundary_items(detail_items)
-            if (
-                boundary_items
-                and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT
-            ):
+            if boundary_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
                 remaining += 1
                 extra_followup_grants += 1
                 queue = [*boundary_items, *queue]
@@ -399,10 +446,7 @@ def acquire_genuine_job_pages(
                 fetched=fetched,
                 depth=depth,
             )
-            if (
-                provider_items
-                and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT
-            ):
+            if provider_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
                 remaining += 1
                 extra_followup_grants += 1
 
