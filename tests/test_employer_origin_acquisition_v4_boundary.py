@@ -44,6 +44,15 @@ def _job_content(title: str) -> str:
     )
 
 
+def _jsonld_job_content(title: str) -> str:
+    return (
+        f"<html><title>{title}</title>"
+        "<script type='application/ld+json'>"
+        f'{{"@type":"JobPosting","title":"{title}"}}'
+        "</script><body>Apply now. Responsibilities and requirements.</body></html>"
+    )
+
+
 def test_personio_provider_inventory_reaches_real_detail_within_bounded_budget() -> None:
     calls: list[str] = []
 
@@ -102,7 +111,7 @@ def test_explicit_embedded_canonical_ats_detail_reuses_provider_delegation_contr
                 200,
             )
         if url == SMART_DETAIL:
-            return _job_content("Junior AI Engineer"), SMART_DETAIL, 200
+            return _jsonld_job_content("Junior AI Engineer"), SMART_DETAIL, 200
         raise AssertionError(url)
 
     jobs, _ = acquire_genuine_job_pages(
@@ -117,7 +126,7 @@ def test_explicit_embedded_canonical_ats_detail_reuses_provider_delegation_contr
     assert len(jobs) == 1
     assert jobs[0].final_url == SMART_DETAIL
     assert jobs[0].discovery_source == "smartrecruiters_provider_delegated_detail"
-    assert jobs[0].proof_kind == "job_url_and_job_content"
+    assert jobs[0].proof_kind == "jsonld_jobposting"
 
 
 def test_strong_html_requisition_detail_wins_remaining_base_followup() -> None:
