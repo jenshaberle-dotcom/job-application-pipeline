@@ -35,7 +35,9 @@ def _sitemap_xml() -> str:
 def _job_html() -> str:
     return (
         "<html><title>Platform Engineer</title><body>"
-        "Apply now. Responsibilities, requirements and your profile."
+        "Apply now. Responsibilities, requirements and your profile. "
+        "Build and operate reliable distributed services with production ownership, "
+        "engineering quality standards and cross-functional delivery responsibility."
         "</body></html>"
     )
 
