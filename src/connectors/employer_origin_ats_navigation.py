@@ -13,6 +13,9 @@ import re
 from html import unescape
 from urllib.parse import urljoin, urlparse
 
+from src.connectors.employer_origin_provider_delegation import (
+    explicit_canonical_provider_detail_urls,
+)
 from src.connectors.personio import (
     build_personio_xml_url,
     extract_positions,
@@ -71,10 +74,13 @@ def authorized_ats_provider(
 ) -> str | None:
     """Recognize one ATS family without widening already-established host authority.
 
-    Canonical ATS host suffixes are accepted directly. Branded/CNAME recruiting
-    hosts are accepted only when the host is already source-authorized and is
-    either an explicit employer-root delegation or has an explicit recruiting
-    hostname label. Ambiguous multi-provider evidence fails closed.
+    Canonical ATS host suffixes are accepted directly. A concrete canonical ATS
+    detail URL explicitly embedded by an already-authorized employer page is also
+    strong provider evidence when all such strict surfaces agree on one provider;
+    it still grants no target-host authority by itself. Branded/CNAME recruiting
+    hosts otherwise require existing source authority plus an explicit root
+    delegation or recruiting hostname label. Ambiguous multi-provider evidence
+    fails closed.
     """
 
     if not _host_is_authorized(page_url, allowed_hosts):
@@ -83,6 +89,17 @@ def authorized_ats_provider(
     direct = recognize_ats_provider(page_url)
     if direct is not None:
         return direct.provider
+
+    explicit_details = explicit_canonical_provider_detail_urls(
+        page_url=page_url,
+        html=html,
+        allowed_hosts=allowed_hosts,
+    )
+    explicit_providers = {provider for provider, _url in explicit_details}
+    if len(explicit_providers) == 1:
+        return next(iter(explicit_providers))
+    if len(explicit_providers) > 1:
+        return None
 
     page_host = _host(page_url)
     delegated = {
