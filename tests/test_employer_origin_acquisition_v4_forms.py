@@ -118,7 +118,7 @@ def test_old_plain_get_fetcher_contract_remains_compatible() -> None:
 
     jobs, _ = acquire_genuine_job_pages(
         listing_url=EMPLOYER,
-        allowed_hosts=(EMPLOYER_HOST,),
+        allowed_hosts=(EMPLOYER_HOST, LISTING_HOST),
         known_detail_urls=(DETAIL,),
         fetcher=fetcher,
         max_followup_requests=2,
