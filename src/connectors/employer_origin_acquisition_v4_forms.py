@@ -317,7 +317,18 @@ def acquire_genuine_job_pages(
     if root_provider_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
         remaining += 1
         extra_followup_grants += 1
-        queue = [*root_provider_items, *queue]
+        if root_form_items:
+            insert_at = next(
+                (
+                    index + 1
+                    for index, (queued_candidate, _depth) in enumerate(queue)
+                    if queued_candidate.discovery_source.startswith(f"{STRICT_FORM_SOURCE}_")
+                ),
+                0,
+            )
+            queue = [*queue[:insert_at], *root_provider_items, *queue[insert_at:]]
+        else:
+            queue = [*root_provider_items, *queue]
 
     results: list[AcquiredJobPage] = []
 
