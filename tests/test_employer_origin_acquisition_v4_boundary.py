@@ -14,6 +14,10 @@ REQUISITION_FILTER = "https://jobs.example.invalid/stellenmarkt/?filter[area]=2"
 REQUISITION_DETAIL = (
     "https://jobs.example.invalid/stellenmarkt/AI-DevOps-Engineer-mwd-de-j2036.html"
 )
+PERSONIO_HOST = "x1f.jobs.personio.de"
+PERSONIO_ROOT = f"https://{PERSONIO_HOST}/"
+PERSONIO_XML = f"https://{PERSONIO_HOST}/xml?language=de"
+PERSONIO_DETAIL = f"https://{PERSONIO_HOST}/job/123456?language=de"
 
 
 def _root_with_two_listing_candidates() -> str:
@@ -31,6 +35,46 @@ def _job_content(title: str) -> str:
         "Apply now. Responsibilities, requirements and your profile."
         "</body></html>"
     )
+
+
+def test_personio_provider_inventory_reaches_real_detail_within_bounded_budget() -> None:
+    calls: list[str] = []
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == PERSONIO_ROOT:
+            return "<html><title>Jobs bei X1F</title><body>Jobs</body></html>", PERSONIO_ROOT, 200
+        if url == PERSONIO_XML:
+            return (
+                "<?xml version='1.0' encoding='UTF-8'?><workzag-jobs>"
+                "<position><id>123456</id><name>Data Engineer</name></position>"
+                "</workzag-jobs>",
+                PERSONIO_XML,
+                200,
+            )
+        if url == PERSONIO_DETAIL:
+            return (
+                "<html><title>Data Engineer</title><script type='application/ld+json'>"
+                '{"@type":"JobPosting","title":"Data Engineer"}'
+                "</script><body>Apply now</body></html>",
+                PERSONIO_DETAIL,
+                200,
+            )
+        raise AssertionError(url)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=PERSONIO_ROOT,
+        allowed_hosts=(PERSONIO_HOST,),
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert calls == [PERSONIO_ROOT, PERSONIO_XML, PERSONIO_DETAIL]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == PERSONIO_DETAIL
+    assert jobs[0].discovery_source == "personio_provider_detail"
+    assert jobs[0].proof_kind == "jsonld_jobposting"
 
 
 def test_strong_html_requisition_detail_wins_remaining_base_followup() -> None:

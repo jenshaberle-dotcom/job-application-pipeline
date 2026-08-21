@@ -3,8 +3,8 @@
 This module performs no network I/O and grants no employer, tenant, product, or
 qualification authority. Callers may use it only after source-host binding has
 already been established. It recognizes a bounded ATS family from the already
-fetched page and exposes provider-specific listing routes that are visible in
-that same response.
+fetched page and exposes provider-specific listing/detail routes that are visible
+or deterministically derivable from that already-authorized provider surface.
 """
 
 from __future__ import annotations
@@ -13,6 +13,11 @@ import re
 from html import unescape
 from urllib.parse import urljoin, urlparse
 
+from src.connectors.personio import (
+    build_personio_xml_url,
+    extract_positions,
+    first_text,
+)
 from src.search_intelligence.ats_provider_registry import (
     classify_provider_names,
     recognize_ats_provider,
@@ -37,6 +42,7 @@ _ANCHOR = re.compile(
     r"<a\b[^>]*href=[\"']([^\"'#]+)[\"'][^>]*>(.*?)</a>",
     flags=re.IGNORECASE | re.DOTALL,
 )
+_PERSONIO_JOB_ID = re.compile(r"^[A-Za-z0-9_-]{2,128}$")
 
 
 def _host(value: str) -> str:
@@ -91,6 +97,16 @@ def authorized_ats_provider(
     return providers[0]
 
 
+def _canonical_personio_host(page_url: str) -> str | None:
+    recognition = recognize_ats_provider(page_url)
+    if recognition is None or recognition.provider != "personio":
+        return None
+    page_host = _host(page_url)
+    if not page_host.endswith(".jobs.personio.de"):
+        return None
+    return page_host
+
+
 def provider_listing_urls(
     *,
     provider: str,
@@ -99,17 +115,24 @@ def provider_listing_urls(
     allowed_hosts: tuple[str, ...] | set[str],
     limit: int = 5,
 ) -> tuple[str, ...]:
-    """Return bounded same-host provider-specific listing routes from one page.
+    """Return bounded provider-specific listing routes from one authorized page.
 
-    The first supported family is SuccessFactors. Its static career landing pages
-    commonly expose country/category routes shaped as ``/go/<slug>/<numeric-id>/``.
-    These are listing routes only; callers must still fetch a concrete detail page
-    and pass the canonical genuine-job proof before acquisition can succeed.
+    SuccessFactors exposes static same-host ``/go/<slug>/<numeric-id>/`` routes.
+    Canonical Personio tenant hosts have an existing repository-backed public XML
+    inventory contract. The XML route is derived only from a canonical Personio
+    host that is already source-authorized; branded/CNAME hints are insufficient.
     """
 
-    if limit < 1 or provider != "successfactors":
+    if limit < 1 or not _host_is_authorized(page_url, allowed_hosts):
         return ()
-    if not _host_is_authorized(page_url, allowed_hosts):
+
+    if provider == "personio":
+        personio_host = _canonical_personio_host(page_url)
+        if personio_host is None:
+            return ()
+        return (build_personio_xml_url(host=personio_host, language="de"),)
+
+    if provider != "successfactors":
         return ()
 
     current = page_url.split("#", 1)[0].rstrip("/")
@@ -134,7 +157,55 @@ def provider_listing_urls(
     return tuple(result)
 
 
+def provider_detail_urls(
+    *,
+    provider: str,
+    page_url: str,
+    body: str,
+    allowed_hosts: tuple[str, ...] | set[str],
+    limit: int = 5,
+) -> tuple[str, ...]:
+    """Derive strict provider detail URLs from an already-fetched provider listing.
+
+    The first supported detail inventory is Personio XML. A detail URL is emitted
+    only when the fetched page is the canonical tenant's ``/xml`` resource and a
+    bounded, syntactically valid position ID is present. The resulting URL stays
+    on that exact already-authorized Personio host. The caller must still fetch it
+    and pass the canonical genuine-job content proof.
+    """
+
+    if limit < 1 or provider != "personio":
+        return ()
+    if not _host_is_authorized(page_url, allowed_hosts):
+        return ()
+    personio_host = _canonical_personio_host(page_url)
+    parsed = urlparse(page_url)
+    if personio_host is None or parsed.path.rstrip("/").casefold() != "/xml":
+        return ()
+
+    try:
+        positions = extract_positions(body.encode("utf-8"))
+    except Exception:
+        return ()
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for position in positions:
+        job_id = first_text(position, {"id"}).strip()
+        if not job_id or not _PERSONIO_JOB_ID.fullmatch(job_id):
+            continue
+        candidate = f"https://{personio_host}/job/{job_id}?language=de"
+        if candidate in seen or not _host_is_authorized(candidate, allowed_hosts):
+            continue
+        seen.add(candidate)
+        result.append(candidate)
+        if len(result) >= limit:
+            break
+    return tuple(result)
+
+
 __all__ = [
     "authorized_ats_provider",
+    "provider_detail_urls",
     "provider_listing_urls",
 ]
