@@ -139,8 +139,9 @@ def acquire_genuine_job_pages(
 
     The base budget remains root + two follow-ups. Exactly one extra grant is
     shared across V4 provider routes, trusted query-boundary detail proof, and
-    the strict form-search transition. The absolute caller-side request cap is
-    therefore unchanged.
+    strict form-search transitions. A unique strict root form can use the normal
+    two-follow-up budget (root -> search -> detail); it does not reserve or create
+    an extra request. The absolute caller-side request cap is therefore unchanged.
     """
 
     if max_followup_requests < 0:
@@ -188,13 +189,31 @@ def acquire_genuine_job_pages(
     extra_followup_grants = 0
     fetched_urls: set[str] = {canonical_url(root.requested_url), canonical_url(root.final_url)}
     executed_requests = {_request_key(root_request)}
-    queue: list[tuple[QueueCandidate, int]] = [
-        (candidate, 0)
-        for candidate in discover_navigation_candidates(
+
+    root_discovered = list(
+        discover_navigation_candidates(
             root,
             allowed_hosts=effective_allowed_hosts,
             known_detail_urls=known_detail_urls,
         )
+    )
+    root_detail_items: list[tuple[QueueCandidate, int]] = [
+        (candidate, 0) for candidate in root_discovered if candidate.kind == "detail"
+    ]
+    root_listing_items: list[tuple[QueueCandidate, int]] = [
+        (candidate, 0) for candidate in root_discovered if candidate.kind != "detail"
+    ]
+    root_form_items = _strict_form_items(
+        root,
+        effective_allowed_hosts=effective_allowed_hosts,
+        executed_requests=executed_requests,
+        depth=-1,
+        request_executor=request_executor,
+    )
+    queue: list[tuple[QueueCandidate, int]] = [
+        *root_detail_items,
+        *root_form_items,
+        *root_listing_items,
     ]
 
     root_greenhouse_items = _greenhouse_root_items(root, fetched=fetched_urls)

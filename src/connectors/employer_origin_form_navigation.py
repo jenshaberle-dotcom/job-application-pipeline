@@ -51,6 +51,17 @@ JOB_ACTION_MARKERS = (
     "/karriere",
 )
 
+JOB_CONTEXT_MARKERS = (
+    "job",
+    "jobs",
+    "career",
+    "careers",
+    "karriere",
+    "stellen",
+    "vacan",
+    "recruit",
+)
+
 BLOCKED_FIELD_MARKERS = (
     "password",
     "passwd",
@@ -161,7 +172,21 @@ def _contains_marker(value: str, markers: tuple[str, ...]) -> bool:
     return any(marker in lowered for marker in markers)
 
 
-def _request_fields(controls: tuple[_Control, ...]) -> tuple[tuple[str, str], ...] | None:
+def _compact_query_allowed(*, page_url: str, action: str) -> bool:
+    """Allow an otherwise ambiguous ``q`` field only on a strict job search surface."""
+
+    page = urlparse(page_url)
+    target = urlparse(action)
+    page_surface = f"{page.hostname or ''}{page.path}".casefold()
+    target_path = (target.path or "").rstrip("/").casefold()
+    return target_path == "/search" and _contains_marker(page_surface, JOB_CONTEXT_MARKERS)
+
+
+def _request_fields(
+    controls: tuple[_Control, ...],
+    *,
+    allow_compact_query: bool = False,
+) -> tuple[tuple[str, str], ...] | None:
     if len(controls) > MAX_FORM_FIELDS:
         return None
 
@@ -179,9 +204,14 @@ def _request_fields(controls: tuple[_Control, ...]) -> tuple[tuple[str, str], ..
         if control.input_type in {"checkbox", "radio"} and not control.checked:
             continue
 
-        if _contains_marker(lowered_name, SEARCH_FIELD_MARKERS):
+        compact_query = allow_compact_query and lowered_name == "q"
+        if _contains_marker(lowered_name, SEARCH_FIELD_MARKERS) or compact_query:
             searchable += 1
-        if control.input_type == "hidden" or _contains_marker(lowered_name, SEARCH_FIELD_MARKERS):
+        if (
+            control.input_type == "hidden"
+            or _contains_marker(lowered_name, SEARCH_FIELD_MARKERS)
+            or compact_query
+        ):
             result.append((name, control.value))
 
     if searchable == 0:
@@ -199,10 +229,11 @@ def discover_strict_job_search_form_requests(
 ) -> tuple[JobSearchFormRequest, ...]:
     """Return only explicit, same-authority GET/POST search-form requests.
 
-    Search/filter field names are required. Login/application/contact/newsletter
-    controls fail closed. Multiple distinct forms are returned to the caller so
-    the acquisition layer can refuse ambiguous execution rather than ranking by
-    guesswork.
+    Search/filter field names are required. A compact ``q`` field is accepted only
+    for an exact same-authority ``/search`` action when the source page itself has
+    explicit job/career context. Login/application/contact/newsletter controls
+    fail closed. Multiple distinct forms are returned to the caller so the
+    acquisition layer can refuse ambiguous execution rather than ranking by guesswork.
     """
 
     parser = _FormParser()
@@ -222,13 +253,15 @@ def discover_strict_job_search_form_requests(
         if _contains_marker(f"{parsed.path}?{parsed.query}", BLOCKED_ACTION_MARKERS):
             continue
 
-        fields = _request_fields(form.controls)
+        compact_query = _compact_query_allowed(page_url=page_url, action=action)
+        fields = _request_fields(form.controls, allow_compact_query=compact_query)
         if fields is None:
             continue
         field_surface = " ".join(name for name, _value in fields)
         if not (
             _contains_marker(f"{parsed.path}?{parsed.query}", JOB_ACTION_MARKERS)
             or _contains_marker(field_surface, SEARCH_FIELD_MARKERS)
+            or compact_query
         ):
             continue
 

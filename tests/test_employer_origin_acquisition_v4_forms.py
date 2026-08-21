@@ -11,6 +11,10 @@ EMPLOYER_HOST = "www.example.invalid"
 LISTING = "https://karriere.example.invalid"
 LISTING_HOST = "karriere.example.invalid"
 DETAIL = "https://karriere.example.invalid/jobs/platform-engineer-12345"
+ROOT_SEARCH = "https://jobs.example.invalid/"
+ROOT_SEARCH_HOST = "jobs.example.invalid"
+ROOT_SEARCH_ACTION = "https://jobs.example.invalid/search"
+ROOT_DETAIL = "https://jobs.example.invalid/job/platform-engineer-12345"
 
 
 def _job_html() -> str:
@@ -21,6 +25,76 @@ def _job_html() -> str:
         "</script>Apply now. Responsibilities and requirements."
         "</body></html>"
     )
+
+
+def test_unique_root_search_form_reaches_detail_inside_base_budget() -> None:
+    calls: list[MeteredRequest] = []
+
+    def executor(request: MeteredRequest):
+        calls.append(request)
+        if request == MeteredRequest(ROOT_SEARCH):
+            return (
+                "<html><title>Jobs</title><body>"
+                "<form method='get' action='/search'>"
+                "<input name='q' type='text' value=''>"
+                "</form></body></html>",
+                ROOT_SEARCH,
+                200,
+            )
+        if request == MeteredRequest(ROOT_SEARCH_ACTION, "GET", (("q", ""),)):
+            return f"<html><a href='{ROOT_DETAIL}'>Platform Engineer</a></html>", ROOT_SEARCH_ACTION, 200
+        if request == MeteredRequest(ROOT_DETAIL):
+            return _job_html(), ROOT_DETAIL, 200
+        raise AssertionError(request)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=ROOT_SEARCH,
+        allowed_hosts=(ROOT_SEARCH_HOST,),
+        known_detail_urls=(),
+        fetcher=lambda url: (_ for _ in ()).throw(AssertionError(url)),
+        request_executor=executor,
+        max_followup_requests=2,
+    )
+
+    assert calls == [
+        MeteredRequest(ROOT_SEARCH),
+        MeteredRequest(ROOT_SEARCH_ACTION, "GET", (("q", ""),)),
+        MeteredRequest(ROOT_DETAIL),
+    ]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == ROOT_DETAIL
+    assert jobs[0].proof_kind == "jsonld_jobposting"
+
+
+def test_strong_root_detail_still_outranks_root_search_form() -> None:
+    calls: list[MeteredRequest] = []
+
+    def executor(request: MeteredRequest):
+        calls.append(request)
+        if request == MeteredRequest(ROOT_SEARCH):
+            return (
+                f"<html><a href='{ROOT_DETAIL}'>Platform Engineer</a>"
+                "<form method='get' action='/search'><input name='q' type='text'></form></html>",
+                ROOT_SEARCH,
+                200,
+            )
+        if request == MeteredRequest(ROOT_DETAIL):
+            return _job_html(), ROOT_DETAIL, 200
+        if request.url == ROOT_SEARCH_ACTION:
+            raise AssertionError("strict root form must remain fallback behind strong detail")
+        raise AssertionError(request)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=ROOT_SEARCH,
+        allowed_hosts=(ROOT_SEARCH_HOST,),
+        known_detail_urls=(),
+        fetcher=lambda url: (_ for _ in ()).throw(AssertionError(url)),
+        request_executor=executor,
+        max_followup_requests=2,
+    )
+
+    assert calls == [MeteredRequest(ROOT_SEARCH), MeteredRequest(ROOT_DETAIL)]
+    assert len(jobs) == 1
 
 
 def test_strict_post_search_can_use_shared_fourth_request_for_real_detail() -> None:
