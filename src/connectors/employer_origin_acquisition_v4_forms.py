@@ -1,9 +1,9 @@
 """Form-aware extension of the V4 deterministic acquisition proof lane.
 
 This module preserves V4 host authority, genuine-job proof, and the single
-shared extra-follow-up grant while allowing one strict HTML job-search form to
-be represented as a metered GET/POST request. Network I/O remains injected by
-the caller; the helper never performs requests itself.
+shared extra-follow-up grant while allowing strict metered search forms and
+provider-backed inventory fallbacks. Network I/O remains injected by the caller;
+the helper never performs requests itself.
 """
 
 from __future__ import annotations
@@ -32,9 +32,14 @@ from src.connectors.employer_origin_acquisition_v4 import (
 from src.connectors.employer_origin_form_navigation import (
     discover_strict_job_search_form_requests,
 )
+from src.connectors.employer_origin_sitemap_navigation import (
+    sitemap_detail_urls,
+    standard_same_host_sitemap_url,
+)
 
 
 STRICT_FORM_SOURCE = "strict_job_search_form"
+SUCCESSFACTORS_SITEMAP_SOURCE = "successfactors_standard_sitemap_inventory"
 
 
 @dataclass(frozen=True)
@@ -125,6 +130,75 @@ def _strict_form_items(
     return [(MeteredNavigationCandidate(navigation, request), depth + 1)]
 
 
+def _successfactors_sitemap_items(
+    page: PageSnapshot,
+    *,
+    provider: str | None,
+    effective_allowed_hosts: tuple[str, ...],
+    fetched_urls: set[str],
+    root_form_items: list[tuple[QueueCandidate, int]],
+) -> list[tuple[QueueCandidate, int]]:
+    """Prefer an explicit root search form; otherwise try one standard SF sitemap.
+
+    V12 evidence proves that branded SuccessFactors career hosts can expose large
+    same-host concrete job inventories at ``/sitemap.xml``. The route is derived
+    only after the already-authorized root is deterministically recognized as
+    SuccessFactors. It remains an optional fallback: transport failure consumes
+    its metered request but does not turn the connector into a transport failure.
+    """
+
+    if provider != "successfactors" or root_form_items:
+        return []
+    sitemap_url = standard_same_host_sitemap_url(
+        page_url=page.final_url,
+        allowed_hosts=effective_allowed_hosts,
+    )
+    if not sitemap_url or canonical_url(sitemap_url) in fetched_urls:
+        return []
+    return [
+        (
+            NavigationCandidate(
+                sitemap_url,
+                "listing",
+                SUCCESSFACTORS_SITEMAP_SOURCE,
+                "",
+                False,
+            ),
+            0,
+        )
+    ]
+
+
+def _sitemap_stage_items(
+    candidate: QueueCandidate,
+    page: PageSnapshot,
+    *,
+    effective_allowed_hosts: tuple[str, ...],
+    fetched_urls: set[str],
+    depth: int,
+) -> list[tuple[QueueCandidate, int]]:
+    if candidate.discovery_source != SUCCESSFACTORS_SITEMAP_SOURCE:
+        return []
+    return [
+        (
+            NavigationCandidate(
+                url,
+                "detail",
+                "successfactors_sitemap_detail",
+                "",
+                False,
+            ),
+            depth + 1,
+        )
+        for url in sitemap_detail_urls(
+            sitemap_url=page.final_url,
+            body=page.html,
+            allowed_hosts=effective_allowed_hosts,
+        )
+        if canonical_url(url) not in fetched_urls
+    ]
+
+
 def acquire_genuine_job_pages(
     *,
     listing_url: str,
@@ -135,13 +209,13 @@ def acquire_genuine_job_pages(
     max_followup_requests: int = 2,
     max_results: int = 1,
 ) -> tuple[list[AcquiredJobPage], str]:
-    """Acquire genuine job proof with one strict metered form transition.
+    """Acquire genuine job proof with strict metered deterministic transitions.
 
     The base budget remains root + two follow-ups. Exactly one extra grant is
-    shared across V4 provider routes, trusted query-boundary detail proof, and
-    strict form-search transitions. A unique strict root form can use the normal
-    two-follow-up budget (root -> search -> detail); it does not reserve or create
-    an extra request. The absolute caller-side request cap is therefore unchanged.
+    shared across provider routes, trusted query-boundary details and strict form
+    transitions. A unique root form or direct SuccessFactors sitemap inventory can
+    reach a detail inside the normal three-request path. The absolute caller-side
+    request cap remains unchanged.
     """
 
     if max_followup_requests < 0:
@@ -222,13 +296,24 @@ def acquire_genuine_job_pages(
         extra_followup_grants += 1
         queue = [*root_greenhouse_items, *queue]
 
-    _root_provider, root_provider_items = _provider_route_candidates(
+    root_provider, raw_root_provider_items = _provider_route_candidates(
         root,
         effective_allowed_hosts=effective_allowed_hosts,
         delegated_hosts=delegated_hosts,
         fetched=fetched_urls,
         depth=-1,
     )
+    root_sitemap_items = _successfactors_sitemap_items(
+        root,
+        provider=root_provider,
+        effective_allowed_hosts=effective_allowed_hosts,
+        fetched_urls=fetched_urls,
+        root_form_items=root_form_items,
+    )
+    root_provider_items: list[tuple[QueueCandidate, int]] = [
+        *root_sitemap_items,
+        *raw_root_provider_items,
+    ]
     if root_provider_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
         remaining += 1
         extra_followup_grants += 1
@@ -251,11 +336,18 @@ def acquire_genuine_job_pages(
             continue
         effective_allowed_hosts = candidate_hosts
         remaining -= 1
-        html, final_url, status_code = _execute_request(
-            request=request,
-            fetcher=fetcher,
-            request_executor=request_executor,
-        )
+        try:
+            html, final_url, status_code = _execute_request(
+                request=request,
+                fetcher=fetcher,
+                request_executor=request_executor,
+            )
+        except Exception:
+            executed_requests.add(request_key)
+            fetched_urls.add(clean)
+            if candidate.discovery_source == SUCCESSFACTORS_SITEMAP_SOURCE:
+                continue
+            raise
         executed_requests.add(request_key)
         fetched_urls.add(clean)
         fetched_urls.add(canonical_url(str(final_url)))
@@ -294,10 +386,20 @@ def acquire_genuine_job_pages(
             allowed_hosts=effective_allowed_hosts,
             known_detail_urls=(),
         )
+        sitemap_items = _sitemap_stage_items(
+            candidate,
+            page,
+            effective_allowed_hosts=effective_allowed_hosts,
+            fetched_urls=fetched_urls,
+            depth=depth,
+        )
         detail_items: list[tuple[QueueCandidate, int]] = [
-            (item, depth + 1)
-            for item in discovered
-            if item.kind == "detail" and canonical_url(item.url) not in fetched_urls
+            *sitemap_items,
+            *[
+                (item, depth + 1)
+                for item in discovered
+                if item.kind == "detail" and canonical_url(item.url) not in fetched_urls
+            ],
         ]
         greenhouse_items: list[tuple[QueueCandidate, int]] = list(
             _greenhouse_stage_items(
@@ -352,5 +454,6 @@ def acquire_genuine_job_pages(
 __all__ = [
     "MeteredRequest",
     "STRICT_FORM_SOURCE",
+    "SUCCESSFACTORS_SITEMAP_SOURCE",
     "acquire_genuine_job_pages",
 ]
