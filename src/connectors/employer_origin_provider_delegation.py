@@ -116,12 +116,14 @@ def canonical_provider_delegated_detail_urls(
     allowed_hosts: tuple[str, ...] | set[str],
     limit: int = 5,
 ) -> tuple[str, ...]:
-    """Return strict cross-host detail links for the same recognized ATS family.
+    """Return strict cross-host detail URLs for the same recognized ATS family.
 
     The source page must already be authorized. The target must be HTTPS, live on
-    a canonical host recognized as exactly the same provider, match the provider's
-    strict detail route, and carry non-empty visible anchor text. A provider name
-    in HTML alone never delegates a host.
+    a canonical host recognized as exactly the same provider, and match the
+    provider's strict detail route. Visible anchors remain preferred, while the
+    same strict route may also be accepted when the employer page embeds the
+    concrete absolute ATS detail URL in JSON/script state. Provider-name text
+    alone never delegates a host.
     """
 
     route_pattern = _PROVIDER_DETAIL_ROUTE_PATTERNS.get(provider)
@@ -150,6 +152,19 @@ def canonical_provider_delegated_detail_urls(
             continue
         seen.add(normalized)
         result.append(normalized)
+        if len(result) >= limit:
+            return tuple(result)
+
+    for explicit_provider, candidate in explicit_canonical_provider_detail_urls(
+        page_url=page_url,
+        html=html,
+        allowed_hosts=allowed_hosts,
+        limit=limit,
+    ):
+        if explicit_provider != provider or candidate in seen:
+            continue
+        seen.add(candidate)
+        result.append(candidate)
         if len(result) >= limit:
             break
     return tuple(result)
