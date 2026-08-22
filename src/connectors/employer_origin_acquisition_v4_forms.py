@@ -214,20 +214,15 @@ def _root_explicit_job_link_asset_items(
     root_greenhouse_items: list[tuple[QueueCandidate, int]],
     root_provider_items: list[tuple[QueueCandidate, int]],
 ) -> list[tuple[QueueCandidate, int]]:
-    """Offer one strict app-asset route only ahead of weak generic listing navigation.
+    """Offer one strict app-asset route ahead of weak generic listing navigation.
 
     Existing strong root detail, form and provider-family mechanisms keep priority.
-    Requiring exactly one weak listing candidate makes this a narrow alternative to
-    the normal listing path rather than a general static-asset crawl.
+    Weak listing multiplicity is not stronger evidence than one unambiguous same-host
+    application asset with an explicit job-link API route, so it does not suppress
+    this bounded alternative. The weak listings remain queued as fallbacks.
     """
 
-    if (
-        root_detail_items
-        or root_form_items
-        or root_greenhouse_items
-        or root_provider_items
-        or len(root_listing_items) != 1
-    ):
+    if root_detail_items or root_form_items or root_greenhouse_items or root_provider_items:
         return []
     asset_url = strict_same_host_application_script_url(
         page_url=root.final_url,
@@ -543,7 +538,7 @@ def acquire_genuine_job_pages(
             if api_items:
                 queue = [*api_items, *queue]
             elif extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
-                # Restore the weak-listing opportunity displaced by this optional
+                # Restore weak-listing opportunities displaced by this optional
                 # evidence-backed asset probe; total requests still remain <= 4.
                 remaining += 1
                 extra_followup_grants += 1
@@ -558,6 +553,12 @@ def acquire_genuine_job_pages(
                 depth=depth,
             )
             if not explicit_detail_items:
+                if extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
+                    # The explicit endpoint existed but did not yield a strict
+                    # detail. Restore exactly one weak-listing attempt without
+                    # creating a second grant or widening the absolute cap.
+                    remaining += 1
+                    extra_followup_grants += 1
                 continue
             if remaining <= 0:
                 if extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:

@@ -9,18 +9,27 @@ from src.connectors.employer_origin_acquisition_v4_forms import (
 ROOT = "https://jobs.example.invalid/"
 HOST = "jobs.example.invalid"
 LISTING = "https://jobs.example.invalid/Stellenangebote.html"
+SECOND_LISTING = "https://jobs.example.invalid/Jobsuche.html"
 ASSET = "https://jobs.example.invalid/_Resources/JavaScript/main.min.js"
 API = "https://jobs.example.invalid/api/job-links"
 DETAIL = "https://jobs.example.invalid/stellenausschreibungen/platform-engineer-m-w-d-108436.html"
 LEGACY_DETAIL = "https://jobs.example.invalid/jobs/platform-engineer-67890"
 
 
-def _root_html(*, strong_detail: bool = False, ambiguous_assets: bool = False) -> str:
+def _root_html(
+    *,
+    strong_detail: bool = False,
+    ambiguous_assets: bool = False,
+    multiple_weak_listings: bool = False,
+) -> str:
     detail = f"<a href='{LEGACY_DETAIL}'>Platform Engineer</a>" if strong_detail else ""
     second_asset = "<script src='/assets/app.js'></script>" if ambiguous_assets else ""
+    second_listing = (
+        f"<a href='{SECOND_LISTING}'>Jobsuche</a>" if multiple_weak_listings else ""
+    )
     return (
         "<html><title>Karriere</title><body>"
-        f"{detail}<a href='{LISTING}'>Stellenangebote</a>"
+        f"{detail}<a href='{LISTING}'>Stellenangebote</a>{second_listing}"
         "<script src='/_Resources/JavaScript/main.min.js'></script>"
         f"{second_asset}</body></html>"
     )
@@ -74,6 +83,42 @@ def test_explicit_app_asset_to_job_link_api_to_known_detail_fits_hard_four_reque
     assert jobs[0].final_url == DETAIL
     assert jobs[0].proof_kind == "known_detail_and_job_content"
     assert jobs[0].discovery_source == "explicit_job_link_inventory_detail"
+
+
+def test_multiple_weak_root_listings_do_not_suppress_explicit_app_path() -> None:
+    calls: list[MeteredRequest] = []
+
+    def executor(request: MeteredRequest):
+        calls.append(request)
+        if request == MeteredRequest(ROOT):
+            return _root_html(multiple_weak_listings=True), ROOT, 200
+        if request == MeteredRequest(ASSET):
+            return 'const endpoint="/api/job-links"; fetch(endpoint);', ASSET, 200
+        if request == MeteredRequest(API):
+            return '{"items":[{"url":"/stellenausschreibungen/platform-engineer-m-w-d-108436.html"}]}', API, 200
+        if request == MeteredRequest(DETAIL):
+            return _job_html(), DETAIL, 200
+        if request in {MeteredRequest(LISTING), MeteredRequest(SECOND_LISTING)}:
+            raise AssertionError("weak listing multiplicity must not preempt explicit job-link path")
+        raise AssertionError(request)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=ROOT,
+        allowed_hosts=(HOST,),
+        known_detail_urls=(),
+        fetcher=lambda url: (_ for _ in ()).throw(AssertionError(url)),
+        request_executor=executor,
+        max_followup_requests=2,
+    )
+
+    assert calls == [
+        MeteredRequest(ROOT),
+        MeteredRequest(ASSET),
+        MeteredRequest(API),
+        MeteredRequest(DETAIL),
+    ]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == DETAIL
 
 
 def test_existing_strong_root_detail_keeps_priority_over_application_asset() -> None:
@@ -133,6 +178,41 @@ def test_asset_without_explicit_job_link_route_restores_legacy_listing_opportuni
         MeteredRequest(LEGACY_DETAIL),
     ]
     assert len(jobs) == 1
+
+
+def test_empty_explicit_inventory_restores_one_weak_listing_within_hard_cap() -> None:
+    calls: list[MeteredRequest] = []
+
+    def executor(request: MeteredRequest):
+        calls.append(request)
+        if request == MeteredRequest(ROOT):
+            return _root_html(multiple_weak_listings=True), ROOT, 200
+        if request == MeteredRequest(ASSET):
+            return 'const endpoint="/api/job-links"; fetch(endpoint);', ASSET, 200
+        if request == MeteredRequest(API):
+            return '{"items":[]}', API, 200
+        if request == MeteredRequest(LISTING):
+            return f"<html><a href='{LEGACY_DETAIL}'>Platform Engineer</a></html>", LISTING, 200
+        if request in {MeteredRequest(SECOND_LISTING), MeteredRequest(LEGACY_DETAIL)}:
+            raise AssertionError("empty inventory fallback must not exceed four requests")
+        raise AssertionError(request)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=ROOT,
+        allowed_hosts=(HOST,),
+        known_detail_urls=(),
+        fetcher=lambda url: (_ for _ in ()).throw(AssertionError(url)),
+        request_executor=executor,
+        max_followup_requests=2,
+    )
+
+    assert jobs == []
+    assert calls == [
+        MeteredRequest(ROOT),
+        MeteredRequest(ASSET),
+        MeteredRequest(API),
+        MeteredRequest(LISTING),
+    ]
 
 
 def test_ambiguous_application_assets_leave_legacy_path_unchanged() -> None:
