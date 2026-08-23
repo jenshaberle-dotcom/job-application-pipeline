@@ -1,0 +1,190 @@
+name: ML-PILOT-001B runtime DB status observer
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ml-pilot-001b-runtime-db-status-observer.yml
+
+permissions:
+  contents: read
+
+jobs:
+  observe-runtime-db-status:
+    name: Observe read-only label migration status
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 15
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      LABEL_MIGRATION: 101_create_job_review_relevance_label_events.sql
+      EXPECTED_MAIN_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_NAME" != "$RCC_RUNNER_NAME" ]]; then
+            echo "Unexpected self-hosted runner: $RUNNER_NAME" >&2
+            exit 2
+          fi
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file" || {
+            echo "RCC runtime context is unavailable." >&2
+            exit 2
+          }
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import PurePosixPath
+          import sys
+
+          context_path, repository_id, repository, runner_name = sys.argv[1:]
+          with open(context_path, encoding="utf-8") as handle:
+              context = json.load(handle)
+
+          if context.get("RepositoryId") != int(repository_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("RunnerName") != runner_name:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: runner mismatch")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_CONTEXT_STALE: platform mismatch")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_STALE: runtime context is not PASS")
+
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "env_file",
+              "env_keys",
+              "interpreter",
+              "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(check for check in required if checks.get(check) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: required checks not PASS: " + ",".join(failed))
+
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          for label, value in (("checkout", checkout), ("interpreter", interpreter), ("env_file", env_file)):
+              if not isinstance(value, str) or not value.startswith("/") or "\n" in value or "\0" in value:
+                  raise SystemExit(f"RUNTIME_CONTEXT_STALE: invalid {label} path")
+
+          checkout_path = PurePosixPath(checkout)
+          if checkout_path not in PurePosixPath(interpreter).parents:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: interpreter outside checkout")
+          if checkout_path not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: env file outside checkout")
+
+          print(checkout)
+          print(interpreter)
+          PY
+          )"
+          mapfile -t context_values <<< "$context_output"
+          if [[ "${#context_values[@]}" -ne 2 ]]; then
+            echo "RCC runtime context returned an invalid projection." >&2
+            exit 2
+          fi
+          printf 'PROJECT_DIR=%s\n' "${context_values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_PYTHON=%s\n' "${context_values[1]}" >> "$GITHUB_ENV"
+
+      - name: Fast-forward persistent checkout to PR base main
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" "$PROJECT_DIR/scripts/prepare_scheduled_pipeline_checkout.py" --root "$PROJECT_DIR" > "$RUNNER_TEMP/ml-pilot-001b-observer-checkout.json"
+          actual_sha="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+          if [[ "$actual_sha" != "$EXPECTED_MAIN_SHA" ]]; then
+            echo "Persistent checkout does not match PR base main." >&2
+            echo "expected=$EXPECTED_MAIN_SHA actual=$actual_sha" >&2
+            exit 3
+          fi
+          if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain=v1)" ]]; then
+            echo "Persistent checkout is not clean after preflight." >&2
+            exit 3
+          fi
+          echo "Persistent checkout matches exact PR base main: $EXPECTED_MAIN_SHA"
+
+      - name: Emit safe read-only migration status
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_file="$RUNNER_TEMP/ml-pilot-001b-observer-db-status.txt"
+          (
+            cd "$PROJECT_DIR"
+            "$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status
+          ) | tee "$status_file"
+
+          "$RUNTIME_PYTHON" - "$status_file" "$LABEL_MIGRATION" "$EXPECTED_MAIN_SHA" <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+          import sys
+
+          status_path = Path(sys.argv[1])
+          target = sys.argv[2]
+          main_sha = sys.argv[3]
+          lines = status_path.read_text(encoding="utf-8").splitlines()
+
+          values: dict[str, str] = {}
+          pending: list[str] = []
+          in_pending = False
+          for line in lines:
+              if line == "Pending migrations:":
+                  in_pending = True
+                  continue
+              if in_pending and line.startswith("- "):
+                  pending.append(line[2:].strip())
+                  continue
+              if in_pending and line and not line.startswith("- "):
+                  in_pending = False
+              if ": " in line:
+                  key, value = line.split(": ", 1)
+                  values[key.strip()] = value.strip()
+
+          required = {
+              "tracking_table_exists",
+              "migration_files",
+              "tracked_migrations",
+              "pending_migrations",
+              "checksum_mismatches",
+          }
+          missing = sorted(required - set(values))
+          if missing:
+              raise SystemExit(f"LABEL_DB_STATUS_INVALID: missing fields {missing}")
+
+          safe = {
+              "schema_version": "ml-pilot-001b-runtime-db-status/v1",
+              "status": "pass",
+              "main_sha": main_sha,
+              "tracking_table_exists": values["tracking_table_exists"] == "true",
+              "migration_files": int(values["migration_files"]),
+              "tracked_migrations": int(values["tracked_migrations"]),
+              "pending_migrations": int(values["pending_migrations"]),
+              "checksum_mismatches": int(values["checksum_mismatches"]),
+              "pending_filenames": pending,
+              "label_migration": target,
+              "label_migration_pending": target in pending,
+              "database_writes": 0,
+          }
+          print("ML_PILOT_001B_RUNTIME_DB_STATUS=" + json.dumps(safe, sort_keys=True))
+
+          if not safe["tracking_table_exists"]:
+              raise SystemExit("LABEL_DB_STATUS_BLOCKED: schema_migrations table is unavailable")
+          if safe["checksum_mismatches"] != 0:
+              raise SystemExit("LABEL_DB_STATUS_BLOCKED: migration checksum mismatch exists")
+          PY
