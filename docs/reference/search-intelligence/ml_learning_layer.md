@@ -10,14 +10,25 @@ ML-LEARN-001 defines a future learning layer for the Job Application Pipeline wi
 
 The objective is to learn from structured job evidence and operator outcomes where generic deterministic logic and the bounded LLM booster stop delivering enough incremental value.
 
-The intended order is:
+The architecture deliberately distinguishes **development/maturity order** from **productive decision/runtime order**.
+
+Development and capability maturation follow:
 
 ```text
 DB-backed source truth
 -> deterministic normalization and generic evidence/features
 -> deterministic baseline decisions and scores
--> bounded LLM booster where semantic ambiguity remains
--> optional ML learning layer for learned signals
+-> bounded LLM booster and semantic shadow evidence
+-> optional ML learning layer trained/evaluated last
+```
+
+The preferred recurring productive decision flow, once an ML signal has earned promotion, follows:
+
+```text
+DB-backed source truth
+-> deterministic normalization / hard rules / generic evidence
+-> promoted ML signal for broad matching or ranking
+-> selective LLM residual booster for uncertain, novel or high-value cases
 -> deterministic/product-contract validation
 -> Gold explanations and operator review
 ```
@@ -25,6 +36,9 @@ DB-backed source truth
 This concept intentionally preserves the current project philosophy:
 
 - generics first;
+- reuse and mature the already-available LLM booster before adding a new ML operating surface;
+- train/evaluate ML only after the deterministic and LLM baselines are measurable;
+- once promoted, prefer ML for broad recurring scoring and reserve LLM calls for residual ambiguity where practical;
 - learned complexity only where measured lift justifies it;
 - no hidden model authority;
 - no model selection before the problem and evaluation contract are stable;
@@ -52,7 +66,70 @@ A learned component may eventually estimate or propose signals such as:
 
 None of these signals may silently become product truth. Exact Top-5 semantics, thresholds, hard filters, ranking weights and action behavior remain governed by the approved product contract.
 
-## 3. Layering contract
+LLM and ML are **complementary signal engines**, not one universally fixed serial chain. Their runtime ordering depends on the problem class. The development order is intentionally more fixed because the deterministic and LLM capabilities already exist in material parts of the system and provide useful baselines and training evidence before ML is introduced.
+
+## 3. Layering and ordering contract
+
+### 3.1 Development / maturity order
+
+The default implementation order for new job-intelligence capability is:
+
+```text
+1. deterministic generics
+2. bounded LLM booster / shadow semantics
+3. ML training and evaluation
+4. runtime routing optimization after measured evidence
+```
+
+Reasons:
+
+- deterministic generics are cheapest, most reproducible and easiest to validate;
+- the LLM booster already exists on several Search Intelligence surfaces and can expose residual semantic gaps quickly;
+- LLM shadow output can provide provenance-marked semantic annotations or weak labels without becoming ground truth;
+- operator review plus deterministic/LLM disagreement data improves the later ML problem definition;
+- ML is introduced only after the task, labels, baselines and evaluation criteria are sufficiently stable.
+
+This development order must not be interpreted as a requirement to call the LLM before ML in the eventual production path.
+
+### 3.2 Preferred productive order for recurring job decisions
+
+For high-volume or recurring job matching/ranking, the preferred target order is:
+
+```text
+deterministic core
+-> ML broad scorer / ranker
+-> LLM residual booster when needed
+-> product-contract validation
+-> Gold / operator review
+```
+
+The rationale is operational:
+
+- deterministic logic resolves canonical facts and hard boundaries first;
+- a promoted ML model can score many recurring jobs cheaply and consistently;
+- the LLM is strongest as a selective semantic resolver for uncertain, novel, conflicting or unusually valuable cases;
+- reducing unnecessary LLM calls improves cost, latency and reproducibility;
+- deterministic/product-contract validation remains downstream authority regardless of which probabilistic signal produced a recommendation.
+
+A runtime router may use confidence, disagreement, missing evidence, novelty or expected opportunity value to decide whether an LLM residual call is justified.
+
+### 3.3 Problem-class routing
+
+The preferred runtime order is use-case dependent.
+
+| Problem class | Preferred order after capability maturity |
+|---|---|
+| canonical normalization / hard criteria | deterministic only where sufficient |
+| source/origin discovery | deterministic -> LLM when residual evidence discovery or interpretation is needed |
+| ATS / unusual website semantics | deterministic -> LLM; dedicated ML only if later evidence proves value |
+| requirement extraction | deterministic -> LLM or ML depending measured task economics; residual LLM remains allowed |
+| recurring job-profile matching | deterministic -> ML -> selective LLM residual |
+| recurring job ranking | deterministic -> ML -> selective LLM residual |
+| feedback learning | ML over explicit approved labels; LLM may explain but does not define the label |
+| clustering / market pattern discovery | ML as primary learned engine; LLM may label/explain clusters |
+| edge-case adjudication | deterministic evidence -> LLM proposal -> deterministic/product validation |
+
+Therefore the architecture is not `deterministic -> LLM -> ML` as a universal runtime pipeline. That sequence describes the preferred **development and evidence-maturation path**. Productive routing should use the cheapest and most reliable capable layer first for the concrete problem.
 
 ### Layer A — deterministic generics
 
@@ -78,6 +155,10 @@ The purpose is to solve as much as practical with cheap, testable and inspectabl
 
 `LLM-BOOST-001` remains the semantic escalation path where deterministic handling leaves an ambiguity or information gap.
 
+During development it is intentionally matured before ML because it already exists across parts of Search Intelligence and can rapidly expose residual semantic cases, provide diagnostic evidence and support weak-label experiments.
+
+In recurring productive matching/ranking it should normally become a **selective residual layer** after a sufficiently capable promoted ML scorer, rather than a mandatory call for every job.
+
 The LLM layer may propose structured semantic evidence, but its output is not product authority. Existing deterministic validators and product contracts remain authoritative.
 
 For future ranking or matching work, LLM-derived fields should be treated as one independently observable signal family rather than silently merged into canonical truth.
@@ -87,6 +168,8 @@ For future ranking or matching work, LLM-derived fields should be treated as one
 ML is introduced only after enough reproducible evidence exists to answer a concrete question better than the generic baseline and, where relevant, the LLM-assisted baseline.
 
 The learning layer must remain model-agnostic at architecture level. Candidate approaches may later include classical supervised learning, ranking models, representation learning, embeddings or other techniques, but no family is selected by this document.
+
+Once a model is promoted for a recurring scoring problem, it is expected to sit **before routine LLM escalation** so it can absorb broad repeatable patterns and reduce the residual set that needs expensive semantic reasoning.
 
 The key requirement is measurable incremental value.
 
@@ -252,6 +335,8 @@ The minimum comparison matrix is:
 | deterministic + ML | measures learned lift independent of LLM features |
 | deterministic + LLM + ML | tests whether the combined stack adds further value |
 
+The combined variant must be evaluated both as a quality combination and as a **routing strategy**. For recurring decisions, the preferred candidate routing is `deterministic -> ML -> conditional LLM`, not unconditional LLM execution before ML.
+
 Useful metrics depend on the concrete task.
 
 ### Matching / classification
@@ -271,6 +356,16 @@ Useful metrics depend on the concrete task.
 - number of relevant jobs rescued into the operator review set;
 - operator override/rejection rate.
 
+### Routing / residual-booster metrics
+
+- fraction of cases resolved by determinism alone;
+- fraction scored confidently by ML without LLM escalation;
+- LLM escalation rate;
+- incremental rescue among ML residuals;
+- disagreement rate between ML and LLM;
+- quality/cost/latency change versus unconditional LLM use;
+- residual false-negative rate after all enabled layers.
+
 ### Operational metrics
 
 - inference latency;
@@ -284,38 +379,52 @@ A more complex model is not promoted merely because an offline metric is slightl
 
 ## 9. Experiment and promotion ladder
 
-The preferred progression is:
+The preferred development progression is:
 
 ```text
 problem + label contract
 -> deterministic baseline
+-> LLM shadow/booster evidence where useful
 -> reproducible Kaggle dataset
--> offline Kaggle experiment
+-> offline Kaggle ML experiment
 -> holdout comparison
 -> repository-recorded experiment evidence
--> shadow scoring on live jobs
+-> shadow ML scoring on live jobs
+-> compare deterministic / LLM / ML / routed combination
 -> bounded operator review
 -> canary use in Gold read models
--> controlled default signal
+-> controlled default ML signal
+-> conditional LLM residual routing
 ```
 
 No stage before controlled default may alter candidate/source lifecycle, connector activation, application decisions or hard eligibility.
 
 ## 10. Runtime boundary
 
-A future runtime integration should look conceptually like:
+A future recurring job-decision integration should look conceptually like:
 
 ```text
 Bronze
   -> Silver canonical job evidence
       -> deterministic feature/evidence layer
-          -> generic baseline signals
-          -> optional LLM semantic signals
-          -> optional ML learned signals
-              -> Gold decision/read models
-                  -> product-contract validation
-                  -> explanation
-                  -> operator review
+          -> hard rules / generic baseline
+          -> promoted ML broad scorer or ranker
+              -> confident / sufficient evidence
+                   -> Gold candidate signal
+              -> uncertain / novel / conflicting / high-value residual
+                   -> optional LLM semantic booster
+                   -> deterministic/product-contract validation
+                   -> Gold candidate signal
+          -> explanation
+          -> operator review
+```
+
+For discovery-oriented or unusual one-off semantic problems, the runtime may instead remain:
+
+```text
+deterministic evidence
+-> LLM residual proposal
+-> deterministic authority
 ```
 
 Silver stays canonical and reproducible. Learned outputs belong in Gold or in an explicitly non-authoritative feature/signal store feeding Gold.
@@ -331,6 +440,8 @@ A model prediction should carry at least:
 - product authority flag (`false` until an explicit product contract says otherwise);
 - explanation inputs sufficient for operator review.
 
+A residual LLM call should additionally record why the ML/deterministic path escalated, for example uncertainty, novelty, evidence conflict, missing semantic fields or bounded high-value adjudication.
+
 ## 11. Explainability and operator control
 
 The Control Center must not display a bare opaque fit number as if it were self-explanatory.
@@ -343,7 +454,8 @@ A learned signal should be decomposable into understandable evidence such as:
 - explicit gaps;
 - unresolved evidence;
 - hard product criteria independently evaluated outside the model;
-- which signal families influenced the recommendation.
+- which signal families influenced the recommendation;
+- whether an LLM residual booster was invoked and why.
 
 The operator must be able to disagree with the learned recommendation without corrupting source truth.
 
@@ -358,7 +470,7 @@ This is allowed only as an experiment boundary:
 - evaluation must include human/grounded holdout evidence;
 - the model must not be evaluated only against labels produced by the same semantic teacher.
 
-This option is intentionally parked until a concrete training task needs it.
+This role is particularly useful during the **development order**, where the already-available LLM booster can help characterize residual cases before the first ML model is selected.
 
 ## 13. Model-agnostic artifact contract
 
@@ -396,7 +508,9 @@ ML-LEARN-001 does not currently authorize:
 - training directly from unversioned ad-hoc files;
 - treating LLM output as ground-truth labels;
 - online self-training from every click;
-- deployment of a model merely because a Kaggle score is good.
+- deployment of a model merely because a Kaggle score is good;
+- unconditional LLM execution for every recurring job merely because the booster exists;
+- treating development order as a permanent runtime routing rule.
 
 ## 15. First implementation slice when activated
 
@@ -405,20 +519,36 @@ When this concept is later activated, the smallest useful slice should be **eval
 Recommended first slice:
 
 1. define one target task and label contract;
-2. materialize a reproducible DB-backed training snapshot for Kaggle;
-3. establish a deterministic generic baseline;
-4. optionally include the existing LLM-booster signal as a separately measurable feature family;
-5. train one or more deliberately unspecified candidate approaches in Kaggle;
-6. compare all variants on the same holdout set;
-7. write experiment evidence back to repository/DB metadata;
-8. shadow-score live jobs without changing product decisions.
+2. establish the strongest practical deterministic generic baseline;
+3. run/retain the existing LLM booster as a separately measurable shadow/semantic baseline where applicable;
+4. materialize a reproducible DB-backed training snapshot for Kaggle;
+5. optionally include provenance-marked LLM-booster signals or weak labels as separate feature/label families;
+6. train one or more deliberately unspecified candidate approaches in Kaggle;
+7. compare deterministic, deterministic+LLM, deterministic+ML and routed deterministic+ML+LLM variants on the same holdout set;
+8. write experiment evidence back to repository/DB metadata;
+9. shadow-score live jobs without changing product decisions;
+10. only after promotion evidence exists, test `deterministic -> ML -> conditional LLM residual` as the preferred recurring runtime route.
 
 Only after this slice proves meaningful incremental lift should model selection or runtime serving become a design decision.
 
 ## 16. Architectural principle
 
-The layer exists to answer one question:
+The layer exists to answer two related questions:
 
-> Does learned behavior rescue useful signal that generic deterministic logic and the bounded LLM booster miss, at acceptable complexity and with enough evidence to explain and control it?
+> During development: does ML add useful learned behavior beyond the strongest deterministic baseline and the already-available bounded LLM booster?
 
-If the answer is no, the correct architecture is to keep the ML layer inactive.
+> During production: can a promoted ML scorer absorb the broad recurring decision workload so that the LLM is reserved for residual ambiguity, novelty and high-value semantic adjudication?
+
+The default long-term recurring decision architecture is therefore:
+
+```text
+deterministic -> ML -> conditional LLM booster -> deterministic/product authority
+```
+
+while the default development/maturity order remains:
+
+```text
+deterministic -> LLM booster/shadow evidence -> ML
+```
+
+If measured evidence contradicts that routing for a specific problem class, the architecture permits a different route. The decision must be based on validated quality, cost, latency, reproducibility and operator usefulness rather than layer prestige.
