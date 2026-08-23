@@ -1,0 +1,215 @@
+name: MLF-005 live DB proof
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/mlf005-live-db-proof.yml
+
+permissions:
+  contents: read
+
+jobs:
+  live-proof:
+    name: Read-only Silver package proof
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 20
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+    steps:
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_NAME" != "$RCC_RUNNER_NAME" ]]; then
+            echo "Unexpected self-hosted runner: $RUNNER_NAME" >&2
+            exit 2
+          fi
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file" || {
+            echo "RCC runtime context is unavailable." >&2
+            exit 2
+          }
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import PurePosixPath
+          import sys
+
+          context_path, repository_id, repository, runner_name = sys.argv[1:]
+          with open(context_path, encoding="utf-8") as handle:
+              context = json.load(handle)
+
+          if context.get("RepositoryId") != int(repository_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("RunnerName") != runner_name:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: runner mismatch")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_CONTEXT_STALE: platform mismatch")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_STALE: runtime context is not PASS")
+
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "env_file",
+              "env_keys",
+              "interpreter",
+              "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(check for check in required if checks.get(check) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: required checks not PASS: " + ",".join(failed))
+
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          for label, value in (("checkout", checkout), ("interpreter", interpreter), ("env_file", env_file)):
+              if not isinstance(value, str) or not value.startswith("/") or "\n" in value or "\0" in value:
+                  raise SystemExit(f"RUNTIME_CONTEXT_STALE: invalid {label} path")
+
+          checkout_path = PurePosixPath(checkout)
+          if checkout_path not in PurePosixPath(interpreter).parents:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: interpreter outside checkout")
+          if checkout_path not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: env file outside checkout")
+
+          print(checkout)
+          print(interpreter)
+          PY
+          )"
+          mapfile -t context_values <<< "$context_output"
+          if [[ "${#context_values[@]}" -ne 2 ]]; then
+            echo "RCC runtime context returned an invalid projection." >&2
+            exit 2
+          fi
+          printf 'PROJECT_DIR=%s\n' "${context_values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_PYTHON=%s\n' "${context_values[1]}" >> "$GITHUB_ENV"
+
+      - name: Authenticate and fast-forward persistent checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" "$PROJECT_DIR/scripts/prepare_scheduled_pipeline_checkout.py" --root "$PROJECT_DIR" > "$RUNNER_TEMP/mlf005-checkout-preflight.json"
+          actual_sha="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+          if [[ "$actual_sha" != "$GITHUB_SHA" ]]; then
+            echo "Persistent checkout does not match triggering main revision." >&2
+            echo "expected=$GITHUB_SHA actual=$actual_sha" >&2
+            exit 3
+          fi
+          if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain=v1)" ]]; then
+            echo "Persistent checkout is not clean after preflight." >&2
+            exit 3
+          fi
+          echo "Persistent checkout identity and exact main revision verified."
+
+      - name: Materialize and validate real Silver package locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          cutoff="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          receipt="$RUNNER_TEMP/mlf005-live-receipt.json"
+          (
+            cd "$PROJECT_DIR"
+            "$RUNTIME_PYTHON" -m scripts.materialize_ml_training_snapshot \
+              --evidence-cutoff "$cutoff" > "$receipt"
+          )
+          printf 'MLF005_RECEIPT=%s\n' "$receipt" >> "$GITHUB_ENV"
+
+      - name: Publish allowlisted aggregate proof only
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$MLF005_RECEIPT" "$PROJECT_DIR" "$GITHUB_SHA" <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+          import sys
+
+          receipt_path = Path(sys.argv[1])
+          project_dir = Path(sys.argv[2]).resolve()
+          expected_sha = sys.argv[3]
+          receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+
+          required = {
+              "schema_version",
+              "package_id",
+              "package_fingerprint",
+              "source_snapshot",
+              "dataset_manifest_fingerprint",
+              "snapshot_plan_fingerprint",
+              "row_count",
+              "evidence_cutoff_utc",
+              "compute_class",
+              "external_execution",
+              "product_authority",
+              "output_directory",
+          }
+          missing = sorted(required - set(receipt))
+          if missing:
+              raise SystemExit(f"MLF005_PROOF_INVALID: receipt missing {missing}")
+          if receipt["schema_version"] != "mlf005-local-materialization-receipt/v1":
+              raise SystemExit("MLF005_PROOF_INVALID: receipt schema mismatch")
+          if not isinstance(receipt["row_count"], int) or receipt["row_count"] <= 0:
+              raise SystemExit("MLF005_PROOF_INVALID: Silver snapshot is empty")
+          if receipt["compute_class"] != "cpu_validation":
+              raise SystemExit("MLF005_PROOF_INVALID: compute class drifted")
+          if receipt["external_execution"] is not False:
+              raise SystemExit("MLF005_PROOF_INVALID: external execution occurred")
+          if receipt["product_authority"] is not False:
+              raise SystemExit("MLF005_PROOF_INVALID: product authority was claimed")
+
+          package_dir = Path(receipt["output_directory"]).resolve()
+          allowed_root = (project_dir / ".runtime" / "ml-training-packages").resolve()
+          if package_dir.parent != allowed_root:
+              raise SystemExit("MLF005_PROOF_INVALID: package escaped ignored local runtime root")
+          snapshot_metadata_path = package_dir / "snapshot-metadata.json"
+          cpu_report_path = package_dir / "cpu-validation-report.json"
+          package_manifest_path = package_dir / "package-manifest.json"
+          for path in (snapshot_metadata_path, cpu_report_path, package_manifest_path):
+              if not path.is_file():
+                  raise SystemExit(f"MLF005_PROOF_INVALID: required local evidence missing: {path.name}")
+
+          snapshot_metadata = json.loads(snapshot_metadata_path.read_text(encoding="utf-8"))
+          cpu_report = json.loads(cpu_report_path.read_text(encoding="utf-8"))
+          if snapshot_metadata.get("code_commit") != expected_sha:
+              raise SystemExit("MLF005_PROOF_INVALID: package code revision does not match main")
+          if snapshot_metadata.get("row_count") != receipt["row_count"]:
+              raise SystemExit("MLF005_PROOF_INVALID: row count disagreement")
+          if cpu_report.get("package_fingerprint") != receipt["package_fingerprint"]:
+              raise SystemExit("MLF005_PROOF_INVALID: on-disk CPU validation fingerprint disagreement")
+          if cpu_report.get("external_execution") is not False or cpu_report.get("product_authority") is not False:
+              raise SystemExit("MLF005_PROOF_INVALID: CPU validation authority drift")
+
+          safe = {
+              "schema_version": "mlf005-live-db-proof/v1",
+              "status": "pass",
+              "main_sha": expected_sha,
+              "package_id": receipt["package_id"],
+              "package_fingerprint": receipt["package_fingerprint"],
+              "source_snapshot": receipt["source_snapshot"],
+              "dataset_manifest_fingerprint": receipt["dataset_manifest_fingerprint"],
+              "snapshot_plan_fingerprint": receipt["snapshot_plan_fingerprint"],
+              "row_count": receipt["row_count"],
+              "evidence_cutoff_utc": receipt["evidence_cutoff_utc"],
+              "compute_class": receipt["compute_class"],
+              "external_execution": False,
+              "product_authority": False,
+              "on_disk_validation": "pass",
+          }
+          print(json.dumps(safe, sort_keys=True))
+          PY
