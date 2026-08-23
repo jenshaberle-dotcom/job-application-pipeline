@@ -14,6 +14,9 @@ GERMANY = "https://jobs.example.invalid/go/germany/4411601"
 BELGIUM = "https://jobs.example.invalid/go/belgium/4411501"
 PERSONIO = "https://x1f.jobs.personio.de/"
 PERSONIO_XML = "https://x1f.jobs.personio.de/xml?language=de"
+PERSONIO_DELEGATED_DETAIL = (
+    "https://comrce.jobs.personio.de/job/1958197?language=de&display=de"
+)
 SMART_DETAIL = (
     "https://jobs.smartrecruiters.com/Wavestone1/"
     "744000143599414-junior-ai-engineer-pittsburgh-pa"
@@ -73,6 +76,29 @@ def test_strict_embedded_canonical_detail_can_recognize_provider_on_employer_pag
             allowed_hosts=("www.example.invalid",),
         )
         == "smartrecruiters"
+    )
+
+
+def test_strict_embedded_personio_detail_can_recognize_provider_without_competitor() -> None:
+    assert (
+        authorized_ats_provider(
+            page_url=EMPLOYER,
+            html=f'<script>window.jobUrl="{PERSONIO_DELEGATED_DETAIL}"</script>',
+            allowed_hosts=("www.example.invalid",),
+        )
+        == "personio"
+    )
+
+
+def test_personio_embedded_detail_fails_closed_on_competing_provider_evidence() -> None:
+    html = f"<html>dvinci-hr.com <a href='{PERSONIO_DELEGATED_DETAIL}'>Other ATS role</a></html>"
+    assert (
+        authorized_ats_provider(
+            page_url=EMPLOYER,
+            html=html,
+            allowed_hosts=("www.example.invalid",),
+        )
+        is None
     )
 
 

@@ -21,6 +21,9 @@ PERSONIO_DETAIL = f"https://{PERSONIO_HOST}/job/123456?language=de"
 EMPLOYER_HOST = "www.example.invalid"
 EMPLOYER_ROOT = f"https://{EMPLOYER_HOST}/careers"
 EMPLOYER_LISTING = f"https://{EMPLOYER_HOST}/careers/our-offers"
+PERSONIO_DELEGATED_DETAIL = (
+    "https://comrce.jobs.personio.de/job/1958197?language=de&display=de"
+)
 SMART_DETAIL = (
     "https://jobs.smartrecruiters.com/Wavestone1/"
     "744000143599414-junior-ai-engineer-pittsburgh-pa"
@@ -90,6 +93,38 @@ def test_personio_provider_inventory_reaches_real_detail_within_bounded_budget()
     assert len(jobs) == 1
     assert jobs[0].final_url == PERSONIO_DETAIL
     assert jobs[0].discovery_source == "personio_provider_detail"
+    assert jobs[0].proof_kind == "jsonld_jobposting"
+
+
+def test_explicit_embedded_personio_detail_delegates_from_employer_root() -> None:
+    calls: list[str] = []
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == EMPLOYER_ROOT:
+            return (
+                '<html><script>window.jobs={"detail":"'
+                + PERSONIO_DELEGATED_DETAIL
+                + '"}</script></html>',
+                EMPLOYER_ROOT,
+                200,
+            )
+        if url == PERSONIO_DELEGATED_DETAIL:
+            return _jsonld_job_content("AI Consultant"), PERSONIO_DELEGATED_DETAIL, 200
+        raise AssertionError(url)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=EMPLOYER_ROOT,
+        allowed_hosts=(EMPLOYER_HOST,),
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert calls == [EMPLOYER_ROOT, PERSONIO_DELEGATED_DETAIL]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == PERSONIO_DELEGATED_DETAIL
+    assert jobs[0].discovery_source == "personio_provider_delegated_detail"
     assert jobs[0].proof_kind == "jsonld_jobposting"
 
 

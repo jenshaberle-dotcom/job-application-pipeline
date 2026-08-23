@@ -97,7 +97,12 @@ def authorized_ats_provider(
     )
     explicit_providers = {provider for provider, _url in explicit_details}
     if len(explicit_providers) == 1:
-        return next(iter(explicit_providers))
+        provider = next(iter(explicit_providers))
+        if provider == "personio":
+            observed = set(classify_provider_names(html[:500_000]))
+            if observed - {provider}:
+                return None
+        return provider
     if len(explicit_providers) > 1:
         return None
 

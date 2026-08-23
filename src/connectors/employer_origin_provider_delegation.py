@@ -27,6 +27,10 @@ _PROVIDER_DETAIL_ROUTE_PATTERNS: dict[str, re.Pattern[str]] = {
         r"^/(?:[a-z]{2}(?:-[a-z]{2})?/)?jobs/[0-9]+/[^/?#]+/?$",
         flags=re.IGNORECASE,
     ),
+    "personio": re.compile(
+        r"^/job/[0-9]{2,20}/?$",
+        flags=re.IGNORECASE,
+    ),
     "smartrecruiters": re.compile(
         r"^/(?:ni/)?[A-Za-z0-9._-]{2,128}/(?:"
         r"[0-9]{8,}|"
@@ -35,7 +39,7 @@ _PROVIDER_DETAIL_ROUTE_PATTERNS: dict[str, re.Pattern[str]] = {
         flags=re.IGNORECASE,
     ),
 }
-_EMBEDDED_DETAIL_PROVIDERS = frozenset({"smartrecruiters"})
+_EMBEDDED_DETAIL_PROVIDERS = frozenset({"personio", "smartrecruiters"})
 
 
 def _host(value: str) -> str:
@@ -58,11 +62,11 @@ def _strict_provider_detail(provider: str, candidate: str) -> bool:
     if parsed.scheme.casefold() != "https" or not parsed.hostname:
         return False
     recognition = recognize_ats_provider(candidate)
-    return bool(
-        recognition is not None
-        and recognition.provider == provider
-        and pattern.fullmatch(parsed.path or "")
-    )
+    if recognition is None or recognition.provider != provider:
+        return False
+    if provider == "personio" and recognition.target_hint is None:
+        return False
+    return bool(pattern.fullmatch(parsed.path or ""))
 
 
 def explicit_canonical_provider_detail_urls(
@@ -141,12 +145,12 @@ def canonical_provider_delegated_detail_urls(
         recognition = recognize_ats_provider(candidate)
         if recognition is None or recognition.provider != provider:
             continue
-        if not route_pattern.fullmatch(parsed.path or ""):
+        normalized = candidate.split("#", 1)[0].rstrip("/")
+        if not _strict_provider_detail(provider, normalized):
             continue
         label = unescape(_TAG.sub(" ", raw_label))
         if not re.sub(r"\s+", " ", label).strip():
             continue
-        normalized = candidate.split("#", 1)[0].rstrip("/")
         if normalized in seen:
             continue
         seen.add(normalized)
@@ -173,13 +177,9 @@ def canonical_provider_delegated_detail_urls(
 
 
 def canonical_provider_detail_host(*, provider: str, url: str) -> str | None:
-    """Return the canonical target host only when it belongs to the same provider."""
+    """Return the canonical target host only for a strict same-provider detail URL."""
 
-    recognition = recognize_ats_provider(url)
-    if recognition is None or recognition.provider != provider:
-        return None
-    parsed = urlparse(url)
-    if parsed.scheme.casefold() != "https":
+    if not _strict_provider_detail(provider, url):
         return None
     return _host(url) or None
 
