@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from src.search_intelligence.operator_review_labels import (
     CAPTURE_SURFACES,
+    JOB_EVIDENCE_SCHEMA_VERSION,
     LABEL_CONTRACT_VERSION,
     REVIEW_LABELS,
     SELECTION_REASONS,
     OperatorReviewLabelEvent,
+    canonical_job_evidence_payload,
+    fingerprint_job_evidence,
     fingerprint_label_event,
     supervised_target,
     training_eligible,
@@ -32,6 +35,33 @@ def _event(**overrides: object) -> OperatorReviewLabelEvent:
     }
     values.update(overrides)
     return OperatorReviewLabelEvent(**values)  # type: ignore[arg-type]
+
+
+def _job_evidence(**overrides: object) -> dict[str, object]:
+    values: dict[str, object] = {
+        "id": 42,
+        "raw_job_id": 314,
+        "source_name": "example",
+        "external_job_id": "abc-42",
+        "source_url": "https://example.test/jobs/42",
+        "title": "ML Engineer",
+        "company_name": "Example GmbH",
+        "city": "Hannover",
+        "postal_code": "30159",
+        "country": "DE",
+        "publication_date": date(2026, 8, 22),
+        "normalized_title": "ml engineer",
+        "normalized_company_name": "example gmbh",
+        "normalized_location": "hannover",
+        "canonical_status": "active",
+        "canonical_source_type": "employer_origin",
+        "canonical_key_candidate": "example|ml-engineer|hannover",
+        "normalized_at": NOW - timedelta(hours=1),
+        "created_at": NOW - timedelta(days=1),
+        "updated_at": NOW - timedelta(minutes=10),
+    }
+    values.update(overrides)
+    return values
 
 
 def test_label_vocabulary_is_small_and_task_specific() -> None:
@@ -120,6 +150,33 @@ def test_event_fingerprint_is_stable_and_changes_with_operator_truth() -> None:
     assert fingerprint_label_event(first) == fingerprint_label_event(second)
     assert fingerprint_label_event(first).startswith("sha256:")
     assert fingerprint_label_event(first) != fingerprint_label_event(changed)
+
+
+def test_job_evidence_fingerprint_binds_exact_mlf_silver_projection() -> None:
+    row = _job_evidence()
+    same = _job_evidence()
+    changed = _job_evidence(title="Senior ML Engineer")
+
+    payload = canonical_job_evidence_payload(row)
+    assert payload["schema_version"] == JOB_EVIDENCE_SCHEMA_VERSION
+    assert payload["source_relation"] == "silver_jobs"
+    assert payload["columns"]["publication_date"] == "2026-08-22"  # type: ignore[index]
+    assert payload["columns"]["updated_at"].endswith("Z")  # type: ignore[index,union-attr]
+    assert fingerprint_job_evidence(row) == fingerprint_job_evidence(same)
+    assert fingerprint_job_evidence(row).startswith("sha256:")
+    assert fingerprint_job_evidence(row) != fingerprint_job_evidence(changed)
+
+
+def test_job_evidence_fingerprint_fails_closed_on_schema_or_timestamp_drift() -> None:
+    missing = _job_evidence()
+    missing.pop("canonical_status")
+    with pytest.raises(ValueError, match="fields mismatch"):
+        fingerprint_job_evidence(missing)
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        fingerprint_job_evidence(
+            _job_evidence(updated_at=datetime(2026, 8, 23, 20, 0))
+        )
 
 
 def test_migration_is_append_only_and_exposes_latest_training_eligibility() -> None:
