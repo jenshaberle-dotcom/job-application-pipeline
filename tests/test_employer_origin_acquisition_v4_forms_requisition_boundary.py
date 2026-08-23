@@ -6,9 +6,18 @@ from src.connectors.employer_origin_acquisition_v4_forms import acquire_genuine_
 HOST = "jobs.example.invalid"
 ROOT = "https://jobs.example.invalid/careers"
 FIRST_LISTING = "https://jobs.example.invalid/open-positions"
-SECOND_LISTING = "https://jobs.example.invalid/open-positions/all"
+SECOND_LISTING = "https://jobs.example.invalid/stellenmarkt"
 STRONG_DETAIL = "https://jobs.example.invalid/stellenmarkt/platform-engineer-998877.html"
-WEAK_DETAIL = "https://jobs.example.invalid/jobs/platform-engineer-12345"
+GENERIC_DETAIL = "https://jobs.example.invalid/jobs/platform-engineer-12345"
+
+
+def _root_html() -> str:
+    return (
+        "<html><body>"
+        f"<a href='{FIRST_LISTING}'>Open positions</a>"
+        f"<a href='{SECOND_LISTING}'>Stellenangebote</a>"
+        "</body></html>"
+    )
 
 
 def _job_html() -> str:
@@ -27,13 +36,9 @@ def test_form_lane_reuses_strong_requisition_boundary_for_fourth_request() -> No
     def fetcher(url: str):
         calls.append(url)
         if url == ROOT:
-            return f"<html><a href='{FIRST_LISTING}'>Open positions</a></html>", ROOT, 200
+            return _root_html(), ROOT, 200
         if url == FIRST_LISTING:
-            return (
-                f"<html><a href='{SECOND_LISTING}'>Open positions</a></html>",
-                FIRST_LISTING,
-                200,
-            )
+            return "<html><title>Open positions</title></html>", FIRST_LISTING, 200
         if url == SECOND_LISTING:
             return (
                 f"<html><a href='{STRONG_DETAIL}'>Platform Engineer (m/w/d)</a></html>",
@@ -65,21 +70,17 @@ def test_form_lane_does_not_grant_fourth_request_for_non_requisition_detail() ->
     def fetcher(url: str):
         calls.append(url)
         if url == ROOT:
-            return f"<html><a href='{FIRST_LISTING}'>Open positions</a></html>", ROOT, 200
+            return _root_html(), ROOT, 200
         if url == FIRST_LISTING:
-            return (
-                f"<html><a href='{SECOND_LISTING}'>Open positions</a></html>",
-                FIRST_LISTING,
-                200,
-            )
+            return "<html><title>Open positions</title></html>", FIRST_LISTING, 200
         if url == SECOND_LISTING:
             return (
-                f"<html><a href='{WEAK_DETAIL}'>Platform Engineer (m/w/d)</a></html>",
+                f"<html><a href='{GENERIC_DETAIL}'>Platform Engineer (m/w/d)</a></html>",
                 SECOND_LISTING,
                 200,
             )
-        if url == WEAK_DETAIL:
-            raise AssertionError("non-requisition detail must not receive the shared fourth request")
+        if url == GENERIC_DETAIL:
+            raise AssertionError("generic detail must not receive the shared fourth request")
         raise AssertionError(url)
 
     jobs, _ = acquire_genuine_job_pages(
