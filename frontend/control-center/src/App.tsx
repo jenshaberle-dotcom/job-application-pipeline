@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import FinalApprovalReviewDialog from "./FinalApprovalReviewDialog";
+import JobReviewLabelControls, {
+  type JobReviewLabelState,
+} from "./JobReviewLabelControls";
 
 type OperatorBlocker = { code: string; title: string; detail: string };
 type WaveState = {
@@ -31,6 +34,7 @@ type Job = {
   commute_minutes?: number | null;
   explanations?: string[];
   uncertainties?: string[];
+  review_label?: JobReviewLabelState | null;
 };
 type GateState = { status: string; decision?: string | null; passed: boolean; truth_source: string };
 type SourceConnector = {
@@ -114,6 +118,8 @@ type ProductPayload = {
     origin_blocker_count: number;
     top_job_count: number;
     application_ready_count: number;
+    reviewed_job_count?: number;
+    training_eligible_review_label_count?: number;
   };
   wave_states: WaveState[];
   ranking_policy: Record<string, unknown>;
@@ -123,6 +129,13 @@ type ProductPayload = {
   application_sources_ready: { base_cv: boolean; base_application_letter: boolean };
   source_connector_overview: SourceConnectorOverview;
   operator_blockers: OperatorBlocker[];
+  review_label_capture?: {
+    available: boolean;
+    action_path: string;
+    labels: string[];
+    selection_reason: string;
+    product_authority: boolean;
+  };
   boundaries: Record<string, boolean>;
 };
 
@@ -195,7 +208,7 @@ function SourceLifecycleRail({ source }: { source: SourceConnector }) {
   return <div className="lifecycle-rail">{lifecycleLabels.map(([key, text]) => <div className={`lifecycle-step ${statusTone(source.lifecycle[key])}`} key={key}><i /><span>{text}</span><small>{label(source.lifecycle[key])}</small></div>)}</div>;
 }
 
-function JobsScreen({ payload }: { payload: ProductPayload }) {
+function JobsScreen({ payload, refreshProductTruth }: { payload: ProductPayload; refreshProductTruth: () => Promise<void> }) {
   const [filter, setFilter] = useState<JobFilter>("current");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -252,6 +265,7 @@ function JobsScreen({ payload }: { payload: ProductPayload }) {
           {filtered.length === 0 && <p className="empty">No jobs match this truth filter.</p>}
         </div>
         <aside className="job-detail-panel">{selected ? <><span className="eyebrow">Silver #{selected.silver_job_id}</span><h2>{selected.title || "Untitled job"}</h2><p>{selected.company_name || "Unknown employer"} · {selected.city || "Location unconfirmed"}</p>{selected.source_url ? <a className="primary-link" href={selected.source_url} target="_blank" rel="noreferrer">Open original job ↗</a> : <span className="missing-link">No source URL projected</span>}
+          <JobReviewLabelControls silverJobId={selected.silver_job_id} currentLabel={selected.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refreshProductTruth} />
           <section className="score-breakdown"><h3>Profile-fit signals</h3>{([ ["Overall", selected.overall_quality_score], ["Profile direction", selected.profile_direction_score], ["Data focus", selected.data_focus_score], ["Reliability", selected.reliability_focus_score], ["Evidence quality", selected.evidence_quality_score] ] as Array<[string, number | null | undefined]>).map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}</section>
           <section className="detail-facts"><div><span>Lifecycle</span><StatusPill value={selected.lifecycle_status || "unknown"} /></div><div><span>Product gate</span><StatusPill value={selected.product_readiness_status || "unknown"} /></div><div><span>Work model</span><b>{label(selected.work_model)}</b></div><div><span>Commute</span><b>{selected.commute_minutes == null ? "—" : `${selected.commute_minutes} min`}</b></div></section>
           <section className="evidence-columns"><div><span className="eyebrow">Verified / explanations</span>{selected.explanations?.length ? <ul>{selected.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="muted-copy">No explanation signals projected.</p>}</div><div><span className="eyebrow">Uncertainty / hypothesis</span>{selected.uncertainties?.length ? <ul>{selected.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="muted-copy">No uncertainty statements projected.</p>}</div></section>
@@ -328,5 +342,5 @@ export default function App() {
   if (error) return <main className="fatal"><div className="fatal-card"><span className="eyebrow">Fail closed</span><h1>Control Center unavailable</h1><pre>{error}</pre></div></main>;
   if (!payload) return <main className="loading"><div className="sonar" /><p>Reading Deep Ocean product state…</p></main>;
   const finalApprovalCount = payload.source_connector_overview.sources.filter((source) => source.current_blocker === "final_approval_incomplete").length;
-  return <div className="control-center-shell"><header className="topbar"><div className="topbar-brand"><div className="brand-mark"><span>DO</span></div><div><strong>Deep Ocean</strong><small>Intelligence</small></div></div><nav className="topnav" aria-label="Primary navigation">{([ ["jobs", "Jobs"], ["sources", "Sources"], ["approvals", "Approvals"], ["operations", "Operations"] ] as Array<[Tab, string]>).map(([id, text]) => <button type="button" className={tab === id ? "active" : ""} key={id} onClick={() => setTab(id)}>{text}{id === "approvals" && finalApprovalCount > 0 ? <span>{finalApprovalCount}</span> : null}</button>)}</nav><div className="topbar-status"><span className="truth-stamp"><i /> DB truth</span><button type="button" className="refresh-button" onClick={() => void refreshProductTruth()}>↻ Refresh</button></div></header><main className="app-main">{tab === "jobs" && <JobsScreen payload={payload} />}{tab === "sources" && <SourcesScreen payload={payload} selectedSource={selectedSource} onSelectSource={(source) => setSelectedCandidateId(source.candidate_id)} onReviewFinalApproval={setFinalApprovalSource} />}{tab === "approvals" && <ApprovalsScreen payload={payload} selectedSource={selectedSource} onSelectSource={(source) => setSelectedCandidateId(source.candidate_id)} onReviewFinalApproval={setFinalApprovalSource} />}{tab === "operations" && <OperationsScreen payload={payload} />}</main><FinalApprovalReviewDialog source={finalApprovalSource} refreshProductTruth={refreshProductTruth} onClose={() => setFinalApprovalSource(null)} /></div>;
+  return <div className="control-center-shell"><header className="topbar"><div className="topbar-brand"><div className="brand-mark"><span>DO</span></div><div><strong>Deep Ocean</strong><small>Intelligence</small></div></div><nav className="topnav" aria-label="Primary navigation">{([ ["jobs", "Jobs"], ["sources", "Sources"], ["approvals", "Approvals"], ["operations", "Operations"] ] as Array<[Tab, string]>).map(([id, text]) => <button type="button" className={tab === id ? "active" : ""} key={id} onClick={() => setTab(id)}>{text}{id === "approvals" && finalApprovalCount > 0 ? <span>{finalApprovalCount}</span> : null}</button>)}</nav><div className="topbar-status"><span className="truth-stamp"><i /> DB truth</span><button type="button" className="refresh-button" onClick={() => void refreshProductTruth()}>↻ Refresh</button></div></header><main className="app-main">{tab === "jobs" && <JobsScreen payload={payload} refreshProductTruth={refreshProductTruth} />}{tab === "sources" && <SourcesScreen payload={payload} selectedSource={selectedSource} onSelectSource={(source) => setSelectedCandidateId(source.candidate_id)} onReviewFinalApproval={setFinalApprovalSource} />}{tab === "approvals" && <ApprovalsScreen payload={payload} selectedSource={selectedSource} onSelectSource={(source) => setSelectedCandidateId(source.candidate_id)} onReviewFinalApproval={setFinalApprovalSource} />}{tab === "operations" && <OperationsScreen payload={payload} />}</main><FinalApprovalReviewDialog source={finalApprovalSource} refreshProductTruth={refreshProductTruth} onClose={() => setFinalApprovalSource(null)} /></div>;
 }
