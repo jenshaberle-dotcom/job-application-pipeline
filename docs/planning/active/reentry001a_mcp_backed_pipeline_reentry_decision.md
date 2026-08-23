@@ -1,91 +1,183 @@
-# REENTRY-001A MCP-backed Pipeline Re-Entry Decision
+# REENTRY-001A Job Application Pipeline Re-Entry Decision
 
-Status: current re-entry gate
-Date: 2026-06-17
-Boundary: planning and governance truth only; not a product-pipeline mutation
+Status: current repository re-entry; deterministic acquisition hardening exhausted for the bound 40-candidate cohort
+Date: 2026-08-24
+Repository: `jenshaberle-dotcom/job-application-pipeline`
+Repository ID: `1230805345`
+Current deterministic Pipeline baseline: `880db5f0ae02d2450265f639d245d7bdcec59014`
+Boundary: repository and Runtime evidence are project truth; chat is not project truth
 
 ## Purpose
 
-REENTRY-001A records the first repo-backed decision point for resuming
-job-application-pipeline product work after the external MCP control-plane freeze.
-It converts the temporary pause condition into an explicit, auditable re-entry gate.
+REENTRY-001A is the repository-backed continuation point for the Job Application
+Pipeline. The June 2026 MCP re-entry decision is retained as repository history,
+but its former GENERIC/EXPAND next action is stale and no longer controls work.
 
-This document does not authorize apply-capable work by itself. It defines the
-minimum evidence and the bounded next product path that may be planned after MCP
-has demonstrated safe read-only inspection against this repository.
+The deterministic acquisition hardening campaign has now been driven to its
+current evidence-supported stopping point. The bound 40-candidate cohort improved
+from `21/40` proven and `19/40` blocked to `23/40` proven and `17/40` blocked
+without increasing the request budget, weakening genuine-job proof, adding
+company-specific exceptions, or introducing provider/LLM/Tavily side effects.
 
-## Evidence considered
+## Required reads
 
-The re-entry decision is based on direct repository and MCP-backed inspection,
-not on chat handovers, retired NEXT artifacts, exports, assistant memory or
-stale generated summaries.
+Before continuing from this point, authenticate the repository ID above and read:
 
-Accepted evidence for this gate:
+1. this file completely;
+2. Pipeline issue `#522` as the connector-hardening umbrella;
+3. merged deterministic PRs `#615`, `#616`, `#623`, and `#639`;
+4. Runtime repository `jenshaberle-dotcom/job-pipeline-runtime`, issue `#203`;
+5. Runtime V4 40-cohort run `32670547466`, result commit
+   `32f8cf904de6165c7aa60c2b74de00d41f263473`;
+6. Runtime V16 run `32671012052`, result commit
+   `c4b540658de4f083230361ef96dd8da7928e283a`, matrix
+   `carriers/connector-residual-evidence-v16/32671012052/matrix.json`;
+7. Runtime PR `#255`, merged as
+   `bf8a8b8305b9e25a7f9d20bb2073a23472778ab3`, which removed the stale fixed
+   19-residual assumption from the V16 diagnostic workflow without changing
+   acquisition behavior.
 
-- the job-application-pipeline repository is on `main`, clean, and repo-backed
-  project-state reports `ready_for_target_work`;
-- patch-readiness reports `ready_to_patch` with validation configured and
-  passing;
-- the external MCP control-plane can run a plan-only flight against this target
-  with `authorization_scope=read_only_plan`;
-- mutating rights remain explicitly false for mutation, apply, commit, PR,
-  DB write, provider call, scheduler mutation and remote-state mutation;
-- side-effect boundaries remain enforced for plan-only work;
-- the operator brief and context-pack commands can read this target and surface
-  repository-index, target-profile, patch-readiness and governance packs;
-- active planning snippets were reviewed from repository files and not from
-  retired steering artifacts.
+Do not substitute assistant memory, chat summaries, retired NEXT artifacts, or
+stale generated summaries for these sources.
 
-## Decision
+## Deterministic hardening delta
 
-Product-pipeline work may re-enter planning only through a bounded, repo-backed
-path. The next product direction is:
+Relevant generic hardening already merged includes:
 
-1. close the current GENERIC/EXPAND stop-control and generic-evidence blocker;
-2. keep all candidate/source/gate/connector/pipeline mutations behind dry-run,
-   affected-object visibility and explicit operator approval;
-3. after the generic evidence blocker is closed, prove a minimal controlled V1
-   job-review path with Top-5/job-review direction and approval-safe GUI/review
-   workflow;
-4. only after that, run FREEZE-002 to raise remaining areas toward the >=90%
-   target maturity;
-5. run REFACTOR-001 before cloud migration, DB-backed outbox, Kafka/event
-   backbone, Spark or serious productionization.
+- `#615`: repaired the Deloitte deterministic acquisition path;
+- `#616`: added bounded sibling fallback after a discovered detail attempt fails;
+- `#623`: extended the existing shared fourth-request grant only to strict
+  same-host `stellenmarkt` / `stellenanzeige` detail paths carrying a terminal
+  numeric requisition identity;
+- `#639`: removed an implementation drift by reusing that same strong requisition
+  boundary in the form-aware V4 acquisition lane. No new navigation family was
+  introduced.
 
-## Non-goals
+Pipeline PR `#639` merged at
+`880db5f0ae02d2450265f639d245d7bdcec59014` after focused positive/negative
+regression coverage and the full repository validation suite passed.
 
-REENTRY-001A does not authorize:
+## Current measured 40-cohort baseline
 
-- DB writes or migrations;
-- scheduler behavior changes;
-- provider/API calls;
-- candidate, source, gate, connector or pipeline-state mutation;
-- apply, commit, PR or merge by MCP;
-- a return of retired NEXT/restart artifacts as steering truth;
-- exports, CSV, JSON or Markdown review outputs as pipeline inputs or source of
-  truth;
-- provider follow-up work as the immediate default path unless a later
-  repo-backed decision explicitly selects it.
+The post-`#639` Runtime V4 proof is authoritative for the current deterministic
+baseline:
 
-## Required next-work constraints
+- Pipeline snapshot: `880db5f0ae02d2450265f639d245d7bdcec59014`;
+- Runtime run: `32670547466`;
+- result commit: `32f8cf904de6165c7aa60c2b74de00d41f263473`;
+- input: `40`;
+- genuine-job acquisition proven: `23`;
+- blocked: `17`;
+- blocked cause: `no_genuine_job_detail` for all 17;
+- logical network requests: `110`;
+- connectors using the shared extra request: `12`;
+- connectors using a metered form request: `9`;
+- proof-job persistence: `0`.
 
-The next implementation block must remain narrow enough to preserve the
-re-entry decision:
+Compared with the prior post-`#623` control baseline (`21/40`, `19/40` blocked),
+`#639` adds two genuine-job proofs. Both are Materna records that previously
+stopped after root -> `/suche` -> `/stellenmarkt`. The form-aware lane now spends
+the already-authorized shared fourth request on the strict requisition detail
+`.../stellenmarkt/...-j2110.html`, which returns `jsonld_jobposting` proof.
 
-- start with read-only diagnosis or patch planning;
-- name the exact blocker being closed;
-- cite repository evidence, not chat-state evidence;
-- declare affected files before patching;
-- avoid database, scheduler, provider and activation side effects unless a
-  separate dry-run/apply gate explicitly authorizes them;
-- run the project validation configured for patch-readiness before commit;
-- keep MCP-specific implementation in the external MCP control-plane project,
-  not inside this repository.
+## Deterministic contract
+
+The deterministic layer remains governed by these hard boundaries:
+
+- base request budget remains `3` logical requests;
+- exactly one existing bounded extra request may be shared across authorized
+  deterministic transitions;
+- absolute logical request cap remains `4`;
+- genuine-job acceptance/content proof is unchanged;
+- no provider, LLM, or Tavily request is part of deterministic acquisition;
+- no DB, Product, source activation, scheduler, or application mutation;
+- no raw HTML, form values, or raw API-response persistence;
+- no company-specific special case merely to raise the cohort score;
+- ambiguous evidence fails closed.
+
+A deterministic extension is allowed only when fresh evidence exposes a generic,
+bounded rule that satisfies the same contract.
+
+## Fresh residual V16 evidence
+
+Runtime V16 run `32671012052` is bound to the post-`#639` 17-case residual and
+completed all diagnostic lanes V7-V15 successfully with zero diagnostic
+execution failures.
+
+Lane result-entry counts:
+
+- V7: `17`;
+- V8: `14`;
+- V9: `15`;
+- V10: `11`;
+- V11: `1`;
+- V12: `17`;
+- V13: `15`;
+- V14: `0`;
+- V15: `0`.
+
+The diagnostic boundary remained clean: acceptance unchanged; DB/Product/source
+activation absent; provider/LLM/Tavily requests `0`; raw HTML/API persistence
+absent.
+
+The evidence does not support another generic deterministic acquisition rule:
+
+- V8 exposes provider/listing controls and known ATS-family hints, but no newly
+  authorized genuine-job detail transition;
+- V9 is replay-only (`new_navigation_attempted=false`) and records API/form
+  indicators rather than a proven new route;
+- V11 finds one JOIN public-widget bundle for TrustYou, but no candidate IDs or
+  candidate URLs;
+- V12 performs bounded standard same-host sitemap probes; observed inventories
+  produce no accepted detail-shape URL for the residual cases;
+- V13 probes explicit static assets. It reports one API-ish route candidate in
+  total, for Compugroup Medical: `/api/kd-gdpr-cc`, a GDPR/cookie endpoint rather
+  than a job API. Workday CXS route evidence remains absent for the relevant
+  Workday cases;
+- V14 selects zero explicit GET job-API routes;
+- V15 selects zero explicit job-link routes.
+
+Provider detection by itself is not authority to invent a provider route.
+Likewise, a generic JSON-POST transport capability is not evidence for a route.
+No Workday/company-specific path is authorized from this matrix.
+
+## Deterministic exhaustion decision
+
+For the current bound 40-candidate cohort and the current acquisition contract,
+deterministic acquisition hardening is **exhausted at `23/40` proven and `17/40`
+blocked**.
+
+This is an evidence-backed stop condition, not a claim that the remaining jobs
+are impossible to acquire. It means no additional generic deterministic rule is
+supported by the available V7-V15 residual evidence without at least one of the
+following prohibited moves:
+
+- increasing the absolute request cap beyond four;
+- weakening genuine-job proof;
+- guessing provider/company routes from family detection alone;
+- adding company-specific exceptions;
+- turning ambiguous API/form/static-asset hints into navigation authority;
+- introducing provider/LLM/Tavily side effects into the deterministic layer.
+
+Do not reopen speculative deterministic lanes merely to improve the 40-cohort
+score. A future deterministic slice requires genuinely new evidence and must
+re-enter through this same fail-closed gate.
+
+## Sole next action
+
+Freeze `23/40` / `17/40` as the deterministic acquisition baseline and hand the
+17 unresolved `no_genuine_job_detail` records to the later learning/booster
+workstream as a labeled residual cohort. The deterministic implementation remains
+first in the productive decision path and is not weakened by that handoff.
+
+No additional deterministic acquisition mutation is currently authorized.
+If later ML/LLM or new site evidence identifies a generic deterministic rule, it
+must be proposed back into the deterministic layer with focused positive and
+negative tests, then validated by a new V4 40-cohort proof followed by a fresh
+V16 residual gate.
 
 ## Re-entry status
 
-This repository may resume product-pipeline planning after REENTRY-001A is
-merged, but only under the constraints above. The first valid product candidate
-is the GENERIC/EXPAND stop-control and generic-evidence blocker. If evidence is
-missing, stale or contradictory, the correct state is `needs_inspection`, not an
-invented clean continuation.
+Repository work is active. The old June planning gate is superseded.
+Deterministic acquisition hardening for the present cohort is complete at the
+current evidence-supported boundary.
