@@ -5,8 +5,8 @@ This is the React presentation layer for the four operator-approved Pipeline pro
 ## Architecture
 
 ```text
-PostgreSQL Product V1 views
-→ read-only Python API
+PostgreSQL Product V1 views and reviewed evidence tables
+→ read-mostly Python API with narrow action allowlist
 → React / TypeScript Control Center
 ```
 
@@ -30,14 +30,25 @@ cd frontend/control-center
 npm run dev
 ```
 
-Vite proxies `/api` and `/healthz` to the read-only Python server on port `8780`.
+Vite proxies `/api` and `/healthz` to the Python server on port `8780`.
+
+## Reviewed POST actions
+
+The server exposes only narrowly allowlisted operator actions whose scope is owned by Python/DB contracts:
+
+- `/api/v1/source-connectors/final-approval` records the existing reviewed final-approval gate;
+- `/api/v1/product-v1/job-review-label` appends explicit `interesting`, `not_relevant` or `unsure` operator evidence for the scoped ML review-relevance target.
+
+The job-review client may submit only the exact Silver job ID and one frozen label. Reviewer identity, timestamps, evidence cutoff, Silver-evidence fingerprint, sampling reason and signal-exposure provenance are server-owned. Repeated identical feedback on unchanged evidence is idempotent; a changed judgment appends a superseding event rather than editing history.
 
 ## Boundaries
 
 - no provider call;
+- no model training, Kaggle execution or GPU activation;
 - no automatic application submission;
 - no source or connector activation;
 - no scheduler mutation;
-- no POST-based product action API;
+- no arbitrary POST/database mutation API;
+- operator review labels do not change ranking, Top-5 membership, lifecycle or application state;
 - no product decisions inside React;
 - missing operator decisions and missing source documents remain visible blockers.
