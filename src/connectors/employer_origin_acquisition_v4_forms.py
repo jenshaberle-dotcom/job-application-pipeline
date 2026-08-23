@@ -29,6 +29,7 @@ from src.connectors.employer_origin_acquisition_v4 import (
     _greenhouse_root_items,
     _greenhouse_stage_items,
     _provider_route_candidates,
+    _strong_requisition_boundary_items,
     _trusted_query_boundary_items,
     discover_navigation_candidates,
 )
@@ -600,7 +601,10 @@ def acquire_genuine_job_pages(
         )
 
         if remaining <= 0:
-            boundary_items = _trusted_query_boundary_items(detail_items)
+            boundary_items = [
+                *_trusted_query_boundary_items(detail_items),
+                *_strong_requisition_boundary_items(detail_items),
+            ]
             if boundary_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
                 remaining += 1
                 extra_followup_grants += 1
