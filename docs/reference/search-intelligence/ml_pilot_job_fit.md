@@ -1,7 +1,8 @@
 # ML-PILOT-001 — Shadow Job Review Relevance Pilot
 
-Status: **pilot design only — implementation blocked until MLF-005 live DB package proof passes**
+Status: **label evidence capture foundation active; training snapshot/split/model execution blocked until MLF-005 live DB package proof passes**
 Authority relationship: extends `ML-LEARN-001` and `BOOSTER-ADMISSION-001`; does not create ranking or product authority.
+Label evidence contract: `docs/reference/search-intelligence/operator_review_label_contract.md`
 
 ## Purpose
 
@@ -17,11 +18,16 @@ ML-PILOT-001 is a **task-local ML booster experiment**, not the start of an ML s
 
 Initial target name: `operator_review_relevance`.
 
-Only explicit, task-scoped operator labels may become supervised truth. Unlabeled jobs are excluded from supervised training and must not be silently treated as negatives.
+The v1 label contract is now frozen as:
 
-Candidate positive feedback events for a future label contract include explicit `interesting`, `saved`, or `apply` decisions. Candidate negative feedback requires an explicit not-relevant/reject-for-review decision. The exact event mapping must be frozen in a later label-contract slice before training.
+- `interesting` -> supervised target `1`;
+- `not_relevant` -> supervised target `0`;
+- `unsure` -> retained operator evidence, excluded from binary supervised training;
+- unreviewed jobs -> no label and never a silent negative.
 
-Application outcomes such as `interview`, `rejected_after_application`, and `offer` are separate targets and must not be mixed into this pilot label.
+Only explicit, task-scoped operator labels may become supervised truth. Application intent and downstream outcomes such as `apply`, `interview`, `rejected_after_application`, and `offer` are separate targets and must not be mixed into this pilot label.
+
+The label event records the historical evidence cutoff and job-evidence fingerprint plus why the job entered the review sample and which deterministic/ML/LLM signals were visible. This allows later exposure-bias analysis and supports blind holdout reviews.
 
 LLM annotations may later be included as provenance-marked weak semantic evidence, never as operator ground truth.
 
@@ -106,6 +112,12 @@ The same admission framework may later evaluate other ML or LLM opportunities. A
 
 If several booster opportunities are admissible, the development order should follow expected incremental net value rather than pipeline position. This pilot is intended to be the first ML surface because it is expected to combine high repeatability, useful false-negative rescue and a path to explicit operator ground truth.
 
+## Evidence capture before MLF-005
+
+Explicit operator label capture may start before the outstanding MLF-005 live DB package proof so useful feedback can accumulate early.
+
+That sequence change does not waive the training gate. Before MLF-005 live proof passes, these events may not be materialized into a supervised training dataset/split and may not be used to train Logistic Regression, LightGBM or another model.
+
 ## First experiment flow
 
 ```text
@@ -126,6 +138,8 @@ A later combined ablation may compare deterministic + LLM, deterministic + ML, a
 
 ## Admission gate
 
-Pilot implementation and supervised label/split materialization must not start until the MLF-005 live read-only Silver package proof has passed and repository truth records that evidence.
+Label evidence capture is permitted now under `ML-PILOT-001A`.
+
+Supervised label/job snapshot materialization, split construction and any model training remain blocked until the MLF-005 live read-only Silver package proof has passed and repository truth records that evidence.
 
 Even after that gate, this pilot remains shadow-only. It cannot change Top-5 semantics, lifecycle state, source activation, connector behavior, hard eligibility, or application actions.
