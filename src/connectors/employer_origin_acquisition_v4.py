@@ -1,12 +1,14 @@
 """Deterministic acquisition proof lane with one tightly bounded extra hop.
 
 V4 preserves the V3 genuine-job acceptance boundary while allowing exactly one
-additional follow-up beyond the normal root + two-follow-up budget in two
+additional follow-up beyond the normal root + two-follow-up budget in three
 high-confidence situations:
 
-1. an already-authorized page exposes a strict deterministic provider route; or
+1. an already-authorized page exposes a strict deterministic provider route;
 2. the final already-authorized listing page exposes a trusted query-ID detail
-   candidate that passed the strict generic query-detail extractor.
+   candidate that passed the strict generic query-detail extractor; or
+3. the final already-authorized listing page exposes a strict same-host vacancy
+   anchor under a bounded ``stellenmarkt``/``stellenanzeige`` requisition path.
 
 Provider-specific delegation never bypasses the acquisition fetcher. Greenhouse,
 for example, may use the four-request sequence employer page -> board metadata ->
@@ -25,6 +27,9 @@ authority is introduced here.
 """
 
 from __future__ import annotations
+
+import re
+from urllib.parse import urlparse
 
 from src.connectors.employer_origin_acquisition import (
     AcquiredJobPage,
@@ -70,6 +75,10 @@ _PROVIDER_DELEGATED_DETAIL_SUFFIX = "_provider_delegated_detail"
 _GREENHOUSE_METADATA_SOURCE = "greenhouse_provider_metadata"
 _GREENHOUSE_JOBS_SOURCE = "greenhouse_provider_jobs"
 _GREENHOUSE_DETAIL_SOURCE = "greenhouse_provider_delegated_detail"
+_STRONG_REQUISITION_BOUNDARY_PATH = re.compile(
+    r"(?:^|/)(?:stellenanzeige|stellenmarkt)/[^/]{6,}-(?:j)?[0-9]{3,}\.html$",
+    flags=re.IGNORECASE,
+)
 
 
 def _add_candidate(
@@ -340,6 +349,23 @@ def _trusted_query_boundary_items(
     ]
 
 
+def _strong_requisition_boundary_items(
+    items: list[tuple[NavigationCandidate, int]],
+) -> list[tuple[NavigationCandidate, int]]:
+    """Keep the fourth request limited to explicit strong same-host vacancy identities."""
+
+    result: list[tuple[NavigationCandidate, int]] = []
+    for item in items:
+        candidate = item[0]
+        if candidate.kind != "detail" or candidate.discovery_source != "anchor_detail":
+            continue
+        path = urlparse(candidate.url).path.rstrip("/")
+        if not _STRONG_REQUISITION_BOUNDARY_PATH.search(path):
+            continue
+        result.append(item)
+    return result
+
+
 def _extend_provider_candidate_host(
     candidate: NavigationCandidate,
     effective_allowed_hosts: tuple[str, ...],
@@ -502,7 +528,10 @@ def acquire_genuine_job_pages(
         )
 
         if remaining <= 0:
-            boundary_items = _trusted_query_boundary_items(detail_items)
+            boundary_items = [
+                *_trusted_query_boundary_items(detail_items),
+                *_strong_requisition_boundary_items(detail_items),
+            ]
             if boundary_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
                 remaining += 1
                 extra_followup_grants += 1
