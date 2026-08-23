@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   live-proof:
@@ -19,6 +20,7 @@ jobs:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      PROOF_PR_NUMBER: "628"
     steps:
       - name: Resolve verified RCC runtime context
         shell: bash
@@ -129,11 +131,12 @@ jobs:
           )
           printf 'MLF005_RECEIPT=%s\n' "$receipt" >> "$GITHUB_ENV"
 
-      - name: Publish allowlisted aggregate proof only
+      - name: Validate allowlisted aggregate proof
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" - "$MLF005_RECEIPT" "$PROJECT_DIR" "$GITHUB_SHA" <<'PY'
+          safe_receipt="$RUNNER_TEMP/mlf005-safe-proof.json"
+          "$RUNTIME_PYTHON" - "$MLF005_RECEIPT" "$PROJECT_DIR" "$GITHUB_SHA" "$safe_receipt" <<'PY'
           from __future__ import annotations
 
           import json
@@ -143,6 +146,7 @@ jobs:
           receipt_path = Path(sys.argv[1])
           project_dir = Path(sys.argv[2]).resolve()
           expected_sha = sys.argv[3]
+          safe_path = Path(sys.argv[4])
           receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
 
           required = {
@@ -211,5 +215,65 @@ jobs:
               "product_authority": False,
               "on_disk_validation": "pass",
           }
+          safe_path.write_text(json.dumps(safe, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           print(json.dumps(safe, sort_keys=True))
+          PY
+          printf 'MLF005_SAFE_RECEIPT=%s\n' "$safe_receipt" >> "$GITHUB_ENV"
+
+      - name: Persist aggregate proof in repository discussion
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$MLF005_SAFE_RECEIPT" "$GITHUB_TOKEN" "$RCC_REPOSITORY" "$PROOF_PR_NUMBER" <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+          import sys
+          from urllib.request import Request, urlopen
+
+          safe_path = Path(sys.argv[1])
+          token = sys.argv[2]
+          repository = sys.argv[3]
+          issue_number = sys.argv[4]
+          safe = json.loads(safe_path.read_text(encoding="utf-8"))
+          marker = "<!-- mlf005-live-db-proof -->"
+          main_sha = safe["main_sha"]
+          base_url = f"https://api.github.com/repos/{repository}/issues/{issue_number}/comments"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "User-Agent": "job-pipeline-mlf005-live-proof/1.0",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          with urlopen(Request(base_url, headers=headers), timeout=20) as response:  # noqa: S310 - fixed GitHub API origin.
+              comments = json.load(response)
+          needle = f'"main_sha": "{main_sha}"'
+          if any(marker in str(item.get("body") or "") and needle in str(item.get("body") or "") for item in comments):
+              print("Aggregate proof already persisted for this main SHA.")
+              raise SystemExit(0)
+
+          body = (
+              f"{marker}\n"
+              "MLF-005 live DB package proof: **PASS**\n\n"
+              "Only allowlisted aggregate evidence is persisted here; package bytes and job rows remain local.\n\n"
+              "```json\n"
+              + json.dumps(safe, indent=2, sort_keys=True)
+              + "\n```"
+          )
+          payload = json.dumps({"body": body}).encode("utf-8")
+          request = Request(
+              base_url,
+              data=payload,
+              headers={**headers, "Content-Type": "application/json"},
+              method="POST",
+          )
+          with urlopen(request, timeout=20) as response:  # noqa: S310 - fixed GitHub API origin.
+              result = json.load(response)
+          if not result.get("id"):
+              raise SystemExit("MLF005_PROOF_PERSISTENCE_FAILED")
+          print("Aggregate MLF-005 proof persisted to PR discussion.")
           PY
