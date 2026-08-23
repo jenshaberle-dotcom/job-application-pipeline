@@ -140,7 +140,7 @@ type ProductPayload = {
 };
 
 type Tab = "jobs" | "sources" | "approvals" | "operations";
-type JobFilter = "current" | "all" | "stale" | "rankable";
+type JobFilter = "current" | "all" | "stale" | "rankable" | "unreviewed";
 type SourceFilter = "attention" | "all" | "active" | "ingested";
 type BlockerKind = "TECH" | "APPROVAL" | "CONFIG" | "OBSERVABILITY" | "OPERATION" | "CLEAR";
 
@@ -154,8 +154,8 @@ const lifecycleLabels: Array<[keyof SourceConnector["lifecycle"], string]> = [
 const statusTone = (value: string | undefined | null) => {
   const v = normalize(value);
   if (v.includes("error") || v.includes("failed") || v.includes("blocked") || v.includes("inconsistent")) return "bad";
-  if (["passed", "approved", "registered", "implemented", "active", "active confirmed", "ingested", "success", "rankable"].includes(v)) return "ok";
-  if (v.includes("required") || v.includes("stale") || v.includes("unknown") || v.includes("pending") || v.includes("attention") || v.includes("not ")) return "warn";
+  if (["passed", "approved", "registered", "implemented", "active", "active confirmed", "ingested", "success", "rankable", "interesting"].includes(v)) return "ok";
+  if (v.includes("required") || v.includes("stale") || v.includes("unknown") || v.includes("pending") || v.includes("attention") || v.includes("not ") || v === "unreviewed" || v === "unsure") return "warn";
   return "neutral";
 };
 
@@ -214,6 +214,11 @@ function JobsScreen({ payload, refreshProductTruth }: { payload: ProductPayload;
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const currentJobs = payload.job_readiness.filter(jobCurrent);
   const rankableJobs = payload.job_readiness.filter((job) => job.product_readiness_status === "rankable");
+  const unreviewedJobs = payload.job_readiness.filter((job) => !job.review_label);
+  const reviewedJobs = payload.job_readiness.filter((job) => Boolean(job.review_label));
+  const interestingCount = reviewedJobs.filter((job) => job.review_label?.label === "interesting").length;
+  const notRelevantCount = reviewedJobs.filter((job) => job.review_label?.label === "not_relevant").length;
+  const unsureCount = reviewedJobs.filter((job) => job.review_label?.label === "unsure").length;
   const assessedJobs = payload.job_readiness.filter((job) => jobFit(job) != null).sort((a, b) => Number(jobFit(b) || 0) - Number(jobFit(a) || 0));
   const filtered = useMemo(() => {
     const q = normalize(search);
@@ -221,10 +226,11 @@ function JobsScreen({ payload, refreshProductTruth }: { payload: ProductPayload;
       if (filter === "current" && !jobCurrent(job)) return false;
       if (filter === "stale" && !jobStale(job)) return false;
       if (filter === "rankable" && job.product_readiness_status !== "rankable") return false;
+      if (filter === "unreviewed" && job.review_label) return false;
       return !q || normalize(`${job.title} ${job.company_name} ${job.city} ${job.source_url}`).includes(q);
     });
   }, [filter, payload.job_readiness, search]);
-  const selected = payload.job_readiness.find((job) => job.silver_job_id === selectedId) || filtered[0] || null;
+  const selected = filtered.find((job) => job.silver_job_id === selectedId) || filtered[0] || null;
   const topJobs = payload.top_jobs.slice(0, 5);
 
   return <div className="page-stack jobs-page">
@@ -254,14 +260,20 @@ function JobsScreen({ payload, refreshProductTruth }: { payload: ProductPayload;
       </article>
     </section>
 
+    <section className="dashboard-card">
+      <header className="card-heading-row"><div><span className="eyebrow">Operator feedback · current Product V1 corpus</span><h2>Review progress</h2></div><strong>{reviewedJobs.length}/{payload.job_readiness.length}</strong></header>
+      <div className="mini-stats"><div><span>Unreviewed</span><strong>{unreviewedJobs.length}</strong></div><div><span>Interesting</span><strong>{interestingCount}</strong></div><div><span>Not relevant</span><strong>{notRelevantCount}</strong></div><div><span>Unsure</span><strong>{unsureCount}</strong></div><div><span>Training-eligible later</span><strong>{interestingCount + notRelevantCount}</strong></div></div>
+      <p className="truth-note">These counts describe explicit operator evidence in the current Product V1 job set. They do not change ranking or claim an unbiased training sample.</p>
+    </section>
+
     <section className="jobs-workspace dashboard-card">
       <header className="jobs-list-toolbar">
-        <div className="filter-chips">{([ ["current", "Current", currentJobs.length], ["rankable", "Rankable", rankableJobs.length], ["stale", "Stale", payload.summary.stale_job_count], ["all", "All observed", payload.job_readiness.length] ] as Array<[JobFilter, string, number]>).map(([id, text, count]) => <button type="button" className={filter === id ? "active" : ""} onClick={() => setFilter(id)} key={id}>{text} <b>{count}</b></button>)}</div>
+        <div className="filter-chips">{([ ["current", "Current", currentJobs.length], ["unreviewed", "Unreviewed", unreviewedJobs.length], ["rankable", "Rankable", rankableJobs.length], ["stale", "Stale", payload.summary.stale_job_count], ["all", "All observed", payload.job_readiness.length] ] as Array<[JobFilter, string, number]>).map(([id, text, count]) => <button type="button" className={filter === id ? "active" : ""} onClick={() => setFilter(id)} key={id}>{text} <b>{count}</b></button>)}</div>
         <label className="search-box jobs-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, employer, location…" /></label>
       </header>
       <div className="jobs-split">
         <div className="jobs-table-wrap">
-          <table className="jobs-table"><thead><tr><th>Fit</th><th>Job</th><th>Location</th><th>Lifecycle</th><th>Product gate</th><th>Published</th><th>Link</th></tr></thead><tbody>{filtered.map((job) => <tr key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><td><strong className="fit-score">{scoreText(job.overall_quality_score)}</strong></td><td><b>{job.title || "Untitled job"}</b><small>{job.company_name || "Unknown employer"}</small></td><td>{job.city || job.country || "—"}<small>{label(job.work_model)}</small></td><td><StatusPill value={job.lifecycle_status || "unknown"} /></td><td><StatusPill value={job.product_readiness_status || "unknown"} /></td><td>{job.publication_date || "—"}</td><td>{job.source_url ? <a href={job.source_url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open ↗</a> : "—"}</td></tr>)}</tbody></table>
+          <table className="jobs-table"><thead><tr><th>Fit</th><th>Review</th><th>Job</th><th>Location</th><th>Lifecycle</th><th>Product gate</th><th>Published</th><th>Link</th></tr></thead><tbody>{filtered.map((job) => <tr key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><td><strong className="fit-score">{scoreText(job.overall_quality_score)}</strong></td><td><StatusPill value={job.review_label?.label || "unreviewed"} /></td><td><b>{job.title || "Untitled job"}</b><small>{job.company_name || "Unknown employer"}</small></td><td>{job.city || job.country || "—"}<small>{label(job.work_model)}</small></td><td><StatusPill value={job.lifecycle_status || "unknown"} /></td><td><StatusPill value={job.product_readiness_status || "unknown"} /></td><td>{job.publication_date || "—"}</td><td>{job.source_url ? <a href={job.source_url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open ↗</a> : "—"}</td></tr>)}</tbody></table>
           {filtered.length === 0 && <p className="empty">No jobs match this truth filter.</p>}
         </div>
         <aside className="job-detail-panel">{selected ? <><span className="eyebrow">Silver #{selected.silver_job_id}</span><h2>{selected.title || "Untitled job"}</h2><p>{selected.company_name || "Unknown employer"} · {selected.city || "Location unconfirmed"}</p>{selected.source_url ? <a className="primary-link" href={selected.source_url} target="_blank" rel="noreferrer">Open original job ↗</a> : <span className="missing-link">No source URL projected</span>}
