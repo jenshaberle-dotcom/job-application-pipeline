@@ -1,11 +1,15 @@
 from pathlib import Path
 
+import pytest
+
 from scripts.apply_db_migrations import (
     TrackedMigration,
+    build_parser,
     checksum_mismatches,
     discover_migration_files,
     parse_migration_file,
     pending_migrations,
+    select_exact_pending_migration,
 )
 
 
@@ -75,6 +79,93 @@ def test_checksum_mismatch_detects_changed_tracked_file(tmp_path: Path) -> None:
     mismatches = checksum_mismatches([parsed], tracked)
 
     assert mismatches == [(parsed, tracked[parsed.migration_key])]
+
+
+def test_exact_migration_selects_only_requested_pending_file(tmp_path: Path) -> None:
+    target = tmp_path / "101_target.sql"
+    target.write_text("SELECT 101;\n", encoding="utf-8")
+    migrations = discover_migration_files(tmp_path)
+
+    selected, state = select_exact_pending_migration(
+        migrations=migrations,
+        tracked={},
+        migration_key="101_target.sql",
+        require_sole_pending=True,
+    )
+
+    assert selected.filename == "101_target.sql"
+    assert state == "pending"
+
+
+def test_exact_migration_refuses_unresolved_target(tmp_path: Path) -> None:
+    (tmp_path / "101_target.sql").write_text("SELECT 101;\n", encoding="utf-8")
+    migrations = discover_migration_files(tmp_path)
+
+    with pytest.raises(ValueError, match="must resolve once"):
+        select_exact_pending_migration(
+            migrations=migrations,
+            tracked={},
+            migration_key="999_missing.sql",
+            require_sole_pending=True,
+        )
+
+
+def test_exact_migration_refuses_additional_pending_files_when_required(tmp_path: Path) -> None:
+    (tmp_path / "100_other.sql").write_text("SELECT 100;\n", encoding="utf-8")
+    (tmp_path / "101_target.sql").write_text("SELECT 101;\n", encoding="utf-8")
+    migrations = discover_migration_files(tmp_path)
+
+    with pytest.raises(RuntimeError, match="sole pending target"):
+        select_exact_pending_migration(
+            migrations=migrations,
+            tracked={},
+            migration_key="101_target.sql",
+            require_sole_pending=True,
+        )
+
+
+def test_exact_migration_reports_already_applied_without_reselecting_pending(tmp_path: Path) -> None:
+    target = tmp_path / "101_target.sql"
+    target.write_text("SELECT 101;\n", encoding="utf-8")
+    migrations = discover_migration_files(tmp_path)
+    parsed = migrations[0]
+    tracked = {
+        parsed.migration_key: TrackedMigration(
+            migration_key=parsed.migration_key,
+            version_number=parsed.version_number,
+            filename=parsed.filename,
+            checksum_sha256=parsed.checksum_sha256,
+            execution_status="success",
+            execution_mode="script_apply_exact",
+            applied_by="test",
+        )
+    }
+
+    selected, state = select_exact_pending_migration(
+        migrations=migrations,
+        tracked=tracked,
+        migration_key="101_target.sql",
+        require_sole_pending=True,
+    )
+
+    assert selected.filename == "101_target.sql"
+    assert state == "already_applied"
+
+
+def test_parser_exposes_exact_apply_and_sole_pending_guard() -> None:
+    args = build_parser().parse_args(
+        [
+            "--apply-exact",
+            "101_create_job_review_relevance_label_events.sql",
+            "--require-sole-pending",
+            "--applied-by",
+            "ml-pilot-001b",
+        ]
+    )
+
+    assert args.apply_exact == "101_create_job_review_relevance_label_events.sql"
+    assert args.require_sole_pending is True
+    assert args.applied_by == "ml-pilot-001b"
 
 
 def test_script_uses_shared_database_config() -> None:
