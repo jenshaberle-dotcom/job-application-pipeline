@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 import json
+from pathlib import PurePosixPath
 from typing import Any, Final, Mapping
 
 
@@ -33,7 +34,12 @@ CHECKPOINT_STATES: Final[frozenset[str]] = frozenset(
     {"checkpoint_complete", "run_complete", "failed"}
 )
 DIAGNOSTIC_CLASSES: Final[frozenset[str]] = frozenset(
-    {"hypothesis_failure", "convergence_failure", "operational_failure", "governance_failure"}
+    {
+        "hypothesis_failure",
+        "convergence_failure",
+        "operational_failure",
+        "governance_failure",
+    }
 )
 
 
@@ -47,6 +53,7 @@ class KaggleTransportPolicy:
     quota_snapshots_required: bool = True
     artifact_inventory_required: bool = True
     checkpoint_reentry_required: bool = True
+    reuse_unchanged_provider_capability_evidence: bool = True
     inaccessible_status_failures_before_abort: int = 3
 
 
@@ -175,7 +182,9 @@ def _is_sha256_fingerprint(value: str) -> bool:
     if not value.startswith("sha256:"):
         return False
     digest = value.removeprefix("sha256:")
-    return len(digest) == 64 and all(character in "0123456789abcdef" for character in digest)
+    return len(digest) == 64 and all(
+        character in "0123456789abcdef" for character in digest
+    )
 
 
 def _is_utc_timestamp(value: str) -> bool:
@@ -183,7 +192,14 @@ def _is_utc_timestamp(value: str) -> bool:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return False
-    return parsed.tzinfo is not None and parsed.astimezone(UTC).utcoffset() == UTC.utcoffset(parsed)
+    return parsed.tzinfo is not None and parsed.utcoffset() == UTC.utcoffset(parsed)
+
+
+def _is_safe_package_name(value: str) -> bool:
+    if not value or "\\" in value:
+        return False
+    path = PurePosixPath(value)
+    return not path.is_absolute() and ".." not in path.parts and path.name == value
 
 
 def validate_kaggle_transport_policy(policy: KaggleTransportPolicy) -> list[str]:
@@ -205,12 +221,23 @@ def validate_kaggle_transport_policy(policy: KaggleTransportPolicy) -> list[str]
         violations.append("provider artifact inventory must remain required.")
     if policy.checkpoint_reentry_required is not True:
         violations.append("epoch/checkpoint re-entry receipts must remain required.")
+    if policy.reuse_unchanged_provider_capability_evidence is not True:
+        violations.append(
+            "unchanged provider capability evidence must be reusable instead of re-smoked."
+        )
     if policy.inaccessible_status_failures_before_abort != 3:
-        violations.append("inaccessible provider status must fail closed after three probes.")
+        violations.append(
+            "inaccessible provider status must fail closed after three probes."
+        )
     return violations
 
 
-def build_training_package_entry(*, role: str, name: str, content: bytes) -> TrainingPackageEntry:
+def build_training_package_entry(
+    *,
+    role: str,
+    name: str,
+    content: bytes,
+) -> TrainingPackageEntry:
     return TrainingPackageEntry(
         role=role,
         name=name,
@@ -219,7 +246,9 @@ def build_training_package_entry(*, role: str, name: str, content: bytes) -> Tra
     )
 
 
-def validate_training_package_manifest(manifest: TrainingPackageManifest) -> list[str]:
+def validate_training_package_manifest(
+    manifest: TrainingPackageManifest,
+) -> list[str]:
     violations: list[str] = []
     required_text = {
         "package_id": manifest.package_id,
@@ -246,7 +275,9 @@ def validate_training_package_manifest(manifest: TrainingPackageManifest) -> lis
         ("snapshot_plan_fingerprint", manifest.snapshot_plan_fingerprint),
     ):
         if value and not _is_sha256_fingerprint(value):
-            violations.append(f"{field_name} must be a lowercase sha256 fingerprint.")
+            violations.append(
+                f"{field_name} must be a lowercase sha256 fingerprint."
+            )
 
     if not manifest.entries:
         violations.append("training package must contain entries.")
@@ -260,12 +291,17 @@ def validate_training_package_manifest(manifest: TrainingPackageManifest) -> lis
     for entry in manifest.entries:
         role_counts[entry.role] = role_counts.get(entry.role, 0) + 1
         if entry.role not in PACKAGE_ENTRY_ROLES:
-            violations.append(f"unsupported training package entry role {entry.role!r}.")
-        if not entry.name.strip():
-            violations.append("training package entry name must be non-empty.")
+            violations.append(
+                f"unsupported training package entry role {entry.role!r}."
+            )
+        if not _is_safe_package_name(entry.name):
+            violations.append(
+                f"training package entry name {entry.name!r} must be a safe flat filename."
+            )
         if not _is_sha256_fingerprint(entry.content_fingerprint):
             violations.append(
-                f"training package entry {entry.name!r} must have a lowercase sha256 fingerprint."
+                f"training package entry {entry.name!r} must have a lowercase "
+                "sha256 fingerprint."
             )
         if entry.size_bytes < 0:
             violations.append(
@@ -274,11 +310,15 @@ def validate_training_package_manifest(manifest: TrainingPackageManifest) -> lis
 
     for role in REQUIRED_PACKAGE_ENTRY_ROLES:
         if role_counts.get(role, 0) != 1:
-            violations.append(f"training package must contain exactly one {role!r} entry.")
+            violations.append(
+                f"training package must contain exactly one {role!r} entry."
+            )
     return violations
 
 
-def fingerprint_training_package_manifest(manifest: TrainingPackageManifest) -> str:
+def fingerprint_training_package_manifest(
+    manifest: TrainingPackageManifest,
+) -> str:
     violations = validate_training_package_manifest(manifest)
     if violations:
         raise ValueError("; ".join(violations))
@@ -302,7 +342,9 @@ def validate_training_package_contents(
     if missing:
         violations.append(f"training package contents missing entries: {missing}.")
     if extra:
-        violations.append(f"training package contents contain undeclared entries: {extra}.")
+        violations.append(
+            f"training package contents contain undeclared entries: {extra}."
+        )
 
     entries_by_name = {entry.name: entry for entry in manifest.entries}
     for name in sorted(expected_names & actual_names):
@@ -331,7 +373,9 @@ def assess_compute_intent(intent: ExperimentComputeIntent) -> ComputeAdmission:
     if not intent.experiment_id.strip():
         raise ValueError("experiment_id must be non-empty.")
     if not _is_sha256_fingerprint(intent.training_package_fingerprint):
-        raise ValueError("training_package_fingerprint must be a lowercase sha256 fingerprint.")
+        raise ValueError(
+            "training_package_fingerprint must be a lowercase sha256 fingerprint."
+        )
     if intent.compute_class == CPU_VALIDATION_COMPUTE_CLASS:
         if intent.external_execution:
             return ComputeAdmission(
@@ -348,12 +392,17 @@ def assess_compute_intent(intent: ExperimentComputeIntent) -> ComputeAdmission:
         return ComputeAdmission(
             allowed=False,
             operator_authorization_required=True,
-            reason="gpu_training_requires_explicit_operator_authorization_and_future_execution_enablement",
+            reason=(
+                "gpu_training_requires_explicit_operator_authorization_"
+                "and_future_execution_enablement"
+            ),
         )
     raise ValueError(f"unsupported compute_class {intent.compute_class!r}.")
 
 
-def validate_experiment_artifact_metadata(metadata: ExperimentArtifactMetadata) -> list[str]:
+def validate_experiment_artifact_metadata(
+    metadata: ExperimentArtifactMetadata,
+) -> list[str]:
     violations: list[str] = []
     for field_name, value in {
         "artifact_id": metadata.artifact_id,
@@ -368,11 +417,21 @@ def validate_experiment_artifact_metadata(metadata: ExperimentArtifactMetadata) 
         ("content_fingerprint", metadata.content_fingerprint),
     ):
         if not _is_sha256_fingerprint(value):
-            violations.append(f"{field_name} must be a lowercase sha256 fingerprint.")
-    if metadata.compute_class not in {CPU_VALIDATION_COMPUTE_CLASS, GPU_TRAINING_COMPUTE_CLASS}:
+            violations.append(
+                f"{field_name} must be a lowercase sha256 fingerprint."
+            )
+    if metadata.compute_class not in {
+        CPU_VALIDATION_COMPUTE_CLASS,
+        GPU_TRAINING_COMPUTE_CLASS,
+    }:
         violations.append("artifact compute_class is unsupported.")
-    if metadata.compute_class == GPU_TRAINING_COMPUTE_CLASS and not metadata.operator_authorization_reference.strip():
-        violations.append("GPU-derived artifacts must retain the explicit operator authorization reference.")
+    if (
+        metadata.compute_class == GPU_TRAINING_COMPUTE_CLASS
+        and not metadata.operator_authorization_reference.strip()
+    ):
+        violations.append(
+            "GPU-derived artifacts must retain the explicit operator authorization reference."
+        )
     if metadata.product_authority:
         violations.append("experiment artifacts may not claim product authority.")
     return violations
@@ -383,21 +442,34 @@ def validate_telemetry_event(event: ExperimentTelemetryEvent) -> list[str]:
     if not event.experiment_id.strip():
         violations.append("experiment_id must be non-empty.")
     if not _is_sha256_fingerprint(event.training_package_fingerprint):
-        violations.append("training_package_fingerprint must be a lowercase sha256 fingerprint.")
+        violations.append(
+            "training_package_fingerprint must be a lowercase sha256 fingerprint."
+        )
     if event.event_type not in TELEMETRY_EVENT_TYPES:
         violations.append(f"unsupported telemetry event_type {event.event_type!r}.")
     if not _is_utc_timestamp(event.observed_at_utc):
-        violations.append("observed_at_utc must be timezone-aware UTC.")
+        violations.append("observed_at_utc must use UTC offset/Z semantics.")
+    if event.compute_class not in {
+        CPU_VALIDATION_COMPUTE_CLASS,
+        GPU_TRAINING_COMPUTE_CLASS,
+    }:
+        violations.append("telemetry compute_class is unsupported.")
     if event.epoch is not None and event.epoch <= 0:
         violations.append("telemetry epoch must be positive when present.")
-    if event.details_fingerprint and not _is_sha256_fingerprint(event.details_fingerprint):
-        violations.append("details_fingerprint must be a lowercase sha256 fingerprint when present.")
+    if event.details_fingerprint and not _is_sha256_fingerprint(
+        event.details_fingerprint
+    ):
+        violations.append(
+            "details_fingerprint must be a lowercase sha256 fingerprint when present."
+        )
     if event.product_authority:
         violations.append("telemetry may not claim product authority.")
     return violations
 
 
-def validate_epoch_reentry_checkpoint(checkpoint: EpochReentryCheckpoint) -> list[str]:
+def validate_epoch_reentry_checkpoint(
+    checkpoint: EpochReentryCheckpoint,
+) -> list[str]:
     violations: list[str] = []
     if not checkpoint.experiment_id.strip():
         violations.append("experiment_id must be non-empty.")
@@ -407,33 +479,83 @@ def validate_epoch_reentry_checkpoint(checkpoint: EpochReentryCheckpoint) -> lis
         violations.append(f"unsupported checkpoint state {checkpoint.state!r}.")
     for field_name, value in (
         ("training_package_fingerprint", checkpoint.training_package_fingerprint),
-        ("checkpoint_artifact_fingerprint", checkpoint.checkpoint_artifact_fingerprint),
+        (
+            "checkpoint_artifact_fingerprint",
+            checkpoint.checkpoint_artifact_fingerprint,
+        ),
         ("metrics_fingerprint", checkpoint.metrics_fingerprint),
     ):
         if not _is_sha256_fingerprint(value):
-            violations.append(f"{field_name} must be a lowercase sha256 fingerprint.")
+            violations.append(
+                f"{field_name} must be a lowercase sha256 fingerprint."
+            )
     if checkpoint.resume_parent_fingerprint and not _is_sha256_fingerprint(
         checkpoint.resume_parent_fingerprint
     ):
-        violations.append("resume_parent_fingerprint must be a lowercase sha256 fingerprint when present.")
+        violations.append(
+            "resume_parent_fingerprint must be a lowercase sha256 fingerprint when present."
+        )
     if not checkpoint.code_commit.strip():
         violations.append("code_commit must be non-empty.")
     if not checkpoint.provider_run_reference.strip():
         violations.append("provider_run_reference must be non-empty.")
     if not checkpoint.operator_authorization_reference.strip():
-        violations.append("GPU checkpoint must retain the explicit operator authorization reference.")
+        violations.append(
+            "GPU checkpoint must retain the explicit operator authorization reference."
+        )
     if checkpoint.product_authority:
         violations.append("epoch re-entry checkpoints may not claim product authority.")
     return violations
 
 
+def fingerprint_epoch_reentry_checkpoint(
+    checkpoint: EpochReentryCheckpoint,
+) -> str:
+    violations = validate_epoch_reentry_checkpoint(checkpoint)
+    if violations:
+        raise ValueError("; ".join(violations))
+    return fingerprint_bytes(_canonical_json(asdict(checkpoint)).encode("utf-8"))
+
+
+def validate_resume_chain(
+    previous: EpochReentryCheckpoint,
+    current: EpochReentryCheckpoint,
+) -> list[str]:
+    violations = [
+        *validate_epoch_reentry_checkpoint(previous),
+        *validate_epoch_reentry_checkpoint(current),
+    ]
+    if violations:
+        return violations
+    if current.experiment_id != previous.experiment_id:
+        violations.append("resume chain experiment_id changed.")
+    if current.training_package_fingerprint != previous.training_package_fingerprint:
+        violations.append("resume chain training package changed.")
+    if current.operator_authorization_reference != previous.operator_authorization_reference:
+        violations.append("resume chain operator authorization changed.")
+    if current.epoch_completed <= previous.epoch_completed:
+        violations.append("resume chain epoch must advance.")
+    expected_parent = fingerprint_epoch_reentry_checkpoint(previous)
+    if current.resume_parent_fingerprint != expected_parent:
+        violations.append("resume chain parent fingerprint mismatch.")
+    return violations
+
+
 def fingerprint_diagnostic_receipt(receipt: DiagnosticReceipt) -> str:
-    if not receipt.experiment_id.strip() or not receipt.stage.strip() or not receipt.evidence_key.strip():
+    if (
+        not receipt.experiment_id.strip()
+        or not receipt.stage.strip()
+        or not receipt.evidence_key.strip()
+    ):
         raise ValueError("diagnostic identity fields must be non-empty.")
     if receipt.failure_class not in DIAGNOSTIC_CLASSES:
-        raise ValueError(f"unsupported diagnostic failure_class {receipt.failure_class!r}.")
+        raise ValueError(
+            f"unsupported diagnostic failure_class {receipt.failure_class!r}."
+        )
     if not _is_sha256_fingerprint(receipt.details_fingerprint):
-        raise ValueError("details_fingerprint must be a lowercase sha256 fingerprint.")
+        raise ValueError(
+            "details_fingerprint must be a lowercase sha256 fingerprint."
+        )
     if receipt.product_authority:
         raise ValueError("diagnostics may not claim product authority.")
     return fingerprint_bytes(_canonical_json(asdict(receipt)).encode("utf-8"))
