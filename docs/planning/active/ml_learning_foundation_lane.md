@@ -24,6 +24,12 @@ feature/ml-learning-foundation
 -> next slice
 ```
 
+## Progress
+
+- MLF-001 merged: pure foundation contracts and tests.
+- MLF-002 merged: deterministic dataset manifest serialization and fingerprinting.
+- MLF-003 candidate: read-only DB-backed snapshot planning boundary.
+
 ## Initial slices
 
 1. **MLF-001 — pure foundation contracts and tests**
@@ -41,9 +47,12 @@ feature/ml-learning-foundation
    - still no live DB export.
 
 3. **MLF-003 — DB-backed snapshot planning boundary**
-   - read-only query/snapshot plan;
-   - explicit selected columns and provenance;
-   - leakage and duplicate-grouping metadata;
+   - read-only `silver_jobs` query/snapshot plan;
+   - explicit selected columns and feature/provenance roles;
+   - evidence-cutoff semantics over `normalized_at`, `created_at`, and `updated_at`;
+   - duplicate grouping by canonical key with normalized fallback metadata;
+   - leakage controls that exclude labels and future outcomes;
+   - deterministic plan fingerprint for later transport traceability;
    - dry-run only before any Kaggle transport integration.
 
 4. **MLF-004 — Kaggle experiment transport contract**
