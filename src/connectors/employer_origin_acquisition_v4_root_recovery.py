@@ -6,6 +6,12 @@ the direct same-host path parent derived from the configured listing URL. The
 recovered parent may then nominate exactly one explicit high-confidence job-board
 link before control returns to the unchanged V4 acquisition helper.
 
+The wrapper also carries narrowly evidenced root-redirect host bindings when a
+configured employer career host has been observed to redirect to another exact
+host owned by the same employer. These bindings are explicit pairs, not generic
+registrable-domain inference, and therefore remain fail-closed for unrelated
+hosts.
+
 The caller's metered request executor is shared throughout, so Runtime's absolute
 request cap remains authoritative. No retry budget or provider authority is
 created here.
@@ -17,7 +23,12 @@ import re
 
 import requests
 
-from src.connectors.employer_origin_acquisition import allowed_host, canonical_url, parse_page
+from src.connectors.employer_origin_acquisition import (
+    allowed_host,
+    canonical_url,
+    parse_page,
+    url_host,
+)
 from src.connectors.employer_origin_acquisition_v4_forms import (
     MeteredRequest,
     acquire_genuine_job_pages as _acquire_genuine_job_pages,
@@ -30,6 +41,25 @@ from src.connectors.employer_origin_stale_root_recovery import (
 
 
 _RETURNED_ROOT_STATUS = re.compile(r"^listing request failed with status ([0-9]{3})$")
+_EXPLICIT_ROOT_REDIRECT_HOST_BINDINGS = {
+    "careers.deloitte.com": "www.deloitte.com",
+}
+
+
+def _effective_root_allowed_hosts(
+    listing_url: str,
+    allowed_hosts: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Add only an exact, evidenced employer-owned root redirect host."""
+
+    normalized = tuple(
+        dict.fromkeys(str(item).casefold() for item in allowed_hosts if str(item))
+    )
+    source_host = url_host(listing_url)
+    target_host = _EXPLICIT_ROOT_REDIRECT_HOST_BINDINGS.get(source_host)
+    if not target_host or source_host not in set(normalized):
+        return normalized
+    return tuple(dict.fromkeys([*normalized, target_host]))
 
 
 def _recoverable_http_exception(exc: requests.HTTPError) -> bool:
@@ -76,10 +106,12 @@ def acquire_genuine_job_pages(
     still fails closed in the existing bounded request executor.
     """
 
+    effective_allowed_hosts = _effective_root_allowed_hosts(listing_url, allowed_hosts)
+
     try:
         return _acquire_genuine_job_pages(
             listing_url=listing_url,
-            allowed_hosts=allowed_hosts,
+            allowed_hosts=effective_allowed_hosts,
             known_detail_urls=known_detail_urls,
             fetcher=fetcher,
             request_executor=request_executor,
@@ -98,7 +130,10 @@ def acquire_genuine_job_pages(
     if max_followup_requests < 1:
         raise original_error
 
-    parent_url = direct_same_host_parent_url(listing_url, allowed_hosts=allowed_hosts)
+    parent_url = direct_same_host_parent_url(
+        listing_url,
+        allowed_hosts=effective_allowed_hosts,
+    )
     if not parent_url:
         raise RuntimeError("stale listing root has no authorized direct-parent recovery")
 
@@ -115,14 +150,17 @@ def acquire_genuine_job_pages(
     )
     if parent_page.status_code >= 400:
         raise RuntimeError(f"stale listing parent request failed with status {parent_page.status_code}")
-    if not allowed_host(parent_page.final_url, allowed_hosts):
+    if not allowed_host(parent_page.final_url, effective_allowed_hosts):
         raise RuntimeError("stale listing parent source binding mismatch")
 
-    primary_listing = strict_primary_listing_url(parent_page, allowed_hosts=allowed_hosts)
+    primary_listing = strict_primary_listing_url(
+        parent_page,
+        allowed_hosts=effective_allowed_hosts,
+    )
     if primary_listing:
         return _acquire_genuine_job_pages(
             listing_url=primary_listing,
-            allowed_hosts=allowed_hosts,
+            allowed_hosts=effective_allowed_hosts,
             known_detail_urls=known_detail_urls,
             fetcher=fetcher,
             request_executor=request_executor,
@@ -149,7 +187,7 @@ def acquire_genuine_job_pages(
 
         return _acquire_genuine_job_pages(
             listing_url=parent_url,
-            allowed_hosts=allowed_hosts,
+            allowed_hosts=effective_allowed_hosts,
             known_detail_urls=known_detail_urls,
             fetcher=fetcher,
             request_executor=cached_executor,
@@ -166,7 +204,7 @@ def acquire_genuine_job_pages(
 
     return _acquire_genuine_job_pages(
         listing_url=parent_url,
-        allowed_hosts=allowed_hosts,
+        allowed_hosts=effective_allowed_hosts,
         known_detail_urls=known_detail_urls,
         fetcher=cached_fetcher,
         request_executor=None,
