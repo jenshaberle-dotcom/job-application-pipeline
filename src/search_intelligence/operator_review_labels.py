@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, date, datetime
 import hashlib
 import json
 import re
 from typing import Final
 
+from src.search_intelligence.ml_snapshot_plan import (
+    SNAPSHOT_SOURCE_RELATION,
+    default_training_snapshot_plan,
+    snapshot_column_names,
+)
+
 
 LABEL_CONTRACT_VERSION: Final[str] = "operator-review-relevance/v1"
+JOB_EVIDENCE_SCHEMA_VERSION: Final[str] = "operator-review-job-evidence/v1"
 REVIEW_LABELS: Final[tuple[str, ...]] = (
     "interesting",
     "not_relevant",
@@ -125,6 +133,62 @@ def training_eligible(label: str) -> bool:
     if label not in REVIEW_LABELS:
         raise ValueError(f"unsupported operator review label: {label!r}")
     return label in TRAINING_LABELS
+
+
+def _canonical_evidence_value(value: object) -> object:
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, datetime):
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("job evidence datetime values must be timezone-aware")
+        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    if isinstance(value, date):
+        return value.isoformat()
+    raise ValueError(
+        "job evidence contains unsupported value type "
+        f"{type(value).__name__!r}"
+    )
+
+
+def canonical_job_evidence_payload(row: Mapping[str, object]) -> dict[str, object]:
+    """Canonicalize the exact MLF Silver projection visible at review time."""
+
+    plan = default_training_snapshot_plan()
+    expected_names = snapshot_column_names(plan)
+    expected_set = set(expected_names)
+    actual_set = set(row)
+    if actual_set != expected_set:
+        missing = sorted(expected_set - actual_set)
+        extra = sorted(actual_set - expected_set)
+        raise ValueError(
+            "job evidence fields mismatch; "
+            f"missing={missing}, extra={extra}"
+        )
+
+    silver_job_id = row[plan.primary_key]
+    if isinstance(silver_job_id, bool) or not isinstance(silver_job_id, int) or silver_job_id <= 0:
+        raise ValueError("job evidence Silver id must be a positive integer")
+
+    canonical_row = {
+        name: _canonical_evidence_value(row[name])
+        for name in expected_names
+    }
+    return {
+        "schema_version": JOB_EVIDENCE_SCHEMA_VERSION,
+        "source_relation": SNAPSHOT_SOURCE_RELATION,
+        "columns": canonical_row,
+    }
+
+
+def fingerprint_job_evidence(row: Mapping[str, object]) -> str:
+    canonical = json.dumps(
+        canonical_job_evidence_payload(row),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def canonical_label_payload(event: OperatorReviewLabelEvent) -> dict[str, object]:

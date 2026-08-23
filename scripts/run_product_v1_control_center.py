@@ -1,11 +1,10 @@
 """Serve the canonical Product V1 Control Center.
 
 The canonical launcher preserves the reviewed read models and deterministic
-downstream evidence-preview GET endpoint. Exactly one narrowly allowlisted POST
-action is exposed for the existing employer-origin final-approval gate. That
-action requires explicit confirmation, accepts no legacy approval token, reuses
-the existing A1 authorization + audit contract, and performs no registration,
-activation, ingestion, provider, ranking or application action.
+downstream evidence-preview GET endpoint. Two narrowly allowlisted POST actions
+are exposed: the existing employer-origin final-approval gate and append-only
+operator review relevance labels. Neither action can perform connector
+registration, activation, ingestion, provider, ranking or application behavior.
 """
 
 from __future__ import annotations
@@ -35,6 +34,11 @@ from scripts.product_v1_control_center_actions import (
 )
 from scripts.product_v1_downstream_preview_runtime import (
     load_downstream_evidence_preview_payload,
+)
+from scripts.product_v1_job_review_actions import (
+    JOB_REVIEW_LABEL_ACTION_PATH,
+    apply_job_review_label_action,
+    parse_job_review_label_action_payload,
 )
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from src.search_intelligence.product_v1_downstream_preview import DownstreamPreviewStop
@@ -133,8 +137,88 @@ def _merge_observed_opportunities(
     return result
 
 
+def _merge_job_review_labels(
+    payload: dict[str, object],
+    label_rows: list[dict[str, object]],
+    *,
+    capture_available: bool,
+) -> dict[str, object]:
+    """Project latest operator labels back to jobs without changing product decisions."""
+
+    by_job: dict[int, dict[str, object]] = {}
+    for row in label_rows:
+        try:
+            silver_job_id = int(row["silver_job_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        by_job[silver_job_id] = {
+            "label_event_id": int(row["label_event_id"]),
+            "label": str(row["label"]),
+            "reviewed_by": str(row["reviewed_by"]),
+            "reviewed_at": row["reviewed_at"],
+            "evidence_cutoff": row["evidence_cutoff"],
+            "job_evidence_fingerprint": str(row["job_evidence_fingerprint"]),
+            "selection_reason": str(row["selection_reason"]),
+            "capture_surface": str(row["capture_surface"]),
+            "deterministic_signal_visible": bool(row["deterministic_signal_visible"]),
+            "ml_signal_visible": bool(row["ml_signal_visible"]),
+            "llm_signal_visible": bool(row["llm_signal_visible"]),
+            "supervised_target": row["supervised_target"],
+            "training_eligible": bool(row["training_eligible"]),
+        }
+
+    result = dict(payload)
+    for collection_name in ("job_readiness", "top_jobs"):
+        raw_collection = result.get(collection_name)
+        if not isinstance(raw_collection, list):
+            continue
+        enriched: list[object] = []
+        for item in raw_collection:
+            if not isinstance(item, dict):
+                enriched.append(item)
+                continue
+            copied = dict(item)
+            raw_id = copied.get("silver_job_id")
+            try:
+                silver_job_id = int(raw_id) if raw_id is not None else None
+            except (TypeError, ValueError):
+                silver_job_id = None
+            copied["review_label"] = (
+                dict(by_job[silver_job_id])
+                if silver_job_id is not None and silver_job_id in by_job
+                else None
+            )
+            enriched.append(copied)
+        result[collection_name] = enriched
+
+    summary = dict(result.get("summary") or {})
+    summary["reviewed_job_count"] = len(by_job)
+    summary["training_eligible_review_label_count"] = sum(
+        bool(row.get("training_eligible")) for row in by_job.values()
+    )
+    result["summary"] = summary
+    result["review_label_capture"] = {
+        "available": capture_available,
+        "action_path": JOB_REVIEW_LABEL_ACTION_PATH,
+        "labels": ["interesting", "not_relevant", "unsure"],
+        "selection_reason": "normal_review",
+        "product_authority": False,
+    }
+    boundaries = dict(result.get("boundaries") or {})
+    boundaries.update(
+        {
+            "operator_review_label_capture_is_append_only": True,
+            "operator_review_labels_are_not_ranking_authority": True,
+            "operator_review_labels_are_not_application_authority": True,
+            "operator_review_labels_do_not_start_training": True,
+        }
+    )
+    result["boundaries"] = boundaries
+    return result
+
+
 def load_product_v1_payload() -> dict[str, object]:
-    """Load canonical Product V1 truth plus structured locations and observed opportunities."""
+    """Load canonical Product V1 truth plus bounded operator-facing evidence."""
 
     payload = _base.load_product_v1_payload()
     raw_jobs = payload.get("job_readiness")
@@ -152,6 +236,8 @@ def load_product_v1_payload() -> dict[str, object]:
 
     location_rows: list[dict[str, object]] = []
     opportunity_rows: list[dict[str, object]] = []
+    label_rows: list[dict[str, object]] = []
+    label_capture_available = False
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
     ) as conn:
@@ -209,14 +295,50 @@ def load_product_v1_payload() -> dict[str, object]:
                 )
                 opportunity_rows = [dict(row) for row in cur.fetchall()]
 
+        label_capture_available = (
+            _base._relation_exists(conn, "job_review_relevance_label_events")
+            and _base._relation_exists(conn, "gold_job_review_relevance_labels")
+        )
+        if silver_job_ids and label_capture_available:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        label_event_id,
+                        silver_job_id,
+                        label,
+                        reviewed_by,
+                        reviewed_at,
+                        evidence_cutoff,
+                        job_evidence_fingerprint,
+                        selection_reason,
+                        capture_surface,
+                        deterministic_signal_visible,
+                        ml_signal_visible,
+                        llm_signal_visible,
+                        supervised_target,
+                        training_eligible
+                    FROM gold_job_review_relevance_labels
+                    WHERE silver_job_id = ANY(%s)
+                    ORDER BY silver_job_id
+                    """,
+                    (silver_job_ids,),
+                )
+                label_rows = [dict(row) for row in cur.fetchall()]
+
     enriched = _merge_structured_job_locations(payload, location_rows)
-    return _merge_observed_opportunities(enriched, opportunity_rows)
+    enriched = _merge_observed_opportunities(enriched, opportunity_rows)
+    return _merge_job_review_labels(
+        enriched,
+        label_rows,
+        capture_available=label_capture_available,
+    )
 
 
 class ProductV1Handler(_base.ProductV1Handler):
-    """Canonical read-mostly handler with one reviewed final-approval action."""
+    """Canonical read-mostly handler with two reviewed low-authority POST actions."""
 
-    server_version = "DeepOceanProductV1/0.5"
+    server_version = "DeepOceanProductV1/0.6"
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
@@ -314,8 +436,52 @@ class ProductV1Handler(_base.ProductV1Handler):
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ControlCenterActionStop("action body must be valid UTF-8 JSON") from exc
 
+    def _post_job_review_label(self) -> None:
+        try:
+            silver_job_id, label = parse_job_review_label_action_payload(
+                self._read_action_payload()
+            )
+            result = apply_job_review_label_action(
+                silver_job_id=silver_job_id,
+                label=label,
+            )
+        except ControlCenterActionStop as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "database_writes": 0,
+                    "provider_requests": 0,
+                    "product_authority": False,
+                },
+                status=HTTPStatus.BAD_REQUEST,
+            )
+            return
+        except (ValueError, RuntimeError) as exc:
+            self._send_json(
+                {
+                    "status": "review_required",
+                    "reason": str(exc),
+                    "database_writes": 0,
+                    "provider_requests": 0,
+                    "product_authority": False,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
+            return
+
+        status = (
+            HTTPStatus.OK
+            if result.get("status") in {"applied", "unchanged"}
+            else HTTPStatus.CONFLICT
+        )
+        self._send_json(result, status=status)
+
     def do_POST(self) -> None:  # noqa: N802 - exact reviewed action allowlist
         parsed = urlparse(self.path)
+        if parsed.path == JOB_REVIEW_LABEL_ACTION_PATH:
+            self._post_job_review_label()
+            return
         if parsed.path != FINAL_APPROVAL_ACTION_PATH:
             self._send_json(
                 {
@@ -372,8 +538,8 @@ def run_server(args: argparse.Namespace) -> None:
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
     print(f"Deep Ocean Product V1 Control Center: http://{args.host}:{args.port}/")
     print(
-        "Boundary: read models + observed opportunities + deterministic evidence preview + reviewed final-approval gate action; "
-        "no provider call, connector registration, source activation, ingestion, ranking mutation or application submission."
+        "Boundary: read models + observed opportunities + deterministic evidence preview + reviewed final-approval and append-only review-label actions; "
+        "no provider call, connector registration, source activation, ingestion, ranking mutation, model training or application submission."
     )
     try:
         server.serve_forever()

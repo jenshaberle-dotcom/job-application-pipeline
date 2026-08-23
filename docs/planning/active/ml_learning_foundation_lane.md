@@ -41,6 +41,7 @@ feature/ml-learning-foundation
 - MLF-005 live local DB package proof is still pending; implementation/CI success must not be reported as live-data evidence.
 - `BOOSTER-ADMISSION-001` merged via PR #630: ML and LLM are task-local optional boosters admitted by measured residual value, not mandatory serial pipeline layers.
 - `ML-PILOT-001A` merged via PR #631 / merge `26e074ee5d7449567d9f0af8c063de4f8d9b07ff`: append-only `operator_review_relevance` label evidence with historical job-evidence fingerprints, sampling reason and signal-exposure provenance. Label collection may begin before MLF-005 proof; supervised dataset/split construction and model training may not.
+- `ML-PILOT-001B` candidate: one-click Product V1 Control Center capture for `interesting`, `not_relevant`, and `unsure`, with exact server-owned Silver evidence fingerprinting, readback, idempotence on unchanged evidence, and append-only superseding corrections. No training or product authority.
 - No provider/GPU execution slice is activated; GPU use remains an explicit operator boundary.
 
 ## Booster strategy
@@ -85,7 +86,7 @@ The package bytes and job rows must remain local. Do not upload them to GitHub, 
 
 A one-shot workflow, `.github/workflows/mlf005-live-db-proof.yml`, may satisfy this gate only when it runs on the registered `job-pipeline-runtime-linux` self-hosted runner, resolves the PASS RCC runtime context, authenticates and fast-forwards the persistent checkout to the exact triggering `main` SHA, executes the existing local-only materializer, and publishes only the allowlisted aggregate proof. The workflow is path-triggered only by its own addition/change so it does not become recurring ML execution.
 
-The operator has explicitly allowed `ML-PILOT-001A` label evidence capture to start before this proof so useful ground truth can accumulate. This is not a waiver of MLF-005 for training: until the live proof exists, do not materialize supervised job/label datasets, create train/validation/test splits, or train a model from the collected labels. Do not activate provider/GPU execution.
+The operator has explicitly allowed `ML-PILOT-001A/B` label evidence capture to start before this proof so useful ground truth can accumulate. This is not a waiver of MLF-005 for training: until the live proof exists, do not materialize supervised job/label datasets, create train/validation/test splits, or train a model from the collected labels. Do not activate provider/GPU execution.
 
 ## Initial slices
 
@@ -143,6 +144,16 @@ The operator has explicitly allowed `ML-PILOT-001A` label evidence capture to st
    - record whether deterministic/ML/LLM signals were visible and any active ML artifact/score;
    - no training, ranking authority, Top-5 effect or application behavior.
 
+7. **ML-PILOT-001B — Control Center label capture**
+   - add one-click `interesting`, `not_relevant`, and `unsure` actions to the ordinary job-detail workflow;
+   - browser submits only exact Silver job identity and label; server owns all provenance;
+   - reload and fingerprint the exact canonical MLF Silver evidence projection at review time;
+   - fail closed on missing migration, missing job, timestamp drift or evidence-schema drift;
+   - project latest persisted label back into Product V1 read truth;
+   - keep repeated identical label/evidence submissions idempotent;
+   - append a superseding event for a changed decision/evidence state;
+   - no model training, provider/GPU execution, ranking/Top-5/lifecycle/source/application mutation or product authority.
+
 ## First pilot training path after MLF-005
 
 After the live proof, `ML-PILOT-001` may progress to supervised dataset/split implementation:
@@ -166,4 +177,4 @@ A slice may merge to `main` when it is generic, side-effect-bounded, covered by 
 
 No slice in this lane may silently introduce ranking authority, Top-5 semantics, model-family selection, source activation, connector mutation or automatic application behavior.
 
-GPU/provider execution is an explicit operator boundary. MLF-004/005 and ML-PILOT-001A cannot self-authorize it through configuration, CI, a PR merge, a credential being present, a generated local package, collected labels, or a previous project/provider proof.
+GPU/provider execution is an explicit operator boundary. MLF-004/005 and ML-PILOT-001A/B cannot self-authorize it through configuration, CI, a PR merge, a credential being present, a generated local package, collected labels, or a previous project/provider proof.

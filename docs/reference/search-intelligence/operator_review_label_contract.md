@@ -1,6 +1,6 @@
-# ML-PILOT-001A — Operator Review Label Evidence Contract
+# ML-PILOT-001A/B — Operator Review Label Evidence and Capture Contract
 
-Status: implementation foundation
+Status: append-only evidence foundation merged; Control Center capture candidate
 Target: `operator_review_relevance`
 
 ## Purpose
@@ -36,6 +36,44 @@ Each append-only event binds:
 
 Corrections append a new event; historical label events are not edited in place.
 
+## Control Center capture path — ML-PILOT-001B
+
+The canonical Product V1 Control Center may capture labels through the narrowly allowlisted action:
+
+```text
+POST /api/v1/product-v1/job-review-label
+```
+
+The browser may submit exactly:
+
+```json
+{
+  "silver_job_id": 42,
+  "label": "interesting"
+}
+```
+
+No other client-supplied provenance is accepted. In particular, the browser cannot choose or forge reviewer identity, timestamps, evidence cutoff, evidence fingerprint, sampling reason, model identity, model score or authority flags.
+
+The server owns those fields and, for the initial normal-review UI:
+
+- records reviewer identity as the Control Center operator surface;
+- uses the current timezone-aware UTC review timestamp as the evidence cutoff;
+- reloads the exact 20-column MLF Silver evidence projection from `silver_jobs` under the exact job identity;
+- fails closed if Silver evidence timestamps cross the review cutoff;
+- fingerprints the canonical evidence bytes deterministically;
+- records `selection_reason=normal_review`;
+- records `capture_surface=control_center`;
+- records deterministic-signal visibility only when the current `job_product_assessments.assessed_by` value is exactly `deterministic_product_v1`;
+- records ML and LLM signal visibility as false in this first UI because those signals are not displayed there;
+- leaves all ranking, application and product authority false.
+
+The React job-detail surface exposes three one-click choices: `interesting`, `not_relevant`, and `unsure`. The click itself is the explicit operator judgment; no additional confirmation dialog is required because the action is append-only, low-authority and correctable.
+
+The UI does not optimistically invent truth. After the POST result it reloads Product/DB truth, and the latest persisted label is projected back onto the exact Silver job.
+
+If the same label is submitted again while the canonical Silver evidence fingerprint is unchanged, the action is idempotent and does not append another event. If the judgment changes, or the evidence changed, a new event is appended and the prior event is referenced through `supersedes_label_event_id` when present.
+
 ## Sampling reasons
 
 The initial vocabulary is:
@@ -49,6 +87,8 @@ The initial vocabulary is:
 
 This prevents the later training corpus from consisting only of jobs the current model already preferred.
 
+ML-PILOT-001B uses only `normal_review`. Future sampling controllers may select the other reasons, but they must remain server-owned provenance rather than arbitrary browser input.
+
 ## Exposure bias
 
 The system records whether deterministic, ML and LLM signals were visible to the operator. An active ML prediction may be recorded even when it is hidden in a `blind_holdout` review. This allows later analysis of whether displayed model scores influenced the human label.
@@ -60,9 +100,12 @@ Operator review labels are ground truth only for the scoped `operator_review_rel
 - ranking authority;
 - Top-5 membership;
 - hard eligibility;
+- lifecycle state;
 - source activation;
 - application action;
 - interview or offer probability truth.
+
+The Control Center label action performs no provider request, model training, Kaggle execution, external execution or GPU allocation.
 
 ## Relationship to MLF-005
 
