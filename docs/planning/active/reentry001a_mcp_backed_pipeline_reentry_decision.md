@@ -24,15 +24,20 @@ company-specific exceptions, or introducing provider/LLM/Tavily side effects.
 Before continuing from this point, authenticate the repository ID above and read:
 
 1. this file completely;
-2. Pipeline issue `#522` as the connector-hardening umbrella;
-3. merged deterministic PRs `#615`, `#616`, `#623`, and `#639`;
-4. Runtime repository `jenshaberle-dotcom/job-pipeline-runtime`, issue `#203`;
-5. Runtime V4 40-cohort run `32670547466`, result commit
+2. Pipeline issue `#522` (`LLM-BOOST-001`) as the LLM/search booster authority and
+   downstream handoff for sparse, novel, or semantically difficult residuals;
+3. `docs/planning/active/ml_learning_foundation_lane.md` and
+   `docs/reference/search-intelligence/booster_admission.md` as the parallel ML
+   learning-lane and task-specific ML-vs-LLM admission authorities; neither is
+   superseded by `#522` or by this deterministic exhaustion decision;
+4. merged deterministic PRs `#615`, `#616`, `#623`, and `#639`;
+5. Runtime repository `jenshaberle-dotcom/job-pipeline-runtime`, issue `#203`;
+6. Runtime V4 40-cohort run `32670547466`, result commit
    `32f8cf904de6165c7aa60c2b74de00d41f263473`;
-6. Runtime V16 run `32671012052`, result commit
+7. Runtime V16 run `32671012052`, result commit
    `c4b540658de4f083230361ef96dd8da7928e283a`, matrix
    `carriers/connector-residual-evidence-v16/32671012052/matrix.json`;
-7. Runtime PR `#255`, merged as
+8. Runtime PR `#255`, merged as
    `bf8a8b8305b9e25a7f9d20bb2073a23472778ab3`, which removed the stale fixed
    19-residual assumption from the V16 diagnostic workflow without changing
    acquisition behavior.
@@ -166,9 +171,11 @@ re-enter through this same fail-closed gate.
 ## Sole next action
 
 Freeze `23/40` / `17/40` as the deterministic acquisition baseline and hand the
-17 unresolved `no_genuine_job_detail` records to the later learning/booster
-workstream as a labeled residual cohort. The deterministic implementation remains
-first in the productive decision path and is not weakened by that handoff.
+17 unresolved `no_genuine_job_detail` records to task-specific booster admission.
+For unusual ATS/source semantics and novel external-information gaps, `#522`
+(`LLM-BOOST-001`) remains the LLM/search authority. The parallel ML learning lane
+remains active and preserved for repeatable, label-rich surfaces such as
+`job_review_relevance`; it is not replaced, demoted, or deleted by this handoff.
 
 No additional deterministic acquisition mutation is currently authorized.
 If later ML/LLM or new site evidence identifies a generic deterministic rule, it
