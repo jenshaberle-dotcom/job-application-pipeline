@@ -1,6 +1,6 @@
 # ML-PILOT-001A/B — Operator Review Label Evidence and Capture Contract
 
-Status: append-only evidence foundation merged; Control Center capture candidate
+Status: append-only evidence + Control Center capture merged; runtime DB migration status proof pending
 Target: `operator_review_relevance`
 
 ## Purpose
@@ -106,6 +106,10 @@ Operator review labels are ground truth only for the scoped `operator_review_rel
 - interview or offer probability truth.
 
 The Control Center label action performs no provider request, model training, Kaggle execution, external execution or GPU allocation.
+
+## Runtime availability
+
+Repository implementation and CI do not by themselves prove that the configured local PostgreSQL runtime has migration `101_create_job_review_relevance_label_events.sql` applied. A one-shot self-hosted read-only status workflow verifies migration tracking and pending filenames before any migration application is considered. Until that proof passes, the UI must honestly report capture unavailable when the label table/view are absent.
 
 ## Relationship to MLF-005
 
