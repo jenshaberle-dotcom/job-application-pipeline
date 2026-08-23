@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   runtime-db-status:
@@ -20,6 +21,7 @@ jobs:
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       LABEL_MIGRATION: 101_create_job_review_relevance_label_events.sql
+      PROOF_PR_NUMBER: "635"
     steps:
       - name: Resolve verified RCC runtime context
         shell: bash
@@ -119,6 +121,8 @@ jobs:
 
       - name: Read migration tracking status without DB writes
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           status_file="$RUNNER_TEMP/ml-pilot-001b-db-status.txt"
@@ -127,16 +131,20 @@ jobs:
             "$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status
           ) | tee "$status_file"
 
-          "$RUNTIME_PYTHON" - "$status_file" "$LABEL_MIGRATION" "$GITHUB_SHA" <<'PY'
+          "$RUNTIME_PYTHON" - "$status_file" "$LABEL_MIGRATION" "$GITHUB_SHA" "$GITHUB_TOKEN" "$RCC_REPOSITORY" "$PROOF_PR_NUMBER" <<'PY'
           from __future__ import annotations
 
           import json
           from pathlib import Path
           import sys
+          from urllib.request import Request, urlopen
 
           status_path = Path(sys.argv[1])
           target = sys.argv[2]
           main_sha = sys.argv[3]
+          token = sys.argv[4]
+          repository = sys.argv[5]
+          issue_number = sys.argv[6]
           lines = status_path.read_text(encoding="utf-8").splitlines()
 
           values: dict[str, str] = {}
@@ -186,4 +194,40 @@ jobs:
               raise SystemExit("LABEL_DB_STATUS_BLOCKED: schema_migrations table is unavailable")
           if safe["checksum_mismatches"] != 0:
               raise SystemExit("LABEL_DB_STATUS_BLOCKED: migration checksum mismatch exists")
+
+          marker = "<!-- ml-pilot-001b-runtime-db-status -->"
+          base_url = f"https://api.github.com/repos/{repository}/issues/{issue_number}/comments"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "User-Agent": "job-pipeline-ml-pilot-001b-status/1.0",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          with urlopen(Request(base_url, headers=headers), timeout=20) as response:  # noqa: S310 - fixed GitHub API origin.
+              comments = json.load(response)
+          needle = f'"main_sha": "{main_sha}"'
+          if any(marker in str(item.get("body") or "") and needle in str(item.get("body") or "") for item in comments):
+              print("Runtime DB status proof already persisted for this main SHA.")
+              raise SystemExit(0)
+
+          body = (
+              f"{marker}\n"
+              "ML-PILOT-001B runtime DB migration status: **PASS**\n\n"
+              "Read-only status proof; no migration or label write was performed.\n\n"
+              "```json\n"
+              + json.dumps(safe, indent=2, sort_keys=True)
+              + "\n```"
+          )
+          payload = json.dumps({"body": body}).encode("utf-8")
+          request = Request(
+              base_url,
+              data=payload,
+              headers={**headers, "Content-Type": "application/json"},
+              method="POST",
+          )
+          with urlopen(request, timeout=20) as response:  # noqa: S310 - fixed GitHub API origin.
+              result = json.load(response)
+          if not result.get("id"):
+              raise SystemExit("LABEL_DB_STATUS_PERSISTENCE_FAILED")
+          print("Runtime DB status proof persisted to PR discussion.")
           PY
