@@ -3,6 +3,7 @@
 Status: active parallel foundation lane
 Authority: `docs/reference/search-intelligence/ml_learning_layer.md`  
 Kaggle execution contract: `docs/reference/search-intelligence/ml_kaggle_execution_contract.md`  
+Snapshot materialization contract: `docs/reference/search-intelligence/ml_snapshot_materialization_contract.md`  
 Branch: `feature/ml-learning-foundation`
 
 ## Purpose
@@ -31,6 +32,7 @@ feature/ml-learning-foundation
 - MLF-002 merged: deterministic dataset manifest serialization and fingerprinting.
 - MLF-003 merged: read-only DB-backed snapshot planning boundary.
 - MLF-004 merged: Kaggle transport, CPU validation, telemetry and checkpoint re-entry contracts; no external execution.
+- MLF-005 candidate: real read-only Silver materialization into an immutable local package with on-disk CPU validation; no labels, model or provider execution.
 - No provider/GPU execution slice is activated; GPU use remains an explicit operator boundary.
 
 ## Initial slices
@@ -68,10 +70,22 @@ feature/ml-learning-foundation
    - diagnostic failure classes and stable evidence fingerprints;
    - no model-family choice and no productive inference.
 
+5. **MLF-005 — read-only Silver materialization and local package proof**
+   - execute the exact MLF-003 `silver_jobs` snapshot SELECT inside verified `REPEATABLE READ / READ ONLY`;
+   - fail closed if PostgreSQL does not report read-only mode and the expected isolation level;
+   - canonicalize exact selected rows to deterministic UTF-8 JSONL;
+   - bind payload, cutoff, query, plan, product contract and exact clean Git revision through SHA-256 lineage;
+   - generate MLF-002 dataset manifest plus MLF-004 package manifest;
+   - keep the evidence snapshot explicitly unsplit and unlabeled;
+   - write only below ignored local `.runtime/` by default;
+   - validate staged bytes from disk before immutable atomic publication;
+   - expose only aggregate source/null/grouping diagnostics in snapshot metadata;
+   - no Kaggle upload, external execution, model family, model training or product inference.
+
 ## Merge rule
 
 A slice may merge to `main` when it is generic, side-effect-bounded, covered by focused tests, and passes the repository CI. The feature branch must then rejoin the resulting `main` before further work.
 
 No slice in this lane may silently introduce ranking authority, Top-5 semantics, model-family selection, source activation, connector mutation or automatic application behavior.
 
-GPU/provider execution is an explicit operator boundary. MLF-004 cannot self-authorize it through configuration, CI, a PR merge, a credential being present, or a previous project/provider proof.
+GPU/provider execution is an explicit operator boundary. MLF-004/005 cannot self-authorize it through configuration, CI, a PR merge, a credential being present, a generated local package, or a previous project/provider proof.
