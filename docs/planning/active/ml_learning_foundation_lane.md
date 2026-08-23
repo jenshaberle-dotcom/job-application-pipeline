@@ -4,6 +4,7 @@ Status: active parallel foundation lane
 Authority: `docs/reference/search-intelligence/ml_learning_layer.md`  
 Kaggle execution contract: `docs/reference/search-intelligence/ml_kaggle_execution_contract.md`  
 Snapshot materialization contract: `docs/reference/search-intelligence/ml_snapshot_materialization_contract.md`  
+First pilot design: `docs/reference/search-intelligence/ml_pilot_job_fit.md`  
 Branch: `feature/ml-learning-foundation`
 
 ## Purpose
@@ -34,6 +35,7 @@ feature/ml-learning-foundation
 - MLF-004 merged: Kaggle transport, CPU validation, telemetry and checkpoint re-entry contracts; no external execution.
 - MLF-005 implementation merged via PR #626 / merge `12407fbf95e6e3cb3e5c4b497dfd440e1beb0395`: real read-only Silver materialization into an immutable local package with on-disk CPU validation.
 - MLF-005 live local DB package proof is still pending; implementation/CI success must not be reported as live-data evidence.
+- `ML-PILOT-001` is documented as the first shadow Job Review Relevance experiment design. Its supervised label/split/training implementation remains blocked until the MLF-005 live proof passes.
 - No provider/GPU execution slice is activated; GPU use remains an explicit operator boundary.
 
 ## MLF-005 live-proof gate
@@ -56,6 +58,8 @@ Acceptance requires the command to complete without DB writes and to produce a l
 - successful on-disk package validation.
 
 The package bytes and job rows must remain local. Do not upload them to GitHub, Actions artifacts, chat, Kaggle or another provider as part of this proof. Repository truth may later record only the bounded aggregate receipt/fingerprints needed for re-entry.
+
+A one-shot workflow, `.github/workflows/mlf005-live-db-proof.yml`, may satisfy this gate only when it runs on the registered `job-pipeline-runtime-linux` self-hosted runner, resolves the PASS RCC runtime context, authenticates and fast-forwards the persistent checkout to the exact triggering `main` SHA, executes the existing local-only materializer, and publishes only the allowlisted aggregate proof. The workflow is path-triggered only by its own addition/change so it does not become recurring ML execution.
 
 Until that live proof exists, do not start a label/split implementation slice merely to bypass the missing evidence and do not activate provider/GPU execution.
 
@@ -105,6 +109,23 @@ Until that live proof exists, do not start a label/split implementation slice me
    - validate staged bytes from disk before immutable atomic publication;
    - expose only aggregate source/null/grouping diagnostics in snapshot metadata;
    - no Kaggle upload, external execution, model family, model training or product inference.
+
+## First pilot after MLF-005
+
+`ML-PILOT-001` is the first planned supervised experiment:
+
+```text
+explicit operator_review_relevance labels
+-> deterministic feature projection
+-> time/duplicate-safe split
+-> deterministic baseline
+-> logistic regression control
+-> LightGBM binary classifier candidate
+-> same-holdout comparison
+-> shadow predictions only
+```
+
+The pilot design does not authorize training before the live-proof gate and does not create ranking authority after it.
 
 ## Merge rule
 
