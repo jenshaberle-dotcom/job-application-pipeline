@@ -5,10 +5,10 @@ from src.connectors.employer_origin_acquisition_v4_forms import acquire_genuine_
 
 HOST = "jobs.example.invalid"
 ROOT = "https://jobs.example.invalid/careers"
-FIRST_LISTING = "https://jobs.example.invalid/jobs"
-SECOND_LISTING = "https://jobs.example.invalid/stellenmarkt"
+FIRST_LISTING = "https://jobs.example.invalid/open-positions"
+SECOND_LISTING = "https://jobs.example.invalid/open-positions/all"
 STRONG_DETAIL = "https://jobs.example.invalid/stellenmarkt/platform-engineer-998877.html"
-WEAK_DETAIL = "https://jobs.example.invalid/stellenmarkt/platform-engineer.html"
+WEAK_DETAIL = "https://jobs.example.invalid/jobs/platform-engineer-12345"
 
 
 def _job_html() -> str:
@@ -27,10 +27,10 @@ def test_form_lane_reuses_strong_requisition_boundary_for_fourth_request() -> No
     def fetcher(url: str):
         calls.append(url)
         if url == ROOT:
-            return f"<html><a href='{FIRST_LISTING}'>View jobs</a></html>", ROOT, 200
+            return f"<html><a href='{FIRST_LISTING}'>Open positions</a></html>", ROOT, 200
         if url == FIRST_LISTING:
             return (
-                f"<html><a href='{SECOND_LISTING}'>Stellenangebote</a></html>",
+                f"<html><a href='{SECOND_LISTING}'>Open positions</a></html>",
                 FIRST_LISTING,
                 200,
             )
@@ -59,16 +59,16 @@ def test_form_lane_reuses_strong_requisition_boundary_for_fourth_request() -> No
     assert jobs[0].proof_kind == "jsonld_jobposting"
 
 
-def test_form_lane_does_not_grant_fourth_request_for_weak_requisition_path() -> None:
+def test_form_lane_does_not_grant_fourth_request_for_non_requisition_detail() -> None:
     calls: list[str] = []
 
     def fetcher(url: str):
         calls.append(url)
         if url == ROOT:
-            return f"<html><a href='{FIRST_LISTING}'>View jobs</a></html>", ROOT, 200
+            return f"<html><a href='{FIRST_LISTING}'>Open positions</a></html>", ROOT, 200
         if url == FIRST_LISTING:
             return (
-                f"<html><a href='{SECOND_LISTING}'>Stellenangebote</a></html>",
+                f"<html><a href='{SECOND_LISTING}'>Open positions</a></html>",
                 FIRST_LISTING,
                 200,
             )
@@ -79,7 +79,7 @@ def test_form_lane_does_not_grant_fourth_request_for_weak_requisition_path() -> 
                 200,
             )
         if url == WEAK_DETAIL:
-            raise AssertionError("weak path must not receive the shared fourth request")
+            raise AssertionError("non-requisition detail must not receive the shared fourth request")
         raise AssertionError(url)
 
     jobs, _ = acquire_genuine_job_pages(
