@@ -1,7 +1,8 @@
 # ML Learning Foundation Lane
 
 Status: active parallel foundation lane
-Authority: `docs/reference/search-intelligence/ml_learning_layer.md`
+Authority: `docs/reference/search-intelligence/ml_learning_layer.md`  
+Kaggle execution contract: `docs/reference/search-intelligence/ml_kaggle_execution_contract.md`  
 Branch: `feature/ml-learning-foundation`
 
 ## Purpose
@@ -29,7 +30,7 @@ feature/ml-learning-foundation
 - MLF-001 merged: pure foundation contracts and tests.
 - MLF-002 merged: deterministic dataset manifest serialization and fingerprinting.
 - MLF-003 merged: read-only DB-backed snapshot planning boundary.
-- MLF-004 next: Kaggle experiment transport contract.
+- MLF-004 candidate: Kaggle transport, CPU validation, telemetry and checkpoint re-entry contracts; no external execution.
 
 ## Initial slices
 
@@ -56,14 +57,20 @@ feature/ml-learning-foundation
    - deterministic plan fingerprint for later transport traceability;
    - dry-run only before any Kaggle transport integration.
 
-4. **MLF-004 — Kaggle experiment transport contract**
-   - generated training package + manifest;
-   - artifact metadata contract;
-   - no model-family choice;
-   - no productive inference.
+4. **MLF-004 — Kaggle experiment transport and observability contract**
+   - generated training-package manifest with per-entry checksums and safe transport names;
+   - local/CI CPU validation gate for package integrity and contract checks;
+   - hard fail-closed GPU/operator boundary: no Kaggle upload, kernel execution or accelerator use;
+   - returned-artifact metadata remains non-authoritative and binds producing package/code/compute;
+   - PED-derived operational patterns: observer/lifetime separation, quota/status telemetry, bounded inaccessible-status failure, immutable run evidence and reuse of unchanged provider-capability proof;
+   - epoch/checkpoint re-entry receipts with a verified resume-parent chain;
+   - diagnostic failure classes and stable evidence fingerprints;
+   - no model-family choice and no productive inference.
 
 ## Merge rule
 
 A slice may merge to `main` when it is generic, side-effect-bounded, covered by focused tests, and passes the repository CI. The feature branch must then rejoin the resulting `main` before further work.
 
 No slice in this lane may silently introduce ranking authority, Top-5 semantics, model-family selection, source activation, connector mutation or automatic application behavior.
+
+GPU/provider execution is an explicit operator boundary. MLF-004 cannot self-authorize it through configuration, CI, a PR merge, a credential being present, or a previous project/provider proof.
