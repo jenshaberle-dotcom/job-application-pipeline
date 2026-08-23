@@ -147,6 +147,34 @@ def pending_migrations(
     return [migration for migration in migrations if migration.migration_key not in tracked]
 
 
+def select_exact_pending_migration(
+    *,
+    migrations: list[MigrationFile],
+    tracked: dict[str, TrackedMigration],
+    migration_key: str,
+    require_sole_pending: bool,
+) -> tuple[MigrationFile, str]:
+    matches = [migration for migration in migrations if migration.migration_key == migration_key]
+    if len(matches) != 1:
+        raise ValueError(f"Exact migration key must resolve once: {migration_key}")
+
+    target = matches[0]
+    if migration_key in tracked:
+        return target, "already_applied"
+
+    pending = pending_migrations(migrations, tracked)
+    pending_keys = [migration.migration_key for migration in pending]
+    if require_sole_pending and pending_keys != [migration_key]:
+        raise RuntimeError(
+            "Exact migration requires sole pending target; "
+            f"target={migration_key} pending={pending_keys}"
+        )
+    if migration_key not in pending_keys:
+        raise RuntimeError(f"Exact migration is not pending: {migration_key}")
+
+    return target, "pending"
+
+
 def insert_tracking_row(
     conn: psycopg.Connection[Any],
     migration: MigrationFile,
@@ -323,12 +351,63 @@ def apply_pending(
     return applied
 
 
+def apply_exact_migration(
+    *,
+    migrations: list[MigrationFile],
+    tracked: dict[str, TrackedMigration],
+    migration_key: str,
+    applied_by: str,
+    require_sole_pending: bool,
+) -> str:
+    ensure_no_checksum_mismatches(migrations, tracked)
+    target, state = select_exact_pending_migration(
+        migrations=migrations,
+        tracked=tracked,
+        migration_key=migration_key,
+        require_sole_pending=require_sole_pending,
+    )
+    if state == "already_applied":
+        return state
+
+    sql = target.path.read_text(encoding="utf-8")
+    with connect() as conn:
+        if not schema_migrations_exists(conn):
+            raise RuntimeError("schema_migrations table does not exist. Apply the tracking migration first.")
+
+        with conn.transaction():
+            current = load_tracked_migrations(conn)
+            ensure_no_checksum_mismatches(migrations, current)
+            target, state = select_exact_pending_migration(
+                migrations=migrations,
+                tracked=current,
+                migration_key=migration_key,
+                require_sole_pending=require_sole_pending,
+            )
+            if state == "already_applied":
+                return state
+
+            with conn.cursor() as cur:
+                cur.execute(sql)
+
+            insert_tracking_row(
+                conn,
+                target,
+                execution_status="success",
+                execution_mode="script_apply_exact",
+                applied_by=applied_by,
+            )
+
+    return "applied"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Track and apply DB migrations with checksum validation.")
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--status", action="store_true")
     action.add_argument("--bootstrap-existing", action="store_true")
     action.add_argument("--apply", action="store_true")
+    action.add_argument("--apply-exact", metavar="MIGRATION_KEY")
+    parser.add_argument("--require-sole-pending", action="store_true")
     parser.add_argument("--applied-by", default="local")
     parser.add_argument("--migrations-dir", type=Path, default=DEFAULT_MIGRATIONS_DIR)
     return parser
@@ -362,6 +441,18 @@ def main() -> None:
             applied_by=args.applied_by,
         )
         print(f"applied_migrations: {applied}")
+        return
+
+    if args.apply_exact:
+        exact_status = apply_exact_migration(
+            migrations=migrations,
+            tracked=tracked,
+            migration_key=args.apply_exact,
+            applied_by=args.applied_by,
+            require_sole_pending=args.require_sole_pending,
+        )
+        print(f"exact_migration: {args.apply_exact}")
+        print(f"exact_migration_status: {exact_status}")
 
 
 if __name__ == "__main__":
