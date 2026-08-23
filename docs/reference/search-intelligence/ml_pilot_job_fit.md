@@ -1,7 +1,7 @@
 # ML-PILOT-001 — Shadow Job Review Relevance Pilot
 
 Status: **pilot design only — implementation blocked until MLF-005 live DB package proof passes**
-Authority relationship: extends `ML-LEARN-001`; does not create ranking or product authority.
+Authority relationship: extends `ML-LEARN-001` and `BOOSTER-ADMISSION-001`; does not create ranking or product authority.
 
 ## Purpose
 
@@ -10,6 +10,8 @@ The first practical ML pilot should answer one narrow question:
 > Given a canonical job and the approved target profile, how likely is this job to be worth operator review?
 
 The pilot is deliberately not an application-decision model and not an interview/offer predictor. It produces a non-authoritative shadow signal that can be compared with the deterministic baseline and the existing bounded LLM booster.
+
+ML-PILOT-001 is a **task-local ML booster experiment**, not the start of an ML stage that must run along the full pipeline. Other pipeline surfaces remain deterministic or use the existing LLM booster unless their own measured admission evidence shows incremental value for ML.
 
 ## Target
 
@@ -93,6 +95,16 @@ At minimum compare:
 - inference latency and missing-feature rate.
 
 The key pilot question is not whether LightGBM can fit the training data. It is whether it produces useful out-of-time lift beyond the strongest deterministic baseline and whether that lift remains explainable and operationally cheap.
+
+## Booster admission relationship
+
+`BOOSTER-ADMISSION-001` governs whether this surface is worth spending further ML effort on. The admission evidence must be task-local and must measure the residual after the deterministic baseline.
+
+A positive admission result means only that offline/shadow evaluation is justified. It does not authorize training execution, Kaggle, GPU use, product scoring, ranking, Top-5 membership or application behavior.
+
+The same admission framework may later evaluate other ML or LLM opportunities. A win on `job_review_relevance` does not activate ML on adjacent pipeline stages.
+
+If several booster opportunities are admissible, the development order should follow expected incremental net value rather than pipeline position. This pilot is intended to be the first ML surface because it is expected to combine high repeatability, useful false-negative rescue and a path to explicit operator ground truth.
 
 ## First experiment flow
 

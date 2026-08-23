@@ -2,6 +2,7 @@
 
 Status: active parallel foundation lane
 Authority: `docs/reference/search-intelligence/ml_learning_layer.md`  
+Booster admission contract: `docs/reference/search-intelligence/booster_admission.md`  
 Kaggle execution contract: `docs/reference/search-intelligence/ml_kaggle_execution_contract.md`  
 Snapshot materialization contract: `docs/reference/search-intelligence/ml_snapshot_materialization_contract.md`  
 First pilot design: `docs/reference/search-intelligence/ml_pilot_job_fit.md`  
@@ -10,6 +11,8 @@ Branch: `feature/ml-learning-foundation`
 ## Purpose
 
 Build the ML path in small, independently mergeable slices while deterministic Search Intelligence and the LLM booster continue to mature.
+
+ML is treated as an optional task-specific booster capability, parallel in governance to the LLM booster. It is not a mandatory stage to insert across the complete pipeline. New ML surfaces are admitted only where a measured deterministic residual and expected incremental value justify further evaluation.
 
 The branch is intentionally long-lived but must be fast-forwarded to current `main` after each accepted slice so it does not become a parallel source of truth.
 
@@ -37,6 +40,25 @@ feature/ml-learning-foundation
 - MLF-005 live local DB package proof is still pending; implementation/CI success must not be reported as live-data evidence.
 - `ML-PILOT-001` is documented as the first shadow Job Review Relevance experiment design. Its supervised label/split/training implementation remains blocked until the MLF-005 live proof passes.
 - No provider/GPU execution slice is activated; GPU use remains an explicit operator boundary.
+
+## Booster strategy
+
+`BOOSTER-ADMISSION-001` governs where additional ML or LLM capability is worth evaluating.
+
+The development rule is:
+
+```text
+bounded decision surface
+-> strongest deterministic baseline
+-> measured residual
+-> task-specific ML/LLM admission evidence
+-> rank viable opportunities by expected incremental net value
+-> evaluate the strongest surface first
+```
+
+A booster that wins on one surface does not become a mandatory stage on adjacent surfaces. Admission is shadow-only and never authorizes training/provider execution or product authority.
+
+The first planned ML value surface remains `job_review_relevance`, with ranking as a later adjacent surface only if evidence supports it. Existing LLM booster surfaces remain independently governed by `LLM-BOOST-001`.
 
 ## MLF-005 live-proof gate
 
