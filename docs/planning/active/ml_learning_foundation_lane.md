@@ -40,7 +40,7 @@ feature/ml-learning-foundation
 - MLF-005 implementation merged via PR #626 / merge `12407fbf95e6e3cb3e5c4b497dfd440e1beb0395`: real read-only Silver materialization into an immutable local package with on-disk CPU validation.
 - MLF-005 live local DB package proof is still pending; implementation/CI success must not be reported as live-data evidence.
 - `BOOSTER-ADMISSION-001` merged via PR #630: ML and LLM are task-local optional boosters admitted by measured residual value, not mandatory serial pipeline layers.
-- `ML-PILOT-001A` candidate: append-only `operator_review_relevance` label evidence with historical job-evidence fingerprints, sampling reason and signal-exposure provenance. Label collection may begin before MLF-005 proof; supervised dataset/split construction and model training may not.
+- `ML-PILOT-001A` merged via PR #631 / merge `26e074ee5d7449567d9f0af8c063de4f8d9b07ff`: append-only `operator_review_relevance` label evidence with historical job-evidence fingerprints, sampling reason and signal-exposure provenance. Label collection may begin before MLF-005 proof; supervised dataset/split construction and model training may not.
 - No provider/GPU execution slice is activated; GPU use remains an explicit operator boundary.
 
 ## Booster strategy
