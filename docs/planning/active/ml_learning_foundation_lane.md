@@ -30,7 +30,8 @@ feature/ml-learning-foundation
 - MLF-001 merged: pure foundation contracts and tests.
 - MLF-002 merged: deterministic dataset manifest serialization and fingerprinting.
 - MLF-003 merged: read-only DB-backed snapshot planning boundary.
-- MLF-004 candidate: Kaggle transport, CPU validation, telemetry and checkpoint re-entry contracts; no external execution.
+- MLF-004 merged: Kaggle transport, CPU validation, telemetry and checkpoint re-entry contracts; no external execution.
+- No provider/GPU execution slice is activated; GPU use remains an explicit operator boundary.
 
 ## Initial slices
 
