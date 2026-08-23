@@ -32,8 +32,32 @@ feature/ml-learning-foundation
 - MLF-002 merged: deterministic dataset manifest serialization and fingerprinting.
 - MLF-003 merged: read-only DB-backed snapshot planning boundary.
 - MLF-004 merged: Kaggle transport, CPU validation, telemetry and checkpoint re-entry contracts; no external execution.
-- MLF-005 candidate: real read-only Silver materialization into an immutable local package with on-disk CPU validation; no labels, model or provider execution.
+- MLF-005 implementation merged via PR #626 / merge `12407fbf95e6e3cb3e5c4b497dfd440e1beb0395`: real read-only Silver materialization into an immutable local package with on-disk CPU validation.
+- MLF-005 live local DB package proof is still pending; implementation/CI success must not be reported as live-data evidence.
 - No provider/GPU execution slice is activated; GPU use remains an explicit operator boundary.
+
+## MLF-005 live-proof gate
+
+The sole remaining proof for MLF-005 is one operator-local execution against the real PostgreSQL Silver state from a clean checkout of current `main`:
+
+```bash
+python -m scripts.materialize_ml_training_snapshot \
+  --evidence-cutoff <EXPLICIT_TIMEZONE_AWARE_CUTOFF>
+```
+
+Acceptance requires the command to complete without DB writes and to produce a local immutable package below ignored `.runtime/ml-training-packages/` whose receipt proves:
+
+- non-zero Silver row count;
+- `compute_class=cpu_validation`;
+- `external_execution=false`;
+- `product_authority=false`;
+- source-snapshot, dataset-manifest, snapshot-plan and package fingerprints;
+- explicit evidence cutoff;
+- successful on-disk package validation.
+
+The package bytes and job rows must remain local. Do not upload them to GitHub, Actions artifacts, chat, Kaggle or another provider as part of this proof. Repository truth may later record only the bounded aggregate receipt/fingerprints needed for re-entry.
+
+Until that live proof exists, do not start a label/split implementation slice merely to bypass the missing evidence and do not activate provider/GPU execution.
 
 ## Initial slices
 
