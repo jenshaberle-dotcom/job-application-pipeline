@@ -73,12 +73,20 @@ def validate_operator_review_label_event(event: OperatorReviewLabelEvent) -> lis
         violations.append(f"label_contract_version must be {LABEL_CONTRACT_VERSION!r}")
     if not event.reviewed_by.strip():
         violations.append("reviewed_by must be non-empty")
-    if event.reviewed_at.tzinfo is None or event.reviewed_at.utcoffset() is None:
+
+    reviewed_at_is_aware = (
+        event.reviewed_at.tzinfo is not None and event.reviewed_at.utcoffset() is not None
+    )
+    evidence_cutoff_is_aware = (
+        event.evidence_cutoff.tzinfo is not None and event.evidence_cutoff.utcoffset() is not None
+    )
+    if not reviewed_at_is_aware:
         violations.append("reviewed_at must be timezone-aware")
-    if event.evidence_cutoff.tzinfo is None or event.evidence_cutoff.utcoffset() is None:
+    if not evidence_cutoff_is_aware:
         violations.append("evidence_cutoff must be timezone-aware")
-    if event.evidence_cutoff > event.reviewed_at:
+    if reviewed_at_is_aware and evidence_cutoff_is_aware and event.evidence_cutoff > event.reviewed_at:
         violations.append("evidence_cutoff may not be later than reviewed_at")
+
     if not SHA256_PATTERN.fullmatch(event.job_evidence_fingerprint):
         violations.append("job_evidence_fingerprint must use sha256:<64 lowercase hex>")
     if event.selection_reason not in SELECTION_REASONS:
