@@ -28,7 +28,8 @@ feature/ml-learning-foundation
 
 - MLF-001 merged: pure foundation contracts and tests.
 - MLF-002 merged: deterministic dataset manifest serialization and fingerprinting.
-- MLF-003 candidate: read-only DB-backed snapshot planning boundary.
+- MLF-003 merged: read-only DB-backed snapshot planning boundary.
+- MLF-004 next: Kaggle experiment transport contract.
 
 ## Initial slices
 
