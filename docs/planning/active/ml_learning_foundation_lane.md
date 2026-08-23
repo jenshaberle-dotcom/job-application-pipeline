@@ -41,7 +41,7 @@ feature/ml-learning-foundation
 - MLF-005 live local DB package proof is still pending; implementation/CI success must not be reported as live-data evidence.
 - `BOOSTER-ADMISSION-001` merged via PR #630: ML and LLM are task-local optional boosters admitted by measured residual value, not mandatory serial pipeline layers.
 - `ML-PILOT-001A` merged via PR #631 / merge `26e074ee5d7449567d9f0af8c063de4f8d9b07ff`: append-only `operator_review_relevance` label evidence with historical job-evidence fingerprints, sampling reason and signal-exposure provenance. Label collection may begin before MLF-005 proof; supervised dataset/split construction and model training may not.
-- `ML-PILOT-001B` candidate: one-click Product V1 Control Center capture for `interesting`, `not_relevant`, and `unsure`, with exact server-owned Silver evidence fingerprinting, readback, idempotence on unchanged evidence, and append-only superseding corrections. No training or product authority.
+- `ML-PILOT-001B` merged via PR #634 / merge `0241426929af5202a52da0436cad6e87981efeea`: one-click Product V1 Control Center capture for `interesting`, `not_relevant`, and `unsure`, with exact server-owned Silver evidence fingerprinting, DB readback, idempotence on unchanged evidence, and append-only superseding corrections. Repository implementation/CI are complete; one-shot read-only runtime DB migration status proof is pending before claiming the local capture path operational.
 - No provider/GPU execution slice is activated; GPU use remains an explicit operator boundary.
 
 ## Booster strategy
