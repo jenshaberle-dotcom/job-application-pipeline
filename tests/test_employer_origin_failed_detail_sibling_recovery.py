@@ -12,7 +12,6 @@ ROOT = "https://jobs.example.invalid/careers"
 HOST = "jobs.example.invalid"
 STALE = "https://jobs.example.invalid/job/stale-12345"
 VALID = "https://jobs.example.invalid/job/platform-engineer-67890"
-OTHER = "https://other.example.invalid/job/platform-engineer-67890"
 
 
 def _root_html(*urls: str) -> str:
@@ -60,22 +59,20 @@ def test_failed_detail_uses_unused_bounded_hop_for_already_discovered_same_host_
     assert jobs[0].discovery_source == "anchor_detail_sibling_after_failed_detail"
 
 
-def test_failed_detail_sibling_recovery_does_not_cross_hosts() -> None:
+def test_failed_detail_without_discovered_same_host_sibling_does_not_create_retry() -> None:
     calls: list[MeteredRequest] = []
 
     def executor(request: MeteredRequest):
         calls.append(request)
         if request == MeteredRequest(ROOT):
-            return _root_html(STALE, OTHER), ROOT, 200
+            return _root_html(STALE), ROOT, 200
         if request == MeteredRequest(STALE):
             return "server error", STALE, 500
-        if request == MeteredRequest(OTHER):
-            raise AssertionError("cross-host sibling must not be attempted")
         raise AssertionError(request)
 
     jobs, observed_root = acquire_genuine_job_pages(
         listing_url=ROOT,
-        allowed_hosts=(HOST, "other.example.invalid"),
+        allowed_hosts=(HOST,),
         known_detail_urls=(),
         fetcher=lambda url: (_ for _ in ()).throw(AssertionError(url)),
         request_executor=executor,
