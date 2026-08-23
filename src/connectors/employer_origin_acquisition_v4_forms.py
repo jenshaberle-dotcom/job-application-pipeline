@@ -9,6 +9,7 @@ requests itself.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 import requests
@@ -22,6 +23,7 @@ from src.connectors.employer_origin_acquisition import (
     explicit_root_delegated_listing_hosts,
     genuine_job_detail_proof,
     parse_page,
+    url_host,
 )
 from src.connectors.employer_origin_acquisition_v4 import (
     EXTRA_FOLLOWUP_LIMIT,
@@ -44,6 +46,12 @@ from src.connectors.employer_origin_sitemap_navigation import (
     sitemap_detail_urls,
     standard_same_host_sitemap_url,
 )
+from src.connectors.employer_origin_workday_navigation import (
+    workday_board_route,
+    workday_detail_urls_from_inventory,
+    workday_inventory_json_fields,
+)
+from src.search_intelligence.ats_provider_registry import recognize_ats_provider
 
 
 STRICT_FORM_SOURCE = "strict_job_search_form"
@@ -51,6 +59,8 @@ SUCCESSFACTORS_SITEMAP_SOURCE = "successfactors_standard_sitemap_inventory"
 EXPLICIT_JOB_LINK_ASSET_SOURCE = "explicit_job_link_application_asset"
 EXPLICIT_JOB_LINK_API_SOURCE = "explicit_job_link_inventory_api"
 EXPLICIT_JOB_LINK_DETAIL_SOURCE = "explicit_job_link_inventory_detail"
+WORKDAY_INVENTORY_SOURCE = "workday_provider_inventory"
+WORKDAY_DETAIL_SOURCE = "workday_provider_inventory_detail"
 
 
 @dataclass(frozen=True)
@@ -58,12 +68,14 @@ class MeteredRequest:
     url: str
     method: str = "GET"
     fields: tuple[tuple[str, str], ...] = ()
+    json_fields: tuple[tuple[str, object], ...] = ()
 
 
 @dataclass(frozen=True)
 class MeteredNavigationCandidate:
     navigation: NavigationCandidate
     request: MeteredRequest
+    context_url: str = ""
 
     @property
     def url(self) -> str:
@@ -87,6 +99,12 @@ class MeteredNavigationCandidate:
 
 
 QueueCandidate = NavigationCandidate | MeteredNavigationCandidate
+RequestKey = tuple[
+    str,
+    str,
+    tuple[tuple[str, str], ...],
+    tuple[tuple[str, str], ...],
+]
 
 
 def _request_for(candidate: QueueCandidate) -> MeteredRequest:
@@ -95,17 +113,28 @@ def _request_for(candidate: QueueCandidate) -> MeteredRequest:
     return MeteredRequest(candidate.url)
 
 
-def _request_key(request: MeteredRequest) -> tuple[str, str, tuple[tuple[str, str], ...]]:
-    return canonical_url(request.url), request.method.upper(), request.fields
+def _request_key(request: MeteredRequest) -> RequestKey:
+    json_key = tuple(
+        (
+            str(name),
+            json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        )
+        for name, value in request.json_fields
+    )
+    return canonical_url(request.url), request.method.upper(), request.fields, json_key
 
 
 def _execute_request(*, request: MeteredRequest, fetcher, request_executor):
     method = request.method.upper()
     if method not in {"GET", "POST"}:
         raise RuntimeError(f"unsupported acquisition request method: {method}")
+    if request.fields and request.json_fields:
+        raise RuntimeError("mixed form and JSON acquisition request payload")
+    if request.json_fields and method != "POST":
+        raise RuntimeError("JSON acquisition payload requires POST")
     if request_executor is not None:
         return request_executor(request)
-    if method != "GET" or request.fields:
+    if method != "GET" or request.fields or request.json_fields:
         raise RuntimeError("metered request executor required for non-plain-GET acquisition")
     return fetcher(request.url)
 
@@ -114,7 +143,7 @@ def _strict_form_items(
     page: PageSnapshot,
     *,
     effective_allowed_hosts: tuple[str, ...],
-    executed_requests: set[tuple[str, str, tuple[tuple[str, str], ...]]],
+    executed_requests: set[RequestKey],
     depth: int,
     request_executor,
 ) -> list[tuple[QueueCandidate, int]]:
@@ -203,6 +232,105 @@ def _sitemap_stage_items(
     ]
 
 
+def _partition_explicit_delegated_provider_listings(
+    items: list[tuple[QueueCandidate, int]],
+    *,
+    delegated_hosts: tuple[str, ...],
+) -> tuple[list[tuple[QueueCandidate, int]], list[tuple[QueueCandidate, int]]]:
+    """Rank an explicitly delegated canonical ATS board ahead of generic root forms."""
+
+    delegated = {str(host).casefold().strip(".") for host in delegated_hosts if str(host)}
+    provider_items: list[tuple[QueueCandidate, int]] = []
+    fallback_items: list[tuple[QueueCandidate, int]] = []
+    for item in items:
+        candidate = item[0]
+        recognition = recognize_ats_provider(candidate.url)
+        if (
+            candidate.kind == "listing"
+            and url_host(candidate.url) in delegated
+            and recognition is not None
+        ):
+            provider_items.append(item)
+        else:
+            fallback_items.append(item)
+    return provider_items, fallback_items
+
+
+def _workday_inventory_items(
+    page: PageSnapshot,
+    *,
+    effective_allowed_hosts: tuple[str, ...],
+    executed_requests: set[RequestKey],
+    depth: int,
+    request_executor,
+) -> list[tuple[QueueCandidate, int]]:
+    """Create exactly one metered first-page CXS inventory request."""
+
+    if request_executor is None:
+        return []
+    route = workday_board_route(page.final_url, allowed_hosts=effective_allowed_hosts)
+    if route is None:
+        return []
+    request = MeteredRequest(
+        route.inventory_url,
+        "POST",
+        (),
+        workday_inventory_json_fields(),
+    )
+    if _request_key(request) in executed_requests:
+        return []
+    navigation = NavigationCandidate(
+        route.inventory_url,
+        "listing",
+        WORKDAY_INVENTORY_SOURCE,
+        "",
+        False,
+    )
+    return [
+        (
+            MeteredNavigationCandidate(
+                navigation,
+                request,
+                context_url=route.public_board_url,
+            ),
+            depth + 1,
+        )
+    ]
+
+
+def _workday_inventory_stage_items(
+    candidate: QueueCandidate,
+    page: PageSnapshot,
+    *,
+    effective_allowed_hosts: tuple[str, ...],
+    fetched_urls: set[str],
+    depth: int,
+) -> list[tuple[QueueCandidate, int]]:
+    if candidate.discovery_source != WORKDAY_INVENTORY_SOURCE:
+        return []
+    if not isinstance(candidate, MeteredNavigationCandidate) or not candidate.context_url:
+        return []
+    return [
+        (
+            NavigationCandidate(
+                url,
+                "detail",
+                WORKDAY_DETAIL_SOURCE,
+                "",
+                True,
+            ),
+            depth + 1,
+        )
+        for url in workday_detail_urls_from_inventory(
+            inventory_url=page.final_url,
+            body=page.html,
+            public_board_url=candidate.context_url,
+            allowed_hosts=effective_allowed_hosts,
+        )
+        if canonical_url(url) not in fetched_urls
+    ]
+
+
 def _root_explicit_job_link_asset_items(
     root: PageSnapshot,
     *,
@@ -214,13 +342,7 @@ def _root_explicit_job_link_asset_items(
     root_greenhouse_items: list[tuple[QueueCandidate, int]],
     root_provider_items: list[tuple[QueueCandidate, int]],
 ) -> list[tuple[QueueCandidate, int]]:
-    """Offer one strict app-asset route ahead of weak generic listing navigation.
-
-    Existing strong root detail, form and provider-family mechanisms keep priority.
-    Weak listing multiplicity is not stronger evidence than one unambiguous same-host
-    application asset with an explicit job-link API route, so it does not suppress
-    this bounded alternative. The weak listings remain queued as fallbacks.
-    """
+    """Offer one strict app-asset route ahead of weak generic listing navigation."""
 
     if root_detail_items or root_form_items or root_greenhouse_items or root_provider_items:
         return []
@@ -379,9 +501,15 @@ def acquire_genuine_job_pages(
     root_detail_items: list[tuple[QueueCandidate, int]] = [
         (candidate, 0) for candidate in root_discovered if candidate.kind == "detail"
     ]
-    root_listing_items: list[tuple[QueueCandidate, int]] = [
+    raw_root_listing_items: list[tuple[QueueCandidate, int]] = [
         (candidate, 0) for candidate in root_discovered if candidate.kind != "detail"
     ]
+    delegated_provider_listing_items, root_listing_items = (
+        _partition_explicit_delegated_provider_listings(
+            raw_root_listing_items,
+            delegated_hosts=delegated_hosts,
+        )
+    )
     root_form_items = _strict_form_items(
         root,
         effective_allowed_hosts=effective_allowed_hosts,
@@ -414,13 +542,14 @@ def acquire_genuine_job_pages(
         fetched_urls=fetched_urls,
         root_detail_items=root_detail_items,
         root_form_items=root_form_items,
-        root_listing_items=root_listing_items,
+        root_listing_items=raw_root_listing_items,
         root_greenhouse_items=root_greenhouse_items,
         root_provider_items=root_provider_items,
     )
 
     queue: list[tuple[QueueCandidate, int]] = [
         *root_detail_items,
+        *delegated_provider_listing_items,
         *root_form_items,
         *root_asset_items,
         *root_listing_items,
@@ -456,7 +585,12 @@ def acquire_genuine_job_pages(
         request_key = _request_key(request)
         if not clean or request_key in executed_requests:
             continue
-        if request.method.upper() == "GET" and not request.fields and clean in fetched_urls:
+        if (
+            request.method.upper() == "GET"
+            and not request.fields
+            and not request.json_fields
+            and clean in fetched_urls
+        ):
             continue
 
         candidate_hosts = _extend_provider_candidate_host(candidate, effective_allowed_hosts)
@@ -527,6 +661,18 @@ def acquire_genuine_job_pages(
         if candidate.kind != "listing":
             continue
 
+        if candidate.discovery_source == WORKDAY_INVENTORY_SOURCE:
+            workday_detail_items = _workday_inventory_stage_items(
+                candidate,
+                page,
+                effective_allowed_hosts=effective_allowed_hosts,
+                fetched_urls=fetched_urls,
+                depth=depth,
+            )
+            if workday_detail_items:
+                queue = [*workday_detail_items, *queue]
+            continue
+
         if candidate.discovery_source == EXPLICIT_JOB_LINK_ASSET_SOURCE:
             api_items = _explicit_job_link_asset_stage_items(
                 candidate,
@@ -538,8 +684,6 @@ def acquire_genuine_job_pages(
             if api_items:
                 queue = [*api_items, *queue]
             elif extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
-                # Restore weak-listing opportunities displaced by this optional
-                # evidence-backed asset probe; total requests still remain <= 4.
                 remaining += 1
                 extra_followup_grants += 1
             continue
@@ -554,9 +698,6 @@ def acquire_genuine_job_pages(
             )
             if not explicit_detail_items:
                 if extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
-                    # The explicit endpoint existed but did not yield a strict
-                    # detail. Restore exactly one weak-listing attempt without
-                    # creating a second grant or widening the absolute cap.
                     remaining += 1
                     extra_followup_grants += 1
                 continue
@@ -616,7 +757,14 @@ def acquire_genuine_job_pages(
                 fetched=fetched_urls,
                 depth=depth,
             )
-            provider_items = list(raw_provider_items)
+            workday_items = _workday_inventory_items(
+                page,
+                effective_allowed_hosts=effective_allowed_hosts,
+                executed_requests=executed_requests,
+                depth=depth,
+                request_executor=request_executor,
+            )
+            provider_items = [*workday_items, *raw_provider_items]
             if provider_items and extra_followup_grants < EXTRA_FOLLOWUP_LIMIT:
                 remaining += 1
                 extra_followup_grants += 1
@@ -646,5 +794,7 @@ __all__ = [
     "MeteredRequest",
     "STRICT_FORM_SOURCE",
     "SUCCESSFACTORS_SITEMAP_SOURCE",
+    "WORKDAY_DETAIL_SOURCE",
+    "WORKDAY_INVENTORY_SOURCE",
     "acquire_genuine_job_pages",
 ]
