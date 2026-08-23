@@ -82,6 +82,8 @@ contract.
 - `reference/database/schema_relationships.md`
 - `reference/governance/governance_foundation.md`
 - `reference/security/search_intelligence_security_baseline.md`
+- `reference/search-intelligence/llm_booster_cascade.md`
+- `reference/search-intelligence/ml_learning_layer.md`
 - `decisions/adr_status_table.md`
 
 ## ADRs
