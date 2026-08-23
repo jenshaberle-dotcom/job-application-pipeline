@@ -10,7 +10,6 @@ from src.search_intelligence.ml_snapshot_plan import (
     DuplicateGroupingContract,
     LeakageBoundary,
     SnapshotColumn,
-    TrainingSnapshotPlan,
     build_training_snapshot_sql,
     default_training_snapshot_plan,
     feature_candidate_columns,
