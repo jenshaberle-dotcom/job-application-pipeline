@@ -169,6 +169,59 @@ def test_rejects_generic_product_objects_even_when_shape_looks_similar() -> None
     assert result.candidates == ()
 
 
+def test_endpoint_job_context_does_not_leak_into_explicit_non_job_containers() -> None:
+    for container in ("news", "articles", "content", "products"):
+        payload = {
+            container: [
+                {
+                    "title": "Platform update",
+                    "id": "card-1",
+                    "url": "/updates/platform",
+                    "location": "EU",
+                }
+            ]
+        }
+
+        result = recognize_job_payload(
+            _observation(
+                request_url="https://jobs.example.com/process/get-jobs.php",
+                response_url="https://jobs.example.com/process/get-jobs.php",
+            ),
+            payload,
+            allowed_hosts=("jobs.example.com",),
+        )
+
+        assert result.candidates == (), container
+
+
+def test_explicit_jobs_path_inside_content_container_still_has_job_context() -> None:
+    payload = {
+        "content": {
+            "jobs": [
+                {
+                    "title": "Data Engineer",
+                    "id": "job-7",
+                    "url": "/jobs/job-7",
+                    "location": "Hannover",
+                }
+            ]
+        }
+    }
+
+    result = recognize_job_payload(
+        _observation(
+            request_url="https://jobs.example.com/process/get-jobs.php",
+            response_url="https://jobs.example.com/process/get-jobs.php",
+        ),
+        payload,
+        allowed_hosts=("jobs.example.com",),
+    )
+
+    assert len(result.candidates) == 1
+    assert result.candidates[0].identity == "job-7"
+    assert result.candidates[0].job_context is True
+
+
 def test_cross_host_job_url_is_hypothesis_but_not_authorized() -> None:
     payload = {
         "jobs": [
