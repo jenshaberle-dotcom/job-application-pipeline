@@ -1,0 +1,26 @@
+{
+  "schema_version": "job_application_pipeline.project_hygiene.v1",
+  "repository_id": 1230805345,
+  "canonical_remote": "github.com/jenshaberle-dotcom/job-application-pipeline",
+  "canonical_branch": "main",
+  "workstream_policy": {
+    "branch_source": "current_origin_main_only",
+    "branch_of_branch_forbidden": true,
+    "qualified_fix_content_must_be_preserved": true,
+    "historical_branch_ancestry_import": "forbidden",
+    "superseded_execution_state_requires_harvest_first": true
+  },
+  "github_hygiene": {
+    "branch_lifecycle_enrollment": "READ_ONLY_POLICY_DISCOVERY",
+    "merged_pr_residue_is_candidate_not_delete_authority": true,
+    "closed_unmerged_requires_explicit_harvest_proof": true,
+    "orphan_or_ambiguous_refs_remain_protected": true,
+    "persistent_branches_policy": "NOT_YET_DECLARED"
+  },
+  "hard_boundaries": [
+    "No branch deletion authority is granted by this enrollment contract.",
+    "No persistent branch is inferred from name, prefix, age or branch count.",
+    "No closed-unmerged or ambiguous ref may be deleted by Project Hygiene.",
+    "Application data, artifacts, runners and runtime lifecycle authorities remain separate."
+  ]
+}
