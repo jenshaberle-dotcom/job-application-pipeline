@@ -9,6 +9,7 @@ exports/
 *.zip
 docs/project_state/
 .runtime/
+frontend/control-center/dist/
 private_candidate_facts/
 *.candidate-facts.private.json
 candidate_fact_profile.private.json
