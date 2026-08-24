@@ -11,15 +11,18 @@
     "superseded_execution_state_requires_harvest_first": true
   },
   "github_hygiene": {
-    "branch_lifecycle_enrollment": "READ_ONLY_POLICY_DISCOVERY",
+    "branch_lifecycle_enrollment": "READ_ONLY_POLICY_HARDENED",
     "merged_pr_residue_is_candidate_not_delete_authority": true,
     "closed_unmerged_requires_explicit_harvest_proof": true,
     "orphan_or_ambiguous_refs_remain_protected": true,
-    "persistent_branches_policy": "NOT_YET_DECLARED"
+    "persistent_branches_policy": "EXPLICIT_EXACT_REFS",
+    "persistent_branches": [
+      "feature/ml-learning-foundation"
+    ]
   },
   "hard_boundaries": [
-    "No branch deletion authority is granted by this enrollment contract.",
-    "No persistent branch is inferred from name, prefix, age or branch count.",
+    "No branch deletion authority is granted by this contract alone.",
+    "Persistent branches are exact refs and are never inferred from name, prefix, age or branch count.",
     "No closed-unmerged or ambiguous ref may be deleted by Project Hygiene.",
     "Application data, artifacts, runners and runtime lifecycle authorities remain separate."
   ]
