@@ -3,7 +3,12 @@
 The browser/runtime adapter is intentionally outside this module. Callers may pass
 one transient JSON payload at a time; the recognizer returns bounded, sanitized
 hypotheses only. It performs no network, provider, database, product, lifecycle, or
-source mutation and never establishes genuine-job or employer authority.
+source mutation.
+
+Runtime job-record proof is deliberately separate from the existing static HTML
+`genuine_job_detail_proof`. It may be used only when a browser page already bound
+to an authorized employer host directly observes a strong structured job record.
+This module does not wire that proof into Product admission by itself.
 """
 
 from __future__ import annotations
@@ -47,45 +52,83 @@ JOB_CONTEXT_MARKERS = {
     "vacancies",
 }
 
+NON_JOB_CONTEXT_MARKERS = {
+    "article",
+    "articles",
+    "blog",
+    "blogs",
+    "content",
+    "contents",
+    "media",
+    "nav",
+    "navigation",
+    "news",
+    "press",
+    "product",
+    "products",
+    "resource",
+    "resources",
+}
+
 TITLE_KEYS = {
+    "jobname",
     "jobtitle",
+    "positionname",
     "positiontitle",
     "requisitiontitle",
     "title",
 }
 IDENTITY_KEYS = {
+    "externalid",
     "id",
     "jobid",
+    "jobnumber",
+    "jobpostingid",
     "jobreqid",
     "positionid",
+    "postingid",
     "requisitionid",
+    "requisitionnumber",
     "reqid",
     "slug",
 }
 URL_KEYS = {
     "applyurl",
+    "canonicalurl",
+    "detailpageurl",
     "detailurl",
+    "externalpath",
     "externalurl",
+    "joblink",
     "joburl",
+    "postingurl",
     "url",
 }
 LOCATION_KEYS = {
     "city",
+    "country",
     "joblocation",
     "location",
     "locations",
+    "worklocation",
 }
 EXPLICIT_JOB_KEYS = {
     "applyurl",
+    "externalid",
     "jobid",
     "joblocation",
+    "jobnumber",
+    "jobpostingid",
     "jobreqid",
     "jobtitle",
     "joburl",
     "positionid",
     "positiontitle",
+    "postingid",
     "requisitionid",
+    "requisitionnumber",
     "requisitiontitle",
+    "worklocation",
 }
 
 
@@ -99,6 +142,7 @@ class NetworkObservation:
     status_code: int
     content_type: str
     resource_type: str
+    page_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -203,23 +247,34 @@ def sanitize_observation(observation: NetworkObservation) -> NetworkObservation:
         status_code=int(observation.status_code),
         content_type=str(observation.content_type or "").split(";", 1)[0].strip().casefold(),
         resource_type=str(observation.resource_type or "").casefold(),
+        page_url=sanitize_url(observation.page_url),
     )
 
 
+def _host(url: str) -> str:
+    return (urlparse(url).hostname or "").casefold().strip(".")
+
+
 def _allowed_host(url: str, allowed_hosts: Iterable[str]) -> bool:
-    hostname = (urlparse(url).hostname or "").casefold()
+    hostname = _host(url)
     normalized = {str(item).casefold().strip(".") for item in allowed_hosts if str(item)}
     return bool(hostname and hostname in normalized)
 
 
-def _job_context(path: tuple[str, ...]) -> bool:
-    for item in path:
+def _job_context(parts: tuple[str, ...]) -> bool:
+    for item in parts:
         normalized = _normalized_key(item)
         if normalized in JOB_CONTEXT_MARKERS:
             return True
         if any(marker in normalized for marker in JOB_CONTEXT_MARKERS if len(marker) >= 4):
             return True
     return False
+
+
+def _non_job_context(parts: tuple[str, ...]) -> bool:
+    """Identify explicit non-job containers that must not inherit endpoint context."""
+
+    return any(_normalized_key(item) in NON_JOB_CONTEXT_MARKERS for item in parts)
 
 
 def _walk_dict_nodes(
@@ -271,7 +326,10 @@ def _candidate_from_mapping(
     location = _location_text(mapping)
     normalized_keys = {_normalized_key(key) for key in mapping}
     explicit_job_key = bool(normalized_keys & EXPLICIT_JOB_KEYS)
-    job_context = _job_context(path)
+    endpoint_path = urlparse(base_url).path
+    path_job_context = _job_context(path)
+    endpoint_job_context = _job_context((endpoint_path,))
+    job_context = path_job_context or (endpoint_job_context and not _non_job_context(path))
 
     if not title or not (identity or raw_url):
         return None
@@ -375,3 +433,75 @@ def recognize_job_payload(
         traversal_truncated=truncated,
         candidates=tuple(candidates),
     )
+
+
+def runtime_job_record_proof(
+    result: NetworkRecognitionResult,
+    candidate: JobPayloadCandidate,
+    *,
+    allowed_page_hosts: Iterable[str],
+    allowed_response_hosts: Iterable[str],
+    minimum_score: int = 7,
+) -> str | None:
+    """Prove a runtime job record without granting Product admission implicitly.
+
+    The browser page itself must already be employer-authorized. A response from a
+    currently authorized host may emit a cross-host job URL. A cross-host response
+    may also prove inventory when the strong candidate URL stays on that response
+    host. The latter is the bounded runtime equivalent of one explicit employer-page
+    delegation hop. Unrelated third-party responses fail closed.
+    """
+
+    observation = result.observation
+    if observation.status_code >= 400 or observation.resource_type not in {"fetch", "xhr"}:
+        return None
+    if not _allowed_host(observation.page_url, allowed_page_hosts):
+        return None
+    if candidate.score < minimum_score:
+        return None
+    if not candidate.title or not candidate.identity or not candidate.candidate_url:
+        return None
+    if not (candidate.explicit_job_key or candidate.job_context):
+        return None
+    if urlparse(candidate.candidate_url).scheme.casefold() != "https":
+        return None
+
+    response_url = observation.response_url or observation.request_url
+    response_host = _host(response_url)
+    candidate_host = _host(candidate.candidate_url)
+    if not response_host or not candidate_host:
+        return None
+
+    if _allowed_host(response_url, allowed_response_hosts):
+        return "runtime_authorized_inventory_record"
+
+    if candidate_host == response_host:
+        return "runtime_page_delegated_inventory_record"
+
+    return None
+
+
+def runtime_delegated_candidate_host(
+    result: NetworkRecognitionResult,
+    candidate: JobPayloadCandidate,
+    *,
+    allowed_page_hosts: Iterable[str],
+    allowed_response_hosts: Iterable[str],
+    minimum_score: int = 7,
+) -> str | None:
+    """Return one job-host delegation only when runtime job-record proof succeeds."""
+
+    proof = runtime_job_record_proof(
+        result,
+        candidate,
+        allowed_page_hosts=allowed_page_hosts,
+        allowed_response_hosts=allowed_response_hosts,
+        minimum_score=minimum_score,
+    )
+    if proof is None:
+        return None
+    candidate_host = _host(candidate.candidate_url)
+    normalized = {str(item).casefold().strip(".") for item in allowed_response_hosts if str(item)}
+    if not candidate_host or candidate_host in normalized:
+        return None
+    return candidate_host
