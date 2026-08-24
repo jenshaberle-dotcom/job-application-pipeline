@@ -52,6 +52,24 @@ JOB_CONTEXT_MARKERS = {
     "vacancies",
 }
 
+NON_JOB_CONTEXT_MARKERS = {
+    "article",
+    "articles",
+    "blog",
+    "blogs",
+    "content",
+    "contents",
+    "media",
+    "nav",
+    "navigation",
+    "news",
+    "press",
+    "product",
+    "products",
+    "resource",
+    "resources",
+}
+
 TITLE_KEYS = {
     "jobname",
     "jobtitle",
@@ -253,6 +271,12 @@ def _job_context(parts: tuple[str, ...]) -> bool:
     return False
 
 
+def _non_job_context(parts: tuple[str, ...]) -> bool:
+    """Identify explicit non-job containers that must not inherit endpoint context."""
+
+    return any(_normalized_key(item) in NON_JOB_CONTEXT_MARKERS for item in parts)
+
+
 def _walk_dict_nodes(
     payload: Any,
     *,
@@ -303,7 +327,9 @@ def _candidate_from_mapping(
     normalized_keys = {_normalized_key(key) for key in mapping}
     explicit_job_key = bool(normalized_keys & EXPLICIT_JOB_KEYS)
     endpoint_path = urlparse(base_url).path
-    job_context = _job_context((*path, endpoint_path))
+    path_job_context = _job_context(path)
+    endpoint_job_context = _job_context((endpoint_path,))
+    job_context = path_job_context or (endpoint_job_context and not _non_job_context(path))
 
     if not title or not (identity or raw_url):
         return None
