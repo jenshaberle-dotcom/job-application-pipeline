@@ -13,7 +13,9 @@ permissions:
 jobs:
   observe-runtime-db-status:
     name: Observe read-only label migration status
-    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    # Use only stable default self-hosted labels for scheduling. Exact runtime
+    # identity remains fail-closed in the first step via RUNNER_NAME + RCC.
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     env:
       RCC_REPOSITORY_ID: "1230805345"
