@@ -1,6 +1,6 @@
 # REENTRY-001A Job Application Pipeline Re-Entry Decision
 
-Status: current repository re-entry; deterministic acquisition evidence-exhausted for bound cohort, booster admission next  
+Status: current repository re-entry; deterministic acquisition evidence-exhausted for bound cohort, booster admission evidence next  
 Date: 2026-08-25  
 Repository: `jenshaberle-dotcom/job-application-pipeline`  
 Repository ID: `1230805345`  
@@ -29,8 +29,8 @@ application authority remains outside acquisition shadow work.
 
 The deterministic acquisition campaign is now **evidence-exhausted for this bound
 40-case cohort at the current authority surface**. The exact nine-case residual is
-handed to `LLM-BOOST-001` / booster admission. The ML learning foundation remains a
-parallel lane.
+handed to task-specific booster admission under `LLM-BOOST-001`. The ML learning
+foundation remains a parallel lane.
 
 ## Required reads
 
@@ -41,19 +41,21 @@ Before continuing from this point, authenticate repository ID `1230805345` and r
 3. `docs/reference/search-intelligence/runtime_network_acquisition.md`;
 4. Pipeline issue `#522` (`LLM-BOOST-001`);
 5. `docs/reference/search-intelligence/booster_admission.md`;
-6. `docs/planning/active/ml_learning_foundation_lane.md`;
-7. Runtime repository `jenshaberle-dotcom/job-pipeline-runtime`, issue `#203`;
-8. Runtime issue #203 authoritative deterministic-closure comment `5414592644`;
-9. authoritative V33 run `32880015344` and persisted evidence at branch
-   `carrier/203-absolute-url-runtime-replay-v33-32880015344`, path
-   `carriers/connector-absolute-url-runtime-replay-v33/32880015344/result.json`;
-10. authoritative V34 run `32880929572` and persisted evidence at branch
+6. `src/search_intelligence/booster_admission.py`;
+7. `src/search_intelligence/llm_booster_policy.py`;
+8. `docs/planning/active/ml_learning_foundation_lane.md`;
+9. Runtime repository `jenshaberle-dotcom/job-pipeline-runtime`, issue `#203`;
+10. Runtime issue #203 authoritative deterministic-closure comment `5414592644`;
+11. authoritative V33 run `32880015344` and persisted evidence at branch
+    `carrier/203-absolute-url-runtime-replay-v33-32880015344`, path
+    `carriers/connector-absolute-url-runtime-replay-v33/32880015344/result.json`;
+12. authoritative V34 run `32880929572` and persisted evidence at branch
     `carrier/203-nested-job-key-provenance-v34-32880929572`, path
     `carriers/connector-nested-job-key-provenance-v34/32880929572/result.json`;
-11. fresh static V4 regression run `32881331391`, evidence branch
+13. fresh static V4 regression run `32881331391`, evidence branch
     `carrier/203-acquisition-proof-v4-32881331391`, path
     `carriers/connector-acquisition-proof-v4/32881331391/result.json`;
-12. merged Pipeline PR `#656`, which adds only normalized `absoluteurl` to generic
+14. merged Pipeline PR `#656`, which adds only normalized `absoluteurl` to generic
     runtime URL recognition.
 
 Earlier V25-V32 evidence remains historical support, but V33/V34 plus the fresh V4
@@ -206,17 +208,43 @@ Keep the following boundaries:
 
 ## Booster handoff
 
-Pipeline issue `#522` and `docs/reference/search-intelligence/booster_admission.md`
-are now the next residual authority.
+Pipeline issue `#522`, `docs/reference/search-intelligence/booster_admission.md`,
+`src/search_intelligence/booster_admission.py`, and
+`src/search_intelligence/llm_booster_policy.py` are now the next residual authority.
 
-Deterministic exhaustion — previously a mandatory admission precondition — is now
-proven for this exact bound cohort. That does **not** authorize an immediate provider
-call. Each residual still needs a booster-admission evidence bundle that establishes
-its relevant identity and semantic/retrieval gap, and Stage 0 runtime/preflight
-requirements must pass before any paid or external stage executes.
+The current admission code evaluates one explicit task-local surface using
+`BoosterOpportunityEvidence` and caller/operator-owned `BoosterAdmissionPolicy`
+thresholds. It does **not** contain a synthetic `deterministic_exhausted` switch and
+it does not authorize provider execution.
 
-Provider/search/LLM output remains advisory. Any candidate returned by a booster must
-still pass deterministic validation/proof/promotion before downstream authority.
+Facts established by the deterministic campaign for the candidate acquisition
+surface are:
+
+- deterministic baseline is measured;
+- bound decision volume is `40`;
+- current accumulated deterministic residual is `9/40 = 0.225`;
+- the exact residual identities are listed above;
+- observability and deterministic downstream authority boundaries exist in the
+  repository.
+
+The campaign does **not** by itself establish safe numeric values for:
+
+- expected LLM/search rescue rate on this exact nine-case post-V34 residual;
+- expected value per rescued acquisition;
+- surface-specific incremental provider/search cost;
+- fixed validation/operational setup cost;
+- problem-fit/evidence-quality/repeatability/operational-risk scores;
+- operator/product admission thresholds.
+
+Those inputs must not be invented from old origin campaigns or test fixtures. The
+empirical costs in `llm_booster_policy.py` are explicitly planning observations for
+a different compact origin-hypothesis prompt family and require per-surface smoke
+evidence before promotion.
+
+A positive `BOOSTER-ADMISSION-001` result means only that offline/shadow evidence is
+worth collecting. `execution_authorized` and `product_authority` remain false.
+Provider/search/LLM output remains advisory and any candidate must still pass
+deterministic validation/proof before downstream authority.
 
 ## ML boundary
 
@@ -227,19 +255,26 @@ retroactively redefine acquisition truth.
 
 ## Sole next safe action
 
-Build the exact **nine-case booster-admission assessment** under `LLM-BOOST-001`:
+Build a **provider-free nine-case LLM booster-admission evidence record** for the
+explicit post-V34 acquisition residual:
 
-1. bind the assessment to Pipeline `36972bf50c787ee291e3179d9b9fd86123dabd88`
-   and Runtime closure evidence from V33/V34;
-2. set `deterministic_exhausted=True` only because V34 and the fresh 40er now prove
-   that condition for this exact cohort;
-3. verify candidate identity before allowing admission;
-4. classify each residual's semantic gap, fresh-external-retrieval need, and
-   source-discovery need using repository evidence only;
-5. run the existing deterministic booster planner and record the planned stages;
-6. perform no provider/search/LLM call until Stage 0 kill-switch, credential,
-   retry-cap, cost/temperature, and trustworthy credit/usage telemetry gates pass;
-7. keep all provider output advisory and require deterministic validation afterward.
+1. bind it to Pipeline `36972bf50c787ee291e3179d9b9fd86123dabd88`, Runtime
+   closure V33/V34, fresh V4 `32881331391`, and the exact nine residual identities;
+2. record only the measured common admission inputs that repository evidence already
+   supports (`baseline_measured=True`, decision volume `40`, deterministic residual
+   rate `0.225`, explicit authority boundary and evidence provenance);
+3. explicitly represent every still-unknown admission/economic input rather than
+   substituting fixture thresholds or old origin-model means;
+4. classify what additional **provider-free** evidence or explicit operator/product
+   policy is required to complete those unknown inputs;
+5. do **not** call `evaluate_booster_admission` with fabricated numbers and do not
+   infer an admitted result while required policy/evidence inputs are unknown;
+6. once all required evidence and policy thresholds are genuinely supplied, evaluate
+   `BoosterOpportunityEvidence` through the existing pure admission module; only an
+   admitted result may proceed to a separate surface-specific offline/shadow smoke;
+7. no Tavily/OpenAI/provider call is authorized by this handoff. Existing
+   LLM-BOOST-001 budget/search-first/replay/validation gates remain separately
+   authoritative if a later shadow is admitted.
 
 Do not return to more acquisition heuristics unless new external evidence creates a
 new generic deterministic class. Do not start paid booster execution merely because
@@ -251,4 +286,5 @@ Repository work is active. Deterministic acquisition is **closed/evidence-exhaus
 for the bound cohort**. Fresh static truth is `23/40`; accumulated bounded Runtime
 deterministic truth is `31/40`; exact residual is `9/40`.
 
-The sole next safe action is the nine-case `LLM-BOOST-001` admission assessment above.
+The sole next safe action is the provider-free nine-case `BOOSTER-ADMISSION-001`
+evidence record above.
