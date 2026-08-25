@@ -222,16 +222,32 @@ bound 40-case cohort at the current authority surface.**
 - `63` — `the_associated_engineers`;
 - `72` — `bjak`.
 
-## Relationship to LLM/search and ML
+## Relationship to booster admission and ML
 
 The nine residual cases now move to the separate task-specific booster admission
-path under Pipeline issue #522 and
-`docs/reference/search-intelligence/booster_admission.md`.
+path under Pipeline issue #522, `docs/reference/search-intelligence/booster_admission.md`,
+and `src/search_intelligence/booster_admission.py`.
 
-Deterministic exhaustion is a booster-admission precondition, not authorization to
-call a provider. Identity verification, semantic/retrieval-gap classification, and
-Stage 0 runtime/telemetry gates remain mandatory. Provider/search/LLM output is
-advisory and must still pass deterministic validation before downstream authority.
+The deterministic campaign supplies a measured baseline and residual, but it does
+not itself produce a positive booster-admission decision. The current admission
+module requires one explicit `BoosterOpportunityEvidence` plus caller/operator-owned
+`BoosterAdmissionPolicy` thresholds. It remains pure and always leaves provider
+execution and Product authority false.
+
+For this exact bound acquisition surface, repository evidence supports decision
+volume `40` and deterministic residual rate `9/40 = 0.225`. It does **not** establish
+surface-specific expected rescue rate, value per rescue, incremental provider cost,
+fixed validation cost, problem-fit/evidence-quality/repeatability/operational-risk
+scores, or product/operator thresholds. Those values must not be copied from test
+fixtures or from the old origin-hypothesis empirical means in
+`llm_booster_policy.py`.
+
+The next provider-free step is therefore to materialize the measured admission
+record with explicit unknowns and identify what evidence/policy is still needed
+before calling `evaluate_booster_admission`. Only a genuinely admitted result may
+proceed to a separately governed offline/shadow LLM/search smoke. Provider/search/
+LLM output remains advisory and must still pass deterministic validation before
+downstream authority.
 
 The ML learning foundation remains parallel and is not redefined by acquisition
 exhaustion.
@@ -248,6 +264,8 @@ exhaustion.
 - no credential/token/cookie/form-value persistence;
 - no raw Runtime response or HTML persistence by default;
 - no DB/Product/source activation/application mutation in acquisition shadow work;
+- no fabricated booster economics, fit/risk scores, rescue rates, or policy
+  thresholds merely to force an admission result;
 - new deterministic work requires genuinely new reusable external evidence, not a
   reinterpretation of the exhausted V34 surface.
 
@@ -255,6 +273,6 @@ exhaustion.
 
 ACQ-RUNTIME-001 remains implemented and available as a bounded deterministic
 acquisition layer, but active recall hardening for this cohort is closed. The next
-safe repository action is the exact nine-case `LLM-BOOST-001` admission assessment,
-while retaining `23/40` fresh static V4 and `31/40` accumulated Runtime deterministic
-truth as separate metrics.
+safe repository action is the provider-free exact nine-case booster-admission
+evidence record, while retaining `23/40` fresh static V4 and `31/40` accumulated
+Runtime deterministic truth as separate metrics.
