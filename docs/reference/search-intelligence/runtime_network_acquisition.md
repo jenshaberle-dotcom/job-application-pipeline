@@ -1,63 +1,85 @@
 # ACQ-RUNTIME-001 Runtime / Network Acquisition
 
-Status: active deterministic implementation contract  
+Status: deterministic implementation contract; evidence-exhausted for bound 40-case cohort  
 Date: 2026-08-25  
 Authority: Pipeline issue #642  
-Current repository main before Slice 3A: `81eb232aad29a0e4c5f3d58cccc20eaee1073f26`
+Current Pipeline acquisition authority: `36972bf50c787ee291e3179d9b9fd86123dabd88`  
+Current Runtime campaign authority: `f763ea905a158e964f185beedaca05b17890f8c4`
 
 ## Why this layer exists
 
-The static V4 acquisition surface reached an evidence-supported ceiling at `23/40`
-genuine-job proofs and `17/40` `no_genuine_job_detail` residuals under its existing
-four-request contract. That result remains the fixed static control baseline.
+The static V4 acquisition surface reaches `23/40` genuine-job proofs and `17/40`
+`no_genuine_job_detail` residuals under the fixed four-request contract. Fresh V4
+run `32881331391` reproduces that result on the current Pipeline authority and is
+the regression control for the static default path.
 
-Runtime evidence later proved that the deterministic layer itself was not exhausted:
-the missing information was frequently absent from the static response and appeared
-only after client execution through XHR/fetch/GraphQL/POST, runtime-rendered routes,
-public inventory widgets, or other structured browser traffic.
+Runtime evidence proved that additional deterministic information is often absent
+from static responses and appears only after bounded client execution through
+XHR/fetch/POST traffic, public inventory widgets, runtime-rendered listing routes,
+or visible listing interaction.
 
-The browser is therefore an observation mechanism, not an authority mechanism.
-Runtime evidence may unlock additional deterministic transitions only through
-explicit bounded contracts.
+The browser is therefore an **evidence sensor, not an authority mechanism**.
+Runtime observation can unlock only explicitly bounded deterministic transitions.
 
-## Current measured truth
+## Two current acquisition truths
 
-The authoritative Runtime issue #203 evidence now records:
+Do not conflate these metrics:
 
-- static V4 baseline: `23/40`;
-- subsequent strict deterministic rescues before V24: `+4`;
-- authoritative V24 rescue: `+1`;
-- current strict proven: **`28/40`**;
-- current unresolved: **`12/40`**.
+### Static default truth
 
-Authoritative V24 run: `32833964560` against Pipeline
-`e0d55f8d2470fca5f0673943d83f2a3df3342d14`. The later Pipeline main changes to
-`81eb232aad29a0e4c5f3d58cccc20eaee1073f26` are RCC/project-hygiene changes and do
-not alter acquisition semantics.
+Fresh V4 run `32881331391` on Pipeline
+`36972bf50c787ee291e3179d9b9fd86123dabd88`:
 
-The earlier V24 runs `32782000620`, `32832864569`, and `32833522237` were technical
-harness/transport failures and are not negative acquisition evidence.
+- input: `40`;
+- genuine-job proven: `23`;
+- blocked: `17`;
+- blocked causes: `{"no_genuine_job_detail":17}`;
+- logical network requests: `110`;
+- request budget unchanged: base `3`, shared extra `1`, absolute max `4`;
+- Product/job persistence: `0`.
+
+### Bounded Runtime deterministic truth
+
+Accumulated Runtime campaigns through V34:
+
+- static baseline: `23/40`;
+- deterministic rescues through V24: `+5`;
+- V25 visible interaction: `+1`;
+- V26: `+0`;
+- V27: `+0`;
+- V28: `+0`;
+- V29 observed ATS listing replay: `+1`;
+- V30: `+0`;
+- V31 oversized jobish JSON inspection: `+0`;
+- V32 structural provenance diagnostic: `+0` by construction;
+- V33 `absolute_url` parser repair replay: `+1`;
+- V34 nested key provenance diagnostic: `+0` by construction;
+- **Runtime deterministic proven: `31/40`**;
+- **unresolved: `9/40`**.
+
+Runtime proof is acquisition evidence. It is not automatically Product/source/
+application authority and must not be arithmetically added to the static V4 count.
 
 ## Target flow
 
 ```text
-career/listing page
+authorized career/listing page
     -> bounded browser execution
     -> optional bounded visible listing interaction
-    -> network observation
+    -> transient network observation
     -> structured response recognition
     -> deterministic runtime job-record proof
     -> bounded one-hop delegated inventory authority when proven
     -> candidate detail/runtime evidence
-    -> existing final acquisition authority
+    -> unchanged downstream authority
 ```
 
-No interaction, provider marker, candidate object, or browser event is Product truth
-by itself.
+No interaction, provider marker, candidate object, historical URL, or browser event
+is Product truth by itself.
 
 ## Runtime structured-response authority
 
-`src/search_intelligence/runtime_network_acquisition.py` owns the pure runtime
+`src/search_intelligence/runtime_network_acquisition.py` owns the pure Runtime
 network contract. It:
 
 - sanitizes persistable request/response/page URLs;
@@ -66,52 +88,55 @@ network contract. It:
 - recognizes provider/company-agnostic job-shaped records;
 - gives explicit non-job containers precedence over endpoint job context;
 - separates recognition from `runtime_job_record_proof`;
-- permits the bounded `runtime_page_delegated_inventory_record` proof only when an
-  already-authorized browser page observes a strong structured job record whose
-  candidate URL remains on the observed cross-host inventory response;
-- permits one-hop candidate-host delegation only after runtime job-record proof;
+- permits `runtime_authorized_inventory_record` only after the existing strong
+  structured-record checks succeed on an authorized Runtime surface;
+- permits `runtime_page_delegated_inventory_record` for the bounded observed
+  cross-host inventory case;
+- permits one-hop candidate-host delegation only after Runtime job-record proof;
 - persists no raw response body, cookies, headers, form values, credentials, or
   browser state.
 
-This authority was implemented by Pipeline PRs #645 and #646 and then extended by
-PR #650 with the explicit public-inventory delegation contract. Provider/company
-exceptions are not encoded.
+Pipeline PRs #645, #646, and #650 established the core generic contract. Provider or
+company-specific success exceptions are not encoded.
 
-## Slice 3A — bounded visible listing interaction policy
+## Generic URL recognition and `absoluteurl`
 
-Fresh authoritative V24 evidence selects the next generic deterministic surface:
-a bounded sequence of visible listing interactions before another structured
-runtime observation pass.
+V31-V33 exposed and repaired one evidence-backed parser blind spot without changing
+proof authority.
 
-`src/search_intelligence/runtime_listing_interaction.py` owns the pure selection
-policy. The Runtime browser adapter remains outside the module.
+V31 observed a same-authorized Zscaler `POST /api/get-greenhouse-jobs` response of
+`2,568,911` bytes. The response contained recognizable job-shaped records but no
+candidate URL under the then-current URL-key vocabulary.
 
-### Allowed evidence
+V32 structural provenance run `32875715254` proved:
 
-The caller may provide only sanitized metadata for controls that are currently
-visible in an already-authorized public career/listing page:
+- top-level `jobs` contains `342` direct records;
+- all `342` contain normalized `title`, `id`, `locations`, and `absoluteurl`;
+- `absoluteurl` was the sole unrecognized URL-shaped key on those job records;
+- negative sibling `departments` and `locations` containers did not carry the same
+  title/identity/URL structure.
 
-- role;
-- visible text;
-- ARIA label;
-- explicit href when present;
-- small local context text;
-- visible/enabled state.
+Pipeline PR #656 added normalized `absoluteurl` to `URL_KEYS` only. It was **not**
+added to `EXPLICIT_JOB_KEYS`, so an `absolute_url` field alone never makes an object
+a job. Existing job context, scoring, authorization, and proof requirements remain
+mandatory.
 
-No DOM selector, script body, hidden element, form value, cookie, credential, token,
-or raw page snapshot becomes durable authority.
+V33 run `32880015344` replayed the same Runtime surface with that one parser delta:
 
-### Generic interaction families
+- candidate `56` / Zscaler rescued;
+- bounded candidates: `30`;
+- existing Runtime proofs: `20`;
+- proof kind: `runtime_authorized_inventory_record`;
+- observed delegated host: `job-boards.greenhouse.io`;
+- diagnostic/drain/context failures: `0/0/0`;
+- no acceptance, host, or proof rule changed.
 
-The first bounded families are:
+## Bounded visible listing interaction
 
-1. `load_more` — explicit load/show/view-more jobs or positions controls;
-2. `next_page` — explicit next-page/jobs controls, with generic `next` accepted only
-   on job-context pages;
-3. `open_jobs` — explicit jobs/open-jobs/search-jobs/view-jobs controls;
-4. one bounded `scroll` probe only when no fresh eligible click is available.
+`src/search_intelligence/runtime_listing_interaction.py` owns the pure interaction
+selection policy. Runtime browser execution remains outside the module.
 
-The default per-page budget is:
+Default per-page budget:
 
 ```text
 max_total_actions = 3
@@ -119,67 +144,117 @@ max_click_actions = 2
 max_scroll_actions = 1
 ```
 
-The Runtime caller must rescan the currently visible controls after every selected
-action and invoke the pure selector again with updated progress. This avoids
-planning future clicks against stale DOM state.
+Generic families remain:
 
-### Fail-closed behavior
+1. explicit load/show/view-more jobs or positions;
+2. explicit next-page/jobs controls, with plain `next` only in job context;
+3. explicit jobs/open-jobs/search-jobs/view-jobs controls;
+4. one bounded scroll probe if no fresh eligible click exists.
 
-The policy rejects:
+The caller must rescan visible controls after every action. Hidden/disabled controls,
+apply/login/register/upload/contact/filter/sort/privacy/cookie noise, disallowed
+roles, non-HTTPS absolute hrefs, repeated fingerprints, inconsistent progress, and
+post-budget actions fail closed.
 
-- unauthorized pages;
-- hidden or disabled controls;
-- non-link/non-button controls;
-- explicit non-HTTPS absolute hrefs;
-- apply/submit/login/register/upload/contact controls;
-- filter/sort/privacy/cookie/noise controls;
-- generic `load more` or plain `next` outside job context;
-- repeated control fingerprints;
-- inconsistent progress state;
-- any action after the configured budget is exhausted.
+V25 proved this surface can add recall; V26 removed harness artefacts and added no
+further rescue. **Do not broaden interaction semantics merely to chase the current
+nine residuals.**
 
-Control fingerprints use only normalized sanitized metadata; secret-like query
-values are redacted before hashing.
+## Historical/provider route observations
 
-A selected click or scroll grants **zero** host, source, candidate, job, lifecycle,
-ranking, application, or Product authority. Any newly observed structured response
-must still pass the existing ACQ-RUNTIME-001 runtime recognition/proof contracts.
+Later campaigns established additional bounded principles without creating guessed
+provider routes:
 
-## Next Runtime proof after Slice 3A merge
+- V27: the exact current X1F Personio feed was real but empty; do not guess another
+  tenant/locale/feed;
+- V28: canonical provider-detail shape alone is not proof when unchanged content
+  proof fails;
+- V29: an exact historically observed provider/listing route may be replayed as a
+  sensor entry when it remains authorized and otherwise admissible; historical
+  observation itself grants no job authority;
+- V30: broader already-observed public route replay added no rescue;
+- V31: a transient body-cap lift may inspect a same-authorized jobish JSON response
+  when bounded by the explicit campaign contract; the cap lift itself grants no
+  proof.
 
-Runtime should consume the exact merged Pipeline SHA and execute the current
-remaining 12-case residual in shadow/read-only mode with:
+No direct endpoint invention, token reconstruction, tenant guessing, POST-body
+reconstruction, or company-specific protocol branch is authorized by these results.
 
-- the default bounded interaction budget above;
-- fresh visible-control rescans after each action;
-- transient structured-response parsing only;
-- the existing `runtime_page_delegated_inventory_record` and related runtime proof
-  authority unchanged;
-- no guessed ATS token, tenant, endpoint, selector, or company-specific rule;
-- no raw body/HTML persistence;
-- no provider/LLM/Tavily calls;
-- no DB/Product/source/application mutation.
+## V34 deterministic exhaustion evidence
 
-The result must report interaction counts/reason codes, runtime-record proof counts,
-strict incremental rescues, diagnostic failures/truncations, and a new exact
-40-cohort acquisition total. A default-path promotion requires cross-company
-evidence plus focused positive/negative Pipeline tests.
+Authoritative V34 run `32880929572` inspected the exact V33 nine-case residual for a
+final generic nested parser/protocol blind spot. V34 was diagnostic-only and could
+not rescue a case by construction.
+
+Result:
+
+- `9` residual cases bound;
+- only `4` cases / `7` already-observed seeds remained replay-eligible;
+- five cases had no admissible deterministic seed on this surface;
+- `3` same-authorized jobish JSON structural events inspected;
+- diagnostic failures: `0`;
+- response-drain timeouts: `0`;
+- context-close failures: `0`;
+- incidental existing Runtime proofs: `0`;
+- remaining unrecognized URL-shaped keys: `contactlink`, `getreferrallink`,
+  `ncdrejectbannerlinktext`;
+- remaining unknown identity/job/title-shaped fields were UI/content/search/
+  preference/opening-hours structures;
+- six `title + location` mappings without identity/URL were office/contact
+  structures rather than job records.
+
+This evidence does not justify another parser alias, protocol adapter, interaction
+rule, URL-less proof, or route reconstruction. Such a change would move from
+observed generic evidence to heuristic recall chasing.
+
+**Deterministic Runtime/parser acquisition is therefore evidence-exhausted for this
+bound 40-case cohort at the current authority surface.**
+
+## Exact residual after deterministic exhaustion
+
+- `32` — `genoverband_e_v`;
+- `33` — `x1f`;
+- `35` — `msg_systems`;
+- `45` — `bridgingit`;
+- `47` — `commercetools`;
+- `48` — `freenet_dls`;
+- `52` — `prodyna`;
+- `63` — `the_associated_engineers`;
+- `72` — `bjak`.
 
 ## Relationship to LLM/search and ML
 
-LLM/search remains a separate task-specific booster path under #522 and
-`BOOSTER-ADMISSION-001`; it does not replace runtime determinism and is not invoked
-by Slice 3A. The ML learning foundation lane remains parallel and untouched.
+The nine residual cases now move to the separate task-specific booster admission
+path under Pipeline issue #522 and
+`docs/reference/search-intelligence/booster_admission.md`.
 
-## Hard boundaries
+Deterministic exhaustion is a booster-admission precondition, not authorization to
+call a provider. Identity verification, semantic/retrieval-gap classification, and
+Stage 0 runtime/telemetry gates remain mandatory. Provider/search/LLM output is
+advisory and must still pass deterministic validation before downstream authority.
+
+The ML learning foundation remains parallel and is not redefined by acquisition
+exhaustion.
+
+## Hard boundaries after exhaustion
 
 - no company-specific success branch;
 - no weakening of final genuine-job/content proof;
 - no provider/model result as authority;
-- no guessed ATS token, endpoint, tenant, or route;
+- no guessed ATS token, endpoint, tenant, route, selector, board, site, or job ID;
+- no reconstruction of unknown POST bodies;
+- no URL-less job proof added merely to increase recall;
+- no broadening of visible interaction merely to chase residual cases;
 - no credential/token/cookie/form-value persistence;
-- no raw runtime response or HTML persistence by default;
-- no DB/Product/source activation/application mutation in shadow discovery;
-- bounded execution with explicit fail-closed state;
-- any production/default-path promotion requires fresh cross-company evidence and
-  repository validation.
+- no raw Runtime response or HTML persistence by default;
+- no DB/Product/source activation/application mutation in acquisition shadow work;
+- new deterministic work requires genuinely new reusable external evidence, not a
+  reinterpretation of the exhausted V34 surface.
+
+## Current continuation
+
+ACQ-RUNTIME-001 remains implemented and available as a bounded deterministic
+acquisition layer, but active recall hardening for this cohort is closed. The next
+safe repository action is the exact nine-case `LLM-BOOST-001` admission assessment,
+while retaining `23/40` fresh static V4 and `31/40` accumulated Runtime deterministic
+truth as separate metrics.
