@@ -93,6 +93,7 @@ IDENTITY_KEYS = {
     "slug",
 }
 URL_KEYS = {
+    "absoluteurl",
     "applyurl",
     "canonicalurl",
     "detailpageurl",
