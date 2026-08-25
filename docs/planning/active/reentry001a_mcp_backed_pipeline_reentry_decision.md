@@ -4,27 +4,32 @@ Status: current repository re-entry; deterministic runtime acquisition hardening
 Date: 2026-08-25  
 Repository: `jenshaberle-dotcom/job-application-pipeline`  
 Repository ID: `1230805345`  
-Current repository main at this slice start: `657d4c84a03a0327d152eb5c158a005166b4bfbb`  
+Current Pipeline main before this re-entry refresh: `c218a5b827a8189ab0c6e900dee7cb56e8385d30`  
 Boundary: repository and Runtime evidence are project truth; chat is not project truth
 
 ## Purpose
 
 This file is the canonical continuation point for the Job Application Pipeline.
-The immediately previous version is stale in one material respect: it stopped at
-the authoritative V24 checkpoint of `28/40` strict proven and `12/40` unresolved,
-and still described ACQ-RUNTIME-001 Slice 3A visible listing interaction as the next
-safe action.
+The previous version was authoritative through V27 at `29/40` strict proven and
+`11/40` unresolved. It is stale because two additional deterministic inspections
+have since completed:
 
-Slice 3A has since been merged and exercised by fresh Runtime evidence. V25 rescued
-one additional candidate without changing proof authority, while V26 and V27
-hardened and extended deterministic acquisition but produced no further strict
-rescues. The current measured cohort is therefore **`29/40` proven and `11/40`
+- V28 tested whether an already-canonical provider detail URL at the observed root
+  could reuse existing `known_detail` semantics without changing the genuine-job
+  content proof. It produced no rescue.
+- V29 replayed only literal, historically persisted ATS listing URLs that were
+  still current-authorized and had not already been retried. Candidate `40` /
+  Compugroup Medical was rescued through an actual Workday detail GET with the
+  unchanged `jsonld_jobposting` proof.
+
+The current measured cohort is therefore **`30/40` strict proven and `10/40`
 unresolved**.
 
-The generic visible-interaction surface is now evidence-exhausted for this bound
-cohort. Deterministic acquisition as a whole is not yet declared exhausted until
-the exact 11-case residual has been inspected for other already-observed,
-provider-family/public-inventory protocols.
+Generic visible click/scroll broadening remains evidence-exhausted for this bound
+cohort. Deterministic acquisition as a whole is not yet exhausted: the exact
+10-case residual still requires an inspection for literal, already-observed
+job-related routes on already-authorized hosts across the historical V9/V13
+sanitized evidence.
 
 ## Required reads
 
@@ -35,55 +40,25 @@ Before continuing from this point, authenticate repository ID `1230805345` and r
 3. `docs/reference/search-intelligence/runtime_network_acquisition.md`;
 4. merged Pipeline PRs `#645`, `#646`, `#650`, and `#653`;
 5. Runtime repository `jenshaberle-dotcom/job-pipeline-runtime`, issue `#203`;
-6. Runtime issue #203 comment `5412094990`, the authoritative V27 checkpoint;
-7. Runtime V25 run `32842742734`, V26 run `32859303936`, and authoritative V27
-   retry run `32860970408`;
-8. V27 persisted evidence at branch
-   `carrier/203-personio-public-feed-v27-32860970408`, path
-   `carriers/connector-personio-public-feed-v27/32860970408/result.json`;
-9. Pipeline issue `#522` (`LLM-BOOST-001`) and
-   `docs/reference/search-intelligence/booster_admission.md`;
-10. `docs/planning/active/ml_learning_foundation_lane.md`.
+6. Runtime issue #203 comment `5413405373`, the authoritative V29 checkpoint;
+7. Runtime V25 run `32842742734`, V26 run `32859303936`, authoritative V27 retry
+   run `32860970408`, V28 run `32865852021`, and authoritative V29 retry run
+   `32867166735`;
+8. V29 persisted evidence at branch
+   `carrier/203-observed-provider-listing-replay-v29-32867166735`, path
+   `carriers/connector-observed-provider-listing-replay-v29/32867166735/result.json`;
+9. historical V9 endpoint evidence run `32644166249` and V13 static-route evidence
+   referenced from Runtime issue `#203`;
+10. Pipeline issue `#522` (`LLM-BOOST-001`) and
+    `docs/reference/search-intelligence/booster_admission.md`;
+11. `docs/planning/active/ml_learning_foundation_lane.md`.
 
 Do not substitute assistant memory, chat summaries, retired NEXT artifacts, stale
 planning notes, or superseded PR descriptions for these sources.
 
-## Repository delta since the prior re-entry
-
-The prior re-entry correctly established V24 as `28/40` and selected bounded
-visible listing interaction as the next generic deterministic slice. Since then:
-
-- Pipeline PR `#653` merged the pure fail-closed Slice 3A policy for bounded visible
-  listing interaction;
-- Runtime V25 executed that policy over the bound residual and rescued candidate
-  `37` / E.ON Grid Solutions through a real visible-detail transition followed by
-  the unchanged genuine-job proof (`jsonld_jobposting`);
-- V25 therefore advanced the strict cohort from `28/40` to `29/40`;
-- Runtime V26 hardened the same interaction harness by rejecting static-asset seeds
-  and decoupling click dispatch from navigation waiting;
-- V26 produced `0` additional strict rescues, `0` runtime proofs, and no case-level
-  drain/context failures, leaving `29/40` and `11/40` unresolved;
-- Runtime V27 reused the existing Pipeline Personio provider/target-authority
-  contract rather than inventing a new route;
-- only candidate `33` / X1F was eligible for that exact Personio path;
-- `https://x1f.jobs.personio.de/xml?language=de` returned HTTP `200` but contained
-  `0` positions, so feed/employer authority deliberately failed closed and no
-  detail request was attempted;
-- V27 therefore produced `0` additional rescues and left the strict cohort at
-  `29/40`;
-- V27 run `32860548943` was a technical harness failure caused by an accidental
-  V18/Playwright helper dependency before any Personio GET. It is not acquisition
-  evidence. PR `#307` removed that dependency and retry run `32860970408` is the
-  authoritative V27 evidence;
-- Runtime execution-only retry carrier PR `#308` was closed unmerged after the
-  authoritative evidence had been persisted.
-
-Open PR `#647` was written against the much earlier `42157f...` / `24/40` state and
-remains superseded. It must not be treated as current project truth.
-
 ## Static V4 control baseline
 
-The fixed static control remains the post-PR-#639 V4 proof:
+The fixed static control remains:
 
 - input: `40`;
 - strict genuine-job acquisition proven: `23`;
@@ -94,16 +69,16 @@ The fixed static control remains the post-PR-#639 V4 proof:
 - provider/LLM/Tavily requests: `0`;
 - Product/DB/source/application mutation: `0`.
 
-This result is not rewritten by later runtime campaigns. Runtime lift is measured
-incrementally against it.
+Later Runtime campaigns do not rewrite this baseline. They measure incremental
+strict rescue against it.
 
 ## Current authoritative acquisition truth
 
-Runtime issue #203 comment `5412094990` is the current cohort checkpoint.
-Authoritative V27 retry run `32860970408` executed against Pipeline
-`657d4c84a03a0327d152eb5c158a005166b4bfbb`, exact Runtime base
-`6605a9de0f88a48634745a6c89fc4bce40288717`, and authoritative V26 run
-`32859303936`.
+Runtime issue #203 comment `5413405373` is the current cohort checkpoint.
+Authoritative V29 retry run `32867166735` executed against exact Runtime base
+`36b753c61796e416462b521afc3bc9ed09971af7`, exact Pipeline snapshot
+`c218a5b827a8189ab0c6e900dee7cb56e8385d30`, authoritative V26 run
+`32859303936`, and historical V9 endpoint evidence `32644166249`.
 
 The result chain is:
 
@@ -112,31 +87,47 @@ The result chain is:
 - V25 visible interaction: `+1` — candidate `37` / E.ON Grid Solutions;
 - V26 interaction harness hardening: `+0`;
 - V27 Personio public-feed proof: `+0`;
-- **current strict proven: `29/40`**;
-- **current unresolved: `11/40`**.
+- V28 canonical provider-root detail proof: `+0`;
+- V29 observed ATS listing replay: `+1` — candidate `40` / Compugroup Medical;
+- **current strict proven: `30/40`**;
+- **current unresolved: `10/40`**.
 
-V26 additionally reported:
+### V28 result
 
-- diagnostic execution failures: `0`;
-- response-drain timeouts: `0`;
-- context-close failures: `0`;
-- runtime proof count: `0`;
-- strict hardening rescues: `0`.
+V28 admitted exactly one case/seed: candidate `32` / Genoverband on the observed
+canonical d.vinci URL `/de/jobs/118/intro`. The URL returned HTTP `200` and retained
+strict d.vinci provider-detail authority, but both the control proof and the
+existing `known_detail=True` proof remained null because the unchanged genuine-job
+content/title requirements did not hold. V28 therefore added no recall and the
+root-detail promotion was not adopted.
 
-V27 additionally proved:
+### V29 result
 
-- Personio-eligible residual cases: `1`;
-- exact eligible case: candidate `33` / `x1f`;
-- exact public Personio feed route: HTTP `200`;
-- feed positions returned: `0`;
-- validated feed authority count: `0`;
-- detail attempts: `0`;
-- strict Personio rescues: `0`;
-- fail-closed reason: `personio_xml_has_no_positions`.
+V29 replayed only historical ATS-provider URLs that were:
 
-The failed V27 run `32860548943` is not a zero-rescue result; it failed before the
-provider-family request because of a technical import dependency and produced no
-acquisition evidence.
+- literal endpoints persisted by V9;
+- queryless HTTPS;
+- still current-authorized for the exact residual case;
+- recognized by the current ATS registry;
+- not already present in the current V26 seed set;
+- not static assets, login/apply/privacy noise, or non-GET form hints.
+
+Exactly one residual case was eligible: candidate `40` / Compugroup Medical.
+Historical Workday listing seeds `/cgm` and `/de-DE/cgm` were opened passively.
+The listing page exposed a visible Workday detail URL. A separate metered GET to
+that exact discovered URL returned HTTP `200` and passed unchanged
+`jsonld_jobposting` proof. V29 therefore added one strict rescue.
+
+V29 also observed real Workday frontend traffic, including a public jobs POST and
+job-detail GET under `/wday/cxs/...`. This is observational protocol evidence only;
+V29 did not construct or guess a CXS route. No second Workday case remains in the
+current 10-case residual, so a Workday-CXS adapter is not the current cohort's
+strongest next deterministic slice.
+
+The earlier V29 run `32866803722` is not acquisition evidence. It failed before any
+historical ATS page was opened because the isolated Playwright image lacked the
+Python `playwright` package. Runtime PR `#313` repaired that transport and retry run
+`32867166735` is authoritative.
 
 ## Current deterministic authority
 
@@ -150,18 +141,33 @@ authorized public career/listing page
 -> generic runtime payload recognition
 -> runtime job-record proof
 -> bounded observed inventory/delegated-host authority where proven
--> existing provider-family public-inventory authority where exact identity is proven
+-> existing provider-family/public-inventory authority where exact identity is proven
 -> unchanged downstream acquisition authority
 ```
 
-The browser remains an evidence sensor. Neither page rendering nor a click grants
-host, source, job, lifecycle, ranking, application, or Product authority.
-Provider-family recognition likewise does not grant tenant/employer authority by
-itself.
+The browser is an evidence sensor. Rendering, clicking, provider recognition, or a
+historically observed route alone never grants host, source, job, lifecycle,
+ranking, application, or Product authority.
+
+### Visible interaction
+
+Slice 3A remains implemented in
+`src/search_intelligence/runtime_listing_interaction.py` with the default per-page
+budget:
+
+```text
+max_total_actions = 3
+max_click_actions = 2
+max_scroll_actions = 1
+```
+
+V25 proved the slice can add recall. V26 removed generic harness artefacts and then
+produced no additional rescue. For this bound cohort, **do not broaden click/scroll
+semantics merely to chase recall**.
 
 ### Runtime structured-response proof
 
-`src/search_intelligence/runtime_network_acquisition.py` is already merged and owns:
+`src/search_intelligence/runtime_network_acquisition.py` remains authoritative for:
 
 - bounded JSON traversal;
 - secret-like query redaction;
@@ -173,105 +179,90 @@ itself.
 
 No raw runtime response is persistent truth.
 
-### Slice 3A — visible listing interaction
+### Provider/public-inventory evidence
 
-Slice 3A is now implemented and evidence-tested. The pure Pipeline policy remains
-`src/search_intelligence/runtime_listing_interaction.py` with the default per-page
-budget:
+V27 proved the exact current Personio XML feed for X1F is real but empty. No
+alternate Personio tenant, locale, endpoint, or detail identifier may be guessed.
 
-```text
-max_total_actions = 3
-max_click_actions = 2
-max_scroll_actions = 1
-```
+V28 proved canonical provider-detail URL shape alone is insufficient when unchanged
+content proof fails.
 
-Eligible generic families remain:
+V29 proved a different reusable principle: a **literal historical provider/listing
+route may be replayed as a sensor entry only when that exact route was previously
+observed, remains authorized, and is absent from the current retry surface**. Proof
+still comes from a new metered detail GET or the existing runtime record proof, not
+from the historical route itself.
 
-- explicit load/show/view-more jobs or positions;
-- explicit next-page/jobs controls, with plain `next` requiring job context;
-- explicit jobs/open-jobs/search-jobs/view-jobs controls;
-- one bounded scroll probe when no fresh eligible click is available.
-
-Fail-closed exclusions remain unchanged, including unauthorized pages,
-hidden/disabled controls, apply/submit/login/register/upload/contact controls,
-filter/sort/privacy/cookie noise, non-link/non-button controls, non-HTTPS explicit
-absolute hrefs, repeated control fingerprints, inconsistent progress, and exhausted
-budgets.
-
-V25 proved that this slice can add strict recall (`+1`). V26 then removed two
-generic harness artefacts but yielded no further proof across the remaining cases.
-For the bound 40-case cohort, **generic click/scroll broadening is now exhausted and
-must not be extended merely to chase recall**.
-
-### Provider-family public inventory
-
-The repository already contains deterministic ATS/provider recognition and
-provider-specific authority contracts. V27 exercised the existing Personio path
-only where an already-observed authorized Personio hostname exposed a concrete
-target hint and the employer had reviewed identity evidence.
-
-That path is now also exhausted for the current X1F evidence: the exact public XML
-feed is real but currently empty. No Personio endpoint, tenant, locale variant, or
-detail identifier may be guessed to manufacture inventory.
-
-This does not yet prove that all deterministic provider-family opportunities are
-exhausted across the other 10 non-Personio residual cases.
+The next inspection extends this principle beyond ATS-registry matches only if
+historical evidence already contains literal job-related routes on current
+authorized hosts.
 
 ## Deterministic hard boundaries
 
-These boundaries remain unchanged:
+These remain unchanged:
 
 - no company-specific success branch merely to increase cohort recall;
 - no guessed ATS token, tenant, endpoint, selector, route, board, site, or job ID;
 - no weakening of final genuine-job/content proof;
 - provider detection alone is never authority;
+- historical observation alone is never job proof;
 - no model/provider hypothesis as Product truth;
-- no raw HTML/API/XML body, credential, cookie, header, form value, or secret
-  persistence;
+- no raw HTML/API/XML body, credential, cookie, header, form value, request body,
+  or secret persistence;
 - no DB/Product/source activation/scheduler/application mutation in acquisition
   shadow work;
 - ambiguous evidence fails closed;
 - any promoted default rule requires focused positive/negative tests and fresh
-  cross-company or provider-family evidence.
+  reusable evidence.
 
 ## Booster and ML boundaries
 
 Pipeline `#522` remains the LLM/search booster authority for sparse, novel, or
-semantic residuals after the strongest admissible deterministic surface. It does
-not supersede ACQ-RUNTIME-001 and has not been invoked by V25–V27.
+semantic residuals after the strongest admissible deterministic surface. It has
+not been invoked by V25–V29 and must not be pulled forward while evidence-backed
+deterministic routes remain.
 
-The ML learning foundation lane remains parallel and active. Its first planned
-value surface remains `job_review_relevance`; runtime acquisition work neither
-replaces nor demotes that lane.
+The ML learning foundation lane remains parallel and active. Productive decision
+order remains deterministic authority first, then learned scoring/ML where
+admitted, with the LLM/search booster as the expensive residual layer. Runtime
+acquisition work does not replace or demote the ML lane.
 
 ## Sole next safe action
 
-Inspect the exact **11-case V27 residual** using only already-persisted sanitized
-V26/V27 and earlier provider-family evidence. Determine whether any unresolved
-cases expose another **already-observed** ATS/public-inventory protocol with enough
-exact board/tenant/site/host identity to support a bounded, read-only,
-provider-generic deterministic adapter.
+Inspect the exact **10-case V29 residual** against already-persisted sanitized V9,
+V13, V26, V27, V28, and V29 evidence. For each case, identify only literal
+job-related URLs/routes that satisfy all of the following:
 
-The inspection itself must make no new provider/LLM/Tavily request and no
-DB/Product/source/application write.
+1. the host is already current-authorized for that exact case;
+2. the route was actually observed in prior evidence rather than inferred;
+3. the route is public HTTPS and contains no persisted query value/secret;
+4. the route is not an apply/login/privacy/static-asset surface;
+5. the same normalized path has not already been exercised by V26/V28/V29;
+6. replaying it grants no proof by itself — unchanged HTML/runtime proof remains
+   mandatory.
 
-If such a protocol exists, select at most the strongest reusable provider-family
-slice, add focused positive/negative tests, and run a separately authorized bounded
-Runtime shadow with unchanged host and genuine-job proof authority.
+If multiple cases expose the same reusable route family, select the strongest
+cross-case generic family first. If only isolated routes exist, a bounded
+read-only **observed-route replay diagnostic** may measure them without promoting a
+company-specific production rule.
 
-If the 11-case inspection yields no such evidence-backed reusable protocol, record
-that deterministic acquisition is exhausted for this bound cohort and hand the
-remaining residual to the existing booster-admission path. Do **not** broaden
-visible click/scroll semantics further and do **not** try alternate Personio
-endpoints or guessed provider routes.
+Any Runtime shadow must remain bounded and read-only, persist only sanitized URL
+shapes and proof summaries, construct no new endpoint, and make no
+provider/LLM/Tavily request beyond the already observed public page GETs emitted by
+the browser.
+
+If this 10-case inspection produces no admissible untried observed routes, record
+that deterministic acquisition is exhausted for the bound cohort and hand the
+remaining residual to booster admission. Do not broaden click semantics or guess
+provider routes to avoid that conclusion.
 
 ## Re-entry status
 
-Repository work is active. Static V4 route inference is exhausted at its bounded
-surface. Generic visible interaction is also exhausted for this bound cohort, and
-the exact existing Personio public-feed path produced no current inventory.
+Repository work is active. Current strict truth is **`30/40` proven, `10/40`
+unresolved**. Static V4 route inference, generic visible interaction, the exact X1F
+Personio feed, and canonical-provider-root detail privilege are exhausted at their
+current evidence surfaces.
 
-Current strict truth is **`29/40` proven, `11/40` unresolved**. The only remaining
-deterministic question is whether the exact 11-case residual already contains
-sufficient observed authority for another reusable provider-family/public-inventory
-protocol. That inspection is the sole next safe action.
+The sole next safe action is the exact 10-case historical observed-route inspection
+described above. Deterministic acquisition is not declared exhausted until that
+inspection is complete.
