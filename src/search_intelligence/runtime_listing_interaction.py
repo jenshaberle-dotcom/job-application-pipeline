@@ -231,8 +231,8 @@ def select_next_listing_interaction(
     page_authorized: bool,
     page_url: str,
     controls: tuple[VisibleListingControl, ...],
-    progress: InteractionProgress = InteractionProgress(),
-    budget: InteractionBudget = InteractionBudget(),
+    progress: InteractionProgress | None = None,
+    budget: InteractionBudget | None = None,
 ) -> InteractionDecision:
     """Select one bounded generic listing interaction from fresh visible controls.
 
@@ -241,17 +241,19 @@ def select_next_listing_interaction(
     sequence without planning clicks against stale DOM state.
     """
 
-    _validate_budget(budget)
-    if not _valid_progress(progress):
+    resolved_progress = progress or InteractionProgress()
+    resolved_budget = budget or InteractionBudget()
+    _validate_budget(resolved_budget)
+    if not _valid_progress(resolved_progress):
         return InteractionDecision(action="stop", reason_code="invalid_interaction_progress")
     if not page_authorized:
         return InteractionDecision(action="stop", reason_code="page_not_authorized")
-    if progress.total_actions >= budget.max_total_actions:
+    if resolved_progress.total_actions >= resolved_budget.max_total_actions:
         return InteractionDecision(action="stop", reason_code="interaction_budget_exhausted")
 
-    attempted = set(progress.attempted_control_fingerprints)
+    attempted = set(resolved_progress.attempted_control_fingerprints)
     eligible: list[tuple[int, str, str]] = []
-    if progress.click_actions < budget.max_click_actions:
+    if resolved_progress.click_actions < resolved_budget.max_click_actions:
         for control in controls:
             classification = _classify_control(control, page_url=page_url)
             if classification is None:
@@ -263,11 +265,10 @@ def select_next_listing_interaction(
             eligible.append((priority, fingerprint, control_kind))
 
     if eligible:
-        priority, fingerprint, control_kind = sorted(
+        _, fingerprint, control_kind = sorted(
             eligible,
             key=lambda item: (-item[0], item[1], item[2]),
         )[0]
-        del priority
         return InteractionDecision(
             action="click",
             reason_code=f"visible_{control_kind}_control",
@@ -275,7 +276,7 @@ def select_next_listing_interaction(
             control_kind=control_kind,
         )
 
-    if progress.scroll_actions < budget.max_scroll_actions:
+    if resolved_progress.scroll_actions < resolved_budget.max_scroll_actions:
         return InteractionDecision(
             action="scroll",
             reason_code="bounded_listing_scroll_probe",
