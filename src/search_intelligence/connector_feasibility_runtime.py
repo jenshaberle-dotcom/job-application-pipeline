@@ -48,6 +48,12 @@ STRONG_JOB_BOARD_LABELS = (
     "job search",
     "vacancies",
     "open positions",
+    "job openings",
+    "see job openings",
+    "current openings",
+    "open roles",
+    "view roles",
+    "view all opportunities",
 )
 
 JOB_BOARD_HOST_LABELS = {
