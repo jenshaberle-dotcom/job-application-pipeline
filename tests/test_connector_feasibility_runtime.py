@@ -89,6 +89,24 @@ def test_search_path_with_strong_label_is_a_delegated_board_candidate() -> None:
     )
 
 
+def test_current_same_site_listing_synonyms_are_strong_when_route_is_job_specific() -> None:
+    origin_url = "https://www.example.com/careers"
+    for label, board_url in (
+        ("See job openings", "https://www.example.com/careers/jobs"),
+        ("View roles", "https://www.example.com/career/jobs"),
+        ("View all opportunities", "https://www.example.com/careers/open-positions"),
+        ("Open roles", "https://www.example.com/jobs"),
+    ):
+        html = f'<a href="{board_url}">{label}</a>'
+        assert extract_trusted_delegated_job_board_urls(origin_url, html) == (board_url,)
+
+
+def test_weak_opportunities_label_alone_does_not_expand_listing_discovery() -> None:
+    origin_url = "https://www.example.com/careers"
+    html = '<a href="https://www.example.com/about/opportunities">Opportunities</a>'
+    assert extract_trusted_delegated_job_board_urls(origin_url, html) == ()
+
+
 def test_explicit_greenhouse_tenant_root_is_a_delegated_board_repair_candidate() -> None:
     origin_url = "https://www.example.com/careers/"
     board_url = "https://job-boards.greenhouse.io/example"
