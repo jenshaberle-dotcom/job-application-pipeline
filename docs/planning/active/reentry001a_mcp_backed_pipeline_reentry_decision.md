@@ -1,19 +1,18 @@
 # REENTRY-001A Job Application Pipeline Re-Entry Decision
 
 Status: current repository re-entry; deterministic acquisition evidence-exhausted for bound cohort, booster admission evidence next  
-Date: 2026-08-25  
+Date: 2026-08-26  
 Repository: `jenshaberle-dotcom/job-application-pipeline`  
 Repository ID: `1230805345`  
-Current Pipeline authority before this documentation refresh: `36972bf50c787ee291e3179d9b9fd86123dabd88`  
-Current Runtime authority: `f763ea905a158e964f185beedaca05b17890f8c4`  
+Current Pipeline authority before this documentation refresh: `9a2135e93f612036e0cd7018159f980b9a8b2fed`  
+Current Runtime authority: `bbb6fc27ef57449f4e591f6a032f09709868a9db`  
 Boundary: repository and persisted Runtime evidence are project truth; chat is not project truth
 
 ## Purpose
 
 This file is the canonical continuation point for the Job Application Pipeline.
-The previous version stopped at V29 (`30/40` dynamic deterministic proven,
-`10/40` unresolved). Repository truth has advanced through V34 and a fresh static
-40-cohort regression proof.
+Repository truth has advanced through V36 and a fresh static 40-cohort regression
+proof against the current acquisition code.
 
 The current acquisition state has two intentionally separate truths:
 
@@ -24,13 +23,19 @@ The current acquisition state has two intentionally separate truths:
    that are not present in the static V4 observation surface.
 
 These values must not be added together and Runtime proof must not be confused with
-Product admission. The Runtime browser remains an evidence sensor; Product/source/
-application authority remains outside acquisition shadow work.
+Product admission. Runtime remains an evidence sensor; Product/source/application
+authority remains outside acquisition shadow work.
 
-The deterministic acquisition campaign is now **evidence-exhausted for this bound
-40-case cohort at the current authority surface**. The exact nine-case residual is
-handed to task-specific booster admission under `LLM-BOOST-001`. The ML learning
-foundation remains a parallel lane.
+V34 exhausted the previously observed parser/runtime surface. Fresh external
+evidence then created exactly one new generic deterministic class: explicit current
+career-origin drift from an already-authorized employer page. V35 measured that
+class and V36 evaluated its only candidate through the unchanged concrete-job/detail
+proof. V36 produced no rescue and no execution failure. Deterministic acquisition is
+therefore again **evidence-exhausted for this bound 40-case cohort at the current
+authority surface**.
+
+The exact nine-case residual is handed to task-specific booster admission under
+`LLM-BOOST-001`. The ML learning foundation remains a parallel lane.
 
 ## Required reads
 
@@ -45,27 +50,37 @@ Before continuing from this point, authenticate repository ID `1230805345` and r
 7. `src/search_intelligence/llm_booster_policy.py`;
 8. `docs/planning/active/ml_learning_foundation_lane.md`;
 9. Runtime repository `jenshaberle-dotcom/job-pipeline-runtime`, issue `#203`;
-10. Runtime issue #203 authoritative deterministic-closure comment `5414592644`;
+10. Runtime issue #203 authoritative deterministic-closure comment `5425089723`;
 11. authoritative V33 run `32880015344` and persisted evidence at branch
     `carrier/203-absolute-url-runtime-replay-v33-32880015344`, path
     `carriers/connector-absolute-url-runtime-replay-v33/32880015344/result.json`;
 12. authoritative V34 run `32880929572` and persisted evidence at branch
     `carrier/203-nested-job-key-provenance-v34-32880929572`, path
     `carriers/connector-nested-job-key-provenance-v34/32880929572/result.json`;
-13. fresh static V4 regression run `32881331391`, evidence branch
-    `carrier/203-acquisition-proof-v4-32881331391`, path
-    `carriers/connector-acquisition-proof-v4/32881331391/result.json`;
-14. merged Pipeline PR `#656`, which adds only normalized `absoluteurl` to generic
-    runtime URL recognition.
+13. authoritative V35 run `32943733665` and persisted evidence at branch
+    `carrier/203-career-origin-drift-v35-32943733665`, path
+    `carriers/connector-career-origin-drift-v35/32943733665/result.json`;
+14. authoritative final V36 run `32967220874` and persisted evidence at branch
+    `carrier/203-career-origin-candidate-proof-v36-32967220874`, path
+    `carriers/connector-career-origin-candidate-proof-v36/32967220874/result.json`;
+15. fresh static V4 regression run `32946593734`, evidence branch
+    `carrier/203-acquisition-proof-v4-32946593734`, path
+    `carriers/connector-acquisition-proof-v4/32946593734/result.json`;
+16. merged Pipeline PR `#656`, which adds only normalized `absoluteurl` to generic
+    runtime URL recognition;
+17. merged Pipeline PR `#659`, which integrates explicit career-origin drift roots
+    as repair candidates without granting host/Product authority.
 
-Earlier V25-V32 evidence remains historical support, but V33/V34 plus the fresh V4
-run are the current continuation authority. Do not substitute assistant memory,
-chat summaries, stale PR descriptions, or retired NEXT artifacts for these sources.
+Earlier V25-V32 evidence remains historical support. V33/V34 establish the prior
+parser/runtime closure; V35/V36 establish closure of the later career-origin-drift
+class; the fresh V4 run is the current static regression control. Do not substitute
+assistant memory, chat summaries, stale PR descriptions, or retired NEXT artifacts
+for these sources.
 
 ## Fresh static V4 control truth
 
-Fresh V4 run `32881331391` evaluated exact Pipeline
-`36972bf50c787ee291e3179d9b9fd86123dabd88` against the immutable 40-case static
+Fresh V4 run `32946593734` evaluated exact Pipeline
+`9a2135e93f612036e0cd7018159f980b9a8b2fed` against the immutable 40-case static
 cohort.
 
 Result:
@@ -82,8 +97,8 @@ Result:
 - evidence publish: success;
 - Product/job persistence: `0`.
 
-The fresh run proves that the current Pipeline parser hardening did not regress or
-silently broaden the static default path.
+This run proves that the current Pipeline acquisition hardening, including PR `#659`,
+did not regress or silently broaden the static default path.
 
 ## Current dynamic deterministic truth
 
@@ -101,62 +116,79 @@ The accumulated bounded Runtime campaign is:
 - V32 structural provenance diagnostic: `+0` by construction;
 - V33 `absolute_url` parser-blind-spot replay: `+1` — candidate `56` / Zscaler;
 - V34 nested job-key provenance diagnostic: `+0` by construction;
+- V35 career-origin drift diagnostic: `+0` by construction, one candidate on case
+  `35 / msg_systems`;
+- V36 exact career-origin candidate proof: `+0`, execution failures `0`;
 - **current accumulated Runtime deterministic proven: `31/40`**;
 - **current unresolved: `9/40`**.
 
-### V31-V33 parser evidence
+### V31-V34 parser/runtime closure
 
 V31 exposed a same-authorized Zscaler `POST /api/get-greenhouse-jobs` response of
 `2,568,911` bytes. The bounded recognizer found job-shaped records but could not
 produce runtime proof because their URL field was not recognized.
 
-V32 inspected structural provenance without persisting field values. It proved:
+V32 proved that the direct `jobs` records carry normalized `absoluteurl` while the
+then-current URL recognizer did not include that URL key. Pipeline PR `#656` made
+one minimal generic parser correction: normalized `absoluteurl` was added to
+`URL_KEYS` only. It was deliberately **not** added to `EXPLICIT_JOB_KEYS`; scoring,
+host/delegation semantics, Runtime proof semantics, and downstream authority were
+unchanged.
 
-- top-level `jobs` contains `342` direct records;
-- all `342` contain normalized keys `title`, `id`, `locations`, and `absoluteurl`;
-- the then-current URL recognizer recognized `0/342` of those URL fields;
-- all bounded recognized candidates had explicit `jobs`-container provenance;
-- sibling `departments` and `locations` containers provided negative controls and
-  contained no current title/identity/URL-key combination that could masquerade as
-  job records.
+V33 replayed the exact prior Runtime surface with only that parser delta and rescued
+candidate `56 / Zscaler` through existing `runtime_authorized_inventory_record`
+authority. No URL-less proof or new host/proof rule was introduced.
 
-Pipeline PR `#656` therefore made one minimal generic parser correction: normalized
-`absoluteurl` was added to `URL_KEYS` only. It was deliberately **not** added to
-`EXPLICIT_JOB_KEYS`; scoring thresholds, host/delegation semantics, Runtime proof
-semantics, and final downstream authority were unchanged. Positive and negative
-regressions keep `products[].absolute_url` fail-closed.
-
-V33 replayed the exact prior Runtime surface with only that Pipeline parser delta.
-Candidate `56` / Zscaler was rescued through the existing
-`runtime_authorized_inventory_record` authority. The oversized response produced
-`30` bounded candidates and `20` existing runtime proofs at score `8`, with observed
-delegated host `job-boards.greenhouse.io`. No URL-less proof or new host/proof rule
-was introduced.
-
-### V34 exhaustion evidence
-
-V34 was a diagnostic-only final parser-surface inspection over the exact V33
-nine-case residual. It credited zero rescues by construction.
-
-Findings:
-
-- only `4` residual cases / `7` already-observed seeds remained replay-eligible;
-- five residual cases had no admissible seed on this deterministic surface;
-- `3` same-authorized jobish JSON structural events were inspected;
-- diagnostic failures: `0`;
-- response-drain timeouts: `0`;
-- context-close failures: `0`;
-- incidental existing Runtime proofs: `0`;
-- remaining unrecognized URL-shaped keys were `contactlink`, `getreferrallink`, and
-  `ncdrejectbannerlinktext`;
-- remaining identity/job/title-shaped keys were UI/content/search/preferences/
-  opening-hours labels;
-- six `title + location` structures without identity/URL were office/contact
-  structures, not job records.
-
-No reusable parser/protocol gap remains without guessing semantics, inventing
+V34 then inspected the exact V33 nine-case residual diagnostically and found no
+remaining reusable parser/protocol gap without guessing semantics, inventing
 routes/IDs, broadening interaction heuristics, reconstructing requests, or weakening
-proof. Those moves are outside deterministic evidence authority.
+proof.
+
+### V35-V36 career-origin drift closure
+
+Fresh external evidence after V34 justified one additional generic deterministic
+class rather than a company-specific exception: an already-authorized employer page
+may explicitly point to a current recruiting/career origin that differs from its
+historic origin.
+
+V35 run `32943733665` inspected only the exact nine-case residual, roots of already
+authorized hosts and exact prior historical seeds. It guessed no career path, ATS
+tenant, endpoint, selector or job ID. It found exactly one candidate:
+
+- case: `35 / msg_systems`;
+- existing V35 authorized host: `www.msg.group`;
+- candidate: `https://karriere.msg.group/stellensuche`;
+- evidence kind: `explicit_recruiting_sibling_transition`;
+- provider: none;
+- host authority granted: false;
+- Product authority granted: false.
+
+V35 credited zero rescues by construction and required a separate concrete-job proof.
+
+The first V36 attempts were technical/evaluation-scope diagnostics and are **not**
+zero-rescue acquisition evidence. They showed that the exact candidate returns HTTP
+200 and redirects to the already-authorized employer route
+`https://www.msg.group/de/karriere/aktuelle-stellenangebote/`.
+
+Final V36 run `32967220874` therefore used only the exact union of:
+
+1. the persisted V35 authorized host set for case 35; and
+2. the one persisted V35 candidate host.
+
+No registrable-domain inference or persistent host authority was introduced. The
+unchanged Pipeline V4 acquisition/proof helper then produced:
+
+- logical requests: `1`;
+- execution failures: `0`;
+- concrete-job proof: none;
+- strict rescues: `0`;
+- effective deterministic truth: `31/40`;
+- remaining residual: `9/40`.
+
+This closes the career-origin-drift class for the current cohort. Returning to more
+deterministic acquisition now requires genuinely new external evidence for another
+reusable class; it must not be simulated by broader host inference, route guessing,
+interaction expansion or proof relaxation.
 
 ## Exact unresolved residual
 
@@ -196,6 +228,7 @@ Keep the following boundaries:
 - no guessed ATS token, tenant, endpoint, selector, route, board, site, or job ID;
 - no reconstruction of unknown POST bodies;
 - no widening of visible-click semantics merely to chase the nine residuals;
+- no registrable-domain inference as host authority;
 - no URL-less job authority introduced from weak structured records;
 - no weakening of final genuine-job/content proof;
 - provider detection or historical observation alone is never authority;
@@ -225,11 +258,13 @@ surface are:
 - current accumulated deterministic residual is `9/40 = 0.225`;
 - the exact residual identities are listed above;
 - observability and deterministic downstream authority boundaries exist in the
-  repository.
+  repository;
+- the post-V34 career-origin drift opportunity has now also been tested and closed
+  through final V36.
 
 The campaign does **not** by itself establish safe numeric values for:
 
-- expected LLM/search rescue rate on this exact nine-case post-V34 residual;
+- expected LLM/search rescue rate on this exact nine-case post-V36 residual;
 - expected value per rescued acquisition;
 - surface-specific incremental provider/search cost;
 - fixed validation/operational setup cost;
@@ -237,9 +272,9 @@ The campaign does **not** by itself establish safe numeric values for:
 - operator/product admission thresholds.
 
 Those inputs must not be invented from old origin campaigns or test fixtures. The
-empirical costs in `llm_booster_policy.py` are explicitly planning observations for
-a different compact origin-hypothesis prompt family and require per-surface smoke
-evidence before promotion.
+empirical costs in `llm_booster_policy.py` are planning observations for a different
+compact origin-hypothesis prompt family and require per-surface smoke evidence before
+promotion.
 
 A positive `BOOSTER-ADMISSION-001` result means only that offline/shadow evidence is
 worth collecting. `execution_authorized` and `product_authority` remain false.
@@ -256,10 +291,10 @@ retroactively redefine acquisition truth.
 ## Sole next safe action
 
 Build a **provider-free nine-case LLM booster-admission evidence record** for the
-explicit post-V34 acquisition residual:
+explicit post-V36 acquisition residual:
 
-1. bind it to Pipeline `36972bf50c787ee291e3179d9b9fd86123dabd88`, Runtime
-   closure V33/V34, fresh V4 `32881331391`, and the exact nine residual identities;
+1. bind it to Pipeline `9a2135e93f612036e0cd7018159f980b9a8b2fed`, Runtime
+   closure V35/V36, fresh V4 `32946593734`, and the exact nine residual identities;
 2. record only the measured common admission inputs that repository evidence already
    supports (`baseline_measured=True`, decision volume `40`, deterministic residual
    rate `0.225`, explicit authority boundary and evidence provenance);
@@ -283,8 +318,8 @@ the nine-case handoff exists.
 ## Re-entry status
 
 Repository work is active. Deterministic acquisition is **closed/evidence-exhausted
-for the bound cohort**. Fresh static truth is `23/40`; accumulated bounded Runtime
-deterministic truth is `31/40`; exact residual is `9/40`.
+for the bound cohort** after final V36. Fresh static truth is `23/40`; accumulated
+bounded Runtime deterministic truth is `31/40`; exact residual is `9/40`.
 
 The sole next safe action is the provider-free nine-case `BOOSTER-ADMISSION-001`
 evidence record above.
