@@ -14,6 +14,7 @@ import re
 from typing import Iterable
 from urllib.parse import urljoin, urlparse
 
+from src.search_intelligence.career_origin_drift import career_origin_drift_candidates
 from src.search_intelligence.connector_feasibility import (
     KNOWN_AGGREGATOR_DOMAINS,
     SOCIAL_OR_EXTERNAL_NOISE_DOMAINS,
@@ -47,6 +48,12 @@ STRONG_JOB_BOARD_LABELS = (
     "job search",
     "vacancies",
     "open positions",
+    "job openings",
+    "see job openings",
+    "current openings",
+    "open roles",
+    "view roles",
+    "view all opportunities",
 )
 
 JOB_BOARD_HOST_LABELS = {
@@ -133,6 +140,12 @@ def _shallow_locale_path(url: str) -> bool:
     return len(parts) <= 1 and (not parts or parts[0] in LOCALE_PATH_PARTS)
 
 
+def _route_identity(url: str) -> str:
+    """Collapse only an optional trailing slash for candidate deduplication."""
+
+    return str(url or "").rstrip("/")
+
+
 def _anchor_candidates(html: str) -> Iterable[tuple[str, str]]:
     pattern = re.compile(
         r"<a\b[^>]*href=[\"']([^\"'#]+)[\"'][^>]*>(.*?)</a>",
@@ -171,9 +184,19 @@ def extract_trusted_delegated_job_board_urls(
     *,
     limit: int = 5,
 ) -> tuple[str, ...]:
-    """Return strong, safe job-board links without selecting one automatically."""
+    """Return strong, safe job-board links without selecting one automatically.
+
+    The historical same-employer/job-host contract remains first. The newer
+    career-origin drift contract contributes only explicit recognized ATS or
+    recruiting-sibling transitions from this exact employer page. Those additions
+    remain repair candidates, not host or Product authority.
+    """
+
+    if limit < 1:
+        return ()
 
     candidates: list[str] = []
+    seen: set[str] = set()
     normalized_origin = origin_url.rstrip("/")
     for raw_href, label in _anchor_candidates(html):
         absolute_url = urljoin(origin_url, raw_href)
@@ -181,8 +204,28 @@ def extract_trusted_delegated_job_board_urls(
             continue
         if not _safe_trusted_job_board_link(origin_url, absolute_url, label):
             continue
-        if absolute_url not in candidates:
+        identity = _route_identity(absolute_url)
+        if identity not in seen:
             candidates.append(absolute_url)
+            seen.add(identity)
+        if len(candidates) >= limit:
+            return tuple(candidates)
+
+    origin_host = (urlparse(origin_url).hostname or "").casefold().strip(".")
+    if not origin_host:
+        return tuple(candidates)
+    for drift_candidate in career_origin_drift_candidates(
+        page_url=origin_url,
+        html=html,
+        allowed_hosts={origin_host},
+        limit=limit,
+    ):
+        candidate_url = drift_candidate.candidate_url
+        identity = _route_identity(candidate_url)
+        if identity in seen:
+            continue
+        candidates.append(candidate_url)
+        seen.add(identity)
         if len(candidates) >= limit:
             break
     return tuple(candidates)
