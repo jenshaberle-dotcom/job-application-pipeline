@@ -5,6 +5,11 @@ Status: current truth navigation
 This folder contains the small maintained surface for the current product.
 It is intentionally not a complete history.
 
+## Re-entry source authority
+
+Every re-entry starts from this current-truth surface read from canonical `refs/heads/main`.
+A branch-local copy of `docs/current/*`, a branch-local planning document, an old checkout, or a familiar worktree may describe active work but is **not** allowed to redefine canonical `main`, canonical checkout role, or re-entry authority.
+
 ## Mandatory re-entry workspace hygiene gate
 
 Before reading current truth as continuation authority or executing any next action, first reconcile live local Git checkout/worktree topology.
