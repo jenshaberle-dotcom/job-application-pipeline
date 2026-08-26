@@ -1,9 +1,9 @@
 """Pure employer-backed career-origin / ATS drift candidate discovery.
 
-This contract is intentionally weaker than source or job authority.  It may only
+This contract is intentionally weaker than source or job authority. It may only
 nominate a new public career/ATS host when the transition is explicitly evidenced
 by an already-authorized employer-origin page or by a verified redirect from that
-page.  A nominated host must still be fetched and pass the existing deterministic
+page. A nominated host must still be fetched and pass the existing deterministic
 identity, listing/detail and genuine-job proof contracts before any downstream
 use.
 
@@ -28,10 +28,6 @@ _ANCHOR = re.compile(
 )
 _IFRAME = re.compile(
     r"<iframe\b[^>]*src=[\"']([^\"'#]+)[\"'][^>]*>",
-    flags=re.IGNORECASE | re.DOTALL,
-)
-_FORM = re.compile(
-    r"<form\b[^>]*action=[\"']([^\"'#]+)[\"'][^>]*>",
     flags=re.IGNORECASE | re.DOTALL,
 )
 _TAG = re.compile(r"<[^>]+>")
@@ -73,6 +69,15 @@ _BLOCKED_TEXT_MARKERS = (
     "contact",
     "cookie",
 )
+_BLOCKED_PATH_MARKERS = (
+    "/apply",
+    "/application",
+    "/login",
+    "/signin",
+    "/register",
+    "/privacy",
+    "/datenschutz",
+)
 
 
 @dataclass(frozen=True)
@@ -112,6 +117,8 @@ def _normalized_https_candidate(page_url: str, raw_url: str) -> str | None:
     if is_known_aggregator_domain(host):
         return None
     path = re.sub(r"/{2,}", "/", parsed.path or "/")
+    if any(marker in path.casefold() for marker in _BLOCKED_PATH_MARKERS):
+        return None
     if path != "/":
         path = path.rstrip("/")
     return parsed._replace(
@@ -206,10 +213,10 @@ def career_origin_drift_candidates(
 ) -> tuple[CareerOriginDriftCandidate, ...]:
     """Nominate bounded cross-host career/ATS transitions explicitly exposed by a page.
 
-    The source page must already be authorized.  Only visible anchors, iframe
-    ``src`` values and form ``action`` values are considered; provider text or a
-    guessed hostname cannot create a candidate.  Known aggregators are excluded.
-    Returned candidates carry zero host or Product authority.
+    The source page must already be authorized. Only visible anchors and iframe
+    ``src`` values are considered; provider text, a guessed hostname or form/apply
+    target cannot create a candidate. Known aggregators are excluded. Returned
+    candidates carry zero host or Product authority.
     """
 
     if limit < 1 or not _host_is_authorized(page_url, allowed_hosts):
@@ -218,7 +225,6 @@ def career_origin_drift_candidates(
     transitions: list[tuple[str, str]] = []
     transitions.extend((raw_url, raw_label) for raw_url, raw_label in _ANCHOR.findall(html or ""))
     transitions.extend((raw_url, "career jobs iframe") for raw_url in _IFRAME.findall(html or ""))
-    transitions.extend((raw_url, "career jobs form") for raw_url in _FORM.findall(html or ""))
 
     result: list[CareerOriginDriftCandidate] = []
     seen: set[str] = set()
@@ -248,8 +254,8 @@ def redirected_career_origin_candidate(
 ) -> CareerOriginDriftCandidate | None:
     """Nominate a cross-domain redirect only after existing identity/career probes agree.
 
-    Redirect transport alone is insufficient.  The caller must provide the result
-    of the existing deterministic employer-identity and career-page checks.  This
+    Redirect transport alone is insufficient. The caller must provide the result
+    of the existing deterministic employer-identity and career-page checks. This
     supports genuine domain migration without encoding old/new company domains in
     product code.
     """
