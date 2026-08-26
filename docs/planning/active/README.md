@@ -1,7 +1,7 @@
 # Active Planning
 
 Status: current planning truth
-Last rebaseline: Product-authority preparation after BACKLOG-REFINE-001
+Last rebaseline: REENTRY-001B deterministic V41 frontier after clean V40 `33/40`; intentional host-maintenance execution pause
 
 ## Product authority
 
@@ -16,10 +16,17 @@ DON may adapt technical design and sequencing. It may not infer unresolved produ
 ## Current steering rule
 
 The repository has exited the old CONSISTENCY/MCP containment pause through
-REENTRY-001A. Product work may proceed, but only from current repository and
-DB/runtime evidence and only through explicit item-level side-effect gates.
+REENTRY-001A. Current continuation authority is now REENTRY-001B.
 
-Product-shaping work additionally requires approved requirements and acceptance scenarios from `docs/reference/product-contract/`.
+Product work may proceed only from current repository and DB/runtime evidence and only
+through explicit item-level side-effect gates. Product-shaping work additionally
+requires approved requirements and acceptance scenarios from
+`docs/reference/product-contract/`.
+
+For deterministic acquisition, the current authoritative accumulated Runtime truth is
+**33/40 strict proven, 7/40 unresolved**. V40 run `32977904600` is the latest successful
+acquisition evidence. V41 is diagnostic-only and has not produced acquisition evidence
+yet. Technical/startup/infrastructure failures do not count as zero-rescue evidence.
 
 The active control surfaces are:
 
@@ -28,18 +35,20 @@ The active control surfaces are:
 3. `backlog_refinement.md` — operator-readable contradiction and work-item view.
 4. `backlog_catalog.json` — machine-readable engineering work-item inventory.
 5. `roadmap.md` — short sequencing view.
-6. `reentry001a_mcp_backed_pipeline_reentry_decision.md` — re-entry boundary.
-7. `canonical_target_profile.md` — recorded profile hierarchy pending PRD confirmation.
+6. `reentry001b_deterministic_v41_frontier.md` — **current canonical re-entry and deterministic frontier**.
+7. `reentry001a_mcp_backed_pipeline_reentry_decision.md` — historical V37-V39 re-entry boundary.
+8. `canonical_target_profile.md` — recorded profile hierarchy pending PRD confirmation.
 
 ## Current sequence
 
-1. `PRD-001` confirm the product decisions required for the first useful vertical slice.
-2. `DOC-011`/planning reconciliation may continue in parallel where it does not define product semantics.
-3. `SI-021` recompute the GENERIC/EXPAND evidence chain from current repo/DB truth.
-4. `SI-022` run PROVIDER-001C only when fresh evidence still requires it.
-5. `SI-023` obtain a current GENERIC pass or a finite named blocker set.
-6. Reclassify the active candidate/V1 items against approved product requirements and scenarios.
-7. Start candidate apply, Top-5, ranking, queue or review behavior only when the relevant product contract is approved.
+1. Finish the intentional Windows/WSL host-storage maintenance and clean restart; do not interpret interrupted/queued runs as acquisition evidence.
+2. Restore and prove self-hosted runner health, especially `job-pipeline-runtime-linux`.
+3. Obtain a green exact-head V41 Chromium smoke for Runtime PR `#352`; keep `#352` **DO NOT MERGE** until that gate executes normally and passes.
+4. If the smoke is green, reconsider/merge the technical-only Runtime overlay and run one fresh execution-only V41 diagnostic bound to Pipeline `4ada550e4a0ec0d84b62217528408e6e3d8b2956` + V40 `32977904600`.
+5. Patch generic Pipeline URL recognition for `applylink` / `externallink` only if V41 proves reusable URL semantics; otherwise close that class cleanly without authority broadening.
+6. Continue deterministic hardening until current evidence yields no further reusable generic class; only then admit the residual to the LLM booster layer.
+7. The ML learning-foundation lane may continue in parallel where it does not redefine acquisition authority.
+8. `PRD-001` remains the progressive gate for product-shaping behavior; deterministic read-only acquisition evidence and infrastructure stabilization may proceed without inventing product semantics.
 
 ## Canonical target profile
 
@@ -63,6 +72,7 @@ This hierarchy remains recorded repository truth pending explicit confirmation i
 - Exports, retired NEXT/restart artifacts, chat and assistant memory are not project truth.
 - Missing evidence yields `needs_inspection` or a blocked item, never a guessed continuation.
 - Missing product intent yields `open_operator_decision`, never an inferred default.
+- Technical failed, cancelled, skipped or startup-failed acquisition runs are non-evidence, not clean `+0` results.
 
 ## Parallel work allowed during PRD-001
 
@@ -71,7 +81,9 @@ This hierarchy remains recorded repository truth pending explicit confirmation i
 - documentation consistency;
 - read-only evidence recomputation;
 - CI and runtime stabilization;
-- bounded infrastructure work that does not define product behavior.
+- bounded deterministic acquisition diagnostics that preserve existing proof/authority boundaries;
+- bounded infrastructure work that does not define product behavior;
+- ML learning-foundation work that does not alter productive ranking/acquisition authority.
 
 ## Product-shaping work gated by PRD-001
 
@@ -87,7 +99,7 @@ This hierarchy remains recorded repository truth pending explicit confirmation i
 
 The following remain visible but are not immediate steering:
 
-- V1 application intelligence and LLM features.
+- V1 application intelligence and LLM features beyond the deferred residual booster layer.
 - FREEZE-002 and REFACTOR-001.
 - Cloud, outbox, Kafka and Spark.
 - CV update automation.
