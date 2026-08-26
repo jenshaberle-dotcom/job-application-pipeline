@@ -14,6 +14,7 @@ import re
 from typing import Iterable
 from urllib.parse import urljoin, urlparse
 
+from src.search_intelligence.career_origin_drift import career_origin_drift_candidates
 from src.search_intelligence.connector_feasibility import (
     KNOWN_AGGREGATOR_DOMAINS,
     SOCIAL_OR_EXTERNAL_NOISE_DOMAINS,
@@ -171,7 +172,16 @@ def extract_trusted_delegated_job_board_urls(
     *,
     limit: int = 5,
 ) -> tuple[str, ...]:
-    """Return strong, safe job-board links without selecting one automatically."""
+    """Return strong, safe job-board links without selecting one automatically.
+
+    The historical same-employer/job-host contract remains first. The newer
+    career-origin drift contract contributes only explicit recognized ATS or
+    recruiting-sibling transitions from this exact employer page. Those additions
+    remain repair candidates, not host or Product authority.
+    """
+
+    if limit < 1:
+        return ()
 
     candidates: list[str] = []
     normalized_origin = origin_url.rstrip("/")
@@ -183,6 +193,22 @@ def extract_trusted_delegated_job_board_urls(
             continue
         if absolute_url not in candidates:
             candidates.append(absolute_url)
+        if len(candidates) >= limit:
+            return tuple(candidates)
+
+    origin_host = (urlparse(origin_url).hostname or "").casefold().strip(".")
+    if not origin_host:
+        return tuple(candidates)
+    for drift_candidate in career_origin_drift_candidates(
+        page_url=origin_url,
+        html=html,
+        allowed_hosts={origin_host},
+        limit=limit,
+    ):
+        candidate_url = drift_candidate.candidate_url
+        if candidate_url in candidates:
+            continue
+        candidates.append(candidate_url)
         if len(candidates) >= limit:
             break
     return tuple(candidates)
