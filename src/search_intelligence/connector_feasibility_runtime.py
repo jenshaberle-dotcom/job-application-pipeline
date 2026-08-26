@@ -36,6 +36,8 @@ from src.search_intelligence.connector_feasibility import (
 STRONG_JOB_BOARD_LABELS = (
     "offene stellen",
     "stellenangebote",
+    "stellenbörse",
+    "stellensuche",
     "alle jobs",
     "jobs ansehen",
     "jobs anzeigen",
@@ -74,6 +76,9 @@ JOB_BOARD_PATH_PARTS = {
     "jobsearch",
     "stellen",
     "stellenangebote",
+    "stellenboerse",
+    "stellenbörse",
+    "stellensuche",
     "jobsuche",
     "vacancies",
     "positions",
