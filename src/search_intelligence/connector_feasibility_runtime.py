@@ -140,6 +140,12 @@ def _shallow_locale_path(url: str) -> bool:
     return len(parts) <= 1 and (not parts or parts[0] in LOCALE_PATH_PARTS)
 
 
+def _route_identity(url: str) -> str:
+    """Collapse only an optional trailing slash for candidate deduplication."""
+
+    return str(url or "").rstrip("/")
+
+
 def _anchor_candidates(html: str) -> Iterable[tuple[str, str]]:
     pattern = re.compile(
         r"<a\b[^>]*href=[\"']([^\"'#]+)[\"'][^>]*>(.*?)</a>",
@@ -190,6 +196,7 @@ def extract_trusted_delegated_job_board_urls(
         return ()
 
     candidates: list[str] = []
+    seen: set[str] = set()
     normalized_origin = origin_url.rstrip("/")
     for raw_href, label in _anchor_candidates(html):
         absolute_url = urljoin(origin_url, raw_href)
@@ -197,8 +204,10 @@ def extract_trusted_delegated_job_board_urls(
             continue
         if not _safe_trusted_job_board_link(origin_url, absolute_url, label):
             continue
-        if absolute_url not in candidates:
+        identity = _route_identity(absolute_url)
+        if identity not in seen:
             candidates.append(absolute_url)
+            seen.add(identity)
         if len(candidates) >= limit:
             return tuple(candidates)
 
@@ -212,9 +221,11 @@ def extract_trusted_delegated_job_board_urls(
         limit=limit,
     ):
         candidate_url = drift_candidate.candidate_url
-        if candidate_url in candidates:
+        identity = _route_identity(candidate_url)
+        if identity in seen:
             continue
         candidates.append(candidate_url)
+        seen.add(identity)
         if len(candidates) >= limit:
             break
     return tuple(candidates)
