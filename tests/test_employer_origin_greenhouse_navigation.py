@@ -20,6 +20,51 @@ def test_greenhouse_token_requires_one_concrete_canonical_board_reference() -> N
     ) is None
 
 
+def test_greenhouse_token_accepts_static_binding_only_with_exact_jobs_api_template() -> None:
+    html = """
+    <script>
+      const BOARD = 'commercetools';
+      const res = await fetch(
+        'https://boards-api.greenhouse.io/v1/boards/' + BOARD + '/jobs?content=true'
+      );
+    </script>
+    """
+    assert explicit_greenhouse_board_token(html) == "commercetools"
+
+    assert explicit_greenhouse_board_token(
+        "<script>const BOARD = 'commercetools';</script>"
+    ) is None
+    assert explicit_greenhouse_board_token(
+        """
+        <script>
+          const BOARD = 'commercetools';
+          fetch('https://example.invalid/v1/boards/' + BOARD + '/jobs');
+        </script>
+        """
+    ) is None
+
+
+def test_greenhouse_static_binding_fails_closed_on_conflicting_evidence() -> None:
+    html = """
+    <script>
+      const BOARD = 'commercetools';
+      fetch('https://boards-api.greenhouse.io/v1/boards/' + BOARD + '/jobs?content=true');
+    </script>
+    <a href="https://job-boards.greenhouse.io/other/jobs/123456">Other</a>
+    """
+    assert explicit_greenhouse_board_token(html) is None
+
+
+def test_greenhouse_static_binding_supports_exact_template_literal_reference() -> None:
+    html = """
+    <script>
+      const boardToken = "commercetools";
+      fetch(`https://boards-api.greenhouse.io/v1/boards/${boardToken}/jobs?content=true`);
+    </script>
+    """
+    assert explicit_greenhouse_board_token(html) == "commercetools"
+
+
 def test_greenhouse_metadata_identity_is_bound_to_employer_host() -> None:
     assert greenhouse_metadata_matches_employer(
         body=json.dumps({"name": "commercetools"}),

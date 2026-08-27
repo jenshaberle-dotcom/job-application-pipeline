@@ -18,7 +18,11 @@ def test_greenhouse_cascade_stays_inside_same_four_request_meter() -> None:
         calls.append(url)
         if url == EMPLOYER:
             return (
-                f'<html><script src="{JOBS}?content=true"></script><body>Careers</body></html>',
+                "<html><script>"
+                "const BOARD = 'commercetools';"
+                "fetch('https://boards-api.greenhouse.io/v1/boards/' + BOARD + "
+                "'/jobs?content=true');"
+                "</script><body>Careers</body></html>",
                 EMPLOYER,
                 200,
             )

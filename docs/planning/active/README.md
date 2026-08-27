@@ -1,7 +1,7 @@
 # Active Planning
 
-Status: current planning truth
-Last rebaseline: REENTRY-001B deterministic V41 frontier after clean V40 `33/40`; intentional host-maintenance execution pause
+Status: current planning truth  
+Last rebaseline: REENTRY-001B deterministic residual-cluster frontier; `#672` active
 
 ## Product authority
 
@@ -11,44 +11,87 @@ The active engineering backlog remains the implementation inventory, but it is s
 
 DON may adapt technical design and sequencing. It may not infer unresolved product behavior or treat the current implementation as the desired product definition.
 
-`PRD-001` is the current product-alignment gate. It is progressive: only the decisions required for the next useful vertical slice must be resolved. It is not a blanket freeze on safety, defect, evidence or operations work.
+`PRD-001` remains the progressive product-alignment gate. It does not block safety, defect, evidence, lifecycle or bounded deterministic acquisition hardening that preserves existing product authority.
 
 ## Current steering rule
 
-The repository has exited the old CONSISTENCY/MCP containment pause through
-REENTRY-001A. Current continuation authority is now REENTRY-001B.
+REENTRY-001B is the canonical continuation point.
 
-Product work may proceed only from current repository and DB/runtime evidence and only
-through explicit item-level side-effect gates. Product-shaping work additionally
-requires approved requirements and acceptance scenarios from
-`docs/reference/product-contract/`.
+The historical acquisition controls remain separate:
 
-For deterministic acquisition, the current authoritative accumulated Runtime truth is
-**33/40 strict proven, 7/40 unresolved**. V40 run `32977904600` is the latest successful
-acquisition evidence. V41 is diagnostic-only and has not produced acquisition evidence
-yet. Technical/startup/infrastructure failures do not count as zero-rescue evidence.
+1. static default control: **23/40 genuine-job proven**;
+2. accumulated bounded Runtime control before the current residual campaign: **33/40 strict proven, 7/40 unresolved**.
 
-The active control surfaces are:
+The second value is now labelled **`33/40 — V42 evidence-surface exhausted`**, not global deterministic-acquisition exhaustion.
+
+Fresh cluster-oriented evidence in `#672` has reopened the deterministic acquisition frontier:
+
+- commercetools now has a bounded strict Greenhouse rescue proof under the existing genuine-job boundary, but it is not yet credited to the canonical accumulated control until the generic parser class is merged and the control rerun;
+- Bjak exposes an exact observed client-code jobs route, `GET /career/api-v1/get-all-jobs`, on its already-authorized first-party jobs surface;
+- Freenet already proves employer-origin -> dedicated job-list delegation and now sits at a listing/inventory -> detail extraction frontier;
+- x1F shows stale-origin/provider-drift evidence;
+- PRODYNA is a dedicated portal / Umantis-family candidate;
+- bridgingIT and Associated Engineers remain sparse surfaces requiring further bounded rediscovery/delegation evidence.
+
+The active acquisition issue is **`#672 — ACQ-RESIDUAL-CLUSTER-001`**.
+
+## Current deterministic sequence
+
+1. Promote the proven commercetools behavior as a **generic Greenhouse embedded-board-binding class**:
+   - one unique static board token observed on an already-authorized first-party page;
+   - canonical Greenhouse jobs URL template observed on the same page and consuming that token;
+   - existing Greenhouse metadata employer-identity validation remains mandatory;
+   - existing jobs-payload strict detail extraction remains mandatory;
+   - existing genuine-job/content proof remains mandatory;
+   - ambiguous/multiple/non-canonical evidence fails closed.
+2. Reproduce the bounded live commercetools rescue through the canonical implementation.
+3. Merge only with generic regression coverage and unchanged authority boundaries.
+4. Rerun the full 40-case control; update the accumulated strict count only from canonical evidence.
+5. Continue `#672` with the explicitly observed Bjak `GET /career/api-v1/get-all-jobs` route, then Freenet, x1F, PRODYNA, bridgingIT and Associated Engineers according to evidence/reuse value.
+6. Re-cluster remaining residuals after every meaningful lift.
+7. Admit acquisition residuals to the LLM booster only when no remaining bounded generic deterministic hypothesis is supported by evidence.
+
+`#671` StepStone read-only plan hardening remains valid but is deferred behind `#672`.
+
+## Active control surfaces
 
 1. `../../reference/product-contract/README.md` — product authority and decision status.
 2. `prd001_product_intent_rebaseline.md` — progressive PRD-alignment gate.
 3. `backlog_refinement.md` — operator-readable contradiction and work-item view.
 4. `backlog_catalog.json` — machine-readable engineering work-item inventory.
 5. `roadmap.md` — short sequencing view.
-6. `reentry001b_deterministic_v41_frontier.md` — **current canonical re-entry and deterministic frontier**.
+6. `reentry001b_deterministic_v41_frontier.md` — **current canonical re-entry; filename retained for continuity, content now reflects the residual-cluster frontier**.
 7. `reentry001a_mcp_backed_pipeline_reentry_decision.md` — historical V37-V39 re-entry boundary.
 8. `canonical_target_profile.md` — recorded profile hierarchy pending PRD confirmation.
 
-## Current sequence
+## Lifecycle truth already closed
 
-1. Finish the intentional Windows/WSL host-storage maintenance and clean restart; do not interpret interrupted/queued runs as acquisition evidence.
-2. Restore and prove self-hosted runner health, especially `job-pipeline-runtime-linux`.
-3. Obtain a green exact-head V41 Chromium smoke for Runtime PR `#352`; keep `#352` **DO NOT MERGE** until that gate executes normally and passes.
-4. If the smoke is green, reconsider/merge the technical-only Runtime overlay and run one fresh execution-only V41 diagnostic bound to Pipeline `4ada550e4a0ec0d84b62217528408e6e3d8b2956` + V40 `32977904600`.
-5. Patch generic Pipeline URL recognition for `applylink` / `externallink` only if V41 proves reusable URL semantics; otherwise close that class cleanly without authority broadening.
-6. Continue deterministic hardening until current evidence yields no further reusable generic class; only then admit the residual to the LLM booster layer.
-7. The ML learning-foundation lane may continue in parallel where it does not redefine acquisition authority.
-8. `PRD-001` remains the progressive gate for product-shaping behavior; deterministic read-only acquisition evidence and infrastructure stabilization may proceed without inventing product semantics.
+Current main includes both reusable recurring lifecycle classes:
+
+- `#502/#668`: exact-detail recurring health reconciliation;
+- `#669/#670`: verified complete-inventory absence deriving `not_seen/complete_inventory` with atomic negative persistence and without rewriting legacy Bronze authority.
+
+These are completed deterministic layers, not current blockers.
+
+## Deterministic / booster / ML sequencing
+
+Development order:
+
+```text
+deterministic hardening -> LLM booster engineering -> ML algorithm engineering
+```
+
+Productive decision order:
+
+```text
+deterministic -> ML algorithm -> booster
+```
+
+For acquisition, the booster is currently deferred because `#672` has already exposed additional deterministic classes beyond V42.
+
+The StepStone phrase `ML-first` refers to Machine-Learning-Engineer search terms, not to the future ML-algorithm layer.
+
+Matching/ranking behavior remains product-intent gated where required.
 
 ## Canonical target profile
 
@@ -65,14 +108,14 @@ This hierarchy remains recorded repository truth pending explicit confirmation i
 
 - Operator-approved product requirements and scenarios define desired behavior.
 - Repository code, tests and migrations are implementation truth.
-- DB/runtime evidence is required for live-state claims.
-- Current docs and this backlog steer planning only after contradictions are resolved.
+- DB/runtime/live bounded evidence is required for live-state claims.
 - Merged PRs prove implementation, not current runtime health or product desirability.
-- Reference and archive artifacts may supply ideas; they do not steer directly.
-- Exports, retired NEXT/restart artifacts, chat and assistant memory are not project truth.
-- Missing evidence yields `needs_inspection` or a blocked item, never a guessed continuation.
+- Reference/archive artifacts may supply ideas; they do not steer directly.
+- Chat and assistant memory are not project truth.
+- Missing evidence yields inspection/blocked state, never a guessed continuation.
 - Missing product intent yields `open_operator_decision`, never an inferred default.
-- Technical failed, cancelled, skipped or startup-failed acquisition runs are non-evidence, not clean `+0` results.
+- Technical failed, cancelled, skipped or startup-failed acquisition runs are non-evidence.
+- A detector exhausting its currently instrumented surfaces does not prove the underlying deterministic problem class is globally exhausted.
 
 ## Parallel work allowed during PRD-001
 
@@ -80,9 +123,9 @@ This hierarchy remains recorded repository truth pending explicit confirmation i
 - defect repair;
 - documentation consistency;
 - read-only evidence recomputation;
-- CI and runtime stabilization;
-- bounded deterministic acquisition diagnostics that preserve existing proof/authority boundaries;
-- bounded infrastructure work that does not define product behavior;
+- CI/runtime stabilization;
+- bounded deterministic acquisition diagnostics preserving proof/authority boundaries;
+- bounded lifecycle hardening;
 - ML learning-foundation work that does not alter productive ranking/acquisition authority.
 
 ## Product-shaping work gated by PRD-001
@@ -97,17 +140,10 @@ This hierarchy remains recorded repository truth pending explicit confirmation i
 
 ## Parked and conditional tracks
 
-The following remain visible but are not immediate steering:
-
-- V1 application intelligence and LLM features beyond the deferred residual booster layer.
-- FREEZE-002 and REFACTOR-001.
-- Cloud, outbox, Kafka and Spark.
-- CV update automation.
-- Provider calls, scheduler changes and all mutating paths without their explicit gates.
-
-## Historical containment note
-
-CONSISTENCY-001A, the external MCP freeze and the full-ZIP bridge remain useful
-lessons and evidence. They are no longer the active sequence. The external MCP/DON
-project remains an engineering control plane and target-work enabler, not an
-implementation core inside this repository.
+- `#671` StepStone wave-cycle plan/read-only hardening until `#672` yields no higher-value acquisition work;
+- `#522` LLM acquisition booster until `#672` reaches evidence-backed deterministic exhaustion;
+- V1 application intelligence and later semantic enrichment;
+- FREEZE-002 and REFACTOR-001;
+- Cloud, outbox, Kafka and Spark;
+- CV update automation;
+- provider calls, scheduler changes and mutating paths without explicit gates.
