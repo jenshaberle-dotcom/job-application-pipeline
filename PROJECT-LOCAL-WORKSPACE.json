@@ -1,0 +1,28 @@
+{
+  "schema_version": "drj.project_local_workspace.v1",
+  "repository_id": 1230805345,
+  "repository": "jenshaberle-dotcom/job-application-pipeline",
+  "canonical_branch": "main",
+  "canonical_checkout": {
+    "cardinality": "EXACTLY_ONE_PERSISTENT_ACTIVE",
+    "windows_path": "%USERPROFILE%\\repos\\job-application-pipeline",
+    "wsl_path": "$HOME/projects/job-application-pipeline",
+    "duplicate_persistent_checkout": "CHECK"
+  },
+  "temporary_workspaces": {
+    "windows_root": "%USERPROFILE%\\worktrees\\job-application-pipeline",
+    "wsl_root": "$HOME/worktrees/job-application-pipeline",
+    "lease_required_for_integrated_creators": true,
+    "arbitrary_persistent_clone_outside_declared_roots": false
+  },
+  "fallback_local_execution": {
+    "ci_disturbance_allowed": true,
+    "main_only_read_or_test_may_use_canonical_checkout": true,
+    "non_main_or_mutating_work_requires_declared_temporary_workspace": true
+  },
+  "scanner_scope": {
+    "normal": "DECLARED_PATHS_ONLY",
+    "broad_scan": "FALLBACK_ONLY_IF_CONTRACT_MISSING_INVALID_OR_CONTRADICTED"
+  },
+  "target_operating_model": "JANITOR_MONITOR_FIRST_EFFECT_EXCEPTION"
+}
