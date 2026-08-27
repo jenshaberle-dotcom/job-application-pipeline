@@ -232,7 +232,7 @@ acquisition authority.
 2. Runtime issue `jenshaberle-dotcom/job-pipeline-runtime#203`;
 3. Runtime PR `#352` and the V41 method-contract repair state;
 4. V40 result `32977904600`;
-5. Runtime `scripts/run_connector_bjak_url_field_shape_v41.py`;
+5. [Runtime V41 Bjak URL-field-shape diagnostic](https://github.com/jenshaberle-dotcom/job-pipeline-runtime/blob/1c19f434a1e8c64e9c941df6b7e19ed92118452f/scripts/run_connector_bjak_url_field_shape_v41.py);
 6. `src/search_intelligence/runtime_network_acquisition.py`;
 7. `tests/test_runtime_network_acquisition.py`;
 8. `docs/reference/search-intelligence/runtime_network_acquisition.md`;

@@ -64,3 +64,21 @@ def test_doc001j_planning_log_and_archive_controls_explain_the_guard() -> None:
 
     assert "unresolved_count=0" in planning
     assert "No mass archive move" in planning
+
+
+def test_doc001j_ignores_dependency_markdown_below_node_modules(tmp_path: Path) -> None:
+    _write(tmp_path / "docs" / "README.md", "# Docs\n")
+    _write(
+        tmp_path
+        / "frontend"
+        / "control-center"
+        / "node_modules"
+        / "example-package"
+        / "README.md",
+        "# Vendor package\n\n[Missing vendor-relative target](./missing.md)\n",
+    )
+
+    report = collect_documentation_references(tmp_path)
+
+    assert report.checked_markdown_files == 1
+    assert report.unresolved_count == 0

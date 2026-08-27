@@ -33,6 +33,7 @@ EXCLUDED_PARTS = {
     "__pycache__",
     ".pytest_cache",
     "exports",
+    "node_modules",
 }
 
 REPO_PATH_PREFIXES = (
