@@ -1,5 +1,5 @@
 {
-  "schema_version": "job_application_pipeline.project_hygiene.v2",
+  "schema_version": "job_application_pipeline.project_hygiene.v3",
   "repository_id": 1230805345,
   "canonical_remote": "github.com/jenshaberle-dotcom/job-application-pipeline",
   "canonical_branch": "main",
@@ -19,9 +19,16 @@
     "closed_unmerged_requires_explicit_harvest_proof": true,
     "orphan_or_ambiguous_refs_remain_protected": true,
     "persistent_branches_policy": "EXPLICIT_EXACT_REFS",
-    "persistent_branches": [
-      "feature/ml-learning-foundation"
-    ]
+    "persistent_branches": ["feature/ml-learning-foundation"]
+  },
+  "drj_reconcile_handoff": {
+    "project_drj_contract": "PROJECT-DRJ.json",
+    "mailbox": "DRJ-RECONCILE-REQUEST.json",
+    "publisher_trigger": "REENTRY_HYGIENE_GATE_COMPLETION",
+    "publish_no_request_when_empty": true,
+    "publish_ready_only_for_exact_semantic_candidates": true,
+    "dedicated_github_action_forbidden": true,
+    "request_is_effect_authority": false
   },
   "hard_boundaries": [
     "No branch deletion authority is granted by this contract alone.",
