@@ -1,194 +1,182 @@
 # REENTRY-001B Job Application Pipeline — Deterministic V41 Frontier
 
-Status: current canonical repository re-entry; deterministic acquisition active, V41 manual diagnostic continuation after CI disturbance  
+Status: current canonical repository re-entry; clean V41 diagnostic complete, URL-key parser follow-up next  
 Date: 2026-08-27  
 Repository: `jenshaberle-dotcom/job-application-pipeline`  
 Repository ID: `1230805345`  
-Pipeline main before this refresh: `187fb989ef08674d24c66b99cee3d944cdbe2d54`  
+Pipeline main before this refresh: `cc4ba91c50bbc2111eecd720d22c47e0b5ec43ea`  
 Runtime repository: `jenshaberle-dotcom/job-pipeline-runtime`  
-Runtime main: `7696918f17a3126f63f2ebc38486a3630effc7b7`  
 Runtime control issue: `#203`  
 Boundary: repository plus persisted Runtime evidence are project truth; chat and assistant memory are not project truth
 
 ## Purpose and supersession
 
-This file is the canonical continuation point after REENTRY-001A.
+This file remains the canonical continuation point after REENTRY-001A. REENTRY-001A
+is historical evidence for the V37-V39 transition and must not be rewritten as if
+those states never existed.
 
-REENTRY-001A remains historical evidence for the V37-V39 transition and must not be
-rewritten as if those states never existed. Its former sole-next-action statement
-(`V40 next`) is stale because V40 completed successfully and produced the current
-repo-supported deterministic diagnostic frontier.
+The previous state in this file is now stale in two places:
 
-The previous 2026-08-26 version of this file is also partially stale: it treated the
-next V41 step as blocked on a trustworthy GitHub Actions Chromium smoke. The operator
-has now explicitly placed CI execution in a temporary disturbance mode and is running
-the same contracts manually from isolated worktrees. CI/startup failures remain
-infrastructure-only non-evidence; manual execution may advance deterministic diagnosis
-only when exact refs, bindings and boundaries are preserved.
+1. V41 is no longer blocked by the missing Chromium host libraries for manual
+   execution; the runner-local dependency overlay was proven locally.
+2. The V41 request-method defect (`POST` vs authoritative V40 `GET`) was isolated,
+   corrected as a one-line local diagnostic patch, and the same exact V41 lineage
+   then completed cleanly.
 
-Current continuation authority is therefore:
+CI structure remains disturbed. Until that separate infrastructure problem is fixed,
+bounded campaign tests may run manually from isolated worktrees with exact immutable
+refs and the same fail-closed contracts. CI/startup failures and failed manual
+technical attempts remain non-evidence.
 
-1. this file for current frontier and stop/continue criteria;
-2. Runtime issue `#203` for persisted campaign evidence and execution checkpoints;
-3. immutable successful acquisition evidence runs for cohort truth;
-4. current Runtime/Pipeline repository state for implementation truth;
-5. operator-captured manual diagnostic output only as technical evidence until a
-   durable repository checkpoint is persisted.
+## Current acquisition truth — unchanged
 
-## Current truth — two intentionally separate controls
+Two controls remain intentionally separate:
 
-1. **Static default acquisition control remains `23/40` genuine-job proven.**
-2. **Accumulated bounded Runtime deterministic acquisition is `33/40` strict proven,
+1. **Static default acquisition control: `23/40` genuine-job proven.**
+2. **Accumulated bounded Runtime deterministic acquisition: `33/40` strict proven,
    `7/40` unresolved.**
 
-These values are separate controls and must not be added together.
+Do not add these values together.
 
-The latest successful authoritative acquisition evidence is **V40 run
-`32977904600`**. V41 has not yet produced acquisition evidence. Technical failures,
-startup failures, skipped executions, CI disturbances and failed manual diagnostics
-are not `+0` acquisition evidence.
+The latest successful authoritative acquisition evidence is still **V40 run
+`32977904600`**. V41 is diagnostic-only and credits zero rescues by construction, so
+its clean result does **not** change `33/40`.
 
-## V40 — browser-triggered Runtime Network replay
+## Authoritative V40 binding
 
-V40 successfully executed the exact post-V39 residual replay:
+V41 remains bound to:
 
-- Runtime run: `32977904600`;
 - Pipeline acquisition snapshot: `4ada550e4a0ec0d84b62217528408e6e3d8b2956`;
+- Runtime V40 run: `32977904600`;
+- V40 result branch: `carrier/203-runtime-network-residual-v40-32977904600`;
 - V37 / V38 / V39 lineage: `32971101384 / 32973049347 / 32974128089`;
-- page-surface cases: `4`;
-- runtime-event cases: `3`;
-- runtime events: `45`;
-- inspected JSON responses: `19`;
-- candidate cases: `1`;
-- runtime recognition candidates: `30`;
-- candidate case: `72 / bjak`;
-- strict proofs: `0`;
-- diagnostic failures: `0`;
-- strict rescues: `0`;
-- effective truth remains **`33/40`, residual `7/40`**.
+- residual IDs: `[33, 45, 47, 48, 52, 63, 72]`;
+- V40 effective strict proof: `33/40`;
+- V40 strict rescues: `0`;
+- V40 diagnostic failures: `0`.
 
-V40 is valid clean zero-rescue evidence for the exact browser-triggered network replay
-class it executed. It is not deterministic exhaustion because it exposed structured
-Bjak records that the current generic recognizer could partially understand but could
-not turn into URL-bearing proof candidates.
+V40 exposed candidate `72 / bjak`: the browser emitted an XHR `GET` request to
+`be.bjak.my/career/api-v1/get-all-jobs`; the current generic recognizer saw structured
+job records but had no recognized candidate URL because normalized fields
+`applylink` and `externallink` were outside `URL_KEYS`.
 
-## Bjak signal and why V41 exists
+## V41 execution history and method-contract repair
 
-The post-V40 inspection exposed a generic parser/protocol question around literal
-record URL fields named `applylink` and `externallink`.
+Earlier V41 attempts were technical non-evidence:
 
-The current decision remains deliberately **not** to add those names to Pipeline
-`URL_KEYS` from field names alone. A field name is not sufficient authority.
-
-V41 is diagnostic-only. Its job is to classify the already-observed Bjak field shapes
-without persisting raw values and answer whether the fields have reusable URL
-semantics:
-
-- null / empty;
-- absolute HTTPS;
-- relative;
-- other;
-- destination class: response host / already-authorized host / other host.
-
-Only if the diagnostic proves genuine generic URL semantics may the smallest reusable
-Pipeline parser change be considered, followed by exact replay under unchanged proof
-authority.
-
-## V41 execution history — technical non-evidence
-
-V41 has not produced acquisition evidence yet.
-
-Known technical attempts:
-
-- run `32982443750`: skipped; no target execution; not acquisition evidence;
-- PR `#351`, run `32983583479`: bindings and temporary Playwright/Chromium setup
-  reached execution preparation, but Chromium could not launch because the
-  self-hosted Linux host lacked `libnspr4`, `libnss3`, and `libasound2t64`; engine did
-  not run; technical non-evidence;
+- run `32982443750`: skipped;
+- run `32983583479`: Chromium could not launch because the Linux host lacked
+  `libnspr4`, `libnss3`, and `libasound2t64`;
 - Runtime PR `#352`, head
-  `1c19f434a1e8c64e9c941df6b7e19ed92118452f`, contains a runner-local dependency
-  overlay candidate using exact Playwright `1.55.0`, `apt-get download`, local
-  `dpkg-deb -x`, and `LD_LIBRARY_PATH`; it performs no `sudo`, no package installation
-  and no system-package mutation;
-- V41 smoke run `32985119975` ended in `startup_failure` before any job started;
-- current-head Runtime identity retry `32984862438` later completed green on both
-  Linux and Windows after RCC/runner recovery, proving that dispatch recovered at
-  least once but not repairing the broader CI structure.
+  `1c19f434a1e8c64e9c941df6b7e19ed92118452f`, introduced a runner-local dependency
+  overlay candidate without `sudo`, package installation, or system mutation;
+- run `32985119975`: GitHub Actions `startup_failure` before job execution.
 
-### Manual V41 continuation — 2026-08-27
+Manual exact-ref execution on 2026-08-27 proved the dependency overlay itself works:
+Playwright `1.55.0` installed, Chromium downloaded, the three libraries were extracted
+locally, and a blank Chromium smoke passed.
 
-Because CI structure is currently disturbed, the operator temporarily returned this
-campaign to manual tests. The manual run used isolated detached worktrees and exact
-refs:
+The first manual V41 engine execution then returned
+`diagnostic_execution_failure_count=1` and `target_response_count=0`. Repository/V40
+comparison proved a deterministic implementation defect: V40 persisted the exact
+Bjak target as `GET`, while V41 hard-filtered the same host/path to `POST`.
 
-- Runtime candidate head: `1c19f434a1e8c64e9c941df6b7e19ed92118452f`;
-- Pipeline acquisition snapshot: `4ada550e4a0ec0d84b62217528408e6e3d8b2956`;
-- V40 evidence branch: `carrier/203-runtime-network-residual-v40-32977904600`;
-- V40 evidence run: `32977904600`;
-- exact Playwright: `1.55.0`;
-- browser dependency overlay: runner/local-user temporary extraction only.
+The local diagnostic worktree was restored to exact Runtime head and then changed by
+exactly one line, `POST -> GET`. A byte-for-byte comparison proved that this was the
+only V41-script delta before rerunning the same bound lineage.
 
-The manual overlay smoke **passed**: Chromium downloaded and launched successfully
-with the local `libnspr4`, `libnss3`, and `libasound2t64` overlay. This closes the
-specific missing-host-library hypothesis as the current blocker for local execution.
-It does not by itself authorize merge of PR `#352` while CI structure is disturbed.
+## Clean manual V41 diagnostic result
 
-The immediately following V41 engine run completed far enough to emit a result but
-failed its diagnostic contract:
+The corrected manual V41 diagnostic completed cleanly:
 
 ```text
-input_residual_count=7
+target_response_count=1
+navigation_failure_count=0
+diagnostic_execution_failure_count=0
+job_records_with_target_field=228
+records_with_https_resolvable_target=228
+strict_v41_rescue_count=0
 effective_strict_proven_count=33
 remaining_unresolved_count=7
-target_response_count=0
-job_records_with_target_field=0
-records_with_https_resolvable_target=0
-field_stats={}
-diagnostic_execution_failure_count=1
-strict_v41_rescue_count=0
 ```
 
-The post-run assertion failure is therefore expected and correct: a zero target
-response is technical diagnostic failure, not clean zero-yield acquisition evidence.
+For **both** normalized fields, `applylink` and `externallink`, all `228/228` inspected
+job records had the same bounded shape:
 
-## Newly evidenced V41 repository defect — request-method mismatch
+```text
+present=228
+absolute_https=228
+query_present=0
+null=0
+empty_string=0
+relative/root-relative/path-like=0
+resolved_response_host=0
+resolved_existing_authorized_host=0
+resolved_other_host=228
+```
 
-Repository inspection after the manual failure exposed a deterministic V41 contract
-bug:
+No raw field values were persisted. This is strong evidence that both names have
+reusable URL semantics. It is **not** host authority and it is not acquisition proof.
 
-- authoritative V40 evidence records the Bjak browser-emitted
-  `be.bjak.my/career/api-v1/get-all-jobs` request as **`GET`**;
-- V41 exact-head code filters that same host/path to **`POST`** before inspecting the
-  response;
-- therefore the current V41 implementation discards the exact V40-observed target and
-  can naturally produce `target_response_count=0` even when the target response is
-  present.
+## Host/proof boundary after V41
 
-This mismatch is narrower and better evidenced than changing timeouts, adding
-interaction, reconstructing request bodies or broadening endpoint discovery. The next
-V41 correction must bind request method to the already persisted V40 observation
-(`GET`) rather than guessing or accepting arbitrary methods.
+Current `runtime_network_acquisition.py` remains deliberately exact-host/fail-closed:
 
-No Pipeline parser change is authorized by this finding.
+- `_allowed_host()` accepts only exact normalized host membership;
+- recognition may emit a sanitized HTTPS `candidate_url` while independently marking
+  `host_authorized=False`;
+- `runtime_job_record_proof()` requires an authorized employer page plus a strong
+  candidate;
+- a cross-host candidate can be proven when the response host is already authorized;
+- otherwise the candidate host must exactly equal the response host;
+- unrelated third-party response -> third-host delegation fails closed;
+- one-hop candidate-host delegation occurs only after Runtime proof succeeds.
+
+For the V40 Bjak case, existing authorized hosts are `bjak.my` and
+`my.jobstreet.com`, while the target response host is `be.bjak.my`. Exact-host matching
+therefore does not automatically authorize that response. V41 also classified all
+observed target URLs as `other_host`, not response-host or already-authorized-host.
+
+Consequently, adding the two URL aliases alone must **not** grant host/proof authority
+and is not expected to manufacture a rescue. The next replay must measure that rather
+than assume it.
+
+## Next parser change authorized by V41
+
+V41 now supplies the missing semantic evidence. The smallest reusable Pipeline change
+is authorized:
+
+- add normalized `applylink` to `URL_KEYS`;
+- add normalized `externallink` to `URL_KEYS`;
+- do **not** add either key to `EXPLICIT_JOB_KEYS`;
+- do not change scoring except the existing generic URL-key scoring naturally taking
+  effect;
+- do not change `_allowed_host`, page/response authority, Runtime proof, delegation,
+  Product/source/application authority, request budgets, interaction rules, or
+  persistence rules.
+
+This follows the existing `absoluteurl` precedent: evidence-backed URL vocabulary may
+be extended without allowing the field name alone to make an object a job.
+
+After the parser delta, run an exact replay on the V41/V40 Bjak surface. The replay
+must report candidate/proof/delegation behavior under unchanged authority. A clean
+zero-rescue result is valid evidence if the execution itself is complete; a technical
+failure is not.
 
 ## Temporary CI/manual execution policy
 
-Until the current CI-structure disturbance is repaired:
+Until CI structure is repaired:
 
-- do not use queued, cancelled, startup-failed or skipped GitHub Actions jobs as
-  acquisition evidence;
-- avoid generating carrier churn merely to probe scheduler health;
-- execute bounded diagnostics manually only from isolated worktrees and exact refs;
-- preserve the same static/binding/boundary checks used by CI;
-- do not install/mutate host system packages for V41; retain the local overlay;
-- do not merge Runtime PR `#352` merely because the local smoke passed; CI repair and
-  merge policy are separate from the immediate deterministic campaign;
-- persist a durable Runtime checkpoint once a corrected manual V41 result is clean;
-- preserve **33/40 strict proven, 7/40 unresolved** until genuine strict proof exists.
+- manual tests only from isolated worktrees and exact refs;
+- retain all static, binding, boundary and output assertions;
+- no queued/cancelled/startup-failed/skipped CI run becomes acquisition evidence;
+- no carrier churn merely to test scheduler health;
+- no host system package mutation for browser support;
+- PR `#352` merge policy remains separate from the deterministic campaign;
+- persist technical checkpoints in Runtime issue `#203`;
+- preserve `33/40` until a genuine strict proof is produced.
 
 ## Exact unresolved residual
-
-The current seven unresolved cases remain:
 
 - `33` — `x1f`;
 - `45` — `bridgingit`;
@@ -198,11 +186,7 @@ The current seven unresolved cases remain:
 - `63` — `the_associated_engineers`;
 - `72` — `bjak`.
 
-No V41 technical attempt changes this cohort.
-
 ## Hard boundaries
-
-The ACQ-RUNTIME boundaries remain unchanged:
 
 - no company-specific success branch merely to increase recall;
 - no guessed ATS token, tenant, endpoint, selector, route, board, site or job ID;
@@ -211,8 +195,8 @@ The ACQ-RUNTIME boundaries remain unchanged:
 - no registrable-domain inference as host authority;
 - no URL-less inventory proof;
 - no weakening of final genuine-job/content proof;
-- provider recognition, structural grouping, field names or historical observation
-  alone are never Product/job authority;
+- field names, provider recognition and structural grouping alone are never Product/job
+  authority;
 - raw HTML/API/XML/JSON bodies, headers, cookies, tokens and request bodies are not
   persisted;
 - no DB/Product/source activation/scheduler/application mutation in acquisition shadow
@@ -222,19 +206,18 @@ The ACQ-RUNTIME boundaries remain unchanged:
 
 ## Deterministic / booster / ML sequencing
 
-Deterministic acquisition is **not yet evidence-exhausted** because V40 exposed a new
-bounded generic diagnostic question and the first V41 manual execution exposed a
-narrow implementation mismatch before the diagnostic could observe its target.
-Booster admission therefore remains deferred until the corrected V41-derived surface
-and any directly evidenced follow-up are closed.
+Deterministic acquisition is still not evidence-exhausted because V41 proved a new
+bounded generic URL-vocabulary repair and an exact replay is still outstanding.
+Booster admission remains deferred until that parser surface and any *directly
+evidenced* follow-up are closed.
 
-Development-order truth remains:
+Development order:
 
 ```text
 deterministic hardening -> LLM booster engineering -> ML algorithm engineering
 ```
 
-Productive decision-order truth remains:
+Productive decision order:
 
 ```text
 deterministic -> ML algorithm -> booster
@@ -243,37 +226,26 @@ deterministic -> ML algorithm -> booster
 The ML learning-foundation lane may continue independently where it does not redefine
 acquisition authority.
 
-## Required reads for the next chat / operator handoff
+## Required reads for next handoff
 
-Authenticate the Pipeline repository ID and then read, in order:
-
-1. this file completely;
-2. Runtime issue `jenshaberle-dotcom/job-pipeline-runtime#203`, especially the V40 and
-   V41 checkpoints;
-3. Runtime PR `#352` and exact current head/status;
-4. V40 run `32977904600` and its persisted result manifest, including the exact Bjak
-   request method;
-5. Runtime `scripts/run_connector_bjak_url_field_shape_v41.py` at the exact manual-test
-   head;
-6. `docs/reference/search-intelligence/runtime_network_acquisition.md`;
-7. `src/search_intelligence/runtime_network_acquisition.py`;
-8. REENTRY-001A only for V37-V39 historical context;
-9. `docs/planning/active/ml_learning_foundation_lane.md` for the parallel ML lane.
-
-Do not substitute chat summaries, assistant memory, stale PR descriptions or retired
-NEXT artifacts for these sources.
+1. this file;
+2. Runtime issue `jenshaberle-dotcom/job-pipeline-runtime#203`;
+3. Runtime PR `#352` and the V41 method-contract repair state;
+4. V40 result `32977904600`;
+5. Runtime `scripts/run_connector_bjak_url_field_shape_v41.py`;
+6. `src/search_intelligence/runtime_network_acquisition.py`;
+7. `tests/test_runtime_network_acquisition.py`;
+8. `docs/reference/search-intelligence/runtime_network_acquisition.md`;
+9. REENTRY-001A only for V37-V39 history;
+10. `docs/planning/active/ml_learning_foundation_lane.md` for the parallel ML lane.
 
 ## Sole next safe action
 
-**Correct only the V41 target request-method contract from the stale hard-coded
-`POST` assumption to the exact V40-observed `GET`, then rerun the same manual V41
-lineage from isolated worktrees with Pipeline
-`4ada550e4a0ec0d84b62217528408e6e3d8b2956` and V40 `32977904600`.**
+**Implement only the evidence-backed `applylink` / `externallink` additions to
+Pipeline `URL_KEYS` (not `EXPLICIT_JOB_KEYS`), protect the unchanged host/proof boundary
+with regression tests, and execute the exact bounded Bjak replay manually while CI is
+disturbed.**
 
-Do not broaden methods, endpoints, hosts, interactions or request reconstruction. If
-the corrected run captures exactly one target response and completes with zero
-diagnostic failures, inspect only the persisted field-shape counts. Do not patch
-`applylink` / `externallink` before that diagnostic evidence proves generic URL
-semantics.
-
-Acquisition truth at handoff remains **33/40 strict proven, 7/40 unresolved**.
+Do not change host authority merely because V41 says the fields contain URLs.
+Acquisition truth remains **33/40 strict proven, 7/40 unresolved** until the replay
+produces genuine strict proof.
