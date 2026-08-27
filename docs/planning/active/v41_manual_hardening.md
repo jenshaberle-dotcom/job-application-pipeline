@@ -50,32 +50,34 @@ to the booster layer.
 A later documentation reconciliation should preserve the V34 section as historical
 evidence while moving its status/continuation text to the current V40/V41 frontier.
 
-## Manual slice 3 — query-value sanitization finding
+## Manual slice 3 — query-value persistence review
 
 `src/search_intelligence/runtime_network_acquisition.py::sanitize_url` currently
 redacts only values whose query keys look secret-like. Other query values remain in
-the returned sanitized URL; the existing unit test explicitly preserves
+the returned in-memory URL and the existing unit test explicitly preserves
 `tenant=acme`.
 
-REENTRY-001B and current Runtime campaign boundaries are stricter: persisted campaign
-evidence must not contain query values.
+At first inspection that looked inconsistent with the current campaign boundary
+`query_values_persisted=false`. Runtime call-site review shows that the active
+campaign persistence layer applies an additional, stricter projection:
 
-This is a real boundary-drift candidate, but it must **not** be patched by simply
-redacting every value without call-site analysis. `JobPayloadCandidate.candidate_url`
-uses the same sanitizer and may be consumed transiently for exact observed candidate
-navigation. Destroying required query values could therefore break deterministic
-replay while appearing to improve persistence safety.
+- `run_connector_runtime_authority_shadow_v18.py::public_candidate_url` persists
+  candidate identity as HTTPS scheme/host/path only, removing query and fragment;
+- Runtime request/response/page evidence is persisted through `url_shape` / `url_meta`
+  structures that retain query *keys* only, never values;
+- V31 and V40 inherit those persistence projections while using the Pipeline candidate
+  URL transiently for recognition/proof.
 
-Required follow-up before code change:
+Therefore **no current V18/V31/V40 query-value evidence leak is proven** and no
+sanitizer patch is justified from this review alone.
 
-1. separate transient executable URL from persistable URL shape if necessary;
-2. identify every persistence boundary that serializes `NetworkObservation` or
-   `JobPayloadCandidate`;
-3. ensure persisted forms retain query keys only, never values;
-4. keep exact observed query-bearing URLs available only transiently when execution
-   genuinely requires them;
-5. add positive persistence tests and negative replay-regression tests before changing
-   the sanitizer contract.
+The naming/API contract is still worth future cleanup because `sanitize_url` means
+"secret-value redaction", not "safe-for-all-persistence". A future refactor may split
+transient executable URL normalization from persistable URL-shape projection, but it
+must preserve exact observed query-bearing URLs transiently when deterministic replay
+requires them.
+
+No code change is authorized by this finding during the current V41 frontier.
 
 ## Manual test gate
 
