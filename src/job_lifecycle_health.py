@@ -121,12 +121,64 @@ class JobLifecycleHealthRepository:
 
         return self._target_from_row(row)
 
+    def load_active_targets_for_source(
+        self,
+        source_name: str,
+    ) -> list[JobHealthTarget]:
+        """Load current employer-origin exact-detail targets for recurring recheck."""
+
+        if not source_name.strip():
+            raise ValueError("source_name must not be empty")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        sj.id AS silver_job_id,
+                        sj.raw_job_id,
+                        r.ingestion_run_id,
+                        sj.source_name,
+                        sj.external_job_id,
+                        sj.source_url,
+                        sj.title,
+                        sj.canonical_source_type,
+                        r.raw_data->>'source_type' AS raw_source_type
+                    FROM gold_job_lifecycle_health lifecycle
+                    JOIN silver_jobs sj
+                      ON sj.id = lifecycle.silver_job_id
+                    JOIN raw_jobs r
+                      ON r.id = sj.raw_job_id
+                    WHERE sj.source_name = %s
+                      AND lifecycle.lifecycle_status = 'active_confirmed'
+                      AND NULLIF(btrim(sj.source_url), '') IS NOT NULL
+                      AND (
+                            sj.canonical_source_type IN (
+                                'employer_origin_career_site',
+                                'employer_origin_ats_backed_career_site'
+                            )
+                            OR r.raw_data->>'source_type' IN (
+                                'employer_origin_career_site',
+                                'employer_origin_ats_backed_career_site'
+                            )
+                      )
+                    ORDER BY
+                        lifecycle.last_health_checked_at NULLS FIRST,
+                        sj.id
+                    """,
+                    (source_name.strip(),),
+                )
+                rows = cur.fetchall()
+
+        return [self._target_from_row(row) for row in rows]
+
     def append_health_observation(
         self,
         *,
         expected_target: JobHealthTarget,
         classification: HealthClassification,
         observed_by: str,
+        ingestion_run_id: int | None = None,
     ) -> int:
         if not observed_by.strip():
             raise ValueError("observed_by must not be empty")
@@ -165,7 +217,11 @@ class JobLifecycleHealthRepository:
                     ") RETURNING id",
                     (
                         current_target.raw_job_id,
-                        current_target.ingestion_run_id,
+                        (
+                            ingestion_run_id
+                            if ingestion_run_id is not None
+                            else current_target.ingestion_run_id
+                        ),
                         current_target.source_name,
                         current_target.external_job_id,
                         current_target.source_url,

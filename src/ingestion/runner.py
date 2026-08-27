@@ -15,8 +15,12 @@ from src.ingestion.post_fetch_filter import (
     apply_keyword_filter,
     apply_multi_term_keyword_filter,
 )
+from src.ingestion.recurring_lifecycle_health import (
+    reconcile_recurring_exact_detail_health,
+)
 from src.ingestion.repository import JobIngestionRepository
 from src.ingestion.run_stage_telemetry import record_ingestion_stage_counts
+from src.job_lifecycle_health import JobLifecycleHealthRepository
 
 
 MISSING_DISPLAY_VALUE = "<missing>"
@@ -130,9 +134,11 @@ class JobIngestionRunner:
         self,
         repository: JobIngestionRepository,
         connector: JobSourceConnector,
+        health_repository: JobLifecycleHealthRepository | None = None,
     ) -> None:
         self.repository = repository
         self.connector = connector
+        self.health_repository = health_repository
 
     def run(self, profile_name: str) -> None:
         search_terms = self.repository.load_active_search_terms(profile_name)
@@ -367,6 +373,7 @@ class JobIngestionRunner:
             requested_url=requested_url,
         )
 
+        full_fetch_records = list(records)
         loaded_before_local_filter = len(records)
         records = apply_multi_term_keyword_filter(
             records=records,
@@ -442,6 +449,34 @@ class JobIngestionRunner:
                 f"{display_title} | "
                 f"{display_company} | "
                 f"matched_terms: {matched_terms_display}"
+            )
+
+        if self.health_repository is not None:
+            try:
+                health_summary = reconcile_recurring_exact_detail_health(
+                    health_repository=self.health_repository,
+                    source_name=self.connector.source_name,
+                    observed_records=full_fetch_records,
+                    ingestion_run_id=ingestion_run_id,
+                )
+            except Exception as exc:
+                self.repository.fail_ingestion_run(
+                    ingestion_run_id=ingestion_run_id,
+                    error_message=str(exc),
+                    error_type=type(exc).__name__,
+                    error_stage="recurring_lifecycle_health",
+                )
+                raise
+
+            print(
+                "Recurring exact-detail health: "
+                f"targets={health_summary.target_count} "
+                f"observed={health_summary.observed_target_count} "
+                f"missing={health_summary.missing_target_count} "
+                f"probed={health_summary.probe_count} "
+                f"active_writes={health_summary.seen_active_write_count} "
+                f"closed_writes={health_summary.closed_write_count} "
+                f"unverifiable={health_summary.unverifiable_count}"
             )
 
         self.repository.finish_ingestion_run(

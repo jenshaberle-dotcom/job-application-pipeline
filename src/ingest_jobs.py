@@ -13,6 +13,7 @@ from src.connectors.registry import create_connector as registry_create_connecto
 from src.connectors.registry import source_role as registry_source_role
 from src.ingestion.repository import JobIngestionRepository
 from src.ingestion.runner import JobIngestionRunner
+from src.job_lifecycle_health import JobLifecycleHealthRepository
 
 
 INGESTION_EXECUTION_APPLICATION_PREFIX = "job-pipeline-ingest:"
@@ -305,12 +306,23 @@ def print_profiles(repository: JobIngestionRepository) -> None:
 def run_profile(
     repository: JobIngestionRepository,
     profile: SearchProfile,
+    *,
+    recurring_health_enabled: bool = False,
 ) -> None:
     connector = create_connector(source_name=profile.source_name)
+
+    health_repository = None
+    if (
+        recurring_health_enabled
+        and profile_source_role(profile) == SourceRole.EMPLOYER_ORIGIN
+        and connector.capabilities.supports_full_fetch
+    ):
+        health_repository = JobLifecycleHealthRepository()
 
     runner = JobIngestionRunner(
         repository=repository,
         connector=connector,
+        health_repository=health_repository,
     )
 
     runner.run(profile_name=profile.profile_name)
@@ -319,6 +331,8 @@ def run_profile(
 def run_profiles(
     repository: JobIngestionRepository,
     profiles: Sequence[SearchProfile],
+    *,
+    recurring_health_enabled: bool = False,
 ) -> int:
     failed_profiles: list[tuple[str, Exception]] = []
 
@@ -331,6 +345,7 @@ def run_profiles(
             run_profile(
                 repository=repository,
                 profile=profile,
+                recurring_health_enabled=recurring_health_enabled,
             )
         except Exception as exc:
             failed_profiles.append((profile.profile_name, exc))
@@ -388,6 +403,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     exit_code = run_profiles(
         repository=repository,
         profiles=profiles,
+        recurring_health_enabled=args.profile is None,
     )
 
     if exit_code:
