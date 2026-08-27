@@ -1,9 +1,10 @@
 """Pure Greenhouse provider-navigation primitives for bounded acquisition proof.
 
 No function in this module performs network I/O. A Greenhouse cascade starts only
-when an already-authorized employer page contains one concrete canonical
-Greenhouse board URL. Board identity is then checked against the employer host
-before jobs or detail candidates are emitted.
+when an already-authorized employer page contains either one concrete canonical
+Greenhouse board URL or one statically bound board token that is referenced by an
+exact canonical Greenhouse jobs-API template on that same page. Board identity is
+then checked against the employer host before jobs or detail candidates are emitted.
 """
 
 from __future__ import annotations
@@ -21,6 +22,10 @@ _GREENHOUSE_HOSTS = {
 }
 _TOKEN = re.compile(r"^[A-Za-z0-9_-]{2,128}$")
 _URL = re.compile(r"(?:https?:)?//[^\s\"'<>\\]+", flags=re.IGNORECASE)
+_JS_STATIC_TOKEN_ASSIGNMENT = re.compile(
+    r"\b(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]{0,63})\s*=\s*"
+    r"([\"'])([A-Za-z0-9_-]{2,128})\2\s*;?"
+)
 _COMMON_HOST_LABELS = {
     "www",
     "job",
@@ -59,16 +64,58 @@ def _board_token_from_url(url: str) -> str | None:
     return token if _TOKEN.fullmatch(token) else None
 
 
-def explicit_greenhouse_board_token(html: str) -> str | None:
-    """Return one uniquely observed canonical Greenhouse board token, else fail closed."""
+def _static_template_greenhouse_board_tokens(decoded_html: str) -> set[str]:
+    """Extract tokens from static JS bindings used by an exact Greenhouse jobs template.
+
+    This is intentionally narrower than generic JavaScript evaluation. A token is
+    eligible only when a simple ``const``/``let``/``var`` binding assigns a bounded
+    literal and the same variable name is directly interpolated into the canonical
+    public Greenhouse boards API jobs path. No computed expressions, opaque tenant
+    inference, arbitrary URLs, or dynamic code execution are accepted.
+    """
 
     tokens: set[str] = set()
-    for match in _URL.finditer(_decoded(html)):
+    for match in _JS_STATIC_TOKEN_ASSIGNMENT.finditer(decoded_html):
+        variable = match.group(1)
+        token = match.group(3)
+        if not _TOKEN.fullmatch(token):
+            continue
+
+        concatenated_template = re.compile(
+            r"(?i:https://boards-api\.greenhouse\.io/v1/boards/)"
+            r"\s*[\"']\s*\+\s*"
+            + re.escape(variable)
+            + r"\s*\+\s*[\"']\s*/jobs(?:\?[^\"']*)?"
+        )
+        template_literal = re.compile(
+            r"(?i:https://boards-api\.greenhouse\.io/v1/boards/)"
+            r"\$\{\s*"
+            + re.escape(variable)
+            + r"\s*\}/jobs(?:\?[^`\s]*)?"
+        )
+        if concatenated_template.search(decoded_html) or template_literal.search(decoded_html):
+            tokens.add(token)
+    return tokens
+
+
+def explicit_greenhouse_board_token(html: str) -> str | None:
+    """Return one uniquely observed canonical Greenhouse board token, else fail closed.
+
+    Accepted evidence is either a concrete canonical Greenhouse URL or a static JS
+    token binding tied to an exact canonical Greenhouse jobs-API template. All
+    observed eligible evidence must agree on one token.
+    """
+
+    decoded = _decoded(html)
+    tokens: set[str] = set()
+    for match in _URL.finditer(decoded):
         raw = match.group(0).rstrip("),;]")
         url = f"https:{raw}" if raw.startswith("//") else raw
         token = _board_token_from_url(url)
         if token:
             tokens.add(token)
+
+    tokens.update(_static_template_greenhouse_board_tokens(decoded))
     if len(tokens) != 1:
         return None
     return next(iter(tokens))
