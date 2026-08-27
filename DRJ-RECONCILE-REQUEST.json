@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "request_state": "NO_REQUEST",
+  "repository": "jenshaberle-dotcom/job-application-pipeline",
+  "repository_id": 1230805345,
+  "canonical_branch": "main",
+  "publisher": {"contract_version":1,"trigger":"REENTRY_HYGIENE_GATE","state":"IDLE_BASELINE"}
+}
