@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import json
 import re
 import unicodedata
@@ -18,7 +20,9 @@ from src.search_intelligence.vacancy_page_signals import (
 
 APPROVAL_TOKEN = "JOB-LIFECYCLE-HEALTH-001"
 COVERAGE_EXACT_DETAIL = "exact_detail"
+COVERAGE_COMPLETE_INVENTORY = "complete_inventory"
 OUTCOME_SEEN_ACTIVE = "seen_active"
+OUTCOME_NOT_SEEN = "not_seen"
 OUTCOME_CLOSED = "closed"
 OUTCOME_UNVERIFIABLE = "unverifiable"
 REQUEST_TIMEOUT_SECONDS = 15.0
@@ -172,6 +176,56 @@ class JobLifecycleHealthRepository:
 
         return [self._target_from_row(row) for row in rows]
 
+    def load_active_targets_for_verified_complete_inventory_source(
+        self,
+        source_name: str,
+    ) -> list[JobHealthTarget]:
+        """Load current targets after source-level inventory authority is proven.
+
+        Unlike the exact-detail loader, this path intentionally does not require
+        historical Bronze/Silver source-type projection. Migration 099 proves
+        reviewed recurring ATS authority from current job-observation evidence
+        without rewriting legacy Bronze rows.
+
+        This method itself grants no authority. Callers must first prove the
+        current complete-inventory source contract.
+        """
+
+        if not source_name.strip():
+            raise ValueError("source_name must not be empty")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        sj.id AS silver_job_id,
+                        sj.raw_job_id,
+                        r.ingestion_run_id,
+                        sj.source_name,
+                        sj.external_job_id,
+                        sj.source_url,
+                        sj.title,
+                        sj.canonical_source_type,
+                        r.raw_data->>'source_type' AS raw_source_type
+                    FROM gold_job_lifecycle_health lifecycle
+                    JOIN silver_jobs sj
+                      ON sj.id = lifecycle.silver_job_id
+                    JOIN raw_jobs r
+                      ON r.id = sj.raw_job_id
+                    WHERE sj.source_name = %s
+                      AND lifecycle.lifecycle_status = 'active_confirmed'
+                      AND NULLIF(btrim(sj.source_url), '') IS NOT NULL
+                    ORDER BY
+                        lifecycle.last_health_checked_at NULLS FIRST,
+                        sj.id
+                    """,
+                    (source_name.strip(),),
+                )
+                rows = cur.fetchall()
+
+        return [self._target_from_row(row) for row in rows]
+
     def append_health_observation(
         self,
         *,
@@ -243,6 +297,116 @@ class JobLifecycleHealthRepository:
         return observation_id
 
 
+    def append_complete_inventory_absence_batch(
+        self,
+        *,
+        expected_classifications: Sequence[
+            tuple[JobHealthTarget, HealthClassification]
+        ],
+        expected_source_name: str,
+        observed_by: str,
+        ingestion_run_id: int,
+    ) -> list[int]:
+        """Atomically append verified complete-inventory absence evidence."""
+
+        expected_source_name = expected_source_name.strip()
+        if not expected_source_name:
+            raise ValueError("expected_source_name must not be empty")
+        if not observed_by.strip():
+            raise ValueError("observed_by must not be empty")
+        if ingestion_run_id <= 0:
+            raise ValueError("ingestion_run_id must be positive")
+        if not expected_classifications:
+            return []
+
+        for target, classification in expected_classifications:
+            if target.source_name != expected_source_name:
+                raise ValueError(
+                    "complete-inventory batch contains another source"
+                )
+            if (
+                classification.outcome != OUTCOME_NOT_SEEN
+                or classification.coverage
+                != COVERAGE_COMPLETE_INVENTORY
+            ):
+                raise ValueError(
+                    "complete-inventory batch only accepts "
+                    "not_seen/complete_inventory"
+                )
+
+        target_ids = [
+            target.silver_job_id
+            for target, _ in expected_classifications
+        ]
+        if len(set(target_ids)) != len(target_ids):
+            raise ValueError(
+                "health observation batch contains duplicate Silver targets"
+            )
+
+        observation_ids: list[int] = []
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                for expected_target, classification in expected_classifications:
+                    cur.execute(
+                        self._target_query(for_update=True),
+                        (expected_target.silver_job_id,),
+                    )
+                    row = cur.fetchone()
+                    if row is None:
+                        raise ValueError(
+                            "Silver job disappeared before batch apply: "
+                            f"{expected_target.silver_job_id}"
+                        )
+
+                    current_target = self._target_from_row(row)
+                    ensure_expected_target_identity(
+                        current_target,
+                        expected_source_name=expected_source_name,
+                        expected_source_url=expected_target.source_url,
+                    )
+                    if current_target != expected_target:
+                        raise ValueError(
+                            "Target identity drifted before batch apply"
+                        )
+
+                    cur.execute(
+                        "INSERT INTO job_health_observations ("
+                        "raw_job_id, ingestion_run_id, source_name, "
+                        "external_job_id, source_url, outcome, coverage, "
+                        "evidence_reason, evidence, observed_by"
+                        ") VALUES ("
+                        "%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s"
+                        ") RETURNING id",
+                        (
+                            current_target.raw_job_id,
+                            ingestion_run_id,
+                            current_target.source_name,
+                            current_target.external_job_id,
+                            current_target.source_url,
+                            classification.outcome,
+                            classification.coverage,
+                            classification.evidence_reason,
+                            json.dumps(
+                                classification.evidence,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            ),
+                            observed_by.strip(),
+                        ),
+                    )
+                    inserted = cur.fetchone()
+                    if inserted is None:
+                        raise RuntimeError(
+                            "health observation batch insert returned no id"
+                        )
+                    observation_ids.append(int(inserted["id"]))
+
+            conn.commit()
+
+        return observation_ids
+
+
 def normalize_url_identity(value: str) -> str:
     parsed = urlsplit(value.strip())
     scheme = parsed.scheme.casefold()
@@ -274,12 +438,14 @@ def title_is_confirmed(expected_title: str, response_text: str) -> bool:
     )
 
 
-def ensure_expected_target(
+def ensure_expected_target_identity(
     target: JobHealthTarget,
     *,
     expected_source_name: str,
     expected_source_url: str,
 ) -> None:
+    """Validate immutable target identity without granting source authority."""
+
     if target.source_name != expected_source_name:
         raise ValueError(
             "Source identity mismatch: "
@@ -292,6 +458,26 @@ def ensure_expected_target(
         )
     if not target.title.strip():
         raise ValueError("Target Silver title is empty")
+
+    parsed = urlsplit(target.source_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Target source_url is not an absolute HTTP(S) URL")
+
+
+def ensure_expected_target(
+    target: JobHealthTarget,
+    *,
+    expected_source_name: str,
+    expected_source_url: str,
+) -> None:
+    """Validate exact-detail target identity plus historical source authority."""
+
+    ensure_expected_target_identity(
+        target,
+        expected_source_name=expected_source_name,
+        expected_source_url=expected_source_url,
+    )
+
     if (
         target.canonical_source_type not in EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
         and target.raw_source_type not in EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
@@ -300,10 +486,6 @@ def ensure_expected_target(
             "Target is not an employer_origin_career_site or "
             "employer_origin_ats_backed_career_site vacancy"
         )
-
-    parsed = urlsplit(target.source_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("Target source_url is not an absolute HTTP(S) URL")
 
 
 def fetch_exact_detail(

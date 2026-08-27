@@ -15,6 +15,9 @@ from src.ingestion.post_fetch_filter import (
     apply_keyword_filter,
     apply_multi_term_keyword_filter,
 )
+from src.ingestion.complete_inventory_lifecycle import (
+    reconcile_verified_complete_inventory_health,
+)
 from src.ingestion.recurring_lifecycle_health import (
     reconcile_recurring_exact_detail_health,
 )
@@ -453,12 +456,25 @@ class JobIngestionRunner:
 
         if self.health_repository is not None:
             try:
-                health_summary = reconcile_recurring_exact_detail_health(
-                    health_repository=self.health_repository,
-                    source_name=self.connector.source_name,
-                    observed_records=full_fetch_records,
-                    ingestion_run_id=ingestion_run_id,
+                inventory_health = (
+                    reconcile_verified_complete_inventory_health(
+                        health_repository=self.health_repository,
+                        source_name=self.connector.source_name,
+                        observed_records=full_fetch_records,
+                        ingestion_run_id=ingestion_run_id,
+                    )
                 )
+
+                if inventory_health is None:
+                    health_summary = reconcile_recurring_exact_detail_health(
+                        health_repository=self.health_repository,
+                        source_name=self.connector.source_name,
+                        observed_records=full_fetch_records,
+                        ingestion_run_id=ingestion_run_id,
+                    )
+                else:
+                    health_summary = None
+
             except Exception as exc:
                 self.repository.fail_ingestion_run(
                     ingestion_run_id=ingestion_run_id,
@@ -468,16 +484,29 @@ class JobIngestionRunner:
                 )
                 raise
 
-            print(
-                "Recurring exact-detail health: "
-                f"targets={health_summary.target_count} "
-                f"observed={health_summary.observed_target_count} "
-                f"missing={health_summary.missing_target_count} "
-                f"probed={health_summary.probe_count} "
-                f"active_writes={health_summary.seen_active_write_count} "
-                f"closed_writes={health_summary.closed_write_count} "
-                f"unverifiable={health_summary.unverifiable_count}"
-            )
+            if inventory_health is not None:
+                print(
+                    "Recurring complete-inventory health: "
+                    f"target={inventory_health.authority_target_key} "
+                    f"targets={inventory_health.target_count} "
+                    f"observed={inventory_health.observed_target_count} "
+                    f"missing={inventory_health.missing_target_count} "
+                    f"not_seen_writes="
+                    f"{inventory_health.not_seen_write_count}"
+                )
+            else:
+                assert health_summary is not None
+                print(
+                    "Recurring exact-detail health: "
+                    f"targets={health_summary.target_count} "
+                    f"observed={health_summary.observed_target_count} "
+                    f"missing={health_summary.missing_target_count} "
+                    f"probed={health_summary.probe_count} "
+                    f"active_writes="
+                    f"{health_summary.seen_active_write_count} "
+                    f"closed_writes={health_summary.closed_write_count} "
+                    f"unverifiable={health_summary.unverifiable_count}"
+                )
 
         self.repository.finish_ingestion_run(
             ingestion_run_id=ingestion_run_id,
