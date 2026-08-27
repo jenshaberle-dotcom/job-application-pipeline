@@ -1,8 +1,11 @@
 {
-  "schema_version": "job_application_pipeline.project_hygiene.v1",
+  "schema_version": "job_application_pipeline.project_hygiene.v2",
   "repository_id": 1230805345,
   "canonical_remote": "github.com/jenshaberle-dotcom/job-application-pipeline",
   "canonical_branch": "main",
+  "local_workspace_contract_path": "PROJECT-LOCAL-WORKSPACE.json",
+  "local_workspace_contract_is_repository_truth": true,
+  "reentry_must_reference_project_hygiene": true,
   "workstream_policy": {
     "branch_source": "current_origin_main_only",
     "branch_of_branch_forbidden": true,
@@ -24,6 +27,7 @@
     "No branch deletion authority is granted by this contract alone.",
     "Persistent branches are exact refs and are never inferred from name, prefix, age or branch count.",
     "No closed-unmerged or ambiguous ref may be deleted by Project Hygiene.",
-    "Application data, artifacts, runners and runtime lifecycle authorities remain separate."
+    "Application data, artifacts, runners and runtime lifecycle authorities remain separate.",
+    "Re-entry may reference but may not redefine canonical local workspace path authority."
   ]
 }
