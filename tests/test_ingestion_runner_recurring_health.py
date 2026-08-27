@@ -175,3 +175,56 @@ def test_full_fetch_health_failure_prevents_success_and_marks_run_failed(
         repository.failure["error_stage"]
         == "recurring_lifecycle_health"
     )
+
+
+def test_verified_complete_inventory_skips_exact_detail_fallback(
+    monkeypatch,
+) -> None:
+    repository = FakeRepository()
+    captured = {}
+
+    monkeypatch.setattr(
+        "src.ingestion.runner.record_ingestion_stage_counts",
+        lambda *args, **kwargs: None,
+    )
+
+    class InventorySummary:
+        authority_target_key = "eraneos"
+        target_count = 2
+        observed_target_count = 1
+        missing_target_count = 1
+        not_seen_write_count = 1
+
+    def complete_inventory_reconcile(**kwargs):
+        captured.update(kwargs)
+        return InventorySummary()
+
+    def forbidden_exact_detail(**kwargs):
+        raise AssertionError(
+            "verified complete inventory must skip detail fallback"
+        )
+
+    monkeypatch.setattr(
+        "src.ingestion.runner."
+        "reconcile_verified_complete_inventory_health",
+        complete_inventory_reconcile,
+    )
+    monkeypatch.setattr(
+        "src.ingestion.runner."
+        "reconcile_recurring_exact_detail_health",
+        forbidden_exact_detail,
+    )
+
+    runner = JobIngestionRunner(
+        repository=repository,
+        connector=FakeConnector(),
+        health_repository=object(),
+    )
+
+    runner.run(PROFILE.profile_name)
+
+    assert repository.finished is True
+    assert repository.failed is False
+    assert captured["ingestion_run_id"] == 99
+    assert captured["source_name"] == "example:origin"
+    assert len(captured["observed_records"]) == 1
