@@ -94,10 +94,12 @@ IDENTITY_KEYS = {
 }
 URL_KEYS = {
     "absoluteurl",
+    "applylink",
     "applyurl",
     "canonicalurl",
     "detailpageurl",
     "detailurl",
+    "externallink",
     "externalpath",
     "externalurl",
     "joblink",
