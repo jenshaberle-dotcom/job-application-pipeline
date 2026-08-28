@@ -81,3 +81,20 @@ one named employer.
 - no provider/LLM/Tavily requirement for the deterministic target;
 - historical 40-case cohort remains a regression control;
 - fresh market additions remain an out-of-sample generalization control.
+
+## Migration pause checkpoint — 2026-08-28
+
+Development is intentionally paused for migration into a new canonical local
+workspace. The evidence frontier and exact resume contract are versioned in:
+
+- `docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.md`;
+- `docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json`.
+
+The checkpoint includes the balanced Origin V2 result, Inventory surface/bridge
+audits, the all-65 V3 provider-inventory composition A/B, exact failure cohorts, the
+fresh-ten control, and the final live Clarios Workday board/CXS/detail proof.
+
+Do not repeat those diagnostics after migration unless repository or public-network
+truth materially changed. The sole next engineering action after rebinding the new
+workspace is the read-only diagnosis of why the exact Clarios Workday detail page
+fails the unchanged `genuine_job_detail_proof`; proof must not be weakened.
