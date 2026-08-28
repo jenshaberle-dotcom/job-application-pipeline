@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from html import unescape
+from html.parser import HTMLParser
 import re
 from typing import Iterable
 from urllib.parse import parse_qsl, urljoin, urlparse
@@ -147,6 +148,18 @@ QUERY_CONTEXT_VALUE_PATTERN = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
 )
 
+ONCLICK_QUERY_DETAIL_TAGS = {
+    "td",
+    "tr",
+    "li",
+    "button",
+}
+
+ONCLICK_QUOTED_URL_PATTERN = re.compile(
+    r"(?P<quote>[\"'])(?P<url>(?:https://[^\"'<>]+|/[^\"'<>]*|index\.php\?[^\"'<>]+|\?[^\"'<>]+))(?P=quote)",
+    flags=re.IGNORECASE,
+)
+
 
 def _normalized_label(value: str) -> str:
     return re.sub(r"\s+", " ", unescape(value).strip().lower())
@@ -207,6 +220,84 @@ def _anchor_candidates(html: str) -> Iterable[tuple[str, str]]:
         text = re.sub(r"<[^>]+>", " ", match.group(2))
         text = re.sub(r"\s+", " ", unescape(text)).strip()
         yield href, text
+
+
+class _OnclickQueryDetailParser(HTMLParser):
+    """Extract quoted query-detail URL literals from bounded clickable containers."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[dict[str, object]] = []
+        self.candidates: list[tuple[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized_tag = tag.casefold()
+        attr_map = {
+            str(key or "").casefold(): str(value or "")
+            for key, value in attrs
+        }
+        self.stack.append(
+            {
+                "tag": normalized_tag,
+                "onclick": (
+                    attr_map.get("onclick", "")
+                    if normalized_tag in ONCLICK_QUERY_DETAIL_TAGS
+                    else ""
+                ),
+                "text": [],
+            }
+        )
+
+    def handle_data(self, data: str) -> None:
+        text = re.sub(r"\s+", " ", data).strip()
+        if not text:
+            return
+        for frame in self.stack[-8:]:
+            parts = frame["text"]
+            if not isinstance(parts, list):
+                continue
+            if sum(len(str(part)) for part in parts) >= 500:
+                continue
+            parts.append(text)
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized_tag = tag.casefold()
+        index = next(
+            (
+                position
+                for position in range(len(self.stack) - 1, -1, -1)
+                if self.stack[position]["tag"] == normalized_tag
+            ),
+            None,
+        )
+        if index is None:
+            return
+        frame = self.stack[index]
+        del self.stack[index:]
+
+        onclick = str(frame.get("onclick") or "")
+        if not onclick:
+            return
+        parts = frame.get("text")
+        label = " ".join(str(part) for part in parts) if isinstance(parts, list) else ""
+        label = re.sub(r"\s+", " ", label).strip()
+        if not label:
+            return
+
+        for match in ONCLICK_QUOTED_URL_PATTERN.finditer(unescape(onclick)):
+            self.candidates.append((match.group("url").strip(), label))
+
+
+def _onclick_candidates(html: str) -> tuple[tuple[str, str], ...]:
+    parser = _OnclickQueryDetailParser()
+    parser.feed(html)
+    parser.close()
+    return tuple(parser.candidates)
+
+
+def _query_detail_candidates(html: str) -> Iterable[tuple[str, str]]:
+    yield from _anchor_candidates(html)
+    yield from _onclick_candidates(html)
 
 
 def _normalized_query_key(value: str) -> str:
@@ -325,7 +416,7 @@ def extract_trusted_query_job_detail_links(
 
     candidates: list[EvidenceLink] = []
     seen: set[str] = set()
-    for raw_href, label in _anchor_candidates(html):
+    for raw_href, label in _query_detail_candidates(html):
         absolute_url = urljoin(origin_url, raw_href)
         if absolute_url in seen:
             continue
