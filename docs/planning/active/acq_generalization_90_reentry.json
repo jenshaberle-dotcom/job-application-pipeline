@@ -1,10 +1,11 @@
 {
   "schema": "job_application_pipeline.acq676_reentry.v1",
-  "status": "active_migration_complete",
+  "status": "active_migration_merged_to_main",
   "owner_issue": 676,
-  "active_pull_request": 682,
-  "active_branch": "agent/676-generalization-harvest",
-  "canonical_base": "7644f587d3bd3eb51310451608b7ceb5255ef859",
+  "canonical_main_at_migration_closure": "6af34cb54a9bbf29ffc257d1109f495d08d1678d",
+  "active_pull_request": null,
+  "active_branch": null,
+  "resolve_current_work_from_live_github": true,
   "migration": {
     "complete": true,
     "old_pull_request": 678,
@@ -16,7 +17,18 @@
     "harvest_file_count": 23,
     "harvest_added_files": 22,
     "harvest_modified_files": 1,
-    "old_branch_ancestry_imported": false
+    "old_branch_ancestry_imported": false,
+    "delivery_pull_request": 682,
+    "delivery_pull_request_state": "MERGED",
+    "delivery_head": "64571b517499a827d9c2fc49c96662533f29d35d",
+    "delivery_merge_commit": "6af34cb54a9bbf29ffc257d1109f495d08d1678d",
+    "delivery_file_count": 37,
+    "delivery_tree_present_on_main": true,
+    "final_pipeline_ci_run_number": 883,
+    "final_pipeline_ci_conclusion": "success",
+    "final_reentry_run_number": 1436,
+    "final_reentry_conclusion": "success",
+    "unresolved_review_threads": 0
   },
   "primary_metric": {
     "candidate_count": 65,
@@ -26,25 +38,19 @@
     "target_ratio": 0.9,
     "diagnostic_recipe_ready_is_product_coverage": false
   },
-  "qualified_workday_checkpoint": {
-    "code_head": "ae8b272f23f148df786e776b4b6caa57002a4da0",
-    "pipeline_ci_run_number": 875,
-    "pipeline_ci_conclusion": "success",
-    "reentry_run_number": 1420,
-    "reentry_conclusion": "success",
-    "composition": "authorized employer/workday root -> exact cxs inventory post -> same-board externalPath -> exact same-host cxs detail get -> unchanged genuine_job_detail_proof",
+  "merged_deterministic_frontier": {
+    "balanced_origin_v2": true,
+    "provider_inventory_v3": true,
+    "workday_cxs_detail_projection": true,
+    "workday_cxs_acquisition": true,
+    "builder_v4_workday_overlay": true,
+    "evidence_bounded_portal_delegation": true,
     "product_coverage_lift_claimed": false
   },
-  "active_residual_classes": [
-    "workday_cxs_detail_and_acquisition",
-    "evidence_bounded_first_party_portal_delegation",
-    "remaining_inventory_detail_proof_clusters"
-  ],
   "retention": {
     "active_keep": [
       "issue:#676",
-      "pull_request:#682",
-      "branch:agent/676-generalization-harvest",
+      "ref:refs/heads/main",
       "docs/planning/active/acq_generalization_90_target.md",
       "docs/planning/active/acq_generalization_90_reentry.md",
       "docs/planning/active/acq_generalization_90_reentry.json",
@@ -70,21 +76,16 @@
     "preserve_provenance": [
       "docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.md",
       "docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json",
-      "issue:#676:live_ab_and_clarios_comments"
+      "issue:#676:live_ab_and_clarios_comments",
+      "pull_request:#682:merge_history"
     ],
-    "superseded": [
-      "pull_request:#678"
+    "superseded_no_continuation": [
+      "pull_request:#678",
+      "branch:agent/676-deterministic-connector-builder",
+      "pull_request:#682",
+      "branch:agent/676-generalization-harvest"
     ],
-    "retire_only_after": [
-      {
-        "identity": "branch:agent/676-deterministic-connector-builder",
-        "conditions": [
-          "pull_request_682_merged_to_canonical_main",
-          "harvested_23_file_content_verified_on_main",
-          "later_retained_acq676_content_verified_on_main"
-        ]
-      }
-    ],
+    "branch_retirement_requires_fresh_drj_technical_observation": true,
     "disposable_ephemeral": [
       "/tmp/deterministic_connector_builder_layer_audit_v2_balanced.json",
       "/tmp/deterministic_connector_builder_layer_audit_v3_provider_inventory.json",
@@ -94,15 +95,16 @@
     ]
   },
   "drj": {
-    "branch_retirement_request_while_pr_682_active": "NO_REQUEST",
-    "semantic_rule": "qualified content is preserved; superseded branch ancestry may retire only after exact content-on-main verification",
+    "reconcile_request_at_migration_closure": "NO_REQUEST",
+    "reason": "repository content is merged and safe, but local branch/worktree dirty, unpushed, checked-out and closed-unmerged technical state was not freshly observed in this chat; DRJ must revalidate those conditions fail-closed before any effect",
+    "semantic_rule": "qualified content is preserved on main; superseded branch ancestry has no continuation authority but deletion is a separate exact DRJ effect",
     "age_path_name_are_delete_authority": false
   },
   "continuation": [
-    "verify latest PR #682 CI and re-entry",
+    "freshly resolve current origin/main and any open #676 pull request",
     "run same 65-candidate V4 live builder replay from canonical WSL runtime/database",
-    "qualify and compose evidence-bounded portal delegation on residual Inventory failures",
-    "recluster first failures after every measured generic lift",
+    "compose merged evidence-bounded portal delegation as a monotonic residual Inventory overlay",
+    "replay same cohort and recluster first failures after every measured generic lift",
     "materialize only stable recipes and update product numerator only from unchanged strict E2E proof"
   ]
 }

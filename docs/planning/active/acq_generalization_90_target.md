@@ -111,15 +111,17 @@ Current production-shaped deterministic composition:
 
 `authorized employer/Workday root -> exact CXS inventory POST -> same-board externalPath -> exact same-host CXS detail GET -> unchanged genuine_job_detail_proof`
 
-Qualified code checkpoint:
+Qualified Workday checkpoint:
 
 - `ae8b272f23f148df786e776b4b6caa57002a4da0`;
 - Pipeline CI `#875`: success;
 - Re-entry `#1420`: success.
 
-V4 may promote only an existing Inventory first-failure after the strict Workday
-path succeeds. No live 65-candidate V4 numerical lift is claimed until the canonical
-runtime/database replay is executed.
+The complete Workday/V4 delivery is merged on canonical
+`main@6af34cb54a9bbf29ffc257d1109f495d08d1678d` through PR #682. V4 may promote only
+an existing Inventory first-failure after the strict Workday path succeeds. No live
+65-candidate V4 numerical lift is claimed until the canonical runtime/database
+replay is executed.
 
 ### Evidence-bounded portal delegation
 
@@ -127,7 +129,7 @@ The next residual class is first-party career-page -> explicit external/subdomai
 job portal handoff. This is intentionally not solved by globally widening listing
 vocabulary.
 
-The active generic bridge requires:
+The merged generic bridge requires:
 
 - an explicit strong portal CTA (for example `Job finden` / `Zum Jobportal`); and
 - destination binding by same registered employer domain or an explicit
@@ -135,8 +137,10 @@ The active generic bridge requires:
 - exactly one qualifying portal route; ambiguity fails closed.
 
 The downstream route is handed to the existing V4 acquisition stack under the
-existing request/proof authority. The class is generic; current Bahlsen evidence is
-only one observed instance.
+existing request/proof authority. The class is generic; Bahlsen is one observed
+instance, not a named-employer rule.
+
+This bridge is also merged on `main@6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
 
 ## Guardrails
 
@@ -151,18 +155,22 @@ only one observed instance.
   required;
 - no product coverage claim from diagnostic recipe readiness alone.
 
-## Workspace migration — completed 2026-08-28
+## Workspace migration — fully merged 2026-08-28
 
-The previous migration pause is closed.
+The migration pause and delivery phase are closed.
 
-Qualified #676 content was harvested from superseded PR #678 into the current
-`main` lineage without importing old branch ancestry. The active continuation is:
+Qualified #676 content was harvested from superseded PR #678 into current-main
+lineage without importing old branch ancestry, then delivered through PR #682.
 
-- issue: `#676`;
-- draft PR: `#682`;
-- branch: `agent/676-generalization-harvest`;
-- canonical base: `main@7644f587d3bd3eb51310451608b7ceb5255ef859`;
-- ancestry-free harvest commit: `6850f4f96186e189165ca8f588752c443847e6ad`.
+Final delivery identity:
+
+- issue: `#676` remains active;
+- PR `#678`: closed/superseded, never merged;
+- ancestry-free harvest commit: `6850f4f96186e189165ca8f588752c443847e6ad`;
+- delivery PR `#682`: merged;
+- canonical delivery merge: `6af34cb54a9bbf29ffc257d1109f495d08d1678d`;
+- final pre-merge Pipeline CI `#883`: success;
+- final pre-merge Re-entry `#1436`: success.
 
 The historical migration checkpoint remains retained provenance, not the active
 resume authority:
@@ -170,26 +178,25 @@ resume authority:
 - `docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.md`;
 - `docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json`.
 
-The active continuation/retention authority is now:
+The active continuation/retention authority is:
 
 - `docs/planning/active/acq_generalization_90_reentry.md`;
 - `docs/planning/active/acq_generalization_90_reentry.json`.
 
-Do not resume from PR #678, its old branch ancestry, or the migration-pause sole-next
-action. Do not delete the historical checkpoint merely because migration is complete;
-it remains the exact pre-migration A/B and Clarios baseline while #676 is active.
+Do not resume from PR #678, PR #682's merged branch, or the migration-pause sole-next
+action. Every new mutating slice must start from freshly observed current
+`origin/main` in a declared worktree/feature branch.
 
 ## Current sequence
 
-1. Keep the current #682 head fully green under Pipeline CI and Re-entry.
-2. Run the same 65-candidate V4 builder replay from the canonical WSL
+1. Run the same 65-candidate V4 builder replay from the canonical WSL
    runtime/database and record Workday promotion(s) without changing the product
    numerator.
-3. Qualify and compose the evidence-bounded portal delegation class on residual
-   Inventory failures; replay the same cohort.
-4. Re-cluster first failures after each measured generic lift.
-5. Continue deterministic hardening until no evidence-backed bounded generic class
+2. Compose the merged evidence-bounded portal delegation class as a monotonic
+   overlay on residual Inventory failures; replay the same cohort.
+3. Re-cluster first failures after each measured generic lift.
+4. Continue deterministic hardening until no evidence-backed bounded generic class
    remains.
-6. Only then move exhausted residuals to the booster path.
-7. Materialize stable connector recipes and update the canonical numerator only
+5. Only then move exhausted residuals to the booster path.
+6. Materialize stable connector recipes and update the canonical numerator only
    from unchanged strict E2E proof.

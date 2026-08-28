@@ -47,42 +47,50 @@ Completed reusable work includes:
 - exact 65-candidate first-failure cohorts;
 - historical Workday CXS route recovery;
 - live Clarios proof through employer authority -> Workday board -> CXS inventory -> concrete public detail;
-- post-migration same-host Workday CXS detail proof projection without weakening `genuine_job_detail_proof`;
+- same-host Workday CXS detail proof projection without weakening `genuine_job_detail_proof`;
 - bounded Workday acquisition composition: root GET -> exact CXS inventory POST -> exact same-host CXS detail GET;
 - V4 builder overlay that can promote only existing Inventory failures after strict Workday proof;
 - evidence-bounded first-party -> portal delegation class that avoids global listing-vocabulary widening.
 
-Qualified Workday checkpoint:
+The complete migration/generalization delivery is merged on canonical
+`main@6af34cb54a9bbf29ffc257d1109f495d08d1678d` through PR #682.
 
-- code head `ae8b272f23f148df786e776b4b6caa57002a4da0`;
-- Pipeline CI `#875`: success;
-- Re-entry `#1420`: success.
+Final delivery gates:
+
+- Pipeline CI `#883`: success;
+- Re-entry `#1436`: success;
+- unresolved review threads: `0`.
 
 No numerical V4/product lift is claimed until the same 65-candidate cohort is replayed from the canonical WSL runtime/database.
 
 ## Current deterministic sequence
 
-1. Keep the current #682 head green under Pipeline CI and Re-entry.
+1. Resolve the current `origin/main` and any live #676 work PR before creating or editing a branch.
 2. Run the same 65-candidate V4 live builder replay from the canonical WSL runtime/database; record Workday diagnostic promotions without changing the product numerator.
-3. Qualify and compose the bounded portal-delegation bridge on residual Inventory failures; replay the same cohort.
+3. Compose the merged bounded portal-delegation bridge as a monotonic overlay on residual Inventory failures; replay the same cohort.
 4. Re-cluster remaining first failures after every meaningful generic lift.
 5. Prefer reusable acquisition classes over named-employer rescue code.
 6. Materialize only stable connector recipes; rerun unchanged strict E2E acquisition before changing product coverage.
 7. Admit residuals to the LLM booster only when no remaining bounded generic deterministic hypothesis is supported by evidence.
 
+Every new mutating slice must branch from the then-current `origin/main` in a declared worktree. Neither historical #676 feature branch is a continuation base.
+
 ## Workspace / migration state
 
-The 2026-08-28 canonical-workspace migration is **complete** for #676.
+The 2026-08-28 canonical-workspace migration is **fully merged and closed as a migration phase** for #676.
 
 - canonical persistent checkout authority: WSL `main` under `PROJECT-LOCAL-WORKSPACE.json`;
-- active feature work: declared worktree/branch `agent/676-generalization-harvest` through draft PR #682;
 - old PR #678: closed and superseded, never merged;
 - old branch ancestry was not imported;
-- qualified old content was harvested as one ancestry-free commit on current main lineage.
+- qualified old content was harvested as one ancestry-free commit on current-main lineage;
+- delivery PR #682: merged;
+- delivery merge on canonical main: `6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
 
 Historical migration checkpoint files remain retained provenance while #676 is active. Their filenames do not make them disposable.
 
-Retention rule: **qualified content is preserved; superseded branch ancestry may retire only after the active work is merged and retained content is verified on canonical main.** See `acq_generalization_90_reentry.md` for exact ACTIVE/PRESERVE/SUPERSEDED/conditional-RETIRE dispositions.
+Retention rule: **qualified content is preserved on main; superseded branch/worktree cleanup is a separate DRJ technical action requiring fresh local observation.** The repository mailbox remains `NO_REQUEST` at migration closure because local dirty/unpushed/checked-out state was not observed in the GitHub-only closure pass.
+
+See `acq_generalization_90_reentry.md` for exact ACTIVE/PRESERVE/SUPERSEDED/disposable dispositions.
 
 ## Active control surfaces
 
