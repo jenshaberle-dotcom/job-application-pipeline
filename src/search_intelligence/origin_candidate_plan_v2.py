@@ -231,13 +231,16 @@ def generate_company_url_candidates_v2(
     strong_budget = min(max_candidates // 2, len(strong_bases) * len(STRONG_SURFACE_SHAPES))
     strong_emitted = 0
     for shape_index, shape in enumerate(STRONG_SURFACE_SHAPES):
-        for base in strong_bases:
-            # Job/career subdomains are overwhelmingly global in the current
-            # evidence set; root hypotheses still cover both DE and COM below.
-            tlds = ("com",) if shape in {"job_host", "careers_host"} else PRIMARY_TLDS
-            for tld in tlds:
+        # For root hypotheses, iterate TLD before base so two strong bases both
+        # receive a .de opportunity before either receives its .com duplicate.
+        # Job/career subdomains use the global .com convention from observed
+        # evidence and therefore have only one TLD round.
+        tlds = ("com",) if shape in {"job_host", "careers_host"} else PRIMARY_TLDS
+        for tld in tlds:
+            for base in strong_bases:
                 if strong_emitted >= strong_budget:
                     break
+                before = len(result)
                 if _append_candidate(
                     result,
                     seen_urls,
@@ -249,7 +252,8 @@ def generate_company_url_candidates_v2(
                     max_candidates=max_candidates,
                 ):
                     return tuple(result)
-                strong_emitted += 1
+                if len(result) > before:
+                    strong_emitted += 1
             if strong_emitted >= strong_budget:
                 break
         if strong_emitted >= strong_budget:
