@@ -88,6 +88,22 @@ QUERY_SCOPE_KEYS = {
     "lang",
 }
 
+QUERY_DETAIL_ACTION_KEYS = {
+    "action",
+}
+
+QUERY_DETAIL_ACTION_VALUES = {
+    "view",
+    "detail",
+    "show",
+    "display",
+}
+
+QUERY_ROUTE_CONTEXT_KEYS = {
+    "page",
+    "mandatortemplateid",
+}
+
 QUERY_REDIRECT_KEYS = {
     "url",
     "redirect",
@@ -125,6 +141,10 @@ JOB_TITLE_GENDER_MARKERS = (
 
 QUERY_IDENTIFIER_VALUE_PATTERN = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._:-]{3,127}$"
+)
+
+QUERY_CONTEXT_VALUE_PATTERN = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
 )
 
 
@@ -217,6 +237,14 @@ def _bounded_query_job_identifier(url: str) -> str | None:
     for key, value in normalized_pairs:
         if key in QUERY_JOB_IDENTIFIER_KEYS:
             if not QUERY_IDENTIFIER_VALUE_PATTERN.fullmatch(value):
+                return None
+            continue
+        if key in QUERY_DETAIL_ACTION_KEYS:
+            if value.casefold() not in QUERY_DETAIL_ACTION_VALUES:
+                return None
+            continue
+        if key in QUERY_ROUTE_CONTEXT_KEYS:
+            if not QUERY_CONTEXT_VALUE_PATTERN.fullmatch(value):
                 return None
             continue
         if key not in QUERY_SCOPE_KEYS:
