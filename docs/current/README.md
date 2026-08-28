@@ -17,6 +17,26 @@ Repository-owned project hygiene and DRJ policy are authoritative for local work
 - `PROJECT-DRJ.json` defines the retention/reconciliation boundary and explicitly does **not** make DRJ project work-admission authority;
 - this re-entry surface may reference those contracts but must not duplicate or redefine them.
 
+## Active acquisition continuation
+
+The current deterministic acquisition-hardening continuation is **ACQ-GENERALIZATION-90 / issue #676**.
+
+When #676 is open, its active planning/re-entry anchors are:
+
+- `../planning/active/acq_generalization_90_reentry.md` — canonical ACQ-676 continuation and semantic retention boundary;
+- `../planning/active/acq_generalization_90_reentry.json` — machine-readable active/keep/preserve/superseded/conditional-retire state;
+- `../planning/active/acq_generalization_90_target.md` — full-population metric and hard guardrails.
+
+The older `REENTRY-001B` / issue #672 material remains useful predecessor evidence but is **not** the current acquisition continuation while #676 is active.
+
+The 2026-08-28 workspace migration for #676 is complete. Historical migration checkpoint files remain retained comparison provenance; they are not the active resume authority and must not be discarded merely because their filename contains `migration_checkpoint`.
+
+For retention semantics, qualified content and branch ancestry are separate:
+
+- qualified ACQ-676 content is semantically retained;
+- superseded old branch ancestry may be retired only after the active #682 work is merged and the retained content is verified on canonical `main`;
+- `/tmp` audit artifacts whose result truth is already versioned in repository documents are disposable.
+
 ## Mandatory re-entry workspace hygiene preflight
 
 Before reading current truth as continuation authority or executing any next action, inventory and classify live local Git checkout/worktree topology against `PROJECT-HYGIENE.json`, `PROJECT-LOCAL-WORKSPACE.json`, and `PROJECT-DRJ.json`.
@@ -47,3 +67,4 @@ Read in this order:
 4. `system-diagrams.md`
 5. `governance.md`
 6. `operations.md`
+7. when issue #676 is active: `../planning/active/acq_generalization_90_reentry.md`
