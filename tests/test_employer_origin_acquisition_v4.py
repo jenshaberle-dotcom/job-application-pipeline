@@ -104,6 +104,52 @@ def test_trusted_query_detail_can_prove_without_jsonld_or_path_detail_shape() ->
     assert jobs[0].proof_kind == "known_detail_and_job_content"
 
 
+def test_trusted_query_view_route_context_proves_without_guessed_identifier() -> None:
+    calls: list[str] = []
+    host = "karriere.example.invalid"
+    listing = f"https://{host}/"
+    relative_detail = (
+        "/?action=view&id=0123456789abcdefghijklmnopqrstu"
+        "&mandator_template_id=1&page=home"
+    )
+    detail = f"https://{host}{relative_detail}"
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == listing:
+            return (
+                "<html><title>Stellenangebote</title><table><tr>"
+                '<td onclick="window.location.href='
+                f"'{relative_detail}'\"><span>Data Engineer (w/m/d)</span></td>"
+                "</tr></table></html>",
+                listing,
+                200,
+            )
+        if url == detail:
+            return (
+                "<html><title>Data Engineer (w/m/d)</title><body>"
+                "Apply now. Responsibilities, requirements and your profile."
+                "</body></html>",
+                detail,
+                200,
+            )
+        raise AssertionError(url)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=listing,
+        allowed_hosts=(host,),
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert calls == [listing, detail]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == detail
+    assert jobs[0].discovery_source == "query_detail"
+    assert jobs[0].proof_kind == "known_detail_and_job_content"
+
+
 def test_successfactors_branded_host_gets_exactly_one_provider_listing_hop() -> None:
     calls: list[str] = []
 
