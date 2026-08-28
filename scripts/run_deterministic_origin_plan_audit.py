@@ -129,6 +129,8 @@ def audit_row(row: dict[str, Any], *, budget: int, expanded_budget: int) -> dict
     domain_family_monoculture = len(bounded_unique) <= 1 and budget_saturated
     acronym_delayed = bool(acronym_position and acronym_position > budget)
     compact_key_delayed = bool(compact_position and compact_position > budget)
+    acronym_absorbed = bool(acronyms and all(token in identity for token in acronyms))
+    short_brand_missing = bool(acronym_absorbed and acronym_position is None)
 
     reasons: list[str] = []
     if domain_family_monoculture:
@@ -137,8 +139,10 @@ def audit_row(row: dict[str, Any], *, budget: int, expanded_budget: int) -> dict
         reasons.append("acronym/short-brand host hypothesis exists only after the active budget")
     if compact_key_delayed:
         reasons.append("compact company-key host hypothesis exists only after the active budget")
-    if acronyms and all(token in identity for token in acronyms):
+    if acronym_absorbed:
         reasons.append("acronym is already an identity token and is therefore not promoted as a separate generic base")
+    if short_brand_missing:
+        reasons.append("absorbed acronym/short brand has no standalone host hypothesis even in the expanded plan")
     if not aliases:
         reasons.append("no explicit corporate identity alias is available")
     if not reasons:
@@ -165,6 +169,8 @@ def audit_row(row: dict[str, Any], *, budget: int, expanded_budget: int) -> dict
         "domain_family_monoculture": domain_family_monoculture,
         "acronym_delayed_beyond_budget": acronym_delayed,
         "compact_key_delayed_beyond_budget": compact_key_delayed,
+        "acronym_absorbed_into_identity": acronym_absorbed,
+        "short_brand_missing_from_expanded_plan": short_brand_missing,
         "reasons": reasons,
     }
 
@@ -210,6 +216,8 @@ def main() -> int:
             classifications["acronym_delayed_beyond_budget"] += 1
         if item["compact_key_delayed_beyond_budget"]:
             classifications["compact_key_delayed_beyond_budget"] += 1
+        if item["short_brand_missing_from_expanded_plan"]:
+            classifications["short_brand_missing_from_expanded_plan"] += 1
         if not item["corporate_aliases"]:
             classifications["no_corporate_alias"] += 1
 
