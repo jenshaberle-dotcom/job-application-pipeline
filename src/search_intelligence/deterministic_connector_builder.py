@@ -46,8 +46,8 @@ class LayerResult:
             raise ValueError(f"unknown connector-builder layer: {self.layer}")
         if self.state == LayerState.FAIL and self.required is not True:
             raise ValueError("only evidence-required layers may FAIL")
-        if self.state == LayerState.PASS and self.required is not True:
-            raise ValueError("PASS is reserved for evidence-required layers")
+        if self.state == LayerState.PASS and self.required is None:
+            raise ValueError("PASS requires an evidence-backed necessity decision")
         if self.state == LayerState.SKIPPED and self.required is not False:
             raise ValueError("SKIPPED requires evidence that the layer is not required")
         if self.state == LayerState.NOT_REACHED and self.required is not None:
@@ -96,8 +96,14 @@ class ConnectorBuilderAssessment:
         }
 
 
-def passed(layer: str, reason: str, **evidence: object) -> LayerResult:
-    return LayerResult(layer, LayerState.PASS, True, reason, evidence)
+def passed(
+    layer: str,
+    reason: str,
+    *,
+    required: bool = True,
+    **evidence: object,
+) -> LayerResult:
+    return LayerResult(layer, LayerState.PASS, required, reason, evidence)
 
 
 def skipped(layer: str, reason: str, **evidence: object) -> LayerResult:
