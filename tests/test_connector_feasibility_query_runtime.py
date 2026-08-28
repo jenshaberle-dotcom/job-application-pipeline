@@ -96,6 +96,48 @@ def test_query_detail_accepts_bounded_view_route_context() -> None:
     assert tuple(link.url for link in links) == (detail_url,)
 
 
+def test_query_detail_accepts_role_like_td_onclick_literal() -> None:
+    origin_url = "https://karriere.example.com/"
+    relative_detail = (
+        "/?action=view&id=0123456789abcdefghijklmnopqrstu"
+        "&mandator_template_id=1&page=home"
+    )
+    detail_url = f"https://karriere.example.com{relative_detail}"
+    html = (
+        '<table><tr><td onclick="window.location.href='
+        f"'{relative_detail}'\"><span>Data Engineer (w/m/d)</span></td></tr></table>"
+    )
+
+    links = extract_trusted_query_job_detail_links(origin_url, html)
+
+    assert tuple(link.url for link in links) == (detail_url,)
+
+
+def test_query_detail_rejects_nonsemantic_div_onclick_literal() -> None:
+    origin_url = "https://karriere.example.com/"
+    relative_detail = (
+        "/?action=view&id=0123456789abcdefghijklmnopqrstu"
+        "&mandator_template_id=1&page=home"
+    )
+    html = (
+        '<div onclick="window.location.href='
+        f"'{relative_detail}'\">Data Engineer (w/m/d)</div>"
+    )
+
+    assert extract_trusted_query_job_detail_links(origin_url, html) == ()
+
+
+def test_query_detail_rejects_dynamic_onclick_identifier_composition() -> None:
+    origin_url = "https://karriere.example.com/"
+    html = (
+        "<td onclick=\"window.location.href='/"
+        "?action=view&id=' + jobId + '&page=home'\">"
+        "Data Engineer (w/m/d)</td>"
+    )
+
+    assert extract_trusted_query_job_detail_links(origin_url, html) == ()
+
+
 def test_query_detail_rejects_unsafe_action_route_context() -> None:
     origin_url = "https://karriere.example.com/"
     detail_url = (
