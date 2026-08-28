@@ -72,3 +72,26 @@ def test_existing_explicit_aliases_remain_available() -> None:
     urls = _urls("hannover_ruck", "Hannover Rück SE")
 
     assert any("hannover-re.com" in url for url in urls)
+
+
+def test_eon_alias_keeps_high_value_job_host_inside_active_budget() -> None:
+    urls = _urls(
+        "e_on_digital_technology",
+        "E.ON Digital Technology GmbH",
+    )
+
+    assert "https://jobs.eon.com/" in urls
+    assert "https://careers.eon.com/" in urls
+
+
+def test_strong_fast_lane_does_not_consume_entire_twelve_candidate_budget() -> None:
+    urls = _urls(
+        "e_on_digital_technology",
+        "E.ON Digital Technology GmbH",
+    )
+
+    # Alias-rich employers still retain independent root-domain breadth after
+    # the evidence-strong career fast lane.
+    assert len(urls) == 12
+    assert any(url in urls for url in ("https://eon.de/", "https://eon.com/"))
+    assert any("digital" in (urlparse(url).hostname or "") for url in urls)
