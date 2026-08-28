@@ -35,7 +35,7 @@ def test_canonical_personio_root_exposes_existing_xml_inventory_route() -> None:
     )
 
 
-def test_successfactors_visible_go_route_is_composed_as_inventory_evidence() -> None:
+def test_successfactors_visible_go_route_preserves_existing_generic_provenance() -> None:
     page = _page(
         "https://jobs.example.successfactors.com/",
         """
@@ -51,12 +51,13 @@ def test_successfactors_visible_go_route_is_composed_as_inventory_evidence() -> 
         known_detail_urls=(),
     )
 
-    assert any(
-        item.kind == "listing"
-        and item.discovery_source == "successfactors_provider_listing_evidence"
-        and "/go/Engineering/12345" in item.url
+    matching = [
+        item
         for item in result
-    )
+        if item.kind == "listing" and "/go/Engineering/12345" in item.url
+    ]
+    assert len(matching) == 1
+    assert matching[0].discovery_source == "anchor_listing"
 
 
 def test_unrecognized_surface_gains_no_provider_inventory_route() -> None:
