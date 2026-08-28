@@ -8,7 +8,6 @@ from src.search_intelligence.deterministic_connector_builder import (
     LayerResult,
     LayerState,
     complete_after_failure,
-    failed,
     not_reached,
     passed,
     skipped,
@@ -43,6 +42,17 @@ def test_optional_layers_can_be_skipped_without_preventing_recipe_ready() -> Non
     assert assessment.layers[3].state == LayerState.SKIPPED
     assert assessment.layers[3].required is False
     assert assessment.layers[4].state == LayerState.SKIPPED
+
+
+def test_observed_optional_capability_can_pass_without_becoming_required() -> None:
+    item = passed(
+        "delegation",
+        "external portal exists but same-origin detail path is already observed",
+        required=False,
+    )
+
+    assert item.state == LayerState.PASS
+    assert item.required is False
 
 
 def test_only_required_layers_may_fail() -> None:
