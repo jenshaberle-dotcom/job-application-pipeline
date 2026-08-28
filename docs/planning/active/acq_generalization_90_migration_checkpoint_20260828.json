@@ -1,0 +1,279 @@
+{
+  "schema": "job_application_pipeline.acq676_migration_checkpoint.v1",
+  "created_at": "2026-08-28T15:05:00+02:00",
+  "status": "paused_for_canonical_workspace_migration",
+  "repository": {
+    "full_name": "jenshaberle-dotcom/job-application-pipeline",
+    "repository_id": 1230805345,
+    "issue": 676,
+    "draft_pr": 678,
+    "branch": "agent/676-deterministic-connector-builder",
+    "head": "f5a3e93ad8f0bed8678db366a221cd2d551236cb",
+    "pr_base": "main",
+    "pr_base_sha_at_checkpoint": "1312495a2aa0b5bf45dbd28e88a2e7bb9171f833",
+    "old_local_workspace": "/home/jens_h/projects/job-application-pipeline"
+  },
+  "ci": {
+    "pipeline_ci_run": 33174528856,
+    "pipeline_ci_conclusion": "success",
+    "reentry_run": 33174528839,
+    "reentry_conclusion": "success"
+  },
+  "primary_metric": {
+    "all_current_distinct_candidates": 65,
+    "connector_present": 40,
+    "strict_functioning_deterministic": 36,
+    "strict_coverage": 0.5538461538,
+    "target_ratio": 0.9,
+    "minimum_passing_numerator_at_65": 59,
+    "historical_materialized_connector_regression_cohort": 40,
+    "historical_strict_proven_in_connector_cohort": 36
+  },
+  "builder_contract": {
+    "layers": [
+      "identity",
+      "origin",
+      "origin_reachability",
+      "delegation",
+      "provider",
+      "inventory",
+      "detail",
+      "proof",
+      "recipe"
+    ],
+    "necessity": "evidence_driven",
+    "optional_layers_may_skip_without_failure": true,
+    "diagnostic_recipe_ready_is_not_canonical_product_coverage": true
+  },
+  "origin_balanced_v2": {
+    "observed_origin_failures_before_balanced_planner": 18,
+    "observed_origin_failures_after_balanced_planner": 8,
+    "origin_advancements": 10,
+    "earlier_stage_regressions": 0,
+    "design": "evidence-tiered breadth with bounded strong-brand fast lane and preserved host-family breadth"
+  },
+  "builder_v2_balanced": {
+    "candidate_count": 65,
+    "diagnostic_recipe_ready": 21,
+    "first_failure_counts": {
+      "detail": 15,
+      "inventory": 17,
+      "origin": 8,
+      "origin_reachability": 1,
+      "proof": 3
+    },
+    "fresh_10": {
+      "READY": 1,
+      "detail": 3,
+      "inventory": 5,
+      "origin": 1
+    }
+  },
+  "inventory_surface_audit": {
+    "inventory_failure_count_at_v2": 17,
+    "observed_signal_counts": {
+      "authorized_provider": 4,
+      "same_origin_jobish": 8,
+      "external_jobish": 4,
+      "client_or_script_evidence": 10,
+      "low_signal": 7
+    },
+    "bridge_hypothesis_counts": {
+      "same_origin_listing_vocabulary_gap": 8,
+      "external_listing_vocabulary_gap": 5,
+      "provider_route_adapter_gap": 2,
+      "explicit_canonical_provider_anchor_not_authorized": 1
+    },
+    "warning": "same-origin vocabulary evidence contains both valid job carriers and clear navigation noise; do not globally widen vocabulary from counts alone"
+  },
+  "builder_v3_provider_inventory_composition": {
+    "candidate_count": 65,
+    "diagnostic_recipe_ready": 21,
+    "first_failure_counts": {
+      "detail": 16,
+      "inventory": 16,
+      "origin": 8,
+      "origin_reachability": 1,
+      "proof": 3
+    },
+    "earlier_stage_regressions": 0,
+    "v2_to_v3_transition": {
+      "x1f": "inventory -> detail"
+    },
+    "provider_bridge_targets": {
+      "adesso": "inventory",
+      "clarios_germany": "inventory",
+      "hannover_ruck": "inventory",
+      "x1f": "detail"
+    },
+    "fresh_10": {
+      "ADONYA Software und Services GmbH": "inventory",
+      "Bahlsen Group": "inventory",
+      "INTERSPORT Digital GmbH": "inventory",
+      "IPH - Institut für Integrierte Produktion Hannover gGmbH": "detail",
+      "KKH Kaufmännische Krankenkasse": "inventory",
+      "loyos bi": "READY",
+      "MTU Maintenance": "detail",
+      "Nortal": "inventory",
+      "Sport Alliance": "origin",
+      "TRIOLOGY GmbH": "detail"
+    },
+    "failure_cohorts": {
+      "origin": [
+        "computer_futures",
+        "hahne_holding",
+        "haystack",
+        "jobbird_com",
+        "limango",
+        "sport_alliance",
+        "team_passerelle",
+        "windhoff"
+      ],
+      "origin_reachability": [
+        "deutsche_bahn"
+      ],
+      "inventory": [
+        "adesso",
+        "adonya_software_services",
+        "bahlsen",
+        "bridgingit",
+        "clarios_germany",
+        "hannover_ruck",
+        "hired",
+        "intersport_digital",
+        "ivv",
+        "kkh_kaufmannische_krankenkasse",
+        "nortal",
+        "prodyna",
+        "sva_system_vertrieb_alexander",
+        "technische_informationsbibliothek_tib",
+        "the_associated_engineers",
+        "trustyou"
+      ],
+      "detail": [
+        "1_1",
+        "amadeus_fire",
+        "aok_niedersachsen_die_gesundheitskasse",
+        "bjak",
+        "compugroup_medical",
+        "deloitte",
+        "genoverband_e_v",
+        "iph_institut_fur_integrierte_produktion_hannover_ggmbh",
+        "land_niedersachsen",
+        "msg_systems",
+        "mtu_maintenance",
+        "triology",
+        "tuv_sud",
+        "x1f",
+        "yer_deutschland",
+        "zscaler_germany"
+      ],
+      "proof": [
+        "enercity",
+        "hdi",
+        "ratbacher"
+      ],
+      "READY": [
+        "accompio",
+        "commercetools",
+        "computacenter",
+        "comrce",
+        "dirk_rossmann",
+        "e_on_digital_technology",
+        "e_on_grid_solutions",
+        "finanz_informatik",
+        "freenet_dls",
+        "gft_technologies",
+        "it_niedersachsen",
+        "landesbetrieb_it_niedersachsen",
+        "loyos_bi",
+        "madsack",
+        "materna",
+        "materna_information_communications",
+        "ratiodata",
+        "sopra_steria",
+        "vhv_gruppe",
+        "wavestone",
+        "wertgarantie"
+      ]
+    }
+  },
+  "workday_recovered_precedent": {
+    "historical_branch": "agent/630-workday-cxs-acquisition",
+    "historical_commit": "63a4436ad4aa91d270aef22afd25ca6be2c4cd82",
+    "historical_commit_message": "Route delegated Workday boards through metered CXS inventory",
+    "recovered_contract": "authorized canonical Workday board -> exact CXS inventory POST -> same-board externalPath -> public detail -> unchanged genuine-job proof"
+  },
+  "clarios_workday_live_proof": {
+    "decision": "detail_not_proven",
+    "reason": "detail was reached but unchanged strict genuine-job proof did not pass",
+    "proof_kind": null,
+    "route": {
+      "host": "clarios.wd5.myworkdayjobs.com",
+      "tenant": "clarios",
+      "site": "clarioscareers",
+      "locale": "en-US",
+      "public_board_path": "/en-US/clarioscareers",
+      "inventory_path": "/wday/cxs/clarios/clarioscareers/jobs"
+    },
+    "requests": [
+      {
+        "method": "GET",
+        "host": "jobs.clarios.com",
+        "path": "/",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "host": "clarios.wd5.myworkdayjobs.com",
+        "path": "/en-US/clarioscareers",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "host": "clarios.wd5.myworkdayjobs.com",
+        "path": "/wday/cxs/clarios/clarioscareers/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "host": "clarios.wd5.myworkdayjobs.com",
+        "path": "/en-US/clarioscareers/job/Germany-Hannover/Praktikant-Werkstudent--m-w-d--im-Bereich-HR---Talent-Acquisition---Employer-Branding_WD50023-1",
+        "status": 200
+      }
+    ],
+    "boundary": {
+      "absolute_request_cap": 4,
+      "http_requests": 4,
+      "http_get_requests": 3,
+      "http_post_requests": 1,
+      "provider_requests": 0,
+      "llm_requests": 0,
+      "tavily_requests": 0,
+      "database_writes": 0,
+      "connector_materialization": 0,
+      "query_values_persisted": 0
+    },
+    "interpretation": "Workday authority/board/CXS inventory/detail traversal is live-proven. Strict job proof is the first observed failing boundary. V3 still classifies Clarios at inventory because the Workday execution path is not yet integrated into the builder/acquirer on this branch. Do not count product coverage lift yet."
+  },
+  "ephemeral_local_artifacts_at_pause": [
+    "/tmp/deterministic_connector_builder_layer_audit_v2_balanced.json",
+    "/tmp/deterministic_connector_builder_layer_audit_v3_provider_inventory.json",
+    "/tmp/deterministic_inventory_surface_audit_balanced.json",
+    "/tmp/deterministic_inventory_bridge_audit.json",
+    "/tmp/deterministic_workday_bridge_clarios.json"
+  ],
+  "hard_boundaries": [
+    "no company-specific success branch",
+    "no guessed tenant or opaque IDs",
+    "no proof weakening",
+    "no provider/LLM/Tavily requirement for deterministic target",
+    "no database/source/Bronze/Silver/product writes from diagnostic builder",
+    "canonical product metric remains 36/65 until materialized strict E2E proof"
+  ],
+  "resume_after_migration": {
+    "first": "bind the new canonical workspace to repository jenshaberle-dotcom/job-application-pipeline and branch agent/676-deterministic-connector-builder, then verify remote head is at least this checkpoint commit and re-read issue #676 plus this file",
+    "do_not_repeat": "the completed Origin V2, Inventory surface/bridge audits, V3 provider composition A/B, or Clarios Workday route discovery unless repository/network truth changed",
+    "sole_next_engineering_action": "diagnose why the exact live Clarios Workday detail page fails unchanged genuine_job_detail_proof, read-only and without weakening proof; then decide the smallest generic Workday proof/integration step from that evidence"
+  }
+}

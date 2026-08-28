@@ -1,0 +1,108 @@
+{
+  "schema": "job_application_pipeline.acq676_reentry.v1",
+  "status": "active_migration_complete",
+  "owner_issue": 676,
+  "active_pull_request": 682,
+  "active_branch": "agent/676-generalization-harvest",
+  "canonical_base": "7644f587d3bd3eb51310451608b7ceb5255ef859",
+  "migration": {
+    "complete": true,
+    "old_pull_request": 678,
+    "old_pull_request_disposition": "SUPERSEDED",
+    "old_source_head": "14e60cd24cfdcc37a41ef9171e6ce269553c69ed",
+    "harvest_commit": "6850f4f96186e189165ca8f588752c443847e6ad",
+    "harvest_parent_count": 1,
+    "harvest_parent": "7644f587d3bd3eb51310451608b7ceb5255ef859",
+    "harvest_file_count": 23,
+    "harvest_added_files": 22,
+    "harvest_modified_files": 1,
+    "old_branch_ancestry_imported": false
+  },
+  "primary_metric": {
+    "candidate_count": 65,
+    "strict_functioning_deterministic": 36,
+    "strict_coverage": 0.5538461538,
+    "minimum_passing_numerator": 59,
+    "target_ratio": 0.9,
+    "diagnostic_recipe_ready_is_product_coverage": false
+  },
+  "qualified_workday_checkpoint": {
+    "code_head": "ae8b272f23f148df786e776b4b6caa57002a4da0",
+    "pipeline_ci_run_number": 875,
+    "pipeline_ci_conclusion": "success",
+    "reentry_run_number": 1420,
+    "reentry_conclusion": "success",
+    "composition": "authorized employer/workday root -> exact cxs inventory post -> same-board externalPath -> exact same-host cxs detail get -> unchanged genuine_job_detail_proof",
+    "product_coverage_lift_claimed": false
+  },
+  "active_residual_classes": [
+    "workday_cxs_detail_and_acquisition",
+    "evidence_bounded_first_party_portal_delegation",
+    "remaining_inventory_detail_proof_clusters"
+  ],
+  "retention": {
+    "active_keep": [
+      "issue:#676",
+      "pull_request:#682",
+      "branch:agent/676-generalization-harvest",
+      "docs/planning/active/acq_generalization_90_target.md",
+      "docs/planning/active/acq_generalization_90_reentry.md",
+      "docs/planning/active/acq_generalization_90_reentry.json",
+      "docs/planning/active/deterministic_connector_builder_layers.md",
+      "scripts/run_deterministic_connector_builder_layer_audit.py",
+      "scripts/run_deterministic_connector_builder_layer_audit_v2.py",
+      "scripts/run_deterministic_connector_builder_layer_audit_v3.py",
+      "scripts/run_deterministic_connector_builder_layer_audit_v4.py",
+      "scripts/run_deterministic_inventory_bridge_audit.py",
+      "scripts/run_deterministic_inventory_surface_audit.py",
+      "scripts/run_deterministic_origin_plan_audit.py",
+      "scripts/run_deterministic_workday_bridge_audit.py",
+      "scripts/run_deterministic_workday_detail_proof_audit.py",
+      "scripts/run_origin_source_discovery_agent_v4.py",
+      "src/connectors/employer_origin_workday_navigation.py",
+      "src/connectors/employer_origin_workday_detail.py",
+      "src/connectors/employer_origin_workday_acquisition.py",
+      "src/connectors/employer_origin_portal_delegation.py",
+      "src/connectors/employer_origin_portal_delegation_acquisition.py",
+      "src/search_intelligence/deterministic_connector_builder.py",
+      "src/search_intelligence/origin_candidate_plan_v2.py"
+    ],
+    "preserve_provenance": [
+      "docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.md",
+      "docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json",
+      "issue:#676:live_ab_and_clarios_comments"
+    ],
+    "superseded": [
+      "pull_request:#678"
+    ],
+    "retire_only_after": [
+      {
+        "identity": "branch:agent/676-deterministic-connector-builder",
+        "conditions": [
+          "pull_request_682_merged_to_canonical_main",
+          "harvested_23_file_content_verified_on_main",
+          "later_retained_acq676_content_verified_on_main"
+        ]
+      }
+    ],
+    "disposable_ephemeral": [
+      "/tmp/deterministic_connector_builder_layer_audit_v2_balanced.json",
+      "/tmp/deterministic_connector_builder_layer_audit_v3_provider_inventory.json",
+      "/tmp/deterministic_inventory_surface_audit_balanced.json",
+      "/tmp/deterministic_inventory_bridge_audit.json",
+      "/tmp/deterministic_workday_bridge_clarios.json"
+    ]
+  },
+  "drj": {
+    "branch_retirement_request_while_pr_682_active": "NO_REQUEST",
+    "semantic_rule": "qualified content is preserved; superseded branch ancestry may retire only after exact content-on-main verification",
+    "age_path_name_are_delete_authority": false
+  },
+  "continuation": [
+    "verify latest PR #682 CI and re-entry",
+    "run same 65-candidate V4 live builder replay from canonical WSL runtime/database",
+    "qualify and compose evidence-bounded portal delegation on residual Inventory failures",
+    "recluster first failures after every measured generic lift",
+    "materialize only stable recipes and update product numerator only from unchanged strict E2E proof"
+  ]
+}
