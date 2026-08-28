@@ -2,7 +2,7 @@
 
 Status: active
 Date: 2026-08-28
-Owner issue: #675
+Owner issue: #676
 
 ## Primary metric
 
