@@ -108,18 +108,20 @@ def test_trusted_query_view_route_context_proves_without_guessed_identifier() ->
     calls: list[str] = []
     host = "karriere.example.invalid"
     listing = f"https://{host}/"
-    detail = (
-        f"https://{host}/"
-        "?action=view&id=0123456789abcdefghijklmnopqrstu"
+    relative_detail = (
+        "/?action=view&id=0123456789abcdefghijklmnopqrstu"
         "&mandator_template_id=1&page=home"
     )
+    detail = f"https://{host}{relative_detail}"
 
     def fetcher(url: str):
         calls.append(url)
         if url == listing:
             return (
-                f"<html><title>Stellenangebote</title>"
-                f"<a href='{detail}'>Data Engineer (w/m/d)</a></html>",
+                "<html><title>Stellenangebote</title><table><tr>"
+                '<td onclick="window.location.href='
+                f"'{relative_detail}'\"><span>Data Engineer (w/m/d)</span></td>"
+                "</tr></table></html>",
                 listing,
                 200,
             )
