@@ -105,7 +105,7 @@ def test_cxs_projection_passes_unchanged_genuine_job_proof_on_real_content() -> 
         page,
         allowed_hosts={WORKDAY_HOST},
         known_detail=True,
-    ) == "known_detail_and_job_content"
+    ) == "job_url_and_job_content"
 
 
 def test_json_container_name_cannot_accidentally_satisfy_job_content_proof() -> None:
