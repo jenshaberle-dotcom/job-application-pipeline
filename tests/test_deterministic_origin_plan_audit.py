@@ -40,19 +40,24 @@ def test_short_brand_is_reported_when_acronym_is_absorbed_into_identity_tokens()
     assert "mtu" in result["identity_tokens"]
     assert "mtu" in result["acronym_tokens"]
     assert result["acronym_first_position"] is None
+    assert result["acronym_absorbed_into_identity"] is True
+    assert result["short_brand_missing_from_expanded_plan"] is True
     assert any(
-        "not promoted as a separate generic base" in reason
+        "no standalone host hypothesis" in reason
         for reason in result["reasons"]
     )
 
 
-def test_existing_short_brand_base_is_not_misclassified_as_delayed() -> None:
+def test_existing_short_brand_base_can_be_delayed_by_plan_geometry() -> None:
     result = audit_row(
         _row("kkh", "KKH Kaufmännische Krankenkasse"),
         budget=12,
         expanded_budget=500,
     )
 
+    assert "kkh" in result["identity_tokens"]
     assert "kkh" in result["acronym_tokens"]
-    assert result["acronym_first_position"] == 1
-    assert result["acronym_delayed_beyond_budget"] is False
+    assert result["acronym_first_position"] is not None
+    assert result["acronym_first_position"] > 12
+    assert result["acronym_delayed_beyond_budget"] is True
+    assert result["short_brand_missing_from_expanded_plan"] is False
