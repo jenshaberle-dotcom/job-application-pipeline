@@ -28,19 +28,23 @@ def test_external_jobish_anchor_is_visible_when_not_promoted() -> None:
 
 
 def test_same_origin_jobish_anchor_not_classified_is_visible() -> None:
+    # Plain /career + "Karriere" is visibly job/career-related, but is not one
+    # of the existing strict listing URL/text markers. The audit must report
+    # that gap without changing production navigation authority.
     html = """
     <html><body>
-      <a href="/opportunities">Jobs und Karriere</a>
+      <a href="/career">Karriere</a>
     </body></html>
     """
     result = classify_surface(
         _item(),
         html=html,
-        final_url="https://demo.example/karriere",
+        final_url="https://demo.example/about",
         status=200,
     )
     assert "same_origin_jobish_anchor_not_classified" in result["signals"]
     assert result["same_origin_jobish_anchor_count"] == 1
+    assert result["navigation_candidate_count"] == 0
 
 
 def test_form_and_client_script_signals_are_reported() -> None:
