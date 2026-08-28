@@ -1,7 +1,7 @@
 """Evidence-driven deterministic connector-builder layer model.
 
 This module contains no network, database, provider, connector-registration or
-product side effects.  It models one candidate as an ordered set of deterministic
+product side effects. It models one candidate as an ordered set of deterministic
 layers and makes optionality explicit: a layer may be ``skipped`` only when
 observed evidence says it is not required for the current surface.
 """
@@ -37,19 +37,21 @@ LAYER_ORDER = (
 class LayerResult:
     layer: str
     state: LayerState
-    required: bool
+    required: bool | None
     reason: str
     evidence: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.layer not in LAYER_ORDER:
             raise ValueError(f"unknown connector-builder layer: {self.layer}")
-        if self.state == LayerState.FAIL and not self.required:
-            raise ValueError("optional layers must be SKIPPED rather than FAIL")
-        if self.state == LayerState.SKIPPED and self.required:
-            raise ValueError("required layers cannot be SKIPPED")
-        if self.state == LayerState.NOT_REACHED and not self.required:
-            raise ValueError("optional non-required layers should be SKIPPED, not NOT_REACHED")
+        if self.state == LayerState.FAIL and self.required is not True:
+            raise ValueError("only evidence-required layers may FAIL")
+        if self.state == LayerState.PASS and self.required is not True:
+            raise ValueError("PASS is reserved for evidence-required layers")
+        if self.state == LayerState.SKIPPED and self.required is not False:
+            raise ValueError("SKIPPED requires evidence that the layer is not required")
+        if self.state == LayerState.NOT_REACHED and self.required is not None:
+            raise ValueError("NOT_REACHED requires undecided necessity")
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -79,8 +81,7 @@ class ConnectorBuilderAssessment:
 
     @property
     def recipe_ready(self) -> bool:
-        recipe = self.layers[-1]
-        return recipe.state == LayerState.PASS
+        return self.layers[-1].state == LayerState.PASS
 
     def to_json(self) -> dict[str, object]:
         failure = self.first_failure
@@ -108,7 +109,7 @@ def failed(layer: str, reason: str, **evidence: object) -> LayerResult:
 
 
 def not_reached(layer: str, reason: str, **evidence: object) -> LayerResult:
-    return LayerResult(layer, LayerState.NOT_REACHED, True, reason, evidence)
+    return LayerResult(layer, LayerState.NOT_REACHED, None, reason, evidence)
 
 
 def complete_after_failure(
@@ -118,12 +119,11 @@ def complete_after_failure(
     failure_reason: str,
     failure_evidence: Mapping[str, object] | None = None,
 ) -> tuple[LayerResult, ...]:
-    """Finish a layer chain after the first required failure.
+    """Finish a layer chain after the first evidence-required failure.
 
-    Optional layers that occur after the failure are still ``NOT_REACHED`` here,
-    because whether they are optional cannot be decided without the missing
-    upstream evidence.  The status therefore communicates lack of evidence rather
-    than pretending a failure or a skip decision.
+    Later layer necessity is deliberately left undecided. Without upstream
+    evidence, declaring those layers either required or optional would itself be
+    an unsupported inference.
     """
 
     results = list(prefix)
@@ -141,12 +141,10 @@ def complete_after_failure(
     )
     for layer in LAYER_ORDER[len(results) :]:
         results.append(
-            LayerResult(
+            not_reached(
                 layer,
-                LayerState.NOT_REACHED,
-                True,
                 f"not evaluated because required upstream layer {failed_layer} failed",
-                {"blocked_by": failed_layer},
+                blocked_by=failed_layer,
             )
         )
     return tuple(results)
