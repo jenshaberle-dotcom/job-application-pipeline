@@ -117,7 +117,7 @@ def run(*, employer_url: str, timeout_seconds: float) -> dict[str, object]:
         timeout=timeout_seconds,
         allow_redirects=True,
     )
-    board_html = record("GET", route.public_board_url, board_response)
+    record("GET", route.public_board_url, board_response)
     if board_response.status_code >= 400 or url_host(str(board_response.url)) != route.host:
         return {
             "schema": SCHEMA,
