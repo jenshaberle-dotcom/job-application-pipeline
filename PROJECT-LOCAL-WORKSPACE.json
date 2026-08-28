@@ -1,28 +1,41 @@
 {
-  "schema_version": "drj.project_local_workspace.v1",
+  "schema_version": "drj.project_local_workspace.v2",
   "repository_id": 1230805345,
   "repository": "jenshaberle-dotcom/job-application-pipeline",
   "canonical_branch": "main",
   "canonical_checkout": {
+    "authority": "WSL_ONLY",
+    "path": "$HOME/projects/job-application-pipeline",
     "cardinality": "EXACTLY_ONE_PERSISTENT_ACTIVE",
-    "windows_path": "%USERPROFILE%\\repos\\job-application-pipeline",
-    "wsl_path": "$HOME/projects/job-application-pipeline",
+    "must_track_canonical_branch": true,
     "duplicate_persistent_checkout": "CHECK"
   },
-  "temporary_workspaces": {
-    "windows_root": "%USERPROFILE%\\worktrees\\job-application-pipeline",
-    "wsl_root": "$HOME/worktrees/job-application-pipeline",
+  "project_workspaces": {
+    "root": "$HOME/worktrees/job-application-pipeline",
+    "non_main_or_mutating_work_requires_declared_worktree": true,
     "lease_required_for_integrated_creators": true,
     "arbitrary_persistent_clone_outside_declared_roots": false
+  },
+  "runner_workspaces": {
+    "authority": "EXECUTION_ONLY",
+    "canonical_eligible": false,
+    "project_work_eligible": false
+  },
+  "legacy_windows_checkout": {
+    "path": "%USERPROFILE%\\repos\\job-application-pipeline",
+    "authority": "NONE",
+    "classification": "RETENTION_OR_RECONCILIATION_ONLY"
+  },
+  "scanner_scope": {
+    "normal": "BOUNDED_INDEPENDENT_DISCOVERY",
+    "declared_roots_are_hints_not_authority": true,
+    "classify_by_repository_identity_and_origin": true,
+    "runner_roots_in_scope": true
   },
   "fallback_local_execution": {
     "ci_disturbance_allowed": true,
     "main_only_read_or_test_may_use_canonical_checkout": true,
-    "non_main_or_mutating_work_requires_declared_temporary_workspace": true
-  },
-  "scanner_scope": {
-    "normal": "DECLARED_PATHS_ONLY",
-    "broad_scan": "FALLBACK_ONLY_IF_CONTRACT_MISSING_INVALID_OR_CONTRADICTED"
+    "non_main_or_mutating_work_requires_declared_worktree": true
   },
   "target_operating_model": "JANITOR_MONITOR_FIRST_EFFECT_EXCEPTION"
 }
