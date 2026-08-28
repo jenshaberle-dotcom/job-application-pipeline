@@ -82,6 +82,44 @@ def test_query_detail_accepts_legacy_vacancie_identifier_on_job_board() -> None:
     assert tuple(link.url for link in links) == (detail_url,)
 
 
+def test_query_detail_accepts_bounded_view_route_context() -> None:
+    origin_url = "https://karriere.example.com/"
+    detail_url = (
+        "https://karriere.example.com/"
+        "?action=view&id=0123456789abcdefghijklmnopqrstu"
+        "&mandator_template_id=1&page=home"
+    )
+    html = f'<a href="{detail_url}">Data Engineer (w/m/d)</a>'
+
+    links = extract_trusted_query_job_detail_links(origin_url, html)
+
+    assert tuple(link.url for link in links) == (detail_url,)
+
+
+def test_query_detail_rejects_unsafe_action_route_context() -> None:
+    origin_url = "https://karriere.example.com/"
+    detail_url = (
+        "https://karriere.example.com/"
+        "?action=delete&id=0123456789abcdefghijklmnopqrstu"
+        "&mandator_template_id=1&page=home"
+    )
+    html = f'<a href="{detail_url}">Data Engineer (w/m/d)</a>'
+
+    assert extract_trusted_query_job_detail_links(origin_url, html) == ()
+
+
+def test_query_detail_rejects_unknown_route_context_key() -> None:
+    origin_url = "https://karriere.example.com/"
+    detail_url = (
+        "https://karriere.example.com/"
+        "?action=view&id=0123456789abcdefghijklmnopqrstu"
+        "&mode=admin&page=home"
+    )
+    html = f'<a href="{detail_url}">Data Engineer (w/m/d)</a>'
+
+    assert extract_trusted_query_job_detail_links(origin_url, html) == ()
+
+
 def test_query_detail_rejects_generic_label_without_role_evidence() -> None:
     origin_url = "https://jobs.example.com/de"
     detail_url = "https://jobs.example.com/de?id=458ccb"
