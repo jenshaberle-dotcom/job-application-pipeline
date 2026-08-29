@@ -217,10 +217,25 @@ The active continuation/retention authority is:
 Every new mutating slice must start from freshly observed current `origin/main` in a
 declared worktree/feature branch.
 
+## Canonical V5 operator entrypoint
+
+Run the audit from the repository root as a Python module:
+
+```bash
+.venv/bin/python -m scripts.run_deterministic_connector_builder_layer_audit_v5 \
+  --output /tmp/deterministic_connector_builder_layer_audit_v5.json
+```
+
+Do not invoke `python scripts/run_deterministic_connector_builder_layer_audit_v5.py`
+as the canonical path. The audit modules intentionally import shared repository
+packages through `scripts.*` and `src.*`; module execution preserves the repository
+root as import authority without introducing local `sys.path` bootstrap exceptions.
+CI guards the canonical module entrypoint with a `--help` smoke test.
+
 ## Current sequence
 
-1. Run `scripts/run_deterministic_connector_builder_layer_audit_v5.py` against the
-   same 65-candidate cohort from the canonical WSL runtime/database.
+1. Run the canonical V5 module entrypoint above against the same 65-candidate cohort
+   from the canonical WSL runtime/database.
 2. Record exact V3 -> V4 -> V5 transitions, including Workday and portal promotions,
    without changing the product numerator.
 3. Re-cluster the remaining first failures from the V5 result and select the next
