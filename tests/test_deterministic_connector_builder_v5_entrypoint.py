@@ -22,5 +22,5 @@ def test_v5_canonical_module_entrypoint_exposes_help() -> None:
     )
 
     assert completed.returncode == 0, completed.stderr
-    assert "Replay V3 builder" in completed.stdout
     assert "--output" in completed.stdout
+    assert "--target-location" in completed.stdout
