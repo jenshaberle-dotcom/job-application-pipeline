@@ -113,7 +113,7 @@ Current production-shaped deterministic composition:
 
 Qualified Workday checkpoint:
 
-- `ae8b272f23fcc8fc91cced660ce8f4dd9c2cd73d` was the earlier proof-bridge head;
+- `ae8b272f23f148df786e776b4b6caa57002a4da0` was the qualified Workday/portal code checkpoint before the migration-closure rebaseline;
 - V4/Workday integration is contained in the merged ACQ-676 delivery;
 - Pipeline CI `#875`: success;
 - Re-entry `#1420`: success.
