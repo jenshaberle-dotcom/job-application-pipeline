@@ -1,7 +1,7 @@
 # Active Planning
 
 Status: current planning truth  
-Last rebaseline: ACQ-GENERALIZATION-90 full-population deterministic frontier; `#676` active
+Last rebaseline: ACQ-GENERALIZATION-90 builder V5 residual-composition frontier; `#676` active
 
 ## Product authority
 
@@ -20,7 +20,7 @@ DON may adapt technical design and sequencing. It may not infer unresolved produ
 Read these first for #676 work:
 
 1. `acq_generalization_90_reentry.md` — active continuation and semantic retention boundary;
-2. `acq_generalization_90_reentry.json` — machine-readable migration/retention state;
+2. `acq_generalization_90_reentry.json` — machine-readable current frontier;
 3. `acq_generalization_90_target.md` — canonical full-population metric and guardrails.
 
 The older REENTRY-001B / issue #672 material remains valid predecessor evidence and is retained in `reentry001b_deterministic_v41_frontier.md` plus the #672 issue history. It no longer overrides #676 sequencing.
@@ -49,31 +49,50 @@ Completed reusable work includes:
 - live Clarios proof through employer authority -> Workday board -> CXS inventory -> concrete public detail;
 - same-host Workday CXS detail proof projection without weakening `genuine_job_detail_proof`;
 - bounded Workday acquisition composition: root GET -> exact CXS inventory POST -> exact same-host CXS detail GET;
-- V4 builder overlay that can promote only existing Inventory failures after strict Workday proof;
-- evidence-bounded first-party -> portal delegation class that avoids global listing-vocabulary widening.
+- V4 Workday residual overlay;
+- evidence-bounded first-party -> portal delegation class;
+- builder-owned monotonic residual rewrite contract `rewrite_residual_suffix()`;
+- V5 ordered residual composition: `V3 -> Workday -> portal -> remaining residuals`.
 
-The complete migration/generalization delivery is merged on canonical
-`main@6af34cb54a9bbf29ffc257d1109f495d08d1678d` through PR #682.
+V5 delivery:
 
-Final delivery gates:
+- merge PR `#685`;
+- merge commit `45f99c1919e6869451b6301bf41a6d3d12ba7c78`;
+- exact-head Pipeline CI `#887`: success;
+- exact-head Re-entry `#1454`: success.
 
-- Pipeline CI `#883`: success;
-- Re-entry `#1436`: success;
-- unresolved review threads: `0`.
-
-No numerical V4/product lift is claimed until the same 65-candidate cohort is replayed from the canonical WSL runtime/database.
+No numerical V5/product lift is claimed until the same 65-candidate cohort is replayed from the canonical WSL runtime/database.
 
 ## Current deterministic sequence
 
 1. Resolve the current `origin/main` and any live #676 work PR before creating or editing a branch.
-2. Run the same 65-candidate V4 live builder replay from the canonical WSL runtime/database; record Workday diagnostic promotions without changing the product numerator.
-3. Compose the merged bounded portal-delegation bridge as a monotonic overlay on residual Inventory failures; replay the same cohort.
-4. Re-cluster remaining first failures after every meaningful generic lift.
-5. Prefer reusable acquisition classes over named-employer rescue code.
-6. Materialize only stable connector recipes; rerun unchanged strict E2E acquisition before changing product coverage.
+2. Run `scripts/run_deterministic_connector_builder_layer_audit_v5.py` against the same 65-candidate cohort from the canonical WSL runtime/database.
+3. Record exact V3 -> V4 -> V5 transitions, including Workday and portal promotions, without changing the product numerator.
+4. Re-cluster the V5 residual first-failure population after the measured generic lift.
+5. Select the next reusable deterministic class by population lift, evidence strength and boundedness — never by named-employer convenience.
+6. Materialize only stable evidence-backed connector recipes; rerun unchanged strict E2E acquisition before changing product coverage.
 7. Admit residuals to the LLM booster only when no remaining bounded generic deterministic hypothesis is supported by evidence.
 
-Every new mutating slice must branch from the then-current `origin/main` in a declared worktree. Neither historical #676 feature branch is a continuation base.
+Every new mutating slice must branch from the then-current `origin/main` in a declared worktree. Historical #676 feature branches are not continuation bases.
+
+## Connector-builder composition rule
+
+The canonical layer order remains:
+
+`identity -> origin -> origin_reachability -> delegation -> provider -> inventory -> detail -> proof -> recipe`
+
+Residual adapters are not allowed to rewrite arbitrary history. The shared builder contract requires each adapter to declare the exact current first-failure it handles and the earliest layer whose evidence changes. All earlier layers are preserved exactly, and the rewrite may never introduce an earlier first failure.
+
+Current residual ordering is explicit:
+
+```text
+V3 base
+  -> Workday CXS adapter if first_failure == inventory
+  -> bounded portal adapter if first_failure still == inventory
+  -> residual cohort
+```
+
+This is diagnostic composition. Future materialized connectors must compile only the evidence-backed capabilities required by that candidate; they must not blindly probe every registered adapter.
 
 ## Workspace / migration state
 
@@ -84,11 +103,11 @@ The 2026-08-28 canonical-workspace migration is **fully merged and closed as a m
 - old branch ancestry was not imported;
 - qualified old content was harvested as one ancestry-free commit on current-main lineage;
 - delivery PR #682: merged;
-- delivery merge on canonical main: `6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
+- migration delivery merge: `6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
 
 Historical migration checkpoint files remain retained provenance while #676 is active. Their filenames do not make them disposable.
 
-Retention rule: **qualified content is preserved on main; superseded branch/worktree cleanup is a separate DRJ technical action requiring fresh local observation.** The repository mailbox remains `NO_REQUEST` at migration closure because local dirty/unpushed/checked-out state was not observed in the GitHub-only closure pass.
+Retention rule: **qualified content is preserved on main; superseded branch/worktree cleanup is a separate DRJ technical action requiring fresh local observation.** The repository mailbox remains `NO_REQUEST` unless a fresh hygiene pass establishes exact safe retirement candidates.
 
 See `acq_generalization_90_reentry.md` for exact ACTIVE/PRESERVE/SUPERSEDED/disposable dispositions.
 
@@ -99,7 +118,7 @@ See `acq_generalization_90_reentry.md` for exact ACTIVE/PRESERVE/SUPERSEDED/disp
 3. `acq_generalization_90_reentry.md` — **current acquisition re-entry and retention authority**.
 4. `acq_generalization_90_reentry.json` — machine-readable #676 state.
 5. `acq_generalization_90_target.md` — full-population deterministic target.
-6. `deterministic_connector_builder_layers.md` — evidence-driven builder architecture.
+6. `deterministic_connector_builder_layers.md` — evidence-driven builder and residual-adapter architecture.
 7. `backlog_refinement.md` — operator-readable contradiction and work-item view.
 8. `backlog_catalog.json` — machine-readable engineering work-item inventory.
 9. `roadmap.md` — short sequencing view.
