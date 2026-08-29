@@ -1,7 +1,7 @@
 # ACQ-GENERALIZATION-90 — deterministic full-population coverage target
 
 Status: active
-Date: 2026-08-28
+Date: 2026-08-29
 Owner issue: #676
 Active re-entry: `docs/planning/active/acq_generalization_90_reentry.md`
 
@@ -42,8 +42,8 @@ The historical `36/40` remains a regression cohort and must not regress, but it 
 longer the primary coverage claim.
 
 Canonical product coverage remains `36/65` until materialized strict E2E evidence
-proves a higher numerator. Current Workday/portal diagnostic work does not change
-that number by itself.
+proves a higher numerator. Current builder V5 diagnostic work does not change that
+number by itself.
 
 ## Root-cause phase — completed
 
@@ -113,23 +113,21 @@ Current production-shaped deterministic composition:
 
 Qualified Workday checkpoint:
 
-- `ae8b272f23f148df786e776b4b6caa57002a4da0`;
+- `ae8b272f23fcc8fc91cced660ce8f4dd9c2cd73d` was the earlier proof-bridge head;
+- V4/Workday integration is contained in the merged ACQ-676 delivery;
 - Pipeline CI `#875`: success;
 - Re-entry `#1420`: success.
 
-The complete Workday/V4 delivery is merged on canonical
-`main@6af34cb54a9bbf29ffc257d1109f495d08d1678d` through PR #682. V4 may promote only
-an existing Inventory first-failure after the strict Workday path succeeds. No live
-65-candidate V4 numerical lift is claimed until the canonical runtime/database
-replay is executed.
+V4 may promote only an existing Inventory first-failure after the strict Workday path
+succeeds. No live 65-candidate V4 numerical lift is claimed independently from the
+pending V5 replay.
 
 ### Evidence-bounded portal delegation
 
-The next residual class is first-party career-page -> explicit external/subdomain
-job portal handoff. This is intentionally not solved by globally widening listing
-vocabulary.
+The first-party career-page -> explicit external/subdomain job portal handoff is
+implemented without globally widening listing vocabulary.
 
-The merged generic bridge requires:
+The generic bridge requires:
 
 - an explicit strong portal CTA (for example `Job finden` / `Zum Jobportal`); and
 - destination binding by same registered employer domain or an explicit
@@ -140,7 +138,39 @@ The downstream route is handed to the existing V4 acquisition stack under the
 existing request/proof authority. The class is generic; Bahlsen is one observed
 instance, not a named-employer rule.
 
-This bridge is also merged on `main@6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
+### Builder V5 — monotonic residual composition
+
+The connector-builder now has a shared residual rewrite contract instead of relying
+on provider-specific audit conventions.
+
+`rewrite_residual_suffix()` requires each residual adapter to declare:
+
+- the exact current first-failure it may handle;
+- the earliest layer whose evidence genuinely changes;
+- a complete canonical replacement suffix.
+
+Every earlier layer is preserved exactly. A rewrite may move the first failure later
+or make the recipe READY, but may never introduce a first failure earlier than the
+residual it was asked to resolve.
+
+Current ordered composition:
+
+`V3 base -> Workday CXS residual adapter -> bounded portal-delegation residual adapter -> remaining residuals`
+
+Workday is attempted only for `inventory` residuals. Portal is attempted only if
+`inventory` remains the first failure after Workday. Stable materialized connectors
+must later compile only the evidence-backed capabilities they need; the independent
+diagnostic overlay budgets are not authority to probe every adapter blindly.
+
+Qualified V5 checkpoint:
+
+- merge PR: `#685`;
+- merge commit: `45f99c1919e6869451b6301bf41a6d3d12ba7c78`;
+- Pipeline CI `#887`: success;
+- Re-entry `#1454`: success.
+
+No V5 numerical lift is claimed until the canonical WSL runtime/database replay is
+executed on the same 65-candidate cohort.
 
 ## Guardrails
 
@@ -153,6 +183,7 @@ This bridge is also merged on `main@6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
 - fresh market additions remain an out-of-sample generalization control;
 - optional builder layers remain evidence-driven and may be skipped when not
   required;
+- residual rewrites must be monotonic under the shared builder contract;
 - no product coverage claim from diagnostic recipe readiness alone.
 
 ## Workspace migration — fully merged 2026-08-28
@@ -162,7 +193,7 @@ The migration pause and delivery phase are closed.
 Qualified #676 content was harvested from superseded PR #678 into current-main
 lineage without importing old branch ancestry, then delivered through PR #682.
 
-Final delivery identity:
+Final migration delivery identity:
 
 - issue: `#676` remains active;
 - PR `#678`: closed/superseded, never merged;
@@ -183,20 +214,19 @@ The active continuation/retention authority is:
 - `docs/planning/active/acq_generalization_90_reentry.md`;
 - `docs/planning/active/acq_generalization_90_reentry.json`.
 
-Do not resume from PR #678, PR #682's merged branch, or the migration-pause sole-next
-action. Every new mutating slice must start from freshly observed current
-`origin/main` in a declared worktree/feature branch.
+Every new mutating slice must start from freshly observed current `origin/main` in a
+declared worktree/feature branch.
 
 ## Current sequence
 
-1. Run the same 65-candidate V4 builder replay from the canonical WSL
-   runtime/database and record Workday promotion(s) without changing the product
-   numerator.
-2. Compose the merged evidence-bounded portal delegation class as a monotonic
-   overlay on residual Inventory failures; replay the same cohort.
-3. Re-cluster first failures after each measured generic lift.
+1. Run `scripts/run_deterministic_connector_builder_layer_audit_v5.py` against the
+   same 65-candidate cohort from the canonical WSL runtime/database.
+2. Record exact V3 -> V4 -> V5 transitions, including Workday and portal promotions,
+   without changing the product numerator.
+3. Re-cluster the remaining first failures from the V5 result and select the next
+   reusable deterministic capability by population lift and evidence strength.
 4. Continue deterministic hardening until no evidence-backed bounded generic class
    remains.
-5. Only then move exhausted residuals to the booster path.
-6. Materialize stable connector recipes and update the canonical numerator only
-   from unchanged strict E2E proof.
+5. Materialize only stable evidence-backed recipes and update canonical product
+   coverage solely from unchanged strict E2E proof.
+6. Only then move exhausted residuals to the booster path.
