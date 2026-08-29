@@ -7,6 +7,13 @@
   "active_pull_request": null,
   "active_branch": null,
   "resolve_current_work_from_live_github": true,
+  "canonical_operator_entrypoint": {
+    "cwd": "repository_root",
+    "command": ".venv/bin/python -m scripts.run_deterministic_connector_builder_layer_audit_v5 --output /tmp/deterministic_connector_builder_layer_audit_v5.json",
+    "direct_file_execution_is_canonical": false,
+    "reason": "module execution preserves repository-root import authority for scripts.* and src.* without sys.path bootstrap exceptions",
+    "ci_smoke_test": "tests/test_deterministic_connector_builder_v5_entrypoint.py"
+  },
   "migration": {
     "complete": true,
     "old_pull_request": 678,
@@ -88,7 +95,8 @@
       "src/search_intelligence/deterministic_connector_builder.py",
       "src/search_intelligence/origin_candidate_plan_v2.py",
       "tests/test_deterministic_connector_builder_residual_rewrite.py",
-      "tests/test_deterministic_connector_builder_layer_audit_v5.py"
+      "tests/test_deterministic_connector_builder_layer_audit_v5.py",
+      "tests/test_deterministic_connector_builder_v5_entrypoint.py"
     ],
     "preserve_provenance": [
       "docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.md",
@@ -125,7 +133,7 @@
   },
   "continuation": [
     "freshly resolve current origin/main and any open #676 pull request",
-    "run scripts/run_deterministic_connector_builder_layer_audit_v5.py against the same 65-candidate cohort from canonical WSL runtime/database",
+    "from repository root run .venv/bin/python -m scripts.run_deterministic_connector_builder_layer_audit_v5 --output /tmp/deterministic_connector_builder_layer_audit_v5.json against the same 65-candidate cohort from canonical WSL runtime/database",
     "record exact V3 to V4 to V5 transitions and exact Workday/portal promotions without changing product coverage",
     "recluster V5 residual first failures and select the next bounded generic deterministic capability by reusable population lift and evidence strength",
     "materialize only stable evidence-backed recipes and update product numerator only from unchanged strict E2E proof"
