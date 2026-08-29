@@ -156,6 +156,79 @@ def complete_after_failure(
     return tuple(results)
 
 
+def rewrite_residual_suffix(
+    baseline: ConnectorBuilderAssessment,
+    *,
+    expected_first_failure: str,
+    rewrite_from_layer: str,
+    replacement_suffix: Sequence[LayerResult],
+) -> ConnectorBuilderAssessment:
+    """Rewrite one evidence-backed residual suffix without allowing regression.
+
+    Residual adapters may need to revise an earlier optional/composition layer when
+    they resolve a later failure. Workday, for example, resolves an Inventory
+    failure while also supplying Provider evidence; a portal handoff may resolve the
+    same Inventory failure while supplying Delegation evidence.
+
+    This helper makes that contract explicit:
+
+    * the adapter may run only against the declared current first-failure;
+    * every layer before ``rewrite_from_layer`` is preserved exactly;
+    * the replacement must cover the complete canonical suffix in order; and
+    * the rewritten assessment may become READY or fail later, but it may never
+      introduce a first failure earlier than the residual it was asked to resolve.
+
+    The function is side-effect free and deliberately knows nothing about provider
+    families, HTTP transports, persistence, or product admission.
+    """
+
+    if expected_first_failure not in LAYER_ORDER:
+        raise ValueError(f"unknown expected first-failure layer: {expected_first_failure}")
+    if rewrite_from_layer not in LAYER_ORDER:
+        raise ValueError(f"unknown residual rewrite layer: {rewrite_from_layer}")
+
+    failure = baseline.first_failure
+    if failure is None or failure.layer != expected_first_failure:
+        actual = failure.layer if failure is not None else None
+        raise ValueError(
+            "residual rewrite first-failure mismatch: "
+            f"expected {expected_first_failure!r}, got {actual!r}"
+        )
+
+    failure_index = LAYER_ORDER.index(expected_first_failure)
+    rewrite_index = LAYER_ORDER.index(rewrite_from_layer)
+    if rewrite_index > failure_index:
+        raise ValueError(
+            "residual rewrite must start at or before the declared first-failure layer"
+        )
+
+    replacement = tuple(replacement_suffix)
+    expected_suffix = LAYER_ORDER[rewrite_index:]
+    actual_suffix = tuple(item.layer for item in replacement)
+    if actual_suffix != expected_suffix:
+        raise ValueError(
+            f"residual replacement suffix mismatch: expected {expected_suffix!r}, "
+            f"got {actual_suffix!r}"
+        )
+
+    rewritten = ConnectorBuilderAssessment(
+        baseline.candidate_id,
+        baseline.company_key,
+        baseline.company_name,
+        tuple([*baseline.layers[:rewrite_index], *replacement]),
+    )
+    new_failure = rewritten.first_failure
+    if (
+        new_failure is not None
+        and LAYER_ORDER.index(new_failure.layer) < failure_index
+    ):
+        raise ValueError(
+            "residual rewrite introduced an earlier first failure: "
+            f"{expected_first_failure!r} -> {new_failure.layer!r}"
+        )
+    return rewritten
+
+
 def summarize_assessments(
     assessments: Sequence[ConnectorBuilderAssessment],
 ) -> dict[str, object]:
@@ -194,6 +267,7 @@ __all__ = [
     "failed",
     "not_reached",
     "passed",
+    "rewrite_residual_suffix",
     "skipped",
     "summarize_assessments",
 ]

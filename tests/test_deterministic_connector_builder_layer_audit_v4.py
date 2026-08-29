@@ -88,7 +88,7 @@ def test_workday_overlay_refuses_to_rewrite_non_inventory_failure() -> None:
         anchor_text="",
     )
 
-    with pytest.raises(ValueError, match="only an Inventory first-failure"):
+    with pytest.raises(ValueError, match="first-failure mismatch"):
         _promote_inventory_failure(
             baseline,
             job=job,
