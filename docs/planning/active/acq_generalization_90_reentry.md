@@ -157,11 +157,26 @@ Diagnostic overlay request caps remain independent measurement boundaries. They 
 not authority for future materialized connectors to probe every adapter blindly.
 Stable recipes must compile only capabilities supported by candidate evidence.
 
+## Canonical V5 operator entrypoint
+
+From the canonical repository root, run V5 as a Python module:
+
+```bash
+.venv/bin/python -m scripts.run_deterministic_connector_builder_layer_audit_v5 \
+  --output /tmp/deterministic_connector_builder_layer_audit_v5.json
+```
+
+Direct file execution such as
+`python scripts/run_deterministic_connector_builder_layer_audit_v5.py` is not the
+canonical entrypoint because the audit composes repository packages through
+`scripts.*` and `src.*`. Module execution keeps the repository root on the Python
+import path without adding `sys.path` bootstrap exceptions. A focused CI smoke test
+must keep this module entrypoint executable.
+
 ## Sole continuation sequence
 
-1. In the canonical WSL runtime/database, run
-   `scripts/run_deterministic_connector_builder_layer_audit_v5.py` against the same
-   65-candidate cohort.
+1. In the canonical WSL runtime/database, run the canonical V5 module entrypoint
+   above against the same 65-candidate cohort.
 2. Record exact V3 -> V4 -> V5 transitions, including exact Workday and portal
    promotions. Do not change product coverage from diagnostic READY.
 3. Re-cluster the V5 residual first-failure population.
