@@ -1,8 +1,9 @@
 {
   "schema": "job_application_pipeline.acq676_reentry.v1",
-  "status": "active_migration_merged_to_main",
+  "status": "active_builder_v5_merged_live_replay_next",
   "owner_issue": 676,
   "canonical_main_at_migration_closure": "6af34cb54a9bbf29ffc257d1109f495d08d1678d",
+  "latest_qualified_builder_merge": "45f99c1919e6869451b6301bf41a6d3d12ba7c78",
   "active_pull_request": null,
   "active_branch": null,
   "resolve_current_work_from_live_github": true,
@@ -45,6 +46,19 @@
     "workday_cxs_acquisition": true,
     "builder_v4_workday_overlay": true,
     "evidence_bounded_portal_delegation": true,
+    "builder_v5_monotonic_residual_composition": true,
+    "residual_rewrite_contract": "rewrite_residual_suffix",
+    "overlay_order": [
+      "workday_cxs_detail_v1",
+      "evidence_bounded_portal_v1"
+    ],
+    "v5_merge_pull_request": 685,
+    "v5_merge_commit": "45f99c1919e6869451b6301bf41a6d3d12ba7c78",
+    "v5_pipeline_ci_run_number": 887,
+    "v5_pipeline_ci_conclusion": "success",
+    "v5_reentry_run_number": 1454,
+    "v5_reentry_conclusion": "success",
+    "v5_live_65_candidate_replay_completed": false,
     "product_coverage_lift_claimed": false
   },
   "retention": {
@@ -59,6 +73,7 @@
       "scripts/run_deterministic_connector_builder_layer_audit_v2.py",
       "scripts/run_deterministic_connector_builder_layer_audit_v3.py",
       "scripts/run_deterministic_connector_builder_layer_audit_v4.py",
+      "scripts/run_deterministic_connector_builder_layer_audit_v5.py",
       "scripts/run_deterministic_inventory_bridge_audit.py",
       "scripts/run_deterministic_inventory_surface_audit.py",
       "scripts/run_deterministic_origin_plan_audit.py",
@@ -71,40 +86,48 @@
       "src/connectors/employer_origin_portal_delegation.py",
       "src/connectors/employer_origin_portal_delegation_acquisition.py",
       "src/search_intelligence/deterministic_connector_builder.py",
-      "src/search_intelligence/origin_candidate_plan_v2.py"
+      "src/search_intelligence/origin_candidate_plan_v2.py",
+      "tests/test_deterministic_connector_builder_residual_rewrite.py",
+      "tests/test_deterministic_connector_builder_layer_audit_v5.py"
     ],
     "preserve_provenance": [
       "docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.md",
       "docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json",
       "issue:#676:live_ab_and_clarios_comments",
-      "pull_request:#682:merge_history"
+      "pull_request:#682:merge_history",
+      "pull_request:#685:v5_composition_history"
     ],
     "superseded_no_continuation": [
       "pull_request:#678",
       "branch:agent/676-deterministic-connector-builder",
       "pull_request:#682",
-      "branch:agent/676-generalization-harvest"
+      "branch:agent/676-generalization-harvest",
+      "pull_request:#684",
+      "pull_request:#685",
+      "branch:agent/676-connector-builder-v5-portal-overlay"
     ],
     "branch_retirement_requires_fresh_drj_technical_observation": true,
     "disposable_ephemeral": [
       "/tmp/deterministic_connector_builder_layer_audit_v2_balanced.json",
       "/tmp/deterministic_connector_builder_layer_audit_v3_provider_inventory.json",
+      "/tmp/deterministic_connector_builder_layer_audit_v4.json",
+      "/tmp/deterministic_connector_builder_layer_audit_v5.json",
       "/tmp/deterministic_inventory_surface_audit_balanced.json",
       "/tmp/deterministic_inventory_bridge_audit.json",
       "/tmp/deterministic_workday_bridge_clarios.json"
     ]
   },
   "drj": {
-    "reconcile_request_at_migration_closure": "NO_REQUEST",
-    "reason": "repository content is merged and safe, but local branch/worktree dirty, unpushed, checked-out and closed-unmerged technical state was not freshly observed in this chat; DRJ must revalidate those conditions fail-closed before any effect",
+    "reconcile_request_at_current_frontier": "NO_REQUEST",
+    "reason": "qualified repository content is preserved on main, while local branch/worktree dirty, unpushed, checked-out and closed-unmerged technical state still requires fresh DRJ observation before any retirement effect",
     "semantic_rule": "qualified content is preserved on main; superseded branch ancestry has no continuation authority but deletion is a separate exact DRJ effect",
     "age_path_name_are_delete_authority": false
   },
   "continuation": [
     "freshly resolve current origin/main and any open #676 pull request",
-    "run same 65-candidate V4 live builder replay from canonical WSL runtime/database",
-    "compose merged evidence-bounded portal delegation as a monotonic residual Inventory overlay",
-    "replay same cohort and recluster first failures after every measured generic lift",
-    "materialize only stable recipes and update product numerator only from unchanged strict E2E proof"
+    "run scripts/run_deterministic_connector_builder_layer_audit_v5.py against the same 65-candidate cohort from canonical WSL runtime/database",
+    "record exact V3 to V4 to V5 transitions and exact Workday/portal promotions without changing product coverage",
+    "recluster V5 residual first failures and select the next bounded generic deterministic capability by reusable population lift and evidence strength",
+    "materialize only stable evidence-backed recipes and update product numerator only from unchanged strict E2E proof"
   ]
 }
