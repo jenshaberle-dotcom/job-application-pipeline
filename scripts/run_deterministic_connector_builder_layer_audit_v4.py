@@ -22,6 +22,7 @@ from src.connectors.employer_origin_workday_acquisition import (
 from src.search_intelligence.deterministic_connector_builder import (
     ConnectorBuilderAssessment,
     passed,
+    rewrite_residual_suffix,
     summarize_assessments,
 )
 
@@ -50,15 +51,13 @@ def _promote_inventory_failure(
     observed_root: str,
     requests: list[dict[str, object]],
 ) -> ConnectorBuilderAssessment:
-    """Promote only an existing Inventory failure after strict Workday E2E proof."""
+    """Promote one Inventory residual under the shared monotonic rewrite contract."""
 
-    failure = baseline.first_failure
-    if failure is None or failure.layer != "inventory":
-        raise ValueError("Workday overlay may promote only an Inventory first-failure")
-
-    layers = list(baseline.layers[:4])
-    layers.extend(
-        [
+    return rewrite_residual_suffix(
+        baseline,
+        expected_first_failure="inventory",
+        rewrite_from_layer="provider",
+        replacement_suffix=(
             passed(
                 "provider",
                 "strict employer-backed Workday route is executable through same-host CXS",
@@ -89,13 +88,7 @@ def _promote_inventory_failure(
                 observed_root=_url_shape(observed_root),
                 workday_overlay=True,
             ),
-        ]
-    )
-    return ConnectorBuilderAssessment(
-        baseline.candidate_id,
-        baseline.company_key,
-        baseline.company_name,
-        tuple(layers),
+        ),
     )
 
 
@@ -250,7 +243,7 @@ def main() -> int:
     parser.add_argument("--sleep-seconds", type=float, default=0.05)
     args = parser.parse_args()
 
-    # V4 is intentionally V3 + one Workday proof composition.  Preserve the
+    # V4 is intentionally V3 + one Workday proof composition. Preserve the
     # balanced origin planner and provider-inventory composition unchanged.
     base_audit.run_origin_discovery = run_origin_discovery_v4
     base_audit.discover_navigation_candidates = (
