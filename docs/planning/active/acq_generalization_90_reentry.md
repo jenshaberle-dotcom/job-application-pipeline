@@ -1,23 +1,30 @@
 # ACQ-GENERALIZATION-90 — canonical re-entry
 
-Status: **ACTIVE — V5 LIVE REPLAY + RESIDUAL RECLUSTER COMPLETE; SUCCESSFACTORS CARRIER AUDIT NEXT**  
+Status: **ACTIVE — SUCCESSFACTORS COMMON CARRIER REJECTED; DETAIL RESIDUAL SURFACE AUDIT NEXT**  
 Owner issue: `#676`  
 Migration delivery merge: `6af34cb54a9bbf29ffc257d1109f495d08d1678d`  
 Builder V5 merge: `45f99c1919e6869451b6301bf41a6d3d12ba7c78`  
-Latest qualified diagnostic merge: `2b37c89ecf1d4821e4c82f703780138af8744367`
+Latest qualified diagnostic merge: `aed89b99a25d973c6aef68d291be548f25df123e`
 
 Machine-readable companion: `docs/planning/active/acq_generalization_90_reentry.json`.
 
 ## Authority
 
-This file is the active ACQ-676 continuation anchor. It is subordinate to
-`PROJECT-HYGIENE.json`, `PROJECT-LOCAL-WORKSPACE.json`, `PROJECT-DRJ.json`, and the
-product/current-truth surfaces.
+This file is the active ACQ-676 continuation anchor. Repository truth, bounded live
+evidence, tests and CI override chat summaries. Every mutating ACQ-676 slice starts
+from freshly observed current `origin/main` in a declared feature branch/worktree.
+Historical #676 branches are never continuation authority.
 
-Repository truth, live bounded evidence, tests and CI override chat summaries.
-Every new mutating ACQ-676 slice starts from freshly observed current `origin/main`
-in a declared worktree/feature branch. Historical #676 branches are never
-continuation authority.
+Read first:
+
+1. `PROJECT-HYGIENE.json`;
+2. `PROJECT-LOCAL-WORKSPACE.json`;
+3. `PROJECT-DRJ.json`;
+4. `docs/current/README.md`;
+5. this file;
+6. `acq_generalization_90_target.md`;
+7. live issue `#676` and current PR state;
+8. current `origin/main`, branch/worktree relationship and latest CI.
 
 ## Canonical product metric
 
@@ -29,43 +36,39 @@ Target at the current denominator:
 
 `>= 59 / 65 = 90.8%`
 
-The historical `36/40` remains a regression cohort. Builder `recipe_ready`, audit
-READY states, provider recognition and live diagnostic rescue evidence do not change
-the product numerator. A candidate enters the numerator only after a materialized
-connector passes unchanged strict E2E acquisition proof under existing authority and
+Historical `36/40` remains the regression cohort. Builder READY/`recipe_ready`,
+provider recognition, audit classifications and bounded live rescue evidence are
+never product-coverage credit. Numerator movement requires a materialized connector
+that passes unchanged strict E2E acquisition proof under existing authority and
 side-effect boundaries.
 
-## Migration / architecture closure
+## Architecture already qualified
 
-The 2026-08-28 canonical workspace migration is complete. Qualified #676 content was
-harvested without importing superseded branch ancestry and delivered through PR
-`#682` at merge `6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
+Do not repeat without changed repository/live evidence:
 
-The historical migration checkpoint remains preserved provenance:
+- balanced Origin V2: Origin first failures `18 -> 8`, earlier regressions `0`;
+- provider/inventory V3: inventory `17 -> 16`, detail `15 -> 16`, `x1f` advanced to
+  detail through existing Personio inventory;
+- generic Workday CXS acquisition/proof path;
+- evidence-bounded first-party -> portal delegation;
+- Builder V5 shared monotonic `rewrite_residual_suffix()` composition contract.
 
-- `docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.md`;
-- `docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json`.
-
-Builder V5 was merged through PR `#685` at
-`45f99c1919e6869451b6301bf41a6d3d12ba7c78` with Pipeline CI `#887` and Re-entry
-`#1454` successful. The shared `rewrite_residual_suffix()` contract remains the
-mandatory monotonic composition boundary: an adapter may rewrite only the exact
-residual it claims, must declare the earliest changed layer, preserves all earlier
-layers exactly, and may never move failure earlier.
-
-Current ordered diagnostic composition remains:
+Current V5 order remains:
 
 ```text
 V3 base
   -> Workday CXS residual adapter
-  -> evidence-bounded portal-delegation residual adapter
+  -> evidence-bounded portal residual adapter
   -> remaining residuals
 ```
 
-## Qualified live V5 replay — 2026-08-29
+No adapter may move first failure earlier, weaken proof/authority, guess tenant/site/job
+identity, or convert diagnostic evidence directly into product authority.
 
-The canonical WSL replay completed on
-`main@05f6a137beb34abfb7cc53669c70c3792a7901e3` via module execution.
+## Qualified V5 live replay — 2026-08-29
+
+Canonical WSL replay completed on
+`main@05f6a137beb34abfb7cc53669c70c3792a7901e3`.
 
 Exact transition:
 
@@ -74,7 +77,6 @@ Exact transition:
 - V5 READY: `22/65`;
 - Workday promotions: `1` -> `clarios_germany`;
 - portal promotions: `0`;
-- cohort total: `65`;
 - earlier-stage regressions: `0`.
 
 Final V5 first-failure population:
@@ -86,176 +88,158 @@ Final V5 first-failure population:
 - detail: `16`;
 - proof: `3`.
 
-Exact residual cohorts:
+Exact detail cohort:
 
-- origin: `computer_futures, hahne_holding, haystack, jobbird_com, limango, sport_alliance, team_passerelle, windhoff`;
-- origin_reachability: `deutsche_bahn`;
-- inventory: `adesso, adonya_software_services, bahlsen, bridgingit, hannover_ruck, hired, intersport_digital, ivv, kkh_kaufmannische_krankenkasse, nortal, prodyna, sva_system_vertrieb_alexander, technische_informationsbibliothek_tib, the_associated_engineers, trustyou`;
-- detail: `1_1, amadeus_fire, aok_niedersachsen_die_gesundheitskasse, bjak, compugroup_medical, deloitte, genoverband_e_v, iph_institut_fur_integrierte_produktion_hannover_ggmbh, land_niedersachsen, msg_systems, mtu_maintenance, triology, tuv_sud, x1f, yer_deutschland, zscaler_germany`;
-- proof: `enercity, hdi, ratbacher`.
+`1_1, amadeus_fire, aok_niedersachsen_die_gesundheitskasse, bjak, compugroup_medical, deloitte, genoverband_e_v, iph_institut_fur_integrierte_produktion_hannover_ggmbh, land_niedersachsen, msg_systems, mtu_maintenance, triology, tuv_sud, x1f, yer_deutschland, zscaler_germany`
 
-Durable issue checkpoint: `#676` comment `5462507864`.
+Durable V5 checkpoint: issue `#676` comment `5462507864`.
 
-Interpretation: Workday has measured generic live lift. Portal delegation has no
-measured V5 population lift and must not be widened further from this evidence alone.
-Product coverage remains `36/65`.
+## Inventory residual re-cluster — completed
 
-## Qualified residual re-cluster
+Read-only inventory surface audit across the `15` inventory residuals:
 
-The V5 artifact was re-clustered with bounded read-only surface and bridge audits.
-
-Inventory surface audit:
-
-- input inventory residuals: `15`;
-- HTTP GETs: exactly `15` (`1` per residual maximum);
 - authorized provider without executable inventory: `2` -> `adesso`, `hannover_ruck`;
-- client-rendered/script primary: `1` -> `bahlsen`;
-- external jobish anchor not promoted: `2` -> `nortal`, `sva_system_vertrieb_alexander`;
-- same-origin jobish anchor not classified: `3` -> `kkh_kaufmannische_krankenkasse`, `prodyna`, `trustyou`;
+- client-rendered/script primary: `1`;
+- external jobish anchor not promoted: `2`;
+- same-origin jobish anchor not classified: `3`;
 - low-signal inventory surface: `7`.
 
-Bridge audit:
+Evidence-rich bridge audit:
 
-- evidence-rich cases: `7`;
-- HTTP GETs: exactly `7`;
 - same-origin listing-vocabulary hypothesis: `6`;
 - external listing-vocabulary hypothesis: `4`;
 - provider-route-adapter gap: `2` -> `adesso`, `hannover_ruck`.
 
-The vocabulary counts include visible navigation noise and are not implementation
-priority by count alone. The strongest bounded cross-employer class is the pair of
-already-authorized SuccessFactors surfaces with no executable provider inventory
-route.
+Raw vocabulary counts contain navigation noise and were not treated as implementation
+priority by count alone.
 
-Durable issue checkpoint: `#676` comment `5462664378`.
+## SuccessFactors common carrier — measured and rejected
 
-## SuccessFactors carrier frontier
+PR `#688` merged the bounded read-only SuccessFactors carrier measurement tool:
 
-Focused root observation established:
-
-- `hannover_ruck`: authorized SuccessFactors root, explicit same-host GET form to
-  `/search/`, same-host `/platform/js/search/search.js`, `careerSiteCompanyId`;
-- `adesso`: authorized SuccessFactors root, no root form, but the same explicit
-  same-host `/platform/js/search/search.js` stack and `careerSiteCompanyId`.
-
-This does **not** authorize `/search/` for adesso and does not establish a universal
-SuccessFactors inventory route. Public adesso detail URLs also show a `/job-invite/<id>/`
-family, while Hannover Re uses `/job/<slug>/<numeric-id>/`; those shapes are evidence
-of concrete public details, not inventory enumeration authority.
-
-PR `#688` therefore added only a reusable read-only measurement tool:
-
-- `scripts/run_deterministic_successfactors_search_carrier_audit.py`;
-- `tests/test_deterministic_successfactors_search_carrier_audit.py`.
-
-Qualified PR #688 evidence:
-
-- code head: `4b616cf24dbdd3ecdaae97fe0bdd9dabbb15f7d9`;
+- merge: `2b37c89ecf1d4821e4c82f703780138af8744367`;
 - Pipeline CI `#896`: success;
 - Re-entry `#1479`: success;
-- merge: `2b37c89ecf1d4821e4c82f703780138af8744367`.
+- max `2` GETs per eligible candidate;
+- no guessed routes/tenants/IDs/POST bodies/query values;
+- query values persisted: `0`;
+- provider/LLM/Tavily requests: `0`;
+- DB/Product/source/application writes: `0`.
 
-Audit boundary:
+Canonical live carrier audit then completed on the two eligible cases with exactly
+`4` GETs total:
 
-- selects only V5 `inventory` residuals whose surface audit already recognized
-  `successfactors`;
-- max `2` GETs per eligible candidate: authorized root plus exactly one explicitly
-  embedded same-host `/platform/js/search/search.js`;
+- `hannover_ruck`: `explicit_root_get_search_form`; exact same-host GET action
+  `/search/` with observed field names;
+- `adesso`: `no_explicit_search_route_literal`; no root GET search form;
+- both explicitly embedded same-host `platform/js/search/search.js` resources exposed
+  no explicit search-route literal under the bounded classifier;
+- script evidence for both: `no_explicit_search_route_literal`.
+
+Conclusion:
+
+> No common evidence-backed SuccessFactors inventory carrier was proven.
+
+A generic SuccessFactors -> `/search/` mapping would be guessed route authority and is
+therefore rejected. The provider family may later split if a separately evidenced
+reusable subgroup appears, but no adapter is promoted from this gate.
+
+Durable stop record: issue `#676` comment `5463886222`.
+
+Product coverage remains `36/65`.
+
+## Detail residual measurement frontier
+
+The largest remaining downstream technical block is now the `16` detail residuals.
+These cases already have deterministic inventory/navigation evidence; the current
+bounded V4 path did not resolve a concrete detail identity.
+
+PR `#690` added the bounded read-only detail-surface audit:
+
+- script: `scripts/run_deterministic_detail_surface_audit.py`;
+- tests: `tests/test_deterministic_detail_surface_audit.py`;
+- qualified head: `7ca8da9ea372dd968481af81b354cc2b5d628811`;
+- Pipeline CI `#900`: success, including full suite;
+- Re-entry `#1490`: success on Ubuntu and Windows;
+- merge: `aed89b99a25d973c6aef68d291be548f25df123e`.
+
+Boundary:
+
+- input only V5 `first_failure_layer == detail`;
+- replay uses existing V4 acquisition semantics;
+- hard cap `4` HTTPS GETs per candidate;
 - no guessed routes, tenants, IDs, POST bodies or query values;
-- query values are never persisted; only URL shape/query-key names may be emitted;
-- cross-host or ambiguous script evidence fails closed;
-- POST evidence cannot be promoted as GET evidence;
-- provider/LLM/Tavily requests `0`;
-- DB/source/Bronze/Silver/Product/application writes `0`;
-- connector materialization `0`.
+- query **values** are never persisted; only structural query-key names/counts may be
+  recorded;
+- no provider/LLM/Tavily calls;
+- no DB/source/Bronze/Silver/Product/application writes;
+- no connector materialization;
+- unknown identifier-like query keys are diagnostic evidence only;
+- if current V4 now resolves a detail due live drift, that is recorded separately and
+  is not credited as a new capability.
 
-## Canonical commands
+Diagnostic classes include:
 
-V5 replay from repository root:
+- `current_v4_now_resolves_detail`;
+- `strict_query_detail_already_visible`;
+- `unknown_query_identifier_key_surface`;
+- `form_driven_detail_surface`;
+- `unclassified_jobish_detail_surface`;
+- `client_rendered_or_script_detail_surface`;
+- `provider_detail_route_gap`;
+- `low_signal_detail_surface`.
+
+## Canonical next command
+
+From clean canonical WSL `main` after fast-forwarding `origin/main`:
 
 ```bash
-.venv/bin/python -m scripts.run_deterministic_connector_builder_layer_audit_v5 \
-  --output /tmp/deterministic_connector_builder_layer_audit_v5.json
-```
-
-Current SuccessFactors carrier gate, reusing the qualified V5 and inventory-surface
-artifacts:
-
-```bash
-.venv/bin/python -m scripts.run_deterministic_successfactors_search_carrier_audit \
+.venv/bin/python -m scripts.run_deterministic_detail_surface_audit \
   --layer-audit /tmp/deterministic_connector_builder_layer_audit_v5.json \
-  --surface-audit /tmp/deterministic_inventory_surface_audit_v5.json \
-  --output /tmp/deterministic_successfactors_search_carrier_audit.json
+  --output /tmp/deterministic_detail_surface_audit_v5.json
 ```
 
-Module execution from the repository root is canonical for scripts importing
-`scripts.*` / `src.*`; direct-file invocation is not continuation authority.
+Module execution from repository root is canonical for scripts importing `scripts.*`
+and `src.*`.
 
 ## Sole continuation sequence
 
-1. Fast-forward the canonical WSL checkout to current `origin/main` and verify clean
-   `main` identity.
-2. Run the canonical SuccessFactors carrier audit above against the existing qualified
-   V5 + inventory-surface artifacts.
-3. Record exact evidence for both eligible cases. Do not infer a route that is not
-   explicitly bound by root/script evidence and do not change product coverage.
-4. If both cases expose a reusable bounded carrier under the same generic contract,
-   implement that capability on a fresh branch with unchanged proof/authority.
-5. If the carrier class splits or fails closed, record the stop reason and select the
-   next evidence-backed residual class by population lift + evidence strength +
+1. Fast-forward canonical WSL `main` to current `origin/main`; require clean identity.
+2. Run the bounded detail-surface audit above against the qualified V5 artifact.
+3. Verify input count `16`, inspect exact classification counts/cohorts, and record
+   request totals/errors. Do not change product coverage.
+4. Select the strongest reusable detail class by population lift + evidence strength +
    boundedness.
-6. Continue deterministic hardening until no reasonable generic deterministic class
-   remains.
-7. Materialize only stable evidence-backed recipes and update the product numerator
-   only from unchanged strict E2E proof; only exhausted residuals may then enter the
-   booster path.
+5. Before implementation, perform a narrower evidence proof for that exact class if
+   the surface audit is only diagnostic.
+6. Promote only a generic fail-closed capability with unchanged proof and employer
+   authority; otherwise record the stop reason and move to the next class.
+7. Re-run the relevant population gate after every meaningful promotion.
+8. Continue deterministic hardening until no reasonable bounded generic class remains.
+9. Materialize stable evidence-backed recipes and update product coverage only from
+   unchanged strict E2E proof; only exhausted residuals may enter booster engineering.
 
-## Retention / DRJ semantic dispositions
+## Retention / DRJ
 
-### ACTIVE / KEEP
+ACTIVE / KEEP:
 
 - issue `#676`;
 - current `main`;
-- this re-entry MD/JSON and `acq_generalization_90_target.md`;
-- V1-V5 builder audits and focused tests;
+- this re-entry MD/JSON and target;
+- V1-V5 builder audit chain;
 - inventory surface/bridge audits;
-- SuccessFactors search-carrier audit + focused tests;
-- merged Origin V2, Workday and portal-delegation implementations;
-- deterministic builder residual-rewrite contract.
+- SuccessFactors carrier audit as negative-evidence provenance;
+- detail-surface audit + tests;
+- merged Origin V2, Workday and portal implementations;
+- builder residual-rewrite contract.
 
-### PRESERVE — provenance
+PRESERVE provenance:
 
 - migration checkpoint MD/JSON;
-- issue `#676` comments `5462507864` and `5462664378`;
-- PR histories `#682`, `#685`, `#687`, `#688` and their qualified gate evidence.
+- issue comments `5462507864`, `5462664378`, `5463886222`;
+- PR histories `#682`, `#685`, `#687`, `#688`, `#689`, `#690` and qualified gates.
 
-### SUPERSEDED / no continuation authority
-
-- PR `#678` / `agent/676-deterministic-connector-builder`;
-- PR `#682` / `agent/676-generalization-harvest` after merge;
-- Draft PR `#684`;
-- PR `#685` / its merged branch after delivery;
-- PR `#687` / its merged branch after delivery;
-- PR `#688` / `agent/676-successfactors-search-carrier-audit` after delivery.
-
-Branch/worktree deletion is still a separate DRJ technical effect requiring fresh
-local observation. Age, path or branch name are never deletion authority.
-
-`DRJ-RECONCILE-REQUEST.json` remains `NO_REQUEST` unless fresh local hygiene evidence
-identifies an exact technically safe retirement set. DRJ is retention/reconciliation
-infrastructure, not ACQ-676 work-admission authority.
-
-## Re-entry commandment
-
-Before mutating ACQ-676, read in order:
-
-1. `PROJECT-HYGIENE.json`;
-2. `PROJECT-LOCAL-WORKSPACE.json`;
-3. `PROJECT-DRJ.json`;
-4. `docs/current/README.md`;
-5. this file;
-6. `acq_generalization_90_target.md`;
-7. live issue `#676` and current PR state;
-8. current `origin/main`, branch/worktree relationship and latest CI.
-
-Do not resume from historical #676 branches or chat memory.
+Merged/superseded feature branches have no continuation authority, but branch/worktree
+deletion remains a separate DRJ technical effect requiring fresh local observation.
+Age, path or name are never deletion authority. `DRJ-RECONCILE-REQUEST.json` remains
+`NO_REQUEST` unless fresh exact local hygiene evidence requires otherwise.
