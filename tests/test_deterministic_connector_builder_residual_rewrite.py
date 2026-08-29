@@ -6,6 +6,7 @@ from src.search_intelligence.deterministic_connector_builder import (
     ConnectorBuilderAssessment,
     complete_after_failure,
     failed,
+    not_reached,
     passed,
     rewrite_residual_suffix,
     skipped,
@@ -43,11 +44,8 @@ def test_residual_rewrite_preserves_prefix_and_may_advance_failure() -> None:
             passed("provider", "provider observed", required=False),
             passed("inventory", "inventory reached"),
             failed("detail", "detail not yet resolved"),
-            *complete_after_failure(
-                (),
-                failed_layer="proof",
-                failure_reason="unused",
-            )[7:],
+            not_reached("proof", "blocked by detail", blocked_by="detail"),
+            not_reached("recipe", "blocked by detail", blocked_by="detail"),
         ),
     )
 
@@ -136,7 +134,7 @@ def test_residual_rewrite_rejects_earlier_regression() -> None:
             rewrite_from_layer="delegation",
             replacement_suffix=(
                 failed("delegation", "regression"),
-                skipped("provider", "not reached semantically"),
+                skipped("provider", "not required"),
                 passed("inventory", "inventory"),
                 passed("detail", "detail"),
                 passed("proof", "proof"),
