@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 
 def test_v5_canonical_module_entrypoint_exposes_help() -> None:
