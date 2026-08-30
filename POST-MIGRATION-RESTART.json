@@ -1,0 +1,15 @@
+{
+  "schema": "portfolio.post_migration_restart.v1",
+  "repository": {"repository_id":1230805345,"full_name":"jenshaberle-dotcom/job-application-pipeline","canonical_branch":"main"},
+  "shared_contract": {"owner":"jenshaberle-dotcom/Worker-based-agent-architecture","path":"contracts/PORTFOLIO-POST-MIGRATION-RESTART-v1.md"},
+  "reentry_authority": "docs/current/README.md",
+  "state": "BLOCKED_PENDING_HOST_PREFLIGHT",
+  "current_blocker": "LOCAL_WORKTREE_AND_POST_MIGRATION_CLEANUP_PROOF",
+  "work_admission": {"normal_new_project_mutation_blocked":true,"allowed_while_blocked":["READ_ONLY_LOCAL_COUNTER_INSPECTION","SEMANTIC_CLASSIFICATION","HARVEST_SALVAGE","VALIDATION_REQUIRED_FOR_RESTART_GATE","BOUNDED_LOCAL_CLEANUP_AFTER_EXACT_PROOF","URGENT_SAFETY_REPAIR"],"drj_status_is_blocker":false,"underlying_local_workspace_safety_is_blocker":true},
+  "workspace_policy": {"persistent_checkout":"CANONICAL_MAIN_ONLY","future_feature_work":"FRESH_REMOTE_MAIN_TO_DECLARED_TEMPORARY_WORKTREE_ONLY","branch_of_branch_forbidden":true,"runner_workspaces_are_project_worktrees":false},
+  "required_proof": ["EXACT_REPOSITORY_IDENTITY_AND_ORIGIN","EXACTLY_ONE_PERSISTENT_CANONICAL_CHECKOUT","CANONICAL_CHECKOUT_CLEAN_MAIN","LOCAL_MAIN_EQUALS_FRESH_REMOTE_MAIN","ALL_LOCAL_WORKTREES_CLASSIFIED","ALL_LOCAL_BRANCHES_CLASSIFIED","NO_NON_MAIN_PROJECT_WORKTREE_REMAINS","NO_DIRTY_UNPUSHED_DIVERGENT_DETACHED_OR_AMBIGUOUS_STATE_REMAINS","UNIQUE_VALUE_HARVESTED_OR_EXPLICITLY_PRESERVED","MIGRATION_SOURCE_DIFFERENTIATED_REVIEW_COMPLETE","FINAL_READ_ONLY_REINSPECTION_PASS"],
+  "latest_host_preflight": null,
+  "harvest": {"state":"NOT_STARTED_PENDING_HOST_PREFLIGHT","integrated":[],"preserved":[],"retired_local":[]},
+  "remaining_blockers": ["LOCAL_HOST_PREFLIGHT_NOT_YET_EXECUTED","HARVEST_SALVAGE_NOT_YET_PROVEN","POST_MIGRATION_LOCAL_CLEANUP_NOT_YET_PROVEN"],
+  "downstream": {"state":"PLANNING_ONLY","sequence":["FINISH_WARMRUNNER_FLEET_MIGRATION_INCLUDING_SLEEP_MODE","DRJ_STRICT_PRE_EFFECT_DELETION_PREFLIGHT","WARMRUNNER_ONLY_EXECUTION_CONVERGENCE","RESUME_ACTIVE_PROJECT_DEVELOPMENT"]}
+}
