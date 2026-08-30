@@ -1,0 +1,31 @@
+{
+  "schema": "portfolio.project_reentry.v1",
+  "repository": {
+    "repository_id": 1230805345,
+    "full_name": "jenshaberle-dotcom/job-application-pipeline",
+    "canonical_branch": "main"
+  },
+  "authority": {
+    "authoritative_ref": "refs/heads/main",
+    "main_only": true,
+    "project_reentry": "docs/current/README.md",
+    "projection_format": "markdown",
+    "projection_profile": "native"
+  },
+  "contracts": {
+    "hygiene": "PROJECT-HYGIENE.json",
+    "workspace": "PROJECT-LOCAL-WORKSPACE.json",
+    "drj": "PROJECT-DRJ.json",
+    "reconcile": "DRJ-RECONCILE-REQUEST.json",
+    "knowledge": "docs/knowledge/RESEARCH-STATE.md"
+  },
+  "shared_reentry": {
+    "owner": "jenshaberle-dotcom/Worker-based-agent-architecture",
+    "contract": "contracts/PORTFOLIO-PROJECT-REENTRY-v1.md",
+    "consumer_adapter": "job-application-pipeline"
+  },
+  "extensions": {
+    "repository_identity": "docs/current/REPOSITORY-IDENTITY.json",
+    "project_character": "PROJECT_CHARACTER.md"
+  }
+}
