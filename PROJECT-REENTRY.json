@@ -14,6 +14,7 @@
   },
   "contracts": {
     "hygiene": "PROJECT-HYGIENE.json",
+    "hygiene_adapter": "PROJECT-HYGIENE-ADAPTER.json",
     "workspace": "PROJECT-LOCAL-WORKSPACE.json",
     "drj": "PROJECT-DRJ.json",
     "reconcile": "DRJ-RECONCILE-REQUEST.json",
@@ -23,6 +24,12 @@
     "owner": "jenshaberle-dotcom/Worker-based-agent-architecture",
     "contract": "contracts/PORTFOLIO-PROJECT-REENTRY-v1.md",
     "consumer_adapter": "job-application-pipeline"
+  },
+  "runtime": {
+    "runner_contract": {
+      "status": "NONE",
+      "path": null
+    }
   },
   "extensions": {
     "repository_identity": "docs/current/REPOSITORY-IDENTITY.json",
