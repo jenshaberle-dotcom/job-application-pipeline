@@ -182,7 +182,9 @@ def test_acquisition_prefers_historical_successfactors_sitemap_and_unchanged_pro
         ),
         detail: (
             "<html><head><title>Data Engineer</title></head>"
-            "<body>Job Description Responsibilities Requirements Apply now</body></html>",
+            "<body>Job Description Responsibilities Requirements Apply now. "
+            "Build reliable data products with a collaborative engineering team."
+            "</body></html>",
             detail,
             200,
         ),
@@ -228,7 +230,9 @@ def test_successfactors_rss_is_bounded_fallback_when_sitemap_has_no_inventory() 
         ),
         detail.rstrip("/"): (
             "<html><title>Data Engineer</title><body>"
-            "Responsibilities Requirements Apply now</body></html>",
+            "Job Description Responsibilities Requirements Apply now. "
+            "Build reliable data products with a collaborative engineering team."
+            "</body></html>",
             detail,
             200,
         ),
