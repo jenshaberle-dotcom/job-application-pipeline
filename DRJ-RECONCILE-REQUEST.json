@@ -1,8 +1,45 @@
 {
-  "schema_version": 1,
-  "request_state": "NO_REQUEST",
+  "schema_version": 2,
+  "request_state": "READY",
   "repository": "jenshaberle-dotcom/job-application-pipeline",
   "repository_id": 1230805345,
-  "canonical_branch": "main",
-  "publisher": {"contract_version":1,"trigger":"REENTRY_HYGIENE_GATE","state":"IDLE_BASELINE"}
+  "observed_semantic_at": "2026-08-30T19:55:00Z",
+  "desired_state": {
+    "canonical_branch": "main",
+    "activity_state": "ACTIVE",
+    "current_mission": "ACQ-GENERALIZATION-90 / issue #676",
+    "reentry_authority": "docs/current/README.md",
+    "open_pr_heads": "PROTECTED_BY_LIVE_GITHUB_PR_STATE",
+    "persistent_refs": ["main"],
+    "remote_non_main_default": "REVIEW_UNLESS_EXPLICITLY_ACTIVE_PERSISTENT_RELEASE_OR_DECIDED_CANDIDATE",
+    "cleanup_executor": "DRJ_DOMAIN_JANITOR_ONLY"
+  },
+  "candidates": [
+    {
+      "target_type": "REMOTE_BRANCH",
+      "identity": "agent/portfolio-foundations-align-v1",
+      "semantic_disposition": "SUPERSEDED",
+      "reason": "Portfolio foundation alignment was merged by PR #698; this remote head is post-merge residue, not current project authority.",
+      "evidence_refs": ["PR #698", "PROJECT-REENTRY.json", "docs/current/README.md"]
+    }
+  ],
+  "unresolved": [
+    {
+      "target_type": "REMOTE_BRANCH",
+      "identity": "scope:remote-non-main-branches",
+      "state": "REVIEW",
+      "reason": "The repository has a large historical non-main population. Branch age/name alone cannot distinguish active ACQ work, closed-unmerged value, superseded evidence and reclaimable residue.",
+      "evidence_refs": ["docs/current/README.md", "PROJECT-HYGIENE.json", "live GitHub branches and pull requests"],
+      "resolution_requires": ["complete DRJ remote branch inventory", "protect live open PR heads and current issue #676 authority", "project semantic cohort classification", "closed-unmerged and unique-value review before exact retire candidates"]
+    },
+    {
+      "target_type": "LOCAL_WORKTREE",
+      "identity": "scope:canonical-host-worktrees",
+      "state": "UNKNOWN",
+      "reason": "Remote GitHub truth cannot prove the current WSL checkout/worktree, dirty, unpushed or divergent state while the operator host is unavailable.",
+      "evidence_refs": ["PROJECT-LOCAL-WORKSPACE.json", "docs/current/README.md"],
+      "resolution_requires": ["read-only portfolio host/worktree preflight"]
+    }
+  ],
+  "publisher": {"contract_version": 2, "trigger": "REENTRY_HYGIENE_GATE", "state": "FRESH_PROJECT_STATE_2026_08_30"}
 }
