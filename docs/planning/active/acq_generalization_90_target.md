@@ -1,194 +1,129 @@
 # ACQ-GENERALIZATION-90 — deterministic full-population coverage target
 
 Status: active  
-Date: 2026-08-29  
+Date: 2026-08-30  
 Owner issue: `#676`  
 Active re-entry: `docs/planning/active/acq_generalization_90_reentry.md`
 
 ## Primary metric
 
-Current distinct Employer-Origin candidates: `N = 65`.
+Strict functioning deterministic product coverage across all current distinct
+Employer-Origin candidates remains the only primary product metric.
 
-Current strict functioning deterministic product coverage:
+Current denominator:
 
-`36 / 65 = 55.4%`
+- distinct candidates: `65`;
+- historical connector-present cohort: `40/65`;
+- strict functioning deterministic product coverage: `36/65 = 55.4%`;
+- minimum passing numerator at N=65: `59` (`59/65 = 90.8%`).
 
-Target:
+The denominator must not be reduced by suppressing or reclassifying valid candidates.
+Diagnostic READY/`recipe_ready`, provider recognition or audit evidence never counts as
+product coverage by itself.
 
-`strict_functioning_candidates / all_current_distinct_candidates >= 0.90`
+## Product success contract
 
-At `N = 65`, minimum passing numerator is `59` (`59/65 = 90.8%`).
-`58/65 = 89.2%` is insufficient.
+A candidate enters the numerator only after a materialized deterministic connector path
+passes unchanged strict genuine-job acquisition proof under existing employer/source
+authority and side-effect boundaries.
 
-The denominator is dynamic and must not be reduced by suppressing, deleting,
-excluding or reclassifying valid candidates to improve the metric. Historical
-`36/40` remains the non-regression cohort.
+No deterministic hardening slice may:
 
-Only a materialized deterministic connector that produces unchanged strict genuine-job
-E2E proof under existing authority and side-effect boundaries counts in the numerator.
-Reachable origins, provider recognition, builder READY/`recipe_ready`, audit
-classifications and bounded live evidence are diagnostic only.
+- add company-specific success branches when a generic class is possible;
+- guess tenant/site/job IDs, routes, query values or POST bodies;
+- weaken proof or employer/source authority;
+- convert diagnostic evidence directly into product coverage;
+- require LLM/Tavily/provider search for the deterministic target path.
 
-## Development rule
+## Qualified deterministic progress
 
-Implementation priority is reusable population lift + evidence strength + boundedness,
-never named-employer convenience.
+Retained generic capabilities:
 
-Hard boundaries:
+- balanced Origin V2;
+- provider/inventory V3;
+- Workday CXS deterministic acquisition;
+- evidence-bounded portal delegation;
+- Builder V5 monotonic residual rewrite/composition.
 
-- no company-specific success branches;
-- no guessed tenant/site/job IDs, routes, query values or POST bodies;
-- no proof or employer/source-authority weakening;
-- no provider/LLM/Tavily dependency for deterministic target work;
-- no diagnostic DB/source/Bronze/Silver/Product/application writes;
-- ambiguous evidence fails closed;
-- every residual rewrite remains monotonic;
-- only deterministic-exhausted residuals later enter booster engineering.
+V5 live replay remains:
 
-## Qualified progress
-
-### Balanced Origin V2
-
-- Origin first failures `18 -> 8`;
-- earlier regressions `0`.
-
-### Provider/inventory V3
-
-- inventory first failures `17 -> 16`;
-- detail first failures `15 -> 16`;
-- `x1f` advanced from inventory to detail through existing Personio inventory;
-- earlier regressions `0`.
-
-### Workday CXS V4
-
-Generic path:
-
-`authorized employer/Workday root -> exact CXS inventory POST -> same-board externalPath -> exact same-host CXS detail GET -> unchanged genuine_job_detail_proof`
-
-No tenant/site/job guessing and no proof weakening.
-
-### Evidence-bounded portal delegation
-
-Generic first-party -> portal handoff is permitted only from a strong explicit CTA
-plus bounded destination binding. Ambiguity fails closed.
-
-### Builder V5 live replay
-
-Qualified V5 merge: PR `#685`, merge
-`45f99c1919e6869451b6301bf41a6d3d12ba7c78`.
-
-Canonical WSL replay on
-`main@05f6a137beb34abfb7cc53669c70c3792a7901e3`:
-
-- V3 READY `21/65`;
-- V4 READY `22/65`;
-- V5 READY `22/65`;
-- Workday promotions `1` -> `clarios_germany`;
+- READY `22/65` diagnostic;
+- Workday promotions `1` (`clarios_germany`);
 - portal promotions `0`;
-- earlier regressions `0`.
+- residuals: Origin `8`, Origin reachability `1`, Inventory `15`, Detail `16`, Proof `3`;
+- product coverage unchanged `36/65`.
 
-Post-V5 first failures:
+## Inventory residual conclusion
 
-- origin `8`;
-- origin_reachability `1`;
-- inventory `15`;
-- detail `16`;
-- proof `3`.
+The strongest SuccessFactors inventory pair (`adesso`, `hannover_ruck`) was measured and
+did not prove one common route. Hannover Re exposes an explicit GET `/search/`; adesso
+does not. A universal SuccessFactors `/search/` rule is therefore rejected.
 
-Product coverage remains `36/65`.
+## Detail residual evidence
 
-## Inventory re-cluster
+The 16 Detail residuals completed a bounded live audit with:
 
-Read-only audit of the `15` inventory residuals produced:
+- `45` GETs total;
+- `0` replay errors;
+- `0` provider requests;
+- `0` DB writes;
+- `0` query values persisted.
 
-- authorized provider without executable inventory: `2` (`adesso`, `hannover_ruck`);
-- client-rendered/script primary: `1`;
-- external jobish anchor not promoted: `2`;
-- same-origin jobish anchor not classified: `3`;
-- low-signal: `7`.
+Raw diagnostic classes were `8 unknown-query-ID / 5 unclassified-jobish / 3 form-driven`.
+A zero-network semantic identifier reclassification then removed broad `id` substring
+noise and produced the qualified split:
 
-The evidence-rich bridge subset produced provider-route gap `2`, same-origin
-vocabulary hypothesis `6`, external vocabulary hypothesis `4`. Navigation-vocabulary
-counts contain noise and are not ranked by count alone.
+- `10` unclassified-jobish;
+- `5` form-driven;
+- `1` semantic unknown query-ID: IPH `weobjectid x12`.
 
-## SuccessFactors common carrier — rejected
+The single IPH case is real but is not prioritized above a reusable population class.
+The 10-case jobish cohort is numerically larger but not yet structurally bounded enough
+to justify global vocabulary widening.
 
-PR `#688` added a bounded read-only carrier audit and merged at
-`2b37c89ecf1d4821e4c82f703780138af8744367` with Pipeline CI `#896` and Re-entry
-`#1479` successful.
+## Current deterministic frontier
 
-Live two-case result:
+The next measurement gate is the `5` form-driven Detail residuals.
 
-- `hannover_ruck`: explicit same-host GET `/search/` form;
-- `adesso`: no explicit search-route literal;
-- same-host `platform/js/search/search.js` on both exposed no explicit route literal;
-- total GETs `4`;
-- query values persisted `0`;
-- provider/LLM/Tavily requests `0`;
-- DB writes `0`.
+PR `#693` merged a zero-network form carrier audit at
+`e8aa41179e6618fa96b33e82ec57dd51edd1a0f5` after Pipeline CI `#906` and Re-entry
+`#1507` succeeded.
 
-Therefore a universal SuccessFactors -> `/search/` mapping would be guessed route
-authority. No adapter is promoted. Durable stop record: issue `#676` comment
-`5463886222`.
+The audit examines only already-recorded structure:
 
-## Current frontier — 16 detail residuals
+- HTTP method;
+- action host/path/query-key shape;
+- field names;
+- provider hints.
 
-The largest remaining downstream technical block is the `16` detail residuals. They
-already have deterministic inventory/navigation evidence but the current bounded V4
-path does not resolve a concrete detail identity.
+It performs:
 
-PR `#690` added a pure read-only detail-surface measurement gate:
-
-- script: `scripts/run_deterministic_detail_surface_audit.py`;
-- tests: `tests/test_deterministic_detail_surface_audit.py`;
-- qualified head: `7ca8da9ea372dd968481af81b354cc2b5d628811`;
-- Pipeline CI `#900`: success including full suite;
-- Re-entry `#1490`: success;
-- merge: `aed89b99a25d973c6aef68d291be548f25df123e`.
-
-Boundary:
-
-- only V5 `detail` first failures;
-- existing V4 path replay only;
-- max `4` HTTPS GETs per candidate;
-- no guessed routes/IDs/query values/POST bodies;
-- query values are never persisted;
-- provider/LLM/Tavily requests `0`;
-- DB/source/Product/application writes `0`;
+- network requests `0`;
+- form submissions `0`;
+- form/query value reads `0`;
+- DB/provider/LLM/Tavily requests/writes `0`;
 - connector materialization `0`.
 
-The audit separates possible reusable classes such as strict existing query details,
-unknown identifier-like query-key surfaces, form-driven details, unclassified jobish
-anchors, client-rendered/script surfaces, provider detail-route gaps and low-signal
-cases. All such classifications remain diagnostic until a narrower evidence proof
-qualifies an implementation.
+GET search/filter forms remain separate from semantic-ID detail carriers. POST forms are
+never executable authority from this measurement alone.
 
-Canonical next gate:
+Canonical next command:
 
 ```bash
-.venv/bin/python -m scripts.run_deterministic_detail_surface_audit \
-  --layer-audit /tmp/deterministic_connector_builder_layer_audit_v5.json \
-  --output /tmp/deterministic_detail_surface_audit_v5.json
+.venv/bin/python -m scripts.run_deterministic_detail_form_carrier_audit \
+  --reclassification /tmp/deterministic_detail_identifier_reclassification_v1.json \
+  --output /tmp/deterministic_detail_form_carrier_audit_v1.json
 ```
 
-Acceptance for this gate:
+## Decision order
 
-1. input count is the expected `16` detail residuals;
-2. exact classification cohorts and request totals are captured;
-3. technical replay errors are separated from semantic evidence;
-4. no product-coverage movement is claimed;
-5. the next capability is chosen by reusable lift + evidence strength + boundedness;
-6. diagnostic-only classes receive a narrower evidence proof before production logic.
-
-Continue deterministic hardening until no reasonable bounded generic deterministic
-class remains. Only then may exhausted residuals enter the booster path.
-
-## Workspace / continuation
-
-The 2026-08-28 workspace migration is closed and delivered through PR `#682`.
-Historical migration checkpoint MD/JSON remain retained provenance. Every mutating
-ACQ-676 slice begins from freshly observed current `origin/main` in a declared
-feature branch/worktree.
-
-Canonical continuation authority is the active re-entry MD/JSON plus live issue
-`#676` evidence.
+1. Run the zero-network form carrier audit and require exactly `5` input cases.
+2. Prefer a cross-employer carrier only if method/action/field semantics repeat under one
+   bounded fail-closed contract.
+3. If form structures split, do not force a form adapter; move to a focused bounded audit
+   of the 10 unclassified-jobish cases.
+4. Do not prioritize IPH `weobjectid` unless broader evidence makes it a reusable class.
+5. Continue deterministic hardening until no reasonable generic bounded class remains.
+6. Materialize only stable evidence-backed recipes and update `36/65` only after unchanged
+   strict E2E product proof.
+7. Only exhausted residuals may enter the later booster path.
