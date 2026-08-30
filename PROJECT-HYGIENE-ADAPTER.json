@@ -1,0 +1,26 @@
+{
+  "schema": "portfolio.project_hygiene_adapter.v1",
+  "repository": {
+    "repository_id": 1230805345,
+    "full_name": "jenshaberle-dotcom/job-application-pipeline",
+    "canonical_branch": "main"
+  },
+  "authority": {
+    "native_hygiene": "PROJECT-HYGIENE.json",
+    "workspace": "PROJECT-LOCAL-WORKSPACE.json",
+    "drj": "PROJECT-DRJ.json",
+    "reconcile": "DRJ-RECONCILE-REQUEST.json"
+  },
+  "shared_hygiene": {
+    "owner": "jenshaberle-dotcom/Worker-based-agent-architecture",
+    "contract": "contracts/PORTFOLIO-PROJECT-HYGIENE-v1.md",
+    "consumer_adapter": "job-application-pipeline"
+  },
+  "core": {
+    "reconcile_request_is_effect_authority": false,
+    "native_policy_remains_extension_authority": true
+  },
+  "extensions": {
+    "native_schema": "job_application_pipeline.project_hygiene.v3"
+  }
+}
