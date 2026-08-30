@@ -215,7 +215,7 @@ def test_successfactors_rss_is_bounded_fallback_when_sitemap_has_no_inventory() 
     root = "https://jobs.example.com/"
     sitemap = "https://jobs.example.com/sitemap.xml"
     rss = "https://jobs.example.com/sitemal.xml"
-    detail = "https://jobs.example.com/job/data-engineer/123-en_US/"
+    detail = "https://jobs.example.com/job/data-engineer/123-en_US"
     payloads = {
         root.rstrip("/"): (
             '<html><script src="https://hcm55.sapsf.eu/platform.js"></script></html>',
@@ -224,11 +224,11 @@ def test_successfactors_rss_is_bounded_fallback_when_sitemap_has_no_inventory() 
         ),
         sitemap: ("<html>not a sitemap</html>", sitemap, 200),
         rss: (
-            f"<rss><channel><item><link>{detail}</link></item></channel></rss>",
+            f"<rss><channel><item><link>{detail}/</link></item></channel></rss>",
             rss,
             200,
         ),
-        detail.rstrip("/"): (
+        detail: (
             "<html><title>Data Engineer</title><body>"
             "Job Description Responsibilities Requirements Apply now. "
             "Build reliable data products with a collaborative engineering team."
