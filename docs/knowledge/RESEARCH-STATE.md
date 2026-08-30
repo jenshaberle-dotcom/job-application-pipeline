@@ -1,8 +1,9 @@
 # Job Application Pipeline Research State
 
-Status: dormant bootstrap state
+Status: knowledge decision-mode projection
 Last reviewed: 2026-08-30
 Portfolio contract: `Data-Retention-Janitor/docs/contracts/KNOWLEDGE-RESEARCH-LAYER-v1.md`
+Project activity authority: `PROJECT-REENTRY.json` -> `docs/current/README.md`
 
 ## Operating state
 
@@ -11,7 +12,7 @@ Portfolio contract: `Data-Retention-Janitor/docs/contracts/KNOWLEDGE-RESEARCH-LA
 - research_reason: none
 - current_research: none
 
-This repository is currently resting. The bootstrap records the working method without inventing a new mission, research question or priority.
+This file owns Knowledge/Research decision state only. It does not declare whether the project is dormant, active, blocked or at safe stop; project activity and next-action truth are resolved through `PROJECT-REENTRY.json` and the canonical current-truth surface on `main`.
 
 ## Accepted knowledge
 
@@ -23,10 +24,11 @@ This repository is currently resting. The bootstrap records the working method w
 
 - Mandatory research before every implementation step: rejected as unnecessary process overhead.
 - Research only at kickoff: rejected because material direction changes can occur during an existing mission.
+- Using Knowledge/Research state as project activity or work-admission authority: rejected because Re-Entry/current truth owns activity/continuation truth.
 
 ## Open knowledge gaps
 
-None created by this bootstrap. Add only gaps tied to a concrete outcome or directional decision.
+None created by this projection. Add only gaps tied to a concrete outcome or directional decision.
 
 ## Research records
 
