@@ -6,15 +6,24 @@ from src.connectors.employer_origin_provider_public_feed import (
     acquire_via_provider_public_feed,
     parse_provider_public_feed,
     provider_public_feed_url,
+    provider_public_feed_urls,
 )
 
 
 def test_fixed_feed_urls_require_existing_host_authority() -> None:
+    assert provider_public_feed_urls(
+        provider="successfactors",
+        page_url="https://jobs.example.com/",
+        allowed_hosts={"jobs.example.com"},
+    ) == (
+        "https://jobs.example.com/sitemap.xml",
+        "https://jobs.example.com/sitemal.xml",
+    )
     assert provider_public_feed_url(
         provider="successfactors",
         page_url="https://jobs.example.com/",
         allowed_hosts={"jobs.example.com"},
-    ) == "https://jobs.example.com/sitemal.xml"
+    ) == "https://jobs.example.com/sitemap.xml"
 
     assert provider_public_feed_url(
         provider="softgarden",
@@ -51,6 +60,22 @@ def test_canonical_only_feed_families_reject_branded_or_guessed_hosts() -> None:
         page_url="https://careers.example.com/",
         allowed_hosts={"careers.example.com"},
     ) is None
+
+
+def test_successfactors_sitemap_parser_keeps_strict_same_host_detail_shapes() -> None:
+    body = """
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url><loc>https://jobs.example.com/job/Berlin-Engineer/1234567890</loc></url>
+      <url><loc>https://jobs.example.com/content/about</loc></url>
+      <url><loc>https://evil.example/job/Berlin-Engineer/9999999999</loc></url>
+    </urlset>
+    """
+    assert parse_provider_public_feed(
+        provider="successfactors",
+        feed_url="https://jobs.example.com/sitemap.xml",
+        body=body,
+        allowed_hosts={"jobs.example.com"},
+    ) == ("https://jobs.example.com/job/Berlin-Engineer/1234567890",)
 
 
 def test_successfactors_rss_parser_emits_same_host_links_only() -> None:
@@ -138,10 +163,10 @@ def test_dvinci_parser_rejects_external_publication_urls() -> None:
     ) == ("https://acme.dvinci.de/de/jobs/5/data-engineer",)
 
 
-def test_acquisition_uses_authorized_successfactors_root_feed_and_unchanged_proof() -> None:
+def test_acquisition_prefers_historical_successfactors_sitemap_and_unchanged_proof() -> None:
     root = "https://jobs.example.com/"
-    feed = "https://jobs.example.com/sitemal.xml"
-    detail = "https://jobs.example.com/job/data-engineer/123-en_US/"
+    sitemap = "https://jobs.example.com/sitemap.xml"
+    detail = "https://jobs.example.com/job/data-engineer/1234567890"
     payloads = {
         root.rstrip("/"): (
             '<html><head><title>Jobs</title></head><body>'
@@ -150,12 +175,12 @@ def test_acquisition_uses_authorized_successfactors_root_feed_and_unchanged_proo
             root,
             200,
         ),
-        feed: (
-            f"<rss><channel><item><link>{detail}</link></item></channel></rss>",
-            feed,
+        sitemap: (
+            f"<urlset><url><loc>{detail}</loc></url></urlset>",
+            sitemap,
             200,
         ),
-        detail.rstrip("/"): (
+        detail: (
             "<html><head><title>Data Engineer</title></head>"
             "<body>Job Description Responsibilities Requirements Apply now</body></html>",
             detail,
@@ -177,23 +202,68 @@ def test_acquisition_uses_authorized_successfactors_root_feed_and_unchanged_proo
 
     assert result is not None
     assert result.provider == "successfactors"
-    assert result.feed_url == feed
+    assert result.feed_url == sitemap
     assert result.acquired_job is not None
     assert result.acquired_job.proof_kind == "job_url_and_job_content"
     assert result.acquired_job.discovery_source == "successfactors_provider_public_feed"
-    assert len(calls) == 3
+    assert calls == [root, sitemap, detail]
 
 
-def test_acquisition_fails_closed_on_non_feed_payload() -> None:
+def test_successfactors_rss_is_bounded_fallback_when_sitemap_has_no_inventory() -> None:
     root = "https://jobs.example.com/"
-    feed = "https://jobs.example.com/sitemal.xml"
+    sitemap = "https://jobs.example.com/sitemap.xml"
+    rss = "https://jobs.example.com/sitemal.xml"
+    detail = "https://jobs.example.com/job/data-engineer/123-en_US/"
     payloads = {
         root.rstrip("/"): (
             '<html><script src="https://hcm55.sapsf.eu/platform.js"></script></html>',
             root,
             200,
         ),
-        feed: ("<html>not rss</html>", feed, 200),
+        sitemap: ("<html>not a sitemap</html>", sitemap, 200),
+        rss: (
+            f"<rss><channel><item><link>{detail}</link></item></channel></rss>",
+            rss,
+            200,
+        ),
+        detail.rstrip("/"): (
+            "<html><title>Data Engineer</title><body>"
+            "Responsibilities Requirements Apply now</body></html>",
+            detail,
+            200,
+        ),
+    }
+    calls: list[str] = []
+
+    def fetcher(url: str):
+        calls.append(url)
+        return payloads[url.rstrip("/") if url.rstrip("/") in payloads else url]
+
+    result = acquire_via_provider_public_feed(
+        listing_url=root,
+        allowed_hosts=("jobs.example.com",),
+        fetcher=fetcher,
+        max_detail_attempts=1,
+    )
+
+    assert result is not None
+    assert result.feed_url == rss
+    assert result.acquired_job is not None
+    assert calls == [root, sitemap, rss, detail]
+
+
+def test_acquisition_fails_closed_when_neither_successfactors_feed_validates() -> None:
+    root = "https://jobs.example.com/"
+    sitemap = "https://jobs.example.com/sitemap.xml"
+    rss = "https://jobs.example.com/sitemal.xml"
+    payloads = {
+        root.rstrip("/"): (
+            '<html><script src="https://hcm55.sapsf.eu/platform.js"></script></html>',
+            root,
+            200,
+        ),
+        sitemap: ("<html>not sitemap</html>", sitemap, 200),
+        rss: ("<html>not rss</html>", rss, 200),
     }
 
     def fetcher(url: str):
