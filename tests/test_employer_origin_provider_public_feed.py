@@ -179,7 +179,7 @@ def test_acquisition_uses_authorized_successfactors_root_feed_and_unchanged_proo
     assert result.provider == "successfactors"
     assert result.feed_url == feed
     assert result.acquired_job is not None
-    assert result.acquired_job.proof_kind == "known_detail_and_job_content"
+    assert result.acquired_job.proof_kind == "job_url_and_job_content"
     assert result.acquired_job.discovery_source == "successfactors_provider_public_feed"
     assert len(calls) == 3
 
