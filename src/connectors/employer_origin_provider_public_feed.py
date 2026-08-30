@@ -3,8 +3,7 @@
 The provider feed routes in this module are clean-room capability knowledge derived
 from mature public ATS implementations/provider documentation. They never establish
 an employer, tenant, or host. A caller must first supply an already-authorized source
-host and the repository's existing ``authorized_ats_provider`` contract must recognize
-the provider from that source.
+host and the repository's existing provider-authority contracts remain authoritative.
 
 Only fixed same-host provider routes are supported. No company-name slug derivation,
 tenant guessing, Workday shard/board probing, opaque IDs, form values, or cross-host
@@ -61,12 +60,11 @@ def _valid_https(value: str) -> bool:
     )
 
 
-def _host_has_suffix(host: str, suffix: str) -> bool:
-    normalized = suffix.casefold().strip(".")
-    return host == normalized or host.endswith(f".{normalized}")
-
-
-def _same_authorized_host(candidate: str, feed_url: str, allowed_hosts: tuple[str, ...] | set[str]) -> bool:
+def _same_authorized_host(
+    candidate: str,
+    feed_url: str,
+    allowed_hosts: tuple[str, ...] | set[str],
+) -> bool:
     return bool(
         _valid_https(candidate)
         and _host(candidate) == _host(feed_url)
@@ -82,9 +80,9 @@ def provider_public_feed_url(
 ) -> str | None:
     """Return one fixed public inventory route on an already-authorized provider host.
 
-    ``provider`` itself is not trusted here as authority; callers are expected to have
-    obtained it from ``authorized_ats_provider``. This helper additionally enforces the
-    exact source host and canonical-host restrictions needed by each capability.
+    ``provider`` is a caller-supplied authority result, never inferred from a company
+    name here. This helper additionally enforces the exact source host and canonical
+    host restrictions needed by each capability.
     """
 
     if provider not in SUPPORTED_PUBLIC_FEED_PROVIDERS:
@@ -164,8 +162,7 @@ def _successfactors_links(body: str) -> list[str]:
         return []
     if _local_name(root.tag) != "rss":
         return []
-    channels = [node for node in root.iter() if _local_name(node.tag) == "channel"]
-    if not channels:
+    if not any(_local_name(node.tag) == "channel" for node in root.iter()):
         return []
     links: list[str] = []
     for item in root.iter():
@@ -274,48 +271,29 @@ def parse_provider_public_feed(
     )
 
 
-def acquire_via_provider_public_feed(
+def acquire_from_authorized_provider_host(
     *,
-    listing_url: str,
+    provider: str,
+    provider_page_url: str,
     allowed_hosts: tuple[str, ...],
     fetcher,
     max_detail_attempts: int = 2,
 ) -> ProviderPublicFeedResult | None:
-    """Acquire one strict job through a fixed public provider feed.
+    """Acquire from a provider host whose authority was already proved by the caller.
 
-    Logical request shape is bounded to ``root -> feed -> at most N concrete details``.
-    The helper itself does not add hosts; every request and redirect must remain on an
-    already-authorized exact host.
+    This is the composition seam used by residual overlays: the caller supplies the
+    exact provider family and exact host that the existing builder already admitted.
+    This function does not re-discover either value and cannot add a host.
     """
 
     if max_detail_attempts < 1:
         raise ValueError("max_detail_attempts must be >= 1")
-
-    root_html, root_final_url, root_status = fetcher(listing_url)
-    root = parse_page(
-        requested_url=listing_url,
-        html=str(root_html),
-        final_url=str(root_final_url),
-        status_code=int(root_status),
-    )
-    if root.status_code >= 400 or not allowed_host(root.final_url, allowed_hosts):
-        return None
-
-    delegated_hosts = set(
-        explicit_root_delegated_listing_hosts(root, allowed_hosts=allowed_hosts)
-    )
-    provider = authorized_ats_provider(
-        page_url=root.final_url,
-        html=root.html,
-        allowed_hosts=allowed_hosts,
-        delegated_hosts=delegated_hosts,
-    )
     if provider not in SUPPORTED_PUBLIC_FEED_PROVIDERS:
         return None
 
     feed_url = provider_public_feed_url(
         provider=provider,
-        page_url=root.final_url,
+        page_url=provider_page_url,
         allowed_hosts=allowed_hosts,
     )
     if not feed_url:
@@ -325,7 +303,6 @@ def acquire_via_provider_public_feed(
     if int(feed_status) >= 400:
         return ProviderPublicFeedResult(provider, feed_url, (), None)
     if canonical_url(feed_final_url) != canonical_url(feed_url):
-        # Fixed-route authority is exact: redirects do not silently create a new route.
         return ProviderPublicFeedResult(provider, feed_url, (), None)
 
     detail_candidates = parse_provider_public_feed(
@@ -367,9 +344,53 @@ def acquire_via_provider_public_feed(
     return ProviderPublicFeedResult(provider, feed_url, detail_candidates, None)
 
 
+def acquire_via_provider_public_feed(
+    *,
+    listing_url: str,
+    allowed_hosts: tuple[str, ...],
+    fetcher,
+    max_detail_attempts: int = 2,
+) -> ProviderPublicFeedResult | None:
+    """Recognize an already-authorized root, then use its fixed public provider feed."""
+
+    if max_detail_attempts < 1:
+        raise ValueError("max_detail_attempts must be >= 1")
+
+    root_html, root_final_url, root_status = fetcher(listing_url)
+    root = parse_page(
+        requested_url=listing_url,
+        html=str(root_html),
+        final_url=str(root_final_url),
+        status_code=int(root_status),
+    )
+    if root.status_code >= 400 or not allowed_host(root.final_url, allowed_hosts):
+        return None
+
+    delegated_hosts = set(
+        explicit_root_delegated_listing_hosts(root, allowed_hosts=allowed_hosts)
+    )
+    provider = authorized_ats_provider(
+        page_url=root.final_url,
+        html=root.html,
+        allowed_hosts=allowed_hosts,
+        delegated_hosts=delegated_hosts,
+    )
+    if provider not in SUPPORTED_PUBLIC_FEED_PROVIDERS:
+        return None
+
+    return acquire_from_authorized_provider_host(
+        provider=provider,
+        provider_page_url=root.final_url,
+        allowed_hosts=allowed_hosts,
+        fetcher=fetcher,
+        max_detail_attempts=max_detail_attempts,
+    )
+
+
 __all__ = [
     "ProviderPublicFeedResult",
     "SUPPORTED_PUBLIC_FEED_PROVIDERS",
+    "acquire_from_authorized_provider_host",
     "acquire_via_provider_public_feed",
     "parse_provider_public_feed",
     "provider_public_feed_url",
