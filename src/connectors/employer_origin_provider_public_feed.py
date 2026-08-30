@@ -1,14 +1,12 @@
 """Evidence-bounded public ATS feed acquisition for employer-origin proof.
 
-The provider feed routes in this module are clean-room capability knowledge derived
-from mature public ATS implementations/provider documentation. They never establish
-an employer, tenant, or host. A caller must first supply an already-authorized source
-host and the repository's existing provider-authority contracts remain authoritative.
+External and historical project knowledge may define provider-wide capability shapes,
+but never establishes an employer, tenant, host, opaque value, or product authority.
+Callers must already possess repository-native provider/host authority.
 
-Only fixed same-host provider routes are supported. No company-name slug derivation,
-tenant guessing, Workday shard/board probing, opaque IDs, form values, or cross-host
-feed authority are introduced. Structured feed rows only create concrete detail
-candidates; final truth still requires the unchanged ``genuine_job_detail_proof``.
+Only fixed same-host provider routes are supported. Structured feed rows merely create
+concrete detail candidates; final truth still requires the unchanged
+``genuine_job_detail_proof``.
 """
 
 from __future__ import annotations
@@ -29,12 +27,14 @@ from src.connectors.employer_origin_acquisition import (
 )
 from src.connectors.employer_origin_ats_navigation import authorized_ats_provider
 from src.search_intelligence.ats_provider_registry import recognize_ats_provider
+from src.search_intelligence.multi_origin_evidence import job_detail_url_shape
 
 
 SUPPORTED_PUBLIC_FEED_PROVIDERS = frozenset(
     {"successfactors", "softgarden", "recruitee", "dvinci"}
 )
 _MAX_FEED_BODY_BYTES = 5_000_000
+_MAX_SITEMAP_URLS = 10_000
 _DVINCI_PORTAL_PREFIX = re.compile(r"^/portal/[^/?#]+", flags=re.IGNORECASE)
 
 
@@ -72,63 +72,83 @@ def _same_authorized_host(
     )
 
 
+def provider_public_feed_urls(
+    *,
+    provider: str,
+    page_url: str,
+    allowed_hosts: tuple[str, ...] | set[str],
+) -> tuple[str, ...]:
+    """Return fixed provider inventory routes on an already-authorized exact host.
+
+    SuccessFactors intentionally has two independently evidenced fixed routes:
+    the project's previously proven same-host ``/sitemap.xml`` URLSet first, then
+    the externally salvaged Recruiting Marketing ``/sitemal.xml`` RSS feed.
+    Neither contains tenant-derived values.
+    """
+
+    if provider not in SUPPORTED_PUBLIC_FEED_PROVIDERS:
+        return ()
+    if not _valid_https(page_url) or not allowed_host(page_url, allowed_hosts):
+        return ()
+
+    parsed = urlparse(page_url)
+    host = (parsed.hostname or "").casefold()
+    if not host:
+        return ()
+
+    if provider == "successfactors":
+        return (
+            urlunparse(("https", host, "/sitemap.xml", "", "", "")),
+            urlunparse(("https", host, "/sitemal.xml", "", "", "")),
+        )
+
+    recognition = recognize_ats_provider(page_url)
+    if recognition is None or recognition.provider != provider:
+        return ()
+
+    if provider == "softgarden":
+        if not host.endswith(".career.softgarden.de"):
+            return ()
+        return (urlunparse(("https", host, "/jobs.feed.json", "", "", "")),)
+
+    if provider == "recruitee":
+        if not (host.endswith(".recruitee.com") or host.endswith(".recruitee.io")):
+            return ()
+        return (urlunparse(("https", host, "/api/offers", "", "", "")),)
+
+    if provider == "dvinci":
+        if not host.endswith(".dvinci.de"):
+            return ()
+        match = _DVINCI_PORTAL_PREFIX.match(parsed.path or "")
+        portal_prefix = match.group(0).rstrip("/") if match else ""
+        path = f"{portal_prefix}/jobPublication/list.json"
+        return (
+            urlunparse(
+                ("https", host, path, "", urlencode({"fields": "small"}), "")
+            ),
+        )
+
+    return ()
+
+
 def provider_public_feed_url(
     *,
     provider: str,
     page_url: str,
     allowed_hosts: tuple[str, ...] | set[str],
 ) -> str | None:
-    """Return one fixed public inventory route on an already-authorized provider host.
+    """Compatibility helper returning the first fixed provider feed candidate."""
 
-    ``provider`` is a caller-supplied authority result, never inferred from a company
-    name here. This helper additionally enforces the exact source host and canonical
-    host restrictions needed by each capability.
-    """
-
-    if provider not in SUPPORTED_PUBLIC_FEED_PROVIDERS:
-        return None
-    if not _valid_https(page_url) or not allowed_host(page_url, allowed_hosts):
-        return None
-
-    parsed = urlparse(page_url)
-    host = (parsed.hostname or "").casefold()
-    if not host:
-        return None
-
-    if provider == "successfactors":
-        # Recruiting Marketing exposes the public RSS feed on the already-bound
-        # recruiting host. The path is intentionally fixed; no tenant value exists.
-        return urlunparse(("https", host, "/sitemal.xml", "", "", ""))
-
-    recognition = recognize_ats_provider(page_url)
-    if recognition is None or recognition.provider != provider:
-        return None
-
-    if provider == "softgarden":
-        if not host.endswith(".career.softgarden.de"):
-            return None
-        return urlunparse(("https", host, "/jobs.feed.json", "", "", ""))
-
-    if provider == "recruitee":
-        if not (host.endswith(".recruitee.com") or host.endswith(".recruitee.io")):
-            return None
-        return urlunparse(("https", host, "/api/offers", "", "", ""))
-
-    if provider == "dvinci":
-        # Provider-owned documentation defines {customer}.dvinci.de as the base.
-        # Branded/CNAME and dvinci-hr hosts are not promoted by this first tranche.
-        if not host.endswith(".dvinci.de"):
-            return None
-        match = _DVINCI_PORTAL_PREFIX.match(parsed.path or "")
-        portal_prefix = match.group(0).rstrip("/") if match else ""
-        path = f"{portal_prefix}/jobPublication/list.json"
-        return urlunparse(("https", host, path, "", urlencode({"fields": "small"}), ""))
-
-    return None
+    urls = provider_public_feed_urls(
+        provider=provider,
+        page_url=page_url,
+        allowed_hosts=allowed_hosts,
+    )
+    return urls[0] if urls else None
 
 
 def _local_name(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1].casefold()
+    return str(tag or "").rsplit("}", 1)[-1].casefold()
 
 
 def _dedupe_same_host_urls(
@@ -158,21 +178,42 @@ def _dedupe_same_host_urls(
 def _successfactors_links(body: str) -> list[str]:
     try:
         root = ET.fromstring(body)
-    except ET.ParseError:
+    except (ET.ParseError, ValueError):
         return []
-    if _local_name(root.tag) != "rss":
-        return []
-    if not any(_local_name(node.tag) == "channel" for node in root.iter()):
-        return []
-    links: list[str] = []
-    for item in root.iter():
-        if _local_name(item.tag) != "item":
-            continue
-        for child in item:
-            if _local_name(child.tag) == "link" and child.text and child.text.strip():
-                links.append(child.text.strip())
+
+    root_name = _local_name(root.tag)
+    if root_name == "rss":
+        if not any(_local_name(node.tag) == "channel" for node in root.iter()):
+            return []
+        links: list[str] = []
+        for item in root.iter():
+            if _local_name(item.tag) != "item":
+                continue
+            for child in item:
+                if _local_name(child.tag) == "link" and child.text and child.text.strip():
+                    links.append(child.text.strip())
+                    break
+        return links
+
+    if root_name == "urlset":
+        links = []
+        visited = 0
+        for item in root.iter():
+            if _local_name(item.tag) != "url":
+                continue
+            visited += 1
+            if visited > _MAX_SITEMAP_URLS:
                 break
-    return links
+            for child in item:
+                if _local_name(child.tag) != "loc" or not child.text:
+                    continue
+                candidate = canonical_url(child.text.strip())
+                if candidate and job_detail_url_shape(candidate):
+                    links.append(candidate)
+                break
+        return links
+
+    return []
 
 
 def _softgarden_links(body: str) -> list[str]:
@@ -277,71 +318,71 @@ def acquire_from_authorized_provider_host(
     provider_page_url: str,
     allowed_hosts: tuple[str, ...],
     fetcher,
-    max_detail_attempts: int = 2,
+    max_detail_attempts: int = 1,
 ) -> ProviderPublicFeedResult | None:
-    """Acquire from a provider host whose authority was already proved by the caller.
-
-    This is the composition seam used by residual overlays: the caller supplies the
-    exact provider family and exact host that the existing builder already admitted.
-    This function does not re-discover either value and cannot add a host.
-    """
+    """Acquire from fixed feeds on a provider host already authorized by the caller."""
 
     if max_detail_attempts < 1:
         raise ValueError("max_detail_attempts must be >= 1")
     if provider not in SUPPORTED_PUBLIC_FEED_PROVIDERS:
         return None
 
-    feed_url = provider_public_feed_url(
+    feed_urls = provider_public_feed_urls(
         provider=provider,
         page_url=provider_page_url,
         allowed_hosts=allowed_hosts,
     )
-    if not feed_url:
+    if not feed_urls:
         return None
 
-    feed_body, feed_final_url, feed_status = fetcher(feed_url)
-    if int(feed_status) >= 400:
-        return ProviderPublicFeedResult(provider, feed_url, (), None)
-    if canonical_url(feed_final_url) != canonical_url(feed_url):
-        return ProviderPublicFeedResult(provider, feed_url, (), None)
+    last_result: ProviderPublicFeedResult | None = None
+    best_result: ProviderPublicFeedResult | None = None
 
-    detail_candidates = parse_provider_public_feed(
-        provider=provider,
-        feed_url=feed_url,
-        body=str(feed_body),
-        allowed_hosts=allowed_hosts,
-    )
-    if not detail_candidates:
-        return ProviderPublicFeedResult(provider, feed_url, (), None)
-
-    for detail_url in detail_candidates[:max_detail_attempts]:
-        detail_html, detail_final_url, detail_status = fetcher(detail_url)
-        page = parse_page(
-            requested_url=detail_url,
-            html=str(detail_html),
-            final_url=str(detail_final_url),
-            status_code=int(detail_status),
-        )
-        proof = genuine_job_detail_proof(
-            page,
-            allowed_hosts=allowed_hosts,
-            known_detail=True,
-        )
-        if not proof:
+    for feed_url in feed_urls:
+        feed_body, feed_final_url, feed_status = fetcher(feed_url)
+        if int(feed_status) >= 400 or canonical_url(feed_final_url) != canonical_url(feed_url):
+            last_result = ProviderPublicFeedResult(provider, feed_url, (), None)
             continue
-        job = AcquiredJobPage(
-            requested_url=page.requested_url,
-            final_url=page.final_url,
-            status_code=page.status_code,
-            title=page.title,
-            html_bytes=len(page.html.encode("utf-8")),
-            proof_kind=proof,
-            discovery_source=f"{provider}_provider_public_feed",
-            anchor_text="",
-        )
-        return ProviderPublicFeedResult(provider, feed_url, detail_candidates, job)
 
-    return ProviderPublicFeedResult(provider, feed_url, detail_candidates, None)
+        detail_candidates = parse_provider_public_feed(
+            provider=provider,
+            feed_url=feed_url,
+            body=str(feed_body),
+            allowed_hosts=allowed_hosts,
+        )
+        current = ProviderPublicFeedResult(provider, feed_url, detail_candidates, None)
+        last_result = current
+        if detail_candidates:
+            best_result = current
+
+        for detail_url in detail_candidates[:max_detail_attempts]:
+            detail_html, detail_final_url, detail_status = fetcher(detail_url)
+            page = parse_page(
+                requested_url=detail_url,
+                html=str(detail_html),
+                final_url=str(detail_final_url),
+                status_code=int(detail_status),
+            )
+            proof = genuine_job_detail_proof(
+                page,
+                allowed_hosts=allowed_hosts,
+                known_detail=True,
+            )
+            if not proof:
+                continue
+            job = AcquiredJobPage(
+                requested_url=page.requested_url,
+                final_url=page.final_url,
+                status_code=page.status_code,
+                title=page.title,
+                html_bytes=len(page.html.encode("utf-8")),
+                proof_kind=proof,
+                discovery_source=f"{provider}_provider_public_feed",
+                anchor_text="",
+            )
+            return ProviderPublicFeedResult(provider, feed_url, detail_candidates, job)
+
+    return best_result or last_result
 
 
 def acquire_via_provider_public_feed(
@@ -349,9 +390,9 @@ def acquire_via_provider_public_feed(
     listing_url: str,
     allowed_hosts: tuple[str, ...],
     fetcher,
-    max_detail_attempts: int = 2,
+    max_detail_attempts: int = 1,
 ) -> ProviderPublicFeedResult | None:
-    """Recognize an already-authorized root, then use its fixed public provider feed."""
+    """Recognize an authorized root, then use only its fixed same-host provider feeds."""
 
     if max_detail_attempts < 1:
         raise ValueError("max_detail_attempts must be >= 1")
@@ -394,4 +435,5 @@ __all__ = [
     "acquire_via_provider_public_feed",
     "parse_provider_public_feed",
     "provider_public_feed_url",
+    "provider_public_feed_urls",
 ]
