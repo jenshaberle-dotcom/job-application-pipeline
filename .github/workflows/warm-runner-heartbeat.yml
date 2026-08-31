@@ -1,0 +1,25 @@
+name: Warm runner heartbeat
+
+on:
+  schedule:
+    - cron: '2-57/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: job-application-warm-runner-heartbeat
+  cancel-in-progress: true
+
+jobs:
+  heartbeat:
+    name: Prove Job Application warm reachability
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 2
+    steps:
+      - name: Emit reachability evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "WARM_HEARTBEAT=PASS runner=${RUNNER_NAME} at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
