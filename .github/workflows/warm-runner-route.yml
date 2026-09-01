@@ -1,0 +1,103 @@
+name: Warm runner route
+
+on:
+  workflow_call:
+    inputs:
+      heartbeat_workflow:
+        description: Workflow filename used as warm reachability evidence.
+        required: true
+        type: string
+      heartbeat_max_age_seconds:
+        description: Maximum age of the last successful warm heartbeat.
+        required: false
+        default: 900
+        type: number
+      warm_runs_on_json:
+        description: JSON array for the preferred warm runs-on value.
+        required: true
+        type: string
+      hosted_runs_on_json:
+        description: JSON array for the GitHub-hosted fallback runs-on value.
+        required: true
+        type: string
+    outputs:
+      route:
+        description: warm or github-hosted
+        value: ${{ jobs.route.outputs.route }}
+      runs_on_json:
+        description: Selected runs-on JSON array.
+        value: ${{ jobs.route.outputs.runs_on_json }}
+      reason:
+        description: Deterministic routing reason.
+        value: ${{ jobs.route.outputs.reason }}
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  route:
+    name: Select warm or GitHub-hosted
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      route: ${{ steps.route.outputs.route }}
+      runs_on_json: ${{ steps.route.outputs.runs_on_json }}
+      reason: ${{ steps.route.outputs.reason }}
+    steps:
+      - name: Resolve warm reachability
+        id: route
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEARTBEAT_WORKFLOW: ${{ inputs.heartbeat_workflow }}
+          HEARTBEAT_MAX_AGE_SECONDS: ${{ inputs.heartbeat_max_age_seconds }}
+          WARM_RUNS_ON_JSON: ${{ inputs.warm_runs_on_json }}
+          HOSTED_RUNS_ON_JSON: ${{ inputs.hosted_runs_on_json }}
+        run: |
+          set -euo pipefail
+
+          select_hosted() {
+            local reason="$1"
+            echo "route=github-hosted" >> "$GITHUB_OUTPUT"
+            echo "runs_on_json=$HOSTED_RUNS_ON_JSON" >> "$GITHUB_OUTPUT"
+            echo "reason=$reason" >> "$GITHUB_OUTPUT"
+            echo "ROUTE=github-hosted reason=$reason"
+          }
+
+          payload="$(mktemp)"
+          if ! gh api \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/${HEARTBEAT_WORKFLOW}/runs?per_page=10" \
+            >"$payload" 2>/dev/null; then
+            select_hosted "heartbeat-unavailable"
+            exit 0
+          fi
+
+          if jq -e '.workflow_runs[]? | select(.status == "in_progress")' "$payload" >/dev/null; then
+            echo "route=warm" >> "$GITHUB_OUTPUT"
+            echo "runs_on_json=$WARM_RUNS_ON_JSON" >> "$GITHUB_OUTPUT"
+            echo "reason=heartbeat-in-progress" >> "$GITHUB_OUTPUT"
+            echo "ROUTE=warm reason=heartbeat-in-progress"
+            exit 0
+          fi
+
+          last_success="$(jq -r '[.workflow_runs[]? | select(.conclusion == "success")][0].updated_at // empty' "$payload")"
+          if [[ -z "$last_success" ]]; then
+            select_hosted "no-successful-heartbeat"
+            exit 0
+          fi
+
+          now_epoch="$(date -u +%s)"
+          heartbeat_epoch="$(date -u -d "$last_success" +%s 2>/dev/null || echo 0)"
+          age=$(( now_epoch - heartbeat_epoch ))
+          if (( heartbeat_epoch > 0 && age >= 0 && age <= HEARTBEAT_MAX_AGE_SECONDS )); then
+            echo "route=warm" >> "$GITHUB_OUTPUT"
+            echo "runs_on_json=$WARM_RUNS_ON_JSON" >> "$GITHUB_OUTPUT"
+            echo "reason=heartbeat-fresh" >> "$GITHUB_OUTPUT"
+            echo "ROUTE=warm reason=heartbeat-fresh age_seconds=$age"
+            exit 0
+          fi
+
+          select_hosted "heartbeat-stale"
