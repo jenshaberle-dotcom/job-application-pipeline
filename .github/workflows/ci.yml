@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -14,12 +15,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  route:
+    name: Resolve execution surface
+    uses: ./.github/workflows/warm-runner-route.yml
+    with:
+      heartbeat_workflow: warm-runner-heartbeat.yml
+      heartbeat_max_age_seconds: 900
+      warm_runs_on_json: '["self-hosted","Linux","X64","job-pipeline-runtime-linux"]'
+      hosted_runs_on_json: '["ubuntu-latest"]'
+
   validate:
     name: Quality, migrations, and governance contracts
-    runs-on: ubuntu-latest
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.runs_on_json) }}
     timeout-minutes: 30
 
     steps:
+      - name: Show selected execution surface
+        shell: bash
+        env:
+          PIPELINE_ROUTE: ${{ needs.route.outputs.route }}
+          PIPELINE_ROUTE_REASON: ${{ needs.route.outputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "PIPELINE_ROUTE=${PIPELINE_ROUTE} reason=${PIPELINE_ROUTE_REASON} runner=${RUNNER_NAME}"
+
       - name: Check out repository
         uses: actions/checkout@v4
         with:
@@ -124,10 +144,20 @@ jobs:
 
   frontend:
     name: React Control Center build
-    runs-on: ubuntu-latest
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.runs_on_json) }}
     timeout-minutes: 15
 
     steps:
+      - name: Show selected execution surface
+        shell: bash
+        env:
+          PIPELINE_ROUTE: ${{ needs.route.outputs.route }}
+          PIPELINE_ROUTE_REASON: ${{ needs.route.outputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "PIPELINE_ROUTE=${PIPELINE_ROUTE} reason=${PIPELINE_ROUTE_REASON} runner=${RUNNER_NAME}"
+
       - name: Check out repository
         uses: actions/checkout@v4
 
