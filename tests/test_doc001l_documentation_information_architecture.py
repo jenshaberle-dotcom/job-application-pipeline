@@ -20,6 +20,7 @@ def test_doc001l_current_repository_uses_target_docs_top_level_structure() -> No
         "current",
         "decisions",
         "guides",
+        "knowledge",
         "planning",
         "reference",
     ]
