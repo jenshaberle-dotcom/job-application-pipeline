@@ -18,6 +18,7 @@ ALLOWED_TOP_LEVEL_DIRS = {
     "current",
     "decisions",
     "guides",
+    "knowledge",
     "planning",
     "reference",
 }
