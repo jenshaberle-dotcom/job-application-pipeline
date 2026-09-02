@@ -11,5 +11,6 @@ docs/project_state/
 .runtime/
 frontend/control-center/dist/
 private_candidate_facts/
+private_application_sources/
 *.candidate-facts.private.json
 candidate_fact_profile.private.json
