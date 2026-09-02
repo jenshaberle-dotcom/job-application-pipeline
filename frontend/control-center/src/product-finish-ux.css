@@ -1,0 +1,305 @@
+/* DEMO-001 product-finish refinements from live operator review. */
+
+/* Application preparation belongs to the Application surface, never as a global
+   floating obstruction. The hidden launcher remains in the DOM as the existing
+   bounded Application Workspace hook used by ApplicationWorkspaceEventBridge. */
+.demo-application-launcher {
+  position: fixed !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+}
+
+/* Use the widescreen viewport instead of leaving a large dead outer frame. */
+.ow-main {
+  padding: 18px 24px 24px;
+}
+
+.ow-stack {
+  width: 100%;
+  max-width: none;
+}
+
+.ow-job-workspace {
+  grid-template-columns: minmax(0, 1.75fr) minmax(430px, .9fr);
+  min-height: calc(100vh - 170px);
+}
+
+.ow-job-list-head,
+.ow-job-list > button {
+  grid-template-columns: 76px 128px minmax(340px, 1fr) minmax(170px, .55fr) minmax(190px, .6fr);
+  gap: 12px;
+}
+
+.ow-job-list-head {
+  padding: 12px 14px;
+  font-size: 10px;
+}
+
+.ow-job-list > button {
+  min-height: 64px;
+  padding: 12px 14px;
+}
+
+.ow-job-list > button > strong {
+  font-size: 16px;
+}
+
+.ow-job-name b {
+  font-size: 13px;
+}
+
+.ow-job-name small,
+.ow-location small {
+  font-size: 9px;
+}
+
+.ow-location b {
+  font-size: 11px;
+}
+
+.ow-status {
+  min-height: 22px;
+  padding: 3px 8px;
+  font-size: 8px;
+}
+
+.ow-job-detail {
+  padding: 18px;
+  max-height: calc(100vh - 78px);
+}
+
+.ow-detail-head h2 {
+  font-size: 23px;
+  line-height: 1.18;
+}
+
+.ow-detail-head p {
+  font-size: 11px;
+}
+
+.ow-score-card h3 {
+  font-size: 12px;
+}
+
+.ow-score-card > div {
+  grid-template-columns: 126px 1fr 44px;
+  font-size: 9px;
+  margin: 7px 0;
+}
+
+.ow-facts > div {
+  padding: 10px;
+}
+
+.ow-facts span,
+.ow-evidence li,
+.ow-evidence p {
+  font-size: 9px;
+}
+
+.ow-evidence > div {
+  padding: 11px;
+}
+
+/* Local private document intake. */
+.ow-document-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ow-document-intake {
+  padding: 14px;
+  border: 1px solid var(--ow-line);
+  border-radius: 10px;
+  background: #081c29;
+}
+
+.ow-document-intake.ready {
+  border-top-color: var(--ow-green);
+}
+
+.ow-document-intake.required {
+  border-top-color: var(--ow-amber);
+}
+
+.ow-document-intake > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.ow-document-intake > header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ow-document-intake > header span {
+  color: var(--ow-cyan);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 800;
+}
+
+.ow-document-intake > header b {
+  font-size: 13px;
+}
+
+.ow-document-intake > header i {
+  font-style: normal;
+  color: var(--ow-green);
+  border: 1px solid var(--ow-line);
+  border-radius: 999px;
+  min-width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.ow-document-intake p {
+  margin: 10px 0;
+  color: var(--ow-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.ow-upload-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ow-file-picker {
+  min-width: 0;
+  flex: 1;
+  border: 1px dashed #2a607a;
+  background: #071824;
+  border-radius: 7px;
+  padding: 9px 10px;
+  cursor: pointer;
+  color: #b9cfda;
+  font-size: 10px;
+  overflow: hidden;
+}
+
+.ow-file-picker input {
+  display: none;
+}
+
+.ow-file-picker span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ow-private-note {
+  display: block;
+  margin-top: 8px;
+  color: #7397aa;
+  font-size: 8px;
+}
+
+.ow-upload-result,
+.ow-upload-error {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 9px;
+}
+
+.ow-upload-result {
+  border: 1px solid #237e66;
+  background: #0b302c;
+  color: #b9f5df;
+}
+
+.ow-upload-error {
+  border: 1px solid #78414a;
+  background: #331c24;
+  color: #ffc2ca;
+}
+
+/* Post-application lifecycle: present the product continuation without pretending
+   that a submission or interview already happened. */
+.ow-application-pipeline {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ow-application-stage {
+  min-height: 132px;
+  padding: 14px;
+  border: 1px solid var(--ow-line-soft);
+  border-radius: 10px;
+  background: #081c29;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ow-application-stage.active {
+  border-color: #2d8daf;
+  box-shadow: inset 0 2px 0 var(--ow-cyan);
+}
+
+.ow-application-stage.done {
+  border-color: #237e66;
+}
+
+.ow-application-stage span {
+  color: var(--ow-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.ow-application-stage b {
+  font-size: 14px;
+}
+
+.ow-application-stage small {
+  color: #8eabbc;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.ow-after-application-grid {
+  display: grid;
+  grid-template-columns: 1.35fr .65fr;
+  gap: 12px;
+}
+
+@media (max-width: 1180px) {
+  .ow-job-workspace,
+  .ow-after-application-grid {
+    grid-template-columns: 1fr;
+  }
+  .ow-job-detail {
+    position: static;
+    max-height: none;
+  }
+  .ow-document-grid,
+  .ow-application-pipeline {
+    grid-template-columns: 1fr 1fr;
+  }
+}
