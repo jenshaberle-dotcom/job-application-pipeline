@@ -1,0 +1,176 @@
+/* DEMO-001 presentation polish.
+ * This stylesheet changes only information hierarchy and readability.
+ * Product truth, ranking authority, evidence, review actions and runtime behavior stay unchanged.
+ */
+
+.jobs-page .page-toolbar {
+  align-items: flex-end;
+}
+
+.jobs-page .toolbar-note {
+  max-width: 38rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.jobs-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.jobs-metrics .metric-card {
+  min-height: 0;
+  padding: 0.85rem 1rem;
+}
+
+.jobs-metrics .metric-card strong {
+  font-size: 1.55rem;
+}
+
+.jobs-top-grid {
+  grid-template-columns: minmax(0, 1.65fr) minmax(18rem, 0.75fr);
+  align-items: stretch;
+}
+
+.top-five-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.top-five-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, rgba(65, 226, 210, 0.95), rgba(94, 132, 255, 0.55));
+}
+
+.top-five-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.top-job {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(132, 194, 210, 0.18);
+  background: rgba(8, 24, 36, 0.52);
+}
+
+.top-job h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.top-job p,
+.top-job small {
+  margin: 0.22rem 0 0;
+}
+
+.jobs-workspace {
+  padding: 0;
+  overflow: hidden;
+}
+
+.jobs-list-toolbar {
+  padding: 1rem 1rem 0.85rem;
+  border-bottom: 1px solid rgba(132, 194, 210, 0.14);
+}
+
+.jobs-split {
+  display: grid;
+  grid-template-columns: minmax(34rem, 1.25fr) minmax(23rem, 0.75fr);
+  min-height: 34rem;
+}
+
+.jobs-table-wrap {
+  border-right: 1px solid rgba(132, 194, 210, 0.14);
+  overflow: auto;
+}
+
+.jobs-table {
+  font-size: 0.86rem;
+}
+
+.jobs-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  backdrop-filter: blur(12px);
+}
+
+.jobs-table tbody tr {
+  cursor: pointer;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.jobs-table tbody tr:hover,
+.jobs-table tbody tr.selected {
+  background: rgba(50, 181, 189, 0.085);
+  box-shadow: inset 3px 0 0 rgba(65, 226, 210, 0.72);
+}
+
+.jobs-table td b {
+  font-size: 0.92rem;
+}
+
+.job-detail-panel {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  padding: 1.2rem 1.25rem 1.5rem;
+  max-height: calc(100vh - 9rem);
+  overflow: auto;
+}
+
+.job-detail-panel > h2 {
+  margin-bottom: 0.35rem;
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  line-height: 1.12;
+}
+
+.score-breakdown,
+.detail-facts,
+.evidence-columns {
+  margin-top: 1.15rem;
+}
+
+@media (max-width: 1180px) {
+  .jobs-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .jobs-top-grid,
+  .jobs-split {
+    grid-template-columns: 1fr;
+  }
+
+  .jobs-table-wrap {
+    border-right: 0;
+    border-bottom: 1px solid rgba(132, 194, 210, 0.14);
+  }
+
+  .job-detail-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .jobs-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .top-job {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .top-job > a,
+  .top-job > .missing-link {
+    grid-column: 2;
+  }
+}
