@@ -3,7 +3,8 @@
 Default sequence:
 1. install/build the existing React Control Center;
 2. run the fail-closed live Product V1 demo preflight;
-3. start the demo Control Center only when the preflight passes.
+3. probe the selected authoritative Top-5 Application Workspace read-only;
+4. start the demo Control Center only when both readiness probes pass.
 
 The launcher never changes pipeline product truth, activates a source, creates an
 application, submits, or sends anything. Use ``--reuse-frontend`` after a previously
@@ -26,6 +27,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "control-center"
 DEFAULT_DIST = FRONTEND / "dist"
 DEFAULT_PREFLIGHT = ROOT / ".runtime" / "demo" / "product_v1_demo_preflight.json"
+DEFAULT_WORKSPACE_PROBE = (
+    ROOT / ".runtime" / "demo" / "product_v1_demo_workspace_probe.json"
+)
 _FRONTEND_LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json")
 
 
@@ -92,6 +96,21 @@ def run_preflight(*, frontend_dist: Path, output: Path) -> int:
     return completed.returncode
 
 
+def run_workspace_probe(*, preflight: Path, output: Path) -> int:
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.run_product_v1_demo_workspace_probe",
+        "--preflight",
+        str(preflight),
+        "--output",
+        str(output),
+    ]
+    print("+ " + " ".join(command))
+    completed = subprocess.run(command, cwd=ROOT, check=False)
+    return completed.returncode
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -114,9 +133,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_PREFLIGHT,
     )
     parser.add_argument(
+        "--workspace-probe-output",
+        type=Path,
+        default=DEFAULT_WORKSPACE_PROBE,
+    )
+    parser.add_argument(
         "--preflight-only",
         action="store_true",
-        help="Build/check demo readiness without starting the HTTP server.",
+        help="Build/check full demo readiness without starting the HTTP server.",
     )
     return parser
 
@@ -129,16 +153,28 @@ def main() -> int:
         print(f"DEMO_START_BLOCKED=frontend:{exc}", file=sys.stderr)
         return 2
 
+    preflight_output = args.preflight_output.resolve()
     preflight_code = run_preflight(
         frontend_dist=frontend_dist,
-        output=args.preflight_output.resolve(),
+        output=preflight_output,
     )
     if preflight_code != 0:
         print("DEMO_START_BLOCKED=live_preflight", file=sys.stderr)
-        print(f"PREFLIGHT_ARTIFACT={args.preflight_output.resolve()}", file=sys.stderr)
+        print(f"PREFLIGHT_ARTIFACT={preflight_output}", file=sys.stderr)
         return preflight_code
 
     print("DEMO_PREFLIGHT=PASS")
+    workspace_probe_output = args.workspace_probe_output.resolve()
+    workspace_probe_code = run_workspace_probe(
+        preflight=preflight_output,
+        output=workspace_probe_output,
+    )
+    if workspace_probe_code != 0:
+        print("DEMO_START_BLOCKED=application_workspace_probe", file=sys.stderr)
+        print(f"WORKSPACE_PROBE_ARTIFACT={workspace_probe_output}", file=sys.stderr)
+        return workspace_probe_code
+
+    print("DEMO_WORKSPACE_PROBE=PASS")
     print("DEMO_BOUNDARY=no_fake_truth,no_auto_submit,no_send")
     if args.preflight_only:
         print("PRODUCT_V1_LIVE_DEMO=READY")
