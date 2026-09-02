@@ -1,10 +1,21 @@
 {
   "schema": "job_application_pipeline.acq676_reentry.v1",
-  "status": "active_detail_live_audit_and_identifier_reclassification_complete_form_carrier_audit_next",
+  "status": "active_restart_pass_v6_merged_benchmark_next_after_portfolio_all_pass",
   "owner_issue": 676,
-  "canonical_main_at_migration_closure": "6af34cb54a9bbf29ffc257d1109f495d08d1678d",
-  "builder_v5_merge": "45f99c1919e6869451b6301bf41a6d3d12ba7c78",
-  "latest_qualified_diagnostic_merge": "e8aa41179e6618fa96b33e82ec57dd51edd1a0f5",
+  "current_main": "41c855c3858b40a3d2d1d7b84dc8d6488f81d2a9",
+  "post_migration_restart": {
+    "state": "PASS",
+    "ledger_issue": 704,
+    "ledger_path": "docs/knowledge/branch_salvage_704.md",
+    "host_preflight_issue_comment": 5508212057,
+    "canonical_checkout_clean": true,
+    "canonical_main_equals_remote": true,
+    "persistent_worktree_count": 1,
+    "non_main_project_worktrees": 0,
+    "remaining_local_branches": ["main"],
+    "remote_branches_deleted": 0,
+    "portfolio_all_pass_required_before_active_development_resume": true
+  },
   "primary_metric": {
     "candidate_count": 65,
     "strict_functioning_deterministic": 36,
@@ -30,56 +41,19 @@
     },
     "issue_comment": 5462507864
   },
-  "successfactors_common_carrier": {
+  "successfactors_search_carrier": {
     "adapter_authorized": false,
     "eligible_company_keys": ["adesso", "hannover_ruck"],
-    "reason": "Hannover Re exposes explicit GET /search/ while adesso does not; no common evidence-backed route",
+    "reason": "no common evidence-backed /search/ route; universal route would guess authority",
     "issue_comment": 5463886222
-  },
-  "detail_surface_audit": {
-    "completed": true,
-    "pull_request": 690,
-    "merge_commit": "aed89b99a25d973c6aef68d291be548f25df123e",
-    "pipeline_ci": 900,
-    "reentry_ci": 1490,
-    "input_case_count": 16,
-    "http_get_requests": 45,
-    "max_gets_per_candidate": 4,
-    "replay_errors": 0,
-    "provider_requests": 0,
-    "database_writes": 0,
-    "query_values_persisted": 0,
-    "raw_classification_counts": {
-      "unknown_query_identifier_key_surface": 8,
-      "unclassified_jobish_detail_surface": 5,
-      "form_driven_detail_surface": 3
-    }
   },
   "detail_identifier_reclassification": {
     "completed": true,
-    "pull_request": 692,
-    "merge_commit": "5d8aa447f4de13349e411584997fdbe95f2e1eba",
-    "pipeline_ci": 904,
-    "reentry_ci": 1502,
-    "network_requests": 0,
-    "database_reads": 0,
-    "database_writes": 0,
-    "query_values_read": 0,
-    "query_values_persisted": 0,
     "classification_counts_after": {
       "unclassified_jobish_detail_surface": 10,
       "form_driven_detail_surface": 5,
       "unknown_query_identifier_key_surface": 1
     },
-    "changed_company_keys": [
-      "1_1",
-      "amadeus_fire",
-      "aok_niedersachsen_die_gesundheitskasse",
-      "bjak",
-      "compugroup_medical",
-      "deloitte",
-      "land_niedersachsen"
-    ],
     "retained_identifier_keys": {
       "iph_institut_fur_integrierte_produktion_hannover_ggmbh": {
         "weobjectid": 12
@@ -88,14 +62,15 @@
     "issue_comment": 5467283456
   },
   "detail_form_carrier_gate": {
-    "measurement_tool_merged": true,
+    "completed": true,
     "adapter_authorized": false,
-    "pull_request": 693,
-    "qualified_head": "95b8c02d7bbc14363d3a6658a2c3b1597153f630",
-    "merge_commit": "e8aa41179e6618fa96b33e82ec57dd51edd1a0f5",
-    "pipeline_ci": 906,
-    "reentry_ci": 1507,
-    "expected_input_case_count": 5,
+    "input_case_count": 5,
+    "classification_counts": {
+      "get_jobish_form_without_semantic_identifier": 2,
+      "get_jobish_search_or_filter_form": 2,
+      "post_jobish_search_or_filter_form": 1
+    },
+    "cross_company_signature_count": 0,
     "network_requests": 0,
     "form_submissions": 0,
     "form_values_read": 0,
@@ -103,46 +78,71 @@
     "database_reads": 0,
     "database_writes": 0,
     "connector_materialization": 0,
-    "script": "scripts/run_deterministic_detail_form_carrier_audit.py",
-    "canonical_command": ".venv/bin/python -m scripts.run_deterministic_detail_form_carrier_audit --reclassification /tmp/deterministic_detail_identifier_reclassification_v1.json --output /tmp/deterministic_detail_form_carrier_audit_v1.json"
+    "conclusion": "negative evidence stop; no generic deterministic form carrier"
+  },
+  "v6_external_deterministic_salvage": {
+    "merged": true,
+    "delivery_pull_request": 705,
+    "qualified_head": "7b5ca27e02d93d7fde928093dd8a7a9961e64708",
+    "pipeline_ci": 933,
+    "reentry_ci": 1577,
+    "merge_commit": "41c855c3858b40a3d2d1d7b84dc8d6488f81d2a9",
+    "superseded_source_pull_request": 695,
+    "providers": ["successfactors", "softgarden", "recruitee", "dvinci"],
+    "overlay_allowed_first_failures": ["inventory", "detail"],
+    "public_feed_network_method": "GET",
+    "request_cap_per_eligible_residual": 3,
+    "database_writes": 0,
+    "provider_requests": 0,
+    "llm_requests": 0,
+    "tavily_requests": 0,
+    "proof_boundary_unchanged": true,
+    "external_tenant_or_slug_guessing": false,
+    "workday_shard_or_board_bruteforce": false,
+    "cross_host_feed_authority_guessing": false
   },
   "selection": {
-    "current_priority": "form_driven_detail_surface",
-    "reason": "five cases already contain bounded method/action/field-name structure and can be audited offline; ten-case jobish cohort is larger but less structurally bounded",
+    "current_priority": "v6_same_population_benchmark",
+    "execution_state": "WAITING_FOR_PORTFOLIO_ALL_PROJECTS_PASS",
+    "reason": "V6 is qualified and merged; next useful measurement is V5 vs V6 on the unchanged 65-candidate DB population",
+    "fallback_if_no_reusable_v6_lift": "bounded ten-case unclassified-jobish detail anchor/path-shape audit",
     "deferred_single_case": "iph_institut_fur_integrierte_produktion_hannover_ggmbh:weobjectid"
   },
+  "canonical_benchmark_command": ".venv/bin/python -m scripts.run_deterministic_connector_builder_layer_audit_v6 --output /tmp/deterministic_connector_builder_layer_audit_v6.json",
+  "benchmark_expected_outputs": [
+    "V5_READY",
+    "V6_READY",
+    "PUBLIC_FEED_ATTEMPTED",
+    "PUBLIC_FEED_PROMOTED",
+    "PUBLIC_FEED_PROMOTED_KEYS",
+    "updated first-failure distribution"
+  ],
   "retention": {
     "active_keep": [
       "issue:#676",
+      "issue:#704",
       "ref:refs/heads/main",
+      "POST-MIGRATION-RESTART.json",
+      "docs/knowledge/branch_salvage_704.md",
       "docs/planning/active/acq_generalization_90_target.md",
       "docs/planning/active/acq_generalization_90_reentry.md",
       "docs/planning/active/acq_generalization_90_reentry.json",
-      "scripts/run_deterministic_detail_surface_audit.py",
-      "scripts/run_deterministic_detail_identifier_reclassification.py",
-      "scripts/run_deterministic_detail_form_carrier_audit.py"
+      "scripts/run_deterministic_connector_builder_layer_audit_v6.py",
+      "src/connectors/employer_origin_provider_public_feed.py"
     ],
-    "preserve_provenance": [
-      "issue:#676:comment:5462507864",
-      "issue:#676:comment:5463886222",
-      "issue:#676:comment:5467129927",
-      "issue:#676:comment:5467283456",
-      "pull_request:#690",
-      "pull_request:#692",
-      "pull_request:#693"
-    ]
+    "remote_branch_retirement_is_separate_effect": true
   },
   "drj": {
-    "reconcile_request_at_current_frontier": "NO_REQUEST",
+    "general_work_admission_authority": false,
     "age_path_name_are_delete_authority": false
   },
   "continuation": [
-    "fast-forward clean canonical WSL main to current origin/main",
-    "run zero-network detail form carrier audit against /tmp/deterministic_detail_identifier_reclassification_v1.json",
-    "require exactly five form-driven input cases and inspect carrier classes plus cross-company signatures",
-    "implement nothing unless a reusable bounded carrier is proven; never infer form values or POST bodies",
-    "if the form cohort splits, move to a focused bounded audit of the ten unclassified-jobish cases without global vocabulary widening",
-    "keep IPH weobjectid as a later single-case capability unless broader evidence appears",
+    "wait until shared portfolio post-migration restart contract reports all ten managed projects PASS",
+    "from clean canonical WSL main equal to fresh origin/main run the same 65-candidate V6 benchmark",
+    "compare exact V5 and V6 summaries and public-feed promotions",
+    "do not change product coverage for diagnostic recipe-ready alone",
+    "re-cluster residuals after measured V6 lift",
+    "if V6 has no reusable provider-bound lift, run a bounded ten-case jobish detail anchor/path audit without global vocabulary widening",
     "change product coverage only after materialized unchanged strict E2E proof"
   ]
 }
