@@ -410,7 +410,7 @@ WITH approved_policy AS (
                 2
             )
             ELSE NULL
-        END AS overall_quality_score,
+        END::NUMERIC(6, 2) AS overall_quality_score,
         a.work_model,
         a.commute_minutes,
         a.public_transport_quality,
@@ -501,7 +501,7 @@ WITH RECURSIVE approved_policy AS (
 ), ranked AS (
     SELECT
         selected_candidate.*,
-        1 AS product_rank,
+        1::BIGINT AS product_rank,
         ARRAY[selected_candidate.silver_job_id]::BIGINT[] AS selected_ids
     FROM approved_policy p
     CROSS JOIN LATERAL (
