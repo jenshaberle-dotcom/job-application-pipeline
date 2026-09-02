@@ -11,7 +11,7 @@ from src.search_intelligence.product_v1_job_presentation import (
 def test_reviewed_personio_tenant_projects_authoritative_employer_brand() -> None:
     assert (
         authoritative_employer_name("personio:1komma5grad", "Heartbeat AI GmbH")
-        == "1KOMMA5° GmbH"
+        == "1KOMMA5°"
     )
 
 
@@ -30,6 +30,7 @@ def test_full_time_is_schedule_evidence_not_numeric_hours() -> None:
             "city": "Remote",
             "work_model": "unknown",
             "commute_minutes": None,
+            "explanations": ["employment_type: source_observed — Festanstellung"],
         },
         normalized_observation_evidence={
             "raw_evidence": {
@@ -40,11 +41,15 @@ def test_full_time_is_schedule_evidence_not_numeric_hours() -> None:
             }
         },
     )
-    assert decorated["display_company_name"] == "1KOMMA5° GmbH"
+    assert decorated["display_company_name"] == "1KOMMA5°"
     assert decorated["legal_entity_name"] == "Heartbeat AI GmbH"
     assert decorated["employment_schedule"] == "full_time"
     assert decorated["employment_schedule_evidence_status"] == "observed"
     assert decorated["numeric_weekly_hours_inferred_from_schedule"] is False
+    assert (
+        "employment_schedule: source_observed — Full-time; numeric weekly hours not published"
+        in decorated["explanations"]
+    )
 
 
 def test_remote_literal_is_kept_in_hannover_remote_review_scope() -> None:
