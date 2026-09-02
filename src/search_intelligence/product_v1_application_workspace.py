@@ -9,7 +9,9 @@ is performed here.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
+from hashlib import sha256
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 from urllib.parse import unquote, urlparse
@@ -27,7 +29,15 @@ from src.search_intelligence.product_v1_application_context import (
 )
 
 
-DocumentLoader = Callable[[str], str]
+@dataclass(frozen=True)
+class LoadedApplicationSource:
+    """Locally loaded source text plus identity of the original file bytes."""
+
+    content: str
+    source_sha256: str
+
+
+DocumentLoader = Callable[[str], str | LoadedApplicationSource]
 _REQUIRED_DOCUMENT_TYPES = ("base_cv", "base_application_letter")
 
 
@@ -71,12 +81,13 @@ def local_document_loader(
     Supported references are absolute/relative filesystem paths, ``file://`` URIs,
     and ``local://`` references resolved under ``private_root``. UTF-8 text and
     text-bearing PDF files are supported. Network and opaque operator URIs are never
-    dereferenced.
+    dereferenced. The SHA-256 is calculated over the unchanged original file bytes
+    before text extraction so PDF identity remains bound to the approved DB record.
     """
 
     root = private_root.expanduser().resolve() if private_root is not None else None
 
-    def load(source_reference: str) -> str:
+    def load(source_reference: str) -> LoadedApplicationSource:
         raw = source_reference.strip()
         if not raw:
             raise ApplicationWorkspaceStop("application source reference is empty")
@@ -104,10 +115,17 @@ def local_document_loader(
         resolved = path.resolve()
         if root is not None and root not in {resolved, *resolved.parents}:
             raise ApplicationWorkspaceStop("application source escaped private document root")
+        if not resolved.is_file():
+            raise ApplicationWorkspaceStop(f"application source file not found: {resolved}")
         try:
-            return extract_private_application_source_text(resolved)
+            source_sha256 = sha256(resolved.read_bytes()).hexdigest()
+            content = extract_private_application_source_text(resolved)
         except PrivateApplicationSourceTextError as exc:
             raise ApplicationWorkspaceStop(str(exc)) from exc
+        return LoadedApplicationSource(
+            content=content,
+            source_sha256=source_sha256,
+        )
 
     return load
 
@@ -116,6 +134,7 @@ def _target_snapshot(
     row: Mapping[str, object],
     *,
     detail_text: str,
+    employer_origin_authorized: bool | None = None,
 ) -> ApplicationTargetSnapshot:
     try:
         silver_job_id = int(row.get("silver_job_id") or 0)
@@ -134,6 +153,7 @@ def _target_snapshot(
         activity_status=_required_text(row, "activity_status"),
         hard_filter_status=_required_text(row, "hard_filter_status"),
         detail_text=detail_text,
+        employer_origin_authorized=employer_origin_authorized,
     )
 
 
@@ -176,14 +196,23 @@ def _document_snapshots(
         if row is None:
             continue
         source_reference = _required_text(row, "source_reference")
+        expected_sha256 = _required_text(row, "content_sha256")
+        loaded = load_document(source_reference)
+        if isinstance(loaded, LoadedApplicationSource):
+            content = loaded.content
+            source_hash_verified: bool | None = loaded.source_sha256 == expected_sha256
+        else:
+            content = loaded
+            source_hash_verified = None
         snapshots.append(
             ApplicationSourceDocumentSnapshot(
                 document_type=document_type,
                 source_label=_required_text(row, "source_label"),
                 source_reference=source_reference,
-                content_sha256=_required_text(row, "content_sha256"),
-                content=load_document(source_reference),
+                content_sha256=expected_sha256,
+                content=content,
                 status=_required_text(row, "status"),
+                source_hash_verified=source_hash_verified,
             )
         )
     return tuple(snapshots)
@@ -198,6 +227,7 @@ def build_application_workspace_context(
     document_rows: Sequence[Mapping[str, object]],
     load_document: DocumentLoader,
     as_of_date: date,
+    employer_origin_authorized: bool | None = None,
 ) -> ProductV1ApplicationContext:
     """Build the canonical source-grounded context from current runtime evidence."""
 
@@ -208,7 +238,11 @@ def build_application_workspace_context(
         profile_status = str(profile_row.get("status") or "missing")
         profile_sha256 = str(profile_row.get("payload_sha256") or "")
 
-    target = _target_snapshot(top_job_row, detail_text=detail_text)
+    target = _target_snapshot(
+        top_job_row,
+        detail_text=detail_text,
+        employer_origin_authorized=employer_origin_authorized,
+    )
     facts = _fact_snapshots(fact_rows)
     documents = _document_snapshots(document_rows, load_document=load_document)
     return build_product_v1_application_context(
@@ -224,6 +258,7 @@ def build_application_workspace_context(
 __all__ = [
     "ApplicationWorkspaceStop",
     "DocumentLoader",
+    "LoadedApplicationSource",
     "build_application_workspace_context",
     "local_document_loader",
 ]
