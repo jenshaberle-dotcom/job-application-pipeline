@@ -85,7 +85,9 @@ def authoritative_employer_name(source_name: object, fallback: object) -> str:
     if target:
         binding = reviewed_personio_authority_binding(target)
         if binding is not None:
-            return binding.company_name
+            # The reviewed canonical company remains the authority binding; the public
+            # employer alias is the operator/application display brand.
+            return binding.employer_aliases[-1] if binding.employer_aliases else binding.company_name
     return _text(fallback)
 
 
@@ -165,6 +167,27 @@ def decorate_job_for_operator(
     schedule = canonical_employment_schedule(schedule_observed)
     geography = classify_review_geography(result)
 
+    raw_explanations = result.get("explanations")
+    explanations = (
+        [str(item) for item in raw_explanations]
+        if isinstance(raw_explanations, (list, tuple))
+        else []
+    )
+    if schedule == "full_time":
+        schedule_explanation = (
+            "employment_schedule: source_observed — Full-time; "
+            "numeric weekly hours not published"
+        )
+        if schedule_explanation not in explanations:
+            explanations.append(schedule_explanation)
+    elif schedule == "part_time":
+        schedule_explanation = (
+            "employment_schedule: source_observed — Part-time; "
+            "numeric weekly hours not published"
+        )
+        if schedule_explanation not in explanations:
+            explanations.append(schedule_explanation)
+
     result.update(
         {
             "display_company_name": display_company or _text(result.get("company_name")),
@@ -176,6 +199,7 @@ def decorate_job_for_operator(
             "profile_geography_eligible": geography.eligible,
             "profile_geography_bucket": geography.bucket,
             "profile_geography_reason": geography.reason,
+            "explanations": explanations,
             "presentation_authority": False,
         }
     )
