@@ -58,11 +58,39 @@ def _facts() -> dict[str, object]:
     }
 
 
+def _schema() -> dict[str, object]:
+    return {
+        "ready": True,
+        "tracking_table_exists": True,
+        "required_migrations": [
+            "102_create_product_v1_hard_filter_operator_reviews.sql",
+            "103_create_product_v1_capability_fit_reviews.sql",
+            "104_create_product_v1_ranking_score_reviews.sql",
+        ],
+        "required_migration_tracking": {
+            "102_create_product_v1_hard_filter_operator_reviews.sql": True,
+            "103_create_product_v1_capability_fit_reviews.sql": True,
+            "104_create_product_v1_ranking_score_reviews.sql": True,
+        },
+        "missing_repo_migration_files": [],
+        "pending_migrations": [],
+        "checksum_mismatches": [],
+        "required_relations": {
+            "product_v1_hard_filter_reviews": True,
+            "product_v1_capability_fit_reviews": True,
+            "product_v1_ranking_score_reviews": True,
+        },
+        "ranking_revision_column_present": True,
+        "operator_actions": ["python scripts/apply_db_migrations.py --status"],
+    }
+
+
 def _report(tmp_path: Path, payload: dict[str, object]) -> dict[str, object]:
     (tmp_path / "index.html").write_text("demo", encoding="utf-8")
     return build_demo_preflight(
         payload=payload,
         candidate_fact_readiness=_facts(),
+        database_schema_readiness=_schema(),
         frontend_dist=tmp_path,
         openai_key_present=True,
     )
@@ -74,9 +102,11 @@ def test_pass_requires_real_top_job_sources_facts_docs_frontend_and_provider_key
     report = _report(tmp_path, _payload())
 
     assert report["state"] == "pass"
+    assert report["schema"] == "job_application_pipeline.product_v1_demo_preflight.v2"
     assert report["blocking_gates"] == []
     assert report["selected_top_job"]["silver_job_id"] == 42
     assert len(report["demo_sources"]) == 1
+    assert report["database_schema_readiness"]["ready"] is True
     assert report["boundaries"]["database_writes"] is False
     assert report["boundaries"]["provider_requests"] == 0
     assert report["boundaries"]["submission_writes"] == 0
@@ -127,6 +157,7 @@ def test_missing_candidate_facts_and_base_letter_fail_closed(tmp_path: Path) -> 
     report = build_demo_preflight(
         payload=payload,
         candidate_fact_readiness=facts,
+        database_schema_readiness=_schema(),
         frontend_dist=tmp_path,
         openai_key_present=False,
     )
@@ -135,3 +166,44 @@ def test_missing_candidate_facts_and_base_letter_fail_closed(tmp_path: Path) -> 
     assert "candidate_fact_profile" in report["blocking_gates"]
     assert "base_application_letter" in report["blocking_gates"]
     assert "draft_provider_key" in report["blocking_gates"]
+
+
+def test_missing_ranking_migration_is_explicit_schema_frontier_blocker(
+    tmp_path: Path,
+) -> None:
+    schema = _schema()
+    schema["ready"] = False
+    schema["required_migration_tracking"][
+        "104_create_product_v1_ranking_score_reviews.sql"
+    ] = False
+    schema["pending_migrations"] = [
+        "104_create_product_v1_ranking_score_reviews.sql"
+    ]
+    schema["required_relations"]["product_v1_ranking_score_reviews"] = False
+    schema["ranking_revision_column_present"] = False
+    schema["operator_actions"] = [
+        "python scripts/apply_db_migrations.py --status",
+        "python scripts/apply_db_migrations.py --apply-exact "
+        "104_create_product_v1_ranking_score_reviews.sql --require-sole-pending "
+        "--applied-by demo-001",
+    ]
+    (tmp_path / "index.html").write_text("demo", encoding="utf-8")
+
+    report = build_demo_preflight(
+        payload=_payload(),
+        candidate_fact_readiness=_facts(),
+        database_schema_readiness=schema,
+        frontend_dist=tmp_path,
+        openai_key_present=True,
+    )
+
+    assert report["state"] == "blocked"
+    assert "demo_schema_frontier" in report["blocking_gates"]
+    assert report["operator_actions"][0].endswith("--status")
+    assert "--apply-exact 104_create_product_v1_ranking_score_reviews.sql" in report[
+        "operator_actions"
+    ][1]
+    schema_gate = next(
+        gate for gate in report["gates"] if gate["name"] == "demo_schema_frontier"
+    )
+    assert "ranking_revision_column=False" in schema_gate["detail"]
