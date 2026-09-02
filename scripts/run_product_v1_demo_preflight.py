@@ -25,6 +25,7 @@ from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from scripts.run_product_v1_control_center import load_product_v1_payload
+from src.job_lifecycle_health import EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -128,7 +129,8 @@ def _top_job_candidate(payload: Mapping[str, object]) -> dict[str, object] | Non
             continue
         row = dict(item)
         if (
-            str(row.get("canonical_source_type") or "") == "employer_origin"
+            str(row.get("canonical_source_type") or "")
+            in EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
             and str(row.get("origin_validation_status") or "") == "validated"
             and str(row.get("activity_status") or "") == "active"
             and str(row.get("hard_filter_status") or "") == "passed"
