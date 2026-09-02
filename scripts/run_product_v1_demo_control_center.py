@@ -1,13 +1,9 @@
 """Serve the Product V1 Control Center with the DEMO-001 Application Workspace.
 
-The existing canonical Control Center remains the UI. This demo runtime adds only:
-
-- GET /api/v1/product-v1/application-workspace?silver_job_id=<id>
-- POST /api/v1/product-v1/application-draft with an explicit review-draft action
-
-The GET performs DB reads plus one already-authorized employer-origin detail fetch.
-The POST may invoke the bounded source-grounded drafter after all context gates pass.
-Neither route persists a draft, approves an application, submits, or sends anything.
+The existing canonical Control Center remains the product truth source. This demo
+runtime adds the bounded Application Workspace and a read-only presentation enrichment
+for current job review. Presentation evidence never changes ranking, Top-5 or
+application authority.
 """
 
 from __future__ import annotations
@@ -25,12 +21,20 @@ from scripts.product_v1_application_workspace_runtime import (
     application_workspace_payload,
     generate_application_draft_payload,
 )
-from scripts.run_product_v1_control_center import ProductV1Handler, build_parser
+from scripts.product_v1_job_presentation_runtime import (
+    enrich_product_payload_for_operator,
+)
+from scripts.run_product_v1_control_center import (
+    ProductV1Handler,
+    build_parser,
+    load_product_v1_payload,
+)
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
 )
 
 
+PRODUCT_V1_PATH = "/api/v1/product-v1"
 APPLICATION_WORKSPACE_PATH = "/api/v1/product-v1/application-workspace"
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
 _MAX_ACTION_BODY_BYTES = 4_096
@@ -71,7 +75,7 @@ def parse_application_draft_action_payload(payload: object) -> int:
 
 
 class ProductV1DemoHandler(ProductV1Handler):
-    server_version = "DeepOceanProductV1/0.7-demo"
+    server_version = "DeepOceanProductV1/0.8-demo"
 
     def _send_json(
         self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
@@ -98,6 +102,21 @@ class ProductV1DemoHandler(ProductV1Handler):
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
+        if parsed.path == PRODUCT_V1_PATH:
+            try:
+                self._send_json(
+                    enrich_product_payload_for_operator(load_product_v1_payload())
+                )
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_json(
+                    {
+                        "status": "error",
+                        "error_type": type(exc).__name__,
+                        "message": str(exc),
+                    },
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
+            return
         if parsed.path != APPLICATION_WORKSPACE_PATH:
             super().do_GET()
             return

@@ -27,6 +27,9 @@ from src.search_intelligence.product_v1_application_context import (
     ProductV1ApplicationContext,
     build_product_v1_application_context,
 )
+from src.search_intelligence.product_v1_job_presentation import (
+    authoritative_employer_name,
+)
 
 
 @dataclass(frozen=True)
@@ -141,11 +144,17 @@ def _target_snapshot(
         product_rank = int(row.get("product_rank") or 0)
     except (TypeError, ValueError) as exc:
         raise ApplicationWorkspaceStop("invalid Top-5 job identity") from exc
+    company_name = authoritative_employer_name(
+        row.get("source_name"),
+        row.get("company_name"),
+    )
+    if not company_name:
+        raise ApplicationWorkspaceStop("company_name is required")
     return ApplicationTargetSnapshot(
         silver_job_id=silver_job_id,
         product_rank=product_rank,
         title=_required_text(row, "title"),
-        company_name=_required_text(row, "company_name"),
+        company_name=company_name,
         source_url=_required_text(row, "source_url"),
         canonical_source_type=_required_text(row, "canonical_source_type"),
         product_readiness_status=_required_text(row, "product_readiness_status"),
