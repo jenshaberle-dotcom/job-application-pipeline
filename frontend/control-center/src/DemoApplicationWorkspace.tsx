@@ -69,10 +69,14 @@ type DraftFragment = {
   job_evidence?: Array<{ evidence?: string }>;
 };
 
+type DraftMode = "provider_validated" | "deterministic_evidence_first";
+
 type DraftPayload = {
   status?: string;
   reason?: string;
   blocked_reasons?: string[];
+  draft_mode?: DraftMode;
+  fallback_reason?: string | null;
   package?: {
     status?: string;
     fragments?: DraftFragment[];
@@ -109,6 +113,12 @@ async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 function fragmentGroup(kind: string | undefined) {
   return kind?.startsWith("cv_") ? "CV" : "Application letter";
+}
+
+function draftModeLabel(mode: DraftMode | undefined) {
+  if (mode === "provider_validated") return "PROVIDER-VALIDATED";
+  if (mode === "deterministic_evidence_first") return "EVIDENCE-FIRST · PROVIDER-FREE";
+  return "SOURCE-GROUNDED";
 }
 
 export default function DemoApplicationWorkspace() {
@@ -251,17 +261,19 @@ export default function DemoApplicationWorkspace() {
           <button type="button" className="demo-generate-button" disabled={!generationReady || drafting} onClick={() => void generateDraft()}>
             {drafting ? "Preparing review draft…" : draft?.status === "draft_for_review" ? "Regenerate review draft" : "Prepare application draft"}
           </button>
-          <p className="demo-boundary-note">Provider call only after this context is ready. The result can be reviewed, never submitted automatically.</p>
+          <p className="demo-boundary-note">Drafting starts only after this context is ready. A bounded provider may polish the draft; if unavailable, a provider-free evidence-first version remains reviewable. Nothing is submitted automatically.</p>
         </article>
 
         <article className="demo-workspace-card demo-draft-card">
           <header><span className="demo-eyebrow">2 · Prepared application</span><h3>{draft?.status === "draft_for_review" ? "Draft ready for your review" : "Waiting for operator action"}</h3></header>
           {draft?.status === "draft_for_review" && draft.package ? <>
-            <div className="demo-draft-badge">REVIEW REQUIRED · NO SUBMISSION AUTHORITY</div>
+            <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED · NO SUBMISSION AUTHORITY</div>
+            {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
+            {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback reason: {normalized(draft.fallback_reason)}. Candidate claims remain copied from approved Candidate Facts; vacancy claims remain tied to exact current evidence.</p>}
             <section><h4>CV adaptation</h4>{cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><span>{normalized(fragment.kind)}</span><p>{fragment.text}</p><small>Facts: {fragment.candidate_fact_keys?.join(", ") || "—"}</small></div>)}</section>
             <section><h4>Application letter</h4>{letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><span>{normalized(fragment.kind)}</span><p>{fragment.text}</p>{fragment.job_evidence?.length ? <small>Vacancy evidence: “{fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}”</small> : null}</div>)}</section>
             <footer><span>Provider requests: {draft.provider_requests ?? 0}</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
-          </> : <div className="demo-empty-draft"><strong>Here ends the demo journey.</strong><p>Once all factual gates pass, one explicit click produces the reviewable CV and letter draft shown here. Nothing is sent.</p></div>}
+          </> : <div className="demo-empty-draft"><strong>Here ends the demo journey.</strong><p>Once all factual gates pass, one explicit click produces a reviewable CV and letter draft. Provider provenance is shown explicitly and nothing is sent.</p></div>}
         </article>
       </div>}
     </section>
