@@ -66,3 +66,38 @@ def test_finanz_javascript_ui_candidate_uses_connector_profile_evidence() -> Non
     assert {"javascript", "java script", "ui"}.intersection(get_skill_matches(raw_job))
     assert "hannover" in get_accessibility_matches(raw_job)
     assert is_relevant_for_silver(raw_job)
+
+
+def test_ml_engineer_short_title_is_relevant_for_silver() -> None:
+    raw_job = make_finanz_raw_job(
+        title="ML Engineer (m/w/d)",
+        profile_terms=["python", "pytorch", "remote"],
+    )
+    raw_job["raw_data"]["job"]["location"] = "Remote Germany"
+    raw_job["raw_data"]["result_card"]["location"] = "Remote Germany"
+
+    assert "ml engineer" in get_role_matches(raw_job)
+    assert "remote" in get_accessibility_matches(raw_job)
+    assert is_relevant_for_silver(raw_job)
+
+
+def test_mlops_engineer_is_relevant_for_silver() -> None:
+    raw_job = make_finanz_raw_job(
+        title="MLOps Engineer (m/w/d)",
+        profile_terms=["kubernetes", "model monitoring"],
+    )
+
+    assert "mlops engineer" in get_role_matches(raw_job)
+    assert {"kubernetes", "model monitoring"}.issubset(set(get_skill_matches(raw_job)))
+    assert is_relevant_for_silver(raw_job)
+
+
+def test_ai_reliability_engineer_is_relevant_for_silver() -> None:
+    raw_job = make_finanz_raw_job(
+        title="AI Reliability Engineer (m/w/d)",
+        profile_terms=["observability", "model drift", "python"],
+    )
+
+    assert "ai reliability engineer" in get_role_matches(raw_job)
+    assert {"observability", "model drift"}.issubset(set(get_skill_matches(raw_job)))
+    assert is_relevant_for_silver(raw_job)
