@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import ApplicationWorkspaceEventBridge from "./ApplicationWorkspaceEventBridge";
 import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
 import EvidencePreviewPanel from "./EvidencePreviewPanel";
-import OperatorWorkspace from "./OperatorWorkspace";
+import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
 import { installProductPayloadRuntimeAdapter } from "./productPayloadRuntimeAdapter";
 import "./styles.css";
@@ -20,7 +20,7 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <RuntimeErrorBoundary>
-      <OperatorWorkspace />
+      <App />
       <EvidencePreviewPanel />
       <DemoApplicationWorkspace />
       <ApplicationWorkspaceEventBridge />
