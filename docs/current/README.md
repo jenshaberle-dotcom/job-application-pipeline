@@ -36,20 +36,34 @@ Durable evidence:
 - `docs/knowledge/branch_salvage_704.md`;
 - PR `#705` / merge `41c855c3858b40a3d2d1d7b84dc8d6488f81d2a9`.
 
-The shared portfolio restart contract still requires all ten managed projects to reach `PASS` before active project development resumes. This repository's local restart gate no longer blocks, but portfolio sequencing remains authoritative until the all-PASS condition is satisfied.
+A project-local `POST-MIGRATION-RESTART = PASS` restores normal work admission for that project under canonical-main + declared temporary-worktree discipline. Other projects' unfinished restart state is not authority to stop this already-PASS project. Portfolio all-PASS remains a prerequisite only for separately coordinated portfolio-wide Warmrunner/DRJ/convergence steps.
 
-## Active acquisition continuation
+## Active product continuation — DEMO-001
 
-The current deterministic acquisition-hardening continuation is **ACQ-GENERALIZATION-90 / issue #676**.
+The current operator priority is **DEMO-001 / issue #707** for the 2026-09-03 live demo.
 
-Its canonical anchors are:
+Canonical demo anchor:
 
-- `../planning/active/acq_generalization_90_reentry.md` — current semantic continuation;
-- `../planning/active/acq_generalization_90_reentry.json` — machine-readable state;
-- `../planning/active/acq_generalization_90_target.md` — full-population metric and guardrails;
-- `../planning/active/acq676_external_deterministic_salvage.md` — V6 external/historical provider capability map.
+- `../planning/active/demo_001_live_e2e_reentry.md`.
 
-The next ACQ-676 engineering measurement is the **same 65-candidate V6 benchmark** after portfolio all-PASS restart authority. V6 is already merged; product coverage remains `36/65` until materialized unchanged strict E2E proof establishes a higher numerator.
+The demo is one truthful vertical product journey:
+
+`discovery / market evidence -> employer + origin -> connector/source health -> Bronze -> Silver -> Gold / Product V1 -> authoritative Top 5 -> selected job -> Application Workspace -> source-grounded draft_for_review`.
+
+The existing React Control Center remains the demo UI. No fake Product V1 rows, fabricated Top-5 fill, weakened origin authority, automatic application submission, or demo-only success branch is allowed.
+
+## Preserved deterministic continuation
+
+**ACQ-GENERALIZATION-90 / issue #676** remains retained and resumable, but the operator explicitly deprioritized further deterministic hardening for the demo window. This is a priority pause, not a stop, rejection, or supersession.
+
+Its retained anchors remain:
+
+- `../planning/active/acq_generalization_90_reentry.md`;
+- `../planning/active/acq_generalization_90_reentry.json`;
+- `../planning/active/acq_generalization_90_target.md`;
+- `../planning/active/acq676_external_deterministic_salvage.md`.
+
+When the operator returns to ACQ-676, the next measured deterministic action remains the same 65-candidate V6 benchmark. Product coverage remains `36/65` until materialized unchanged strict E2E proof establishes a higher numerator.
 
 The older `REENTRY-001B` / issue #672 material remains predecessor evidence, not current sequencing authority.
 
@@ -77,4 +91,5 @@ Read in this order:
 5. `governance.md`
 6. `operations.md`
 7. `POST-MIGRATION-RESTART.json`
-8. when issue #676 is active: `../planning/active/acq_generalization_90_reentry.md`
+8. while issue #707 is active priority: `../planning/active/demo_001_live_e2e_reentry.md`
+9. retained ACQ-676 context when needed: `../planning/active/acq_generalization_90_reentry.md`
