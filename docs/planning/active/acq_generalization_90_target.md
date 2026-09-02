@@ -1,14 +1,13 @@
 # ACQ-GENERALIZATION-90 — deterministic full-population coverage target
 
 Status: active  
-Date: 2026-08-30  
+Date: 2026-09-02  
 Owner issue: `#676`  
 Active re-entry: `docs/planning/active/acq_generalization_90_reentry.md`
 
 ## Primary metric
 
-Strict functioning deterministic product coverage across all current distinct
-Employer-Origin candidates remains the only primary product metric.
+Strict functioning deterministic product coverage across all current distinct Employer-Origin candidates remains the only primary product metric.
 
 Current denominator:
 
@@ -17,27 +16,23 @@ Current denominator:
 - strict functioning deterministic product coverage: `36/65 = 55.4%`;
 - minimum passing numerator at N=65: `59` (`59/65 = 90.8%`).
 
-The denominator must not be reduced by suppressing or reclassifying valid candidates.
-Diagnostic READY/`recipe_ready`, provider recognition or audit evidence never counts as
-product coverage by itself.
+The denominator must not be reduced by suppressing or reclassifying valid candidates. Diagnostic READY/`recipe_ready`, provider recognition or audit evidence never counts as product coverage by itself.
 
 ## Product success contract
 
-A candidate enters the numerator only after a materialized deterministic connector path
-passes unchanged strict genuine-job acquisition proof under existing employer/source
-authority and side-effect boundaries.
+A candidate enters the numerator only after a materialized deterministic connector path passes unchanged strict genuine-job acquisition proof under existing employer/source authority and side-effect boundaries.
 
 No deterministic hardening slice may:
 
 - add company-specific success branches when a generic class is possible;
-- guess tenant/site/job IDs, routes, query values or POST bodies;
+- guess tenant/site/job IDs, routes, query/form values or POST bodies;
 - weaken proof or employer/source authority;
 - convert diagnostic evidence directly into product coverage;
 - require LLM/Tavily/provider search for the deterministic target path.
 
-## Qualified deterministic progress
+## Qualified deterministic stack
 
-Retained generic capabilities:
+Retained generic capabilities through V5:
 
 - balanced Origin V2;
 - provider/inventory V3;
@@ -53,77 +48,83 @@ V5 live replay remains:
 - residuals: Origin `8`, Origin reachability `1`, Inventory `15`, Detail `16`, Proof `3`;
 - product coverage unchanged `36/65`.
 
-## Inventory residual conclusion
+## Closed residual measurements
 
-The strongest SuccessFactors inventory pair (`adesso`, `hannover_ruck`) was measured and
-did not prove one common route. Hannover Re exposes an explicit GET `/search/`; adesso
-does not. A universal SuccessFactors `/search/` rule is therefore rejected.
+### SuccessFactors `/search/`
 
-## Detail residual evidence
+The strongest SuccessFactors inventory pair (`adesso`, `hannover_ruck`) did not prove one common evidence-backed `/search/` route. A universal SuccessFactors `/search/` rule remains rejected.
 
-The 16 Detail residuals completed a bounded live audit with:
+### Detail reclassification
 
-- `45` GETs total;
-- `0` replay errors;
-- `0` provider requests;
-- `0` DB writes;
-- `0` query values persisted.
-
-Raw diagnostic classes were `8 unknown-query-ID / 5 unclassified-jobish / 3 form-driven`.
-A zero-network semantic identifier reclassification then removed broad `id` substring
-noise and produced the qualified split:
+The 16 Detail residuals were reduced to:
 
 - `10` unclassified-jobish;
 - `5` form-driven;
-- `1` semantic unknown query-ID: IPH `weobjectid x12`.
+- `1` semantic query-ID: IPH `weobjectid x12`.
 
-The single IPH case is real but is not prioritized above a reusable population class.
-The 10-case jobish cohort is numerically larger but not yet structurally bounded enough
-to justify global vocabulary widening.
+### Form carrier gate
+
+The five form-driven cases were audited offline. Result:
+
+- `2` GET jobish forms without semantic identifier;
+- `2` GET jobish search/filter forms;
+- `1` POST jobish search/filter form;
+- cross-company signatures `0`;
+- reusable semantic identifier carrier `0`.
+
+This is a negative evidence stop. No deterministic form adapter is authorized from this cohort.
+
+## V6 provider public-feed salvage
+
+PR `#705` merged the qualified ancestry-free V6 provider-capability tranche onto current-main ancestry after Pipeline CI `#933` and Re-entry `#1577` succeeded.
+
+V6 adds fixed provider-wide public-feed capability only after existing provider/host authority:
+
+- SuccessFactors: `/sitemap.xml`, then `/sitemal.xml` RSS fallback;
+- Softgarden: `/jobs.feed.json`;
+- Recruitee: `/api/offers`;
+- d.vinci: `/jobPublication/list.json?fields=small` with an already-observed portal prefix when present.
+
+The V6 overlay may touch only V5 Inventory/Detail residuals, uses GET-only public-feed requests capped at three per eligible residual, performs no DB/Product/source writes and keeps `genuine_job_detail_proof` unchanged.
+
+## Post-migration workspace gate
+
+This repository's `POST-MIGRATION-RESTART.json` is now `PASS` after the 2026-09-02 canonical WSL cleanup/reinspection:
+
+- clean canonical `main` equals fresh `origin/main`;
+- exactly one persistent checkout remains;
+- no non-main project worktree remains;
+- no local non-main branch remains;
+- harvested unique value is versioned on current-main ancestry;
+- no remote branch was deleted.
+
+The shared portfolio restart contract still requires **all ten managed projects PASS** before active project development resumes. Therefore the V6 benchmark is the next engineering measurement, but remains portfolio-gated until that condition is true.
 
 ## Current deterministic frontier
 
-The next measurement gate is the `5` form-driven Detail residuals.
-
-PR `#693` merged a zero-network form carrier audit at
-`e8aa41179e6618fa96b33e82ec57dd51edd1a0f5` after Pipeline CI `#906` and Re-entry
-`#1507` succeeded.
-
-The audit examines only already-recorded structure:
-
-- HTTP method;
-- action host/path/query-key shape;
-- field names;
-- provider hints.
-
-It performs:
-
-- network requests `0`;
-- form submissions `0`;
-- form/query value reads `0`;
-- DB/provider/LLM/Tavily requests/writes `0`;
-- connector materialization `0`.
-
-GET search/filter forms remain separate from semantic-ID detail carriers. POST forms are
-never executable authority from this measurement alone.
-
-Canonical next command:
+Once portfolio restart authority is satisfied, run V6 against the same 65-candidate DB population:
 
 ```bash
-.venv/bin/python -m scripts.run_deterministic_detail_form_carrier_audit \
-  --reclassification /tmp/deterministic_detail_identifier_reclassification_v1.json \
-  --output /tmp/deterministic_detail_form_carrier_audit_v1.json
+.venv/bin/python -m scripts.run_deterministic_connector_builder_layer_audit_v6 \
+  --output /tmp/deterministic_connector_builder_layer_audit_v6.json
 ```
+
+Measure:
+
+- `V5_READY -> V6_READY`;
+- public-feed attempted count;
+- public-feed promoted count and exact company keys;
+- updated first-failure distribution;
+- any regression (must be zero under the monotonic overlay contract).
 
 ## Decision order
 
-1. Run the zero-network form carrier audit and require exactly `5` input cases.
-2. Prefer a cross-employer carrier only if method/action/field semantics repeat under one
-   bounded fail-closed contract.
-3. If form structures split, do not force a form adapter; move to a focused bounded audit
-   of the 10 unclassified-jobish cases.
-4. Do not prioritize IPH `weobjectid` unless broader evidence makes it a reusable class.
-5. Continue deterministic hardening until no reasonable generic bounded class remains.
-6. Materialize only stable evidence-backed recipes and update `36/65` only after unchanged
-   strict E2E product proof.
-7. Only exhausted residuals may enter the later booster path.
+1. Run the same-population V6 benchmark only after portfolio all-PASS restart authority.
+2. Accept a V6 class only when provider/host authority, feed schema, concrete detail and unchanged proof all hold.
+3. Do not move `36/65` for diagnostic READY alone.
+4. Re-cluster residuals after measured V6 lift.
+5. If V6 produces no reusable provider-bound lift, audit the `10` jobish Detail cases with bounded anchor/path-shape evidence; do not globally widen vocabulary.
+6. Keep IPH `weobjectid` deferred unless broader evidence makes it reusable.
+7. Continue deterministic hardening until no reasonable generic bounded class remains.
+8. Materialize stable recipes and update product coverage only after unchanged strict E2E product proof.
+9. Only exhausted residuals enter later booster engineering; productive decision order remains deterministic -> ML -> booster.
