@@ -45,7 +45,7 @@ def test_payload_enrichment_preserves_membership_scores_and_top5_authority() -> 
     assert projected["product_rank"] == 1
     assert projected["overall_quality_score"] == 70.4
     assert projected["product_readiness_status"] == "rankable"
-    assert projected["display_company_name"] == "1KOMMA5° GmbH"
+    assert projected["display_company_name"] == "1KOMMA5°"
     assert projected["legal_entity_name"] == "Heartbeat AI GmbH"
     assert projected["employment_schedule"] == "full_time"
     assert projected["profile_geography_eligible"] is True
