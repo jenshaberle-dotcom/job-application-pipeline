@@ -12,8 +12,15 @@ We are looking for a Senior Engineer for a senior-level role.
 """
 
 
-def _row(silver_job_id: int) -> dict[str, object]:
+def _row(
+    silver_job_id: int,
+    *,
+    persisted_description: str | None = None,
+) -> dict[str, object]:
     url = f"https://example.jobs.personio.de/job/{silver_job_id}?language=de"
+    job = {"source_url": url, "title": "Senior Data Engineer"}
+    if persisted_description is not None:
+        job["description"] = persisted_description
     return {
         "silver_job_id": silver_job_id,
         "raw_job_id": silver_job_id + 1000,
@@ -31,7 +38,7 @@ def _row(silver_job_id: int) -> dict[str, object]:
             "source_url": url,
             "raw_evidence": {
                 "source_type": "employer_origin_ats_backed_career_site",
-                "job": {"source_url": url, "title": "Senior Data Engineer"},
+                "job": job,
                 "ats_feed_authority": {"product_authority": False},
             },
         },
@@ -67,16 +74,55 @@ def test_http_429_blocks_only_one_candidate_and_plan_completes(monkeypatch) -> N
             "reason": "preview detail returned HTTP 429",
         }
     ]
+    assert plan["boundaries"]["network_exact_detail_targets"] == 2
+    assert plan["boundaries"]["current_observation_detail_reuse"] == 0
+    assert plan["boundaries"]["network_retry_requests"] == 0
     assert calls == [
         "https://example.jobs.personio.de/job/1?language=de",
         "https://example.jobs.personio.de/job/2?language=de",
     ]
 
 
+def test_current_exact_observation_description_avoids_network(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fetch(url: str) -> tuple[str, str, str]:
+        calls.append(url)
+        raise AssertionError("network fallback must not run")
+
+    monkeypatch.setattr(resilient, "_CANONICAL_FETCH", fetch)
+
+    plan = resilient.build_plan_isolated(
+        rows=[_row(3, persisted_description=DETAIL)],
+        authorized_sources={SOURCE},
+        policy_version="product-v1-2026-08-02",
+    )
+
+    assert plan["proposal_count"] == 1
+    assert plan["blocked_count"] == 0
+    assert plan["boundaries"]["network_exact_detail_targets"] == 0
+    assert plan["boundaries"]["current_observation_detail_reuse"] == 1
+    assert plan["boundaries"]["network_retry_requests"] == 0
+    assert calls == []
+    assessment = plan["proposals"][0]["assessment"]
+    assert assessment["employment_type"] == "permanent"
+    assert assessment["required_languages"] == ["de", "en"]
+    assert assessment["work_model"] == "hybrid"
+
+
+def test_mismatched_persisted_observation_description_is_not_reused(monkeypatch) -> None:
+    row = _row(4, persisted_description=DETAIL)
+    row["latest_observation_source_url"] = (
+        "https://example.jobs.personio.de/job/other?language=de"
+    )
+
+    assert resilient._bound_observation_detail(row) is None
+
+
 def test_isolation_does_not_retry_or_change_canonical_fetch_result(monkeypatch) -> None:
     calls: list[str] = []
     expected = (
-        "https://example.jobs.personio.de/job/3?language=de",
+        "https://example.jobs.personio.de/job/5?language=de",
         "Senior Data Engineer",
         DETAIL,
     )
