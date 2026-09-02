@@ -48,7 +48,7 @@ def extract_private_application_source_text(path: Path) -> str:
         text = resolved.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
         raise PrivateApplicationSourceTextError(
-            f"application source is neither UTF-8 text nor supported PDF: {resolved}"
+            f"application source is not UTF-8 text or supported PDF: {resolved}"
         ) from exc
     if not text.strip():
         raise PrivateApplicationSourceTextError(
