@@ -25,7 +25,7 @@ from scripts.run_product_v1_demo_control_center import run_server
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "control-center"
 DEFAULT_DIST = FRONTEND / "dist"
-DEFAULT_PREFLIGHT = Path("/tmp/product_v1_demo_preflight.json")
+DEFAULT_PREFLIGHT = ROOT / ".runtime" / "demo" / "product_v1_demo_preflight.json"
 _FRONTEND_LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json")
 
 
@@ -45,7 +45,13 @@ def _frontend_install_command(npm: str) -> tuple[list[str], str]:
 
     if any((FRONTEND / name).is_file() for name in _FRONTEND_LOCKFILES):
         return [npm, "ci"], "LOCKFILE_CI"
-    return [npm, "install", "--package-lock=false", "--no-audit", "--no-fund"], "LOCKFILE_ABSENT_INSTALL"
+    return [
+        npm,
+        "install",
+        "--package-lock=false",
+        "--no-audit",
+        "--no-fund",
+    ], "LOCKFILE_ABSENT_INSTALL"
 
 
 def prepare_frontend(*, reuse_frontend: bool) -> Path:
