@@ -83,7 +83,7 @@ def test_workspace_single_fetch_carries_final_review_package(monkeypatch) -> Non
     assert carried["package"]["status"] == "draft_for_review"
 
 
-def test_draft_handoff_is_artifact_only_and_exact_bound() -> None:
+def _handoff_report() -> dict[str, object]:
     context = _context()
     package = workspace_probe.build_evidence_first_review_draft(context)
     workspace_payload = {
@@ -118,15 +118,42 @@ def test_draft_handoff_is_artifact_only_and_exact_bound() -> None:
         "submission_writes": 0,
         "send_actions": 0,
     }
+    return report
 
-    draft = evaluate_handoff(silver_job_id=42, report=report)
+
+def test_draft_handoff_is_artifact_only_and_exact_bound() -> None:
+    report = _handoff_report()
+    report["preflight_artifact_sha256"] = "c" * 64
+
+    draft = evaluate_handoff(
+        silver_job_id=42,
+        report=report,
+        expected_preflight_sha256="c" * 64,
+        workspace_artifact_sha256="d" * 64,
+    )
 
     assert draft["state"] == "pass"
+    assert draft["preflight_artifact_sha256"] == "c" * 64
+    assert draft["workspace_artifact_sha256"] == "d" * 64
     assert draft["boundaries"]["workspace_job_detail_http_gets"] == 1
     assert draft["boundaries"]["draft_probe_http_gets"] == 0
     assert draft["boundaries"]["database_reads"] == 0
     assert draft["boundaries"]["provider_requests"] == 0
     assert all(draft["checks"].values())
+
+
+def test_draft_handoff_rejects_preflight_artifact_mismatch() -> None:
+    report = _handoff_report()
+    report["preflight_artifact_sha256"] = "c" * 64
+
+    draft = evaluate_handoff(
+        silver_job_id=42,
+        report=report,
+        expected_preflight_sha256="e" * 64,
+    )
+
+    assert draft["state"] == "blocked"
+    assert "preflight_artifact_exact_bound" in draft["blocking_checks"]
 
 
 def test_draft_handoff_rejects_detail_fingerprint_mismatch() -> None:
