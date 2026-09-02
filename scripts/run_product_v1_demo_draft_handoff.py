@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from hashlib import sha256
 import json
 from pathlib import Path
 from typing import Mapping
@@ -22,6 +23,13 @@ class DraftHandoffStop(RuntimeError):
     pass
 
 
+def _artifact_sha256(path: Path) -> str:
+    try:
+        return sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise DraftHandoffStop(f"readiness artifact is unreadable: {path}") from exc
+
+
 def _read(path: Path) -> Mapping[str, object]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -32,7 +40,13 @@ def _read(path: Path) -> Mapping[str, object]:
     return value
 
 
-def evaluate_handoff(*, silver_job_id: int, report: Mapping[str, object]) -> dict[str, object]:
+def evaluate_handoff(
+    *,
+    silver_job_id: int,
+    report: Mapping[str, object],
+    expected_preflight_sha256: str | None = None,
+    workspace_artifact_sha256: str | None = None,
+) -> dict[str, object]:
     if report.get("state") != "pass":
         raise DraftHandoffStop("workspace probe is not PASS")
     try:
@@ -103,6 +117,15 @@ def evaluate_handoff(*, silver_job_id: int, report: Mapping[str, object]) -> dic
 
     live_sha = str(live.get("detail_sha256") or "")
     used_keys = {str(key) for key in used if str(key).strip()}
+    lineage_sha = str(report.get("preflight_artifact_sha256") or "")
+    lineage_required = expected_preflight_sha256 is not None
+    lineage_bound = (
+        not lineage_required
+        or (
+            len(expected_preflight_sha256 or "") == 64
+            and lineage_sha == expected_preflight_sha256
+        )
+    )
     checks = {
         "selected_job_exact_bound": workspace_job_id == silver_job_id,
         "review_package_present": package.get("status") == "draft_for_review",
@@ -111,6 +134,7 @@ def evaluate_handoff(*, silver_job_id: int, report: Mapping[str, object]) -> dic
         "live_detail_fingerprint_bound": (
             len(live_sha) == 64 and str(carried.get("detail_sha256") or "") == live_sha
         ),
+        "preflight_artifact_exact_bound": lineage_bound,
         "zero_authority": all(
             package.get(field) is False
             for field in (
@@ -134,12 +158,14 @@ def evaluate_handoff(*, silver_job_id: int, report: Mapping[str, object]) -> dic
     }
     blockers = [name for name, passed in checks.items() if not passed]
     return {
-        "schema": "job_application_pipeline.product_v1_demo_draft_probe.v2",
+        "schema": "job_application_pipeline.product_v1_demo_draft_probe.v3",
         "state": "pass" if not blockers else "blocked",
         "silver_job_id": silver_job_id,
         "draft_mode": "deterministic_evidence_first",
         "checks": checks,
         "blocking_checks": blockers,
+        "preflight_artifact_sha256": lineage_sha or None,
+        "workspace_artifact_sha256": workspace_artifact_sha256,
         "package": dict(package),
         "live_job_evidence": dict(live),
         "boundaries": {
@@ -157,7 +183,7 @@ def evaluate_handoff(*, silver_job_id: int, report: Mapping[str, object]) -> dic
 
 def blocked(*, silver_job_id: int | None, exc: BaseException) -> dict[str, object]:
     return {
-        "schema": "job_application_pipeline.product_v1_demo_draft_probe.v2",
+        "schema": "job_application_pipeline.product_v1_demo_draft_probe.v3",
         "state": "blocked",
         "silver_job_id": silver_job_id,
         "checks": {},
@@ -174,11 +200,15 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
     silver_job_id: int | None = None
+    preflight_path = args.preflight.resolve()
+    workspace_path = args.workspace_probe.resolve()
     try:
-        silver_job_id = selected_job_id_from_preflight(args.preflight.resolve())
+        silver_job_id = selected_job_id_from_preflight(preflight_path)
         result = evaluate_handoff(
             silver_job_id=silver_job_id,
-            report=_read(args.workspace_probe.resolve()),
+            report=_read(workspace_path),
+            expected_preflight_sha256=_artifact_sha256(preflight_path),
+            workspace_artifact_sha256=_artifact_sha256(workspace_path),
         )
     except (WorkspaceProbeStop, DraftHandoffStop, OSError, ValueError) as exc:
         result = blocked(silver_job_id=silver_job_id, exc=exc)
