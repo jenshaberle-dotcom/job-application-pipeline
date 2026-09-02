@@ -13,6 +13,8 @@ Neither route persists a draft, approves an application, submits, or sends anyth
 from __future__ import annotations
 
 import argparse
+from datetime import date, datetime
+from decimal import Decimal
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 import json
@@ -38,6 +40,20 @@ class DemoActionStop(ValueError):
     pass
 
 
+def _json_transport_value(value: object) -> object:
+    """Normalize PostgreSQL transport values without changing product semantics."""
+
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, Mapping):
+        return {str(key): _json_transport_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_transport_value(item) for item in value]
+    return value
+
+
 def parse_application_draft_action_payload(payload: object) -> int:
     if not isinstance(payload, Mapping):
         raise DemoActionStop("action payload must be a JSON object")
@@ -56,6 +72,13 @@ def parse_application_draft_action_payload(payload: object) -> int:
 
 class ProductV1DemoHandler(ProductV1Handler):
     server_version = "DeepOceanProductV1/0.7-demo"
+
+    def _send_json(
+        self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
+    ) -> None:
+        """Keep the live demo HTTP boundary strict but PostgreSQL-type safe."""
+
+        super()._send_json(_json_transport_value(payload), status=status)
 
     def _workspace_job_id(self) -> int:
         parsed = urlparse(self.path)
