@@ -5,10 +5,15 @@ Parent: #707
 
 ## Runtime evidence
 
-The qualified Eraneos / 1KOMMA5° live cohort currently has 15 Silver jobs,
-11 current `active_confirmed` jobs, seven role-relevant current jobs and zero
-cohort Top-5 jobs. All 11 current jobs are at `assessment_required`; the next
-shared product gate is Product V1 assessment materialization.
+The qualified Eraneos / 1KOMMA5° live cohort has now demonstrated that title-only
+role preselection is useful for inspection priority but is too strict for Product
+V1 admission. Current Employer-Origin jobs may carry relevant ML, Data Engineering
+or Reliability evidence in the vacancy detail even when the title is generic
+(`Platform Engineer`, `Software Engineer`, `Solution Engineer`, and similar).
+
+For this product the loss function is intentionally recall-first: a false negative
+before deterministic detail assessment is more costly than a false positive that
+later capability, hard-filter and ranking stages can reject safely.
 
 ## Reused contracts
 
@@ -40,6 +45,29 @@ An initial assessment may be proposed only when all of the following are true:
 
 The Personio feed contract explicitly remains `product_authority=false`. It is
 one input to the above composition, never sufficient authority by itself.
+
+## Recall-first role boundary
+
+Role relevance is not an authority gate. For current Employer-Origin vacancies
+that already satisfy the authority composition above, default Product V1
+materialization must remain recall-first and assess every `assessment_required`
+row in scope.
+
+`--role-relevant-only` is a precision-oriented inspection/diagnostic option. It
+uses the title classifier to reduce a review set and may therefore create false
+negatives. It must not be used as the canonical Demo/Product admission boundary.
+
+The safe ordering is:
+
+`current Employer-Origin -> deterministic detail assessment -> capability fit -> hard filter -> ranking`
+
+not:
+
+`current Employer-Origin -> title-only role filter -> detail assessment`.
+
+Title classification remains useful as a priority/sorting signal and may be
+broadened independently, but an absent title signal alone must not discard a
+current authoritative vacancy before detail assessment.
 
 ## Materialized fields
 
@@ -76,7 +104,10 @@ performed.
 
 ## Demo acceptance
 
-After merge, run a plan against the two already-qualified live sources with
-`--role-relevant-only`. Only if the plan is unblocked may the explicit Apply be
-considered. Fresh cohort status after Apply determines the next real gate; this
-document does not predict or force hard-filter/ranking success.
+Run the plan against the already-qualified live Employer-Origin sources without
+`--role-relevant-only`. The plan may include false positives; that is expected
+and safer than suppressing plausible ML/Data/Reliability transitions before
+current vacancy detail is assessed. Only unblocked proposals may proceed to the
+explicit Apply step. Fresh cohort status after Apply determines the next real
+gate; this document does not predict or force capability, hard-filter or ranking
+success.
