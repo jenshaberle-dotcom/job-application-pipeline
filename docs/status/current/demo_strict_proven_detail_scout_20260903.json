@@ -1,0 +1,159 @@
+{
+  "schema": "job_application_pipeline.demo_strict_proven_detail_scout.v1",
+  "observed_at": "2026-09-03",
+  "status": "shadow_demo_source_evidence",
+  "purpose": "Preserve current concrete job-detail evidence for the historically strict-proven deterministic connector pool. Detail proof is evaluated before profile relevance. This file grants no Product V1 ranking, source activation, application, or submission authority.",
+  "strict_pool_provenance": {
+    "historical_materialized_connector_cohort": 40,
+    "strict_proven_count": 36,
+    "runtime_v4_run": 32670547466,
+    "cluster0_run": 32368080925,
+    "excluded_non_strict_company_keys": [
+      "x1f",
+      "bridgingit",
+      "prodyna",
+      "the_associated_engineers"
+    ]
+  },
+  "strict_proven_company_keys": [
+    "finanz_informatik",
+    "hdi",
+    "dirk_rossmann",
+    "enercity",
+    "ratiodata",
+    "adesso",
+    "deutsche_bahn",
+    "clarios_germany",
+    "computacenter",
+    "deloitte",
+    "vhv_gruppe",
+    "wertgarantie",
+    "genoverband_e_v",
+    "materna_information_communications",
+    "msg_systems",
+    "hannover_ruck",
+    "e_on_grid_solutions",
+    "amadeus_fire",
+    "aok_niedersachsen_die_gesundheitskasse",
+    "compugroup_medical",
+    "landesbetrieb_it_niedersachsen",
+    "commercetools",
+    "freenet_dls",
+    "gft_technologies",
+    "madsack",
+    "sopra_steria",
+    "tuv_sud",
+    "zscaler_germany",
+    "accompio",
+    "land_niedersachsen",
+    "materna",
+    "trustyou",
+    "wavestone",
+    "it_niedersachsen",
+    "comrce",
+    "bjak"
+  ],
+  "current_concrete_detail_evidence": [
+    {
+      "company_key": "finanz_informatik",
+      "title": "Data Platform Engineer (m/w/d)",
+      "detail_url": "https://www.f-i.de/karriere/offene-stellen/hannover/data-platform-engineer-m-w-d",
+      "location": "Hannover, Münster oder Frankfurt",
+      "work_model": "anteilige mobile Arbeit möglich",
+      "detail_proven": true,
+      "profile_relevance": "strong_data_engineering_and_data_reliability",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official employer detail describes the central analytics platform, highly available data services, Data Lake/database operations, performance and operational reliability, Python/Ansible and Kubernetes/OpenShift."
+    },
+    {
+      "company_key": "hdi",
+      "title": "Senior AI Data Scientist / Data Engineer",
+      "detail_url": "https://job.hdi.group/job/Hannover-Senior-Data-Scientist-Data-Engineer/487-en_US/?feedId=436633",
+      "location": "Hannover",
+      "work_model": "up to 60% mobile",
+      "detail_proven": true,
+      "profile_relevance": "strong_ml_ai_data_engineering_and_reliability",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official HDI detail covers scalable data/analytics infrastructure for GenAI, data integration, production AI pipelines, data quality, monitoring, Python/SQL, modern data architectures and cloud AI platforms."
+    },
+    {
+      "company_key": "enercity",
+      "title": "Data Scientist (m/w/d)",
+      "detail_url": "https://www.enercity.de/karriere/jobsuche/data-scientist-m-w-d-J2026401",
+      "location": "Hannover",
+      "work_model": "hybrid / remote flexibility",
+      "detail_proven": true,
+      "profile_relevance": "strong_machine_learning_with_data_engineering_overlap",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official employer detail covers Python machine learning, Azure ML/MLflow production deployment, Snowflake/dbt data transformation and APIs/databases."
+    },
+    {
+      "company_key": "dirk_rossmann",
+      "title": "Data & Analytics Specialist (m/w/d) mit Fokus Qlik Sense",
+      "detail_url": "https://jobs.rossmann.de/stellenanzeige/data-analytics-specialist-m-w-d-mit-fokus-qlik-sense-am-standort-burgwedel-28-162829.html",
+      "location": "Burgwedel bei Hannover",
+      "work_model": "not classified here",
+      "detail_proven": true,
+      "profile_relevance": "adjacent_data_engineering",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official employer detail is a substantive current vacancy. Role is data/analytics oriented and geographically useful for the demo, but weaker than the core ML/Data Engineering target."
+    },
+    {
+      "company_key": "dirk_rossmann",
+      "title": "Data Scientist (m/w/d) mit Schwerpunkt HR",
+      "detail_url": "https://jobs.rossmann.de/stellenanzeige/data-scientist-m-w-d-mit-schwerpunkt-hr-am-standort-burgwedel-10-166052.html",
+      "location": "Burgwedel bei Hannover",
+      "work_model": "not classified here",
+      "detail_proven": true,
+      "profile_relevance": "machine_learning_data_science_adjacent",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official employer detail is a substantive current vacancy with Python/R, SQL, predictive modelling and data-quality content."
+    },
+    {
+      "company_key": "freenet_dls",
+      "title": "Data Engineer / Machine Learning Engineer (w/m/d)",
+      "detail_url": "https://karriere.freenet-group.de/?action=view&id=b83c4jqxoju15tglx98ej9vdo45z56d&mandator_template_id=1&page=home",
+      "location": "Hamburg",
+      "work_model": "not proven for target scope here",
+      "detail_proven": true,
+      "profile_relevance": "strong_ml_data_engineering_and_platform_reliability",
+      "hannover_or_remote_germany_scope": false,
+      "evidence_note": "Official delegated employer job portal exposes a concrete current detail covering ML/data platforms, AWS, Data Engineers/Data Scientists and production scalability/reliability. Strong profile fit but current location evidence does not satisfy Hannover/remote-Germany scope."
+    },
+    {
+      "company_key": "sopra_steria",
+      "title": "Senior Data Engineer (m/w/d)",
+      "detail_url": "https://careers.soprasteria.com/job/senior-data-engineer-m-w-d-in-bundesweit-germany-jid-6962",
+      "location": "bundesweit, Germany",
+      "work_model": "remote scope not established by this evidence",
+      "detail_proven": true,
+      "profile_relevance": "strong_data_engineering",
+      "hannover_or_remote_germany_scope": false,
+      "evidence_note": "Official employer detail is a substantive current Senior Data Engineer vacancy. Keep geography separate: nationwide wording alone is not treated as proof of Hannover or remote-Germany eligibility."
+    }
+  ],
+  "profile_relevant_listing_evidence_without_current_detail_proof": [
+    {
+      "company_key": "enercity",
+      "title": "Data Engineer (m/w/d)",
+      "location": "Hannover",
+      "state": "official_listing_and_detail_route_observed_but_detail_fetch_timed_out_in_this_scout",
+      "note": "Do not downgrade the source; retry through the canonical connector/detail acquisition path."
+    }
+  ],
+  "scout_scope": {
+    "all_36_strict_proven_sources_attempted_for_current_public_evidence": true,
+    "absence_of_search_result_is_not_negative_job_authority": true,
+    "current_detail_rows_are_positive_evidence_only": true,
+    "next_runtime_action": "Use the strict-proven admission set with the current generic Employer-Origin acquisition stack, cache/fetch the proven detail page, extract substantive PageSnapshot text, and only then apply demo profile/location classification."
+  },
+  "boundaries": {
+    "source_activation": false,
+    "database_write": false,
+    "bronze_silver_gold_write": false,
+    "ranking_or_top5_authority": false,
+    "application_authority": false,
+    "submission_action": false,
+    "profile_relevance_required_for_detail_proof": false
+  }
+}
