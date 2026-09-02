@@ -14,10 +14,12 @@ def test_payload_enrichment_preserves_membership_scores_and_top5_authority() -> 
         "commute_minutes": None,
         "overall_quality_score": 70.4,
         "product_readiness_status": "rankable",
+        "lifecycle_status": "active_confirmed",
     }
     payload = {
         "job_readiness": [dict(job)],
         "top_jobs": [{**job, "product_rank": 1}],
+        "summary": {},
         "boundaries": {"ranking_policy_authoritative": True},
     }
     evidence = {
@@ -37,6 +39,7 @@ def test_payload_enrichment_preserves_membership_scores_and_top5_authority() -> 
     )
 
     assert len(result["job_readiness"]) == 1
+    assert result["out_of_profile_jobs"] == []
     assert len(result["top_jobs"]) == 1
     projected = result["top_jobs"][0]
     assert projected["product_rank"] == 1
@@ -46,11 +49,13 @@ def test_payload_enrichment_preserves_membership_scores_and_top5_authority() -> 
     assert projected["legal_entity_name"] == "Heartbeat AI GmbH"
     assert projected["employment_schedule"] == "full_time"
     assert projected["profile_geography_eligible"] is True
+    assert result["summary"]["review_scope_current_active_job_count"] == 1
     assert result["boundaries"]["job_presentation_enrichment_is_not_ranking_authority"] is True
     assert result["boundaries"]["review_geography_does_not_rewrite_product_truth"] is True
+    assert result["boundaries"]["top5_membership_not_filtered_by_presentation"] is True
 
 
-def test_berlin_only_job_is_marked_outside_review_scope_without_deleting_truth() -> None:
+def test_berlin_only_job_moves_out_of_normal_review_scope_but_remains_auditable() -> None:
     job = {
         "silver_job_id": 174,
         "source_name": "personio:1komma5grad",
@@ -60,14 +65,17 @@ def test_berlin_only_job_is_marked_outside_review_scope_without_deleting_truth()
         "work_model": "unknown",
         "commute_minutes": None,
         "product_readiness_status": "hard_filter_evidence_required",
+        "lifecycle_status": "active_confirmed",
     }
     result = enrich_product_payload_for_operator(
-        {"job_readiness": [job], "top_jobs": [], "boundaries": {}},
+        {"job_readiness": [job], "top_jobs": [], "summary": {}, "boundaries": {}},
         observation_evidence={},
     )
 
-    assert len(result["job_readiness"]) == 1
-    projected = result["job_readiness"][0]
+    assert result["job_readiness"] == []
+    assert len(result["out_of_profile_jobs"]) == 1
+    projected = result["out_of_profile_jobs"][0]
     assert projected["profile_geography_eligible"] is False
     assert projected["profile_geography_bucket"] == "explicit_outside_target"
     assert projected["product_readiness_status"] == "hard_filter_evidence_required"
+    assert result["summary"]["out_of_profile_job_count"] == 1
