@@ -66,10 +66,10 @@ def test_default_output_stays_inside_gitignored_demo_runtime() -> None:
 
 
 def test_audit_sql_is_read_only_select_surface() -> None:
-    normalized = f" {AUDIT_SQL.upper()} "
-    assert " SELECT " in normalized
-    for keyword in (" INSERT ", " UPDATE ", " DELETE ", " MERGE ", " TRUNCATE "):
-        assert keyword not in normalized
+    tokens = AUDIT_SQL.upper().split()
+    assert "SELECT" in tokens
+    for keyword in ("INSERT", "UPDATE", "DELETE", "MERGE", "TRUNCATE"):
+        assert keyword not in tokens
 
 
 def test_selection_keeps_only_current_role_relevant_employer_origin_jobs() -> None:
