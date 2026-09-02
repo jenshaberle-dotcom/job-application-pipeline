@@ -10,8 +10,10 @@ Default sequence:
 
 The launcher never changes pipeline product truth, activates a source, persists an
 application/draft, submits, or sends anything. The final readiness proof invokes no
-provider and performs no second vacancy fetch. Use ``--reuse-frontend`` after a
-previously qualified build when network-independent frontend startup is preferred.
+provider and performs no second vacancy fetch. Readiness diagnostics are published
+atomically so interrupted child writes cannot replace a complete artifact with a
+partial JSON file. Use ``--reuse-frontend`` after a previously qualified build when
+network-independent frontend startup is preferred.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from scripts.run_product_v1_demo_control_center import run_server
 
@@ -98,31 +101,62 @@ def _run_module(module: str, *, arguments: list[str]) -> int:
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
+def _run_module_with_atomic_output(
+    module: str,
+    *,
+    arguments: list[str],
+    output: Path,
+) -> int:
+    """Run a diagnostic child against a same-directory staging file, then publish it."""
+    target = _demo_artifact_path(output)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, raw_staged = tempfile.mkstemp(
+        dir=target.parent,
+        prefix=f".{target.name}.",
+        suffix=".pending.json",
+    )
+    os.close(fd)
+    staged = Path(raw_staged)
+    try:
+        code = _run_module(module, arguments=[*arguments, "--output", str(staged)])
+        if not staged.is_file() or staged.stat().st_size == 0:
+            raise RuntimeError(f"diagnostic child produced no artifact: {module}")
+        os.replace(staged, target)
+        print(f"DEMO_ARTIFACT_PUBLISHED={target}")
+        return code
+    finally:
+        try:
+            staged.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def run_preflight(*, frontend_dist: Path, output: Path) -> int:
-    return _run_module(
+    return _run_module_with_atomic_output(
         "scripts.run_product_v1_demo_preflight",
-        arguments=["--frontend-dist", str(frontend_dist), "--output", str(output)],
+        arguments=["--frontend-dist", str(frontend_dist)],
+        output=output,
     )
 
 
 def run_workspace_probe(*, preflight: Path, output: Path) -> int:
-    return _run_module(
+    return _run_module_with_atomic_output(
         "scripts.run_product_v1_demo_workspace_probe",
-        arguments=["--preflight", str(preflight), "--output", str(output)],
+        arguments=["--preflight", str(preflight)],
+        output=output,
     )
 
 
 def run_draft_probe(*, preflight: Path, workspace_probe: Path, output: Path) -> int:
-    return _run_module(
+    return _run_module_with_atomic_output(
         "scripts.run_product_v1_demo_draft_handoff",
         arguments=[
             "--preflight",
             str(preflight),
             "--workspace-probe",
             str(workspace_probe),
-            "--output",
-            str(output),
         ],
+        output=output,
     )
 
 
@@ -167,23 +201,41 @@ def main() -> int:
         print(f"DEMO_START_BLOCKED=frontend:{exc}", file=sys.stderr)
         return 2
 
-    if run_preflight(frontend_dist=frontend_dist, output=preflight_output) != 0:
+    try:
+        preflight_code = run_preflight(frontend_dist=frontend_dist, output=preflight_output)
+    except RuntimeError as exc:
+        print(f"DEMO_START_BLOCKED=preflight_artifact:{exc}", file=sys.stderr)
+        return 2
+    if preflight_code != 0:
         print("DEMO_START_BLOCKED=live_preflight", file=sys.stderr)
         print(f"PREFLIGHT_ARTIFACT={preflight_output}", file=sys.stderr)
         return 2
 
     print("DEMO_PREFLIGHT=PASS")
-    if run_workspace_probe(preflight=preflight_output, output=workspace_probe_output) != 0:
+    try:
+        workspace_code = run_workspace_probe(
+            preflight=preflight_output,
+            output=workspace_probe_output,
+        )
+    except RuntimeError as exc:
+        print(f"DEMO_START_BLOCKED=workspace_artifact:{exc}", file=sys.stderr)
+        return 2
+    if workspace_code != 0:
         print("DEMO_START_BLOCKED=application_workspace_probe", file=sys.stderr)
         print(f"WORKSPACE_PROBE_ARTIFACT={workspace_probe_output}", file=sys.stderr)
         return 2
 
     print("DEMO_WORKSPACE_PROBE=PASS")
-    if run_draft_probe(
-        preflight=preflight_output,
-        workspace_probe=workspace_probe_output,
-        output=draft_probe_output,
-    ) != 0:
+    try:
+        draft_code = run_draft_probe(
+            preflight=preflight_output,
+            workspace_probe=workspace_probe_output,
+            output=draft_probe_output,
+        )
+    except RuntimeError as exc:
+        print(f"DEMO_START_BLOCKED=draft_artifact:{exc}", file=sys.stderr)
+        return 2
+    if draft_code != 0:
         print("DEMO_START_BLOCKED=review_draft_probe", file=sys.stderr)
         print(f"DRAFT_PROBE_ARTIFACT={draft_probe_output}", file=sys.stderr)
         return 2
