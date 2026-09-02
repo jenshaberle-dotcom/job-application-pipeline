@@ -25,6 +25,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts.apply_db_migrations import (
+    TrackedMigration,
     checksum_mismatches,
     discover_migration_files,
     load_tracked_migrations,
@@ -50,6 +51,7 @@ DEMO_REQUIRED_RELATIONS = (
     "product_v1_ranking_score_reviews",
 )
 RANKING_REVISION_COLUMN = "ranking_updated_at"
+QUALIFIED_TRACKING_STATUSES = frozenset({"success", "bootstrapped"})
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,28 @@ def _column_exists(
     return bool(row and row[0])
 
 
+def _required_tracking_state(
+    tracked: Mapping[str, TrackedMigration],
+    mismatch_keys: Sequence[str],
+) -> tuple[dict[str, bool], dict[str, str], dict[str, str | None]]:
+    mismatches = set(mismatch_keys)
+    qualified: dict[str, bool] = {}
+    failed: dict[str, str] = {}
+    statuses: dict[str, str | None] = {}
+    for key in DEMO_REQUIRED_MIGRATIONS:
+        existing = tracked.get(key)
+        status = existing.execution_status if existing is not None else None
+        statuses[key] = status
+        qualified[key] = bool(
+            existing is not None
+            and status in QUALIFIED_TRACKING_STATUSES
+            and key not in mismatches
+        )
+        if existing is not None and status not in QUALIFIED_TRACKING_STATUSES:
+            failed[key] = status
+    return qualified, failed, statuses
+
+
 def _database_schema_readiness() -> dict[str, object]:
     migrations = discover_migration_files(ROOT / "db" / "migrations")
     migration_keys = {migration.migration_key for migration in migrations}
@@ -122,15 +146,15 @@ def _database_schema_readiness() -> dict[str, object]:
 
     pending_keys = [migration.migration_key for migration in pending]
     mismatch_keys = [migration.migration_key for migration, _tracked in mismatches]
-    required_tracking = {
-        key: key in tracked and key not in mismatch_keys
-        for key in DEMO_REQUIRED_MIGRATIONS
-    }
+    required_tracking, failed_required_tracking, tracking_statuses = (
+        _required_tracking_state(tracked, mismatch_keys)
+    )
     shapes_ready = all(relation_presence.values()) and ranking_revision_present
     ready = (
         tracking_exists
         and not missing_repo_files
         and not mismatch_keys
+        and not failed_required_tracking
         and all(required_tracking.values())
         and shapes_ready
     )
@@ -143,6 +167,7 @@ def _database_schema_readiness() -> dict[str, object]:
         and required_pending
         and not unrelated_pending
         and not mismatch_keys
+        and not failed_required_tracking
         and not missing_repo_files
     ):
         if len(pending_keys) == 1:
@@ -161,6 +186,8 @@ def _database_schema_readiness() -> dict[str, object]:
         "tracking_table_exists": tracking_exists,
         "required_migrations": list(DEMO_REQUIRED_MIGRATIONS),
         "required_migration_tracking": required_tracking,
+        "required_migration_tracking_statuses": tracking_statuses,
+        "failed_required_tracking": failed_required_tracking,
         "missing_repo_migration_files": missing_repo_files,
         "pending_migrations": pending_keys,
         "checksum_mismatches": mismatch_keys,
@@ -319,10 +346,12 @@ def _gate(
 def _schema_detail(readiness: Mapping[str, object]) -> str:
     pending = readiness.get("pending_migrations")
     mismatches = readiness.get("checksum_mismatches")
+    failed_tracking = readiness.get("failed_required_tracking")
     relations = readiness.get("required_relations")
     return (
         f"pending={pending if isinstance(pending, list) else []} "
         f"checksum_mismatches={mismatches if isinstance(mismatches, list) else []} "
+        f"failed_tracking={failed_tracking if isinstance(failed_tracking, Mapping) else {}} "
         f"relations={relations if isinstance(relations, Mapping) else {}} "
         f"ranking_revision_column={bool(readiness.get('ranking_revision_column_present'))}"
     )
