@@ -110,8 +110,35 @@ def test_current_exact_observation_description_avoids_network(monkeypatch) -> No
     assert assessment["work_model"] == "hybrid"
 
 
-def test_mismatched_persisted_observation_description_is_not_reused(monkeypatch) -> None:
-    row = _row(4, persisted_description=DETAIL)
+def test_structured_current_observation_extends_normalized_description() -> None:
+    row = _row(4, persisted_description="Permanent employment.")
+    raw_evidence = row["latest_observation_evidence"]["raw_evidence"]
+    raw_evidence["source_specific"] = {
+        "raw_position": {
+            "jobDescriptions": {
+                "jobDescription": [
+                    {"name": "Aufgaben", "value": "Build data pipelines."},
+                    {
+                        "name": "Profil",
+                        "value": "Fluent German and English. Hybrid work model.",
+                    },
+                ]
+            }
+        }
+    }
+
+    detail = resilient._bound_observation_detail(row)
+
+    assert detail is not None
+    title, text = detail
+    assert title == "Senior Data Engineer"
+    assert "Permanent employment." in text
+    assert "Build data pipelines." in text
+    assert "Fluent German and English. Hybrid work model." in text
+
+
+def test_mismatched_persisted_observation_description_is_not_reused() -> None:
+    row = _row(5, persisted_description=DETAIL)
     row["latest_observation_source_url"] = (
         "https://example.jobs.personio.de/job/other?language=de"
     )
@@ -122,7 +149,7 @@ def test_mismatched_persisted_observation_description_is_not_reused(monkeypatch)
 def test_isolation_does_not_retry_or_change_canonical_fetch_result(monkeypatch) -> None:
     calls: list[str] = []
     expected = (
-        "https://example.jobs.personio.de/job/5?language=de",
+        "https://example.jobs.personio.de/job/6?language=de",
         "Senior Data Engineer",
         DETAIL,
     )
