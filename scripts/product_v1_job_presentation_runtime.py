@@ -69,12 +69,47 @@ def load_latest_observation_evidence(
     }
 
 
+def _decorate_collection(
+    raw_collection: object,
+    *,
+    evidence_by_job: Mapping[int, object],
+) -> list[object]:
+    if not isinstance(raw_collection, list):
+        return []
+    decorated: list[object] = []
+    for item in raw_collection:
+        if not isinstance(item, Mapping):
+            decorated.append(item)
+            continue
+        raw_id = item.get("silver_job_id")
+        try:
+            silver_job_id = int(raw_id) if raw_id is not None else None
+        except (TypeError, ValueError):
+            silver_job_id = None
+        decorated.append(
+            decorate_job_for_operator(
+                item,
+                normalized_observation_evidence=(
+                    evidence_by_job.get(silver_job_id)
+                    if silver_job_id is not None
+                    else None
+                ),
+            )
+        )
+    return decorated
+
+
 def enrich_product_payload_for_operator(
     payload: Mapping[str, object],
     *,
     observation_evidence: Mapping[int, object] | None = None,
 ) -> dict[str, object]:
-    """Decorate job collections without changing membership, score or Product authority."""
+    """Build a review-scope projection without mutating Product V1 authority.
+
+    `job_readiness` becomes the normal operator review collection. Clear geography
+    mismatches are retained under `out_of_profile_jobs`; Top-5 membership is never
+    filtered or rewritten here.
+    """
 
     result = dict(payload)
     evidence_by_job = (
@@ -83,31 +118,34 @@ def enrich_product_payload_for_operator(
         else load_latest_observation_evidence(_silver_job_ids(payload))
     )
 
-    for collection_name in ("job_readiness", "top_jobs"):
-        raw_collection = result.get(collection_name)
-        if not isinstance(raw_collection, list):
-            continue
-        decorated: list[object] = []
-        for item in raw_collection:
-            if not isinstance(item, Mapping):
-                decorated.append(item)
-                continue
-            raw_id = item.get("silver_job_id")
-            try:
-                silver_job_id = int(raw_id) if raw_id is not None else None
-            except (TypeError, ValueError):
-                silver_job_id = None
-            decorated.append(
-                decorate_job_for_operator(
-                    item,
-                    normalized_observation_evidence=(
-                        evidence_by_job.get(silver_job_id)
-                        if silver_job_id is not None
-                        else None
-                    ),
-                )
-            )
-        result[collection_name] = decorated
+    decorated_readiness = _decorate_collection(
+        result.get("job_readiness"),
+        evidence_by_job=evidence_by_job,
+    )
+    review_scope: list[object] = []
+    out_of_profile: list[object] = []
+    for item in decorated_readiness:
+        if isinstance(item, Mapping) and item.get("profile_geography_eligible") is False:
+            out_of_profile.append(item)
+        else:
+            review_scope.append(item)
+    result["job_readiness"] = review_scope
+    result["out_of_profile_jobs"] = out_of_profile
+    result["top_jobs"] = _decorate_collection(
+        result.get("top_jobs"),
+        evidence_by_job=evidence_by_job,
+    )
+
+    summary = dict(result.get("summary") or {})
+    summary["review_scope_job_count"] = len(review_scope)
+    summary["out_of_profile_job_count"] = len(out_of_profile)
+    summary["review_scope_current_active_job_count"] = sum(
+        isinstance(item, Mapping)
+        and str(item.get("lifecycle_status") or "").replace("_", " ").casefold()
+        == "active confirmed"
+        for item in review_scope
+    )
+    result["summary"] = summary
 
     boundaries = dict(result.get("boundaries") or {})
     boundaries.update(
@@ -116,6 +154,8 @@ def enrich_product_payload_for_operator(
             "job_presentation_enrichment_is_not_application_authority": True,
             "qualitative_schedule_never_infers_numeric_hours": True,
             "review_geography_does_not_rewrite_product_truth": True,
+            "out_of_profile_jobs_remain_auditable": True,
+            "top5_membership_not_filtered_by_presentation": True,
         }
     )
     result["boundaries"] = boundaries
