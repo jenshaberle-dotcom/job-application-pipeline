@@ -1,8 +1,11 @@
 """Runtime binding for the Product V1 demo Application Workspace.
 
 The default action is read-only context inspection for one authoritative Top-5 job.
-An explicit ``--generate`` action may invoke the existing bounded OpenAI application
-drafter, but still performs no database/application/submission/send write.
+An explicit ``--generate`` action produces a review-only source-grounded draft. It
+prefers the existing bounded OpenAI drafter when a key is available and falls back
+to a deterministic evidence-first package if no provider is available or the bounded
+provider campaign cannot yield a validated package. Neither path performs any
+database/application/submission/send write.
 """
 
 from __future__ import annotations
@@ -29,6 +32,10 @@ from src.search_intelligence.product_v1_application_workspace import (
 )
 from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
+)
+from src.search_intelligence.product_v1_evidence_first_draft import (
+    EvidenceFirstDraftStop,
+    build_evidence_first_review_draft,
 )
 
 
@@ -169,6 +176,57 @@ def application_workspace_payload(silver_job_id: int) -> dict[str, object]:
     }
 
 
+def _evidence_first_draft_payload(
+    *,
+    context: object,
+    final_url: str,
+    fetched_title: str,
+    fallback_reason: str,
+    provider_requests: int = 0,
+    llm_requests: int = 0,
+    estimated_model_cost_usd: float = 0.0,
+    stages: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    try:
+        package = build_evidence_first_review_draft(context)  # type: ignore[arg-type]
+    except EvidenceFirstDraftStop as exc:
+        raise ApplicationWorkspaceStop(str(exc)) from exc
+    return {
+        "schema": "job_application_pipeline.product_v1_application_draft_demo.v1",
+        "status": "draft_for_review",
+        "draft_mode": "deterministic_evidence_first",
+        "fallback_reason": fallback_reason,
+        "context_source_manifest": context.source_manifest(),  # type: ignore[union-attr]
+        "package": package.canonical_payload(),
+        "stages": stages or [
+            {
+                "stage": "deterministic",
+                "attempted": True,
+                "status": "draft_for_review",
+                "reason_code": "source_grounded_evidence_first_fallback",
+                "provider_requests": 0,
+            }
+        ],
+        "provider_requests": provider_requests,
+        "llm_requests": llm_requests,
+        "tavily_requests": 0,
+        "estimated_model_cost_usd": round(float(estimated_model_cost_usd), 8),
+        "database_writes": 0,
+        "application_writes": 0,
+        "submission_writes": 0,
+        "send_actions": 0,
+        "draft_approval_authority": False,
+        "application_authority": False,
+        "submission_authority": False,
+        "product_authority": False,
+        "live_job_evidence": {
+            "final_url": final_url,
+            "fetched_title": fetched_title,
+            "detail_sha256": context.target.detail_sha256,  # type: ignore[union-attr]
+        },
+    }
+
+
 def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
     context, final_url, fetched_title = load_application_workspace(silver_job_id)
     if not context.generation_ready:
@@ -198,7 +256,12 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
 
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
-        raise ApplicationWorkspaceStop("OPENAI_API_KEY is required for draft generation")
+        return _evidence_first_draft_payload(
+            context=context,
+            final_url=final_url,
+            fetched_title=fetched_title,
+            fallback_reason="provider_key_unavailable",
+        )
 
     execution = execute_product_v1_application_drafter(
         context=context,
@@ -207,11 +270,25 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
             api_key=api_key,
         ),
     )
+    if execution.package is None:
+        return _evidence_first_draft_payload(
+            context=context,
+            final_url=final_url,
+            fetched_title=fetched_title,
+            fallback_reason="provider_campaign_unresolved",
+            provider_requests=execution.provider_requests,
+            llm_requests=execution.llm_requests,
+            estimated_model_cost_usd=execution.estimated_model_cost_usd,
+            stages=[stage.to_json() for stage in execution.stages],
+        )
+
     payload = execution.to_json()
     payload.update(
         {
             "schema": "job_application_pipeline.product_v1_application_draft_demo.v1",
-            "status": "draft_for_review" if execution.package is not None else "unresolved",
+            "status": "draft_for_review",
+            "draft_mode": "provider_validated",
+            "fallback_reason": None,
             "live_job_evidence": {
                 "final_url": final_url,
                 "fetched_title": fetched_title,
@@ -260,6 +337,7 @@ def main() -> int:
     print("============================================")
     print(f"STATUS={str(payload.get('status') or 'unknown').upper()}")
     print(f"SILVER_JOB_ID={args.silver_job_id}")
+    print(f"DRAFT_MODE={payload.get('draft_mode', 'NONE')}")
     print(f"PROVIDER_REQUESTS={payload.get('provider_requests', 0)}")
     print(f"DATABASE_WRITES={payload.get('database_writes', 0)}")
     print(f"SUBMISSION_WRITES={payload.get('submission_writes', 0)}")
