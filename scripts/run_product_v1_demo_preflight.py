@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Mapping, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
