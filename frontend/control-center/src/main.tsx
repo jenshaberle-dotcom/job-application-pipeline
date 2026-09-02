@@ -1,8 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
+import ApplicationWorkspaceEventBridge from "./ApplicationWorkspaceEventBridge";
 import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
 import EvidencePreviewPanel from "./EvidencePreviewPanel";
+import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
 import { installProductPayloadRuntimeAdapter } from "./productPayloadRuntimeAdapter";
 import "./styles.css";
@@ -22,6 +23,7 @@ createRoot(root).render(
       <App />
       <EvidencePreviewPanel />
       <DemoApplicationWorkspace />
+      <ApplicationWorkspaceEventBridge />
     </RuntimeErrorBoundary>
   </StrictMode>
 );
