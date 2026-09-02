@@ -89,7 +89,7 @@ def _role_signal(title: object) -> dict[str, object] | None:
     return {
         "tier": signal.tier,
         "family": signal.family,
-        "reason": signal.reason,
+        "signals": list(signal.signals),
     }
 
 
@@ -229,7 +229,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"CURRENT_ACTIVE={summary['current_active_count']}")
     print(f"PROFILE_RELEVANT_CURRENT={summary['profile_relevant_current_count']}")
     print(f"COHORT_TOP5={summary['cohort_top5_count']}")
-    print("READINESS_COUNTS=" + json.dumps(summary["readiness_counts_current"], sort_keys=True))
+    print(
+        "READINESS_COUNTS="
+        + json.dumps(summary["readiness_counts_current"], sort_keys=True)
+    )
     print(f"NEXT_GATE={summary['next_gate']}")
     for row in report["profile_relevant_current_jobs"]:
         print(
