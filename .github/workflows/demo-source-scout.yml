@@ -1,0 +1,113 @@
+name: DEMO-001 live source scout
+
+on:
+  pull_request:
+    paths:
+      - "scripts/run_demo_connector_source_scout.py"
+      - "tests/test_demo_connector_source_scout.py"
+      - "src/connectors/**"
+      - ".github/workflows/demo-source-scout.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  route:
+    name: Resolve execution surface
+    uses: ./.github/workflows/warm-runner-route.yml
+    with:
+      heartbeat_workflow: warm-runner-heartbeat.yml
+      heartbeat_max_age_seconds: 900
+      warm_runs_on_json: '["self-hosted","Linux","X64","job-pipeline-runtime-linux"]'
+      hosted_runs_on_json: '["ubuntu-latest"]'
+
+  scout:
+    name: Bounded live connector scout
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.runs_on_json) }}
+    timeout-minutes: 12
+
+    steps:
+      - name: Show selected execution surface
+        shell: bash
+        env:
+          PIPELINE_ROUTE: ${{ needs.route.outputs.route }}
+          PIPELINE_ROUTE_REASON: ${{ needs.route.outputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "PIPELINE_ROUTE=${PIPELINE_ROUTE} reason=${PIPELINE_ROUTE_REASON} runner=${RUNNER_NAME}"
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run source scout unit contract
+        run: python -m pytest -q tests/test_demo_connector_source_scout.py
+
+      - name: Run bounded live source scout
+        run: |
+          python -m scripts.run_demo_connector_source_scout \
+            --output /tmp/demo_connector_source_scout.json
+
+      - name: Publish scout summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/demo_connector_source_scout.json ]; then
+            python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path("/tmp/demo_connector_source_scout.json").read_text(encoding="utf-8"))
+          summary = report["summary"]
+          lines = [
+              "## DEMO-001 live source scout",
+              "",
+              f"- Healthy connectors: `{summary['healthy_connector_count']}/{summary['connector_count']}`",
+              f"- Observed jobs: `{summary['observed_job_count']}`",
+              f"- Product-profile title matches: `{summary['profile_match_count']}`",
+              f"- Profile + Hannover/remote/Germany signal: `{summary['profile_and_location_signal_count']}`",
+              "",
+              "| Source | Status | Jobs | Profile | Profile + location |",
+              "|---|---:|---:|---:|---:|",
+          ]
+          for source in report["sources"]:
+              lines.append(
+                  f"| {source['source_name']} | {source['status']} | "
+                  f"{source['observed_job_count']} | {source['profile_match_count']} | "
+                  f"{source['profile_and_location_signal_count']} |"
+              )
+          matches = report["profile_and_location_signal_matches"]
+          if matches:
+              lines.extend(["", "### Strong demo candidates"])
+              for row in matches:
+                  lines.append(
+                      f"- **{row['company_name']} — {row['title']}** "
+                      f"({row['location']}; `{row['source_name']}`)"
+                  )
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+          fi
+
+      - name: Upload scout artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-connector-source-scout
+          path: /tmp/demo_connector_source_scout.json
+          if-no-files-found: warn
+          retention-days: 7
