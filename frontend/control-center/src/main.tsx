@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
 import EvidencePreviewPanel from "./EvidencePreviewPanel";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
 import { installProductPayloadRuntimeAdapter } from "./productPayloadRuntimeAdapter";
@@ -19,6 +20,7 @@ createRoot(root).render(
     <RuntimeErrorBoundary>
       <App />
       <EvidencePreviewPanel />
+      <DemoApplicationWorkspace />
     </RuntimeErrorBoundary>
   </StrictMode>
 );
