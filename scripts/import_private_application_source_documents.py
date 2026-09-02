@@ -12,6 +12,9 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.private_application_source_text import (
+    extract_private_application_source_text,
+)
 
 
 APPROVAL_TOKEN = "PRODUCT-V1-APPLICATION-SOURCE-IMPORT-001"
@@ -37,14 +40,10 @@ def _require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
-def _read_utf8_text(path: Path) -> tuple[str, bytes]:
+def _read_application_source(path: Path) -> bytes:
     payload = path.read_bytes()
-    try:
-        text = payload.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise RuntimeError(f"application source is not UTF-8 text: {path}") from exc
-    _require(bool(text.strip()), f"application source is empty: {path}")
-    return text, payload
+    extract_private_application_source_text(path)
+    return payload
 
 
 def build_document(
@@ -59,7 +58,7 @@ def build_document(
     resolved = path.expanduser().resolve()
     _require(resolved.is_file(), f"application source file does not exist: {resolved}")
     _require(root in {resolved, *resolved.parents}, "application source escaped private root")
-    _text, payload = _read_utf8_text(resolved)
+    payload = _read_application_source(resolved)
     relative = resolved.relative_to(root).as_posix()
     return ApplicationSourceDocument(
         document_type=document_type,
