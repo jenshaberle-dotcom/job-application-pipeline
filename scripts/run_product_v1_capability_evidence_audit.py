@@ -3,6 +3,12 @@
 The runner inspects persisted Product V1 assessment and hard-filter truth for the
 current demo cohort. It never mutates database state, calls a provider, performs a
 network request, or creates capability-fit / ranking / application authority.
+
+Employer-origin authority is taken from the same active + recurring search-profile
+SourceRole contract used by Product V1 assessment materialization. Persisted Silver
+``canonical_source_type`` remains useful diagnostics, but it is not allowed to veto
+an otherwise-authorized source because older Silver projection code may report
+``unknown`` for supported ATS families such as Personio.
 """
 
 from __future__ import annotations
@@ -18,19 +24,17 @@ from typing import Any, Mapping, Sequence
 import psycopg
 from psycopg.rows import dict_row
 
+from scripts.run_product_v1_assessment_materialization import (
+    authorized_recurring_employer_origin_sources,
+)
 from src.config import get_database_config
+from src.ingestion.repository import JobIngestionRepository
 from src.search_intelligence.product_v1_contenders import classify_role_title
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / ".runtime" / "demo" / "product_v1_capability_evidence_audit.json"
 DEFAULT_COHORT_SOURCES = ("personio:eraneos", "personio:1komma5grad")
-EMPLOYER_ORIGIN_SOURCE_TYPES = frozenset(
-    {
-        "employer_origin_career_site",
-        "employer_origin_ats_backed_career_site",
-    }
-)
 
 AUDIT_SQL = """
     SELECT
@@ -97,15 +101,19 @@ def _role_relevant(title: object) -> bool:
 def select_audit_rows(
     rows: Sequence[Mapping[str, object]],
     *,
+    authorized_sources: Sequence[str],
     requested_ids: Sequence[int] = (),
 ) -> list[dict[str, object]]:
+    """Keep only current, role-relevant rows from authorized employer origins."""
+
+    authorized = {str(value) for value in authorized_sources}
     requested = set(int(value) for value in requested_ids)
     selected: list[dict[str, object]] = []
     for row in rows:
         silver_job_id = int(row.get("silver_job_id") or 0)
         if requested and silver_job_id not in requested:
             continue
-        if str(row.get("canonical_source_type") or "") not in EMPLOYER_ORIGIN_SOURCE_TYPES:
+        if str(row.get("source_name") or "") not in authorized:
             continue
         if str(row.get("lifecycle_status") or "") != "active_confirmed":
             continue
@@ -174,6 +182,11 @@ def build_report(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
             ),
         },
         "jobs": jobs,
+        "authority": {
+            "source": "active_recurring_search_profile_source_role",
+            "required_role": "employer_origin",
+            "silver_canonical_source_type_is_authority": False,
+        },
         "boundaries": {
             "database_reads": True,
             "database_writes": False,
@@ -215,6 +228,10 @@ def _read_rows(
         conn.close()
 
 
+def _authorized_sources() -> set[str]:
+    return authorized_recurring_employer_origin_sources(JobIngestionRepository())
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-name", action="append", default=[])
@@ -236,8 +253,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if any(value <= 0 for value in silver_job_ids):
         raise SystemExit("--silver-job-id values must be positive")
 
+    authorized_sources = _authorized_sources()
     rows = select_audit_rows(
         _read_rows(source_names=source_names, silver_job_ids=silver_job_ids),
+        authorized_sources=authorized_sources,
         requested_ids=silver_job_ids,
     )
     report = build_report(rows)
