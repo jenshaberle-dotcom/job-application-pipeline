@@ -4,9 +4,10 @@ from src.config import BA_API_KEY
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.capabilities import SourceCapabilities
 
+
 class BundesagenturConnector(JobSourceConnector):
     source_name = "bundesagentur_fuer_arbeit"
-    base_url = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobs"
+    base_url = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs"
 
     capabilities = SourceCapabilities(
         supports_keyword=True,
@@ -49,17 +50,18 @@ class BundesagenturConnector(JobSourceConnector):
 
         records = []
         for job in jobs:
+            external_job_id = job.get("referenznummer") or job.get("refnr")
             source_url = (
                 job.get("externeUrl")
                 or job.get("url")
-                or f"ba://{job.get('refnr')}"
+                or f"ba://{external_job_id}"
             )
 
             records.append(
                 RawJobRecord(
                     source_name=self.source_name,
                     source_url=source_url,
-                    external_job_id=job.get("refnr"),
+                    external_job_id=external_job_id,
                     raw_data={
                         "search_profile": {
                             "profile_name": profile.profile_name,
