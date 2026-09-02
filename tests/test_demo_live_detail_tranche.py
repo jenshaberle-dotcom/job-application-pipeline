@@ -32,12 +32,15 @@ def test_profile_remote_job_with_substantive_detail_is_demo_proven() -> None:
     )
 
     assert row["detail_proven"] is True
+    assert row["listing_evidence"] is True
+    assert row["evidence_tier"] == "detail_proven"
+    assert row["operator_review_eligible"] is True
     assert row["role_profile_match"] is True
     assert row["location_signal_match"] is True
     assert row["detail_chars"] >= 120
 
 
-def test_title_only_listing_is_not_detail_proven() -> None:
+def test_title_only_listing_can_reach_manual_operator_review() -> None:
     row = qualify_record(
         _record(
             title="Data Engineer (m/f/d)",
@@ -48,10 +51,14 @@ def test_title_only_listing_is_not_detail_proven() -> None:
     )
 
     assert row["role_profile_match"] is True
+    assert row["location_signal_match"] is True
     assert row["detail_proven"] is False
+    assert row["listing_evidence"] is True
+    assert row["evidence_tier"] == "listing_only"
+    assert row["operator_review_eligible"] is True
 
 
-def test_non_job_root_url_is_not_detail_proven() -> None:
+def test_non_job_root_url_is_not_operator_review_evidence() -> None:
     row = qualify_record(
         _record(
             title="AI Reliability Engineer",
@@ -62,3 +69,6 @@ def test_non_job_root_url_is_not_detail_proven() -> None:
     )
 
     assert row["detail_proven"] is False
+    assert row["listing_evidence"] is False
+    assert row["evidence_tier"] == "insufficient"
+    assert row["operator_review_eligible"] is False
