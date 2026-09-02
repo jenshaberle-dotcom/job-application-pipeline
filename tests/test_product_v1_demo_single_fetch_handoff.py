@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from datetime import date
 from hashlib import sha256
-import json
-from pathlib import Path
 
 from scripts import run_product_v1_demo_workspace_probe as workspace_probe
 from scripts.run_product_v1_demo_draft_handoff import evaluate_handoff
