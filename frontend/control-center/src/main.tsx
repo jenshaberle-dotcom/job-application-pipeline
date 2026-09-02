@@ -9,6 +9,7 @@ import { installProductPayloadRuntimeAdapter } from "./productPayloadRuntimeAdap
 import "./styles.css";
 import "./compact-control-center.css";
 import "./demo-operator-focus.css";
+import "./product-finish-ux.css";
 
 installProductPayloadRuntimeAdapter();
 
