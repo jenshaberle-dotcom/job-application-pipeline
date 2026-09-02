@@ -1,13 +1,10 @@
 """Read-only DEMO-001 probe for the selected authoritative Application Workspace.
 
-The Product V1 demo preflight proves that real current Product V1/Top-5 truth and
-local prerequisites exist. This probe goes one step further: it reads the exact
-selected Top-5 job from that preflight artifact and exercises the same bounded
-Application Workspace runtime used by the Control Center.
-
-It may perform the workspace's existing read-only database queries, local private
-document reads and one bounded employer-origin vacancy HTTP GET. It never invokes
-an LLM/provider, writes product/application truth, submits, or sends anything.
+The probe performs the canonical workspace DB reads plus one bounded employer-origin
+vacancy HTTP GET. From that same in-memory context it also builds the deterministic
+evidence-first review package used by the provider-free runtime fallback. This makes
+the downstream draft readiness proof a single-fetch handoff rather than a second
+origin request. No provider, product/application write, submission or send occurs.
 """
 
 from __future__ import annotations
@@ -19,9 +16,16 @@ from typing import Callable, Mapping
 
 import psycopg
 
-from scripts.product_v1_application_workspace_runtime import application_workspace_payload
+from scripts.product_v1_application_workspace_runtime import (
+    application_workspace_payload,
+    load_application_workspace,
+)
 from src.search_intelligence.product_v1_application_workspace import ApplicationWorkspaceStop
 from src.search_intelligence.product_v1_downstream_preview import DownstreamPreviewStop
+from src.search_intelligence.product_v1_evidence_first_draft import (
+    EvidenceFirstDraftStop,
+    build_evidence_first_review_draft,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,11 +87,7 @@ def evaluate_workspace_payload(
     target = workspace.get("target")
     claim_plan = workspace.get("claim_plan")
     source_manifest = workspace.get("source_manifest")
-    documents = (
-        source_manifest.get("documents")
-        if isinstance(source_manifest, Mapping)
-        else None
-    )
+    documents = source_manifest.get("documents") if isinstance(source_manifest, Mapping) else None
 
     target_id = 0
     if isinstance(target, Mapping):
@@ -104,15 +104,12 @@ def evaluate_workspace_payload(
         and int(boundaries.get("submission_writes") or 0) == 0
         and int(boundaries.get("send_actions") or 0) == 0
     )
-
     checks = {
         "workspace_status_ready": payload.get("status") == "ready",
         "selected_job_exact_bound": target_id == silver_job_id,
         "generation_ready": workspace.get("generation_ready") is True,
         "claim_plan_present": isinstance(claim_plan, list) and len(claim_plan) > 0,
-        "approved_source_documents_present": (
-            isinstance(documents, list) and len(documents) >= 2
-        ),
+        "approved_source_documents_present": isinstance(documents, list) and len(documents) >= 2,
         "live_detail_fingerprint_present": (
             len(detail_sha) == 64
             and all(character in "0123456789abcdef" for character in detail_sha)
@@ -121,7 +118,7 @@ def evaluate_workspace_payload(
     }
     blockers = [name for name, passed in checks.items() if not passed]
     return {
-        "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v1",
+        "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v2",
         "state": "pass" if not blockers else "blocked",
         "silver_job_id": silver_job_id,
         "checks": checks,
@@ -137,6 +134,7 @@ def run_workspace_probe(
     silver_job_id: int,
     loader: WorkspaceLoader = application_workspace_payload,
 ) -> dict[str, object]:
+    """Compatibility/test surface for evaluating an already-built workspace payload."""
     try:
         payload = loader(silver_job_id)
         if not isinstance(payload, Mapping):
@@ -150,22 +148,80 @@ def run_workspace_probe(
         OSError,
         ValueError,
     ) as exc:
-        return {
-            "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v1",
-            "state": "blocked",
-            "silver_job_id": silver_job_id,
-            "checks": {},
-            "blocking_checks": ["workspace_runtime"],
-            "reason": " ".join(str(exc).split())[:700],
-            "error_type": type(exc).__name__,
+        return _blocked_report(silver_job_id=silver_job_id, exc=exc)
+
+
+def run_workspace_probe_single_fetch(*, silver_job_id: int) -> dict[str, object]:
+    """Load one canonical workspace and carry its deterministic draft proof forward."""
+    try:
+        context, final_url, fetched_title = load_application_workspace(silver_job_id)
+        payload = {
+            "status": "ready" if context.generation_ready else "blocked",
+            "workspace": context.canonical_payload(),
+            "live_job_evidence": {
+                "final_url": final_url,
+                "fetched_title": fetched_title,
+                "detail_sha256": context.target.detail_sha256,
+            },
             "boundaries": {
+                "database_reads": True,
                 "database_writes": False,
+                "job_detail_http_gets": 1,
                 "provider_requests": 0,
                 "application_writes": 0,
                 "submission_writes": 0,
                 "send_actions": 0,
             },
         }
+        report = evaluate_workspace_payload(silver_job_id=silver_job_id, payload=payload)
+        if report["state"] != "pass":
+            return report
+
+        package = build_evidence_first_review_draft(context)
+        report["evidence_first_draft"] = {
+            "draft_mode": "deterministic_evidence_first",
+            "package": package.canonical_payload(),
+            "detail_sha256": context.target.detail_sha256,
+            "provider_requests": 0,
+            "database_writes": 0,
+            "application_writes": 0,
+            "submission_writes": 0,
+            "send_actions": 0,
+        }
+        report["checks"]["evidence_first_draft_built"] = package.status == "draft_for_review"
+        if not report["checks"]["evidence_first_draft_built"]:
+            report["state"] = "blocked"
+            report["blocking_checks"] = ["evidence_first_draft_built"]
+        return report
+    except (
+        ApplicationWorkspaceStop,
+        DownstreamPreviewStop,
+        EvidenceFirstDraftStop,
+        WorkspaceProbeStop,
+        psycopg.Error,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _blocked_report(silver_job_id=silver_job_id, exc=exc)
+
+
+def _blocked_report(*, silver_job_id: int | None, exc: BaseException) -> dict[str, object]:
+    return {
+        "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v2",
+        "state": "blocked",
+        "silver_job_id": silver_job_id,
+        "checks": {},
+        "blocking_checks": ["workspace_runtime"],
+        "reason": " ".join(str(exc).split())[:700],
+        "error_type": type(exc).__name__,
+        "boundaries": {
+            "database_writes": False,
+            "provider_requests": 0,
+            "application_writes": 0,
+            "submission_writes": 0,
+            "send_actions": 0,
+        },
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -179,24 +235,10 @@ def main() -> int:
     args = build_parser().parse_args()
     try:
         silver_job_id = selected_job_id_from_preflight(args.preflight.resolve())
-        report = run_workspace_probe(silver_job_id=silver_job_id)
+        report = run_workspace_probe_single_fetch(silver_job_id=silver_job_id)
     except WorkspaceProbeStop as exc:
-        report = {
-            "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v1",
-            "state": "blocked",
-            "silver_job_id": None,
-            "checks": {},
-            "blocking_checks": ["preflight_handoff"],
-            "reason": " ".join(str(exc).split())[:700],
-            "error_type": type(exc).__name__,
-            "boundaries": {
-                "database_writes": False,
-                "provider_requests": 0,
-                "application_writes": 0,
-                "submission_writes": 0,
-                "send_actions": 0,
-            },
-        }
+        report = _blocked_report(silver_job_id=None, exc=exc)
+        report["blocking_checks"] = ["preflight_handoff"]
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
@@ -209,6 +251,7 @@ def main() -> int:
     print(f"STATE={str(report.get('state') or 'blocked').upper()}")
     print(f"SILVER_JOB_ID={report.get('silver_job_id') or 'NONE'}")
     print("BLOCKERS=" + json.dumps(report.get("blocking_checks") or [], sort_keys=True))
+    print("JOB_DETAIL_HTTP_GETS=1_MAX")
     print("DATABASE_WRITES=0")
     print("PROVIDER_REQUESTS=0")
     print("SUBMISSION_WRITES=0")
