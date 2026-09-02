@@ -1,11 +1,11 @@
 """Bounded live source scout for the Product V1 demo.
 
-The scout executes only existing code-backed employer-origin connectors and reports
-what they expose *now*. It does not write Bronze/Silver/Gold state, activate a source,
-call an LLM/provider, or create ranking authority.
+The scout executes only existing code-backed employer-origin connectors and already-
+known ATS targets and reports what they expose *now*. It does not write Bronze,
+Silver, Gold, activate a source, call an LLM/provider, or create ranking authority.
 
 Profile proximity deliberately reuses Product V1's existing role-title classifier.
-The scout is only source selection evidence for the demo; authoritative ranking still
+The scout is only source-selection evidence for the demo; authoritative ranking still
 belongs to Product V1 after normal ingestion and assessment.
 """
 from __future__ import annotations
@@ -23,6 +23,8 @@ from src.connectors.computacenter import ComputacenterConnector
 from src.connectors.enercity import EnercityConnector
 from src.connectors.finanz_informatik import FinanzInformatikConnector
 from src.connectors.hdi import HdiConnector
+from src.connectors.personio import PersonioConnector
+from src.connectors.successfactors import SuccessFactorsConnector
 from src.search_intelligence.product_v1_contenders import classify_role_title, normalize_text
 
 
@@ -34,6 +36,7 @@ LOCATION_SIGNALS = (
     "hanover",
     "remote",
     "hybrid",
+    "homeoffice",
     "deutschland",
     "germany",
     "bundesweit",
@@ -44,14 +47,51 @@ LOCATION_SIGNALS = (
 class ConnectorSpec:
     source_name: str
     factory: Callable[[], JobSourceConnector]
+    provenance: str = "code_backed_employer_origin"
+
+
+def _personio(target_key: str) -> Callable[[], JobSourceConnector]:
+    return lambda: PersonioConnector(target_key=target_key)
 
 
 CONNECTOR_SPECS: tuple[ConnectorSpec, ...] = (
+    # Current explicit employer-origin connector registry.
     ConnectorSpec("hdi:hannover", HdiConnector),
     ConnectorSpec("enercity:discovery", EnercityConnector),
     ConnectorSpec("finanz_informatik:hannover", FinanzInformatikConnector),
     ConnectorSpec("computacenter:discovery", ComputacenterConnector),
     ConnectorSpec("accompio:discovery", AccompioConnector),
+    # Existing reviewed/previously active ATS source targets from repository truth.
+    ConnectorSpec(
+        "successfactors:eon_germany",
+        lambda: SuccessFactorsConnector(target_key="eon_germany"),
+        provenance="existing_controlled_ats_target",
+    ),
+    ConnectorSpec(
+        "personio:eraneos",
+        _personio("eraneos"),
+        provenance="existing_source_target",
+    ),
+    ConnectorSpec(
+        "personio:1komma5grad",
+        _personio("1komma5grad"),
+        provenance="existing_source_target",
+    ),
+    ConnectorSpec(
+        "personio:schluetersche-mediengruppe",
+        _personio("schluetersche-mediengruppe"),
+        provenance="existing_source_target",
+    ),
+    ConnectorSpec(
+        "personio:it-p",
+        _personio("it-p"),
+        provenance="existing_source_target",
+    ),
+    ConnectorSpec(
+        "personio:otl-akademie",
+        _personio("otl-akademie"),
+        provenance="existing_source_target",
+    ),
 )
 
 
@@ -66,6 +106,25 @@ def _first_text(raw: Mapping[str, object], *paths: tuple[str, str]) -> str:
     return ""
 
 
+def _structured_locations(raw: Mapping[str, object]) -> list[str]:
+    job = raw.get("job")
+    if not isinstance(job, Mapping):
+        return []
+    locations = job.get("locations")
+    if not isinstance(locations, list):
+        return []
+    result: list[str] = []
+    for location in locations:
+        if not isinstance(location, Mapping):
+            continue
+        city = str(location.get("city") or "").strip()
+        country = str(location.get("country_code") or "").strip()
+        text = ", ".join(part for part in (city, country) if part)
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
 def _location_signals(value: str) -> list[str]:
     normalized = normalize_text(value)
     return [signal for signal in LOCATION_SIGNALS if normalize_text(signal) in normalized]
@@ -75,7 +134,9 @@ def record_to_observation(record: RawJobRecord) -> dict[str, object]:
     raw = record.raw_data if isinstance(record.raw_data, Mapping) else {}
     title = _first_text(raw, ("job", "title"), ("result_card", "title"))
     company = _first_text(raw, ("job", "company_name"), ("result_card", "company_name"))
-    location = _first_text(raw, ("job", "location"), ("result_card", "location"))
+    raw_location = _first_text(raw, ("job", "location"), ("result_card", "location"))
+    structured_locations = _structured_locations(raw)
+    location = " | ".join(part for part in (raw_location, *structured_locations) if part)
     role = classify_role_title(title)
     location_signals = _location_signals(location)
 
@@ -139,6 +200,7 @@ def run_connector(spec: ConnectorSpec) -> dict[str, object]:
     finished = datetime.now(UTC)
     return {
         "source_name": spec.source_name,
+        "provenance": spec.provenance,
         "status": status,
         "error": error,
         "final_url": final_url,
@@ -191,7 +253,7 @@ def build_report(specs: Sequence[ConnectorSpec] = CONNECTOR_SPECS) -> dict[str, 
         "profile_matches": profile_matches,
         "profile_and_location_signal_matches": strong_demo_candidates,
         "boundaries": {
-            "existing_connectors_only": True,
+            "existing_connectors_or_targets_only": True,
             "network_gets": True,
             "database_reads": False,
             "database_writes": False,
