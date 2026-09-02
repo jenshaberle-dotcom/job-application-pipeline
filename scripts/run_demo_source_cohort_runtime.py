@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
-from typing import Any, Sequence
+from typing import Sequence
 
 from psycopg.rows import dict_row
 
