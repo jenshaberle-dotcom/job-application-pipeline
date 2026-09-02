@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 import tempfile
-from typing import object as _object  # type: ignore[attr-defined]
 
 
 def atomic_write_json(path: Path, payload: object) -> None:
