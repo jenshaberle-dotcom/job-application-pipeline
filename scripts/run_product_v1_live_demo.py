@@ -26,11 +26,26 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "control-center"
 DEFAULT_DIST = FRONTEND / "dist"
 DEFAULT_PREFLIGHT = Path("/tmp/product_v1_demo_preflight.json")
+_FRONTEND_LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json")
 
 
 def _run(command: list[str], *, cwd: Path) -> None:
     print("+ " + " ".join(command))
     subprocess.run(command, cwd=cwd, check=True)
+
+
+def _frontend_install_command(npm: str) -> tuple[list[str], str]:
+    """Choose the strongest npm install mode supported by repository truth.
+
+    ``npm ci`` requires a committed npm lockfile. The Control Center currently has
+    no lockfile, matching the repository CI path, so local demo startup must not
+    manufacture one merely to build the UI. When a lockfile is added later, the
+    launcher automatically ratchets back to ``npm ci``.
+    """
+
+    if any((FRONTEND / name).is_file() for name in _FRONTEND_LOCKFILES):
+        return [npm, "ci"], "LOCKFILE_CI"
+    return [npm, "install", "--package-lock=false", "--no-audit", "--no-fund"], "LOCKFILE_ABSENT_INSTALL"
 
 
 def prepare_frontend(*, reuse_frontend: bool) -> Path:
@@ -46,7 +61,9 @@ def prepare_frontend(*, reuse_frontend: bool) -> Path:
     npm = shutil.which("npm")
     if npm is None:
         raise RuntimeError("npm is required to build the React Control Center")
-    _run([npm, "ci"], cwd=FRONTEND)
+    install_command, install_mode = _frontend_install_command(npm)
+    print(f"FRONTEND_INSTALL_MODE={install_mode}")
+    _run(install_command, cwd=FRONTEND)
     _run([npm, "run", "build"], cwd=FRONTEND)
     if not (dist / "index.html").is_file():
         raise RuntimeError("React build completed without dist/index.html")
@@ -83,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reuse-frontend",
         action="store_true",
-        help="Reuse an existing dist build instead of running npm ci/build.",
+        help="Reuse an existing dist build instead of installing/building the frontend.",
     )
     parser.add_argument(
         "--preflight-output",
