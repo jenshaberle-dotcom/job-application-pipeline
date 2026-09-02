@@ -75,7 +75,7 @@ Current `main` contains the complete generic repository path required for the de
 
 Key merged hardening through the current checkpoint includes ranking persistence `#724`, schema/readiness hardening `#725`–`#727`, provider-free review resilience/provenance `#728`–`#730`, single-fetch final-draft handoff `#731`, stale-artifact invalidation `#732`, bounded artifact deletion `#733`, and cross-artifact lineage binding `#734`.
 
-The former standalone `scripts/run_product_v1_demo_draft_probe.py` live path is retired. Its unique deterministic-draft assertions are already covered by `test_product_v1_evidence_first_draft.py` and the canonical single-fetch handoff tests. The only canonical full readiness entrypoint is `scripts/run_product_v1_live_demo.py`.
+The former standalone live draft-readiness probe that predated the single-fetch handoff is retired. Its unique deterministic-draft assertions are already covered by `test_product_v1_evidence_first_draft.py` and the canonical single-fetch handoff tests. The only canonical full readiness entrypoint is `scripts/run_product_v1_live_demo.py`.
 
 ## Current frontier
 
