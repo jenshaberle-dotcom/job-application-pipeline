@@ -14,6 +14,10 @@ from pathlib import Path
 from typing import Callable, Mapping, Sequence
 from urllib.parse import unquote, urlparse
 
+from src.search_intelligence.private_application_source_text import (
+    PrivateApplicationSourceTextError,
+    extract_private_application_source_text,
+)
 from src.search_intelligence.product_v1_application_context import (
     ApplicationSourceDocumentSnapshot,
     ApplicationTargetSnapshot,
@@ -65,8 +69,9 @@ def local_document_loader(
     """Return a fail-closed loader for local private base-document references.
 
     Supported references are absolute/relative filesystem paths, ``file://`` URIs,
-    and ``local://`` references resolved under ``private_root``. Network and opaque
-    operator URIs are never dereferenced.
+    and ``local://`` references resolved under ``private_root``. UTF-8 text and
+    text-bearing PDF files are supported. Network and opaque operator URIs are never
+    dereferenced.
     """
 
     root = private_root.expanduser().resolve() if private_root is not None else None
@@ -99,14 +104,10 @@ def local_document_loader(
         resolved = path.resolve()
         if root is not None and root not in {resolved, *resolved.parents}:
             raise ApplicationWorkspaceStop("application source escaped private document root")
-        if not resolved.is_file():
-            raise ApplicationWorkspaceStop(f"application source file not found: {resolved}")
         try:
-            return resolved.read_text(encoding="utf-8")
-        except UnicodeDecodeError as exc:
-            raise ApplicationWorkspaceStop(
-                f"application source is not UTF-8 text: {resolved}"
-            ) from exc
+            return extract_private_application_source_text(resolved)
+        except PrivateApplicationSourceTextError as exc:
+            raise ApplicationWorkspaceStop(str(exc)) from exc
 
     return load
 
