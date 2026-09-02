@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Mapping
 from urllib.parse import parse_qs, urlparse
 
-from scripts.product_v1_application_workspace_runtime import (
+from scripts.product_v1_application_workspace_runtime_quality import (
     application_workspace_payload,
     generate_application_draft_payload,
 )
