@@ -11,10 +11,10 @@ Default sequence:
 The launcher never changes pipeline product truth, activates a source, persists an
 application/draft, submits, or sends anything. The final readiness proof invokes no
 provider and performs no second vacancy fetch. Readiness diagnostics are published
-atomically only after the staged artifact parses as a JSON object, so interrupted
-child writes cannot replace a complete artifact with partial JSON. Use
-``--reuse-frontend`` after a previously qualified build when network-independent
-frontend startup is preferred.
+atomically only after the staged artifact parses as a JSON object and its readiness
+state agrees with the child exit status. Interrupted or contradictory child output
+therefore cannot become canonical. Use ``--reuse-frontend`` after a previously
+qualified build when network-independent frontend startup is preferred.
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ def _run_module(module: str, *, arguments: list[str]) -> int:
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
-def _validate_staged_json(staged: Path, *, module: str) -> None:
+def _validate_staged_json(staged: Path, *, module: str, code: int) -> None:
     if not staged.is_file() or staged.stat().st_size == 0:
         raise RuntimeError(f"diagnostic child produced no artifact: {module}")
     try:
@@ -112,6 +112,13 @@ def _validate_staged_json(staged: Path, *, module: str) -> None:
         raise RuntimeError(f"diagnostic child produced invalid JSON: {module}") from exc
     if not isinstance(payload, dict):
         raise RuntimeError(f"diagnostic child artifact root is not an object: {module}")
+    state = str(payload.get("state") or "").casefold()
+    if state not in {"pass", "blocked"}:
+        raise RuntimeError(f"diagnostic child artifact has invalid readiness state: {module}")
+    if (code == 0) != (state == "pass"):
+        raise RuntimeError(
+            f"diagnostic child exit/status disagreement: {module} code={code} state={state}"
+        )
 
 
 def _run_module_with_atomic_output(
@@ -132,7 +139,7 @@ def _run_module_with_atomic_output(
     staged = Path(raw_staged)
     try:
         code = _run_module(module, arguments=[*arguments, "--output", str(staged)])
-        _validate_staged_json(staged, module=module)
+        _validate_staged_json(staged, module=module, code=code)
         os.replace(staged, target)
         print(f"DEMO_ARTIFACT_PUBLISHED={target}")
         return code
