@@ -11,7 +11,7 @@ def _payload() -> dict[str, object]:
         "product_rank": 1,
         "title": "Machine Learning Engineer",
         "company_name": "Example GmbH",
-        "canonical_source_type": "employer_origin",
+        "canonical_source_type": "employer_origin_career_site",
         "origin_validation_status": "validated",
         "activity_status": "active",
         "hard_filter_status": "passed",
@@ -58,17 +58,20 @@ def _facts() -> dict[str, object]:
     }
 
 
-def test_pass_requires_real_top_job_sources_facts_docs_frontend_and_provider_key(
-    tmp_path: Path,
-) -> None:
+def _report(tmp_path: Path, payload: dict[str, object]) -> dict[str, object]:
     (tmp_path / "index.html").write_text("demo", encoding="utf-8")
-
-    report = build_demo_preflight(
-        payload=_payload(),
+    return build_demo_preflight(
+        payload=payload,
         candidate_fact_readiness=_facts(),
         frontend_dist=tmp_path,
         openai_key_present=True,
     )
+
+
+def test_pass_requires_real_top_job_sources_facts_docs_frontend_and_provider_key(
+    tmp_path: Path,
+) -> None:
+    report = _report(tmp_path, _payload())
 
     assert report["state"] == "pass"
     assert report["blocking_gates"] == []
@@ -79,22 +82,38 @@ def test_pass_requires_real_top_job_sources_facts_docs_frontend_and_provider_key
     assert report["boundaries"]["submission_writes"] == 0
 
 
+def test_verified_ats_employer_origin_top_job_is_accepted(tmp_path: Path) -> None:
+    payload = _payload()
+    payload["top_jobs"][0][
+        "canonical_source_type"
+    ] = "employer_origin_ats_backed_career_site"
+
+    report = _report(tmp_path, payload)
+
+    assert report["state"] == "pass"
+    assert report["selected_top_job"]["silver_job_id"] == 42
+
+
 def test_aggregator_top_job_is_not_promoted_into_application_demo(tmp_path: Path) -> None:
     payload = _payload()
     payload["top_jobs"][0]["canonical_source_type"] = "aggregator"
-    (tmp_path / "index.html").write_text("demo", encoding="utf-8")
 
-    report = build_demo_preflight(
-        payload=payload,
-        candidate_fact_readiness=_facts(),
-        frontend_dist=tmp_path,
-        openai_key_present=True,
-    )
+    report = _report(tmp_path, payload)
 
     assert report["state"] == "blocked"
     assert report["selected_top_job"] is None
     assert "authoritative_top_job" in report["blocking_gates"]
     assert "application_readiness" in report["blocking_gates"]
+
+
+def test_legacy_noncanonical_employer_origin_label_is_rejected(tmp_path: Path) -> None:
+    payload = _payload()
+    payload["top_jobs"][0]["canonical_source_type"] = "employer_origin"
+
+    report = _report(tmp_path, payload)
+
+    assert report["state"] == "blocked"
+    assert report["selected_top_job"] is None
 
 
 def test_missing_candidate_facts_and_base_letter_fail_closed(tmp_path: Path) -> None:
