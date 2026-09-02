@@ -5,6 +5,22 @@ from typing import Any
 EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE = "employer_origin_career_site"
 
 ROLE_PHRASES = (
+    # Canonical ML / AI / Reliability profile.
+    "machine learning engineer",
+    "ml engineer",
+    "mlops engineer",
+    "ml ops engineer",
+    "ml platform engineer",
+    "machine learning platform engineer",
+    "ai platform engineer",
+    "ai engineer",
+    "artificial intelligence engineer",
+    "ai reliability engineer",
+    "ml reliability engineer",
+    "machine learning reliability engineer",
+    "data reliability engineer",
+
+    # Strong Data Engineering bridge.
     "data engineer",
     "analytics engineer",
     "data platform",
@@ -12,12 +28,13 @@ ROLE_PHRASES = (
     "bi engineer",
     "business intelligence",
     "etl developer",
-    "machine learning engineer",
     "data scientist",
     "data science",
     "data & insights",
     "data insights",
     "analytics",
+
+    # Existing adjacent engineering discovery surface.
     "backend engineer",
     "backend / api engineer",
     "backend/api engineer",
@@ -38,6 +55,24 @@ ROLE_PHRASES = (
 )
 
 SKILL_PHRASES = (
+    # ML / AI / Reliability signals.
+    "machine learning",
+    "mlops",
+    "ml ops",
+    "model serving",
+    "model monitoring",
+    "model drift",
+    "feature engineering",
+    "pytorch",
+    "tensorflow",
+    "scikit learn",
+    "scikit-learn",
+    "kubernetes",
+    "observability",
+    "reliability",
+    "data quality",
+
+    # Data / platform signals.
     "sql",
     "python",
     "etl",
