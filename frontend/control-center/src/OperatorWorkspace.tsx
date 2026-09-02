@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ApplicationSourceUpload from "./ApplicationSourceUpload";
 import JobReviewLabelControls, {
   type JobReviewLabelState,
 } from "./JobReviewLabelControls";
@@ -87,7 +88,7 @@ type ProductPayload = {
   };
 };
 
-type View = "overview" | "jobs" | "top5" | "application" | "sources" | "approvals" | "operations";
+type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "approvals" | "operations";
 type JobFilter = "current" | "unreviewed" | "interesting" | "not_relevant" | "rankable" | "all";
 
 const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
@@ -176,8 +177,8 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
 
       <article className="ow-card">
         <div className="ow-card-title"><div><span>Discovery health</span><h2>Remote is producing value</h2></div></div>
-        <p>{payload.summary.current_active_job_count} current vacancies are in the product set. Remote Germany stays in scope while we finish Personio quality hardening before adding more local employers.</p>
-        <div className="ow-actions"><button type="button" onClick={() => onNavigate("sources")}>Sources</button><button type="button" onClick={() => onNavigate("operations")}>Operations</button></div>
+        <p>{payload.summary.current_active_job_count} current vacancies are in the product set. Remote Germany stays in scope while we finish the product path before adding more local employers.</p>
+        <div className="ow-actions"><button type="button" onClick={() => onNavigate("sources")}>Sources</button><button type="button" onClick={() => onNavigate("applications")}>Applications</button></div>
       </article>
     </section>
   </div>;
@@ -242,12 +243,52 @@ function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () =>
   </div>;
 }
 
-function Application({ payload }: { payload: ProductPayload }) {
+function Application({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
   const top = payload.top_jobs[0] || null;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Final product step</span><h1>Application</h1><p>Verified vacancy + Candidate Facts + approved base documents → review draft. Never auto-submit.</p></div></header>
-    <section className="ow-application-grid"><article className="ow-card"><span className="ow-kicker">Selected target</span><h2>{top?.title || "No authoritative Top-5 job"}</h2>{top && <p>{employerName(top)} · {locationText(top)} · {scoreText(top.overall_quality_score)} fit</p>}<div className="ow-readiness"><div className={top ? "ready" : "blocked"}><i /><span>Top-5 target</span><b>{top ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Base CV</span><b>{payload.application_sources_ready.base_cv ? "Approved" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Base letter</span><b>{payload.application_sources_ready.base_application_letter ? "Approved" : "Required"}</b></div></div><OpenApplicationButton disabled={!top} /></article>
-      <article className="ow-card ow-boundary-card"><span className="ow-kicker">Boundary</span><h2>{docsReady ? "Ready to bind full context" : "Documents still block generation"}</h2><p>Preparing a draft creates no application approval, submission or send authority. The final package remains <b>draft_for_review</b>.</p><ul><li>Current employer-origin vacancy</li><li>Approved Candidate Facts only</li><li>Base CV/letter are structure and style sources, not fact authority</li><li>No hidden auto-apply</li></ul></article></section>
+  return <div className="ow-stack">
+    <header className="ow-page-header"><div><span>Final preparation step</span><h1>Application</h1><p>Verified vacancy + Candidate Facts + local approved base documents → review draft. Never auto-submit.</p></div></header>
+    <section className="ow-application-grid">
+      <article className="ow-card"><span className="ow-kicker">Selected target</span><h2>{top?.title || "No authoritative Top-5 job"}</h2>{top && <p>{employerName(top)} · {locationText(top)} · {scoreText(top.overall_quality_score)} fit</p>}<div className="ow-readiness"><div className={top ? "ready" : "blocked"}><i /><span>Top-5 target</span><b>{top ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Base CV</span><b>{payload.application_sources_ready.base_cv ? "Approved" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Base letter</span><b>{payload.application_sources_ready.base_application_letter ? "Approved" : "Required"}</b></div></div><OpenApplicationButton disabled={!top || !docsReady} /></article>
+      <article className="ow-card ow-boundary-card"><span className="ow-kicker">Private source model</span><h2>{docsReady ? "Base documents are ready" : "Choose your two local base PDFs"}</h2><p>The PDFs are used for document structure and writing style. Candidate Facts remain factual authority. File bytes stay on this machine; PostgreSQL stores only type, local reference, hash and approval metadata.</p><ul><li>No cloud document upload</li><li>No free external LLM required</li><li>Local PDF text extraction validates the source</li><li>No hidden auto-apply</li></ul></article>
+    </section>
+    <article className="ow-card">
+      <span className="ow-kicker">Your base documents</span>
+      <h2>Local application sources</h2>
+      <p>For the demo, select the current CV and application letter you already use. Replacing either file creates a new hash-bound approved source while preserving the same application contract.</p>
+      <div className="ow-document-grid">
+        <ApplicationSourceUpload documentType="base_cv" title="Base CV" ready={payload.application_sources_ready.base_cv} onUploaded={refresh} />
+        <ApplicationSourceUpload documentType="base_application_letter" title="Base Letter" ready={payload.application_sources_ready.base_application_letter} onUploaded={refresh} />
+      </div>
+    </article>
+  </div>;
+}
+
+function Applications({ payload, onPrepare }: { payload: ProductPayload; onPrepare: () => void }) {
+  const top = payload.top_jobs[0] || null;
+  const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
+  const prepareReady = Boolean(top && docsReady);
+  return <div className="ow-stack">
+    <header className="ow-page-header"><div><span>After preparation</span><h1>Applications</h1><p>Your application portfolio after a job leaves discovery and ranking. No submitted state is invented.</p></div></header>
+    <section className="ow-application-pipeline" aria-label="Application lifecycle">
+      <article className={`ow-application-stage ${prepareReady ? "active" : "active"}`}><span>1 · Prepare</span><b>{prepareReady ? "Ready for review draft" : "Sources incomplete"}</b><small>{prepareReady ? "The Top-5 target and both local base documents are available." : "Complete the Application step before a grounded review draft can be prepared."}</small></article>
+      <article className="ow-application-stage"><span>2 · Review</span><b>Human review</b><small>CV and letter remain draft_for_review until you explicitly accept them.</small></article>
+      <article className="ow-application-stage"><span>3 · Submitted</span><b>Not submitted</b><small>Submission is manual. The product must never infer this state from draft generation.</small></article>
+      <article className="ow-application-stage"><span>4 · Interview</span><b>No interview recorded</b><small>Future tracking can hold interview dates, contacts, preparation notes and follow-ups.</small></article>
+      <article className="ow-application-stage"><span>5 · Decision</span><b>No decision recorded</b><small>Offer, rejected and withdrawn become explicit terminal outcomes.</small></article>
+    </section>
+    <section className="ow-after-application-grid">
+      <article className="ow-card">
+        <span className="ow-kicker">Current portfolio</span>
+        <h2>No submitted applications yet</h2>
+        {top ? <><p>The current next candidate is <b>{top.title}</b> at {employerName(top)}. It is still before submission, so it does not appear as a fake active application.</p><div className="ow-actions"><button type="button" onClick={onPrepare}>Open Application</button>{top.source_url && <a href={top.source_url} target="_blank" rel="noreferrer">Original job ↗</a>}</div></> : <p className="ow-muted">No authoritative Top-5 target is currently available.</p>}
+      </article>
+      <article className="ow-card">
+        <span className="ow-kicker">Product continuation</span>
+        <h2>What this becomes after the demo</h2>
+        <p>This is the natural home for submission date, application channel, recruiter/contact, next follow-up, interview rounds and final outcome. Those states should be append-only operator facts, not guesses from scraping or drafting.</p>
+      </article>
+    </section>
   </div>;
 }
 
@@ -278,6 +319,7 @@ const navItems: Array<{ id: View; label: string; glyph: string }> = [
   { id: "jobs", label: "All jobs", glyph: "≡" },
   { id: "top5", label: "Top 5", glyph: "★" },
   { id: "application", label: "Application", glyph: "↗" },
+  { id: "applications", label: "Applications", glyph: "◎" },
   { id: "sources", label: "Sources", glyph: "⌁" },
   { id: "approvals", label: "Approvals", glyph: "✓" },
   { id: "operations", label: "Operations", glyph: "⌘" },
@@ -320,12 +362,12 @@ export default function OperatorWorkspace() {
   return <div className="ow-shell">
     <aside className="ow-sidebar">
       <div className="ow-brand"><div>DO</div><span><b>Deep Ocean</b><small>Intelligence</small></span></div>
-      <nav aria-label="Primary navigation">{navItems.map((item, index) => <div key={item.id} className={index === 4 ? "ow-nav-break" : undefined}><button type="button" className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.glyph}</i><span>{item.label}</span>{navBadges[item.id] != null && <b>{navBadges[item.id]}</b>}</button></div>)}</nav>
+      <nav aria-label="Primary navigation">{navItems.map((item, index) => <div key={item.id} className={index === 5 ? "ow-nav-break" : undefined}><button type="button" className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.glyph}</i><span>{item.label}</span>{navBadges[item.id] != null && <b>{navBadges[item.id]}</b>}</button></div>)}</nav>
       <footer><span><i /> DB truth</span><small>Product V1 · review-first</small></footer>
     </aside>
     <div className="ow-content-shell">
       <header className="ow-topline"><div><b>{navItems.find((item) => item.id === view)?.label}</b><span>DEMO-001 · Personio pilot</span></div><button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button></header>
-      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
+      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} onPrepare={() => setView("application")} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
 }
