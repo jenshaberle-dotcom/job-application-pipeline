@@ -17,7 +17,9 @@ def _row(**overrides: object) -> dict[str, object]:
         "title": "Data Engineer (all genders)",
         "source_name": "personio:eraneos",
         "source_url": "https://eraneos.jobs.personio.de/job/2767212?language=de",
-        "canonical_source_type": "employer_origin_ats_backed_career_site",
+        # This reproduces the live Silver projection gap that previously made the
+        # audit return JOBS=0 even though the recurring profile is employer-origin.
+        "canonical_source_type": "unknown",
         "lifecycle_status": "active_confirmed",
         "product_readiness_status": "hard_filter_evidence_required",
         "employment_type": "unknown",
@@ -72,12 +74,13 @@ def test_audit_sql_is_read_only_select_surface() -> None:
         assert keyword not in tokens
 
 
-def test_selection_keeps_only_current_role_relevant_employer_origin_jobs() -> None:
+def test_selection_uses_recurring_source_role_not_stale_silver_source_type() -> None:
     rows = [
         _row(silver_job_id=511),
         _row(
             silver_job_id=512,
-            canonical_source_type="market_sensor",
+            source_name="market:example",
+            canonical_source_type="employer_origin_ats_backed_career_site",
         ),
         _row(
             silver_job_id=513,
@@ -89,21 +92,39 @@ def test_selection_keeps_only_current_role_relevant_employer_origin_jobs() -> No
         ),
     ]
 
-    selected = select_audit_rows(rows)
+    selected = select_audit_rows(
+        rows,
+        authorized_sources={"personio:eraneos"},
+    )
 
     assert [row["silver_job_id"] for row in selected] == [511]
+    assert selected[0]["canonical_source_type"] == "unknown"
 
 
-def test_explicit_id_selection_is_still_fail_closed_on_authority() -> None:
+def test_explicit_id_selection_is_still_fail_closed_on_source_authority() -> None:
     selected = select_audit_rows(
         [
             _row(silver_job_id=511),
-            _row(silver_job_id=512, canonical_source_type="market_sensor"),
+            _row(
+                silver_job_id=512,
+                source_name="market:example",
+                canonical_source_type="employer_origin_ats_backed_career_site",
+            ),
         ],
+        authorized_sources={"personio:eraneos"},
         requested_ids=[512],
     )
 
     assert selected == []
+
+
+def test_authorized_source_is_not_vetoed_by_unknown_projection_type() -> None:
+    selected = select_audit_rows(
+        [_row(canonical_source_type="unknown")],
+        authorized_sources={"personio:eraneos"},
+    )
+
+    assert [row["silver_job_id"] for row in selected] == [511]
 
 
 def test_report_preserves_evidence_and_summarizes_unknown_components() -> None:
@@ -119,6 +140,11 @@ def test_report_preserves_evidence_and_summarizes_unknown_components() -> None:
         },
         "capability_fit_unknown_count": 1,
         "deterministic_hard_filter_unknown_count": 1,
+    }
+    assert report["authority"] == {
+        "source": "active_recurring_search_profile_source_role",
+        "required_role": "employer_origin",
+        "silver_canonical_source_type_is_authority": False,
     }
     assert report["jobs"][0]["source_observed_factors"] == ["required_languages"]
     assert report["jobs"][0]["unknown_components"] == [
