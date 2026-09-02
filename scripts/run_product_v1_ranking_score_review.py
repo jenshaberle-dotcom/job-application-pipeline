@@ -3,10 +3,8 @@
 The approved Product V1 policy owns weights, threshold and Top-5 semantics. This
 runner only derives and persists the four existing component scores from exact
 employer-origin vacancy evidence. It is plan-only by default; apply is token gated.
-
-Ranking persistence has a separate revision clock (`ranking_updated_at`) and does
-not touch `job_product_assessments.updated_at`, so valid capability-fit and
-hard-filter review bindings are not invalidated by ranking-only writes.
+Ranking-only writes use ``ranking_updated_at`` and never change the assessment
+``updated_at`` revision used by capability-fit and hard-filter review bindings.
 """
 
 from __future__ import annotations
@@ -38,7 +36,6 @@ from src.search_intelligence.product_v1_ranking_evidence import (
     build_product_v1_ranking_evidence,
 )
 
-
 REPORT_SCHEMA = "job_application_pipeline.product_v1_ranking_score_review.v1"
 APPROVAL_TOKEN = "PRODUCT-V1-RANKING-SCORE-REVIEW-001"
 LOCK_PREFIX = "DEMO-001:product_v1_ranking_score_review"
@@ -49,7 +46,7 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class RankingScoreReviewStop(RuntimeError):
-    """Fail closed when current product evidence cannot authorize ranking persistence."""
+    """Fail closed when current evidence cannot authorize ranking persistence."""
 
 
 @dataclass(frozen=True)
@@ -91,17 +88,11 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
-def _canonical_json(value: object) -> str:
-    return json.dumps(
-        _json_safe(value),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-
-
 def _fingerprint(value: object) -> str:
-    return sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+    canonical = json.dumps(
+        _json_safe(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _require(condition: bool, message: str) -> None:
@@ -124,7 +115,7 @@ def _same_origin(left: str, right: str) -> bool:
 def _decimal(value: object, *, field: str) -> Decimal:
     try:
         result = Decimal(str(value))
-    except Exception as exc:  # pragma: no cover - defensive DB/config boundary
+    except Exception as exc:  # pragma: no cover - defensive boundary
         raise RankingScoreReviewStop(f"ranking policy {field} is not numeric") from exc
     _require(result.is_finite(), f"ranking policy {field} must be finite")
     return result
@@ -134,17 +125,17 @@ def validate_policy(row: Mapping[str, object]) -> RankingPolicy:
     _require(str(row.get("status") or "") == "approved", "ranking policy is not approved")
     policy_version = str(row.get("policy_version") or "").strip()
     _require(bool(policy_version), "ranking policy version is missing")
-
     raw_weights = row.get("ranking_weights")
     _require(isinstance(raw_weights, Mapping), "ranking policy weights are missing")
-    keys = frozenset(str(key) for key in raw_weights)
-    _require(keys == EXPECTED_WEIGHT_KEYS, "ranking policy weight keys are invalid")
+    _require(
+        frozenset(str(key) for key in raw_weights) == EXPECTED_WEIGHT_KEYS,
+        "ranking policy weight keys are invalid",
+    )
     weights = {
-        key: _decimal(raw_weights[key], field=f"weight {key}") for key in EXPECTED_WEIGHT_KEYS
+        key: _decimal(raw_weights[key], field=f"weight {key}")
+        for key in EXPECTED_WEIGHT_KEYS
     }
     _require(all(value > 0 for value in weights.values()), "ranking policy weights must be positive")
-    _require(sum(weights.values(), Decimal("0")) > 0, "ranking policy weight sum must be positive")
-
     minimum = _decimal(row.get("minimum_quality_score"), field="minimum_quality_score")
     _require(Decimal("0") <= minimum <= Decimal("100"), "ranking policy minimum is invalid")
     try:
@@ -152,19 +143,13 @@ def validate_policy(row: Mapping[str, object]) -> RankingPolicy:
     except (TypeError, ValueError) as exc:
         raise RankingScoreReviewStop("ranking policy Top-5 limit is invalid") from exc
     _require(1 <= top_job_limit <= 25, "ranking policy Top-5 limit is invalid")
-    return RankingPolicy(
-        policy_version=policy_version,
-        weights=weights,
-        minimum_quality_score=minimum,
-        top_job_limit=top_job_limit,
-    )
+    return RankingPolicy(policy_version, weights, minimum, top_job_limit)
 
 
 def calculate_overall_quality_score(
-    component_scores: Mapping[str, object],
-    policy: RankingPolicy,
+    component_scores: Mapping[str, object], policy: RankingPolicy
 ) -> Decimal:
-    factor_map = {
+    factors = {
         "profile_direction": "profile_direction_score",
         "reliability_focus": "reliability_focus_score",
         "data_focus": "data_focus_score",
@@ -172,9 +157,12 @@ def calculate_overall_quality_score(
     }
     weighted = Decimal("0")
     total_weight = Decimal("0")
-    for factor, score_key in factor_map.items():
+    for factor, score_key in factors.items():
         score = _decimal(component_scores.get(score_key), field=score_key)
-        _require(Decimal("0") <= score <= Decimal("100"), f"ranking score is out of range: {score_key}")
+        _require(
+            Decimal("0") <= score <= Decimal("100"),
+            f"ranking score is out of range: {score_key}",
+        )
         weight = policy.weights[factor]
         weighted += score * weight
         total_weight += weight
@@ -187,7 +175,6 @@ def validate_current_authority(row: Mapping[str, object]) -> tuple[datetime, str
     _require(str(row.get("activity_status") or "") == "active", "job is not active")
     _require(str(row.get("capability_fit_status") or "") == "passed", "approved capability fit is required")
     _require(str(row.get("hard_filter_status") or "") == "passed", "current hard-filter status must be passed")
-
     assessment_updated_at = row.get("assessment_updated_at")
     _require(isinstance(assessment_updated_at, datetime), "assessment revision is missing")
     ranking_factors = row.get("ranking_factors")
@@ -204,73 +191,73 @@ def build_plan_item(
     final_url: str,
     detail_text: str,
 ) -> RankingPlanItem:
-    assessment_updated_at, expected_detail_sha = validate_current_authority(row)
+    assessment_at, detail_sha = validate_current_authority(row)
     source_url = str(row.get("source_url") or "").strip()
     title = str(row.get("title") or "").strip()
     _require(bool(source_url), "Silver source URL is missing")
     _require(bool(title), "Silver job title is missing")
     _require(_same_origin(source_url, final_url), "detail fetch redirected outside the authorized origin")
-
-    assessment_evidence = extract_product_v1_assessment_evidence(
-        description=detail_text,
-        title=title,
-        source_url=final_url,
+    assessment = extract_product_v1_assessment_evidence(
+        description=detail_text, title=title, source_url=final_url
     )
     _require(
-        assessment_evidence.description_sha256 == expected_detail_sha,
+        assessment.description_sha256 == detail_sha,
         "current detail evidence changed since assessment materialization",
     )
-    ranking_evidence = build_product_v1_ranking_evidence(
+    evidence = build_product_v1_ranking_evidence(
         title=title,
         description=detail_text,
-        origin_validation_status=str(row["origin_validation_status"]),
-        activity_status=str(row["activity_status"]),
-        assessment_evidence=assessment_evidence,
+        origin_validation_status="validated",
+        activity_status="active",
+        assessment_evidence=assessment,
     )
-    component_scores = ranking_evidence.ranking_scores_patch()
+    component_scores = evidence.ranking_scores_patch()
     overall = calculate_overall_quality_score(component_scores, policy)
     evidence_payload = {
-        **ranking_evidence.canonical_payload(),
-        "assessment_detail_sha256": expected_detail_sha,
+        **evidence.canonical_payload(),
+        "assessment_detail_sha256": detail_sha,
         "source_url": source_url,
     }
-
     current_scores = {
-        "profile_direction_score": row.get("profile_direction_score"),
-        "data_focus_score": row.get("data_focus_score"),
-        "reliability_focus_score": row.get("reliability_focus_score"),
-        "evidence_quality_score": row.get("evidence_quality_score"),
+        key: row.get(key)
+        for key in (
+            "profile_direction_score",
+            "data_focus_score",
+            "reliability_focus_score",
+            "evidence_quality_score",
+        )
     }
-    active_exact = (
-        str(row.get("active_review_policy_version") or "") == policy.policy_version
-        and str(row.get("active_review_rubric_version") or "") == RUBRIC_VERSION
-        and row.get("active_review_assessment_updated_at") == assessment_updated_at
-        and str(row.get("active_review_detail_sha256") or "") == expected_detail_sha
-        and _json_safe(row.get("active_review_component_scores")) == _json_safe(component_scores)
-        and _decimal(row.get("active_review_overall_quality_score"), field="active overall") == overall
-        if row.get("active_review_overall_quality_score") is not None
-        else False
-    )
     scores_exact = all(
-        current_scores[key] is not None
-        and _decimal(current_scores[key], field=key) == _decimal(component_scores[key], field=key)
-        for key in current_scores
-    ) and (
-        row.get("overall_quality_score") is not None
-        and _decimal(row.get("overall_quality_score"), field="overall_quality_score") == overall
+        value is not None
+        and _decimal(value, field=key) == _decimal(component_scores[key], field=key)
+        for key, value in current_scores.items()
+    ) and row.get("overall_quality_score") is not None and (
+        _decimal(row.get("overall_quality_score"), field="overall_quality_score") == overall
+    )
+    active_exact = bool(row.get("active_review_overall_quality_score") is not None) and all(
+        (
+            str(row.get("active_review_policy_version") or "") == policy.policy_version,
+            str(row.get("active_review_rubric_version") or "") == RUBRIC_VERSION,
+            row.get("active_review_assessment_updated_at") == assessment_at,
+            str(row.get("active_review_detail_sha256") or "") == detail_sha,
+            _json_safe(row.get("active_review_component_scores"))
+            == _json_safe(component_scores),
+            _decimal(row.get("active_review_overall_quality_score"), field="active overall")
+            == overall,
+        )
     )
     return RankingPlanItem(
-        silver_job_id=int(row["silver_job_id"]),
-        title=title,
-        source_url=source_url,
-        assessment_updated_at=assessment_updated_at,
-        assessment_detail_sha256=expected_detail_sha,
-        policy_version=policy.policy_version,
-        rubric_version=RUBRIC_VERSION,
-        component_scores=component_scores,
-        overall_quality_score=overall,
-        evidence_payload=evidence_payload,
-        would_change=not (active_exact and scores_exact),
+        int(row["silver_job_id"]),
+        title,
+        source_url,
+        assessment_at,
+        detail_sha,
+        policy.policy_version,
+        RUBRIC_VERSION,
+        component_scores,
+        overall,
+        evidence_payload,
+        not (scores_exact and active_exact),
     )
 
 
@@ -308,27 +295,18 @@ def load_current_rows(
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT
-                sj.id AS silver_job_id,
-                sj.title,
-                sj.source_url,
-                a.origin_validation_status,
-                a.activity_status,
-                a.capability_fit_status,
-                a.updated_at AS assessment_updated_at,
-                a.ranking_factors,
-                a.profile_direction_score,
-                a.data_focus_score,
-                a.reliability_focus_score,
-                a.evidence_quality_score,
-                a.overall_quality_score,
-                h.hard_filter_status,
-                review.assessment_updated_at AS active_review_assessment_updated_at,
-                review.assessment_detail_sha256 AS active_review_detail_sha256,
-                review.policy_version AS active_review_policy_version,
-                review.rubric_version AS active_review_rubric_version,
-                review.component_scores AS active_review_component_scores,
-                review.overall_quality_score AS active_review_overall_quality_score
+            SELECT sj.id AS silver_job_id, sj.title, sj.source_url,
+                   a.origin_validation_status, a.activity_status,
+                   a.capability_fit_status, a.updated_at AS assessment_updated_at,
+                   a.ranking_factors, a.profile_direction_score, a.data_focus_score,
+                   a.reliability_focus_score, a.evidence_quality_score,
+                   a.overall_quality_score, h.hard_filter_status,
+                   review.assessment_updated_at AS active_review_assessment_updated_at,
+                   review.assessment_detail_sha256 AS active_review_detail_sha256,
+                   review.policy_version AS active_review_policy_version,
+                   review.rubric_version AS active_review_rubric_version,
+                   review.component_scores AS active_review_component_scores,
+                   review.overall_quality_score AS active_review_overall_quality_score
             FROM silver_jobs sj
             JOIN job_product_assessments a ON a.silver_job_id = sj.id
             JOIN gold_product_v1_hard_filter_evaluation h ON h.silver_job_id = sj.id
@@ -343,10 +321,7 @@ def load_current_rows(
 
 
 def apply_item(
-    conn: psycopg.Connection[Any],
-    *,
-    item: RankingPlanItem,
-    reviewed_by: str,
+    conn: psycopg.Connection[Any], *, item: RankingPlanItem, reviewed_by: str
 ) -> bool:
     with conn.cursor() as cur:
         cur.execute(
@@ -355,31 +330,23 @@ def apply_item(
         )
         cur.execute(
             """
-            SELECT
-                a.origin_validation_status,
-                a.activity_status,
-                a.capability_fit_status,
-                a.updated_at AS assessment_updated_at,
-                a.ranking_factors,
-                h.hard_filter_status,
-                p.status AS policy_status,
-                p.policy_version,
-                p.ranking_weights,
-                p.minimum_quality_score,
-                p.top_job_limit
+            SELECT a.origin_validation_status, a.activity_status,
+                   a.capability_fit_status, a.updated_at AS assessment_updated_at,
+                   a.ranking_factors, h.hard_filter_status,
+                   p.status AS policy_status, p.policy_version,
+                   p.ranking_weights, p.minimum_quality_score, p.top_job_limit
             FROM job_product_assessments a
             JOIN gold_product_v1_hard_filter_evaluation h
               ON h.silver_job_id = a.silver_job_id
             CROSS JOIN product_v1_ranking_policy p
-            WHERE a.silver_job_id = %s
-              AND p.policy_key = 'default'
+            WHERE a.silver_job_id = %s AND p.policy_key = 'default'
             FOR UPDATE OF a
             """,
             (item.silver_job_id,),
         )
         current = cur.fetchone()
         _require(current is not None, f"current assessment disappeared: {item.silver_job_id}")
-        current_assessment_at, current_detail_sha = validate_current_authority(current)
+        assessment_at, detail_sha = validate_current_authority(current)
         current_policy = validate_policy(
             {
                 "status": current["policy_status"],
@@ -389,15 +356,16 @@ def apply_item(
                 "top_job_limit": current["top_job_limit"],
             }
         )
-        _require(current_assessment_at == item.assessment_updated_at, f"assessment changed after plan: {item.silver_job_id}")
-        _require(current_detail_sha == item.assessment_detail_sha256, f"assessment detail changed after plan: {item.silver_job_id}")
+        _require(assessment_at == item.assessment_updated_at, f"assessment changed after plan: {item.silver_job_id}")
+        _require(detail_sha == item.assessment_detail_sha256, f"assessment detail changed after plan: {item.silver_job_id}")
         _require(current_policy.policy_version == item.policy_version, f"ranking policy changed after plan: {item.silver_job_id}")
-        recalculated = calculate_overall_quality_score(item.component_scores, current_policy)
-        _require(recalculated == item.overall_quality_score, f"ranking calculation changed after plan: {item.silver_job_id}")
-
+        _require(
+            calculate_overall_quality_score(item.component_scores, current_policy)
+            == item.overall_quality_score,
+            f"ranking calculation changed after plan: {item.silver_job_id}",
+        )
         if not item.would_change:
             return False
-
         cur.execute(
             """
             UPDATE product_v1_ranking_score_reviews
@@ -426,7 +394,7 @@ def apply_item(
                 reviewed_by,
             ),
         )
-        ranking_metadata = {
+        metadata = {
             "schema": REPORT_SCHEMA,
             "rubric_version": item.rubric_version,
             "policy_version": item.policy_version,
@@ -455,24 +423,17 @@ def apply_item(
                 item.component_scores["evidence_quality_score"],
                 item.overall_quality_score,
                 item.policy_version,
-                json.dumps(ranking_metadata, sort_keys=True),
+                json.dumps(metadata, sort_keys=True),
                 item.silver_job_id,
             ),
         )
     return True
 
 
-def write_report(report: Mapping[str, object], output: Path) -> Path:
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(_json_safe(report), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    return output
-
-
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Plan or apply evidence-bound Product V1 ranking scores.")
+    parser = argparse.ArgumentParser(
+        description="Plan or apply evidence-bound Product V1 ranking scores."
+    )
     parser.add_argument("--silver-job-id", action="append", type=int, required=True)
     parser.add_argument("--reviewed-by", default="jens")
     parser.add_argument("--apply", action="store_true")
@@ -505,9 +466,15 @@ def main() -> int:
             row = rows.get(silver_job_id)
             _require(row is not None, f"Product V1 assessment is missing: {silver_job_id}")
             source_url = str(row.get("source_url") or "")
-            final_url, detail_text = fetch_public_https_detail_text(source_url)
-            items.append(build_plan_item(row=row, policy=policy, final_url=final_url, detail_text=detail_text))
-
+            final_url, _page_title, detail_text = fetch_public_https_detail_text(source_url)
+            items.append(
+                build_plan_item(
+                    row=row,
+                    policy=policy,
+                    final_url=final_url,
+                    detail_text=detail_text,
+                )
+            )
         report: dict[str, object] = {
             "schema": REPORT_SCHEMA,
             "mode": "apply" if args.apply else "plan",
@@ -539,16 +506,20 @@ def main() -> int:
             },
         }
         if args.apply:
-            changed = 0
-            for item in items:
-                if apply_item(conn, item=item, reviewed_by=reviewed_by):
-                    changed += 1
+            changed = sum(
+                apply_item(conn, item=item, reviewed_by=reviewed_by) for item in items
+            )
             conn.commit()
             report["changed_count"] = changed
             report["unchanged_count"] = len(items) - changed
         else:
             conn.rollback()
-        write_report(report, args.output)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(_json_safe(report), ensure_ascii=False, indent=2, sort_keys=True)
+            + "\n",
+            encoding="utf-8",
+        )
     print(json.dumps(_json_safe(report), ensure_ascii=False, sort_keys=True))
     return 0
 
