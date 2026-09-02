@@ -14,6 +14,8 @@ from decimal import Decimal
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 import json
+import os
+from pathlib import Path
 from typing import Mapping
 from urllib.parse import parse_qs, urlparse
 
@@ -47,10 +49,21 @@ APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
 _MAX_ACTION_BODY_BYTES = 4_096
 _MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
+_DEFAULT_PRIVATE_DOCUMENT_ROOT = Path("private_application_sources")
 
 
 class DemoActionStop(ValueError):
     pass
+
+
+def configure_demo_private_document_root() -> Path:
+    """Give upload and workspace loading one deterministic local-private root."""
+
+    raw = os.environ.get("PRODUCT_V1_PRIVATE_DOCUMENT_ROOT", "").strip()
+    root = Path(raw).expanduser().resolve() if raw else _DEFAULT_PRIVATE_DOCUMENT_ROOT.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    os.environ["PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"] = str(root)
+    return root
 
 
 def _json_transport_value(value: object) -> object:
@@ -260,9 +273,11 @@ class ProductV1DemoHandler(ProductV1Handler):
 
 
 def run_server(args: argparse.Namespace) -> None:
+    private_root = configure_demo_private_document_root()
     server = ThreadingHTTPServer((args.host, args.port), ProductV1DemoHandler)
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
     print(f"Deep Ocean Product V1 DEMO-001: http://{args.host}:{args.port}/")
+    print(f"Private application documents: {private_root}")
     print(
         "Boundary: real Product V1 truth + local-private document intake + bounded "
         "Application Workspace; no automatic submission or send."
