@@ -2,62 +2,71 @@
 
 Status: current truth navigation
 
-This folder contains the small maintained surface for the current product.
-It is intentionally not a complete history.
+This folder contains the small maintained surface for the current product. It is intentionally not a complete history.
 
 ## Re-entry source authority
 
 Every re-entry starts from this current-truth surface read from canonical `refs/heads/main`.
 A branch-local copy of `docs/current/*`, a branch-local planning document, an old checkout, or a familiar worktree may describe active work but is **not** allowed to redefine canonical `main`, canonical checkout role, or re-entry authority.
 
-Repository-owned project hygiene and DRJ policy are authoritative for local workspace paths, prevention rules, and retention handoff:
+Repository-owned project hygiene and DRJ policy remain authoritative for workspace paths, prevention rules, and retention handoff:
 
-- `PROJECT-HYGIENE.json` is the project hygiene authority;
-- `PROJECT-LOCAL-WORKSPACE.json` is referenced by that contract and declares bounded canonical checkout/worktree roots;
-- `PROJECT-DRJ.json` defines the retention/reconciliation boundary and explicitly does **not** make DRJ project work-admission authority;
-- this re-entry surface may reference those contracts but must not duplicate or redefine them.
+- `PROJECT-HYGIENE.json` is project hygiene authority;
+- `PROJECT-LOCAL-WORKSPACE.json` declares bounded canonical checkout/worktree roots;
+- `PROJECT-DRJ.json` defines retention/reconciliation boundaries and explicitly does **not** make DRJ project work-admission authority;
+- `POST-MIGRATION-RESTART.json` is the one-time project restart checkpoint under the shared portfolio contract.
+
+## Post-migration restart state
+
+This repository reached **`POST-MIGRATION-RESTART = PASS`** on 2026-09-02 after exact host counter-inspection, ancestry-free harvest and local retirement proof.
+
+Canonical local invariant now proven:
+
+- exactly one persistent project checkout remains at `$HOME/projects/job-application-pipeline`;
+- that checkout is clean `main` and equals fresh remote `main` at the recorded proof point;
+- no non-main project worktree remains;
+- no local non-main project branch remains;
+- all discovered unique value was integrated onto current-main ancestry or durably classified/preserved;
+- no remote branch was deleted as part of the local restart proof.
+
+Durable evidence:
+
+- `POST-MIGRATION-RESTART.json`;
+- issue `#704`;
+- `docs/knowledge/branch_salvage_704.md`;
+- PR `#705` / merge `41c855c3858b40a3d2d1d7b84dc8d6488f81d2a9`.
+
+The shared portfolio restart contract still requires all ten managed projects to reach `PASS` before active project development resumes. This repository's local restart gate no longer blocks, but portfolio sequencing remains authoritative until the all-PASS condition is satisfied.
 
 ## Active acquisition continuation
 
 The current deterministic acquisition-hardening continuation is **ACQ-GENERALIZATION-90 / issue #676**.
 
-When #676 is open, its active planning/re-entry anchors are:
+Its canonical anchors are:
 
-- `../planning/active/acq_generalization_90_reentry.md` — canonical ACQ-676 continuation and semantic retention boundary;
-- `../planning/active/acq_generalization_90_reentry.json` — machine-readable active/keep/preserve/superseded/conditional-retire state;
-- `../planning/active/acq_generalization_90_target.md` — full-population metric and hard guardrails.
+- `../planning/active/acq_generalization_90_reentry.md` — current semantic continuation;
+- `../planning/active/acq_generalization_90_reentry.json` — machine-readable state;
+- `../planning/active/acq_generalization_90_target.md` — full-population metric and guardrails;
+- `../planning/active/acq676_external_deterministic_salvage.md` — V6 external/historical provider capability map.
 
-The older `REENTRY-001B` / issue #672 material remains useful predecessor evidence but is **not** the current acquisition continuation while #676 is active.
+The next ACQ-676 engineering measurement is the **same 65-candidate V6 benchmark** after portfolio all-PASS restart authority. V6 is already merged; product coverage remains `36/65` until materialized unchanged strict E2E proof establishes a higher numerator.
 
-The 2026-08-28 workspace migration for #676 is complete. Historical migration checkpoint files remain retained comparison provenance; they are not the active resume authority and must not be discarded merely because their filename contains `migration_checkpoint`.
+The older `REENTRY-001B` / issue #672 material remains predecessor evidence, not current sequencing authority.
 
-For retention semantics, qualified content and branch ancestry are separate:
+## Mandatory workspace hygiene on every re-entry
 
-- qualified ACQ-676 content is semantically retained;
-- superseded old branch ancestry may be retired only after the active #682 work is merged and the retained content is verified on canonical `main`;
-- `/tmp` audit artifacts whose result truth is already versioned in repository documents are disposable.
+Even after the one-time restart PASS, every new re-entry must freshly prove the direct workspace conditions relevant to the next action:
 
-## Mandatory re-entry workspace hygiene preflight
+- canonical path, repository identity, origin, branch, HEAD and upstream state;
+- canonical persistent checkout is clean `main`;
+- feature work starts from fresh remote `main` in the declared temporary-worktree root;
+- branch-of-branch continuation is forbidden;
+- dirty, divergent, unpushed, detached, locked/in-use, closed-unmerged or ambiguous state is preserve-by-default and fails closed only for directly affected work;
+- clean retention debt is surfaced for reconciliation but does not by itself block unrelated project work;
+- `RETENTION_DEBT`, `RECONCILIATION_PENDING`, missing DRJ `CHECK=PASS`, or DRJ unavailability alone are not project work-admission blockers;
+- age, path, name, merge-looking status or repository pressure never establish deletion authority.
 
-Before reading current truth as continuation authority or executing any next action, inventory and classify live local Git checkout/worktree topology against `PROJECT-HYGIENE.json`, `PROJECT-LOCAL-WORKSPACE.json`, and `PROJECT-DRJ.json`.
-
-Hard invariant:
-
-- exactly one persistent canonical checkout is allowed for this repository and it must be on the repository canonical/default branch (`main` unless live repository truth says otherwise);
-- normal scanner/preflight scope is the declared canonical path bindings and temporary workspace roots; broad home/project scanning is fallback-only when repository workspace truth is missing, invalid or contradicted by host evidence;
-- non-main branches may be locally checked out only while they are explicitly part of current active work and should be created under the declared temporary-workspace root;
-- integrated chat/runner/manual-test creators should register a workspace lease/provenance record rather than create anonymous local state;
-- closed, merged, superseded, abandoned, stale or otherwise inactive **clean** non-main local checkouts/worktrees are retention debt: surface them and hand them to DRJ reconciliation, but their presence alone does not block unrelated project work;
-- `RETENTION_DEBT`, `RECONCILIATION_PENDING`, a missing DRJ `CHECK=PASS`, or DRJ unavailability alone are not project work-admission blockers;
-- path names, remembered roles, old PR state or long-lived local presence never make a branch canonical `main`;
-- canonical path, repository identity, origin, current branch, HEAD and upstream state must be freshly proven;
-- dirty, divergent, unpushed, locked/in-use, closed-unmerged or ambiguous local state is protected and must surface CHECK rather than be deleted; only the directly affected work fails closed when that underlying state is unsafe or contradictory;
-- do not use `git reset --hard`, `git clean -fdx`, `git branch -D`, force checkout over unique state, or path/name/age-only worktree/clone deletion as automatic cleanup;
-- after classification and any required DRJ handoff, continue unrelated project work when its direct project safety and authority gates pass even while clean retention reconciliation remains pending.
-
-Prevention target: normal CI and local fallback should create bounded, declared, lifecycle-aware workspaces so DRJ mostly verifies hygiene and only performs exceptional reconciliation when lifecycle closure fails.
-
-This preflight is mandatory on every re-entry. **DRJ cleanup completion is not.** DRJ status must never be used as general project work-admission authority.
+Runner workspaces remain execution-only and are not project worktrees.
 
 Read in this order:
 
@@ -67,4 +76,5 @@ Read in this order:
 4. `system-diagrams.md`
 5. `governance.md`
 6. `operations.md`
-7. when issue #676 is active: `../planning/active/acq_generalization_90_reentry.md`
+7. `POST-MIGRATION-RESTART.json`
+8. when issue #676 is active: `../planning/active/acq_generalization_90_reentry.md`
