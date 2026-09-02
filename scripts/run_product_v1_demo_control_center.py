@@ -1,9 +1,9 @@
 """Serve the Product V1 Control Center with the DEMO-001 Application Workspace.
 
 The existing canonical Control Center remains the product truth source. This demo
-runtime adds the bounded Application Workspace and a read-only presentation enrichment
-for current job review. Presentation evidence never changes ranking, Top-5 or
-application authority.
+runtime adds the bounded Application Workspace, local-private base-document intake,
+and a read-only presentation enrichment for current job review. Presentation evidence
+never changes ranking, Top-5 or application authority.
 """
 
 from __future__ import annotations
@@ -24,10 +24,17 @@ from scripts.product_v1_application_workspace_runtime import (
 from scripts.product_v1_job_presentation_runtime import (
     enrich_product_payload_for_operator,
 )
+from scripts.product_v1_local_document_intake import (
+    LocalDocumentIntakeStop,
+    ingest_local_base_document,
+)
 from scripts.run_product_v1_control_center import (
     ProductV1Handler,
     build_parser,
     load_product_v1_payload,
+)
+from src.search_intelligence.private_application_source_text import (
+    PrivateApplicationSourceTextError,
 )
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
@@ -37,7 +44,9 @@ from src.search_intelligence.product_v1_application_workspace import (
 PRODUCT_V1_PATH = "/api/v1/product-v1"
 APPLICATION_WORKSPACE_PATH = "/api/v1/product-v1/application-workspace"
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
+APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
 _MAX_ACTION_BODY_BYTES = 4_096
+_MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
 
 
 class DemoActionStop(ValueError):
@@ -75,7 +84,7 @@ def parse_application_draft_action_payload(payload: object) -> int:
 
 
 class ProductV1DemoHandler(ProductV1Handler):
-    server_version = "DeepOceanProductV1/0.8-demo"
+    server_version = "DeepOceanProductV1/0.9-demo"
 
     def _send_json(
         self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
@@ -151,7 +160,7 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
-    def _read_demo_action_payload(self) -> object:
+    def _read_demo_action_payload(self, *, max_bytes: int = _MAX_ACTION_BODY_BYTES) -> object:
         content_type = (
             str(self.headers.get("Content-Type") or "")
             .split(";", 1)[0]
@@ -165,7 +174,7 @@ class ProductV1DemoHandler(ProductV1Handler):
             content_length = int(raw_length)
         except ValueError as exc:
             raise DemoActionStop("valid Content-Length is required") from exc
-        if content_length <= 0 or content_length > _MAX_ACTION_BODY_BYTES:
+        if content_length <= 0 or content_length > max_bytes:
             raise DemoActionStop("action body size is outside the allowed bound")
         raw_body = self.rfile.read(content_length)
         if len(raw_body) != content_length:
@@ -175,8 +184,39 @@ class ProductV1DemoHandler(ProductV1Handler):
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise DemoActionStop("action body must be valid UTF-8 JSON") from exc
 
+    def _post_document_upload(self) -> None:
+        try:
+            payload = ingest_local_base_document(
+                self._read_demo_action_payload(max_bytes=_MAX_UPLOAD_BODY_BYTES)
+            )
+            self._send_json(payload)
+        except (DemoActionStop, LocalDocumentIntakeStop, PrivateApplicationSourceTextError) as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "provider_or_llm_requests": 0,
+                    "application_submission_actions": False,
+                },
+                status=HTTPStatus.BAD_REQUEST,
+            )
+        except Exception as exc:  # pragma: no cover - runtime diagnostics
+            self._send_json(
+                {
+                    "status": "error",
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                    "provider_or_llm_requests": 0,
+                    "application_submission_actions": False,
+                },
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+
     def do_POST(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
+        if parsed.path == APPLICATION_SOURCE_UPLOAD_PATH:
+            self._post_document_upload()
+            return
         if parsed.path != APPLICATION_DRAFT_PATH:
             super().do_POST()
             return
@@ -224,8 +264,8 @@ def run_server(args: argparse.Namespace) -> None:
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
     print(f"Deep Ocean Product V1 DEMO-001: http://{args.host}:{args.port}/")
     print(
-        "Boundary: real Product V1 truth + bounded Application Workspace; "
-        "no draft persistence, application approval, submission, or send."
+        "Boundary: real Product V1 truth + local-private document intake + bounded "
+        "Application Workspace; no automatic submission or send."
     )
     try:
         server.serve_forever()
