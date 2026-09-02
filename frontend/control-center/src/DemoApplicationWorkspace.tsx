@@ -90,7 +90,7 @@ type DraftPayload = {
 };
 
 const normalized = (value: string | undefined | null) => (value || "").replaceAll("_", " ");
-const percent = (value: number | undefined | null) => value == null ? "—" : `${Math.round(value)}%`;
+const percent = (value: number | undefined | null) => value == null ? "—" : `${Math.round(value)}`;
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -119,6 +119,10 @@ function draftModeLabel(mode: DraftMode | undefined) {
   if (mode === "provider_validated") return "PROVIDER-VALIDATED";
   if (mode === "deterministic_evidence_first") return "EVIDENCE-FIRST · PROVIDER-FREE";
   return "SOURCE-GROUNDED";
+}
+
+function readinessTone(ready: boolean) {
+  return ready ? "ready" : "blocked";
 }
 
 export default function DemoApplicationWorkspace() {
@@ -173,6 +177,9 @@ export default function DemoApplicationWorkspace() {
   const cvFragments = draftFragments.filter((item) => fragmentGroup(item.kind) === "CV");
   const letterFragments = draftFragments.filter((item) => fragmentGroup(item.kind) === "Application letter");
   const generationReady = workspace?.status === "ready" && workspace.workspace?.generation_ready === true && claimPlan.length > 0;
+  const vacancyReady = Boolean(workspace?.live_job_evidence?.fetched_title || workspace?.live_job_evidence?.final_url);
+  const candidateFactsReady = claimPlan.length > 0;
+  const documentsReady = documents.length >= 2 && sourceReadiness?.base_cv === true && sourceReadiness?.base_application_letter === true;
 
   const generateDraft = async () => {
     if (selectedId == null || !generationReady) return;
@@ -197,10 +204,10 @@ export default function DemoApplicationWorkspace() {
       className="demo-application-launcher"
       disabled={topJobs.length === 0}
       onClick={() => setOpen(true)}
-      title={topJobs.length ? "Open source-grounded application preparation" : "No authoritative Top-5 job available"}
+      title={topJobs.length ? "Prepare an application from authoritative Top-5 truth" : "No authoritative Top-5 job available"}
     >
-      <span>Ready to apply</span>
-      <strong>{topJobs.length ? `${topJobs.length} Top-5 job${topJobs.length === 1 ? "" : "s"}` : "No Top-5 job"}</strong>
+      <span>Prepare application</span>
+      <strong>{topJobs.length ? `${topJobs.length} authoritative Top-5 job${topJobs.length === 1 ? "" : "s"}` : "No Top-5 job"}</strong>
     </button>;
   }
 
@@ -212,70 +219,126 @@ export default function DemoApplicationWorkspace() {
         <div>
           <span className="demo-eyebrow">DEMO-001 · final product step</span>
           <h1>Application Workspace</h1>
-          <p>From authoritative Top 5 to a source-grounded application draft.</p>
+          <p>One current job, verified evidence, one reviewable application package.</p>
         </div>
         <button type="button" className="demo-close" onClick={() => setOpen(false)}>×</button>
       </header>
 
-      <div className="demo-application-truth-strip">
-        <span><i className="ok" /> Top-5 authority</span>
-        <span><i className={sourceReadiness?.base_cv ? "ok" : ""} /> Base CV {sourceReadiness?.base_cv ? "approved" : "required"}</span>
-        <span><i className={sourceReadiness?.base_application_letter ? "ok" : ""} /> Base letter {sourceReadiness?.base_application_letter ? "approved" : "required"}</span>
-        <span><i /> REVIEW REQUIRED</span>
-        <span><i /> NO AUTO-SUBMIT</span>
+      <div className="demo-journey" aria-label="Demo product journey">
+        <span className="done"><b>1</b>Discover</span>
+        <i />
+        <span className="done"><b>2</b>Verify</span>
+        <i />
+        <span className="done"><b>3</b>Rank</span>
+        <i />
+        <span className="active"><b>4</b>Prepare</span>
       </div>
 
-      {topJobs.length > 1 && <nav className="demo-job-picker" aria-label="Top jobs">
-        {topJobs.map((job) => <button
-          type="button"
-          key={job.silver_job_id}
-          className={job.silver_job_id === selectedId ? "active" : ""}
-          onClick={() => setSelectedId(job.silver_job_id)}
-        >
-          <b>#{job.product_rank || "–"}</b>
-          <span>{job.company_name || "Unknown employer"}</span>
-          <small>{job.title || "Untitled job"}</small>
-        </button>)}
-      </nav>}
+      <div className="demo-safety-banner">
+        <strong>REVIEW REQUIRED</strong>
+        <span>Nothing is submitted or sent automatically.</span>
+      </div>
 
-      {selectedJob && <section className="demo-selected-job">
-        <span className="rank">#{selectedJob.product_rank || "–"}</span>
-        <div><span className="demo-eyebrow">Selected authoritative job</span><h2>{selectedJob.title}</h2><p>{selectedJob.company_name} · {selectedJob.city || "Location unconfirmed"}</p></div>
-        <strong>{percent(selectedJob.overall_quality_score)}<small>profile fit</small></strong>
-      </section>}
-
-      {loading && <div className="demo-loading">Binding live vacancy evidence, Candidate Facts and approved source documents…</div>}
-      {error && <div className="demo-error"><b>Fail closed</b><span>{error}</span></div>}
-
-      {!loading && workspace && <div className="demo-application-grid">
-        <article className="demo-workspace-card">
-          <header><span className="demo-eyebrow">1 · Source-grounded context</span><h3>{generationReady ? "Ready for drafting" : "Context blocked"}</h3></header>
-          <div className="demo-readiness-list">
-            <div><span>Employer-origin vacancy</span><b>{workspace.live_job_evidence?.fetched_title || "validated source"}</b></div>
-            <div><span>Candidate Fact matches</span><b>{claimPlan.length}</b></div>
-            <div><span>Approved source documents</span><b>{documents.length}/2</b></div>
-            <div><span>Detail fingerprint</span><code>{workspace.live_job_evidence?.detail_sha256?.slice(0, 12) || "—"}</code></div>
+      <div className="demo-application-shell">
+        <aside className="demo-job-sidebar">
+          <div className="demo-sidebar-heading">
+            <span className="demo-eyebrow">Authoritative shortlist</span>
+            <h2>Top 5</h2>
+            <small>{topJobs.length}/5 current recommendations</small>
           </div>
-          {workspaceBlockers.length > 0 && <div className="demo-blockers"><b>Generation blockers</b>{workspaceBlockers.map((item) => <span key={item}>{normalized(item)}</span>)}</div>}
-          {claimPlan.length > 0 && <div className="demo-claim-plan"><span className="demo-eyebrow">Matched evidence</span>{claimPlan.slice(0, 5).map((entry) => <div key={entry.fact_key}><b>{entry.fact_key}</b><p>{entry.statement}</p><small>{entry.job_references?.map((reference) => reference.evidence).filter(Boolean).join(" · ") || "No exact vacancy match"}</small></div>)}</div>}
-          <button type="button" className="demo-generate-button" disabled={!generationReady || drafting} onClick={() => void generateDraft()}>
-            {drafting ? "Preparing review draft…" : draft?.status === "draft_for_review" ? "Regenerate review draft" : "Prepare application draft"}
-          </button>
-          <p className="demo-boundary-note">Drafting starts only after this context is ready. A bounded provider may polish the draft; if unavailable, a provider-free evidence-first version remains reviewable. Nothing is submitted automatically.</p>
-        </article>
+          <nav className="demo-job-picker" aria-label="Top jobs">
+            {topJobs.map((job) => <button
+              type="button"
+              key={job.silver_job_id}
+              className={job.silver_job_id === selectedId ? "active" : ""}
+              onClick={() => setSelectedId(job.silver_job_id)}
+            >
+              <b>#{job.product_rank || "–"}</b>
+              <span>{job.title || "Untitled job"}</span>
+              <small>{job.company_name || "Unknown employer"} · {job.city || "Location unconfirmed"}</small>
+            </button>)}
+          </nav>
+        </aside>
 
-        <article className="demo-workspace-card demo-draft-card">
-          <header><span className="demo-eyebrow">2 · Prepared application</span><h3>{draft?.status === "draft_for_review" ? "Draft ready for your review" : "Waiting for operator action"}</h3></header>
-          {draft?.status === "draft_for_review" && draft.package ? <>
-            <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED · NO SUBMISSION AUTHORITY</div>
-            {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
-            {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback reason: {normalized(draft.fallback_reason)}. Candidate claims remain copied from approved Candidate Facts; vacancy claims remain tied to exact current evidence.</p>}
-            <section><h4>CV adaptation</h4>{cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><span>{normalized(fragment.kind)}</span><p>{fragment.text}</p><small>Facts: {fragment.candidate_fact_keys?.join(", ") || "—"}</small></div>)}</section>
-            <section><h4>Application letter</h4>{letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><span>{normalized(fragment.kind)}</span><p>{fragment.text}</p>{fragment.job_evidence?.length ? <small>Vacancy evidence: “{fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}”</small> : null}</div>)}</section>
-            <footer><span>Provider requests: {draft.provider_requests ?? 0}</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
-          </> : <div className="demo-empty-draft"><strong>Here ends the demo journey.</strong><p>Once all factual gates pass, one explicit click produces a reviewable CV and letter draft. Provider provenance is shown explicitly and nothing is sent.</p></div>}
-        </article>
-      </div>}
+        <main className="demo-application-main">
+          {selectedJob && <section className="demo-selected-job">
+            <div className="demo-selected-copy">
+              <span className="demo-eyebrow">Selected authoritative job</span>
+              <h2>{selectedJob.title}</h2>
+              <p>{selectedJob.company_name} · {selectedJob.city || "Location unconfirmed"}</p>
+            </div>
+            <div className="demo-score-ring" aria-label={`${percent(selectedJob.overall_quality_score)} profile fit`}>
+              <strong>{percent(selectedJob.overall_quality_score)}</strong>
+              <span>profile fit</span>
+            </div>
+          </section>}
+
+          {loading && <div className="demo-loading">Binding live vacancy evidence, Candidate Facts and approved source documents…</div>}
+          {error && <div className="demo-error"><b>Fail closed</b><span>{error}</span></div>}
+
+          {!loading && workspace && <div className="demo-application-grid">
+            <article className="demo-workspace-card demo-context-card">
+              <header>
+                <span className="demo-eyebrow">Verified context</span>
+                <h3>{generationReady ? "Ready for drafting" : "Context blocked"}</h3>
+              </header>
+
+              <div className="demo-readiness-list">
+                <div className={readinessTone(vacancyReady)}><i /><span>Vacancy</span><b>{vacancyReady ? "Employer-origin verified" : "Evidence required"}</b></div>
+                <div className={readinessTone(candidateFactsReady)}><i /><span>Candidate facts</span><b>{candidateFactsReady ? `${claimPlan.length} matched claims` : "Matches required"}</b></div>
+                <div className={readinessTone(documentsReady)}><i /><span>Source documents</span><b>{documentsReady ? "CV + base letter approved" : `${documents.length}/2 approved`}</b></div>
+                <div className="ready"><i /><span>Submission boundary</span><b>Review only · no auto-submit</b></div>
+              </div>
+
+              {workspaceBlockers.length > 0 && <div className="demo-blockers"><b>What still blocks this application?</b>{workspaceBlockers.map((item) => <span key={item}>{normalized(item)}</span>)}</div>}
+
+              <details className="demo-evidence-details">
+                <summary>Evidence details</summary>
+                <div className="demo-evidence-meta">
+                  <span>Current vacancy</span><b>{workspace.live_job_evidence?.fetched_title || "Validated source"}</b>
+                  <span>Detail fingerprint</span><code>{workspace.live_job_evidence?.detail_sha256?.slice(0, 12) || "—"}</code>
+                </div>
+                {claimPlan.length > 0 && <div className="demo-claim-plan">{claimPlan.slice(0, 5).map((entry) => <div key={entry.fact_key}><b>{entry.statement || entry.fact_key}</b><small>{entry.job_references?.map((reference) => reference.evidence).filter(Boolean).join(" · ") || "No exact vacancy match"}</small></div>)}</div>}
+              </details>
+
+              <button type="button" className="demo-generate-button" disabled={!generationReady || drafting} onClick={() => void generateDraft()}>
+                {drafting ? "Preparing review draft…" : draft?.status === "draft_for_review" ? "Regenerate review draft" : "Prepare review draft"}
+              </button>
+            </article>
+
+            <article className="demo-workspace-card demo-draft-card">
+              <header>
+                <span className="demo-eyebrow">Prepared application</span>
+                <h3>{draft?.status === "draft_for_review" ? "Draft ready for your review" : "Waiting for your action"}</h3>
+              </header>
+
+              {draft?.status === "draft_for_review" && draft.package ? <>
+                <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
+                {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
+                {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain bound to approved Candidate Facts and exact vacancy evidence.</p>}
+
+                <section className="demo-document">
+                  <header><span>CV adaptation</span><small>review copy</small></header>
+                  {cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p><small>Grounded in: {fragment.candidate_fact_keys?.join(", ") || "approved Candidate Facts"}</small></div>)}
+                </section>
+
+                <section className="demo-document">
+                  <header><span>Application letter</span><small>review copy</small></header>
+                  {letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p>{fragment.job_evidence?.length ? <small>Vacancy evidence: “{fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}”</small> : null}</div>)}
+                </section>
+
+                <details className="demo-evidence-details demo-audit-details">
+                  <summary>Audit details</summary>
+                  <footer><span>Provider requests: {draft.provider_requests ?? 0}</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
+                </details>
+              </> : <div className="demo-empty-draft">
+                <strong>The final demo step is one explicit action.</strong>
+                <p>When the factual context is ready, the system prepares CV and letter content for review. It does not submit or send anything.</p>
+              </div>}
+            </article>
+          </div>}
+        </main>
+      </div>
     </section>
   </div>;
 }
