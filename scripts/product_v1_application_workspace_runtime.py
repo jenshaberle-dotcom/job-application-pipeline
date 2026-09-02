@@ -20,7 +20,11 @@ from typing import Any, Mapping
 import psycopg
 from psycopg.rows import dict_row
 
+from scripts.run_product_v1_assessment_materialization import (
+    authorized_recurring_employer_origin_sources,
+)
 from src.config import get_database_config
+from src.ingestion.repository import JobIngestionRepository
 from src.search_intelligence.product_v1_application_drafter import (
     execute_product_v1_application_drafter,
     openai_application_draft_model_callback,
@@ -131,6 +135,13 @@ def _private_document_root() -> Path | None:
     return Path(raw).expanduser() if raw else None
 
 
+def _employer_origin_authorized(source_name: object) -> bool:
+    authorized = set(
+        authorized_recurring_employer_origin_sources(JobIngestionRepository())
+    )
+    return str(source_name or "") in authorized
+
+
 def load_application_workspace(
     silver_job_id: int,
 ) -> tuple[object, str, str]:
@@ -145,6 +156,9 @@ def load_application_workspace(
         document_rows=documents,
         load_document=local_document_loader(private_root=_private_document_root()),
         as_of_date=date.today(),
+        employer_origin_authorized=_employer_origin_authorized(
+            target.get("source_name")
+        ),
     )
     return context, final_url, fetched_title
 

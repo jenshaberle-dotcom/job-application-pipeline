@@ -36,6 +36,7 @@ class ApplicationTargetSnapshot:
     hard_filter_status: str
     detail_text: str
     authority_source: str = TOP5_AUTHORITY_SOURCE
+    employer_origin_authorized: bool | None = None
 
     @property
     def detail_sha256(self) -> str:
@@ -55,6 +56,7 @@ class ApplicationTargetSnapshot:
             "hard_filter_status": self.hard_filter_status,
             "detail_sha256": self.detail_sha256,
             "authority_source": self.authority_source,
+            "employer_origin_authorized": self.employer_origin_authorized,
         }
 
 
@@ -66,14 +68,16 @@ class ApplicationSourceDocumentSnapshot:
     content_sha256: str
     content: str
     status: str
+    source_hash_verified: bool | None = None
 
-    def canonical_manifest_entry(self) -> dict[str, str]:
+    def canonical_manifest_entry(self) -> dict[str, object]:
         return {
             "document_type": self.document_type,
             "source_label": self.source_label,
             "source_reference": self.source_reference,
             "content_sha256": self.content_sha256,
             "status": self.status,
+            "source_hash_verified": self.source_hash_verified,
             "fact_authority": "false",
         }
 
@@ -225,7 +229,12 @@ def _validate_target(target: ApplicationTargetSnapshot) -> tuple[str, ...]:
         reasons.append("job_not_confirmed_active")
     if target.hard_filter_status != "passed":
         reasons.append("hard_filter_not_passed")
-    if target.canonical_source_type != "employer_origin":
+    employer_origin_authorized = (
+        target.canonical_source_type == "employer_origin"
+        if target.employer_origin_authorized is None
+        else target.employer_origin_authorized
+    )
+    if not employer_origin_authorized:
         reasons.append("employer_origin_required")
     if target.silver_job_id <= 0:
         reasons.append("invalid_silver_job_id")
@@ -245,8 +254,11 @@ def _validate_document(document: ApplicationSourceDocumentSnapshot) -> str | Non
         return f"{document.document_type}_not_approved"
     if not _SHA256_RE.fullmatch(document.content_sha256):
         return f"{document.document_type}_invalid_sha256"
-    actual_sha = sha256(document.content.encode("utf-8")).hexdigest()
-    if actual_sha != document.content_sha256:
+    if document.source_hash_verified is None:
+        actual_sha = sha256(document.content.encode("utf-8")).hexdigest()
+        if actual_sha != document.content_sha256:
+            return f"{document.document_type}_content_hash_mismatch"
+    elif document.source_hash_verified is False:
         return f"{document.document_type}_content_hash_mismatch"
     if not document.source_reference.strip() or not document.source_label.strip():
         return f"{document.document_type}_source_reference_missing"

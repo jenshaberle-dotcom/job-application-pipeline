@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from hashlib import sha256
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import pytest
 from scripts.import_private_application_source_documents import build_document
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
+    LoadedApplicationSource,
+    build_application_workspace_context,
     local_document_loader,
 )
 
@@ -56,6 +59,20 @@ def _write_text_pdf(path: Path, text: str) -> bytes:
     return result
 
 
+def _fact() -> dict[str, object]:
+    return {
+        "fact_key": "python",
+        "category": "skill",
+        "evidence_class": "professional_employment",
+        "approval_status": "approved",
+        "statement": "I use Python professionally.",
+        "capability_tags": ["Python"],
+        "limitations": [],
+        "valid_from": None,
+        "valid_until": None,
+    }
+
+
 def test_importer_accepts_text_bearing_pdf_without_persisting_content(tmp_path: Path) -> None:
     root = tmp_path / "private_application_sources"
     root.mkdir()
@@ -75,15 +92,71 @@ def test_importer_accepts_text_bearing_pdf_without_persisting_content(tmp_path: 
     assert not hasattr(document, "content")
 
 
-def test_workspace_loader_extracts_text_from_local_pdf(tmp_path: Path) -> None:
+def test_workspace_loader_extracts_text_and_preserves_original_pdf_identity(tmp_path: Path) -> None:
     source = tmp_path / "base_application_letter.pdf"
-    _write_text_pdf(source, "Current PDF application letter")
+    payload = _write_text_pdf(source, "Current PDF application letter")
 
-    content = local_document_loader(private_root=tmp_path)(
+    loaded = local_document_loader(private_root=tmp_path)(
         "local://base_application_letter.pdf"
     )
 
-    assert "Current PDF application letter" in content
+    assert isinstance(loaded, LoadedApplicationSource)
+    assert "Current PDF application letter" in loaded.content
+    assert loaded.source_sha256 == sha256(payload).hexdigest()
+
+
+def test_pdf_raw_hash_binds_workspace_after_text_extraction(tmp_path: Path) -> None:
+    rows: list[dict[str, object]] = []
+    for document_type, text in (
+        ("base_cv", "Current PDF CV with Python"),
+        ("base_application_letter", "Current PDF letter with Python"),
+    ):
+        path = tmp_path / f"{document_type}.pdf"
+        payload = _write_text_pdf(path, text)
+        rows.append(
+            {
+                "document_type": document_type,
+                "source_label": document_type,
+                "source_reference": f"local://{path.name}",
+                "content_sha256": sha256(payload).hexdigest(),
+                "status": "approved",
+            }
+        )
+
+    context = build_application_workspace_context(
+        top_job_row={
+            "silver_job_id": 434,
+            "product_rank": 1,
+            "title": "Data Engineer",
+            "company_name": "Heartbeat AI GmbH",
+            "source_url": "https://jobs.example.test/job/434",
+            "canonical_source_type": "unknown",
+            "product_readiness_status": "rankable",
+            "origin_validation_status": "validated",
+            "activity_status": "active",
+            "hard_filter_status": "passed",
+        },
+        detail_text="We need Python for our data platform.",
+        profile_row={"status": "approved", "payload_sha256": "a" * 64},
+        fact_rows=[_fact()],
+        document_rows=rows,
+        load_document=local_document_loader(private_root=tmp_path),
+        as_of_date=date(2026, 9, 2),
+        employer_origin_authorized=True,
+    )
+
+    assert context.generation_ready is True
+    assert context.blocked_reasons == ()
+    assert all(document.source_hash_verified is True for document in context.source_documents)
+
+
+def test_pdf_raw_hash_mismatch_fails_closed(tmp_path: Path) -> None:
+    path = tmp_path / "base_cv.pdf"
+    _write_text_pdf(path, "Current PDF CV")
+
+    loaded = local_document_loader(private_root=tmp_path)("local://base_cv.pdf")
+    assert isinstance(loaded, LoadedApplicationSource)
+    assert loaded.source_sha256 != "0" * 64
 
 
 def test_workspace_loader_rejects_pdf_without_extractable_text(tmp_path: Path) -> None:

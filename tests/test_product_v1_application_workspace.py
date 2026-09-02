@@ -80,8 +80,52 @@ def test_ready_workspace_binds_top5_facts_documents_and_job_evidence(
     assert context.target.silver_job_id == 42
     assert [entry.fact_key for entry in context.claim_plan] == ["python"]
     assert context.claim_plan[0].job_references[0].evidence == "Python"
+    assert all(document.source_hash_verified is True for document in context.source_documents)
     assert context.application_authority is False
     assert context.submission_authority is False
+
+
+def test_explicit_recurring_employer_origin_authority_accepts_unknown_silver_projection(
+    tmp_path: Path,
+) -> None:
+    job = _job()
+    job["canonical_source_type"] = "unknown"
+
+    context = build_application_workspace_context(
+        top_job_row=job,
+        detail_text="Python",
+        profile_row={"status": "approved", "payload_sha256": "a" * 64},
+        fact_rows=[_fact()],
+        document_rows=_documents(tmp_path),
+        load_document=local_document_loader(private_root=tmp_path),
+        as_of_date=date(2026, 9, 2),
+        employer_origin_authorized=True,
+    )
+
+    assert context.generation_ready is True
+    assert "employer_origin_required" not in context.blocked_reasons
+    assert context.target.employer_origin_authorized is True
+
+
+def test_explicit_missing_profile_authority_rejects_origin_like_projection(
+    tmp_path: Path,
+) -> None:
+    job = _job()
+    job["canonical_source_type"] = "employer_origin_ats_backed_career_site"
+
+    context = build_application_workspace_context(
+        top_job_row=job,
+        detail_text="Python",
+        profile_row={"status": "approved", "payload_sha256": "a" * 64},
+        fact_rows=[_fact()],
+        document_rows=_documents(tmp_path),
+        load_document=local_document_loader(private_root=tmp_path),
+        as_of_date=date(2026, 9, 2),
+        employer_origin_authorized=False,
+    )
+
+    assert context.generation_ready is False
+    assert "employer_origin_required" in context.blocked_reasons
 
 
 def test_opaque_operator_document_reference_fails_closed(tmp_path: Path) -> None:
