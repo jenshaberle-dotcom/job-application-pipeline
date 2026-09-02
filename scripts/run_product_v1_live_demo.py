@@ -4,11 +4,13 @@ Default sequence:
 1. install/build the existing React Control Center;
 2. run the fail-closed live Product V1 demo preflight;
 3. probe the selected authoritative Top-5 Application Workspace read-only;
-4. start the demo Control Center only when both readiness probes pass.
+4. build and validate a provider-free evidence-first review-draft package;
+5. start the demo Control Center only when all readiness probes pass.
 
-The launcher never changes pipeline product truth, activates a source, creates an
-application, submits, or sends anything. Use ``--reuse-frontend`` after a previously
-qualified build when network-independent startup is preferred for the presentation.
+The launcher never changes pipeline product truth, activates a source, persists an
+application/draft, submits, or sends anything. The final readiness proof invokes no
+provider. Use ``--reuse-frontend`` after a previously qualified build when
+network-independent frontend startup is preferred for the presentation.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ DEFAULT_PREFLIGHT = ROOT / ".runtime" / "demo" / "product_v1_demo_preflight.json
 DEFAULT_WORKSPACE_PROBE = (
     ROOT / ".runtime" / "demo" / "product_v1_demo_workspace_probe.json"
 )
+DEFAULT_DRAFT_PROBE = ROOT / ".runtime" / "demo" / "product_v1_demo_draft_probe.json"
 _FRONTEND_LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json")
 
 
@@ -39,13 +42,7 @@ def _run(command: list[str], *, cwd: Path) -> None:
 
 
 def _frontend_install_command(npm: str) -> tuple[list[str], str]:
-    """Choose the strongest npm install mode supported by repository truth.
-
-    ``npm ci`` requires a committed npm lockfile. The Control Center currently has
-    no lockfile, matching the repository CI path, so local demo startup must not
-    manufacture one merely to build the UI. When a lockfile is added later, the
-    launcher automatically ratchets back to ``npm ci``.
-    """
+    """Choose the strongest npm install mode supported by repository truth."""
 
     if any((FRONTEND / name).is_file() for name in _FRONTEND_LOCKFILES):
         return [npm, "ci"], "LOCKFILE_CI"
@@ -81,34 +78,37 @@ def prepare_frontend(*, reuse_frontend: bool) -> Path:
     return dist
 
 
-def run_preflight(*, frontend_dist: Path, output: Path) -> int:
-    command = [
-        sys.executable,
-        "-m",
-        "scripts.run_product_v1_demo_preflight",
-        "--frontend-dist",
-        str(frontend_dist),
-        "--output",
-        str(output),
-    ]
+def _run_module(module: str, *, arguments: list[str]) -> int:
+    command = [sys.executable, "-m", module, *arguments]
     print("+ " + " ".join(command))
     completed = subprocess.run(command, cwd=ROOT, check=False)
     return completed.returncode
+
+
+def run_preflight(*, frontend_dist: Path, output: Path) -> int:
+    return _run_module(
+        "scripts.run_product_v1_demo_preflight",
+        arguments=[
+            "--frontend-dist",
+            str(frontend_dist),
+            "--output",
+            str(output),
+        ],
+    )
 
 
 def run_workspace_probe(*, preflight: Path, output: Path) -> int:
-    command = [
-        sys.executable,
-        "-m",
+    return _run_module(
         "scripts.run_product_v1_demo_workspace_probe",
-        "--preflight",
-        str(preflight),
-        "--output",
-        str(output),
-    ]
-    print("+ " + " ".join(command))
-    completed = subprocess.run(command, cwd=ROOT, check=False)
-    return completed.returncode
+        arguments=["--preflight", str(preflight), "--output", str(output)],
+    )
+
+
+def run_draft_probe(*, preflight: Path, output: Path) -> int:
+    return _run_module(
+        "scripts.run_product_v1_demo_draft_probe",
+        arguments=["--preflight", str(preflight), "--output", str(output)],
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -127,15 +127,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Reuse an existing dist build instead of installing/building the frontend.",
     )
-    parser.add_argument(
-        "--preflight-output",
-        type=Path,
-        default=DEFAULT_PREFLIGHT,
-    )
+    parser.add_argument("--preflight-output", type=Path, default=DEFAULT_PREFLIGHT)
     parser.add_argument(
         "--workspace-probe-output",
         type=Path,
         default=DEFAULT_WORKSPACE_PROBE,
+    )
+    parser.add_argument(
+        "--draft-probe-output",
+        type=Path,
+        default=DEFAULT_DRAFT_PROBE,
     )
     parser.add_argument(
         "--preflight-only",
@@ -175,7 +176,18 @@ def main() -> int:
         return workspace_probe_code
 
     print("DEMO_WORKSPACE_PROBE=PASS")
-    print("DEMO_BOUNDARY=no_fake_truth,no_auto_submit,no_send")
+    draft_probe_output = args.draft_probe_output.resolve()
+    draft_probe_code = run_draft_probe(
+        preflight=preflight_output,
+        output=draft_probe_output,
+    )
+    if draft_probe_code != 0:
+        print("DEMO_START_BLOCKED=review_draft_probe", file=sys.stderr)
+        print(f"DRAFT_PROBE_ARTIFACT={draft_probe_output}", file=sys.stderr)
+        return draft_probe_code
+
+    print("DEMO_DRAFT_PROBE=PASS")
+    print("DEMO_BOUNDARY=no_fake_truth,no_auto_submit,no_send,no_preflight_provider")
     if args.preflight_only:
         print("PRODUCT_V1_LIVE_DEMO=READY")
         return 0
