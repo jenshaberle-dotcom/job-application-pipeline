@@ -1,11 +1,12 @@
 """Prepare and launch the DEMO-001 Product V1 Control Center.
 
 Default sequence:
-1. install/build the existing React Control Center;
-2. run the fail-closed live Product V1 demo preflight;
-3. probe the selected authoritative Top-5 Application Workspace with one detail fetch;
-4. validate its carried provider-free evidence-first review-draft proof offline;
-5. start the demo Control Center only when all readiness probes pass.
+1. invalidate stale readiness artifacts from any previous launcher run;
+2. install/build the existing React Control Center;
+3. run the fail-closed live Product V1 demo preflight;
+4. probe the selected authoritative Top-5 Application Workspace with one detail fetch;
+5. validate its carried provider-free evidence-first review-draft proof offline;
+6. start the demo Control Center only when all readiness probes pass.
 
 The launcher never changes pipeline product truth, activates a source, persists an
 application/draft, submits, or sends anything. The final readiness proof invokes no
@@ -43,6 +44,21 @@ def _frontend_install_command(npm: str) -> tuple[list[str], str]:
     if any((FRONTEND / name).is_file() for name in _FRONTEND_LOCKFILES):
         return [npm, "ci"], "LOCKFILE_CI"
     return [npm, "install", "--package-lock=false", "--no-audit", "--no-fund"], "LOCKFILE_ABSENT_INSTALL"
+
+
+def _invalidate_output_artifacts(*paths: Path) -> None:
+    """Remove prior-run readiness artifacts before any new readiness attempt.
+
+    A launcher failure must never leave an older PASS artifact looking current. These
+    files are diagnostics only; removing them changes no product/application truth.
+    """
+    for path in paths:
+        resolved = path.resolve()
+        try:
+            resolved.unlink()
+        except FileNotFoundError:
+            continue
+        print(f"DEMO_ARTIFACT_INVALIDATED={resolved}")
 
 
 def prepare_frontend(*, reuse_frontend: bool) -> Path:
@@ -122,27 +138,33 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
+    preflight_output = args.preflight_output.resolve()
+    workspace_probe_output = args.workspace_probe_output.resolve()
+    draft_probe_output = args.draft_probe_output.resolve()
+    _invalidate_output_artifacts(
+        preflight_output,
+        workspace_probe_output,
+        draft_probe_output,
+    )
+
     try:
         frontend_dist = prepare_frontend(reuse_frontend=args.reuse_frontend)
     except (RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"DEMO_START_BLOCKED=frontend:{exc}", file=sys.stderr)
         return 2
 
-    preflight_output = args.preflight_output.resolve()
     if run_preflight(frontend_dist=frontend_dist, output=preflight_output) != 0:
         print("DEMO_START_BLOCKED=live_preflight", file=sys.stderr)
         print(f"PREFLIGHT_ARTIFACT={preflight_output}", file=sys.stderr)
         return 2
 
     print("DEMO_PREFLIGHT=PASS")
-    workspace_probe_output = args.workspace_probe_output.resolve()
     if run_workspace_probe(preflight=preflight_output, output=workspace_probe_output) != 0:
         print("DEMO_START_BLOCKED=application_workspace_probe", file=sys.stderr)
         print(f"WORKSPACE_PROBE_ARTIFACT={workspace_probe_output}", file=sys.stderr)
         return 2
 
     print("DEMO_WORKSPACE_PROBE=PASS")
-    draft_probe_output = args.draft_probe_output.resolve()
     if run_draft_probe(
         preflight=preflight_output,
         workspace_probe=workspace_probe_output,
