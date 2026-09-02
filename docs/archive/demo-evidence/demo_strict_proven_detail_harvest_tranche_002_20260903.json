@@ -1,0 +1,52 @@
+{
+  "schema": "job_application_pipeline.demo_strict_proven_detail_harvest_tranche.v1",
+  "observed_at": "2026-09-03",
+  "tranche": 2,
+  "purpose": "Positive current detail evidence harvested from the strict-proven connector admission pool. Detail proof precedes profile and geography classification. No ranking, activation, application, or submission authority is created.",
+  "current_detail_evidence": [
+    {
+      "company_key": "adesso",
+      "title": "Machine Learning Engineer / Data Scientist Google Cloud (all genders)",
+      "detail_url": "https://jobs.adesso-group.com/default/job/Machine-Learning-Engineer-Data-Scientist-Google-Cloud-%28all-genders%29/934310155/",
+      "detail_proven": true,
+      "profile_relevance": "strong_machine_learning_engineering",
+      "hannover_or_remote_germany_scope": false,
+      "geo_note": "Official detail confirms Home-Office collaboration but does not expose a concrete Hannover or Germany-remote location in the fetched detail; do not infer geography from third-party location variants.",
+      "evidence_note": "Official adesso detail covers scalable ML on Google Cloud, Python integration of models into production-ready data pipelines, TensorFlow/PyTorch/scikit-learn, Linux and software architecture."
+    },
+    {
+      "company_key": "adesso",
+      "title": "Senior Data Engineer - Data Integration & Analytics (all genders)",
+      "detail_url": "https://jobs.adesso-group.com/job/Bonn-Senior-Data-Engineer-Data-Integration-%26-Analytics-%28all-genders%29-NW-53227/934311155/",
+      "detail_proven": true,
+      "profile_relevance": "strong_data_engineering_and_reliability",
+      "hannover_or_remote_germany_scope": false,
+      "geo_note": "Current official detail is bound to Bonn; no Hannover/remote-Germany proof from this detail.",
+      "evidence_note": "Official adesso detail covers scalable data platforms, DWH/Data Lake, ETL/ELT pipelines, data quality, performance and operational reliability, Python/Scala/Java, CI/CD and cloud platforms."
+    }
+  ],
+  "inventory_only_or_non_detail_evidence": [
+    {
+      "company_key": "hannover_ruck",
+      "surface": "official Data Science / Data Analytics profession page",
+      "profile_signal": "Data Science, Data Analytics and Machine Learning in Hannover",
+      "detail_proven": false,
+      "note": "Useful recall signal only; continue to concrete current vacancy detail before demo admission as a job."
+    },
+    {
+      "company_key": "msg_systems",
+      "surface": "current external hiring evidence for Cloud Data Engineer exists",
+      "detail_proven": false,
+      "note": "No current official concrete msg vacancy detail was established in this tranche; external evidence is not promoted to Employer-Origin detail truth."
+    }
+  ],
+  "boundaries": {
+    "profile_relevance_required_for_detail_proof": false,
+    "third_party_listing_as_detail_authority": false,
+    "source_activation": false,
+    "database_write": false,
+    "ranking_or_top5_authority": false,
+    "application_authority": false,
+    "submission_action": false
+  }
+}

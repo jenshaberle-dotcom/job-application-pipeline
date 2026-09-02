@@ -1,0 +1,73 @@
+{
+  "schema": "job_application_pipeline.demo_strict_proven_source_review.v1",
+  "observed_at": "2026-09-03",
+  "purpose": "One clean current-evidence pass over all 36 historically strict-proven deterministic connector sources for the JAP demo. Current concrete Employer-Origin detail is preferred, but current listing-only profile candidates may enter manual operator review without becoming detail proof, ranking authority, or application authority.",
+  "admission_basis": {
+    "historical_materialized_connector_cohort": 40,
+    "strict_proven_connector_sources": 36,
+    "excluded_non_strict": ["x1f", "bridgingit", "prodyna", "the_associated_engineers"]
+  },
+  "demo_policy": {
+    "detail_proven": "current concrete employer-authorized job detail; strongest evidence tier",
+    "listing_only_operator_review": "current job/listing signal may be shown to the manual operator when useful, but detail_proven remains false",
+    "profile_and_geography": "classification only; never prerequisite for source/detail proof",
+    "manual_gate": "operator may reject any candidate as not interesting",
+    "no_fake_authority": true
+  },
+  "summary": {
+    "sources_reviewed": 36,
+    "sources_with_current_detail_proof": 33,
+    "sources_without_current_detail_proof": 3,
+    "operator_review_sources": 23,
+    "current_no_openings_sources": 1,
+    "remaining_not_reviewed": 0
+  },
+  "source_reviews": [
+    {"company_key":"finanz_informatik","state":"detail_proven","title":"Data Platform Engineer (m/w/d)","url":"https://www.f-i.de/karriere/offene-stellen/hannover/data-platform-engineer-m-w-d","profile":"strong","scope":"hannover","operator_review":true},
+    {"company_key":"hdi","state":"detail_proven","title":"Senior AI Data Scientist / Data Engineer","url":"https://job.hdi.group/job/Hannover-Senior-Data-Scientist-Data-Engineer/487-en_US/?feedId=436633","profile":"strong","scope":"hannover_mobile","operator_review":true},
+    {"company_key":"dirk_rossmann","state":"detail_proven","title":"Data Scientist (m/w/d) mit Schwerpunkt HR","url":"https://jobs.rossmann.de/stellenanzeige/data-scientist-m-w-d-mit-schwerpunkt-hr-am-standort-burgwedel-10-166052.html","profile":"adjacent","scope":"hannover_region","operator_review":true},
+    {"company_key":"enercity","state":"detail_proven","title":"Data Scientist (m/w/d)","url":"https://www.enercity.de/karriere/jobsuche/data-scientist-m-w-d-J2026401","profile":"strong","scope":"hannover_hybrid","operator_review":true,"additional_listing_only":{"title":"Data Engineer (m/w/d)","scope":"hannover","operator_review":true,"note":"official listing/detail route observed; detail fetch timed out in scout"}},
+    {"company_key":"ratiodata","state":"detail_proven","title":"Mitarbeiter (m/w/d) Identity und Access Manager (IAM)","url":"https://karriere.ratiodata.de/job/?vacancieid=2026-095","profile":"adjacent_reliability_identity","scope":"hannover_mobile","operator_review":true},
+    {"company_key":"adesso","state":"detail_proven","title":"Machine Learning Engineer / Data Scientist Google Cloud (all genders)","url":"https://jobs.adesso-group.com/default/job/Machine-Learning-Engineer-Data-Scientist-Google-Cloud-%28all-genders%29/934310155/","profile":"strong","scope":"not_proven","operator_review":true},
+    {"company_key":"deutsche_bahn","state":"detail_proven","title":"Lead KI-Softwareentwicklung (w/m/d)","url":"https://db.jobs/de-de/Suche/Lead-KI-Softwareentwicklung-w-m-d--14001418?jobId=625931","profile":"strong_leadership_heavy","scope":"remote_germany","operator_review":true},
+    {"company_key":"clarios_germany","state":"detail_proven","title":"Praktikant/Werkstudent (m/w/d) im Batterieprüflabor","url":"https://jobs.clarios.com/posting/praktikant-werkstudent-m-w-d-im-batteriepr-flabor/WD49495/","profile":"career_level_mismatch","scope":"hannover","operator_review":false},
+    {"company_key":"computacenter","state":"detail_proven","title":"Data & AI Platform Expert w/m/d","url":"https://jobs.computacenter.com/job/Frankfurt-Data-%26-AI-Platform-Expert-wmd-60326/1256467101/","profile":"strong","scope":"hannover_multilocation","operator_review":true},
+    {"company_key":"deloitte","state":"detail_proven","title":"Senior Consultant Data Engineering & AI - Databricks Masterclass (m/w/d)","url":"https://job.deloitte.com/job-senior-consultant-data-engineering-ai-mwd-databricks-masterclass-_50430","profile":"strong","scope":"hannover_mobile","operator_review":true},
+    {"company_key":"vhv_gruppe","state":"detail_proven","title":"Application Analyst im Bereich Lebensversicherung (w/m/d)","url":"https://www.vhv-gruppe.de/karriere/stellenangebote/2278436","profile":"adjacent_it_data","scope":"hannover_hybrid","operator_review":true},
+    {"company_key":"wertgarantie","state":"detail_proven","title":"Application Developer AI (m/w/d)","url":"https://wertgarantie-group.com/karriere/stellenangebote/application-developer-ai-mwd","profile":"strong_ai_reliability","scope":"hannover_mobile","operator_review":true},
+    {"company_key":"genoverband_e_v","state":"detail_proven","title":"Expert - KI Technik (m/w/d)","url":"https://karriere.genoverband.de/stellenanzeige?id=62207","profile":"strong_ai_mlops","scope":"outside_target","operator_review":false},
+    {"company_key":"materna_information_communications","state":"detail_proven","title":"Senior AI Data Engineer (m/w/d)","url":"https://karriere.materna.de/stellenmarkt/Senior-AI-Data-Engineer-mwd-de-j1956.html","profile":"strong","scope":"hannover_homeoffice","operator_review":true,"dedupe_key":"materna-senior-ai-data-engineer"},
+    {"company_key":"msg_systems","state":"detail_proven","title":"AI & Machine Learning Engineer (all genders)","url":"https://jobs.msg.group/de/jobs/477/ai-machine-learning-engineer-all-genders","profile":"strong","scope":"hannover_part_remote","operator_review":true},
+    {"company_key":"hannover_ruck","state":"detail_proven_profile_mismatch","title":"Duales Studium BWL Versicherungswirtschaft","url":"https://jobs.hannover-re.com/job/Hannover-Duales-Studium-BWL-Versicherungswirtschaft/1340279755/","profile":"mismatch","scope":"hannover_hybrid","operator_review":false,"additional_signal":"official Data Science / Data Analytics / ML profession surface exists; no concrete current target vacancy proven"},
+    {"company_key":"e_on_grid_solutions","state":"detail_proven","title":"Senior Data Engineer (m/w/d)","url":"https://jobs.eon.com/de/job/Senior-Data-Engineer-m_w_d-Munich/245911","profile":"strong","scope":"wunstorf_hybrid","operator_review":true},
+    {"company_key":"amadeus_fire","state":"official_listing_detail_access_challenge","title":"(Senior) Sales Consultant (m/w/d) IT-Services","url":"https://karriere.amadeus-fire.de/job/senior-sales-consultant-m-w-d-fuer-den-vertrieb-von-personaldienstleistungen-in-der-division-it-services-242257-4","profile":"mismatch","scope":"hannover","operator_review":false},
+    {"company_key":"aok_niedersachsen_die_gesundheitskasse","state":"detail_proven_profile_mismatch","title":"Duale Studenten BWL – Vertiefung AI/KI (m/w/d)","url":"https://www.aok.de/karriere/stellenangebote/duale-studenten-bwl-vertiefung-aiki-mwd-aok-nds06053/","profile":"career_level_mismatch","scope":"hannover","operator_review":false},
+    {"company_key":"compugroup_medical","state":"listing_only_operator_review","title":"Data Engineer BI (m/w/d)","url":"https://de.linkedin.com/jobs/compugroup-medical-stellen","profile":"strong_data_bi","scope":"waldems_hybrid","operator_review":true,"authority_note":"current company-attributed third-party listing; employer-origin concrete detail not resolved"},
+    {"company_key":"landesbetrieb_it_niedersachsen","state":"detail_proven","title":"IT-Administration und Betreuung eines (Fach-)Verfahrens/Services [m|w|d]","url":"https://karriere.niedersachsen.de/stellenausschreibungen/it-administration-und-betreuung-eines-fach-verfahrens-services-m-w-d-117922.html","profile":"weak_reliability_adjacent","scope":"hannover_multilocation","operator_review":false,"dedupe_key":"itn-117922"},
+    {"company_key":"commercetools","state":"detail_proven","title":"AI Engineer (m/f/x)","url":"https://job-boards.greenhouse.io/commercetools/jobs/7979146003?gh_src=4d46c5593us","profile":"strong_ai_engineering","scope":"berlin_munich_hybrid","operator_review":false},
+    {"company_key":"freenet_dls","state":"detail_proven","title":"Data Engineer / Machine Learning Engineer (w/m/d)","url":"https://karriere.freenet-group.de/?action=view&id=b83c4jqxoju15tglx98ej9vdo45z56d&mandator_template_id=1&page=home","profile":"strong","scope":"hamburg","operator_review":false},
+    {"company_key":"gft_technologies","state":"detail_proven","title":"AI Engineer (w/m/d)","url":"https://jobs.gft.com/job/Stuttgart-AI-Engineer-%28wmd%29-70567/1424287633/","profile":"strong","scope":"outside_target","operator_review":false},
+    {"company_key":"madsack","state":"detail_proven","title":"AI Consultant (d/m/w)","url":"https://bewerbung.madsack.de/AI-Consultant-dmw-de-j3775.html","profile":"strong_ai_adjacent","scope":"hannover_mobile","operator_review":true},
+    {"company_key":"sopra_steria","state":"detail_proven","title":"Senior Data Engineer (m/w/d)","url":"https://careers.soprasteria.com/job/senior-data-engineer-m-w-d-in-bundesweit-germany-jid-6962","profile":"strong","scope":"bundesweit_hybrid_ambiguous_remote","operator_review":true},
+    {"company_key":"tuv_sud","state":"detail_proven","title":"Senior Software Architect - Data Analytics & AI (w/m/d)","url":"https://jobs.tuvsud.com/job/Senior-Software-Architect-Data-Analytics-%26-AI-%28wmd%29/3717-de_DE","profile":"strong_ai_data_architecture","scope":"munich_hybrid","operator_review":false},
+    {"company_key":"zscaler_germany","state":"detail_proven_profile_mismatch","title":"Specialist Account Executive - ZT Branch","url":"https://job-boards.greenhouse.io/zscaler/jobs/5153355007","profile":"sales_mismatch","scope":"remote_germany","operator_review":false},
+    {"company_key":"accompio","state":"detail_proven","title":"Senior AI Engineer (m/w/d) - Dresden oder remote","url":"https://karriere.accompio.com/de?id=882db4","profile":"strong_ai_mlops","scope":"remote_germany_hannover","operator_review":true},
+    {"company_key":"land_niedersachsen","state":"detail_proven","title":"Sachbearbeiterin/Sachbearbeiter (m/w/d) Informationstechnologie","url":"https://karriere.niedersachsen.de/stellenausschreibungen/sachbearbeiterin-sachbearbeiter-m-w-d-informationstechnologie-117574.html","profile":"adjacent_ai_infrastructure","scope":"hannover_mobile_limited","operator_review":true},
+    {"company_key":"materna","state":"detail_proven","title":"Senior AI Data Engineer (m/w/d)","url":"https://karriere.materna.de/stellenmarkt/Senior-AI-Data-Engineer-mwd-de-j1956.html","profile":"strong","scope":"hannover_homeoffice","operator_review":true,"dedupe_key":"materna-senior-ai-data-engineer"},
+    {"company_key":"trustyou","state":"no_current_openings_observed","title":null,"url":"https://jobs.lever.co/trustyou?location=Germany+%2F+Spain","profile":"not_applicable","scope":"not_applicable","operator_review":false},
+    {"company_key":"wavestone","state":"detail_proven","title":"Senior Consultant AI Data Engineering - Microsoft Azure (all genders)","url":"https://wavestone.softgarden.io/job/66354328/Senior-Consultant-AI-Data-Engineering-Microsoft-Azure-all-genders-?jobDbPVId=281426643&l=en","profile":"strong","scope":"remote_mobile_germany","operator_review":true},
+    {"company_key":"it_niedersachsen","state":"detail_proven","title":"IT-Administration und Betreuung eines (Fach-)Verfahrens/Services [m|w|d]","url":"https://karriere.niedersachsen.de/stellenausschreibungen/it-administration-und-betreuung-eines-fach-verfahrens-services-m-w-d-117922.html","profile":"weak_reliability_adjacent","scope":"hannover_multilocation","operator_review":false,"dedupe_key":"itn-117922"},
+    {"company_key":"comrce","state":"detail_proven","title":"BI / Data Analyst (w/m/d)","url":"https://comrce.jobs.personio.de/job/2735118","profile":"adjacent_data_analytics","scope":"remote","operator_review":true},
+    {"company_key":"bjak","state":"detail_proven","title":"Senior Machine Learning Engineer","url":"https://jobs.ashbyhq.com/bjakcareer/d29f9c52-9cbc-4c1f-ac30-b85163d3598d","profile":"strong_ml_reliability","scope":"remote_germany","operator_review":true}
+  ],
+  "boundaries": {
+    "source_activation": false,
+    "database_write": false,
+    "bronze_silver_gold_write": false,
+    "ranking_or_top5_authority": false,
+    "application_authority": false,
+    "submission_action": false,
+    "listing_only_can_establish_detail_proof": false,
+    "operator_review_is_product_ranking_authority": false
+  }
+}
