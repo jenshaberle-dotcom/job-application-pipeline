@@ -1,0 +1,59 @@
+{
+  "schema": "job_application_pipeline.demo_strict_proven_detail_scout.tranche4.v1",
+  "observed_at": "2026-09-03",
+  "status": "shadow_demo_source_evidence",
+  "current_concrete_detail_evidence": [
+    {
+      "company_key": "adesso",
+      "title": "Machine Learning Engineer / Data Scientist Google Cloud (all genders)",
+      "detail_url": "https://jobs.adesso-group.com/default/job/Machine-Learning-Engineer-Data-Scientist-Google-Cloud-%28all-genders%29/934310155/",
+      "location": "not exposed in accepted detail evidence",
+      "work_model": "home-office culture mentioned; vacancy-specific remote scope not proven",
+      "detail_proven": true,
+      "profile_relevance": "strong_machine_learning_data_engineering",
+      "hannover_or_remote_germany_scope": false,
+      "evidence_note": "Official adesso SAP SuccessFactors detail is current and substantive. Role develops scalable ML on Google Cloud, integrates Python models into production-ready data pipelines and uses TensorFlow/PyTorch/scikit-learn. Geography remains deliberately unproven."
+    },
+    {
+      "company_key": "adesso",
+      "title": "Senior Machine Learning Engineer / Data Scientist",
+      "detail_url": "https://jobs.adesso-group.com/AdessoHealthSolutions/job/Berlin-Senior-Machine-Learning-Engineer-Data-Scientist-BE-10969/1334258455/",
+      "location": "Berlin",
+      "work_model": "home-office culture mentioned; vacancy-specific Hannover/remote-Germany scope not proven",
+      "detail_proven": true,
+      "profile_relevance": "very_strong_mlops_ai_data_reliability",
+      "hannover_or_remote_germany_scope": false,
+      "evidence_note": "Official adesso health detail covers production ML models, MLOps, automated training/deployment, model quality monitoring, retraining, data quality/security, Python, MLflow/Kubeflow, Docker, CI/CD and data pipelines."
+    }
+  ],
+  "current_inventory_evidence_without_current_detail_proof": [
+    {
+      "company_key": "deloitte",
+      "inventory_url": "https://jobs.deloitte.de/go/Analytics/3840301",
+      "state": "current_official_analytics_inventory_observed",
+      "inventory_signal": "Official current Analytics inventory explicitly advertises Senior Consultant Data Engineering, Agentic AI Developer and AI/Data Engineering roles across Germany.",
+      "next_action": "Follow currently public vacancy links from the employer inventory and accept only details that remain publicly reachable; do not promote stale/internal-only redirects."
+    },
+    {
+      "company_key": "materna",
+      "state": "profile_relevant_market_signal_observed_but_not_employer_origin_detail_proven",
+      "inventory_signal": "A current Senior AI Data Engineer market signal exists, but the scout did not resolve an employer-authoritative current detail URL in this tranche.",
+      "next_action": "Resolve Materna's official current careers inventory via the strict-proven origin path before any demo admission."
+    }
+  ],
+  "harvest_progress": {
+    "new_detail_proven_jobs_in_this_tranche": 2,
+    "new_detail_proven_sources_in_this_tranche": 1,
+    "cumulative_detail_proven_sources_from_preserved_scout_files": 10,
+    "cumulative_concrete_detail_rows_from_preserved_scout_files": 13,
+    "remaining_strict_proven_sources_require_further_inventory_harvest": true
+  },
+  "boundaries": {
+    "database_write": false,
+    "source_activation": false,
+    "ranking_or_top5_authority": false,
+    "application_authority": false,
+    "profile_relevance_required_for_detail_proof": false,
+    "third_party_market_signal_can_establish_detail_proof": false
+  }
+}
