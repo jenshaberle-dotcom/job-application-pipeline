@@ -8,50 +8,10 @@
     "strict_proven_count": 36,
     "runtime_v4_run": 32670547466,
     "cluster0_run": 32368080925,
-    "excluded_non_strict_company_keys": [
-      "x1f",
-      "bridgingit",
-      "prodyna",
-      "the_associated_engineers"
-    ]
+    "excluded_non_strict_company_keys": ["x1f", "bridgingit", "prodyna", "the_associated_engineers"]
   },
   "strict_proven_company_keys": [
-    "finanz_informatik",
-    "hdi",
-    "dirk_rossmann",
-    "enercity",
-    "ratiodata",
-    "adesso",
-    "deutsche_bahn",
-    "clarios_germany",
-    "computacenter",
-    "deloitte",
-    "vhv_gruppe",
-    "wertgarantie",
-    "genoverband_e_v",
-    "materna_information_communications",
-    "msg_systems",
-    "hannover_ruck",
-    "e_on_grid_solutions",
-    "amadeus_fire",
-    "aok_niedersachsen_die_gesundheitskasse",
-    "compugroup_medical",
-    "landesbetrieb_it_niedersachsen",
-    "commercetools",
-    "freenet_dls",
-    "gft_technologies",
-    "madsack",
-    "sopra_steria",
-    "tuv_sud",
-    "zscaler_germany",
-    "accompio",
-    "land_niedersachsen",
-    "materna",
-    "trustyou",
-    "wavestone",
-    "it_niedersachsen",
-    "comrce",
-    "bjak"
+    "finanz_informatik", "hdi", "dirk_rossmann", "enercity", "ratiodata", "adesso", "deutsche_bahn", "clarios_germany", "computacenter", "deloitte", "vhv_gruppe", "wertgarantie", "genoverband_e_v", "materna_information_communications", "msg_systems", "hannover_ruck", "e_on_grid_solutions", "amadeus_fire", "aok_niedersachsen_die_gesundheitskasse", "compugroup_medical", "landesbetrieb_it_niedersachsen", "commercetools", "freenet_dls", "gft_technologies", "madsack", "sopra_steria", "tuv_sud", "zscaler_germany", "accompio", "land_niedersachsen", "materna", "trustyou", "wavestone", "it_niedersachsen", "comrce", "bjak"
   ],
   "current_concrete_detail_evidence": [
     {
@@ -110,6 +70,28 @@
       "evidence_note": "Official employer detail is a substantive current vacancy with Python/R, SQL, predictive modelling and data-quality content."
     },
     {
+      "company_key": "computacenter",
+      "title": "Data & AI Platform Expert w/m/d",
+      "detail_url": "https://jobs.computacenter.com/job/Frankfurt-Data-%26-AI-Platform-Expert-wmd-60326/1256467101/",
+      "location": "Hannover plus multiple German locations",
+      "work_model": "not separately classified",
+      "detail_proven": true,
+      "profile_relevance": "strong_ai_platform_mlops_data_reliability",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official Computacenter detail includes Hannover and covers Data & AI platforms, model/data pipelines, MLOps/ModelOps, Kubernetes, CI/CD, cloud platforms and AI governance."
+    },
+    {
+      "company_key": "e_on_grid_solutions",
+      "title": "SAP BTP-Datenbankspezialist (m/w/d)",
+      "detail_url": "https://jobs.eon.com/de/eon-gridsolutions/job/SAP-BTP-Datenbankspezialist-m_w_d-Wuerzburg/245749",
+      "location": "Hannover plus multiple German locations",
+      "work_model": "hybrid",
+      "detail_proven": true,
+      "profile_relevance": "adjacent_data_platform_reliability",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official E.ON Grid Solutions detail covers operation, administration, monitoring, performance, security and availability of SAP HANA Cloud database landscapes. Strong reliability/platform adjacency, weaker ML relevance."
+    },
+    {
       "company_key": "freenet_dls",
       "title": "Data Engineer / Machine Learning Engineer (w/m/d)",
       "detail_url": "https://karriere.freenet-group.de/?action=view&id=b83c4jqxoju15tglx98ej9vdo45z56d&mandator_template_id=1&page=home",
@@ -121,6 +103,28 @@
       "evidence_note": "Official delegated employer job portal exposes a concrete current detail covering ML/data platforms, AWS, Data Engineers/Data Scientists and production scalability/reliability. Strong profile fit but current location evidence does not satisfy Hannover/remote-Germany scope."
     },
     {
+      "company_key": "gft_technologies",
+      "title": "AI Engineer (w/m/d)",
+      "detail_url": "https://jobs.gft.com/job/Stuttgart-AI-Engineer-%28wmd%29-70567/1424287633/",
+      "location": "Stuttgart",
+      "work_model": "hybrid / homeoffice policy",
+      "detail_proven": true,
+      "profile_relevance": "strong_machine_learning_ai_engineering",
+      "hannover_or_remote_germany_scope": false,
+      "evidence_note": "Official GFT detail covers ML and GenAI solutions, ML/data pipelines, production deployment, cloud environments, PyTorch/TensorFlow and platform-team collaboration. Current vacancy location does not prove Hannover or Germany-remote scope."
+    },
+    {
+      "company_key": "gft_technologies",
+      "title": "Senior Data Platform Engineer (m/w/d)",
+      "detail_url": "https://jobs.gft.com/job/Stuttgart-Senior-Data-Platform-Engineer-%28mwd%29-70567/1386287833/",
+      "location": "multiple German locations, not Hannover",
+      "work_model": "hybrid",
+      "detail_proven": true,
+      "profile_relevance": "strong_data_engineering_data_platform_governance",
+      "hannover_or_remote_germany_scope": false,
+      "evidence_note": "Official GFT detail covers scalable cloud data platforms, ETL/ELT and streaming pipelines, Lakehouse architectures, data products and AI-ready governance."
+    },
+    {
       "company_key": "sopra_steria",
       "title": "Senior Data Engineer (m/w/d)",
       "detail_url": "https://careers.soprasteria.com/job/senior-data-engineer-m-w-d-in-bundesweit-germany-jid-6962",
@@ -130,6 +134,50 @@
       "profile_relevance": "strong_data_engineering",
       "hannover_or_remote_germany_scope": false,
       "evidence_note": "Official employer detail is a substantive current Senior Data Engineer vacancy. Keep geography separate: nationwide wording alone is not treated as proof of Hannover or remote-Germany eligibility."
+    },
+    {
+      "company_key": "tuv_sud",
+      "title": "Senior Software Architect - Data Analytics & AI (w/m/d)",
+      "detail_url": "https://jobs.tuvsud.com/job/Senior-Software-Architect-Data-Analytics-%26-AI-%28wmd%29/3717-de_DE",
+      "location": "Germany, exact target geography not established",
+      "work_model": "flexible work stated, remote scope not established",
+      "detail_proven": true,
+      "profile_relevance": "strong_ai_data_architecture_adjacent",
+      "hannover_or_remote_germany_scope": false,
+      "evidence_note": "Official TÜV SÜD detail covers scalable cloud architectures in AI/Data Analytics and modern AI-based software engineering."
+    },
+    {
+      "company_key": "wavestone",
+      "title": "(Senior) Consultant Data & AI – Data Engineer / Data Scientist (all genders)",
+      "detail_url": "https://wavestone.softgarden.io/job/66820385/-Senior-Consultant-Data-AI-%E2%80%93-Data-Engineer-Data-Scientist-all-genders-?jobDbPVId=282187290&l=en",
+      "location": "Deutschland",
+      "work_model": "hybrid / mobile work from home in Germany",
+      "detail_proven": true,
+      "profile_relevance": "strong_data_engineering_machine_learning_ai_engineering",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official Wavestone detail covers scalable data platforms, pipelines, lakehouse, Azure/Fabric/Databricks/Snowflake, Data Science, ML, GenAI and productive AI Engineering."
+    },
+    {
+      "company_key": "wavestone",
+      "title": "Senior Consultant AI Data Engineering - Microsoft Azure (all genders)",
+      "detail_url": "https://wavestone.softgarden.io/job/66354328/Senior-Consultant-AI-Data-Engineering-Microsoft-Azure-all-genders-?jobDbPVId=281426643&l=en",
+      "location": "Deutschland",
+      "work_model": "hybrid / mobile work from home in Germany",
+      "detail_proven": true,
+      "profile_relevance": "strong_ai_data_engineering_reliability_mlops",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official Wavestone detail covers AI-ready data platforms, pipelines, data quality, monitoring, CI/CD, Infrastructure as Code, RAG, agentic AI, MLOps/LLMOps and operational integration."
+    },
+    {
+      "company_key": "wavestone",
+      "title": "Senior Data Scientist (all genders) | 80%-100%",
+      "detail_url": "https://wavestone.softgarden.io/job/66225808/Senior-Data-Scientist-all-genders-80-100-?jobDbPVId=283520310&l=de",
+      "location": "Deutschland",
+      "work_model": "hybrid / mobile work from home in Germany",
+      "detail_proven": true,
+      "profile_relevance": "strong_machine_learning_ai_reliability",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official Wavestone detail covers ML/GenAI/Agentic AI productionization, APIs, cloud architectures, CI/CD, MLOps, LLMOps, monitoring/testing and data quality."
     }
   ],
   "profile_relevant_listing_evidence_without_current_detail_proof": [
@@ -139,13 +187,28 @@
       "location": "Hannover",
       "state": "official_listing_and_detail_route_observed_but_detail_fetch_timed_out_in_this_scout",
       "note": "Do not downgrade the source; retry through the canonical connector/detail acquisition path."
+    },
+    {
+      "company_key": "hannover_ruck",
+      "title": "Data Science / Data Analytics profession inventory",
+      "location": "Hannover",
+      "state": "official_profession_surface_proves_target-domain hiring but no concrete current vacancy detail captured in this tranche",
+      "note": "Employer explicitly describes Data Science, Data Analytics and Machine Learning work. Continue inventory/detail harvest; do not count as current job-detail proof."
     }
   ],
+  "harvest_progress": {
+    "strict_proven_sources_total": 36,
+    "sources_with_current_concrete_detail_evidence": 11,
+    "current_concrete_detail_rows": 15,
+    "sources_with_target_scope_detail_evidence": 7,
+    "remaining_sources_without_current_concrete_detail_evidence_in_this_file": 25,
+    "interpretation": "This is an in-progress positive-evidence harvest, not an exhaustion claim. Remaining sources require connector-native inventory traversal and concrete detail validation."
+  },
   "scout_scope": {
     "all_36_strict_proven_sources_attempted_for_current_public_evidence": true,
     "absence_of_search_result_is_not_negative_job_authority": true,
     "current_detail_rows_are_positive_evidence_only": true,
-    "next_runtime_action": "Use the strict-proven admission set with the current generic Employer-Origin acquisition stack, cache/fetch the proven detail page, extract substantive PageSnapshot text, and only then apply demo profile/location classification."
+    "next_runtime_action": "Continue connector-native inventory harvest across the remaining strict-proven sources, then fetch concrete details through the current generic Employer-Origin acquisition stack and only afterwards classify profile/location relevance."
   },
   "boundaries": {
     "source_activation": false,
