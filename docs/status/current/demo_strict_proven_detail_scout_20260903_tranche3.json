@@ -1,0 +1,55 @@
+{
+  "schema": "job_application_pipeline.demo_strict_proven_detail_scout.tranche3.v1",
+  "observed_at": "2026-09-03",
+  "status": "shadow_demo_source_evidence",
+  "current_concrete_detail_evidence": [
+    {
+      "company_key": "e_on_grid_solutions",
+      "employer_surface": "E.ON Germany careers",
+      "title": "Senior Data Engineer (m/w/d)",
+      "detail_url": "https://jobs.eon.com/de/job/Senior-Data-Engineer-m_w_d-Munich/245911",
+      "location": "München, Essen, Landshut, Potsdam, Wunstorf, Würzburg",
+      "work_model": "hybrid",
+      "detail_proven": true,
+      "profile_relevance": "strong_data_engineering_and_data_platform",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official E.ON detail is current and substantive. Wunstorf is an offered Niedersachsen location in the Hannover region. Role covers Snowflake, Databricks, modern scalable data products and AI-assisted development in a BizDevOps/Scrum environment."
+    },
+    {
+      "company_key": "e_on_grid_solutions",
+      "employer_surface": "E.ON Germany careers",
+      "title": "Planning Data Engineer (m/w/d)",
+      "detail_url": "https://careers.eon.com/deutschland/job/Essen-Planning-Data-Engineer-%28mwd%29/1432249333/",
+      "location": "Essen, Landshut, München, Potsdam, Wunstorf, Würzburg",
+      "work_model": "hybrid",
+      "detail_proven": true,
+      "profile_relevance": "strong_data_engineering",
+      "hannover_or_remote_germany_scope": true,
+      "evidence_note": "Official E.ON detail is current, substantive and explicitly includes Wunstorf plus a hybrid work model."
+    }
+  ],
+  "current_inventory_evidence_without_profile_detail_proof": [
+    {
+      "company_key": "hannover_ruck",
+      "inventory_url": "https://www.hannover-re.com/en/career/professions/data-science-data-analytics/",
+      "state": "current_official_data_science_inventory_surface_observed",
+      "inventory_signal": "Employer explicitly describes current Data Science/Data Analytics careers, machine-learning methods and a job-search handoff, but no concrete current vacancy detail was accepted in this tranche.",
+      "next_action": "Resolve the job-portal inventory behind this employer-authorized surface and follow current Data/AI candidates to concrete details."
+    }
+  ],
+  "harvest_progress": {
+    "new_detail_proven_jobs_in_this_tranche": 2,
+    "new_detail_proven_sources_in_this_tranche": 1,
+    "cumulative_detail_proven_sources_from_preserved_scout_files": 9,
+    "cumulative_concrete_detail_rows_from_preserved_scout_files": 11,
+    "remaining_strict_proven_sources_require_further_inventory_harvest": true
+  },
+  "boundaries": {
+    "database_write": false,
+    "source_activation": false,
+    "ranking_or_top5_authority": false,
+    "application_authority": false,
+    "profile_relevance_required_for_detail_proof": false,
+    "absence_of_profile_hit_is_negative_source_authority": false
+  }
+}
