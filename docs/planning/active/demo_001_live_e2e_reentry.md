@@ -68,9 +68,10 @@ The original first-slice description is obsolete. Current `main` now contains th
 - canonical Product V1 Top-5 read model/policy remains rank authority;
 - bounded Application Workspace runtime on an authoritative Top-5 job;
 - explicit operator-triggered source-grounded application drafter;
-- React Application Workspace presentation with REVIEW REQUIRED / NO AUTO-SUBMIT boundaries.
+- React Application Workspace presentation with REVIEW REQUIRED / NO AUTO-SUBMIT boundaries;
+- canonical live-demo launcher that builds/reuses the React UI, requires Product/Schema preflight PASS, then exercises the exact selected Top-5 Application Workspace read-only before the HTTP server may start.
 
-Key merged demo slices through the current checkpoint include PRs `#708`–`#725`, with ranking persistence in `#724` and schema-frontier preflight diagnostics in `#725`.
+Key merged demo slices through the current checkpoint include PRs `#708`–`#726`, with ranking persistence in `#724`, schema-frontier diagnostics in `#725`, and failed-tracking hardening/re-entry refresh in `#726`.
 
 ## Current frontier
 
@@ -85,14 +86,14 @@ The local runtime must prove, in order:
 5. ranking component scores are persisted from exact current vacancy evidence;
 6. at least one real job reaches authoritative Top-5 truth;
 7. approved Candidate Fact profile plus approved base CV/base letter are present;
-8. selected Top-5 job opens the bounded Application Workspace;
+8. selected Top-5 job can be exact-bound to current vacancy detail, a non-empty Candidate Fact claim plan, approved source documents and zero-write/provider boundaries in the Application Workspace;
 9. only after context readiness, an explicit operator action may invoke the drafter and return `draft_for_review`.
 
-The preflight is intentionally read-only and must identify the narrowest blocking gate instead of inventing success.
+The readiness path is intentionally fail-closed and must identify the narrowest blocking gate instead of inventing success.
 
 ## Canonical local operator handoff
 
-From canonical local `main`, first refresh and inspect only:
+From canonical local `main`, first refresh and inspect migration truth:
 
 ```bash
 cd "$HOME/projects/job-application-pipeline"
@@ -100,10 +101,9 @@ git fetch origin main
 git switch main
 git pull --ff-only origin main
 python scripts/apply_db_migrations.py --status
-python scripts/run_product_v1_demo_preflight.py
 ```
 
-If the preflight reports a sole pending migration `104_create_product_v1_ranking_score_reviews.sql`, the qualified exact migration runner is:
+If the status/preflight reports a sole pending migration `104_create_product_v1_ranking_score_reviews.sql`, the qualified exact migration runner is:
 
 ```bash
 python scripts/apply_db_migrations.py \
@@ -112,9 +112,28 @@ python scripts/apply_db_migrations.py \
   --applied-by demo-001
 ```
 
-If multiple migrations are pending, checksums mismatch, a required migration is tracked with a non-successful status, or relation/column shape disagrees with tracking, do **not** guess or force through. Preserve the preflight/status artifact and repair that exact local runtime state first.
+If multiple migrations are pending, checksums mismatch, a required migration is tracked with a non-successful status, or relation/column shape disagrees with tracking, do **not** guess or force through. Repair that exact local runtime state first.
 
-After schema readiness, continue with the narrowest blocker reported by `.runtime/demo/product_v1_demo_preflight.json`. Any command that mutates live Product V1 assessment/review/ranking truth remains explicit operator work and must use the existing guarded plan/apply token boundaries.
+Once schema state is coherent, use the single canonical full readiness path:
+
+```bash
+python scripts/run_product_v1_live_demo.py --preflight-only
+```
+
+That command builds the existing React Control Center, runs the Product/Schema preflight, then probes the selected real Top-5 Application Workspace. The readiness proof is not PASS unless the workspace exact-binds the selected job, current vacancy fingerprint, non-empty claim plan, approved source documents and zero provider/write/submission/send boundaries.
+
+For presentation startup after a previously qualified frontend build:
+
+```bash
+python scripts/run_product_v1_live_demo.py --reuse-frontend
+```
+
+Durable local artifacts:
+
+- `.runtime/demo/product_v1_demo_preflight.json`;
+- `.runtime/demo/product_v1_demo_workspace_probe.json`.
+
+Any command that mutates live Product V1 assessment/review/ranking truth remains explicit operator work and must use the existing guarded plan/apply token boundaries. Draft generation itself remains an explicit UI/operator action after workspace readiness and never grants approval/submission/send authority.
 
 ## Runner-first continuation
 
