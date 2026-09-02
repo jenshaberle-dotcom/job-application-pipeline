@@ -64,4 +64,4 @@ def test_application_target_uses_reviewed_personio_employer_brand(tmp_path: Path
     )
 
     assert context.generation_ready is True
-    assert context.target.company_name == "1KOMMA5° GmbH"
+    assert context.target.company_name == "1KOMMA5°"
