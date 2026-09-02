@@ -144,7 +144,11 @@ def test_quality_request_constrains_quotes_and_keeps_private_documents_local() -
     encoded = json.dumps(captured, ensure_ascii=False)
     assert "PRIVATE CV STYLE REFERENCE" not in encoded
     assert "PRIVATE LETTER STYLE REFERENCE" not in encoded
-    assert '"allowed_job_evidence"' in encoded
+
+    user_packet_text = captured["input"][1]["content"][0]["text"]
+    user_packet = json.loads(user_packet_text)
+    assert user_packet["allowed_job_evidence"] == list(quotes)
+
     schema = captured["text"]["format"]["schema"]
     evidence_items = schema["properties"]["fragments"]["items"]["properties"]["job_evidence"]["items"]
     assert evidence_items["enum"] == list(quotes)
