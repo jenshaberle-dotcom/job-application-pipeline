@@ -89,7 +89,7 @@ def ingest_local_base_document(payload: object) -> dict[str, object]:
     content_sha256 = sha256(content).hexdigest()
     safe_name = _FILENAME_RE.sub("_", filename).strip("._") or "document.pdf"
     stored_path = upload_root / f"{document_type}-{content_sha256[:12]}-{safe_name}"
-    temporary_path = stored_path.with_suffix(stored_path.suffix + ".uploading")
+    temporary_path = upload_root / f".{document_type}-{content_sha256[:12]}.uploading.pdf"
 
     try:
         temporary_path.write_bytes(content)
