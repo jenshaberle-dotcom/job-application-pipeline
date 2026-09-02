@@ -75,7 +75,7 @@ def connect() -> psycopg.Connection[Any]:
 
 
 def schema_migrations_exists(conn: psycopg.Connection[Any]) -> bool:
-    with conn.cursor() as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT EXISTS (
@@ -95,7 +95,7 @@ def load_tracked_migrations(conn: psycopg.Connection[Any]) -> dict[str, TrackedM
     if not schema_migrations_exists(conn):
         return {}
 
-    with conn.cursor() as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT
