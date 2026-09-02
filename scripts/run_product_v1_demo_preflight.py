@@ -29,7 +29,7 @@ from src.job_lifecycle_health import EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT = Path("/tmp/product_v1_demo_preflight.json")
+DEFAULT_OUTPUT = ROOT / ".runtime" / "demo" / "product_v1_demo_preflight.json"
 DEFAULT_FRONTEND_DIST = ROOT / "frontend" / "control-center" / "dist"
 
 
