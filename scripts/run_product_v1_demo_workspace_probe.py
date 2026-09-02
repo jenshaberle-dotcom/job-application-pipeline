@@ -10,6 +10,7 @@ origin request. No provider, product/application write, submission or send occur
 from __future__ import annotations
 
 import argparse
+from hashlib import sha256
 import json
 from pathlib import Path
 from typing import Callable, Mapping
@@ -37,6 +38,13 @@ WorkspaceLoader = Callable[[int], Mapping[str, object]]
 
 class WorkspaceProbeStop(RuntimeError):
     """Fail-closed boundary for an invalid preflight/workspace handoff."""
+
+
+def _artifact_sha256(path: Path) -> str:
+    try:
+        return sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise WorkspaceProbeStop(f"readiness artifact is unreadable: {path}") from exc
 
 
 def _read_json_object(path: Path) -> Mapping[str, object]:
@@ -118,7 +126,7 @@ def evaluate_workspace_payload(
     }
     blockers = [name for name, passed in checks.items() if not passed]
     return {
-        "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v2",
+        "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v3",
         "state": "pass" if not blockers else "blocked",
         "silver_job_id": silver_job_id,
         "checks": checks,
@@ -207,7 +215,7 @@ def run_workspace_probe_single_fetch(*, silver_job_id: int) -> dict[str, object]
 
 def _blocked_report(*, silver_job_id: int | None, exc: BaseException) -> dict[str, object]:
     return {
-        "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v2",
+        "schema": "job_application_pipeline.product_v1_demo_workspace_probe.v3",
         "state": "blocked",
         "silver_job_id": silver_job_id,
         "checks": {},
@@ -233,9 +241,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
+    preflight_path = args.preflight.resolve()
     try:
-        silver_job_id = selected_job_id_from_preflight(args.preflight.resolve())
+        silver_job_id = selected_job_id_from_preflight(preflight_path)
         report = run_workspace_probe_single_fetch(silver_job_id=silver_job_id)
+        report["preflight_artifact_sha256"] = _artifact_sha256(preflight_path)
     except WorkspaceProbeStop as exc:
         report = _blocked_report(silver_job_id=None, exc=exc)
         report["blocking_checks"] = ["preflight_handoff"]
