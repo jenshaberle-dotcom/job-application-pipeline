@@ -1,8 +1,9 @@
 """Read-only live-demo preflight for the Product V1 Control Center.
 
 The preflight never creates product truth. It inspects the current runtime database,
-current Control Center payload, private Candidate Fact readiness, and frontend build
-surface to determine whether the live vertical slice can be shown truthfully:
+current Control Center payload, private Candidate Fact readiness, frontend build
+surface and the demo-specific schema frontier to determine whether the live vertical
+slice can be shown truthfully:
 
 market/source -> connector health -> Bronze -> Silver -> Product V1 -> Top 5 ->
 application preparation.
@@ -23,6 +24,13 @@ from typing import Mapping, Sequence
 import psycopg
 from psycopg.rows import dict_row
 
+from scripts.apply_db_migrations import (
+    checksum_mismatches,
+    discover_migration_files,
+    load_tracked_migrations,
+    pending_migrations,
+    schema_migrations_exists,
+)
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from scripts.run_product_v1_control_center import load_product_v1_payload
 from src.job_lifecycle_health import EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
@@ -31,6 +39,17 @@ from src.job_lifecycle_health import EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / ".runtime" / "demo" / "product_v1_demo_preflight.json"
 DEFAULT_FRONTEND_DIST = ROOT / "frontend" / "control-center" / "dist"
+DEMO_REQUIRED_MIGRATIONS = (
+    "102_create_product_v1_hard_filter_operator_reviews.sql",
+    "103_create_product_v1_capability_fit_reviews.sql",
+    "104_create_product_v1_ranking_score_reviews.sql",
+)
+DEMO_REQUIRED_RELATIONS = (
+    "product_v1_hard_filter_reviews",
+    "product_v1_capability_fit_reviews",
+    "product_v1_ranking_score_reviews",
+)
+RANKING_REVISION_COLUMN = "ranking_updated_at"
 
 
 @dataclass(frozen=True)
@@ -54,6 +73,101 @@ def _relation_exists(conn: psycopg.Connection[object], relation_name: str) -> bo
         cur.execute("SELECT to_regclass(%s) IS NOT NULL", (f"public.{relation_name}",))
         row = cur.fetchone()
     return bool(row and row[0])
+
+
+def _column_exists(
+    conn: psycopg.Connection[object],
+    *,
+    table_name: str,
+    column_name: str,
+) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = %s
+                  AND column_name = %s
+            )
+            """,
+            (table_name, column_name),
+        )
+        row = cur.fetchone()
+    return bool(row and row[0])
+
+
+def _database_schema_readiness() -> dict[str, object]:
+    migrations = discover_migration_files(ROOT / "db" / "migrations")
+    migration_keys = {migration.migration_key for migration in migrations}
+    missing_repo_files = [
+        key for key in DEMO_REQUIRED_MIGRATIONS if key not in migration_keys
+    ]
+
+    with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
+        tracking_exists = schema_migrations_exists(conn)
+        tracked = load_tracked_migrations(conn)
+        pending = pending_migrations(migrations, tracked)
+        mismatches = checksum_mismatches(migrations, tracked)
+        relation_presence = {
+            relation: _relation_exists(conn, relation)
+            for relation in DEMO_REQUIRED_RELATIONS
+        }
+        ranking_revision_present = _column_exists(
+            conn,
+            table_name="job_product_assessments",
+            column_name=RANKING_REVISION_COLUMN,
+        )
+
+    pending_keys = [migration.migration_key for migration in pending]
+    mismatch_keys = [migration.migration_key for migration, _tracked in mismatches]
+    required_tracking = {
+        key: key in tracked and key not in mismatch_keys
+        for key in DEMO_REQUIRED_MIGRATIONS
+    }
+    shapes_ready = all(relation_presence.values()) and ranking_revision_present
+    ready = (
+        tracking_exists
+        and not missing_repo_files
+        and not mismatch_keys
+        and all(required_tracking.values())
+        and shapes_ready
+    )
+
+    operator_actions = ["python scripts/apply_db_migrations.py --status"]
+    required_pending = [key for key in pending_keys if key in DEMO_REQUIRED_MIGRATIONS]
+    unrelated_pending = [key for key in pending_keys if key not in DEMO_REQUIRED_MIGRATIONS]
+    if (
+        tracking_exists
+        and required_pending
+        and not unrelated_pending
+        and not mismatch_keys
+        and not missing_repo_files
+    ):
+        if len(pending_keys) == 1:
+            operator_actions.append(
+                "python scripts/apply_db_migrations.py "
+                f"--apply-exact {pending_keys[0]} --require-sole-pending "
+                "--applied-by demo-001"
+            )
+        else:
+            operator_actions.append(
+                "python scripts/apply_db_migrations.py --apply --applied-by demo-001"
+            )
+
+    return {
+        "ready": ready,
+        "tracking_table_exists": tracking_exists,
+        "required_migrations": list(DEMO_REQUIRED_MIGRATIONS),
+        "required_migration_tracking": required_tracking,
+        "missing_repo_migration_files": missing_repo_files,
+        "pending_migrations": pending_keys,
+        "checksum_mismatches": mismatch_keys,
+        "required_relations": relation_presence,
+        "ranking_revision_column_present": ranking_revision_present,
+        "operator_actions": operator_actions,
+    }
 
 
 def _candidate_fact_readiness() -> dict[str, object]:
@@ -202,10 +316,23 @@ def _gate(
     )
 
 
+def _schema_detail(readiness: Mapping[str, object]) -> str:
+    pending = readiness.get("pending_migrations")
+    mismatches = readiness.get("checksum_mismatches")
+    relations = readiness.get("required_relations")
+    return (
+        f"pending={pending if isinstance(pending, list) else []} "
+        f"checksum_mismatches={mismatches if isinstance(mismatches, list) else []} "
+        f"relations={relations if isinstance(relations, Mapping) else {}} "
+        f"ranking_revision_column={bool(readiness.get('ranking_revision_column_present'))}"
+    )
+
+
 def build_demo_preflight(
     *,
     payload: Mapping[str, object],
     candidate_fact_readiness: Mapping[str, object],
+    database_schema_readiness: Mapping[str, object],
     frontend_dist: Path,
     openai_key_present: bool,
 ) -> dict[str, object]:
@@ -233,8 +360,15 @@ def build_demo_preflight(
     base_cv_ready = application_sources.get("base_cv") is True
     base_letter_ready = application_sources.get("base_application_letter") is True
     frontend_ready = (frontend_dist / "index.html").is_file()
+    schema_ready = database_schema_readiness.get("ready") is True
 
     gates = [
+        _gate(
+            "demo_schema_frontier",
+            schema_ready,
+            passed="Demo schema frontier 102-104 is tracked and structurally present.",
+            failed="Demo schema frontier is incomplete: " + _schema_detail(database_schema_readiness),
+        ),
         _gate(
             "control_center_payload",
             bool(summary),
@@ -301,8 +435,9 @@ def build_demo_preflight(
 
     blockers = [gate.name for gate in gates if gate.blocking]
     state = "pass" if not blockers else "blocked"
+    operator_actions = database_schema_readiness.get("operator_actions")
     return {
-        "schema": "job_application_pipeline.product_v1_demo_preflight.v1",
+        "schema": "job_application_pipeline.product_v1_demo_preflight.v2",
         "state": state,
         "demo_story": [
             "discovery_and_market_evidence",
@@ -319,12 +454,14 @@ def build_demo_preflight(
         "demo_sources": sources,
         "selected_top_job": selected,
         "selected_application_readiness": application_status,
+        "database_schema_readiness": dict(database_schema_readiness),
         "candidate_fact_readiness": dict(candidate_fact_readiness),
         "application_sources_ready": dict(application_sources),
         "frontend_dist": str(frontend_dist),
         "openai_key_present": openai_key_present,
         "gates": [gate.to_json() for gate in gates],
         "blocking_gates": blockers,
+        "operator_actions": list(operator_actions) if isinstance(operator_actions, list) else [],
         "boundaries": {
             "database_reads": True,
             "database_writes": False,
@@ -347,11 +484,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
+    database_schema_readiness = _database_schema_readiness()
     payload = load_product_v1_payload()
     candidate_fact_readiness = _candidate_fact_readiness()
     report = build_demo_preflight(
         payload=payload,
         candidate_fact_readiness=candidate_fact_readiness,
+        database_schema_readiness=database_schema_readiness,
         frontend_dist=args.frontend_dist.resolve(),
         openai_key_present=bool(os.environ.get("OPENAI_API_KEY", "").strip()),
     )
@@ -362,6 +501,7 @@ def main() -> int:
     print("PRODUCT V1 LIVE DEMO PREFLIGHT")
     print("============================================")
     print(f"STATE={str(report['state']).upper()}")
+    print(f"SCHEMA_FRONTIER={'READY' if database_schema_readiness.get('ready') else 'BLOCKED'}")
     print(f"CURRENT_ACTIVE={report['summary'].get('current_active_job_count', 0)}")
     print(f"RANKABLE={report['summary'].get('rankable_job_count', 0)}")
     print(f"TOP5={report['summary'].get('top_job_count', 0)}")
@@ -372,6 +512,7 @@ def main() -> int:
     else:
         print("SELECTED_JOB=NONE")
     print("BLOCKERS=" + json.dumps(report["blocking_gates"], sort_keys=True))
+    print("OPERATOR_ACTIONS=" + json.dumps(report["operator_actions"], sort_keys=True))
     print("DATABASE_WRITES=0")
     print("PROVIDER_REQUESTS=0")
     print("SUBMISSION_WRITES=0")
