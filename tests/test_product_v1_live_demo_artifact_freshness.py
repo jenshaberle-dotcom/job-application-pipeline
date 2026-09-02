@@ -139,3 +139,45 @@ def test_atomic_child_missing_artifact_fails_without_target(monkeypatch, tmp_pat
         )
 
     assert not target.exists()
+
+
+def test_atomic_child_truncated_json_is_never_published(monkeypatch, tmp_path) -> None:
+    _set_demo_root(monkeypatch, tmp_path)
+    target = tmp_path / "draft.json"
+
+    def fake_run_module(_module: str, *, arguments: list[str]) -> int:
+        staged = Path(arguments[arguments.index("--output") + 1])
+        staged.write_text('{"state":"blocked"', encoding="utf-8")
+        return 2
+
+    monkeypatch.setattr(live_demo, "_run_module", fake_run_module)
+
+    with pytest.raises(RuntimeError, match="produced invalid JSON"):
+        live_demo._run_module_with_atomic_output(
+            "scripts.fake_probe",
+            arguments=[],
+            output=target,
+        )
+
+    assert not target.exists()
+
+
+def test_atomic_child_non_object_json_is_never_published(monkeypatch, tmp_path) -> None:
+    _set_demo_root(monkeypatch, tmp_path)
+    target = tmp_path / "draft.json"
+
+    def fake_run_module(_module: str, *, arguments: list[str]) -> int:
+        staged = Path(arguments[arguments.index("--output") + 1])
+        staged.write_text('["pass"]\n', encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(live_demo, "_run_module", fake_run_module)
+
+    with pytest.raises(RuntimeError, match="root is not an object"):
+        live_demo._run_module_with_atomic_output(
+            "scripts.fake_probe",
+            arguments=[],
+            output=target,
+        )
+
+    assert not target.exists()
