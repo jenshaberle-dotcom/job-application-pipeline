@@ -119,6 +119,6 @@ def test_runtime_failure_is_reported_fail_closed() -> None:
 
     assert report["state"] == "blocked"
     assert report["blocking_checks"] == ["workspace_runtime"]
-    assert report["provider_requests"] if False else True
+    assert report["reason"] == "approved base CV is missing"
     assert report["boundaries"]["provider_requests"] == 0
     assert report["boundaries"]["database_writes"] is False
