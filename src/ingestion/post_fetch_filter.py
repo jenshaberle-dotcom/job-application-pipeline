@@ -4,17 +4,16 @@ from typing import Any
 from src.connectors.base import RawJobRecord, SearchTerm
 
 
+# Search-profile terms describe the kind of work, not the employer or commute
+# surface. Keeping company/location out of this boundary prevents cross-field
+# constructions such as company="Heartbeat AI" + title="Software Engineer" from
+# becoming an artificial "AI Engineer" match.
 SEARCHABLE_JOB_FIELDS = (
     "titel",
     "title",
     "beschreibung",
     "description",
     "content",
-    "arbeitgeber",
-    "company",
-    "company_name",
-    "arbeitsort",
-    "location",
     "departments",
     "offices",
 )
@@ -25,6 +24,12 @@ def normalize_text(value: Any) -> str:
         return ""
 
     return str(value).lower().strip()
+
+
+def normalize_profile_phrase(value: Any) -> str:
+    text = normalize_text(value)
+    text = re.sub(r"[-_/]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def flatten_value(value: Any) -> str:
@@ -40,7 +45,7 @@ def flatten_value(value: Any) -> str:
     return normalize_text(value)
 
 
-def build_search_text(record: RawJobRecord) -> str:
+def build_search_segments(record: RawJobRecord) -> list[str]:
     raw_data = record.raw_data
     job_data = raw_data.get("job", {})
     result_card = raw_data.get("result_card", {})
@@ -51,7 +56,6 @@ def build_search_text(record: RawJobRecord) -> str:
         result_card = {}
 
     values: list[Any] = []
-
     for field in SEARCHABLE_JOB_FIELDS:
         values.append(job_data.get(field))
         values.append(raw_data.get(field))
@@ -61,11 +65,17 @@ def build_search_text(record: RawJobRecord) -> str:
     # by the detail page here instead of persisting the full detail-page body.
     values.append(job_data.get("profile_terms"))
 
-    return " ".join(
-        flattened
+    return [
+        segment
         for value in values
-        if (flattened := flatten_value(value))
-    )
+        if (segment := normalize_profile_phrase(flatten_value(value)))
+    ]
+
+
+def build_search_text(record: RawJobRecord) -> str:
+    """Compatibility projection for diagnostics/tests; matching is field scoped."""
+
+    return " ".join(build_search_segments(record))
 
 
 def contains_whole_token(search_text: str, token: str) -> bool:
@@ -79,19 +89,31 @@ def contains_whole_token(search_text: str, token: str) -> bool:
 
 
 def job_matches_search_term(record: RawJobRecord, search_term: str) -> bool:
-    normalized_search_term = normalize_text(search_term)
+    normalized_search_term = normalize_profile_phrase(search_term)
 
     if not normalized_search_term or normalized_search_term == "*":
         return True
 
-    search_text = build_search_text(record)
+    segments = build_search_segments(record)
+    if not segments:
+        return False
 
-    if normalized_search_term in search_text:
-        return True
-
+    # Single-token discovery keeps the historical substring behaviour. Multi-word
+    # role terms are intentionally stricter: every token must occur in the same
+    # source-local semantic field. This prevents unrelated fields from being
+    # concatenated into a synthetic role while still allowing punctuation and
+    # modest word separation inside one title/description field.
     tokens = normalized_search_term.split()
+    if len(tokens) == 1:
+        return any(normalized_search_term in segment for segment in segments)
 
-    return all(contains_whole_token(search_text, token) for token in tokens)
+    for segment in segments:
+        if normalized_search_term in segment:
+            return True
+        if all(contains_whole_token(segment, token) for token in tokens):
+            return True
+
+    return False
 
 
 def apply_keyword_filter(
@@ -127,7 +149,7 @@ def with_matched_search_terms(
         matching = {}
 
     matching = dict(matching)
-    matching["matching_mode"] = "simple_case_insensitive_term_match"
+    matching["matching_mode"] = "field_scoped_case_insensitive_term_match"
     matching["matched_terms"] = [
         search_term.search_term
         for search_term in matched_terms

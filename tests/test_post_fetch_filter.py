@@ -10,6 +10,7 @@ from src.ingestion.post_fetch_filter import (
 def make_record(
     title: str = "Data Engineer",
     description: str = "Python SQL ETL Data Platform",
+    company_name: str = "Example GmbH",
 ) -> RawJobRecord:
     return RawJobRecord(
         source_name="personio:example",
@@ -19,7 +20,7 @@ def make_record(
             "job": {
                 "title": title,
                 "description": description,
-                "company_name": "Example GmbH",
+                "company_name": company_name,
                 "location": "remote",
             }
         },
@@ -81,7 +82,7 @@ def test_with_matched_search_terms_adds_matching_metadata_without_mutating_origi
     assert "matching" not in record.raw_data
 
     assert matched_record.raw_data["matching"] == {
-        "matching_mode": "simple_case_insensitive_term_match",
+        "matching_mode": "field_scoped_case_insensitive_term_match",
         "matched_terms": ["Data Engineer", "Data Platform"],
         "matched_search_term_ids": [1, 3],
     }
@@ -109,7 +110,6 @@ def test_apply_multi_term_keyword_filter_keeps_only_matching_records() -> None:
     assert len(records) == 1
     assert records[0].external_job_id == "1"
     assert records[0].raw_data["matching"]["matched_terms"] == [
-        "Data Engineer",
         "Analytics Engineer",
         "ETL",
     ]
@@ -159,10 +159,38 @@ def test_ai_engineer_does_not_match_ai_substring_inside_unrelated_word() -> None
     assert job_matches_search_term(record, "AI Engineer") is False
 
 
-def test_non_contiguous_whole_tokens_remain_supported() -> None:
+def test_multiword_role_tokens_do_not_combine_across_fields() -> None:
     record = make_record(
         title="Software Engineer",
         description="Works on ML platforms and model delivery",
+    )
+
+    assert job_matches_search_term(record, "ML Engineer") is False
+
+
+def test_company_identity_cannot_create_ai_engineer_role_match() -> None:
+    record = make_record(
+        title="Senior Software Engineer - Energy Markets",
+        description="Build reliable backend services for the energy platform.",
+        company_name="Heartbeat AI GmbH",
+    )
+
+    assert job_matches_search_term(record, "AI Engineer") is False
+
+
+def test_non_contiguous_tokens_inside_one_job_field_remain_supported() -> None:
+    record = make_record(
+        title="Platform Specialist",
+        description="We need an ML platform engineer focused on reliable model delivery.",
+    )
+
+    assert job_matches_search_term(record, "ML Engineer") is True
+
+
+def test_profile_phrase_normalizes_common_title_separators() -> None:
+    record = make_record(
+        title="Senior ML-Engineer",
+        description="Model platform role",
     )
 
     assert job_matches_search_term(record, "ML Engineer") is True

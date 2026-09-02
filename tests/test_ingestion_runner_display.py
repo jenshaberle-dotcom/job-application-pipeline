@@ -61,6 +61,7 @@ def test_display_values_fall_back_to_missing_marker() -> None:
     assert get_record_display_title(record) == "<missing>"
     assert get_record_display_company(record) == "<missing>"
 
+
 def test_runner_persists_search_term_lineage_on_ingestion_run() -> None:
     from src.connectors.base import SearchProfile, SearchTerm
     from src.connectors.capabilities import SourceCapabilities
@@ -373,7 +374,6 @@ def test_runner_fetches_full_fetch_sources_once_and_records_matched_terms() -> N
     ]
     assert len(repository.saved_records) == 1
     assert repository.saved_records[0].raw_data["matching"]["matched_terms"] == [
-        "Data Engineer",
         "Analytics Engineer",
         "ETL",
     ]
