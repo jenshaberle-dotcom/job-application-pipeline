@@ -29,9 +29,10 @@ from scripts.run_product_v1_demo_control_center import run_server
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "control-center"
 DEFAULT_DIST = FRONTEND / "dist"
-DEFAULT_PREFLIGHT = ROOT / ".runtime" / "demo" / "product_v1_demo_preflight.json"
-DEFAULT_WORKSPACE_PROBE = ROOT / ".runtime" / "demo" / "product_v1_demo_workspace_probe.json"
-DEFAULT_DRAFT_PROBE = ROOT / ".runtime" / "demo" / "product_v1_demo_draft_probe.json"
+DEMO_ARTIFACT_ROOT = (ROOT / ".runtime" / "demo").resolve()
+DEFAULT_PREFLIGHT = DEMO_ARTIFACT_ROOT / "product_v1_demo_preflight.json"
+DEFAULT_WORKSPACE_PROBE = DEMO_ARTIFACT_ROOT / "product_v1_demo_workspace_probe.json"
+DEFAULT_DRAFT_PROBE = DEMO_ARTIFACT_ROOT / "product_v1_demo_draft_probe.json"
 _FRONTEND_LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json")
 
 
@@ -46,14 +47,23 @@ def _frontend_install_command(npm: str) -> tuple[list[str], str]:
     return [npm, "install", "--package-lock=false", "--no-audit", "--no-fund"], "LOCKFILE_ABSENT_INSTALL"
 
 
-def _invalidate_output_artifacts(*paths: Path) -> None:
-    """Remove prior-run readiness artifacts before any new readiness attempt.
+def _demo_artifact_path(path: Path) -> Path:
+    """Resolve one launcher diagnostic path inside the bounded demo artifact root."""
+    resolved = path.resolve()
+    root = DEMO_ARTIFACT_ROOT.resolve()
+    if root not in {resolved, *resolved.parents}:
+        raise RuntimeError(
+            f"demo readiness artifact must stay under {root}: {resolved}"
+        )
+    if resolved.suffix.lower() != ".json":
+        raise RuntimeError(f"demo readiness artifact must be a .json file: {resolved}")
+    return resolved
 
-    A launcher failure must never leave an older PASS artifact looking current. These
-    files are diagnostics only; removing them changes no product/application truth.
-    """
-    for path in paths:
-        resolved = path.resolve()
+
+def _invalidate_output_artifacts(*paths: Path) -> None:
+    """Remove only bounded prior-run demo diagnostics before a new readiness attempt."""
+    resolved_paths = tuple(_demo_artifact_path(path) for path in paths)
+    for resolved in resolved_paths:
         try:
             resolved.unlink()
         except FileNotFoundError:
@@ -138,14 +148,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    preflight_output = args.preflight_output.resolve()
-    workspace_probe_output = args.workspace_probe_output.resolve()
-    draft_probe_output = args.draft_probe_output.resolve()
-    _invalidate_output_artifacts(
-        preflight_output,
-        workspace_probe_output,
-        draft_probe_output,
-    )
+    try:
+        preflight_output = _demo_artifact_path(args.preflight_output)
+        workspace_probe_output = _demo_artifact_path(args.workspace_probe_output)
+        draft_probe_output = _demo_artifact_path(args.draft_probe_output)
+        _invalidate_output_artifacts(
+            preflight_output,
+            workspace_probe_output,
+            draft_probe_output,
+        )
+    except RuntimeError as exc:
+        print(f"DEMO_START_BLOCKED=artifact_path:{exc}", file=sys.stderr)
+        return 2
 
     try:
         frontend_dist = prepare_frontend(reuse_frontend=args.reuse_frontend)
