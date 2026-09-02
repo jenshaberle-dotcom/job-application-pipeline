@@ -33,7 +33,11 @@ from scripts.apply_db_migrations import (
     schema_migrations_exists,
 )
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+from scripts.run_product_v1_assessment_materialization import (
+    authorized_recurring_employer_origin_sources,
+)
 from scripts.run_product_v1_control_center import load_product_v1_payload
+from src.ingestion.repository import JobIngestionRepository
 from src.job_lifecycle_health import EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
 
 
@@ -260,18 +264,32 @@ def _application_status_for_job(
     return None
 
 
-def _top_job_candidate(payload: Mapping[str, object]) -> dict[str, object] | None:
+def _top_job_candidate(
+    payload: Mapping[str, object],
+    *,
+    authorized_employer_origin_sources: Sequence[str] | None = None,
+) -> dict[str, object] | None:
     raw = payload.get("top_jobs")
     if not isinstance(raw, list):
         return None
+    authorized_names = (
+        None
+        if authorized_employer_origin_sources is None
+        else {str(value) for value in authorized_employer_origin_sources}
+    )
     eligible: list[dict[str, object]] = []
     for item in raw:
         if not isinstance(item, Mapping):
             continue
         row = dict(item)
-        if (
+        source_authorized = (
             str(row.get("canonical_source_type") or "")
             in EMPLOYER_ORIGIN_HEALTH_SOURCE_TYPES
+            if authorized_names is None
+            else str(row.get("source_name") or "") in authorized_names
+        )
+        if (
+            source_authorized
             and str(row.get("origin_validation_status") or "") == "validated"
             and str(row.get("activity_status") or "") == "active"
             and str(row.get("hard_filter_status") or "") == "passed"
@@ -364,6 +382,7 @@ def build_demo_preflight(
     database_schema_readiness: Mapping[str, object],
     frontend_dist: Path,
     openai_key_present: bool,
+    authorized_employer_origin_sources: Sequence[str] | None = None,
 ) -> dict[str, object]:
     summary = payload.get("summary") if isinstance(payload.get("summary"), Mapping) else {}
     application_sources = (
@@ -377,7 +396,10 @@ def build_demo_preflight(
         else []
     )
 
-    selected = _top_job_candidate(payload)
+    selected = _top_job_candidate(
+        payload,
+        authorized_employer_origin_sources=authorized_employer_origin_sources,
+    )
     selected_id = int(selected.get("silver_job_id") or 0) if selected else 0
     application_status = (
         _application_status_for_job(application_rows, selected_id) if selected_id else None
@@ -516,12 +538,16 @@ def main() -> int:
     database_schema_readiness = _database_schema_readiness()
     payload = load_product_v1_payload()
     candidate_fact_readiness = _candidate_fact_readiness()
+    authorized_sources = authorized_recurring_employer_origin_sources(
+        JobIngestionRepository()
+    )
     report = build_demo_preflight(
         payload=payload,
         candidate_fact_readiness=candidate_fact_readiness,
         database_schema_readiness=database_schema_readiness,
         frontend_dist=args.frontend_dist.resolve(),
         openai_key_present=bool(os.environ.get("OPENAI_API_KEY", "").strip()),
+        authorized_employer_origin_sources=authorized_sources,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
