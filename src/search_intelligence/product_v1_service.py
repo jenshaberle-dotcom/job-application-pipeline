@@ -5,6 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Mapping, Sequence
 
+from src.search_intelligence.product_v1_review_fit import enrich_review_fit
 from src.search_intelligence.source_connector_overview import (
     empty_source_connector_overview,
 )
@@ -32,6 +33,18 @@ def json_safe(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [json_safe(item) for item in value]
     return value
+
+
+def _display_job(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Add a non-authoritative display fit without mutating Product ranking truth."""
+    enriched = enrich_review_fit(row)
+    product_score = row.get("overall_quality_score")
+    enriched["product_overall_quality_score"] = product_score
+    # Compatibility for the current Control Center: its generic Fit column reads
+    # overall_quality_score. The authoritative value remains separately preserved
+    # and display_fit_scope makes the provenance explicit in the API.
+    enriched["overall_quality_score"] = enriched["display_fit_score"]
+    return enriched
 
 
 def build_product_v1_payload(
@@ -163,6 +176,7 @@ def build_product_v1_payload(
     safe_application_readiness = (
         list(application_readiness) if lifecycle_contract_ready else []
     )
+    display_job_readiness = [_display_job(job) for job in job_readiness]
     payload = {
         "schema_version": "pipeline.product_v1.control_center.v1",
         "product": {
@@ -229,7 +243,7 @@ def build_product_v1_payload(
         "ranking_policy": policy or {"status": "operator_decision_required"},
         "hard_filter_policy": hard_policy
         or {"status": "operator_decision_required"},
-        "job_readiness": list(job_readiness),
+        "job_readiness": display_job_readiness,
         "top_jobs": safe_top_jobs,
         "application_readiness": safe_application_readiness,
         "application_sources": list(application_sources),
@@ -249,6 +263,7 @@ def build_product_v1_payload(
             "observed_opportunity_is_not_ranking_authority": True,
             "historical_job_presence_is_not_current_activity": True,
             "current_compensation_is_local_runtime_context_only": True,
+            "review_fit_preview_is_not_ranking_authority": True,
         },
     }
     return json_safe(payload)
