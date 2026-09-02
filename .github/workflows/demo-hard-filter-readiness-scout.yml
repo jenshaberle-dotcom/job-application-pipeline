@@ -1,0 +1,108 @@
+name: DEMO-001 hard-filter readiness scout
+
+on:
+  pull_request:
+    paths:
+      - "scripts/run_demo_hard_filter_readiness_scout.py"
+      - "tests/test_demo_hard_filter_readiness_scout.py"
+      - "src/connectors/**"
+      - ".github/workflows/demo-hard-filter-readiness-scout.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  route:
+    name: Resolve execution surface
+    uses: ./.github/workflows/warm-runner-route.yml
+    with:
+      heartbeat_workflow: warm-runner-heartbeat.yml
+      heartbeat_max_age_seconds: 900
+      warm_runs_on_json: '["self-hosted","Linux","X64","job-pipeline-runtime-linux"]'
+      hosted_runs_on_json: '["ubuntu-latest"]'
+
+  scout:
+    name: Live hard-filter evidence readiness
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.runs_on_json) }}
+    timeout-minutes: 12
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run unit contract
+        run: python -m pytest -q tests/test_demo_hard_filter_readiness_scout.py
+
+      - name: Run live readiness scout
+        run: |
+          python -m scripts.run_demo_hard_filter_readiness_scout \
+            --output /tmp/demo_hard_filter_readiness_scout.json
+
+      - name: Publish readiness summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/demo_hard_filter_readiness_scout.json ]; then
+            python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path("/tmp/demo_hard_filter_readiness_scout.json").read_text(encoding="utf-8"))
+          summary = report["summary"]
+          lines = [
+              "## DEMO-001 hard-filter source-evidence readiness",
+              "",
+              f"- Healthy connectors: `{summary['healthy_connector_count']}/{summary['connector_count']}`",
+              f"- Observed jobs: `{summary['observed_job_count']}`",
+              f"- Profile + location matches: `{summary['profile_location_match_count']}`",
+              f"- Hard-filter source-evidence complete: `{summary['hard_filter_source_ready_count']}`",
+              "",
+              "| Source | Status | Jobs | Profile + location | Source-ready |",
+              "|---|---:|---:|---:|---:|",
+          ]
+          for source in report["sources"]:
+              lines.append(
+                  f"| {source['source_name']} | {source['status']} | {source['observed_job_count']} | "
+                  f"{source['profile_location_match_count']} | {source['hard_filter_source_ready_count']} |"
+              )
+          matches = report["profile_location_matches"]
+          if matches:
+              lines.extend(["", "### Candidate evidence"])
+              for row in matches:
+                  lines.append(
+                      f"- **{row['company_name']} — {row['title']}**: "
+                      f"source-ready=`{row['hard_filter_source_evidence_complete']}`, "
+                      f"employment=`{row.get('employment_type')}`, "
+                      f"languages=`{','.join(row.get('required_languages') or []) or '-'}`, "
+                      f"hours=`{row.get('weekly_hours_min')}-{row.get('weekly_hours_max')}`"
+                  )
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+          fi
+
+      - name: Upload readiness artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-hard-filter-readiness-scout
+          path: /tmp/demo_hard_filter_readiness_scout.json
+          if-no-files-found: warn
+          retention-days: 7
