@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
