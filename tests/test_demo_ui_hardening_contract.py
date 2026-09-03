@@ -48,12 +48,14 @@ def test_data_layers_uses_bounded_mount_wait_not_mutation_observer() -> None:
     assert "MutationObserver" not in source
 
 
-def test_application_workspace_exposes_four_local_downloads() -> None:
+def test_application_workspace_exposes_four_files_plus_zip_download() -> None:
     source = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
-    assert 'draftFiles.length === 4' in source
-    assert '"cv_docx"' in source
-    assert '"cv_pdf"' in source
-    assert '"letter_docx"' in source
-    assert '"letter_pdf"' in source
+    assert "draftFiles.length >= 4" in source
+    assert 'key === "cv_docx"' in source
+    assert 'key === "cv_pdf"' in source
+    assert 'key === "letter_docx"' in source
+    assert 'key === "letter_pdf"' in source
+    assert 'key === "application_zip"' in source
+    assert "Everything · ZIP" in source
     assert "downloadDraftFile" in source
