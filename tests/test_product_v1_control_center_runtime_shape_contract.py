@@ -44,22 +44,23 @@ def test_runtime_adapter_prefers_structured_location_truth_for_display() -> None
     assert "city: structuredLocation || job.city" in adapter
 
 
-def test_runtime_adapter_is_scoped_to_product_v1_get_payload() -> None:
+def test_runtime_adapter_deduplicates_and_normalizes_product_truth_once() -> None:
     adapter = ADAPTER.read_text(encoding="utf-8")
 
-    assert 'pathname === "/api/v1/product-v1"' in adapter
-    assert "if (!response.ok || !isProductV1Request(input)) return response" in adapter
-    assert 'headers.delete("content-length")' in adapter
-    assert "response.clone().json()" in adapter
+    assert "let cachedProductTruth: Promise<unknown> | null = null" in adapter
+    assert 'window.fetch("/api/v1/product-v1"' in adapter
+    assert "return normalizeProductV1Payload(rawPayload)" in adapter
+    assert "export function readProductTruth<T>" in adapter
+    assert "options.fresh || cachedProductTruth === null" in adapter
+    assert "window.fetch =" not in adapter
+    assert "response.clone().json()" not in adapter
 
 
-def test_control_center_installs_adapter_before_render_and_fails_visible() -> None:
+def test_control_center_renders_without_global_fetch_monkeypatch() -> None:
     main = MAIN.read_text(encoding="utf-8")
     boundary = BOUNDARY.read_text(encoding="utf-8")
 
-    install_index = main.index("installProductPayloadRuntimeAdapter();")
-    render_index = main.index("createRoot(root).render")
-    assert install_index < render_index
+    assert "installProductPayloadRuntimeAdapter" not in main
     assert 'import "./compact-control-center.css";' in main
     assert "<RuntimeErrorBoundary>" in main
     assert "<App />" in main

@@ -30,10 +30,10 @@ def test_jobs_default_to_all_newest_first_and_are_sortable() -> None:
     assert 'useState<JobSort>("newest")' in source
     assert 'value="newest">Newest first' in source
     assert 'value="oldest">Oldest first' in source
-    assert 'value="fit_desc">Fit high → low' in source
-    assert 'value="fit_asc">Fit low → high' in source
+    assert 'value="fit_desc">Affinity high → low' in source
+    assert 'value="fit_asc">Affinity low → high' in source
     assert "compareJobs(a, b, sort)" in source
-    assert "<span>Published</span>" in source
+    assert 'sortHeader("published", "Published")' in source
     assert "displayDate(job.publication_date)" in source
 
 

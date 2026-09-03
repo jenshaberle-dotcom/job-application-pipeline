@@ -3,7 +3,9 @@ import ApplicationSourceUpload from "./ApplicationSourceUpload";
 import JobReviewLabelControls, {
   type JobReviewLabelState,
 } from "./JobReviewLabelControls";
+import { readProductTruth } from "./productPayloadRuntimeAdapter";
 import "./operator-workspace-v2.css";
+import "./operator-demo-hardening.css";
 
 type Job = {
   silver_job_id: number;
@@ -19,6 +21,9 @@ type Job = {
   product_readiness_status?: string;
   lifecycle_status?: string;
   overall_quality_score?: number | null;
+  product_overall_quality_score?: number | null;
+  display_fit_score?: number | null;
+  display_fit_scope?: string | null;
   profile_direction_score?: number | null;
   data_focus_score?: number | null;
   reliability_focus_score?: number | null;
@@ -56,6 +61,7 @@ type ProductPayload = {
   summary: {
     observed_job_count: number;
     current_active_job_count: number;
+    review_scope_current_active_job_count?: number;
     stale_job_count: number;
     inactive_confirmed_job_count: number;
     unverifiable_job_count: number;
@@ -90,14 +96,44 @@ type ProductPayload = {
 
 type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "approvals" | "operations";
 type JobFilter = "current" | "unreviewed" | "interesting" | "not_relevant" | "rankable" | "all";
-type JobSort = "newest" | "oldest" | "fit_desc" | "fit_asc";
+type JobSort =
+  | "newest"
+  | "oldest"
+  | "fit_desc"
+  | "fit_asc"
+  | "review_asc"
+  | "review_desc"
+  | "job_asc"
+  | "job_desc"
+  | "location_asc"
+  | "location_desc"
+  | "gate_asc"
+  | "gate_desc";
+type SortColumn = "fit" | "review" | "job" | "location" | "published" | "gate";
+type SourceGroup = "Needs attention" | "Active" | "Pending" | "Not implemented";
 
 const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
 const label = (value: string | undefined | null) => (value || "unknown").replaceAll("_", " ");
 const scoreText = (value: number | null | undefined) => value == null ? "—" : `${Math.round(value)}%`;
 const isCurrent = (job: Job) => ["active confirmed", "active_confirmed"].includes(normalize(job.lifecycle_status));
+const isRankable = (job: Job) => normalize(job.product_readiness_status) === "rankable";
 const employerName = (job: Job) => job.display_company_name || job.company_name || "Employer not resolved";
 const locationText = (job: Job) => job.city || job.country || (normalize(job.work_model) === "remote" ? "Remote" : "Location not confirmed");
+const reviewText = (job: Job) => job.review_label?.label || "unreviewed";
+const gateText = (job: Job) => job.product_readiness_status || "unknown";
+
+function externalJobUrl(job: Job): string | null {
+  const raw = (job.source_url || "").trim();
+  if (!raw) return null;
+  if (raw.startsWith("https://") || raw.startsWith("http://")) return raw;
+  if (raw.startsWith("ba://")) {
+    const reference = raw.slice("ba://".length).trim();
+    return reference
+      ? `https://www.arbeitsagentur.de/jobsuche/jobdetail/${encodeURIComponent(reference)}`
+      : null;
+  }
+  return null;
+}
 
 const publicationTime = (job: Job) => {
   if (!job.publication_date) return null;
@@ -116,12 +152,34 @@ const displayDate = (value: string | null | undefined) => {
   }).format(new Date(parsed));
 };
 
+const compareText = (left: string, right: string) => left.localeCompare(right, "de", { sensitivity: "base" });
+
 function compareJobs(a: Job, b: Job, sort: JobSort) {
   if (sort === "fit_desc" || sort === "fit_asc") {
     const aFit = a.overall_quality_score ?? -1;
     const bFit = b.overall_quality_score ?? -1;
     const fitDelta = sort === "fit_desc" ? bFit - aFit : aFit - bFit;
     if (fitDelta !== 0) return fitDelta;
+  }
+
+  if (sort === "review_asc" || sort === "review_desc") {
+    const delta = compareText(reviewText(a), reviewText(b));
+    if (delta !== 0) return sort === "review_asc" ? delta : -delta;
+  }
+
+  if (sort === "job_asc" || sort === "job_desc") {
+    const delta = compareText(`${a.title || ""} ${employerName(a)}`, `${b.title || ""} ${employerName(b)}`);
+    if (delta !== 0) return sort === "job_asc" ? delta : -delta;
+  }
+
+  if (sort === "location_asc" || sort === "location_desc") {
+    const delta = compareText(locationText(a), locationText(b));
+    if (delta !== 0) return sort === "location_asc" ? delta : -delta;
+  }
+
+  if (sort === "gate_asc" || sort === "gate_desc") {
+    const delta = compareText(gateText(a), gateText(b));
+    if (delta !== 0) return sort === "gate_asc" ? delta : -delta;
   }
 
   const aDate = publicationTime(a);
@@ -144,15 +202,6 @@ function tone(value: string | undefined | null) {
   if (normalized.includes("failed") || normalized.includes("blocked") || normalized === "not_relevant") return "bad";
   if (normalized.includes("required") || normalized.includes("unknown") || normalized.includes("stale") || normalized === "unsure") return "warn";
   return "neutral";
-}
-
-async function readProductTruth(signal?: AbortSignal): Promise<ProductPayload> {
-  const response = await fetch("/api/v1/product-v1", {
-    ...(signal ? { signal } : {}),
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) throw new Error(`API returned ${response.status}`);
-  return response.json() as Promise<ProductPayload>;
 }
 
 function Status({ value }: { value?: string | null }) {
@@ -179,6 +228,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
   const rejected = reviewed.filter((job) => job.review_label?.label === "not_relevant").length;
   const top = payload.top_jobs[0] || null;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
+  const topUrl = top ? externalJobUrl(top) : null;
 
   return <div className="ow-stack">
     <header className="ow-page-header">
@@ -186,7 +236,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
     </header>
 
     <section className="ow-metrics">
-      <Metric labelText="Current jobs" value={currentJobs.length} helper="confirmed active" />
+      <Metric labelText="Current jobs" value={currentJobs.length} helper="confirmed active in review scope" />
       <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="hard gates passed" />
       <Metric labelText="Top 5" value={`${payload.summary.top_job_count}/5`} helper="authoritative shortlist" />
       <Metric labelText="Application ready" value={payload.summary.application_ready_count} helper="review draft context" />
@@ -197,8 +247,8 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
         <div className="ow-card-title"><div><span>Best current option</span><h2>{top ? top.title : "No rankable job yet"}</h2></div>{top && <strong>#{top.product_rank || 1}</strong>}</div>
         {top ? <>
           <p className="ow-job-meta">{employerName(top)} · {locationText(top)}</p>
-          <div className="ow-fit-line"><b>{scoreText(top.overall_quality_score)}</b><span>profile fit</span></div>
-          <div className="ow-actions"><button type="button" onClick={() => onNavigate("top5")}>Open Top 5</button>{top.source_url && <a href={top.source_url} target="_blank" rel="noreferrer">Original job ↗</a>}</div>
+          <div className="ow-fit-line"><b>{scoreText(top.overall_quality_score)}</b><span>authoritative profile fit</span></div>
+          <div className="ow-actions"><button type="button" onClick={() => onNavigate("top5")}>Open Top 5</button>{topUrl && <a href={topUrl} target="_blank" rel="noreferrer">Original job ↗</a>}</div>
         </> : <p className="ow-muted">The UI will not manufacture a recommendation.</p>}
       </article>
 
@@ -217,7 +267,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
 
       <article className="ow-card">
         <div className="ow-card-title"><div><span>Discovery health</span><h2>Remote is producing value</h2></div></div>
-        <p>{payload.summary.current_active_job_count} current vacancies are in the product set. Remote Germany stays in scope while we finish the product path before adding more local employers.</p>
+        <p>{currentJobs.length} current vacancies are in the visible review scope. Product V1 keeps broader source/lifecycle truth separate from this review surface.</p>
         <div className="ow-actions"><button type="button" onClick={() => onNavigate("sources")}>Sources</button><button type="button" onClick={() => onNavigate("applications")}>Applications</button></div>
       </article>
     </section>
@@ -225,11 +275,23 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
 }
 
 function JobDetail({ job, payload, refresh }: { job: Job; payload: ProductPayload; refresh: () => Promise<void> }) {
+  const sourceUrl = externalJobUrl(job);
+  const rankable = isRankable(job);
+  const scoreRows = rankable
+    ? ([
+        ["Overall", job.overall_quality_score],
+        ["Profile direction", job.profile_direction_score],
+        ["Data focus", job.data_focus_score],
+        ["Reliability", job.reliability_focus_score],
+        ["Evidence quality", job.evidence_quality_score],
+      ] as Array<[string, number | null | undefined]>)
+    : ([ ["Role affinity", job.overall_quality_score] ] as Array<[string, number | null | undefined]>);
+
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{job.source_url && <a className="ow-primary-link" href={job.source_url} target="_blank" rel="noreferrer">Open original ↗</a>}{job.product_readiness_status === "rankable" && <OpenApplicationButton />}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{rankable && <OpenApplicationButton />}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
-    <section className="ow-score-card"><h3>Profile fit</h3>{([ ["Overall", job.overall_quality_score], ["Profile direction", job.profile_direction_score], ["Data focus", job.data_focus_score], ["Reliability", job.reliability_focus_score], ["Evidence quality", job.evidence_quality_score] ] as Array<[string, number | null | undefined]>).map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}</section>
+    <section className="ow-score-card"><h3>{rankable ? "Profile fit" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
     <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div></section>
     <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected explanation evidence.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected uncertainty.</p>}</div></section>
   </aside>;
@@ -282,15 +344,35 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
     all: payload.job_readiness.length,
   };
 
+  const sortFor = (column: SortColumn): [JobSort, JobSort] => {
+    if (column === "fit") return ["fit_desc", "fit_asc"];
+    if (column === "review") return ["review_asc", "review_desc"];
+    if (column === "job") return ["job_asc", "job_desc"];
+    if (column === "location") return ["location_asc", "location_desc"];
+    if (column === "gate") return ["gate_asc", "gate_desc"];
+    return ["newest", "oldest"];
+  };
+
+  const sortHeader = (column: SortColumn, text: string) => {
+    const [first, second] = sortFor(column);
+    const active = sort === first || sort === second;
+    return <button
+      type="button"
+      className={active ? "active" : ""}
+      onClick={() => setSort(sort === first ? second : first)}
+      title={`Sort by ${text}`}
+    >{text}</button>;
+  };
+
   return <div className="ow-stack">
     <header className="ow-page-header">
       <div>
         <span>Review surface</span>
         <h1>All jobs</h1>
         <p>
-          Every displayed job has a deterministic profile-fit rating.
-          Default order is newest publication first. Filters and sorting
-          never change Product V1 ranking authority.
+          Every displayed job has a deterministic preliminary role-affinity signal.
+          A real Profile Fit exists only after detail evidence, capability fit and hard gates.
+          Sorting and filters never change Product V1 ranking authority.
         </p>
       </div>
     </header>
@@ -334,8 +416,12 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
-            <option value="fit_desc">Fit high → low</option>
-            <option value="fit_asc">Fit low → high</option>
+            <option value="fit_desc">Affinity high → low</option>
+            <option value="fit_asc">Affinity low → high</option>
+            <option value="review_asc">Review A → Z</option>
+            <option value="job_asc">Job A → Z</option>
+            <option value="location_asc">Location A → Z</option>
+            <option value="gate_asc">Gate A → Z</option>
           </select>
         </label>
       </div>
@@ -344,12 +430,12 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
     <section className="ow-job-workspace">
       <div className="ow-job-list">
         <div className="ow-job-list-head">
-          <span>Fit</span>
-          <span>Review</span>
-          <span>Job</span>
-          <span>Location</span>
-          <span>Published</span>
-          <span>Gate</span>
+          {sortHeader("fit", "Affinity")}
+          {sortHeader("review", "Review")}
+          {sortHeader("job", "Job")}
+          {sortHeader("location", "Location")}
+          {sortHeader("published", "Published")}
+          {sortHeader("gate", "Gate")}
         </div>
 
         {filtered.map((job) =>
@@ -361,7 +447,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
             }
             onClick={() => setSelectedId(job.silver_job_id)}
           >
-            <strong>{scoreText(job.overall_quality_score)}</strong>
+            <strong title={isRankable(job) ? "Authoritative Profile Fit" : "Preliminary role affinity · detail check required"}>{scoreText(job.overall_quality_score)}</strong>
             <Status value={job.review_label?.label || "unreviewed"} />
 
             <span className="ow-job-name">
@@ -408,10 +494,10 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
   const top = payload.top_jobs[0] || null;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
   return <div className="ow-stack">
-    <header className="ow-page-header"><div><span>Final preparation step</span><h1>Application</h1><p>Verified vacancy + Candidate Facts + local approved base documents → review draft. Never auto-submit.</p></div></header>
+    <header className="ow-page-header"><div><span>Final preparation step</span><h1>Application</h1><p>Verified vacancy + Candidate Facts + approved local base documents → complete review package. Never auto-submit.</p></div></header>
     <section className="ow-application-grid">
-      <article className="ow-card"><span className="ow-kicker">Selected target</span><h2>{top?.title || "No authoritative Top-5 job"}</h2>{top && <p>{employerName(top)} · {locationText(top)} · {scoreText(top.overall_quality_score)} fit</p>}<div className="ow-readiness"><div className={top ? "ready" : "blocked"}><i /><span>Top-5 target</span><b>{top ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Base CV</span><b>{payload.application_sources_ready.base_cv ? "Approved" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Base letter</span><b>{payload.application_sources_ready.base_application_letter ? "Approved" : "Required"}</b></div></div><OpenApplicationButton disabled={!top || !docsReady} /></article>
-      <article className="ow-card ow-boundary-card"><span className="ow-kicker">Private source model</span><h2>{docsReady ? "Base documents are ready" : "Choose your two local base PDFs"}</h2><p>The PDFs are used for document structure and writing style. Candidate Facts remain factual authority. File bytes stay on this machine; PostgreSQL stores only type, local reference, hash and approval metadata.</p><ul><li>No cloud document upload</li><li>No free external LLM required</li><li>Local PDF text extraction validates the source</li><li>No hidden auto-apply</li></ul></article>
+      <article className="ow-card"><span className="ow-kicker">Selected target</span><h2>{top?.title || "No authoritative Top-5 job"}</h2>{top && <p>{employerName(top)} · {locationText(top)} · {scoreText(top.overall_quality_score)} authoritative fit</p>}<div className="ow-readiness"><div className={top ? "ready" : "blocked"}><i /><span>Top-5 target</span><b>{top ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Base CV</span><b>{payload.application_sources_ready.base_cv ? "Approved" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Base letter</span><b>{payload.application_sources_ready.base_application_letter ? "Approved" : "Required"}</b></div></div><OpenApplicationButton disabled={!top || !docsReady} /></article>
+      <article className="ow-card ow-boundary-card"><span className="ow-kicker">Private source model</span><h2>{docsReady ? "Base documents are ready" : "Choose your two local base PDFs"}</h2><p>File bytes stay local. On your explicit Generate action, extracted text from the two approved base documents may be sent to the configured drafting provider as style/structure context. Candidate Facts remain authority for new candidate claims.</p><ul><li>Approved file bytes stay on this machine</li><li>Extracted base text is shared only on explicit Generate</li><li>Local PDF text extraction validates the approved source</li><li>No hidden auto-apply, submit or send</li></ul></article>
     </section>
     <article className="ow-card">
       <span className="ow-kicker">Your base documents</span>
@@ -429,10 +515,11 @@ function Applications({ payload, onPrepare }: { payload: ProductPayload; onPrepa
   const top = payload.top_jobs[0] || null;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
   const prepareReady = Boolean(top && docsReady);
+  const topUrl = top ? externalJobUrl(top) : null;
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>After preparation</span><h1>Applications</h1><p>Your application portfolio after a job leaves discovery and ranking. No submitted state is invented.</p></div></header>
     <section className="ow-application-pipeline" aria-label="Application lifecycle">
-      <article className={`ow-application-stage ${prepareReady ? "active" : "active"}`}><span>1 · Prepare</span><b>{prepareReady ? "Ready for review draft" : "Sources incomplete"}</b><small>{prepareReady ? "The Top-5 target and both local base documents are available." : "Complete the Application step before a grounded review draft can be prepared."}</small></article>
+      <article className={`ow-application-stage ${prepareReady ? "active" : "active"}`}><span>1 · Prepare</span><b>{prepareReady ? "Ready for review package" : "Sources incomplete"}</b><small>{prepareReady ? "The Top-5 target and both approved base documents are available." : "Complete the Application step before a grounded review package can be prepared."}</small></article>
       <article className="ow-application-stage"><span>2 · Review</span><b>Human review</b><small>CV and letter remain draft_for_review until you explicitly accept them.</small></article>
       <article className="ow-application-stage"><span>3 · Submitted</span><b>Not submitted</b><small>Submission is manual. The product must never infer this state from draft generation.</small></article>
       <article className="ow-application-stage"><span>4 · Interview</span><b>No interview recorded</b><small>Future tracking can hold interview dates, contacts, preparation notes and follow-ups.</small></article>
@@ -442,7 +529,7 @@ function Applications({ payload, onPrepare }: { payload: ProductPayload; onPrepa
       <article className="ow-card">
         <span className="ow-kicker">Current portfolio</span>
         <h2>No submitted applications yet</h2>
-        {top ? <><p>The current next candidate is <b>{top.title}</b> at {employerName(top)}. It is still before submission, so it does not appear as a fake active application.</p><div className="ow-actions"><button type="button" onClick={onPrepare}>Open Application</button>{top.source_url && <a href={top.source_url} target="_blank" rel="noreferrer">Original job ↗</a>}</div></> : <p className="ow-muted">No authoritative Top-5 target is currently available.</p>}
+        {top ? <><p>The current next candidate is <b>{top.title}</b> at {employerName(top)}. It is still before submission, so it does not appear as a fake active application.</p><div className="ow-actions"><button type="button" onClick={onPrepare}>Open Application</button>{topUrl && <a href={topUrl} target="_blank" rel="noreferrer">Original job ↗</a>}</div></> : <p className="ow-muted">No authoritative Top-5 target is currently available.</p>}
       </article>
       <article className="ow-card">
         <span className="ow-kicker">Product continuation</span>
@@ -453,14 +540,40 @@ function Applications({ payload, onPrepare }: { payload: ProductPayload; onPrepa
   </div>;
 }
 
+function sourceGroup(source: SourceConnector): SourceGroup {
+  if (source.current_blocker) return "Needs attention";
+  if (source.activation.active === true) return "Active";
+  if (normalize(source.connector.implementation_status).includes("not implemented")) return "Not implemented";
+  return "Pending";
+}
+
 function Sources({ payload }: { payload: ProductPayload }) {
-  const [selectedName, setSelectedName] = useState(payload.source_connector_overview.sources.find((source) => source.current_blocker)?.source_name || payload.source_connector_overview.sources[0]?.source_name || "");
-  const [showAll, setShowAll] = useState(false);
   const sources = payload.source_connector_overview.sources;
-  const visible = showAll ? sources : sources.filter((source) => source.current_blocker || source.activation.active === true);
+  const [selectedName, setSelectedName] = useState(sources.find((source) => source.current_blocker)?.source_name || sources.find((source) => source.activation.active === true)?.source_name || sources[0]?.source_name || "");
+  const [showAll, setShowAll] = useState(false);
+  const groups: SourceGroup[] = ["Needs attention", "Active", "Pending", "Not implemented"];
+  const groupCounts = Object.fromEntries(groups.map((group) => [group, sources.filter((source) => sourceGroup(source) === group).length])) as Record<SourceGroup, number>;
+  const visibleGroups = groups
+    .map((group) => ({
+      group,
+      sources: sources
+        .filter((source) => sourceGroup(source) === group)
+        .filter((source) => showAll || group === "Needs attention" || group === "Active")
+        .sort((left, right) => compareText(left.source_label, right.source_label)),
+    }))
+    .filter((entry) => entry.sources.length > 0);
+  const visible = visibleGroups.flatMap((entry) => entry.sources);
   const selected = sources.find((source) => source.source_name === selectedName) || visible[0] || null;
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Source control</span><h1>Sources</h1><p>Connector detail stays available, but out of the main job-review workflow.</p></div><button type="button" className="ow-secondary" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show active/attention" : "Show all sources"}</button></header>
-    <section className="ow-source-workspace"><div className="ow-source-list">{visible.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{source.source_name}</small></span><Status value={source.current_blocker || source.activation.status} /></button>)}</div>{selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{selected.source_type}</span><h2>{selected.source_label}</h2><code>{selected.source_name}</code><div className="ow-source-facts"><div><span>Implementation</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Validation</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Approval</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Activation</span><b>{label(selected.activation.status)}</b></div><div><span>Profiles</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Layers</span><b>Bronze {selected.layers.bronze_count} · Silver {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>{label(selected.current_blocker)}</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No current blocker</b><span>{selected.next_action}</span></div>}</article>}</section>
+
+  return <div className="ow-stack">
+    <header className="ow-page-header"><div><span>Source control</span><h1>Sources</h1><p>Status-clustered connector truth. Active and attention sources stay prominent; the long tail remains available on demand.</p></div><button type="button" className="ow-secondary" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show active/attention" : `Show all ${sources.length}`}</button></header>
+    <section className="ow-source-summary-strip">
+      {groups.map((group) => <div key={group}><span>{group}</span><b>{groupCounts[group]}</b></div>)}
+    </section>
+    <section className="ow-source-workspace">
+      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{group}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{source.source_name}</small></span><Status value={source.current_blocker || source.activation.status} /></button>)}</div>)}</div>
+      {selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{sourceGroup(selected)} · {selected.source_type}</span><h2>{selected.source_label}</h2><code>{selected.source_name}</code><div className="ow-source-facts"><div><span>Implementation</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Validation</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Approval</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Activation</span><b>{label(selected.activation.status)}</b></div><div><span>Profiles</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Layers</span><b>Bronze {selected.layers.bronze_count} · Silver {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>{label(selected.current_blocker)}</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No current blocker</b><span>{selected.next_action}</span></div>}</article>}
+    </section>
   </div>;
 }
 
@@ -472,7 +585,7 @@ function Approvals({ payload }: { payload: ProductPayload }) {
 function Operations({ payload }: { payload: ProductPayload }) {
   const overview = payload.source_connector_overview.summary;
   const stages: Array<[string, number]> = [["Known", overview.source_count], ["Implemented", overview.implemented_count], ["Validated", overview.validated_count], ["Approved", overview.final_approved_count], ["Registered", overview.registered_count], ["Active", overview.active_count], ["Ingested", overview.ingested_count]];
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Runtime truth</span><h1>Operations</h1><p>Observability and lifecycle health, separated from daily job review.</p></div></header><section className="ow-card"><h2>Source lifecycle</h2><div className="ow-pipeline">{stages.map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}</div></section><section className="ow-metrics"><Metric labelText="Current active" value={payload.summary.current_active_job_count} helper="vacancies" /><Metric labelText="Stale" value={payload.summary.stale_job_count} helper="refresh required" /><Metric labelText="Unverifiable" value={payload.summary.unverifiable_job_count} helper="not current truth" /><Metric labelText="Attention sources" value={overview.attention_count} helper="need action" /></section></div>;
+  return <div className="ow-stack"><header className="ow-page-header"><div><span>Runtime truth</span><h1>Operations</h1><p>Observability and lifecycle health, separated from daily job review.</p></div></header><section className="ow-card"><h2>Source lifecycle</h2><div className="ow-pipeline">{stages.map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}</div></section><section className="ow-metrics"><Metric labelText="Current active" value={payload.summary.current_active_job_count} helper="all persisted vacancies" /><Metric labelText="Review scope current" value={payload.summary.review_scope_current_active_job_count ?? payload.job_readiness.filter(isCurrent).length} helper="visible vacancies" /><Metric labelText="Stale" value={payload.summary.stale_job_count} helper="refresh required" /><Metric labelText="Attention sources" value={overview.attention_count} helper="need action" /></section></div>;
 }
 
 const navItems: Array<{ id: View; label: string; glyph: string }> = [
@@ -493,17 +606,25 @@ export default function OperatorWorkspace() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    const controller = new AbortController();
-    readProductTruth(controller.signal).then(setPayload).catch((reason: unknown) => {
-      if ((reason as Error).name !== "AbortError") setError(String(reason));
-    });
-    return () => controller.abort();
+    let active = true;
+
+    readProductTruth<ProductPayload>()
+      .then((truth) => {
+        if (active) setPayload(truth);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(String(reason));
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const refresh = async () => {
     setRefreshing(true);
     try {
-      setPayload(await readProductTruth());
+      setPayload(await readProductTruth<ProductPayload>({ fresh: true }));
       setError(null);
     } finally {
       setRefreshing(false);
@@ -514,7 +635,7 @@ export default function OperatorWorkspace() {
   if (!payload) return <main className="ow-loading"><div /><p>Reading Product V1 truth…</p></main>;
 
   const navBadges: Partial<Record<View, number>> = {
-    jobs: payload.summary.current_active_job_count,
+    jobs: payload.summary.review_scope_current_active_job_count ?? payload.job_readiness.filter(isCurrent).length,
     top5: payload.summary.top_job_count,
     approvals: payload.source_connector_overview.sources.filter((source) => source.current_blocker === "final_approval_incomplete").length,
     sources: payload.source_connector_overview.summary.attention_count,

@@ -204,8 +204,28 @@ export default function DataLayersTab() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    setNavRoot(document.querySelector<HTMLElement>(".ow-sidebar nav"));
-    setMainRoot(document.querySelector<HTMLElement>(".ow-main"));
+    let cancelled = false;
+    let timer: number | null = null;
+    let attempts = 0;
+
+    const bindRoots = () => {
+      if (cancelled) return;
+      const nav = document.querySelector<HTMLElement>(".ow-sidebar nav");
+      const main = document.querySelector<HTMLElement>(".ow-main");
+      if (nav && main) {
+        setNavRoot(nav);
+        setMainRoot(main);
+        return;
+      }
+      attempts += 1;
+      if (attempts < 80) timer = window.setTimeout(bindRoots, 50);
+    };
+
+    bindRoots();
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {

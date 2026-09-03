@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { readProductTruth } from "./productPayloadRuntimeAdapter";
 import "./demo-application-workspace.css";
+import "./application-package-downloads.css";
 
 type TopJob = {
   silver_job_id: number;
@@ -69,7 +71,20 @@ type DraftFragment = {
   job_evidence?: Array<{ evidence?: string }>;
 };
 
-type DraftMode = "provider_validated" | "deterministic_evidence_first";
+type DraftMode =
+  | "provider_validated"
+  | "provider_validated_quality_v2"
+  | "provider_validated_quality_v3"
+  | "deterministic_evidence_first";
+
+type DraftFile = {
+  key?: string;
+  filename?: string;
+  media_type?: string;
+  byte_count?: number;
+  content_sha256?: string;
+  content_base64?: string;
+};
 
 type DraftPayload = {
   status?: string;
@@ -77,11 +92,18 @@ type DraftPayload = {
   blocked_reasons?: string[];
   draft_mode?: DraftMode;
   fallback_reason?: string | null;
+  base_document_text_shared_with_provider?: boolean;
   package?: {
     status?: string;
     fragments?: DraftFragment[];
     rationale?: string;
     candidate_fact_keys_used?: string[];
+  } | null;
+  document_package?: {
+    status?: string;
+    cv_text?: string;
+    letter_text?: string;
+    files?: DraftFile[];
   } | null;
   provider_requests?: number;
   database_writes?: number;
@@ -116,13 +138,42 @@ function fragmentGroup(kind: string | undefined) {
 }
 
 function draftModeLabel(mode: DraftMode | undefined) {
-  if (mode === "provider_validated") return "PROVIDER-VALIDATED";
+  if (mode === "provider_validated_quality_v3") return "BASE-DOCUMENT ADAPTED";
+  if (mode === "provider_validated_quality_v2" || mode === "provider_validated") return "PROVIDER-VALIDATED";
   if (mode === "deterministic_evidence_first") return "EVIDENCE-FIRST · PROVIDER-FREE";
   return "SOURCE-GROUNDED";
 }
 
 function readinessTone(ready: boolean) {
   return ready ? "ready" : "blocked";
+}
+
+function downloadDraftFile(file: DraftFile) {
+  if (!file.content_base64 || !file.filename) return;
+  const binary = window.atob(file.content_base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  const blob = new Blob([bytes], { type: file.media_type || "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = file.filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadLabel(file: DraftFile) {
+  const key = file.key || "";
+  if (key === "cv_docx") return "CV · Word";
+  if (key === "cv_pdf") return "CV · PDF";
+  if (key === "letter_docx") return "Letter · Word";
+  if (key === "letter_pdf") return "Letter · PDF";
+  if (key === "application_zip") return "Everything · ZIP";
+  return file.filename || "Download";
 }
 
 export default function DemoApplicationWorkspace() {
@@ -138,7 +189,7 @@ export default function DemoApplicationWorkspace() {
 
   useEffect(() => {
     let active = true;
-    readJson<ProductTruth>("/api/v1/product-v1")
+    readProductTruth<ProductTruth>()
       .then((payload) => {
         if (!active) return;
         const jobs = Array.isArray(payload.top_jobs) ? payload.top_jobs.slice(0, 5) : [];
@@ -176,6 +227,8 @@ export default function DemoApplicationWorkspace() {
   const draftFragments = draft?.package?.fragments || [];
   const cvFragments = draftFragments.filter((item) => fragmentGroup(item.kind) === "CV");
   const letterFragments = draftFragments.filter((item) => fragmentGroup(item.kind) === "Application letter");
+  const documentPackage = draft?.document_package || null;
+  const draftFiles = documentPackage?.files || [];
   const generationReady = workspace?.status === "ready" && workspace.workspace?.generation_ready === true && claimPlan.length > 0;
   const vacancyReady = Boolean(workspace?.live_job_evidence?.fetched_title || workspace?.live_job_evidence?.final_url);
   const candidateFactsReady = claimPlan.length > 0;
@@ -302,38 +355,51 @@ export default function DemoApplicationWorkspace() {
               </details>
 
               <button type="button" className="demo-generate-button" disabled={!generationReady || drafting} onClick={() => void generateDraft()}>
-                {drafting ? "Preparing review draft…" : draft?.status === "draft_for_review" ? "Regenerate review draft" : "Prepare review draft"}
+                {drafting ? "Preparing application package…" : draft?.status === "draft_for_review" ? "Regenerate application package" : "Generate application package"}
               </button>
             </article>
 
             <article className="demo-workspace-card demo-draft-card">
               <header>
                 <span className="demo-eyebrow">Prepared application</span>
-                <h3>{draft?.status === "draft_for_review" ? "Draft ready for your review" : "Waiting for your action"}</h3>
+                <h3>{draft?.status === "draft_for_review" ? "Application package ready for review" : "Waiting for your action"}</h3>
               </header>
 
               {draft?.status === "draft_for_review" && draft.package ? <>
                 <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
+                {draft.base_document_text_shared_with_provider && <p className="demo-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
                 {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain bound to approved Candidate Facts and exact vacancy evidence.</p>}
 
+                {documentPackage?.status === "ready_for_download" && draftFiles.length >= 4 && <section className="demo-application-downloads">
+                  <header><strong>Ready to download</strong><span>{draftFiles.length} local review downloads · no send action</span></header>
+                  <div className="demo-download-grid">
+                    {draftFiles.map((file) => <button type="button" key={file.key || file.filename} onClick={() => downloadDraftFile(file)}>{downloadLabel(file)}</button>)}
+                  </div>
+                </section>}
+
                 <section className="demo-document">
-                  <header><span>CV adaptation</span><small>review copy</small></header>
-                  {cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p><small>Grounded in: {fragment.candidate_fact_keys?.join(", ") || "approved Candidate Facts"}</small></div>)}
+                  <header><span>CV adaptation</span><small>complete review copy</small></header>
+                  {documentPackage?.cv_text
+                    ? <pre className="demo-package-preview">{documentPackage.cv_text}</pre>
+                    : cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
                 <section className="demo-document">
-                  <header><span>Application letter</span><small>review copy</small></header>
-                  {letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p>{fragment.job_evidence?.length ? <small>Vacancy evidence: “{fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}”</small> : null}</div>)}
+                  <header><span>Application letter</span><small>complete review copy</small></header>
+                  {documentPackage?.letter_text
+                    ? <pre className="demo-package-preview">{documentPackage.letter_text}</pre>
+                    : letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
                 <details className="demo-evidence-details demo-audit-details">
                   <summary>Audit details</summary>
+                  <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>
                   <footer><span>Provider requests: {draft.provider_requests ?? 0}</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
               </> : <div className="demo-empty-draft">
                 <strong>The final demo step is one explicit action.</strong>
-                <p>When the factual context is ready, the system prepares CV and letter content for review. It does not submit or send anything.</p>
+                <p>When the factual context is ready, the system prepares complete CV and letter files for review. It does not submit or send anything.</p>
               </div>}
             </article>
           </div>}

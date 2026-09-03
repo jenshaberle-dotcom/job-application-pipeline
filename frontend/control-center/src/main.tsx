@@ -9,13 +9,11 @@ import DemoTruthRibbon from "./DemoTruthRibbon";
 import EvidencePreviewPanel from "./EvidencePreviewPanel";
 import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
-import { installProductPayloadRuntimeAdapter } from "./productPayloadRuntimeAdapter";
 import "./styles.css";
 import "./compact-control-center.css";
 import "./demo-operator-focus.css";
 import "./product-finish-ux.css";
 
-installProductPayloadRuntimeAdapter();
 
 const root = document.getElementById("root");
 if (!root) {

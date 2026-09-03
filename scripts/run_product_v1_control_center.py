@@ -41,6 +41,9 @@ from scripts.product_v1_job_review_actions import (
     parse_job_review_label_action_payload,
 )
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+from src.search_intelligence.product_v1_demo_origin_projection import (
+    project_demo_origin_truth,
+)
 from src.search_intelligence.product_v1_downstream_preview import DownstreamPreviewStop
 
 
@@ -217,6 +220,40 @@ def _merge_job_review_labels(
     return result
 
 
+def _merge_demo_origin_projection(payload: dict[str, object]) -> dict[str, object]:
+    """Separate discovery provenance from current actionable Product URLs."""
+
+    result = dict(payload)
+    for collection_name in ("job_readiness", "top_jobs"):
+        raw = result.get(collection_name)
+        if isinstance(raw, list):
+            rows = [item for item in raw if isinstance(item, dict)]
+            result[collection_name] = project_demo_origin_truth(rows)
+
+    job_rows = result.get("job_readiness")
+    actionable_count = (
+        sum(
+            bool(item.get("demo_actionable"))
+            for item in job_rows
+            if isinstance(item, dict)
+        )
+        if isinstance(job_rows, list)
+        else 0
+    )
+    summary = dict(result.get("summary") or {})
+    summary["demo_actionable_job_count"] = actionable_count
+    result["summary"] = summary
+    boundaries = dict(result.get("boundaries") or {})
+    boundaries.update(
+        {
+            "discovery_url_is_not_product_action_url": True,
+            "employer_origin_required_for_demo_action": True,
+        }
+    )
+    result["boundaries"] = boundaries
+    return result
+
+
 def load_product_v1_payload() -> dict[str, object]:
     """Load canonical Product V1 truth plus bounded operator-facing evidence."""
 
@@ -328,11 +365,12 @@ def load_product_v1_payload() -> dict[str, object]:
 
     enriched = _merge_structured_job_locations(payload, location_rows)
     enriched = _merge_observed_opportunities(enriched, opportunity_rows)
-    return _merge_job_review_labels(
+    enriched = _merge_job_review_labels(
         enriched,
         label_rows,
         capture_available=label_capture_available,
     )
+    return _merge_demo_origin_projection(enriched)
 
 
 class ProductV1Handler(_base.ProductV1Handler):
@@ -418,7 +456,12 @@ class ProductV1Handler(_base.ProductV1Handler):
             )
 
     def _read_action_payload(self) -> object:
-        content_type = str(self.headers.get("Content-Type") or "").split(";", 1)[0].strip().casefold()
+        content_type = (
+            str(self.headers.get("Content-Type") or "")
+            .split(";", 1)[0]
+            .strip()
+            .casefold()
+        )
         if content_type != "application/json":
             raise ControlCenterActionStop("action content type must be application/json")
         raw_length = str(self.headers.get("Content-Length") or "").strip()

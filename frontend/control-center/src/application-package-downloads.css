@@ -1,0 +1,75 @@
+.demo-application-downloads {
+  margin: 10px 0 14px;
+  padding: 12px;
+  border: 1px solid rgba(80, 210, 255, .32);
+  border-radius: 8px;
+  background: rgba(7, 31, 44, .78);
+}
+
+.demo-application-downloads > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.demo-application-downloads > header strong {
+  font-size: 12px;
+}
+
+.demo-application-downloads > header span {
+  color: #61e0b3;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.demo-download-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.demo-download-grid button {
+  border: 1px solid #2a7695;
+  border-radius: 7px;
+  background: #0d4057;
+  color: #fff;
+  min-height: 34px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.demo-download-grid button:hover {
+  background: #12536e;
+}
+
+.demo-package-preview {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 9px;
+  line-height: 1.5;
+  color: #172a35;
+  background: #edf4f7;
+  margin: 0;
+  padding: 10px;
+  max-height: 310px;
+  overflow: auto;
+}
+
+.demo-provider-context-note {
+  margin: 0 0 10px;
+  color: #87aabd;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+@media (max-width: 780px) {
+  .demo-download-grid {
+    grid-template-columns: 1fr;
+  }
+}
