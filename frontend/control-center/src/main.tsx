@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import ApplicationWorkspaceEventBridge from "./ApplicationWorkspaceEventBridge";
 import DataLayersTab from "./DataLayersTab";
 import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
+import DemoProductPolish from "./DemoProductPolish";
 import EvidencePreviewPanel from "./EvidencePreviewPanel";
 import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
@@ -24,6 +25,7 @@ createRoot(root).render(
     <RuntimeErrorBoundary>
       <App />
       <DataLayersTab />
+      <DemoProductPolish />
       <EvidencePreviewPanel />
       <DemoApplicationWorkspace />
       <ApplicationWorkspaceEventBridge />
