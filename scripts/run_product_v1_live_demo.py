@@ -28,10 +28,14 @@ import subprocess
 import sys
 import tempfile
 
-from scripts.run_product_v1_demo_control_center import run_server
-
-
 ROOT = Path(__file__).resolve().parents[1]
+if not __package__ and str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.run_product_v1_demo_control_center import (  # noqa: E402
+    configure_demo_private_document_root,
+    run_server,
+)
 FRONTEND = ROOT / "frontend" / "control-center"
 DEFAULT_DIST = FRONTEND / "dist"
 DEMO_ARTIFACT_ROOT = (ROOT / ".runtime" / "demo").resolve()
@@ -39,6 +43,15 @@ DEFAULT_PREFLIGHT = DEMO_ARTIFACT_ROOT / "product_v1_demo_preflight.json"
 DEFAULT_WORKSPACE_PROBE = DEMO_ARTIFACT_ROOT / "product_v1_demo_workspace_probe.json"
 DEFAULT_DRAFT_PROBE = DEMO_ARTIFACT_ROOT / "product_v1_demo_draft_probe.json"
 _FRONTEND_LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json")
+
+
+def _configure_launcher_private_document_root() -> Path:
+    raw = os.environ.get("PRODUCT_V1_PRIVATE_DOCUMENT_ROOT", "").strip()
+    if not raw:
+        os.environ["PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"] = str(
+            (ROOT / "private_application_sources").resolve()
+        )
+    return configure_demo_private_document_root()
 
 
 def _run(command: list[str], *, cwd: Path) -> None:
@@ -201,6 +214,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
+
+    try:
+        private_document_root = _configure_launcher_private_document_root()
+    except OSError as exc:
+        print(f"DEMO_START_BLOCKED=private_document_root:{exc}", file=sys.stderr)
+        return 2
+    print(f"DEMO_PRIVATE_DOCUMENT_ROOT={private_document_root}")
+
     try:
         preflight_output = _demo_artifact_path(args.preflight_output)
         workspace_probe_output = _demo_artifact_path(args.workspace_probe_output)

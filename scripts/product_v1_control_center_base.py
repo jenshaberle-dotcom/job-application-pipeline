@@ -434,7 +434,6 @@ def load_product_v1_payload() -> dict[str, object]:
                 profile_direction_score DESC NULLS LAST,
                 publication_date DESC NULLS LAST,
                 silver_job_id
-            LIMIT 200
             """,
         )
         ranking_policy = _fetch_one(
@@ -460,7 +459,6 @@ def load_product_v1_payload() -> dict[str, object]:
             SELECT *
             FROM gold_product_v1_application_readiness
             ORDER BY silver_job_id
-            LIMIT 200
             """,
         )
         application_sources = _fetch_all(
