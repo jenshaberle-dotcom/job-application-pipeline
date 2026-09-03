@@ -5,6 +5,7 @@ import DataLayersTab from "./DataLayersTab";
 import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
 import DemoOperatorHardening from "./DemoOperatorHardening";
 import DemoProductPolish from "./DemoProductPolish";
+import DemoTruthRibbon from "./DemoTruthRibbon";
 import EvidencePreviewPanel from "./EvidencePreviewPanel";
 import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
@@ -28,6 +29,7 @@ createRoot(root).render(
       <DataLayersTab />
       <DemoOperatorHardening />
       <DemoProductPolish />
+      <DemoTruthRibbon />
       <EvidencePreviewPanel />
       <DemoApplicationWorkspace />
       <ApplicationWorkspaceEventBridge />
