@@ -38,23 +38,68 @@ Durable evidence:
 
 A project-local `POST-MIGRATION-RESTART = PASS` restores normal work admission for that project under canonical-main + declared temporary-worktree discipline. Other projects' unfinished restart state is not authority to stop this already-PASS project. Portfolio all-PASS remains a prerequisite only for separately coordinated portfolio-wide Warmrunner/DRJ/convergence steps.
 
-## Active product continuation — DEMO-001
+## Salvaged product checkpoint — DEMO-001
 
-The current operator priority is **DEMO-001 / issue #707** for the 2026-09-03 live demo.
+DEMO-001 / issue `#707` is now a **salvaged product checkpoint**, not the long-term sequencing authority.
 
-Canonical demo anchor:
+The proven demo slice was merged to `main` by PR `#781` / merge `d63ba7125693b19286d93b8d32bd955581ac84cd`.
+
+The retained vertical journey remains:
+
+`discovery / market evidence -> employer + origin -> connector/source health -> Bronze -> Silver -> Gold / Product V1 -> authoritative ranking -> selected job -> Application Workspace -> source-grounded draft_for_review`.
+
+The salvage established durable product value around Employer-Origin action truth, live vacancy freshness/detail refresh, rankable refill/review tooling, Product Truth frontend runtime hardening, provider-backed application drafting and local DOCX/PDF/ZIP packaging. It also exposed integration debt that must not be hidden by further demo-only work.
+
+The existing React Control Center remains the reference product UI. No fake Product V1 rows, fabricated ranking fill, weakened origin authority, automatic application submission, or demo-only success branch is allowed.
+
+Canonical retained demo anchor:
 
 - `../planning/active/demo_001_live_e2e_reentry.md`.
 
-The demo is one truthful vertical product journey:
+## Release management
 
-`discovery / market evidence -> employer + origin -> connector/source health -> Bronze -> Silver -> Gold / Product V1 -> authoritative Top 5 -> selected job -> Application Workspace -> source-grounded draft_for_review`.
+GitHub Releases are now the product-facing change history.
 
-The existing React Control Center remains the demo UI. No fake Product V1 rows, fabricated Top-5 fill, weakened origin authority, automatic application submission, or demo-only success branch is allowed.
+Release management was merged by PR `#782` / merge `1acb4b4acc5016b25b8115ef048185448b1d76dc`.
+
+Canonical release surfaces:
+
+- `.github/RELEASE_MANAGEMENT.md` — versioning, release authority and release-note contract;
+- `.github/release.yml` — generated release-note categories, including explicit bug-fix grouping;
+- `.github/workflows/release.yml` — guarded `main`-only release workflow with exact-SHA CI/re-entry gates;
+- `.github/release-notes/v0.1.0-demo.1.md` — curated first demo milestone notes.
+
+Commit history remains engineering detail. Product-visible checkpoints must be represented by GitHub Releases with features, bug fixes, known limitations and relevant operator proof.
+
+## Active product continuation — PRODUCT-RECOVERY-001
+
+The current product priority is **PRODUCT-RECOVERY-001 / issue #783**.
+
+The optimization target is no longer additional subsystem hardening by default. The primary product truth is one repeatable cold-to-application flow:
+
+`market discovery -> Employer-Origin resolution -> current exact vacancy -> Bronze -> Silver -> assessment -> capability fit -> hard filter -> deterministic ranking -> >=5 current Employer-Origin recommendations -> Application Workspace -> review-ready CV/letter package`.
+
+Primary acceptance metric:
+
+**5 current Employer-Origin jobs -> assessed -> rankable/recommended -> application-ready**.
+
+The path must be reproducible without demo-only rows, stale aggregator action URLs, fabricated freshness, ranking overrides, or manual repair campaigns between normal stages.
+
+Recovery priorities are:
+
+1. propagate discovery vs Employer-Origin truth consistently end to end;
+2. enforce freshness before ranking/recommendation;
+3. converge repair/refill helpers into one normal operator product flow;
+4. increase rankable throughput by removing integration bottlenecks rather than lowering gates;
+5. raise application document content/layout to near-submission quality;
+6. inventory and reduce overlapping views, runners, policies and recovery paths that do not contribute to the primary product truth;
+7. protect each product checkpoint through CI/E2E proof and GitHub Releases.
+
+Until this core path is stable, broad new deterministic hardening, ML expansion beyond already-approved foundation work, post-application expansion and new demo-only orchestration are deprioritized.
 
 ## Preserved deterministic continuation
 
-**ACQ-GENERALIZATION-90 / issue #676** remains retained and resumable, but the operator explicitly deprioritized further deterministic hardening for the demo window. This is a priority pause, not a stop, rejection, or supersession.
+**ACQ-GENERALIZATION-90 / issue #676** remains retained and resumable, but it is not the current product sequencing authority. This is a priority pause, not a stop, rejection, or supersession.
 
 Its retained anchors remain:
 
@@ -91,5 +136,6 @@ Read in this order:
 5. `governance.md`
 6. `operations.md`
 7. `POST-MIGRATION-RESTART.json`
-8. while issue #707 is active priority: `../planning/active/demo_001_live_e2e_reentry.md`
-9. retained ACQ-676 context when needed: `../planning/active/acq_generalization_90_reentry.md`
+8. while issue #783 is active priority: issue `#783` plus this current-truth section
+9. retained DEMO-001 evidence when needed: `../planning/active/demo_001_live_e2e_reentry.md`
+10. retained ACQ-676 context when needed: `../planning/active/acq_generalization_90_reentry.md`
