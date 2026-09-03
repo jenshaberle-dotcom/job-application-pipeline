@@ -12,19 +12,6 @@ AGGREGATOR_HOST_SUFFIXES = (
     "linkedin.com",
 )
 
-# Defense in depth: source identity stays discovery-only even if a legacy row
-# accidentally carries an employer-looking URL or source-type projection.
-AGGREGATOR_SOURCE_FAMILIES = frozenset(
-    {
-        "bundesagentur_fuer_arbeit",
-        "gute_jobs",
-        "gute-jobs",
-        "stepstone",
-        "indeed",
-        "linkedin",
-    }
-)
-
 EMPLOYER_ORIGIN_SOURCE_TYPES = frozenset(
     {
         "employer_origin_career_site",
@@ -61,10 +48,6 @@ def _aggregator_host(url: str | None) -> bool:
     )
 
 
-def _source_family(source_name: str | None) -> str:
-    return str(source_name or "").strip().casefold().split(":", 1)[0]
-
-
 def evaluate_demo_origin_guard(
     *,
     source_url: str | None,
@@ -74,18 +57,18 @@ def evaluate_demo_origin_guard(
     product_readiness_status: str | None,
     source_name: str | None = None,
 ) -> DemoOriginGuard:
-    """Fail closed for demo/product actions that require current employer-origin truth.
+    """Fail closed for current Product actions while preserving discovery provenance.
 
-    Historical/discovery rows remain visible elsewhere. This guard only decides
-    whether a row may be represented as a current, actionable Product V1 vacancy.
-    Aggregator source identity and aggregator hosts are independently excluded.
+    ``source_name`` is intentionally not an authority gate. A vacancy may have been
+    discovered by BA, StepStone or another market sensor and later resolved onto an
+    Employer-Origin URL. Only the final Product action URL and current Product truth
+    decide actionability here.
     """
 
+    del source_name  # discovery provenance is diagnostic, never Product authority
     url = (source_url or "").strip() or None
     if str(lifecycle_status or "") != "active_confirmed":
         return DemoOriginGuard(False, "current_lifecycle_not_confirmed", None)
-    if _source_family(source_name) in AGGREGATOR_SOURCE_FAMILIES:
-        return DemoOriginGuard(False, "aggregator_source_is_discovery_only", None)
     if str(origin_validation_status or "") != "validated":
         return DemoOriginGuard(False, "employer_origin_not_validated", None)
     if str(canonical_source_type or "") not in EMPLOYER_ORIGIN_SOURCE_TYPES:
