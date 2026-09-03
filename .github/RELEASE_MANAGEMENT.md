@@ -15,18 +15,38 @@ Version changes describe product compatibility and visible behavior, not the num
 
 ## Release authority
 
-The only canonical release path is `.github/workflows/release.yml`, dispatched from `main`.
+The canonical publisher is `.github/workflows/release.yml` on `main`.
 
-The workflow:
+Preferred release path is GitOps:
 
-1. requires `main` as release authority;
-2. validates the requested version;
-3. refuses to overwrite an existing tag;
-4. binds the tag to the exact checked-out `main` SHA;
-5. uses a curated notes file when supplied, otherwise GitHub generated release notes;
-6. publishes the GitHub tag and Release together.
+1. prepare curated notes under `.github/release-notes/` when a milestone needs them;
+2. add exactly one versioned request under `.github/release-requests/vX.Y.Z.json` through a normal PR;
+3. merge the request to `main` only after normal PR CI/re-entry gates are green;
+4. the Release Management workflow starts from that `main` push;
+5. it waits for successful `Pipeline CI` and `Pipeline re-entry target identity` push runs for the exact release-request merge SHA;
+6. it validates the version and request schema, refuses an existing tag, binds the tag to that exact `main` SHA and publishes the GitHub Release.
+
+`workflow_dispatch` remains available as an operator fallback, but it uses the same exact-main and quality-gate rules.
 
 Do not create ad-hoc product tags from feature branches.
+
+### Release request schema
+
+Example:
+
+```json
+{
+  "schema": "job_application_pipeline.release_request.v1",
+  "version": "0.1.0-demo.1",
+  "release_name": "DEMO-001 Salvaged Product Path",
+  "prerelease": true,
+  "notes_file": ".github/release-notes/v0.1.0-demo.1.md"
+}
+```
+
+The request filename must equal the normalized version with a leading `v`, for example `.github/release-requests/v0.1.0-demo.1.json`.
+
+Release-request files are durable audit records. Do not repurpose or edit an already-published version request.
 
 ## Release-note categories
 
@@ -47,7 +67,7 @@ A bug fix should be described in product terms: symptom, correction, and the pro
 
 ## Curated notes
 
-Use curated notes for milestone/demo releases or when generated notes would include too much historical noise. Store them under `.github/release-notes/` and pass the path to the release workflow.
+Use curated notes for milestone/demo releases or when generated notes would include too much historical noise. Store them under `.github/release-notes/` and reference the path from the release request or manual workflow input.
 
 A curated release should contain:
 
@@ -65,8 +85,9 @@ Runtime facts that are not shipped in Git must be labeled as operator validation
 Before publishing a release:
 
 - the target change must already be merged to `main`;
-- normal repository CI and re-entry identity must be green for the merged work;
+- normal repository CI and re-entry identity must be green for the exact release target;
 - local-only runtime claims must have a current operator proof when the release notes depend on them;
-- known material limitations must be stated rather than hidden.
+- known material limitations must be stated rather than hidden;
+- an existing version tag is immutable and must never be overwritten.
 
 Release notes are part of the product contract and should be reviewed with the same care as operator-facing UI text.
