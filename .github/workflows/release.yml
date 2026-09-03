@@ -1,0 +1,158 @@
+name: Release Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semantic version, with or without leading v (for example 0.1.0-demo.1)"
+        required: true
+        type: string
+      release_name:
+        description: "Optional human-readable release title"
+        required: false
+        default: ""
+        type: string
+      prerelease:
+        description: "Publish as GitHub pre-release"
+        required: true
+        default: true
+        type: boolean
+      notes_file:
+        description: "Optional repository-relative curated notes file; blank uses GitHub generated notes"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-management
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate and publish release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Require main release authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_NAME}" != "main" ]]; then
+            echo "Releases must be dispatched from main; got ${GITHUB_REF_NAME}" >&2
+            exit 2
+          fi
+
+      - name: Check out exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate version and target
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          raw='${{ inputs.version }}'
+          version="${raw#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]; then
+            echo "Invalid SemVer-compatible version: $raw" >&2
+            exit 3
+          fi
+
+          tag="v${version}"
+          target_sha="$(git rev-parse HEAD)"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag already exists: ${tag}" >&2
+            exit 4
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "target_sha=${target_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare release notes
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag='${{ steps.release.outputs.tag }}'
+          target_sha='${{ steps.release.outputs.target_sha }}'
+          notes_file='${{ inputs.notes_file }}'
+          output="${RUNNER_TEMP}/release-notes.md"
+
+          if [[ -n "$notes_file" ]]; then
+            if [[ "$notes_file" = /* || "$notes_file" == *".."* ]]; then
+              echo "notes_file must be a repository-relative safe path" >&2
+              exit 5
+            fi
+            if [[ ! -f "$notes_file" ]]; then
+              echo "Curated release notes not found: $notes_file" >&2
+              exit 6
+            fi
+            cp "$notes_file" "$output"
+            source="curated:${notes_file}"
+          else
+            gh api \
+              --method POST \
+              "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f "tag_name=${tag}" \
+              -f "target_commitish=${target_sha}" \
+              --jq '.body' > "$output"
+            source="github-generated"
+          fi
+
+          if [[ ! -s "$output" ]]; then
+            echo "Release notes are empty" >&2
+            exit 7
+          fi
+
+          echo "path=${output}" >> "$GITHUB_OUTPUT"
+          echo "source=${source}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag='${{ steps.release.outputs.tag }}'
+          target_sha='${{ steps.release.outputs.target_sha }}'
+          title='${{ inputs.release_name }}'
+          notes='${{ steps.notes.outputs.path }}'
+
+          if [[ -z "$title" ]]; then
+            title="Job Application Pipeline ${tag}"
+          fi
+
+          prerelease_args=()
+          if [[ '${{ inputs.prerelease }}' == 'true' ]]; then
+            prerelease_args+=(--prerelease)
+          fi
+
+          gh release create "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$target_sha" \
+            --title "$title" \
+            --notes-file "$notes" \
+            "${prerelease_args[@]}"
+
+      - name: Publish release summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release published"
+            echo
+            echo "- Tag: \`${{ steps.release.outputs.tag }}\`"
+            echo "- Target: \`${{ steps.release.outputs.target_sha }}\`"
+            echo "- Notes: \`${{ steps.notes.outputs.source }}\`"
+            echo "- Pre-release: \`${{ inputs.prerelease }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
