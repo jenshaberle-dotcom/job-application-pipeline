@@ -3,6 +3,10 @@
   grid-template-columns: 74px 96px minmax(270px, 1fr) 150px 108px 138px;
 }
 
+.ow-sort {
+  display: none;
+}
+
 .ow-job-list-head button {
   border: 0;
   padding: 0;
