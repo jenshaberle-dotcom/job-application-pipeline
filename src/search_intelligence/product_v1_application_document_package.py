@@ -10,6 +10,7 @@ from __future__ import annotations
 from base64 import b64encode
 from io import BytesIO
 import json
+import re
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from src.search_intelligence.product_v1_application_context import (
@@ -57,12 +58,47 @@ def _fragment_texts(package: ApplicationDraftPackage, kind: str) -> tuple[str, .
     return tuple(fragment.text.strip() for fragment in package.fragments if fragment.kind == kind)
 
 
+def _base_cv_without_duplicate_name(base_cv: str, candidate_name: str) -> str:
+    lines = base_cv.replace("\r\n", "\n").replace("\r", "\n").splitlines()
+    removed = False
+    kept: list[str] = []
+    for raw in lines:
+        normalized = " ".join(raw.split())
+        if not removed and normalized.casefold() == candidate_name.casefold():
+            removed = True
+            continue
+        kept.append(raw.rstrip())
+    return "\n".join(kept).strip()
+
+
+def _clean_letter_fragment(text: str, candidate_name: str) -> str:
+    """Remove provider-emitted envelope text owned by the local document composer."""
+
+    structural = (
+        re.compile(r"^sehr geehrte(?:r|n)?\b.*[,!]?$", re.IGNORECASE),
+        re.compile(r"^mit freundlichen gr(?:ü|ue)ßen[,]?$", re.IGNORECASE),
+        re.compile(r"^freundliche gr(?:ü|ue)ße[,]?$", re.IGNORECASE),
+        re.compile(r"^bewerbung als\b.*$", re.IGNORECASE),
+    )
+    parts: list[str] = []
+    for raw in text.replace("\r\n", "\n").replace("\r", "\n").splitlines():
+        line = " ".join(raw.split())
+        if not line:
+            continue
+        if line.casefold() == candidate_name.casefold():
+            continue
+        if any(pattern.match(line) for pattern in structural):
+            continue
+        parts.append(line)
+    return " ".join(parts).strip()
+
+
 def compose_application_document_texts(
     *,
     context: ProductV1ApplicationContext,
     package: ApplicationDraftPackage,
 ) -> ApplicationDocumentTextBundle:
-    """Build complete review documents while preserving the approved base CV verbatim."""
+    """Build coherent review documents while preserving approved CV source content."""
 
     if package.status != "draft_for_review":
         raise ApplicationDocumentPackageStop("validated draft_for_review package is required")
@@ -85,21 +121,36 @@ def compose_application_document_texts(
             "complete letter requires opening, grounded fit content and closing"
         )
 
-    cv_focus = [
+    candidate_name = _candidate_name(base_cv)
+    base_body = _base_cv_without_duplicate_name(base_cv, candidate_name)
+    cv_parts = [
+        candidate_name,
         "STELLENBEZOGENES PROFIL",
         summaries[0],
     ]
     if bullets:
-        cv_focus.extend(
+        cv_parts.extend(
             [
                 "RELEVANTE SCHWERPUNKTE",
                 *[f"• {text}" for text in bullets],
             ]
         )
-    cv_focus.extend(["BASISLEBENSLAUF", base_cv])
-    cv_text = "\n\n".join(cv_focus)
+    if base_body:
+        cv_parts.append(base_body)
+    cv_text = "\n\n".join(cv_parts)
 
-    candidate_name = _candidate_name(base_cv)
+    cleaned_opening = _clean_letter_fragment(opening[0], candidate_name)
+    cleaned_fit = tuple(
+        value
+        for value in (_clean_letter_fragment(item, candidate_name) for item in fit)
+        if value
+    )
+    cleaned_closing = _clean_letter_fragment(closing[0], candidate_name)
+    if not cleaned_opening or not cleaned_fit or not cleaned_closing:
+        raise ApplicationDocumentPackageStop(
+            "letter fragments became incomplete after structural envelope cleanup"
+        )
+
     application_date = context.as_of_date.strftime("%d.%m.%Y")
     letter_parts = [
         candidate_name,
@@ -107,9 +158,9 @@ def compose_application_document_texts(
         application_date,
         f"Bewerbung als {context.target.title}",
         "Sehr geehrte Damen und Herren,",
-        opening[0],
-        *fit,
-        closing[0],
+        cleaned_opening,
+        *cleaned_fit,
+        cleaned_closing,
         "Mit freundlichen Grüßen",
         candidate_name,
     ]
