@@ -132,7 +132,7 @@ DEMO-001 readiness on 2026-09-03.
 
 ## Current repository implementation
 
-Canonical merged `main` at this re-entry read is `80cda242b89fee7cc56bb43f24aaa1a70c34806d` (`#767`). It contains the complete generic repository path required for the demo handoff plus the latest merged profile/source-evidence hardening:
+Canonical merged `main` at this re-entry read is `863b782f424ac813976d1d27ed328e42dd8e41ae` (`#771`). It contains the complete generic repository path required for the demo handoff plus the latest merged profile/source-evidence and data-layer observability hardening:
 
 - read-only Product V1 demo preflight and cohort/source diagnostics;
 - resilient generic assessment materialization from current employer-origin evidence;
@@ -156,9 +156,14 @@ Canonical merged `main` at this re-entry read is `80cda242b89fee7cc56bb43f24aaa1
 - target-profile breadth includes ML Engineer, MLOps, ML/AI Platform, AI/ML/Data Reliability and the Data Engineer/Data Platform/Analytics bridge instead of presenting the product as Data-Engineering-only (`#759`, `#763`);
 - profile-term matching is field-scoped so multi-word roles cannot be synthesized from unrelated employer/location fields (`#764`);
 - Product V1 admission is recall-first before vacancy-detail assessment; role relevance is a priority/score signal and no longer an overly early false-negative admission veto (`#765`, `#766`);
-- the historical strict-proven connector cohort has been re-reviewed as a 36-source admission pool, with `36/36` reviewed, `33/36` carrying current concrete detail proof on merged `main`, and `23` sources carrying at least one useful operator-review candidate (`#767`). Listing-only evidence may reach manual review but grants no detail, activation, ranking, Top-5 or application authority.
+- the historical strict-proven connector cohort has been re-reviewed as a 36-source admission pool, with `36/36` reviewed, `33/36` carrying current concrete detail proof on the merged evidence checkpoint, and `23` sources carrying at least one useful operator-review candidate (`#767`). Listing-only evidence may reach manual review but grants no detail, activation, ranking, Top-5 or application authority;
+- the React Operator Workspace now includes a dedicated **Data Layers** navigation entry backed by `GET /api/v1/product-v1/data-layers` (`#771`);
+- Data Layers reads existing Bronze/Silver/Gold truth inside an explicit read-only transaction and adds no migration or telemetry persistence;
+- the Data Layers funnel exposes Bronze inventory, Silver inventory, Gold assessment inventory, current Rankable and current Top-5 counts; the 14-day SVG flow exposes `Bronze new`, separate repeated `Bronze observations`, `Silver normalized` and `Gold assessed` activity;
+- Data Layers also exposes materialization coverage, latest Bronze/Silver/Gold freshness and the existing per-source loaded/inserted/Bronze/Silver projection. Missing history remains null rather than fabricated success;
+- historical Rankable or Top-5 membership is deliberately **not** reconstructed from current-state Gold views. `job_product_assessments.assessed_at` is the only Gold historical activity shown in this first tab.
 
-Key merged demo hardening before the overnight profile/source push includes ranking persistence `#724`, schema/readiness hardening `#725`–`#727`, provider-free review resilience/provenance `#728`–`#730`, single-fetch final-draft handoff `#731`, stale-artifact invalidation `#732`, bounded artifact deletion `#733`, cross-artifact lineage binding `#734`, duplicate live draft-probe retirement `#735`, atomic readiness publication `#736`, and presentation UX compression `#739`.
+Key merged demo hardening before the overnight profile/source push includes ranking persistence `#724`, schema/readiness hardening `#725`–`#727`, provider-free review resilience/provenance `#728`–`#730`, single-fetch final-draft handoff `#731`, stale-artifact invalidation `#732`, bounded artifact deletion `#733`, cross-artifact lineage binding `#734`, duplicate live draft-probe retirement `#735`, atomic readiness publication `#736`, and presentation UX compression `#739`. Data-layer observability `#771` passed Pipeline CI `#1101` and Re-entry Identity `#2028` before merge.
 
 ### Overnight 2026-09-02/03 delta
 
@@ -170,41 +175,39 @@ The post-GUI overnight work materially changed the repository/evidence frontier 
 4. `#763` expanded the two authorized Personio profile search terms to ML/reliability families.
 5. `#764` fixed a generic cross-field false-positive bug in multi-word profile matching.
 6. `#765` made Product V1 contender admission recall-first before detail assessment; `#766` added a read-only audit for that wider current frontier.
-7. `#767` completed the all-source strict-proven review on merged `main`: `36/36` reviewed, `33/36` current detail-proven, `23` with useful operator-review candidates. This is evidence-only by design: no source activation, DB/Bronze/Silver/Gold mutation, ranking/Top-5 authority or application authority was created.
+7. `#767` completed the all-source strict-proven review on its merged checkpoint: `36/36` reviewed, `33/36` current detail-proven, `23` with useful operator-review candidates. This is evidence-only by design: no source activation, DB/Bronze/Silver/Gold mutation, ranking/Top-5 authority or application authority was created.
 
-A later branch, draft PR `#769` based exactly on `main@80cda242...`, is **pending evidence, not canonical main truth**. Its current head reports `35/36` strict-proven sources with current concrete detail proof after resolving Amadeus Fire and CGM through current official evidence/delegation; TrustYou remains the sole source without a current substantive vacancy detail. The branch explicitly preserves zero DB/Bronze/Silver/Gold writes and zero ranking/application authority. Re-entry must not silently promote this `35/36` state until the branch is qualified and merged.
+A later branch, draft PR `#769` based on the `#767` checkpoint, is **pending evidence, not canonical merged truth** at this re-entry reconciliation. Its observed head reports `35/36` strict-proven sources with current concrete detail proof after resolving Amadeus Fire and CGM through current official evidence/delegation; TrustYou remains the sole source without a current substantive vacancy detail. The branch explicitly preserves zero DB/Bronze/Silver/Gold writes and zero ranking/application authority. Re-entry must not silently promote this `35/36` state until that branch is separately qualified and merged.
 
 The earlier presentation-only snapshot PR `#768` is not a backend truth contract and predates the completed all-source harvest. Do not use its static counts as the canonical demo metrics surface.
 
-### Requested demo observability slice — Bronze / Silver / Gold
+### Implemented demo observability slice — Bronze / Silver / Gold
 
-Operator request on 2026-09-03: add a dedicated React Control Center tab for **Bronze / Silver / Gold** with DB-backed metrics and a time trend. This is the preferred next bounded presentation/observability slice because the backend already owns the required timestamps and read models; it must not introduce demo-only persistence or synthetic history.
+The operator-requested Bronze/Silver/Gold tab is implemented and merged through `#771`. The first version remains intentionally read-only and migration-free.
 
-Truth sources already present:
+Authoritative inputs used by the tab:
 
-- Bronze inventory: `raw_jobs.created_at` / `raw_jobs.fetched_at`;
-- repeated Bronze/source activity: append-only `job_observations.observed_at`;
-- ingestion execution: `ingestion_runs.started_at`, `finished_at`, `total_loaded`, `inserted_count`, `duplicate_count`, `status`;
-- Silver materialization: `silver_jobs.normalized_at` / `created_at`;
-- Gold / Product V1 materialization: `job_product_assessments.assessed_at` / `updated_at`;
-- current Gold state: `gold_product_v1_job_readiness`, canonical Top-5/readiness views and existing Product V1 summary;
-- current per-source Bronze/Silver inventory and latest-ingestion values are already projected through `source_connector_overview` into the Product V1 payload.
+- Bronze inventory/activity: `raw_jobs.created_at` and append-only `job_observations.observed_at`;
+- Silver materialization: `silver_jobs.normalized_at`;
+- Gold / Product V1 materialization: `job_product_assessments.assessed_at`;
+- current Rankable and Top-5 snapshot: existing Product V1 summary/read-model truth;
+- source contribution: existing `source_connector_overview` projection, including latest-ingestion loaded/inserted values and per-source Bronze/Silver counts.
 
-Preferred first version is read-only and migration-free:
+Current UI contract:
 
-1. **Inventory now** — Bronze unique jobs, Silver canonical jobs, Gold assessed jobs, current rankable jobs and authoritative Top-5 count.
-2. **14-day flow** — daily `Bronze new`, `Silver normalized`, `Gold assessed`; optionally show `Bronze observations` as a separate activity series so repeated observations are not confused with new unique jobs.
-3. **Coverage ratios** — Silver/Bronze materialization coverage, Gold/Silver assessment coverage, current rankable/Gold share. Label these as coverage/materialization, not quality or funnel conversion.
-4. **Freshness** — latest ingestion finish, latest Bronze observation, latest Silver normalization, latest Gold assessment.
-5. **Source breakdown** — reuse existing source overview for source, last ingestion, inserted/loaded, Bronze count, Silver count and lifecycle/attention state.
+1. **Inventory now** — Bronze unique jobs, Silver canonical jobs, Gold assessed jobs, current Rankable jobs and authoritative Top-5 count.
+2. **14-day flow** — daily `Bronze new`, separate repeated `Bronze observations`, `Silver normalized`, and `Gold assessed`.
+3. **Coverage ratios** — Silver/Bronze materialization coverage, Gold/Silver assessment coverage, current Rankable/Gold share. These are coverage/materialization ratios, not quality metrics or causal funnel conversion.
+4. **Freshness** — latest Bronze observation, latest Silver normalization and latest Gold assessment.
+5. **Source contribution** — source, latest run, loaded, inserted, Bronze, Silver and last-run status from existing lifecycle projection.
 
-Historical Gold caution: a current Gold view cannot reconstruct past daily rankable/Top-5 membership. The first demo chart therefore uses `job_product_assessments.assessed_at` as **Gold assessment/materialization activity**, not a fabricated historical `rankable` series. True rankable/Top-5 history should only be added later from an explicit append-only event/snapshot authority if product value justifies it.
+Historical Gold caution remains part of the product contract: a current Gold view cannot reconstruct past daily Rankable/Top-5 membership. The chart therefore uses `job_product_assessments.assessed_at` as **Gold assessment/materialization activity** and does not fabricate historical Rankable or Top-5 curves. True history should only be added later from an explicit append-only event/snapshot authority if product value justifies it.
 
-This metrics tab is observability only. It must perform no source execution, DB write, scheduler mutation, ranking change, application action or authority promotion.
+`#771` introduced no source execution, DB write, scheduler mutation, ranking change, application action or authority promotion. The runtime marks the endpoint boundaries as read-only/migration-free/no-telemetry-write and fails closed on runtime errors.
 
 ## Current frontier
 
-The remaining demo frontier is primarily **live local truth plus the requested DB-backed data-layer observability**, not a need for new source/ranking shortcuts.
+The remaining demo frontier is primarily **live local truth**, not missing repository observability or a need for new source/ranking shortcuts.
 
 The local runtime must prove, in order:
 
@@ -221,7 +224,7 @@ The local runtime must prove, in order:
 
 The readiness path is intentionally fail-closed and must identify the narrowest blocking gate instead of inventing success.
 
-The Bronze/Silver/Gold observability tab is a presentation enhancement, not authority to infer missing live DB values. Agent Monitor polish, broader approval-safe UI actions and APP-TRACK-001 remain outside core readiness unless explicitly reprioritized.
+The Bronze/Silver/Gold observability tab is now a merged presentation enhancement, not authority to infer missing live DB values. Agent Monitor polish, broader approval-safe UI actions and APP-TRACK-001 remain outside core readiness unless explicitly reprioritized.
 
 ## Canonical local operator handoff
 
