@@ -1,0 +1,7 @@
+{
+  "schema": "job_application_pipeline.release_request.v1",
+  "version": "0.1.0-demo.1",
+  "release_name": "DEMO-001 Salvaged Product Path",
+  "prerelease": true,
+  "notes_file": ".github/release-notes/v0.1.0-demo.1.md"
+}
