@@ -8,7 +8,6 @@ assessment. Any detail drift blocks the entire apply before a database mutation.
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Any
 
 import psycopg
