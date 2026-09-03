@@ -35,6 +35,8 @@ def test_product_payload_embeds_read_only_source_connector_overview() -> None:
         "no_scheduler_mutation": True,
         "unknown_is_not_success": True,
         "registration_is_not_activation": True,
+        "sensor_gates_are_role_specific": True,
+        "historical_layers_are_not_live_sensor_health": True,
     }
 
 
