@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import ApplicationWorkspaceEventBridge from "./ApplicationWorkspaceEventBridge";
+import DataLayersTab from "./DataLayersTab";
 import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
 import EvidencePreviewPanel from "./EvidencePreviewPanel";
 import App from "./OperatorWorkspace";
@@ -22,6 +23,7 @@ createRoot(root).render(
   <StrictMode>
     <RuntimeErrorBoundary>
       <App />
+      <DataLayersTab />
       <EvidencePreviewPanel />
       <DemoApplicationWorkspace />
       <ApplicationWorkspaceEventBridge />
