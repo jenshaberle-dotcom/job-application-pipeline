@@ -1,9 +1,11 @@
 from base64 import b64decode
 from datetime import date
+from io import BytesIO
+import json
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 from pypdf import PdfReader
-from io import BytesIO
 
 from src.search_intelligence.product_v1_application_document_package import (
     build_application_document_package_payload,
@@ -114,7 +116,7 @@ def test_complete_texts_keep_base_cv_and_form_coherent_letter() -> None:
     assert "bisheriger Bewerbungstext" not in bundle.letter_text
 
 
-def test_package_exposes_four_downloadable_local_files() -> None:
+def test_package_exposes_four_files_plus_one_click_zip() -> None:
     payload = build_application_document_package_payload(
         context=_context(),
         package=_package(),
@@ -128,6 +130,7 @@ def test_package_exposes_four_downloadable_local_files() -> None:
         "cv_pdf",
         "letter_docx",
         "letter_pdf",
+        "application_zip",
     ]
 
     for item in files:
@@ -142,6 +145,16 @@ def test_package_exposes_four_downloadable_local_files() -> None:
     )
     assert "STELLENBEZOGENES PROFIL" in cv_pdf_text
 
+    zip_item = next(item for item in files if item["key"] == "application_zip")
+    with ZipFile(BytesIO(b64decode(zip_item["content_base64"]))) as archive:
+        names = archive.namelist()
+        assert "manifest.json" in names
+        assert len([name for name in names if name.endswith(".docx")]) == 2
+        assert len([name for name in names if name.endswith(".pdf")]) == 2
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["status"] == "draft_for_review"
+        assert manifest["boundaries"]["submission_action"] is False
+
     assert payload["boundaries"] == {
         "local_render": True,
         "database_writes": 0,
@@ -153,7 +166,7 @@ def test_package_exposes_four_downloadable_local_files() -> None:
     }
 
 
-def test_evidence_first_minimal_review_package_still_exports_four_files() -> None:
+def test_evidence_first_minimal_review_package_still_exports_zip_bundle() -> None:
     payload = build_application_document_package_payload(
         context=_context(),
         package=_evidence_first_package(),
@@ -165,6 +178,7 @@ def test_evidence_first_minimal_review_package_still_exports_four_files() -> Non
         "cv_pdf",
         "letter_docx",
         "letter_pdf",
+        "application_zip",
     ]
     assert "RELEVANTE SCHWERPUNKTE" not in payload["cv_text"]
     assert "BASISLEBENSLAUF" in payload["cv_text"]
