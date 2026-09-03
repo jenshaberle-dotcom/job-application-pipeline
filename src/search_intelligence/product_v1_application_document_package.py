@@ -71,13 +71,13 @@ def compose_application_document_texts(
     fit = _fragment_texts(package, "letter_fit")
     closing = _fragment_texts(package, "letter_closing")
 
-    if len(summaries) != 1 or not 2 <= len(bullets) <= 4:
+    if len(summaries) != 1 or not 1 <= len(bullets) <= 6:
         raise ApplicationDocumentPackageStop(
-            "complete CV adaptation requires one summary and two to four bullets"
+            "complete CV adaptation requires one summary and at least one grounded bullet"
         )
-    if len(opening) != 1 or not 2 <= len(fit) <= 3 or len(closing) != 1:
+    if len(opening) != 1 or not 1 <= len(fit) <= 4 or len(closing) != 1:
         raise ApplicationDocumentPackageStop(
-            "complete letter requires one opening, two to three fit paragraphs and one closing"
+            "complete letter requires opening, grounded fit content and closing"
         )
 
     cv_focus = [
