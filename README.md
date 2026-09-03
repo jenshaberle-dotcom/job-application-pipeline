@@ -88,10 +88,10 @@ The target must be reached by improving currentness, truth propagation, assessme
 - Discovery is broad; Product authority is strict.
 - Employer-Origin and currentness before recommendation.
 - Evidence before ranking and application claims.
-- Dry-run/apply separation for bounded mutations where applicable.
-- No commits directly on `main`.
+- Dry-run before apply.
+- No commits on `main`.
 - Feature worktrees live under the declared project worktree root, not `/tmp`.
-- Reports/exports are outputs, not hidden pipeline inputs.
+- Reports and exports are outputs, not source-of-truth inputs.
 - CI does not prove local PostgreSQL/provider/live-web truth.
 - A green technical suite does not substitute for operator product acceptance.
 - Release notes are the product-facing history; commits remain engineering detail.
