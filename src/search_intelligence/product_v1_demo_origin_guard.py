@@ -12,13 +12,6 @@ AGGREGATOR_HOST_SUFFIXES = (
     "linkedin.com",
 )
 
-EMPLOYER_ORIGIN_SOURCE_TYPES = frozenset(
-    {
-        "employer_origin_career_site",
-        "employer_origin_ats_backed_career_site",
-    }
-)
-
 
 @dataclass(frozen=True)
 class DemoOriginGuard:
@@ -57,22 +50,20 @@ def evaluate_demo_origin_guard(
     product_readiness_status: str | None,
     source_name: str | None = None,
 ) -> DemoOriginGuard:
-    """Fail closed for current Product actions while preserving discovery provenance.
+    """Gate current Product actions on Product authority plus a non-aggregator URL.
 
-    ``source_name`` is intentionally not an authority gate. A vacancy may have been
-    discovered by BA, StepStone or another market sensor and later resolved onto an
-    Employer-Origin URL. Only the final Product action URL and current Product truth
-    decide actionability here.
+    Discovery provenance and persisted Silver ``canonical_source_type`` are diagnostic.
+    They cannot veto a job whose Product assessment already has validated origin and
+    current lifecycle authority. The final action URL itself must still be absolute
+    HTTPS and must never point to a market aggregator.
     """
 
-    del source_name  # discovery provenance is diagnostic, never Product authority
+    del source_name, canonical_source_type
     url = (source_url or "").strip() or None
     if str(lifecycle_status or "") != "active_confirmed":
         return DemoOriginGuard(False, "current_lifecycle_not_confirmed", None)
     if str(origin_validation_status or "") != "validated":
         return DemoOriginGuard(False, "employer_origin_not_validated", None)
-    if str(canonical_source_type or "") not in EMPLOYER_ORIGIN_SOURCE_TYPES:
-        return DemoOriginGuard(False, "source_is_not_employer_origin", None)
     if not _absolute_https(url):
         return DemoOriginGuard(False, "employer_origin_https_url_required", None)
     if _aggregator_host(url):
