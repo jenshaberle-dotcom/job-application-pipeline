@@ -1,84 +1,171 @@
 # Current System Architecture
 
-Status: current truth
-Scope: product-level architecture after DOC-001M
+Status: current truth  
+Active product track: **PRODUCT-RECOVERY-001 / issue #783**
 
 ## Architecture in one sentence
 
-Market signals are treated as weak evidence until they pass bounded discovery,
-origin/detail evidence checks, explicit gates and controlled approval paths.
-Only then can a source become operational input for Bronze/Silver/Gold and the
-Control Center.
+The system separates broad market discovery from Employer-Origin product authority, moves verified current vacancies through Bronze/Silver and evidence-backed Product V1 gates, then exposes ranked recommendations and review-only application preparation through the React Control Center.
 
 ```text
-Market Sensors
-  -> Candidate / Source Discovery
-  -> URL / Origin / Detail Evidence
-  -> Gates and Stopper Reassessment
-  -> Connector Candidate / Build / Validation / Approval
-  -> Active Controlled Source
-  -> Bronze / Silver / Gold / Control Center
+Discovery plane
+  -> Employer-Origin authority plane
+  -> Bronze/Silver data plane
+  -> assessment / hard-filter / ranking decision plane
+  -> Control Center
+  -> Application preparation plane
+  -> Release / operator-proof plane
 ```
 
-## Core boundaries
+## Product-value flow
 
-| Boundary | Rule |
+```text
+Market Sensors / Aggregators
+  -> employer/job discovery evidence
+  -> Employer-Origin resolution
+  -> exact current vacancy verification
+  -> Bronze observation
+  -> Silver canonical job
+  -> Product assessment
+  -> capability-fit evidence
+  -> hard filters
+  -> deterministic ranking
+  -> Top-5 threshold policy
+  -> Application Workspace
+  -> CV + letter DOCX/PDF/ZIP draft_for_review
+```
+
+The current architecture contains all of these capabilities, but PRODUCT-RECOVERY-001 exists because they are not yet connected into one reliable normal cold-to-application execution path.
+
+## Authority boundaries
+
+| Boundary | Current rule |
 |---|---|
-| Sensor vs source | Discovery signal is not active source truth. |
-| Candidate vs connector | Candidate evidence does not imply connector registration. |
-| Evidence vs approval | Repair agents can produce evidence; they do not approve themselves. |
-| Queue vs repair | Queue agents route; they do not repair. |
-| Gate vs discovery | Gates evaluate evidence; they do not discover it. |
-| Stop vs false negative | A stop is an audit input, not automatically final truth. |
-| Report vs input | Exports are reports, never hidden pipeline inputs. |
-| Current docs vs history | Historical notes must not look like current architecture. |
+| Discovery vs action | BA, StepStone, GuteJobs and other aggregators are discovery evidence; they are not final application/action URLs. |
+| Discovery provenance vs resolved origin | Historical `source_name/source_url` may identify how a job was found. Product action authority must use separately verified Employer-Origin vacancy truth. |
+| Currentness vs historical observation | A historical Bronze/Silver sighting does not prove the vacancy is still active. Current/actionable/recommended state requires fresh evidence. |
+| Rankable vs recommended | Rankable means ranking evidence is complete. Top-5 additionally requires the approved recommendation policy, including the 70/100 threshold. |
+| Candidate facts vs generated prose | Candidate Facts are factual authority. Provider-generated prose is a proposal constrained by Candidate Facts and exact vacancy evidence. |
+| Provider vs product authority | Provider success never grants ranking, approval, submission or send authority. |
+| CI vs runtime truth | CI proves repository contracts. Local PostgreSQL, live employer HTTP and private document/provider behavior require operator-side proof. |
+| Repair tooling vs normal product path | Demo/refill/recovery runners are diagnostic/recovery tools, not the desired steady-state architecture. |
+| Release vs commit history | GitHub Releases are product-facing checkpoints. Commit history remains engineering detail. |
 
-## Main system areas
+## Main architecture areas
 
-### Market sensors
+### 1. Discovery plane
 
-Market sensors and aggregators discover companies, source targets and search
-spaces. They are intentionally bounded and defensive. Aggregators are discovery
-inputs, not canonical source truth.
+Market sensors and aggregators maximize useful recall under bounded acquisition rules. Their job is to reveal employers, search spaces and job candidates.
 
-### Candidate and origin discovery
+Discovery includes sources such as BA and StepStone, but those sources are intentionally **not** final Product/Application authority.
 
-Candidate discovery turns signals into employer-origin candidates. Candidate
-identity, source URL evidence and duplicate handling are safety concerns: missing
-URLs stay missing, and ambiguous candidates must not be pushed through the
-pipeline as if they were validated.
+### 2. Employer-Origin authority plane
 
-### Detail evidence and gates
+Candidate/origin discovery resolves a market observation to an employer-controlled source or explicitly approved equivalent origin-evidence path.
 
-Origin/detail evidence is required before connector work. Gates decide whether
-evidence is enough to progress. Stops must include a reason, next safe action and
-a manual-review path.
+Important current invariant:
 
-### Connector path
+```text
+aggregator discovered != employer-origin verified
+```
 
-Connector candidacy, artifact generation, validation, registration planning,
-final approval and active controlled operation are separate stages. Connector
-artifacts are not activation.
+A job may legitimately carry aggregator discovery provenance while also having a later resolved Employer-Origin vacancy. The two truths must remain separate and must not be collapsed back into one ambiguous URL field.
 
-### Job data layers
+### 3. Current vacancy verification
 
-- Bronze keeps bounded raw acquisition and lineage.
-- Silver builds canonical job representation and quality filtering.
-- Gold provides decision, observability and Control Center read models.
+Exact vacancy truth is checked before Product recommendation/application authority. Current implementation includes exact-detail HTTP checks, closure markers and detail fingerprints.
 
-### Control Center and observability
+When live detail differs from the assessment snapshot:
 
-The Control Center should show lifecycle state, blockers, false-negative
-pressure, gate status, next safe actions and agent/health summaries. The current
-Agent Monitor uses derived lifecycle/gate/orchestrator signals; true runtime
-agent health remains future work.
+```text
+detail drift
+  -> audited assessment refresh
+  -> capability/ranking evidence invalidated as required
+  -> normal gates rerun
+```
 
-## Current maturity note
+A stale detail fingerprint must never be silently reused as current ranking evidence.
 
-The documentation structure is now stable enough for product work again, but the
-pipeline itself is not closed-loop yet. The biggest product blockers remain
-StepStone discovery rotation, candidate promotion quality, URL/detail evidence
-generics and repair/stop taxonomy.
+### 4. Bronze and Silver data plane
 
-Detailed references live under `../reference/`. Diagrams live in
-`system-diagrams.md`.
+- **Bronze** retains bounded raw observations and lineage.
+- **Silver** provides canonical job representation, normalization and quality state.
+
+Historical acquisition truth is intentionally retained even when a vacancy later becomes inactive. Product-current truth must therefore not be inferred from Silver existence alone.
+
+### 5. Product V1 assessment and ranking plane
+
+The Product V1 decision chain is:
+
+```text
+initial assessment
+-> capability fit
+-> hard filters
+-> ranking components
+-> rankable
+-> recommendation threshold / Top-5 projection
+```
+
+Hard filters include approved employment, language, weekly-hours and capability/seniority semantics. Missing required evidence remains review-required.
+
+`rankable` is not synonymous with `recommended`. The approved Top-5 policy is at most five jobs and currently requires overall score >= 70/100.
+
+### 6. React Control Center
+
+The React Control Center is the reference operator UI. It currently provides product truth, review-scope jobs, source status, data-layer observability, ranking/application surfaces and evidence drill-down.
+
+DEMO-001 hardened the frontend runtime by removing duplicated Product Truth fetch/normalization work and pathological persistent DOM observation.
+
+The UI must distinguish presentation-only review affinity from authoritative Product V1 ranking.
+
+### 7. Application preparation plane
+
+Application Workspace combines:
+
+- approved private base CV and base application letter;
+- Candidate Facts;
+- exact current vacancy evidence;
+- provider-backed structured drafting when explicitly requested;
+- evidence-first deterministic fallback;
+- local DOCX/PDF/ZIP export.
+
+Outputs remain `draft_for_review`. There is no automatic submission or send path.
+
+### 8. Observability and data-layer metrics
+
+The Data Layers surface exposes Bronze/Silver/Gold inventory, flow, coverage, freshness and source contribution without creating product authority.
+
+Observability must explain the pipeline; it may not manufacture missing job/ranking state.
+
+### 9. Release and operator-proof plane
+
+Product checkpoints are represented as GitHub Releases with:
+
+- semantic version/tag;
+- release notes grouped around visible features and bug fixes;
+- known limitations;
+- exact repository CI/re-entry proof;
+- separately labeled operator proof for local runtime facts.
+
+`v0.1.0-demo.1` is the first salvaged product checkpoint.
+
+## Current integration debt
+
+DEMO-001 proved that the largest remaining risk is **integration debt**, not absence of components.
+
+Current recovery targets:
+
+1. **Truth propagation** — resolved Employer-Origin/currentness truth must flow consistently into Product read models and action URLs.
+2. **One orchestration path** — normal operation must replace the current sequence of scout/refill/integrity/evidence-close helpers.
+3. **Rankable throughput** — normal daily execution must produce enough fully assessed jobs without manual repair campaigns.
+4. **Recommendation quality** — five recommended jobs must satisfy the approved threshold naturally; quota filling is forbidden.
+5. **Application quality** — exported CV/letter must preserve coherent document structure and require only small human edits.
+6. **Complexity reduction** — overlapping runners, views, policies and recovery surfaces that do not support the product-value path should be consolidated or retired.
+
+## Current maturity statement
+
+The architecture is no longer accurately described as only a discovery/connector system. It now spans discovery through application preparation and release management.
+
+At the same time, it is **not yet a closed-loop product**: a cold `market discovery -> application package` run still needs too much operator/recovery intervention. PRODUCT-RECOVERY-001 makes closing that gap the primary architecture objective.
+
+Detailed contracts live under `docs/reference/`. Current diagrams live in `system-diagrams.md`.
