@@ -668,7 +668,9 @@ def company_identity_score(
 
     matched_non_local_host = non_local_identity & host_tokens
     matched_non_local_anywhere = non_local_identity & all_url_tokens
-    matched_acronym_host = acronym & host_tokens
+    # A lexical identity must not receive both the normal identity bonus
+    # and the acronym bonus merely because the brand is written in all caps.
+    matched_acronym_host = (acronym - identity) & host_tokens
 
     if (identity & host_tokens) and not matched_non_local_host and not matched_acronym_host:
         locality_only = sorted((identity & host_tokens) & LOCALITY_TOKENS)
@@ -709,9 +711,42 @@ def probe_result_from_http_response(url: str, response: object) -> OriginDiscove
     text = str(getattr(response, "text", "") or "")
     content = getattr(response, "content", b"") or b""
     reachable = status_code in HTTP_ACCEPTED_STATUS_CODES
-    haystack = f"{final_url} {text[:8000]}".lower()
-    career_like = any(term in haystack for term in CAREER_SIGNAL_TERMS)
-    reason = "reachable career/job-like URL" if reachable and career_like else f"status={status_code}; career_like={career_like}"
+    content_haystack = text[:8000].lower()
+    requested_normalized = normalize_candidate_url(url)
+    final_normalized = normalize_candidate_url(final_url)
+
+    redirected = bool(
+        requested_normalized
+        and final_normalized
+        and final_normalized != requested_normalized
+    )
+
+    # A generated request path such as /karriere or /jobs must not
+    # validate itself as independent live career evidence.
+    redirect_haystack = (
+        final_normalized.lower()
+        if redirected and final_normalized
+        else ""
+    )
+
+    content_career_like = any(
+        term in content_haystack
+        for term in CAREER_SIGNAL_TERMS
+    )
+    redirect_career_like = bool(
+        redirected
+        and any(
+            term in redirect_haystack
+            for term in CAREER_SIGNAL_TERMS
+        )
+    )
+
+    career_like = content_career_like or redirect_career_like
+    reason = (
+        "reachable career/job-like URL"
+        if reachable and career_like
+        else f"status={status_code}; career_like={career_like}"
+    )
     return OriginDiscoveryProbeResult(
         url=url,
         final_url=final_url,
@@ -853,8 +888,53 @@ def assess_origin_candidate(
 
     if identity < 0.45:
         return OriginDiscoveryAssessment(candidate, probe_result, normalized, final_url, domain, identity, career_score, total, "reject", "medium", tuple(reasons + ["company identity match too weak"]))
-    if probe is not None and probe_result and not probe_result.reachable:
-        return OriginDiscoveryAssessment(candidate, probe_result, normalized, final_url, domain, identity, career_score, total, "reject", "medium", tuple(reasons + ["URL not reachable in bounded probe"]))
+
+    if probe is not None and probe_result:
+        if not probe_result.reachable:
+            return OriginDiscoveryAssessment(candidate, probe_result, normalized, final_url, domain, identity, career_score, total, "reject", "medium", tuple(reasons + ["URL not reachable in bounded probe"]))
+
+        # A reachable company-looking homepage is useful evidence, but not
+        # sufficient authority for automatic Employer-Origin selection.
+        if not probe_result.career_like:
+            if total >= MANUAL_REVIEW_MIN_SCORE:
+                return OriginDiscoveryAssessment(
+                    candidate,
+                    probe_result,
+                    normalized,
+                    final_url,
+                    domain,
+                    identity,
+                    career_score,
+                    total,
+                    "manual_review_candidate",
+                    "medium",
+                    tuple(
+                        reasons
+                        + [
+                            "reachable company-related URL lacks independent live career/job evidence"
+                        ]
+                    ),
+                )
+
+            return OriginDiscoveryAssessment(
+                candidate,
+                probe_result,
+                normalized,
+                final_url,
+                domain,
+                identity,
+                career_score,
+                total,
+                "reject",
+                "medium",
+                tuple(
+                    reasons
+                    + [
+                        "reachable URL lacks independent live career/job evidence"
+                    ]
+                ),
+            )
+
     if total >= AUTO_SELECT_MIN_SCORE:
         return OriginDiscoveryAssessment(candidate, probe_result, normalized, final_url, domain, identity, career_score, total, "select_candidate", "low", tuple(reasons))
     if total >= MANUAL_REVIEW_MIN_SCORE:
@@ -971,7 +1051,14 @@ def discover_origin_source(
         decision="not_found",
         selected_url=None,
         selected_domain=None,
-        confidence_score=max((item.total_score for item in assessments), default=0.0),
+        confidence_score=max(
+            (
+                item.total_score
+                for item in assessments
+                if item.probe is None or item.probe.reachable
+            ),
+            default=0.0,
+        ),
         risk_level="unknown",
         reason="no reachable career-like URL with plausible company identity match was found",
         candidate_count=len(candidates),
