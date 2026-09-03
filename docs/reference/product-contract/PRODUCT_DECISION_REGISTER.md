@@ -1,9 +1,9 @@
 # Product Decision Register
 
-Status: active PRD-rebaseline input
+Status: active product authority  
 Owner: Jens
 
-This register prevents product behavior from being guessed by DON, implementation code or historical planning artifacts.
+This register prevents product behavior from being guessed by engineering, implementation code or historical planning artifacts.
 
 ## Decision states
 
@@ -61,7 +61,7 @@ This register prevents product behavior from being guessed by DON, implementatio
 |---|---|---|
 | `PD-040` | open_operator_decision | Define the maximum acceptable age of a job posting. |
 | `PD-041` | open_operator_decision | Define handling when publication date is unknown. |
-| `PD-042` | open_operator_decision | Define the minimum evidence proving that a concrete job is still active. |
+| `PD-042` | open_operator_decision | Define the general minimum evidence proving that a concrete job is still active when sources provide ambiguous or conflicting signals. Known stale/closed jobs are already excluded by approved acceptance behavior. |
 | `PD-043` | approved | A Top-5 job must be a current concrete vacancy validated on the employer origin source/seed or through an explicitly approved equivalent origin-evidence path. Aggregator evidence alone is discovery evidence, not final Top-5 confirmation. |
 | `PD-044` | open_operator_decision | Define treatment outside Top 5 of aggregator-only jobs with strong detail evidence. |
 | `PD-045` | open_operator_decision | Define when multiple URLs represent one job, one source family or distinct opportunities. |
@@ -72,7 +72,7 @@ This register prevents product behavior from being guessed by DON, implementatio
 | ID | Status | Decision required |
 |---|---|---|
 | `PD-050` | approved | Top 5 means at most five jobs. The result is never filled with weaker, blocked or below-threshold jobs merely to reach five. Approved 2026-08-02. |
-| `PD-051` | approved | Minimum overall quality is 70/100. Fewer than five jobs are valid when fewer jobs qualify. The threshold is an adjustable V1 starting value, not a permanent constant. Approved 2026-08-02. |
+| `PD-051` | approved | Minimum overall quality is 70/100. Fewer than five jobs are valid when fewer jobs qualify. The threshold is an adjustable V1 starting value, not a permanent constant, but changing it is an explicit product decision rather than a demo/runtime repair. Approved 2026-08-02; reaffirmed during PRODUCT-RECOVERY-001 rebaseline 2026-09-03. |
 | `PD-052` | approved | Starting weights: profile/ML direction 40%, Reliability potential 25%, Data/Data-Engineering focus 20%, origin/evidence quality 15%. Jobs within 3 score points are otherwise comparable; only inside that window may hybrid, commute and public-transport preferences reorder them. The weights and delta remain versioned and adjustable. Approved 2026-08-02. |
 | `PD-053` | approved | Hard-filter failures never enter the authoritative Top-5 queue. Unknown required hard-filter evidence remains review-required rather than silently passing or failing. Approved 2026-08-02. |
 | `PD-054` | approved | Missing required evidence blocks authoritative ranking. Missing optional soft signals remain visible as uncertainty and do not become fabricated values. Approved 2026-08-02. |
@@ -98,30 +98,34 @@ This register prevents product behavior from being guessed by DON, implementatio
 |---|---|---|
 | `PD-070` | open_operator_decision | Approve V1 actions such as save, reject, inspect, mark applied, request refresh or park. |
 | `PD-071` | approved | No automatic application submission. |
-| `PD-072` | open_operator_decision | Define which actions require confirmation and which are reversible. |
+| `PD-072` | open_operator_decision | Define which non-application actions require confirmation and which are reversible. |
 | `PD-073` | open_operator_decision | Define which changes are proposals only versus direct bounded mutations. |
 | `PD-074` | open_operator_decision | Define notification and reminder behavior. |
-| `PD-075` | open_operator_decision | Define when provider/LLM calls may be triggered by the product workflow. |
+| `PD-075` | approved | Application-provider calls may be triggered only by the explicit operator **Generate application** action. During that action, text from the operator-approved base CV and base application letter may be sent to the configured provider as structure/style context. Candidate Facts remain the factual authority for candidate claims and exact current vacancy evidence remains the job authority. Generated artifacts remain `draft_for_review`; provider success grants no submit/send/application-state authority. Approved 2026-09-03. |
 | `PD-076` | approved | Validated Connector Autonomy A1: after `connector_validation_gate = passed / ready_for_final_approval`, a DB-backed standing authorization may replace the per-connector approval token for registration. Controlled activation remains a separate change and requires exactly `activation_readiness_supported`; manual-overlap, unknown, provider, scheduler, recurring-ingestion, ranking and application actions remain blocked. Approved 2026-08-04. |
 
 ## I. Product V1 and success
 
 | ID | Status | Decision required |
 |---|---|---|
-| `PD-080` | open_operator_decision | Define the minimum end-to-end V1 journey across the approved product pillars. |
-| `PD-081` | open_operator_decision | Define V1 UI/device expectations for the React Deep Ocean Intelligence Control Center. |
-| `PD-082` | open_operator_decision | Define relevance and usefulness acceptance metrics. |
-| `PD-083` | open_operator_decision | Define acceptable false-negative and false-positive behavior. |
-| `PD-084` | open_operator_decision | Define freshness, evidence and runtime reliability targets. |
-| `PD-085` | open_operator_decision | Define the operator acceptance campaign required before Product V1. |
-| `PD-086` | open_operator_decision | Define explicit V1 non-goals to prevent scope expansion. |
+| `PD-080` | approved | Minimum Product V1 end-to-end journey: market discovery -> Employer-Origin resolution -> current exact vacancy -> Bronze/Silver -> assessment -> capability fit -> hard filters -> deterministic ranking -> bounded recommendation queue -> selected job -> Application Workspace -> review-ready CV/letter package. This is the primary PRODUCT-RECOVERY-001 product truth. Approved 2026-09-03. |
+| `PD-081` | open_operator_decision | Define exact V1 screen/device expectations beyond the current React Control Center reference UI. |
+| `PD-082` | approved | Primary recovery/usefulness acceptance metric: one normal observable flow should produce at least five **current Employer-Origin jobs that satisfy the approved evidence/hard-filter and recommendation contract (including the current 70/100 threshold)** and produce a selected-job application package that the operator judges to need only small edits. A truthful run may return fewer than five when fewer qualify; quota filling is prohibited. Approved 2026-09-03. |
+| `PD-083` | open_operator_decision | Define general acceptable false-negative and false-positive targets beyond the Product Recovery acceptance campaign. |
+| `PD-084` | open_operator_decision | Define numeric freshness, evidence and runtime reliability SLOs beyond the current fail-closed currentness requirements. |
+| `PD-085` | open_operator_decision | Define the complete operator acceptance campaign required before a production-ready Product V1 declaration. |
+| `PD-086` | open_operator_decision | Define explicit V1 non-goals beyond the current Product Recovery freeze/deprioritization list. |
 
 ## Decision protocol
 
 For each open decision:
 
-1. DON may present a small number of evidence-backed options and consequences.
+1. Engineering may present a small number of evidence-backed options and consequences.
 2. Jens selects, modifies, postpones or rejects the options.
 3. The accepted decision receives a date, rationale and affected requirement/scenario IDs.
 4. Product, roadmap, backlog and tests are updated in the same or directly linked change.
 5. Historical implementation that conflicts with the accepted decision becomes technical debt; it does not override the decision.
+
+## Current Product Recovery interpretation
+
+PRODUCT-RECOVERY-001 must improve the system until normal execution satisfies the approved contract. It is **not** authority to lower `PD-051`, reinterpret `rankable` as `recommended`, bypass Employer-Origin/currentness evidence, or treat technically generated application files as operator-accepted quality.
