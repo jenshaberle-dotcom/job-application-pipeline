@@ -145,13 +145,11 @@ def _quality_schema(
                         "candidate_fact_keys": {
                             "type": "array",
                             "maxItems": MAX_FACT_KEYS_PER_FRAGMENT,
-                            "uniqueItems": True,
                             "items": {"type": "string", "enum": list(allowed_fact_keys)},
                         },
                         "job_evidence": {
                             "type": "array",
                             "maxItems": MAX_JOB_QUOTES_PER_FRAGMENT,
-                            "uniqueItems": True,
                             "items": {"type": "string", "enum": list(allowed_quotes)},
                         },
                     },
