@@ -1,0 +1,5 @@
+{
+  "schema": "job_application_pipeline.release_promotion.v1",
+  "version": "0.1.0-demo.1",
+  "reason": "Expose the audited DEMO-001 checkpoint in GitHub's normal Releases surface while preserving the demo version, tag target and release notes."
+}

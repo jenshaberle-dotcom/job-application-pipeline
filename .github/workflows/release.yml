@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/release-requests/*.json"
+      - ".github/release-promotions/*.json"
   workflow_dispatch:
     inputs:
       version:
@@ -63,12 +64,13 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Resolve release request
+      - name: Resolve release operation
         id: request
         shell: bash
         run: |
           set -euo pipefail
 
+          operation="publish"
           request_source="workflow_dispatch"
           version="$MANUAL_VERSION"
           release_name="$MANUAL_RELEASE_NAME"
@@ -80,47 +82,82 @@ jobs:
               git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" -- \
                 '.github/release-requests/*.json'
             )
+            mapfile -t promotion_files < <(
+              git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" -- \
+                '.github/release-promotions/*.json'
+            )
 
-            if [[ "${#request_files[@]}" -ne 1 ]]; then
-              echo "Exactly one release request must change in a release-request push; found ${#request_files[@]}" >&2
+            changed_count=$(( ${#request_files[@]} + ${#promotion_files[@]} ))
+            if [[ "$changed_count" -ne 1 ]]; then
+              echo "Exactly one release request or promotion must change; found $changed_count" >&2
               exit 3
             fi
 
-            request_file="${request_files[0]}"
-            if [[ ! -f "$request_file" ]]; then
-              echo "Release request was deleted or is unavailable: $request_file" >&2
-              exit 4
-            fi
+            if [[ "${#request_files[@]}" -eq 1 ]]; then
+              request_file="${request_files[0]}"
+              if [[ ! -f "$request_file" ]]; then
+                echo "Release request was deleted or is unavailable: $request_file" >&2
+                exit 4
+              fi
 
-            schema="$(jq -r '.schema // empty' "$request_file")"
-            if [[ "$schema" != "job_application_pipeline.release_request.v1" ]]; then
-              echo "Unsupported release request schema: $schema" >&2
-              exit 5
-            fi
+              schema="$(jq -r '.schema // empty' "$request_file")"
+              if [[ "$schema" != "job_application_pipeline.release_request.v1" ]]; then
+                echo "Unsupported release request schema: $schema" >&2
+                exit 5
+              fi
 
-            version="$(jq -r '.version // empty' "$request_file")"
-            release_name="$(jq -r '.release_name // empty' "$request_file")"
-            notes_file="$(jq -r '.notes_file // empty' "$request_file")"
-            prerelease="$(jq -r '.prerelease // true' "$request_file")"
-            request_source="gitops:${request_file}"
+              version="$(jq -r '.version // empty' "$request_file")"
+              release_name="$(jq -r '.release_name // empty' "$request_file")"
+              notes_file="$(jq -r '.notes_file // empty' "$request_file")"
+              prerelease="$(jq -r '.prerelease // true' "$request_file")"
+              request_source="gitops:${request_file}"
+              operation="publish"
 
-            normalized_file="$(basename "$request_file" .json)"
-            normalized_version="${version#v}"
-            if [[ "$normalized_file" != "v${normalized_version}" ]]; then
-              echo "Release request filename must match version: file=$normalized_file version=$version" >&2
-              exit 6
+              normalized_file="$(basename "$request_file" .json)"
+              normalized_version="${version#v}"
+              if [[ "$normalized_file" != "v${normalized_version}" ]]; then
+                echo "Release request filename must match version: file=$normalized_file version=$version" >&2
+                exit 6
+              fi
+            else
+              promotion_file="${promotion_files[0]}"
+              if [[ ! -f "$promotion_file" ]]; then
+                echo "Release promotion was deleted or is unavailable: $promotion_file" >&2
+                exit 7
+              fi
+
+              schema="$(jq -r '.schema // empty' "$promotion_file")"
+              if [[ "$schema" != "job_application_pipeline.release_promotion.v1" ]]; then
+                echo "Unsupported release promotion schema: $schema" >&2
+                exit 8
+              fi
+
+              version="$(jq -r '.version // empty' "$promotion_file")"
+              release_name=""
+              notes_file=""
+              prerelease="false"
+              request_source="gitops:${promotion_file}"
+              operation="promote"
+
+              normalized_file="$(basename "$promotion_file" .json)"
+              normalized_version="${version#v}"
+              if [[ "$normalized_file" != "v${normalized_version}" ]]; then
+                echo "Release promotion filename must match version: file=$normalized_file version=$version" >&2
+                exit 9
+              fi
             fi
           fi
 
           if [[ "$release_name" == *$'\n'* || "$release_name" == *$'\r'* ]]; then
             echo "release_name must be a single line" >&2
-            exit 7
+            exit 10
           fi
           if [[ "$prerelease" != "true" && "$prerelease" != "false" ]]; then
             echo "prerelease must be true or false" >&2
-            exit 8
+            exit 11
           fi
 
+          echo "operation=${operation}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
           echo "notes_file=${notes_file}" >> "$GITHUB_OUTPUT"
@@ -132,6 +169,7 @@ jobs:
         shell: bash
         env:
           REQUEST_VERSION: ${{ steps.request.outputs.version }}
+          RELEASE_OPERATION: ${{ steps.request.outputs.operation }}
         run: |
           set -euo pipefail
 
@@ -139,21 +177,32 @@ jobs:
           version="${raw#v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]; then
             echo "Invalid SemVer-compatible version: $raw" >&2
-            exit 9
+            exit 12
           fi
 
           tag="v${version}"
           target_sha="$(git rev-parse HEAD)"
 
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$target_sha" != "$GITHUB_SHA" ]]; then
-            echo "Checked-out main does not match triggering release-request SHA" >&2
+            echo "Checked-out main does not match triggering release operation SHA" >&2
             echo "target=$target_sha trigger=$GITHUB_SHA" >&2
-            exit 10
+            exit 13
           fi
 
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "Tag already exists: ${tag}" >&2
-            exit 11
+          if [[ "$RELEASE_OPERATION" == "publish" ]]; then
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "Tag already exists: ${tag}" >&2
+              exit 14
+            fi
+          else
+            if ! git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "Promotion target tag does not exist: ${tag}" >&2
+              exit 15
+            fi
+            if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Promotion target GitHub Release does not exist: ${tag}" >&2
+              exit 16
+            fi
           fi
 
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
@@ -201,7 +250,7 @@ jobs:
                   return 0
                 fi
                 echo "Release gate '$workflow' failed: run=$run_id conclusion=$conclusion" >&2
-                return 12
+                return 17
               fi
 
               echo "RELEASE_GATE=$workflow|run=$run_id|status=$status|waiting"
@@ -209,13 +258,14 @@ jobs:
             done
 
             echo "Timed out waiting for release gate '$workflow' at $TARGET_SHA" >&2
-            return 13
+            return 18
           }
 
           wait_for_successful_push_run "Pipeline CI"
           wait_for_successful_push_run "Pipeline re-entry target identity"
 
       - name: Prepare release notes
+        if: steps.request.outputs.operation == 'publish'
         id: notes
         shell: bash
         env:
@@ -231,11 +281,11 @@ jobs:
           if [[ -n "$notes_file" ]]; then
             if [[ "$notes_file" = /* || "$notes_file" == *".."* ]]; then
               echo "notes_file must be a repository-relative safe path" >&2
-              exit 14
+              exit 19
             fi
             if [[ ! -f "$notes_file" ]]; then
               echo "Curated release notes not found: $notes_file" >&2
-              exit 15
+              exit 20
             fi
             cp "$notes_file" "$output"
             source="curated:${notes_file}"
@@ -251,13 +301,14 @@ jobs:
 
           if [[ ! -s "$output" ]]; then
             echo "Release notes are empty" >&2
-            exit 16
+            exit 21
           fi
 
           echo "path=${output}" >> "$GITHUB_OUTPUT"
           echo "source=${source}" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub release
+        if: steps.request.outputs.operation == 'publish'
         shell: bash
         env:
           TAG: ${{ steps.release.outputs.tag }}
@@ -285,9 +336,21 @@ jobs:
             --notes-file "$NOTES_PATH" \
             "${prerelease_args[@]}"
 
+      - name: Promote GitHub pre-release
+        if: steps.request.outputs.operation == 'promote'
+        shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --prerelease=false
+
       - name: Publish release summary
         shell: bash
         env:
+          OPERATION: ${{ steps.request.outputs.operation }}
           TAG: ${{ steps.release.outputs.tag }}
           TARGET_SHA: ${{ steps.release.outputs.target_sha }}
           NOTES_SOURCE: ${{ steps.notes.outputs.source }}
@@ -296,11 +359,16 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "## Release published"
+            echo "## Release operation completed"
             echo
+            echo "- Operation: \`${OPERATION}\`"
             echo "- Tag: \`${TAG}\`"
-            echo "- Target: \`${TARGET_SHA}\`"
+            echo "- Authority SHA: \`${TARGET_SHA}\`"
             echo "- Request: \`${REQUEST_SOURCE}\`"
-            echo "- Notes: \`${NOTES_SOURCE}\`"
-            echo "- Pre-release: \`${REQUEST_PRERELEASE}\`"
+            if [[ "$OPERATION" == "publish" ]]; then
+              echo "- Notes: \`${NOTES_SOURCE}\`"
+              echo "- Pre-release: \`${REQUEST_PRERELEASE}\`"
+            else
+              echo "- Visibility: \`published release\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

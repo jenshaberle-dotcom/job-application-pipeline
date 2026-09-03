@@ -13,6 +13,8 @@ Use SemVer-compatible tags with a leading `v`:
 
 Version changes describe product compatibility and visible behavior, not the number of commits.
 
+A GitHub **pre-release flag** and the semantic version are separate concerns. A demo/RC tag may remain clearly non-production by version/name/notes while still being promoted to a normal published GitHub Release when repository visibility is desired.
+
 ## Release authority
 
 The canonical publisher is `.github/workflows/release.yml` on `main`.
@@ -48,6 +50,24 @@ The request filename must equal the normalized version with a leading `v`, for e
 
 Release-request files are durable audit records. Do not repurpose or edit an already-published version request.
 
+## Release promotion
+
+GitHub's repository summary can hide a release that is flagged as a pre-release and display `No releases published` even though a real Release object exists. When a checkpoint should be visible as a normal published release without changing its immutable tag, use a GitOps promotion request.
+
+Example:
+
+```json
+{
+  "schema": "job_application_pipeline.release_promotion.v1",
+  "version": "0.1.0-demo.1",
+  "reason": "Expose the audited demo checkpoint in the normal GitHub Releases surface."
+}
+```
+
+Store it as `.github/release-promotions/v0.1.0-demo.1.json` through a normal PR. After merge, Release Management waits for the exact-SHA quality gates, verifies that both tag and GitHub Release already exist, and changes only the GitHub pre-release visibility flag. It does not recreate, move or overwrite the tag and it does not rewrite release notes.
+
+Promotion does **not** imply production readiness. Product maturity remains defined by the version, release name, release notes, known limitations and explicit product decisions.
+
 ## Release-note categories
 
 `.github/release.yml` groups merged PRs by labels. Use one primary release label whenever practical:
@@ -82,10 +102,10 @@ Runtime facts that are not shipped in Git must be labeled as operator validation
 
 ## Release quality gate
 
-Before publishing a release:
+Before publishing or promoting a release:
 
-- the target change must already be merged to `main`;
-- normal repository CI and re-entry identity must be green for the exact release target;
+- the governing request must already be merged to `main`;
+- normal repository CI and re-entry identity must be green for the exact request/promotion target;
 - local-only runtime claims must have a current operator proof when the release notes depend on them;
 - known material limitations must be stated rather than hidden;
 - an existing version tag is immutable and must never be overwritten.
