@@ -1,8 +1,8 @@
 """DEMO-001 quality binding for the Product V1 Application Workspace.
 
-Workspace/context authority stays in the canonical runtime. Only the bounded model
-callback is replaced with the quality-hardened unique-evidence contract. The same
-deterministic evidence-first package remains the fail-closed fallback.
+Workspace/context authority stays in the canonical runtime. The bounded model callback
+uses approved base-document text as explicitly authorized style/structure context. A
+validated draft is then rendered locally into four review-only application files.
 """
 from __future__ import annotations
 
@@ -12,6 +12,9 @@ from scripts.product_v1_application_workspace_runtime import (
     _evidence_first_draft_payload,
     application_workspace_payload,
     load_application_workspace,
+)
+from src.search_intelligence.product_v1_application_document_package import (
+    build_application_document_package_payload,
 )
 from src.search_intelligence.product_v1_application_drafter import (
     execute_product_v1_application_drafter,
@@ -80,19 +83,24 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
             estimated_model_cost_usd=execution.estimated_model_cost_usd,
             stages=[stage.to_json() for stage in execution.stages],
         ) | {
-            "quality_contract": "unique_exact_vacancy_evidence_v2",
+            "quality_contract": "base_document_style_context_v3",
             "unresolved_provider_stage_count": len(unresolved),
         }
 
+    document_package = build_application_document_package_payload(
+        context=context,
+        package=execution.package,
+    )
     payload = execution.to_json()
     payload.update(
         {
             "schema": "job_application_pipeline.product_v1_application_draft_demo.v1",
             "status": "draft_for_review",
-            "draft_mode": "provider_validated_quality_v2",
+            "draft_mode": "provider_validated_quality_v3",
             "fallback_reason": None,
-            "quality_contract": "unique_exact_vacancy_evidence_v2",
-            "base_document_text_shared_with_provider": False,
+            "quality_contract": "base_document_style_context_v3",
+            "base_document_text_shared_with_provider": True,
+            "document_package": document_package,
             "live_job_evidence": {
                 "final_url": final_url,
                 "fetched_title": fetched_title,
