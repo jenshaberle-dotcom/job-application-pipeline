@@ -1,0 +1,50 @@
+.demo-truth-ribbon {
+  position: absolute;
+  right: 92px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+.demo-truth-ribbon span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid var(--ow-line-soft);
+  border-radius: 999px;
+  background: rgba(7, 24, 36, .76);
+  color: #a9c0cd;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .03em;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.demo-truth-ribbon i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 6px;
+}
+
+.demo-truth-ribbon i.live {
+  background: var(--ow-green);
+  box-shadow: 0 0 7px rgba(73, 231, 176, .45);
+}
+
+.demo-truth-ribbon i.review { background: var(--ow-amber); }
+.demo-truth-ribbon i.blocked { background: var(--ow-red); }
+
+@media (max-width: 1080px) {
+  .demo-truth-ribbon span { font-size: 0; gap: 0; padding: 5px; }
+  .demo-truth-ribbon { gap: 4px; }
+}
+
+@media (max-width: 760px) {
+  .demo-truth-ribbon { display: none; }
+}
