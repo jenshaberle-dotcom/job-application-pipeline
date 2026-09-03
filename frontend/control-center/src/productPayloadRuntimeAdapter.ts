@@ -52,6 +52,14 @@ export function structuredLocationText(value: unknown): string | null {
   return labels.length ? labels.join(" · ") : null;
 }
 
+function authoritativeRankableScore(job: JsonRecord): unknown {
+  const readiness = String(job.product_readiness_status || "").trim().toLowerCase();
+  if (readiness !== "rankable") return job.overall_quality_score;
+  return typeof job.product_overall_quality_score === "number"
+    ? job.product_overall_quality_score
+    : job.overall_quality_score;
+}
+
 function normalizeJobs(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
   return value.map((job) => {
@@ -60,6 +68,7 @@ function normalizeJobs(value: unknown): unknown {
     return {
       ...job,
       city: structuredLocation || job.city,
+      overall_quality_score: authoritativeRankableScore(job),
       explanations: normalizeEvidence(job.explanations),
       uncertainties: normalizeEvidence(job.uncertainties),
     };
