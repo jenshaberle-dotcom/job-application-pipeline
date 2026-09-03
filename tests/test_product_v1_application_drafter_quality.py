@@ -34,8 +34,8 @@ def _context():
         detail_text=detail,
         employer_origin_authorized=True,
     )
-    cv_content = "PRIVATE CV STYLE REFERENCE THAT MUST STAY LOCAL"
-    letter_content = "PRIVATE LETTER STYLE REFERENCE THAT MUST STAY LOCAL"
+    cv_content = "PRIVATE CV STYLE REFERENCE EXPLICITLY APPROVED FOR GENERATION"
+    letter_content = "PRIVATE LETTER STYLE REFERENCE EXPLICITLY APPROVED FOR GENERATION"
     documents = (
         ApplicationSourceDocumentSnapshot(
             document_type="base_cv",
@@ -88,7 +88,7 @@ def test_allowed_job_evidence_is_exact_unique_and_bounded() -> None:
         assert len(quote) <= 600
 
 
-def test_quality_request_constrains_quotes_and_keeps_private_documents_local() -> None:
+def test_quality_request_constrains_quotes_and_shares_only_approved_base_context() -> None:
     context = _context()
     quotes = allowed_job_evidence(context)
     captured: dict[str, object] = {}
@@ -141,13 +141,25 @@ def test_quality_request_constrains_quotes_and_keeps_private_documents_local() -
 
     assert result.status == "completed"
     assert result.package is not None
-    encoded = json.dumps(captured, ensure_ascii=False)
-    assert "PRIVATE CV STYLE REFERENCE" not in encoded
-    assert "PRIVATE LETTER STYLE REFERENCE" not in encoded
 
     user_packet_text = captured["input"][1]["content"][0]["text"]
     user_packet = json.loads(user_packet_text)
     assert user_packet["allowed_job_evidence"] == list(quotes)
+    assert [document["content"] for document in user_packet["base_documents"]] == [
+        "PRIVATE CV STYLE REFERENCE EXPLICITLY APPROVED FOR GENERATION",
+        "PRIVATE LETTER STYLE REFERENCE EXPLICITLY APPROVED FOR GENERATION",
+    ]
+    assert all(
+        document["text_shared_with_provider"] is True
+        for document in user_packet["base_documents"]
+    )
+    assert all(
+        document["fact_authority_for_new_claims"] is False
+        for document in user_packet["base_documents"]
+    )
+    assert user_packet["authority_constraints"]["draft_for_review_only"] is True
+    assert user_packet["authority_constraints"]["submission_authority"] is False
+    assert user_packet["authority_constraints"]["send_authority"] is False
 
     schema = captured["text"]["format"]["schema"]
     evidence_items = schema["properties"]["fragments"]["items"]["properties"]["job_evidence"]["items"]
