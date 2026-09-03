@@ -60,27 +60,51 @@ function authoritativeRankableScore(job: JsonRecord): unknown {
     : job.overall_quality_score;
 }
 
-function normalizeJobs(value: unknown): unknown {
-  if (!Array.isArray(value)) return value;
-  return value.map((job) => {
-    if (!isRecord(job)) return job;
+function normalizeJobs(value: unknown): JsonRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((job) => {
+    if (!isRecord(job)) return [];
     const structuredLocation = structuredLocationText(job.structured_locations);
-    return {
+    return [{
       ...job,
       city: structuredLocation || job.city,
       overall_quality_score: authoritativeRankableScore(job),
       explanations: normalizeEvidence(job.explanations),
       uncertainties: normalizeEvidence(job.uncertainties),
-    };
+    }];
   });
+}
+
+function demoActionable(job: JsonRecord): boolean {
+  return job.demo_actionable === true && typeof job.employer_origin_url === "string";
 }
 
 export function normalizeProductV1Payload(value: unknown): unknown {
   if (!isRecord(value)) return value;
+
+  const allJobs = normalizeJobs(value.job_readiness);
+  const allTopJobs = normalizeJobs(value.top_jobs);
+  const actionableJobs = allJobs.filter(demoActionable);
+  const actionableTopJobs = allTopJobs.filter(demoActionable);
+  const actionableRankable = actionableJobs.filter(
+    (job) => String(job.product_readiness_status || "").trim().toLowerCase() === "rankable",
+  );
+  const summary = isRecord(value.summary) ? { ...value.summary } : {};
+
   return {
     ...value,
-    job_readiness: normalizeJobs(value.job_readiness),
-    top_jobs: normalizeJobs(value.top_jobs),
+    // Preserve historical/discovery truth separately. The daily review surface is
+    // deliberately fail-closed to current validated Employer-Origin vacancies.
+    discovery_job_readiness: allJobs,
+    job_readiness: actionableJobs,
+    top_jobs: actionableTopJobs,
+    summary: {
+      ...summary,
+      demo_actionable_job_count: actionableJobs.length,
+      review_scope_current_active_job_count: actionableJobs.length,
+      rankable_job_count: actionableRankable.length,
+      top_job_count: actionableTopJobs.length,
+    },
   };
 }
 
