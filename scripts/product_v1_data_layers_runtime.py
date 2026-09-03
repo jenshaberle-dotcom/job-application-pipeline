@@ -11,7 +11,6 @@ from datetime import date, timedelta
 from typing import Any, Mapping, Sequence
 
 import psycopg
-from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 
@@ -240,9 +239,7 @@ def load_data_layers_payload(
     if not isinstance(summary, Mapping):
         summary = {}
 
-    with psycopg.connect(
-        DatabaseConfig.from_environment().dsn(), row_factory=dict_row
-    ) as conn:
+    with psycopg.connect(DatabaseConfig.from_environment().dsn()) as conn:
         conn.execute("SET TRANSACTION READ ONLY")
         bronze_count = _count_rows(conn, "raw_jobs")
         silver_count = _count_rows(conn, "silver_jobs")
