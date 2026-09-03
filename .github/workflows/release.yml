@@ -1,6 +1,10 @@
 name: Release Management
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/release-requests/*.json"
   workflow_dispatch:
     inputs:
       version:
@@ -35,12 +39,13 @@ jobs:
   release:
     name: Validate and publish release
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_VERSION_INPUT: ${{ inputs.version }}
-      RELEASE_NAME_INPUT: ${{ inputs.release_name }}
-      RELEASE_NOTES_FILE_INPUT: ${{ inputs.notes_file }}
-      RELEASE_PRERELEASE_INPUT: ${{ inputs.prerelease }}
+      MANUAL_VERSION: ${{ inputs.version }}
+      MANUAL_RELEASE_NAME: ${{ inputs.release_name }}
+      MANUAL_NOTES_FILE: ${{ inputs.notes_file }}
+      MANUAL_PRERELEASE: ${{ inputs.prerelease }}
 
     steps:
       - name: Require main release authority
@@ -48,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${GITHUB_REF_NAME}" != "main" ]]; then
-            echo "Releases must be dispatched from main; got ${GITHUB_REF_NAME}" >&2
+            echo "Releases must originate from main; got ${GITHUB_REF_NAME}" >&2
             exit 2
           fi
 
@@ -58,71 +63,157 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Validate version and target
-        id: release
+      - name: Resolve release request
+        id: request
         shell: bash
         run: |
           set -euo pipefail
 
-          raw="$RELEASE_VERSION_INPUT"
+          request_source="workflow_dispatch"
+          version="$MANUAL_VERSION"
+          release_name="$MANUAL_RELEASE_NAME"
+          notes_file="$MANUAL_NOTES_FILE"
+          prerelease="$MANUAL_PRERELEASE"
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            mapfile -t request_files < <(
+              git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" -- \
+                '.github/release-requests/*.json'
+            )
+
+            if [[ "${#request_files[@]}" -ne 1 ]]; then
+              echo "Exactly one release request must change in a release-request push; found ${#request_files[@]}" >&2
+              exit 3
+            fi
+
+            request_file="${request_files[0]}"
+            if [[ ! -f "$request_file" ]]; then
+              echo "Release request was deleted or is unavailable: $request_file" >&2
+              exit 4
+            fi
+
+            schema="$(jq -r '.schema // empty' "$request_file")"
+            if [[ "$schema" != "job_application_pipeline.release_request.v1" ]]; then
+              echo "Unsupported release request schema: $schema" >&2
+              exit 5
+            fi
+
+            version="$(jq -r '.version // empty' "$request_file")"
+            release_name="$(jq -r '.release_name // empty' "$request_file")"
+            notes_file="$(jq -r '.notes_file // empty' "$request_file")"
+            prerelease="$(jq -r '.prerelease // true' "$request_file")"
+            request_source="gitops:${request_file}"
+
+            normalized_file="$(basename "$request_file" .json)"
+            normalized_version="${version#v}"
+            if [[ "$normalized_file" != "v${normalized_version}" ]]; then
+              echo "Release request filename must match version: file=$normalized_file version=$version" >&2
+              exit 6
+            fi
+          fi
+
+          if [[ "$release_name" == *$'\n'* || "$release_name" == *$'\r'* ]]; then
+            echo "release_name must be a single line" >&2
+            exit 7
+          fi
+          if [[ "$prerelease" != "true" && "$prerelease" != "false" ]]; then
+            echo "prerelease must be true or false" >&2
+            exit 8
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
+          echo "notes_file=${notes_file}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+          echo "source=${request_source}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate version and target
+        id: release
+        shell: bash
+        env:
+          REQUEST_VERSION: ${{ steps.request.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          raw="$REQUEST_VERSION"
           version="${raw#v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]; then
             echo "Invalid SemVer-compatible version: $raw" >&2
-            exit 3
+            exit 9
           fi
 
           tag="v${version}"
           target_sha="$(git rev-parse HEAD)"
 
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$target_sha" != "$GITHUB_SHA" ]]; then
+            echo "Checked-out main does not match triggering release-request SHA" >&2
+            echo "target=$target_sha trigger=$GITHUB_SHA" >&2
+            exit 10
+          fi
+
           if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
             echo "Tag already exists: ${tag}" >&2
-            exit 4
+            exit 11
           fi
 
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "target_sha=${target_sha}" >> "$GITHUB_OUTPUT"
 
-      - name: Require green main quality gates
+      - name: Wait for green main quality gates
         shell: bash
         env:
           TARGET_SHA: ${{ steps.release.outputs.target_sha }}
         run: |
           set -euo pipefail
 
-          require_successful_push_run() {
+          deadline=$((SECONDS + 900))
+
+          wait_for_successful_push_run() {
             local workflow="$1"
             local runs
             local status
             local conclusion
             local run_id
 
-            runs="$(gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow "$workflow" \
-              --commit "$TARGET_SHA" \
-              --event push \
-              --limit 1 \
-              --json databaseId,status,conclusion)"
+            while (( SECONDS < deadline )); do
+              runs="$(gh run list \
+                --repo "$GITHUB_REPOSITORY" \
+                --workflow "$workflow" \
+                --commit "$TARGET_SHA" \
+                --event push \
+                --limit 1 \
+                --json databaseId,status,conclusion)"
 
-            run_id="$(jq -r '.[0].databaseId // empty' <<<"$runs")"
-            status="$(jq -r '.[0].status // empty' <<<"$runs")"
-            conclusion="$(jq -r '.[0].conclusion // empty' <<<"$runs")"
+              run_id="$(jq -r '.[0].databaseId // empty' <<<"$runs")"
+              status="$(jq -r '.[0].status // empty' <<<"$runs")"
+              conclusion="$(jq -r '.[0].conclusion // empty' <<<"$runs")"
 
-            if [[ -z "$run_id" ]]; then
-              echo "No push workflow run found for '$workflow' at $TARGET_SHA" >&2
-              exit 8
-            fi
-            if [[ "$status" != "completed" || "$conclusion" != "success" ]]; then
-              echo "Release gate '$workflow' is not green: run=$run_id status=$status conclusion=$conclusion" >&2
-              exit 9
-            fi
+              if [[ -z "$run_id" ]]; then
+                echo "RELEASE_GATE=$workflow|waiting_for_run"
+                sleep 10
+                continue
+              fi
 
-            echo "RELEASE_GATE=$workflow|run=$run_id|PASS"
+              if [[ "$status" == "completed" ]]; then
+                if [[ "$conclusion" == "success" ]]; then
+                  echo "RELEASE_GATE=$workflow|run=$run_id|PASS"
+                  return 0
+                fi
+                echo "Release gate '$workflow' failed: run=$run_id conclusion=$conclusion" >&2
+                return 12
+              fi
+
+              echo "RELEASE_GATE=$workflow|run=$run_id|status=$status|waiting"
+              sleep 10
+            done
+
+            echo "Timed out waiting for release gate '$workflow' at $TARGET_SHA" >&2
+            return 13
           }
 
-          require_successful_push_run "Pipeline CI"
-          require_successful_push_run "Pipeline re-entry target identity"
+          wait_for_successful_push_run "Pipeline CI"
+          wait_for_successful_push_run "Pipeline re-entry target identity"
 
       - name: Prepare release notes
         id: notes
@@ -130,20 +221,21 @@ jobs:
         env:
           TAG: ${{ steps.release.outputs.tag }}
           TARGET_SHA: ${{ steps.release.outputs.target_sha }}
+          REQUEST_NOTES_FILE: ${{ steps.request.outputs.notes_file }}
         run: |
           set -euo pipefail
 
-          notes_file="$RELEASE_NOTES_FILE_INPUT"
+          notes_file="$REQUEST_NOTES_FILE"
           output="${RUNNER_TEMP}/release-notes.md"
 
           if [[ -n "$notes_file" ]]; then
             if [[ "$notes_file" = /* || "$notes_file" == *".."* ]]; then
               echo "notes_file must be a repository-relative safe path" >&2
-              exit 5
+              exit 14
             fi
             if [[ ! -f "$notes_file" ]]; then
               echo "Curated release notes not found: $notes_file" >&2
-              exit 6
+              exit 15
             fi
             cp "$notes_file" "$output"
             source="curated:${notes_file}"
@@ -159,7 +251,7 @@ jobs:
 
           if [[ ! -s "$output" ]]; then
             echo "Release notes are empty" >&2
-            exit 7
+            exit 16
           fi
 
           echo "path=${output}" >> "$GITHUB_OUTPUT"
@@ -171,16 +263,18 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           TARGET_SHA: ${{ steps.release.outputs.target_sha }}
           NOTES_PATH: ${{ steps.notes.outputs.path }}
+          REQUEST_RELEASE_NAME: ${{ steps.request.outputs.release_name }}
+          REQUEST_PRERELEASE: ${{ steps.request.outputs.prerelease }}
         run: |
           set -euo pipefail
 
-          title="$RELEASE_NAME_INPUT"
+          title="$REQUEST_RELEASE_NAME"
           if [[ -z "$title" ]]; then
             title="Job Application Pipeline ${TAG}"
           fi
 
           prerelease_args=()
-          if [[ "$RELEASE_PRERELEASE_INPUT" == "true" ]]; then
+          if [[ "$REQUEST_PRERELEASE" == "true" ]]; then
             prerelease_args+=(--prerelease)
           fi
 
@@ -197,6 +291,8 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           TARGET_SHA: ${{ steps.release.outputs.target_sha }}
           NOTES_SOURCE: ${{ steps.notes.outputs.source }}
+          REQUEST_SOURCE: ${{ steps.request.outputs.source }}
+          REQUEST_PRERELEASE: ${{ steps.request.outputs.prerelease }}
         run: |
           set -euo pipefail
           {
@@ -204,6 +300,7 @@ jobs:
             echo
             echo "- Tag: \`${TAG}\`"
             echo "- Target: \`${TARGET_SHA}\`"
+            echo "- Request: \`${REQUEST_SOURCE}\`"
             echo "- Notes: \`${NOTES_SOURCE}\`"
-            echo "- Pre-release: \`${RELEASE_PRERELEASE_INPUT}\`"
+            echo "- Pre-release: \`${REQUEST_PRERELEASE}\`"
           } >> "$GITHUB_STEP_SUMMARY"
