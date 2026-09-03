@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 from http import HTTPStatus
-from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
 import sys
