@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { readProductTruth } from "./productPayloadRuntimeAdapter";
 import "./evidence-preview.css";
 
 type Job = {
@@ -72,11 +73,7 @@ export default function EvidencePreviewPanel() {
     let cancelled = false;
     setLoadingJobs(true);
     setError(null);
-    fetch("/api/v1/product-v1", { headers: { Accept: "application/json" } })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Product V1 API returned ${response.status}`);
-        return (await response.json()) as ProductPayload;
-      })
+    readProductTruth<ProductPayload>()
       .then((payload) => {
         if (cancelled) return;
         const loaded = [...(payload.job_readiness || [])].sort(

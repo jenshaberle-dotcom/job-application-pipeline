@@ -3,6 +3,7 @@ import ApplicationSourceUpload from "./ApplicationSourceUpload";
 import JobReviewLabelControls, {
   type JobReviewLabelState,
 } from "./JobReviewLabelControls";
+import { readProductTruth } from "./productPayloadRuntimeAdapter";
 import "./operator-workspace-v2.css";
 
 type Job = {
@@ -146,14 +147,6 @@ function tone(value: string | undefined | null) {
   return "neutral";
 }
 
-async function readProductTruth(signal?: AbortSignal): Promise<ProductPayload> {
-  const response = await fetch("/api/v1/product-v1", {
-    ...(signal ? { signal } : {}),
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) throw new Error(`API returned ${response.status}`);
-  return response.json() as Promise<ProductPayload>;
-}
 
 function Status({ value }: { value?: string | null }) {
   return <span className={`ow-status ${tone(value)}`}>{label(value)}</span>;
@@ -493,17 +486,25 @@ export default function OperatorWorkspace() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    const controller = new AbortController();
-    readProductTruth(controller.signal).then(setPayload).catch((reason: unknown) => {
-      if ((reason as Error).name !== "AbortError") setError(String(reason));
-    });
-    return () => controller.abort();
+    let active = true;
+
+    readProductTruth<ProductPayload>()
+      .then((truth) => {
+        if (active) setPayload(truth);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(String(reason));
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const refresh = async () => {
     setRefreshing(true);
     try {
-      setPayload(await readProductTruth());
+      setPayload(await readProductTruth<ProductPayload>({ fresh: true }));
       setError(null);
     } finally {
       setRefreshing(false);

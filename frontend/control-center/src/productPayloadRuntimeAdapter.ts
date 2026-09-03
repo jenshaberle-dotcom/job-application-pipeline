@@ -75,44 +75,36 @@ export function normalizeProductV1Payload(value: unknown): unknown {
   };
 }
 
-function isProductV1Request(input: RequestInfo | URL): boolean {
-  const rawUrl =
-    typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.toString()
-        : input.url;
-  try {
-    return new URL(rawUrl, window.location.href).pathname === "/api/v1/product-v1";
-  } catch {
-    return false;
-  }
+type ProductTruthReadOptions = {
+  fresh?: boolean;
+};
+
+let cachedProductTruth: Promise<unknown> | null = null;
+
+async function fetchProductTruth(): Promise<unknown> {
+  const response = await window.fetch("/api/v1/product-v1", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`API returned ${response.status}`);
+
+  const rawPayload = await response.json();
+  return normalizeProductV1Payload(rawPayload);
 }
 
-let installed = false;
-
-export function installProductPayloadRuntimeAdapter(): void {
-  if (installed) return;
-  installed = true;
-
-  const nativeFetch = window.fetch.bind(window);
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    const response = await nativeFetch(input, init);
-    if (!response.ok || !isProductV1Request(input)) return response;
-
-    let rawPayload: unknown;
-    try {
-      rawPayload = await response.clone().json();
-    } catch {
-      return response;
-    }
-
-    const headers = new Headers(response.headers);
-    headers.delete("content-length");
-    return new Response(JSON.stringify(normalizeProductV1Payload(rawPayload)), {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
+export function readProductTruth<T>(
+  options: ProductTruthReadOptions = {},
+): Promise<T> {
+  if (options.fresh || cachedProductTruth === null) {
+    const request = fetchProductTruth().catch((error: unknown) => {
+      if (cachedProductTruth === request) cachedProductTruth = null;
+      throw error;
     });
-  };
+    cachedProductTruth = request;
+  }
+
+  return cachedProductTruth as Promise<T>;
+}
+
+export function clearProductTruthCache(): void {
+  cachedProductTruth = null;
 }

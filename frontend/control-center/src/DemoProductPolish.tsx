@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { readProductTruth } from "./productPayloadRuntimeAdapter";
 import "./demo-product-polish.css";
 
 type PolishPayload = {
@@ -85,11 +86,6 @@ function Icon({ name }: { name: IconName }) {
   return <svg className="demo-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 
-async function readProductTruth(): Promise<PolishPayload> {
-  const response = await fetch("/api/v1/product-v1", { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`API returned ${response.status}`);
-  return response.json() as Promise<PolishPayload>;
-}
 
 function applyTooltips() {
   document.querySelectorAll<HTMLElement>("span, h2, h3, th").forEach((element) => {
@@ -180,35 +176,57 @@ export default function DemoProductPolish() {
 
   useEffect(() => {
     let cancelled = false;
-    const load = () => readProductTruth().then((truth) => {
-      if (!cancelled) setPayload(truth);
-    }).catch(() => {
-      // Cosmetic enhancement must never replace or weaken the canonical fail-closed UI.
-    });
-    void load();
+
+    const load = () =>
+      readProductTruth<PolishPayload>()
+        .then((truth) => {
+          if (!cancelled) setPayload(truth);
+        })
+        .catch(() => {
+          // Cosmetic enhancement must never replace or weaken the canonical fail-closed UI.
+        });
 
     const syncDom = () => {
       const nextView = viewId();
       setView((current) => current === nextView ? current : nextView);
+
       const nextRoot = document.querySelector<HTMLElement>(".ow-main > .ow-stack");
       setStackRoot((current) => current === nextRoot ? current : nextRoot);
+
       document.body.dataset.demoView = nextView;
       applyTooltips();
     };
+
+    void load();
     syncDom();
 
-    const observer = new MutationObserver(syncDom);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest(".ow-topline button, .dl-refresh")) window.setTimeout(() => void load(), 250);
+
+      if (
+        target?.closest(
+          ".ow-sidebar nav button, .ow-data-layers-nav button, .dl-refresh, .ow-topline button",
+        )
+      ) {
+        window.setTimeout(syncDom, 0);
+      }
+
+      if (target?.closest(".ow-topline button, .dl-refresh")) {
+        window.setTimeout(() => void load(), 250);
+      }
     };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") window.setTimeout(syncDom, 0);
+    };
+
     document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKeyDown);
 
     return () => {
       cancelled = true;
-      observer.disconnect();
       document.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKeyDown);
       delete document.body.dataset.demoView;
       document.body.classList.remove("demo-polish-ready");
     };

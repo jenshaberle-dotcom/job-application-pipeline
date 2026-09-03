@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { readProductTruth } from "./productPayloadRuntimeAdapter";
 import "./demo-application-workspace.css";
 
 type TopJob = {
@@ -138,7 +139,7 @@ export default function DemoApplicationWorkspace() {
 
   useEffect(() => {
     let active = true;
-    readJson<ProductTruth>("/api/v1/product-v1")
+    readProductTruth<ProductTruth>()
       .then((payload) => {
         if (!active) return;
         const jobs = Array.isArray(payload.top_jobs) ? payload.top_jobs.slice(0, 5) : [];
