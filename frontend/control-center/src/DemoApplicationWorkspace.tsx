@@ -172,6 +172,7 @@ function downloadLabel(file: DraftFile) {
   if (key === "cv_pdf") return "CV · PDF";
   if (key === "letter_docx") return "Letter · Word";
   if (key === "letter_pdf") return "Letter · PDF";
+  if (key === "application_zip") return "Everything · ZIP";
   return file.filename || "Download";
 }
 
@@ -370,8 +371,8 @@ export default function DemoApplicationWorkspace() {
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
                 {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain bound to approved Candidate Facts and exact vacancy evidence.</p>}
 
-                {documentPackage?.status === "ready_for_download" && draftFiles.length === 4 && <section className="demo-application-downloads">
-                  <header><strong>Ready to download</strong><span>4 local review files</span></header>
+                {documentPackage?.status === "ready_for_download" && draftFiles.length >= 4 && <section className="demo-application-downloads">
+                  <header><strong>Ready to download</strong><span>{draftFiles.length} local review downloads · no send action</span></header>
                   <div className="demo-download-grid">
                     {draftFiles.map((file) => <button type="button" key={file.key || file.filename} onClick={() => downloadDraftFile(file)}>{downloadLabel(file)}</button>)}
                   </div>
