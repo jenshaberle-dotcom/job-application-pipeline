@@ -4,10 +4,13 @@ This operator-side probe reads active sensor profiles from PostgreSQL and perfor
 bounded live GETs through the existing registered sensor connectors. It does not
 write to PostgreSQL and does not ingest Bronze/Silver/Gold rows.
 
-When a previously unknown company is observed, one strong candidate can be held
-out of the pipeline as immutable discovery evidence for the later cold E2E proof.
-The reservation is a local JSON artifact only; it deliberately does not create an
-Employer-Origin candidate or otherwise pre-consume the cold path.
+Market Sensors discover companies, not jobs. Job records are observation evidence
+that a company exists and may be relevant. A new job at a company already known to
+the pipeline is therefore not a new Market Sensor discovery. When a previously
+unknown company is observed through at least one role-relevant job signal, one
+company can be held out of the pipeline as immutable discovery evidence for the
+later cold E2E proof. The reservation is a local JSON artifact only; it deliberately
+does not create an Employer-Origin candidate or otherwise pre-consume the cold path.
 """
 from __future__ import annotations
 
@@ -20,7 +23,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -152,6 +154,19 @@ def observation_from_record(
         role_family=(str(role.family) if role else None),
         role_signals=(tuple(str(item) for item in role.signals) if role else ()),
         company_known=(not normalized_company or normalized_company in known_companies),
+    )
+
+
+def fresh_company_names(observations: Sequence[Observation]) -> list[str]:
+    """Return unique previously unknown companies, never merely new job records."""
+
+    return sorted(
+        {
+            row.company_name
+            for row in observations
+            if row.company_name and not row.company_known
+        },
+        key=str.casefold,
     )
 
 
@@ -308,6 +323,8 @@ def _reservation_payload(observation: Observation) -> dict[str, object]:
         "reserved_at": datetime.now(UTC).isoformat(),
         "status": "held_out_of_pipeline_for_cold_e2e",
         "must_not_pre_ingest": True,
+        "discovery_unit": "company",
+        "job_record_semantics": "discovery_evidence_only",
         "discovery_evidence_sha256": hashlib.sha256(encoded).hexdigest(),
         "observation": evidence,
         "required_later_path": [
@@ -332,7 +349,13 @@ def _reservation_payload(observation: Observation) -> dict[str, object]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--reservation-output", type=Path, default=DEFAULT_RESERVATION)
+    parser.add_argument(
+        "--reservation-output",
+        "--reserve-output",
+        dest="reservation_output",
+        type=Path,
+        default=DEFAULT_RESERVATION,
+    )
     parser.add_argument("--page-size-cap", type=int, default=10)
     parser.add_argument("--max-profiles-per-sensor", type=int, default=2)
     parser.add_argument("--max-terms-per-profile", type=int, default=2)
@@ -441,14 +464,7 @@ def main() -> int:
         )
 
     reservation = choose_reservation(observations)
-    fresh_companies = sorted(
-        {
-            row.company_name
-            for row in observations
-            if row.company_name and not row.company_known
-        },
-        key=str.casefold,
-    )
+    fresh_companies = fresh_company_names(observations)
     report = {
         "schema": "job_application_pipeline.e2e_slice_001.market_sensor_scout.v1",
         "created_at": datetime.now(UTC).isoformat(),
@@ -457,18 +473,21 @@ def main() -> int:
             "healthy_sensor_count": sum(
                 source["status"] == "healthy" for source in report_sources
             ),
-            "observation_count": len(observations),
+            "job_observation_count": len(observations),
             "fresh_company_count": len(fresh_companies),
+            "discovery_unit": "company",
             "reservation_created": reservation is not None,
         },
         "sources": report_sources,
         "fresh_companies": fresh_companies,
-        "observations": [asdict(row) for row in observations],
+        "job_observations": [asdict(row) for row in observations],
         "reservation": asdict(reservation) if reservation else None,
         "boundaries": {
             "database_transaction": "read_only",
             "database_writes": 0,
             "network_gets": True,
+            "market_sensor_discovery_unit": "company",
+            "job_records_are_discovery_evidence_only": True,
             "bronze_writes": 0,
             "silver_writes": 0,
             "gold_writes": 0,
@@ -500,6 +519,7 @@ def main() -> int:
         )
 
     print("=== E2E-SLICE-001 MARKET SENSOR LIVE SCOUT ===")
+    print("DISCOVERY_UNIT=company")
     print(f"CONFIGURED_SENSORS={len(sensor_profiles)}")
     print(f"HEALTHY_SENSORS={report['summary']['healthy_sensor_count']}")
     for source in report_sources:
@@ -511,7 +531,7 @@ def main() -> int:
             print(
                 f"SENSOR_RUN={source['source_name']}|{run['profile_name']}|"
                 f"{run.get('search_term') or '-'}|{run['status']}|"
-                f"jobs={run['observed_job_count']}|"
+                f"job_signals={run['observed_job_count']}|"
                 f"seconds={run.get('duration_seconds', 0)}"
             )
             if run.get("error"):
@@ -519,19 +539,19 @@ def main() -> int:
                     f"SENSOR_ERROR={source['source_name']}|"
                     f"{run['profile_name']}|{run['error']}"
                 )
-    print(f"OBSERVATIONS={len(observations)}")
+    print(f"JOB_OBSERVATIONS={len(observations)}")
     print(f"FRESH_COMPANIES={len(fresh_companies)}")
     for company in fresh_companies[:20]:
         print(f"FRESH_COMPANY={company}")
     if reservation is not None:
         print(
-            "RESERVED_E2E_CANDIDATE="
+            "RESERVED_E2E_COMPANY="
             f"{reservation.source_name}|{reservation.company_name}|"
             f"{reservation.title}|{reservation.source_url}"
         )
         print(f"reservation={args.reservation_output.resolve()}")
     else:
-        print("RESERVED_E2E_CANDIDATE=NONE")
+        print("RESERVED_E2E_COMPANY=NONE")
     print("DATABASE_WRITES=0")
     print("BRONZE_WRITES=0")
     print("SILVER_WRITES=0")
