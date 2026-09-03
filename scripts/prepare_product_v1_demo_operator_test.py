@@ -19,10 +19,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from scripts.run_product_v1_demo_preflight import _database_schema_readiness
-
-
 ROOT = Path(__file__).resolve().parents[1]
+if not __package__ and str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.run_product_v1_demo_preflight import _database_schema_readiness  # noqa: E402
 EXACT_104 = "104_create_product_v1_ranking_score_reviews.sql"
 PREREQUISITE_REQUIRED_MIGRATIONS = (
     "102_create_product_v1_hard_filter_operator_reviews.sql",
@@ -154,7 +155,8 @@ def apply_qualified_104() -> int:
 def run_canonical_preflight() -> int:
     command = [
         sys.executable,
-        "scripts/run_product_v1_live_demo.py",
+        "-m",
+        "scripts.run_product_v1_live_demo",
         "--preflight-only",
     ]
     print("+ " + " ".join(command))

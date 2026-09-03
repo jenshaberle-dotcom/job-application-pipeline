@@ -28,10 +28,11 @@ import subprocess
 import sys
 import tempfile
 
-from scripts.run_product_v1_demo_control_center import run_server
-
-
 ROOT = Path(__file__).resolve().parents[1]
+if not __package__ and str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.run_product_v1_demo_control_center import run_server  # noqa: E402
 FRONTEND = ROOT / "frontend" / "control-center"
 DEFAULT_DIST = FRONTEND / "dist"
 DEMO_ARTIFACT_ROOT = (ROOT / ".runtime" / "demo").resolve()

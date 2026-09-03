@@ -90,6 +90,7 @@ type ProductPayload = {
 
 type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "approvals" | "operations";
 type JobFilter = "current" | "unreviewed" | "interesting" | "not_relevant" | "rankable" | "all";
+type JobSort = "newest" | "oldest" | "fit_desc" | "fit_asc";
 
 const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
 const label = (value: string | undefined | null) => (value || "unknown").replaceAll("_", " ");
@@ -97,6 +98,45 @@ const scoreText = (value: number | null | undefined) => value == null ? "—" : 
 const isCurrent = (job: Job) => ["active confirmed", "active_confirmed"].includes(normalize(job.lifecycle_status));
 const employerName = (job: Job) => job.display_company_name || job.company_name || "Employer not resolved";
 const locationText = (job: Job) => job.city || job.country || (normalize(job.work_model) === "remote" ? "Remote" : "Location not confirmed");
+
+const publicationTime = (job: Job) => {
+  if (!job.publication_date) return null;
+  const value = Date.parse(job.publication_date);
+  return Number.isNaN(value) ? null : value;
+};
+
+const displayDate = (value: string | null | undefined) => {
+  if (!value) return "—";
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return value;
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(parsed));
+};
+
+function compareJobs(a: Job, b: Job, sort: JobSort) {
+  if (sort === "fit_desc" || sort === "fit_asc") {
+    const aFit = a.overall_quality_score ?? -1;
+    const bFit = b.overall_quality_score ?? -1;
+    const fitDelta = sort === "fit_desc" ? bFit - aFit : aFit - bFit;
+    if (fitDelta !== 0) return fitDelta;
+  }
+
+  const aDate = publicationTime(a);
+  const bDate = publicationTime(b);
+
+  if (aDate == null && bDate != null) return 1;
+  if (aDate != null && bDate == null) return -1;
+
+  if (aDate != null && bDate != null) {
+    const dateDelta = sort === "oldest" ? aDate - bDate : bDate - aDate;
+    if (dateDelta !== 0) return dateDelta;
+  }
+
+  return b.silver_job_id - a.silver_job_id;
+}
 
 function tone(value: string | undefined | null) {
   const normalized = normalize(value);
@@ -196,40 +236,161 @@ function JobDetail({ job, payload, refresh }: { job: Job; payload: ProductPayloa
 }
 
 function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
-  const [filter, setFilter] = useState<JobFilter>("current");
+  const [filter, setFilter] = useState<JobFilter>("all");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<JobSort>("newest");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+
   const filtered = useMemo(() => {
     const q = normalize(search);
-    return payload.job_readiness.filter((job) => {
-      if (filter === "current" && !isCurrent(job)) return false;
-      if (filter === "unreviewed" && job.review_label) return false;
-      if (filter === "interesting" && job.review_label?.label !== "interesting") return false;
-      if (filter === "not_relevant" && job.review_label?.label !== "not_relevant") return false;
-      if (filter === "rankable" && job.product_readiness_status !== "rankable") return false;
-      if (q && !normalize(`${job.title} ${employerName(job)} ${job.city} ${job.country}`).includes(q)) return false;
-      return true;
-    });
-  }, [filter, payload.job_readiness, search]);
-  const selected = filtered.find((job) => job.silver_job_id === selectedId) || filtered[0] || null;
+
+    return payload.job_readiness
+      .filter((job) => {
+        if (filter === "current" && !isCurrent(job)) return false;
+        if (filter === "unreviewed" && job.review_label) return false;
+        if (filter === "interesting" && job.review_label?.label !== "interesting") return false;
+        if (filter === "not_relevant" && job.review_label?.label !== "not_relevant") return false;
+        if (filter === "rankable" && job.product_readiness_status !== "rankable") return false;
+        if (
+          q &&
+          !normalize(
+            `${job.title} ${employerName(job)} ${job.city} ${job.country}`
+          ).includes(q)
+        ) return false;
+        return true;
+      })
+      .sort((a, b) => compareJobs(a, b, sort));
+  }, [filter, payload.job_readiness, search, sort]);
+
+  const selected =
+    filtered.find((job) => job.silver_job_id === selectedId) ||
+    filtered[0] ||
+    null;
+
   const counts: Record<JobFilter, number> = {
     current: payload.job_readiness.filter(isCurrent).length,
     unreviewed: payload.job_readiness.filter((job) => !job.review_label).length,
-    interesting: payload.job_readiness.filter((job) => job.review_label?.label === "interesting").length,
-    not_relevant: payload.job_readiness.filter((job) => job.review_label?.label === "not_relevant").length,
-    rankable: payload.job_readiness.filter((job) => job.product_readiness_status === "rankable").length,
+    interesting: payload.job_readiness.filter(
+      (job) => job.review_label?.label === "interesting"
+    ).length,
+    not_relevant: payload.job_readiness.filter(
+      (job) => job.review_label?.label === "not_relevant"
+    ).length,
+    rankable: payload.job_readiness.filter(
+      (job) => job.product_readiness_status === "rankable"
+    ).length,
     all: payload.job_readiness.length,
   };
 
   return <div className="ow-stack">
-    <header className="ow-page-header"><div><span>Review surface</span><h1>All jobs</h1><p>Focused review list. Current vacancies first; historical/stale rows are available only when requested.</p></div></header>
+    <header className="ow-page-header">
+      <div>
+        <span>Review surface</span>
+        <h1>All jobs</h1>
+        <p>
+          Every displayed job has a deterministic profile-fit rating.
+          Default order is newest publication first. Filters and sorting
+          never change Product V1 ranking authority.
+        </p>
+      </div>
+    </header>
+
     <section className="ow-job-toolbar">
-      <div className="ow-filter-row">{([ ["current", "Current"], ["unreviewed", "Unreviewed"], ["interesting", "Interesting"], ["not_relevant", "Not relevant"], ["rankable", "Rankable"], ["all", "All observed"] ] as Array<[JobFilter, string]>).map(([id, text]) => <button type="button" key={id} className={filter === id ? "active" : ""} onClick={() => setFilter(id)}>{text}<b>{counts[id]}</b></button>)}</div>
-      <label className="ow-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, employer, location…" /></label>
+      <div className="ow-filter-row">
+        {([
+          ["all", "All observed"],
+          ["current", "Current"],
+          ["unreviewed", "Unreviewed"],
+          ["interesting", "Interesting"],
+          ["not_relevant", "Not relevant"],
+          ["rankable", "Rankable"],
+        ] as Array<[JobFilter, string]>).map(([id, text]) =>
+          <button
+            type="button"
+            key={id}
+            className={filter === id ? "active" : ""}
+            onClick={() => setFilter(id)}
+          >
+            {text}<b>{counts[id]}</b>
+          </button>
+        )}
+      </div>
+
+      <div className="ow-toolbar-controls">
+        <label className="ow-search">
+          <span>⌕</span>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Title, employer, location…"
+          />
+        </label>
+
+        <label className="ow-sort">
+          <span>Sort</span>
+          <select
+            value={sort}
+            onChange={(event) => setSort(event.target.value as JobSort)}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="fit_desc">Fit high → low</option>
+            <option value="fit_asc">Fit low → high</option>
+          </select>
+        </label>
+      </div>
     </section>
+
     <section className="ow-job-workspace">
-      <div className="ow-job-list"><div className="ow-job-list-head"><span>Fit</span><span>Review</span><span>Job</span><span>Location</span><span>Gate</span></div>{filtered.map((job) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><strong>{scoreText(job.overall_quality_score)}</strong><Status value={job.review_label?.label || "unreviewed"} /><span className="ow-job-name"><b>{job.title || "Untitled job"}</b><small>{employerName(job)}</small></span><span className="ow-location"><b>{locationText(job)}</b><small>{label(job.work_model)}</small></span><Status value={job.product_readiness_status} /></button>)}{filtered.length === 0 && <p className="ow-empty">No jobs match this filter.</p>}</div>
-      {selected ? <JobDetail job={selected} payload={payload} refresh={refresh} /> : <aside className="ow-job-detail"><p className="ow-empty">Select a job.</p></aside>}
+      <div className="ow-job-list">
+        <div className="ow-job-list-head">
+          <span>Fit</span>
+          <span>Review</span>
+          <span>Job</span>
+          <span>Location</span>
+          <span>Published</span>
+          <span>Gate</span>
+        </div>
+
+        {filtered.map((job) =>
+          <button
+            type="button"
+            key={job.silver_job_id}
+            className={
+              selected?.silver_job_id === job.silver_job_id ? "selected" : ""
+            }
+            onClick={() => setSelectedId(job.silver_job_id)}
+          >
+            <strong>{scoreText(job.overall_quality_score)}</strong>
+            <Status value={job.review_label?.label || "unreviewed"} />
+
+            <span className="ow-job-name">
+              <b>{job.title || "Untitled job"}</b>
+              <small>{employerName(job)}</small>
+            </span>
+
+            <span className="ow-location">
+              <b>{locationText(job)}</b>
+              <small>{label(job.work_model)}</small>
+            </span>
+
+            <span className="ow-published">
+              {displayDate(job.publication_date)}
+            </span>
+
+            <Status value={job.product_readiness_status} />
+          </button>
+        )}
+
+        {filtered.length === 0 &&
+          <p className="ow-empty">No jobs match this filter.</p>}
+      </div>
+
+      {selected
+        ? <JobDetail job={selected} payload={payload} refresh={refresh} />
+        : <aside className="ow-job-detail">
+            <p className="ow-empty">Select a job.</p>
+          </aside>}
     </section>
   </div>;
 }
