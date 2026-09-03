@@ -3,6 +3,7 @@ from __future__ import annotations
 from scripts.run_e2e_slice_001_market_sensor_scout import (
     _reservation_payload,
     choose_reservation,
+    fresh_company_names,
     observation_from_record,
 )
 from src.connectors.base import RawJobRecord
@@ -62,6 +63,70 @@ def test_stepstone_observation_preserves_discovery_only_company_evidence() -> No
     assert observation.source_name == "stepstone"
 
 
+def test_new_jobs_at_known_company_are_not_new_market_discoveries() -> None:
+    records = [
+        RawJobRecord(
+            source_name="stepstone",
+            source_url=f"https://www.stepstone.de/stellenangebote--{job_id}.html",
+            external_job_id=job_id,
+            raw_data={
+                "result_card": {
+                    "title": title,
+                    "company_name": "Known GmbH",
+                    "location": "Hannover",
+                }
+            },
+        )
+        for job_id, title in (
+            ("101", "Data Engineer"),
+            ("102", "Analytics Engineer"),
+        )
+    ]
+    observations = [
+        observation_from_record(
+            record,
+            profile_name="stepstone_hannover",
+            search_term="Data",
+            known_companies={"knowngmbh"},
+        )
+        for record in records
+    ]
+
+    assert fresh_company_names(observations) == []
+    assert choose_reservation(observations) is None
+
+
+def test_multiple_jobs_from_one_unknown_company_count_as_one_company() -> None:
+    records = [
+        RawJobRecord(
+            source_name="bundesagentur_fuer_arbeit",
+            source_url=f"ba://{job_id}",
+            external_job_id=job_id,
+            raw_data={
+                "job": {
+                    "titel": title,
+                    "arbeitgeber": "Fresh GmbH",
+                }
+            },
+        )
+        for job_id, title in (
+            ("201", "Data Engineer"),
+            ("202", "Analytics Engineer"),
+        )
+    ]
+    observations = [
+        observation_from_record(
+            record,
+            profile_name="ba",
+            search_term="data",
+            known_companies=set(),
+        )
+        for record in records
+    ]
+
+    assert fresh_company_names(observations) == ["Fresh GmbH"]
+
+
 def test_reservation_prefers_unknown_role_match_and_stays_out_of_product_plane() -> None:
     known = RawJobRecord(
         source_name="bundesagentur_fuer_arbeit",
@@ -97,6 +162,8 @@ def test_reservation_prefers_unknown_role_match_and_stays_out_of_product_plane()
     payload = _reservation_payload(reservation)
     assert payload["status"] == "held_out_of_pipeline_for_cold_e2e"
     assert payload["must_not_pre_ingest"] is True
+    assert payload["discovery_unit"] == "company"
+    assert payload["job_record_semantics"] == "discovery_evidence_only"
     assert "bronze" in payload["required_later_path"]
     assert "silver" in payload["required_later_path"]
     assert "gold" in payload["required_later_path"]
