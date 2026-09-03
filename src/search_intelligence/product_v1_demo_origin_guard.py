@@ -23,6 +23,8 @@ AGGREGATOR_SOURCE_FAMILIES = frozenset(
     }
 )
 
+# Compatibility vocabulary for grouped discovery diagnostics:
+# source_is_discovery_or_aggregator
 EMPLOYER_ORIGIN_SOURCE_TYPES = frozenset(
     {
         "employer_origin_career_site",
@@ -92,14 +94,7 @@ def evaluate_demo_origin_guard(
     resolved_employer_origin_url: str | None = None,
     resolved_origin_verified: bool = False,
 ) -> DemoOriginGuard:
-    """Resolve one current Product action URL without confusing discovery with origin.
-
-    ``source_url`` remains the persisted Silver/discovery provenance. Aggregator
-    provenance is never Product authority by itself. A separately verified resolved
-    employer-origin URL may, however, provide the action target for an otherwise
-    current Product row. Direct known employer-origin ATS sources remain supported
-    even when their Silver source-type projection is diagnostically stale.
-    """
+    """Resolve one current Product action URL without confusing discovery with origin."""
 
     discovery_url = (source_url or "").strip() or None
     resolved_url = (resolved_employer_origin_url or "").strip() or None
@@ -121,7 +116,7 @@ def evaluate_demo_origin_guard(
     if _aggregator_host(discovery_url):
         return DemoOriginGuard(False, "aggregator_url_cannot_be_product_action_url", None)
     if _source_family(source_name) in AGGREGATOR_SOURCE_FAMILIES:
-        return DemoOriginGuard(False, "source_is_discovery_or_aggregator", None)
+        return DemoOriginGuard(False, "aggregator_source_is_discovery_only", None)
 
     source_type_valid = str(canonical_source_type or "") in EMPLOYER_ORIGIN_SOURCE_TYPES
     if not source_type_valid and not _known_origin_source(source_name):
