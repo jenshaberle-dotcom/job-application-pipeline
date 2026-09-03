@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from http import HTTPStatus
+from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
 import sys
@@ -220,7 +221,7 @@ def _merge_job_review_labels(
 
 
 def _merge_demo_origin_projection(payload: dict[str, object]) -> dict[str, object]:
-    """Separate historical discovery URLs from current actionable Product URLs."""
+    """Separate discovery provenance from current actionable Product URLs."""
 
     result = dict(payload)
     for collection_name in ("job_readiness", "top_jobs"):
@@ -231,7 +232,11 @@ def _merge_demo_origin_projection(payload: dict[str, object]) -> dict[str, objec
 
     job_rows = result.get("job_readiness")
     actionable_count = (
-        sum(bool(item.get("demo_actionable")) for item in job_rows if isinstance(item, dict))
+        sum(
+            bool(item.get("demo_actionable"))
+            for item in job_rows
+            if isinstance(item, dict)
+        )
         if isinstance(job_rows, list)
         else 0
     )
@@ -451,62 +456,151 @@ class ProductV1Handler(_base.ProductV1Handler):
             )
 
     def _read_action_payload(self) -> object:
-        raw_length = self.headers.get("Content-Length")
+        content_type = (
+            str(self.headers.get("Content-Type") or "")
+            .split(";", 1)[0]
+            .strip()
+            .casefold()
+        )
+        if content_type != "application/json":
+            raise ControlCenterActionStop("action content type must be application/json")
+        raw_length = str(self.headers.get("Content-Length") or "").strip()
         try:
-            content_length = int(raw_length or "0")
+            content_length = int(raw_length)
         except ValueError as exc:
-            raise ControlCenterActionStop("invalid Content-Length") from exc
+            raise ControlCenterActionStop("valid Content-Length is required") from exc
         if content_length <= 0 or content_length > _MAX_ACTION_BODY_BYTES:
-            raise ControlCenterActionStop("action body size is outside the allowed boundary")
-        raw = self.rfile.read(content_length)
+            raise ControlCenterActionStop("action body size is outside the allowed bound")
+        raw_body = self.rfile.read(content_length)
+        if len(raw_body) != content_length:
+            raise ControlCenterActionStop("action body was truncated")
         try:
-            return json.loads(raw.decode("utf-8"))
+            return json.loads(raw_body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ControlCenterActionStop("action body is not valid JSON") from exc
+            raise ControlCenterActionStop("action body must be valid UTF-8 JSON") from exc
 
-    def do_POST(self) -> None:  # noqa: N802 - http.server API
-        parsed = urlparse(self.path)
-        if parsed.path not in {FINAL_APPROVAL_ACTION_PATH, JOB_REVIEW_LABEL_ACTION_PATH}:
-            super().do_POST()
-            return
-
+    def _post_job_review_label(self) -> None:
         try:
-            raw_payload = self._read_action_payload()
-            if parsed.path == FINAL_APPROVAL_ACTION_PATH:
-                action = parse_final_approval_action_payload(raw_payload)
-                result = apply_final_approval_action(action)
-            else:
-                action = parse_job_review_label_action_payload(raw_payload)
-                result = apply_job_review_label_action(action)
-        except (ControlCenterActionStop, ValueError) as exc:
+            silver_job_id, label = parse_job_review_label_action_payload(
+                self._read_action_payload()
+            )
+            result = apply_job_review_label_action(
+                silver_job_id=silver_job_id,
+                label=label,
+            )
+        except ControlCenterActionStop as exc:
             self._send_json(
-                {"status": "blocked", "reason": str(exc)},
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "database_writes": 0,
+                    "provider_requests": 0,
+                    "product_authority": False,
+                },
                 status=HTTPStatus.BAD_REQUEST,
             )
             return
-        except Exception as exc:  # pragma: no cover - runtime diagnostics
+        except (ValueError, RuntimeError) as exc:
             self._send_json(
                 {
-                    "status": "error",
-                    "error_type": type(exc).__name__,
-                    "message": str(exc),
+                    "status": "review_required",
+                    "reason": str(exc),
+                    "database_writes": 0,
+                    "provider_requests": 0,
+                    "product_authority": False,
                 },
-                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                status=HTTPStatus.CONFLICT,
             )
             return
 
-        self._send_json(result)
+        status = (
+            HTTPStatus.OK
+            if result.get("status") in {"applied", "unchanged"}
+            else HTTPStatus.CONFLICT
+        )
+        self._send_json(result, status=status)
+
+    def do_POST(self) -> None:  # noqa: N802 - exact reviewed action allowlist
+        parsed = urlparse(self.path)
+        if parsed.path == JOB_REVIEW_LABEL_ACTION_PATH:
+            self._post_job_review_label()
+            return
+        if parsed.path != FINAL_APPROVAL_ACTION_PATH:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": "Product V1 POST route is not in the reviewed action allowlist.",
+                },
+                status=HTTPStatus.METHOD_NOT_ALLOWED,
+            )
+            return
+
+        try:
+            candidate_id, confirmation = parse_final_approval_action_payload(
+                self._read_action_payload()
+            )
+            result = apply_final_approval_action(
+                candidate_id=candidate_id,
+                confirmation=confirmation,
+            )
+        except ControlCenterActionStop as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "provider_requests": 0,
+                    "source_activation": False,
+                    "product_authority": False,
+                },
+                status=HTTPStatus.BAD_REQUEST,
+            )
+            return
+        except (ValueError, RuntimeError) as exc:
+            self._send_json(
+                {
+                    "status": "review_required",
+                    "reason": str(exc),
+                    "provider_requests": 0,
+                    "source_activation": False,
+                    "product_authority": False,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
+            return
+
+        status = (
+            HTTPStatus.OK
+            if result.get("status") in {"applied", "not_applicable"}
+            else HTTPStatus.CONFLICT
+        )
+        self._send_json(result, status=status)
 
 
 def run_server(args: argparse.Namespace) -> None:
-    _base.run_server(args, handler_class=ProductV1Handler)
+    server = ThreadingHTTPServer((args.host, args.port), ProductV1Handler)
+    server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
+    print(f"Deep Ocean Product V1 Control Center: http://{args.host}:{args.port}/")
+    print(
+        "Boundary: read models + observed opportunities + deterministic evidence preview + reviewed final-approval and append-only review-label actions; "
+        "no provider call, connector registration, source activation, ingestion, ranking mutation, model training or application submission."
+    )
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nProduct V1 Control Center stopped by operator.")
+    finally:
+        server.server_close()
 
 
-def main() -> int:
-    args = build_parser().parse_args()
-    run_server(args)
-    return 0
+def main() -> None:
+    run_server(build_parser().parse_args())
+
+
+def __getattr__(name: str):
+    """Preserve existing module-level read helpers without duplicating the base."""
+
+    return getattr(_base, name)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
