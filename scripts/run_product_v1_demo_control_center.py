@@ -2,8 +2,9 @@
 
 The existing canonical Control Center remains the product truth source. This demo
 runtime adds the bounded Application Workspace, local-private base-document intake,
-and a read-only presentation enrichment for current job review. Presentation evidence
-never changes ranking, Top-5 or application authority.
+and read-only presentation enrichments for current job review and Bronze/Silver/Gold
+observability. Presentation evidence never changes ranking, Top-5 or application
+authority.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from scripts.product_v1_application_workspace_runtime_quality import (
     application_workspace_payload,
     generate_application_draft_payload,
 )
+from scripts.product_v1_data_layers_runtime import load_data_layers_payload
 from scripts.product_v1_job_presentation_runtime import (
     enrich_product_payload_for_operator,
 )
@@ -44,6 +46,7 @@ from src.search_intelligence.product_v1_application_workspace import (
 
 
 PRODUCT_V1_PATH = "/api/v1/product-v1"
+DATA_LAYERS_PATH = "/api/v1/product-v1/data-layers"
 APPLICATION_WORKSPACE_PATH = "/api/v1/product-v1/application-workspace"
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
@@ -97,7 +100,7 @@ def parse_application_draft_action_payload(payload: object) -> int:
 
 
 class ProductV1DemoHandler(ProductV1Handler):
-    server_version = "DeepOceanProductV1/0.9-demo"
+    server_version = "DeepOceanProductV1/0.10-demo"
 
     def _send_json(
         self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
@@ -122,6 +125,16 @@ class ProductV1DemoHandler(ProductV1Handler):
             raise DemoActionStop("silver_job_id must be positive")
         return silver_job_id
 
+    def _send_runtime_error(self, exc: Exception) -> None:
+        self._send_json(
+            {
+                "status": "error",
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            },
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+        )
+
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
         if parsed.path == PRODUCT_V1_PATH:
@@ -130,14 +143,13 @@ class ProductV1DemoHandler(ProductV1Handler):
                     enrich_product_payload_for_operator(load_product_v1_payload())
                 )
             except Exception as exc:  # pragma: no cover - runtime diagnostics
-                self._send_json(
-                    {
-                        "status": "error",
-                        "error_type": type(exc).__name__,
-                        "message": str(exc),
-                    },
-                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
-                )
+                self._send_runtime_error(exc)
+            return
+        if parsed.path == DATA_LAYERS_PATH:
+            try:
+                self._send_json(load_data_layers_payload(load_product_v1_payload()))
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_runtime_error(exc)
             return
         if parsed.path != APPLICATION_WORKSPACE_PATH:
             super().do_GET()
@@ -279,8 +291,9 @@ def run_server(args: argparse.Namespace) -> None:
     print(f"Deep Ocean Product V1 DEMO-001: http://{args.host}:{args.port}/")
     print(f"Private application documents: {private_root}")
     print(
-        "Boundary: real Product V1 truth + local-private document intake + bounded "
-        "Application Workspace; no automatic submission or send."
+        "Boundary: real Product V1 truth + read-only Bronze/Silver/Gold observability + "
+        "local-private document intake + bounded Application Workspace; no automatic "
+        "submission or send."
     )
     try:
         server.serve_forever()
