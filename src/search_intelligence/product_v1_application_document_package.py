@@ -71,9 +71,13 @@ def compose_application_document_texts(
     fit = _fragment_texts(package, "letter_fit")
     closing = _fragment_texts(package, "letter_closing")
 
-    if len(summaries) != 1 or not 1 <= len(bullets) <= 6:
+    # Provider-polished drafts normally contain several bullets. The deterministic
+    # resilience path may have only one approved matched Candidate Fact; the full
+    # approved base CV is still preserved below, so zero added bullets is valid and
+    # preferable to manufacturing unsupported detail.
+    if len(summaries) != 1 or len(bullets) > 6:
         raise ApplicationDocumentPackageStop(
-            "complete CV adaptation requires one summary and at least one grounded bullet"
+            "complete CV adaptation requires one summary and at most six grounded bullets"
         )
     if len(opening) != 1 or not 1 <= len(fit) <= 4 or len(closing) != 1:
         raise ApplicationDocumentPackageStop(
@@ -83,11 +87,15 @@ def compose_application_document_texts(
     cv_focus = [
         "STELLENBEZOGENES PROFIL",
         summaries[0],
-        "RELEVANTE SCHWERPUNKTE",
-        *[f"• {text}" for text in bullets],
-        "BASISLEBENSLAUF",
-        base_cv,
     ]
+    if bullets:
+        cv_focus.extend(
+            [
+                "RELEVANTE SCHWERPUNKTE",
+                *[f"• {text}" for text in bullets],
+            ]
+        )
+    cv_focus.extend(["BASISLEBENSLAUF", base_cv])
     cv_text = "\n\n".join(cv_focus)
 
     candidate_name = _candidate_name(base_cv)
