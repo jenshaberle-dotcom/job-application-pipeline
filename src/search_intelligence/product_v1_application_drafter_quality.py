@@ -1,15 +1,10 @@
 """Quality-hardened Product V1 application drafting for DEMO-001.
 
-This module keeps the existing bounded OpenAI campaign and all Candidate-Fact /
-Employer-Origin authority rules. It fixes one usability failure in the model
-contract: models previously had to invent an exact vacancy quote and the validator
-then required that quote to occur exactly once. Common capability words therefore
-failed closed even when the prose itself was reasonable.
-
-The quality contract now derives a bounded list of *unique exact* vacancy snippets
-from the deterministic Candidate-Fact claim plan. Structured output may reference
-only those enum values. Base-document text remains local and is deliberately not
-sent to the provider; it retains zero fact authority.
+This module keeps the bounded OpenAI campaign and Candidate-Fact / employer-origin
+authority rules. At the operator's explicit Generate action, the text of the two
+approved local base documents is shared with the provider as style/structure context.
+The base documents still do not grant authority for newly invented or strengthened
+candidate claims; those remain bound to approved Candidate Facts.
 """
 from __future__ import annotations
 
@@ -24,12 +19,12 @@ from src.search_intelligence.origin_llm_adjudication import OPENAI_RESPONSES_URL
 from src.search_intelligence.product_v1_application_context import ProductV1ApplicationContext
 from src.search_intelligence.product_v1_application_drafter import (
     ApplicationDraftObservation,
+    DRAFT_FRAGMENT_KINDS,
     MAX_DETAIL_TEXT_CHARS,
     MAX_FACT_KEYS_PER_FRAGMENT,
     MAX_FRAGMENT_CHARS,
     MAX_FRAGMENTS,
     MAX_JOB_QUOTES_PER_FRAGMENT,
-    DRAFT_FRAGMENT_KINDS,
     ModelCallback,
     Transport,
     _estimated_cost,
@@ -44,29 +39,37 @@ from src.search_intelligence.product_v1_application_drafter import (
 
 MAX_ALLOWED_JOB_QUOTES = 16
 MAX_ALLOWED_QUOTE_CHARS = 600
+MAX_BASE_DOCUMENT_CHARS = 12_000
 _QUOTE_RADII = (48, 80, 120, 180, 260)
 
 QUALITY_SYSTEM_INSTRUCTIONS = """Create polished German job-application material for operator review only.
 
-Write natural professional prose that could realistically be edited into a CV and application letter. Do not
-write audit language such as 'the vacancy states', 'evidence', 'Candidate Fact', 'claim plan', or 'this is directly
-relevant'. Prefer specific connections between the candidate's approved experience and the role over generic
-enthusiasm.
+The operator explicitly approved sharing the extracted text of the two approved base documents for this
+Generate action. Use the base CV to understand existing structure, terminology and emphasis. Use the base
+application letter as a style/tone reference. Never carry forward an old employer, old role, old addressee or
+old vacancy-specific statement from the base letter into the new application.
 
-Return status 'draft_for_review' and structured fragments only. Aim for: one concise cv_summary, two to four
-cv_bullet fragments, one letter_opening, two or three letter_fit paragraphs, and one short letter_closing. The
-letter fragments together should read like one coherent German application letter.
+Write like an experienced German application writer, not like an audit system or generic AI assistant. Avoid
+phrases such as 'hiermit bewerbe ich', 'the vacancy states', 'evidence', 'Candidate Fact', 'claim plan',
+'directly relevant', exaggerated enthusiasm and empty superlatives. Prefer concise, concrete connections
+between the candidate's approved experience and the actual role.
 
-Candidate facts are the only private factual authority. Every cv_summary/cv_bullet must cite at least one allowed
-candidate_fact_key. Every letter_fit must cite at least one allowed candidate_fact_key and at least one supplied
-allowed_job_evidence quote. letter_opening must cite at least one supplied allowed_job_evidence quote.
-letter_closing must stay generic and cite no facts or vacancy quotes.
+Return status 'draft_for_review' and structured fragments only. Aim for exactly one strong cv_summary, three
+or four cv_bullet fragments, one letter_opening, two or three substantial letter_fit paragraphs and one short
+letter_closing. The letter fragments together must read as one coherent German letter of roughly 250-350
+words with natural transitions. The opening should quickly explain why this specific role is a credible next
+step. The fit paragraphs should cover the two or three strongest supported connections rather than repeat the
+same Python/SQL point. The closing should be confident and brief.
+
+Candidate Facts are the authority for new or rephrased candidate-specific claims. Every cv_summary/cv_bullet
+must cite at least one allowed candidate_fact_key. Every letter_fit must cite at least one allowed
+candidate_fact_key and at least one supplied allowed_job_evidence quote. letter_opening must cite at least one
+supplied allowed_job_evidence quote. letter_closing must stay generic and cite no facts or vacancy quotes.
 
 For job_evidence, copy values exactly from allowed_job_evidence; never create, shorten or paraphrase a quote.
-The base-document files remain local and their text is intentionally not sent to the provider. Their metadata has
-no factual authority. Do not invent years, counts, percentages, certifications, employers, skills, salary,
-location, availability or experience. Do not approve, persist, submit or send anything. Do not claim application,
-submission or product authority. Do not use outside knowledge.
+Do not invent years, counts, percentages, certifications, employers, skills, salary, location, availability or
+experience. Do not approve, persist, submit or send anything. Do not claim application, submission or product
+authority. Do not use outside knowledge.
 """
 
 
@@ -79,7 +82,6 @@ def _unique_quote_around(*, detail_text: str, start: int, end: int) -> str | Non
         left = max(0, start - radius)
         right = min(len(detail_text), end + radius)
 
-        # Prefer word-ish boundaries without altering the exact source substring.
         if left > 0:
             boundary = detail_text.rfind(" ", left, start)
             if boundary >= 0:
@@ -141,7 +143,11 @@ def _quality_schema(
                     "required": ["kind", "text", "candidate_fact_keys", "job_evidence"],
                     "properties": {
                         "kind": {"type": "string", "enum": list(DRAFT_FRAGMENT_KINDS)},
-                        "text": {"type": "string", "minLength": 1, "maxLength": MAX_FRAGMENT_CHARS},
+                        "text": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": MAX_FRAGMENT_CHARS,
+                        },
                         "candidate_fact_keys": {
                             "type": "array",
                             "maxItems": MAX_FACT_KEYS_PER_FRAGMENT,
@@ -189,8 +195,10 @@ def _quality_packet(
                 "document_type": document.document_type,
                 "source_label": document.source_label,
                 "content_sha256": document.content_sha256,
-                "text_shared_with_provider": False,
-                "fact_authority": False,
+                "content": document.content[:MAX_BASE_DOCUMENT_CHARS],
+                "text_shared_with_provider": True,
+                "usage": "style_structure_and_approved_carry_forward_context",
+                "fact_authority_for_new_claims": False,
             }
             for document in context.source_documents
         ],
@@ -198,8 +206,8 @@ def _quality_packet(
             "draft_for_review_only": True,
             "candidate_claims_require_fact_keys": True,
             "vacancy_assertions_require_allowed_exact_quotes": True,
-            "base_document_text_shared_with_provider": False,
-            "base_document_fact_authority": False,
+            "base_document_text_shared_with_provider": True,
+            "base_document_fact_authority_for_new_claims": False,
             "draft_approval_authority": False,
             "application_authority": False,
             "submission_authority": False,
@@ -215,7 +223,7 @@ def request_quality_application_draft(
     api_key: str,
     model: str,
     reasoning_effort: str = "medium",
-    max_output_tokens: int = 2_400,
+    max_output_tokens: int = 3_200,
     timeout_seconds: float = 90.0,
     transport: Transport = _transport,
 ) -> ApplicationDraftObservation:
@@ -269,7 +277,7 @@ def request_quality_application_draft(
             "verbosity": "medium",
             "format": {
                 "type": "json_schema",
-                "name": "product_v1_application_draft_for_review_v2",
+                "name": "product_v1_application_draft_for_review_v3",
                 "strict": True,
                 "schema": _quality_schema(allowed_fact_keys, allowed_quotes),
             },
@@ -298,7 +306,7 @@ def request_quality_application_draft(
             estimated_cost_usd=_estimated_cost(model, usage_map),
             rationale=(
                 f"packet_sha256={packet_sha}; unique_evidence_quotes={len(allowed_quotes)}; "
-                "validated_quality_draft_for_review"
+                "base_document_style_context_shared=true; validated_quality_draft_for_review"
             ),
         )
     except (
@@ -341,6 +349,7 @@ def openai_quality_application_draft_model_callback(
 
 __all__ = [
     "MAX_ALLOWED_JOB_QUOTES",
+    "MAX_BASE_DOCUMENT_CHARS",
     "QUALITY_SYSTEM_INSTRUCTIONS",
     "allowed_job_evidence",
     "openai_quality_application_draft_model_callback",
