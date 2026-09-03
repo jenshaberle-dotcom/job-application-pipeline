@@ -1,0 +1,46 @@
+changelog:
+  exclude:
+    labels:
+      - skip-release
+  categories:
+    - title: "🚨 Breaking changes"
+      labels:
+        - breaking-change
+        - breaking
+    - title: "🐛 Bug fixes"
+      labels:
+        - bug
+        - bugfix
+        - fix
+    - title: "✨ Features & product improvements"
+      labels:
+        - enhancement
+        - feature
+    - title: "🔌 Data, origin & connectors"
+      labels:
+        - data
+        - origin
+        - connector
+    - title: "🧭 Application & ranking"
+      labels:
+        - application
+        - ranking
+    - title: "🎛️ UI & operator experience"
+      labels:
+        - ui
+        - ux
+    - title: "🔧 Infrastructure & CI"
+      labels:
+        - infrastructure
+        - ci
+        - build
+    - title: "📝 Documentation"
+      labels:
+        - documentation
+        - docs
+    - title: "📦 Dependencies"
+      labels:
+        - dependencies
+    - title: "Other changes"
+      labels:
+        - "*"
