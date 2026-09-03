@@ -1,141 +1,170 @@
 # Current Truth
 
-Status: current truth navigation
+Status: current truth navigation  
+Active product track: **PRODUCT-RECOVERY-001 / issue #783**  
+Current release checkpoint: **`v0.1.0-demo.1`**
 
-This folder contains the small maintained surface for the current product. It is intentionally not a complete history.
+This folder is the maintained current-truth surface. It is intentionally not a complete project history.
 
-## Re-entry source authority
+## Re-entry authority
 
-Every re-entry starts from this current-truth surface read from canonical `refs/heads/main`.
-A branch-local copy of `docs/current/*`, a branch-local planning document, an old checkout, or a familiar worktree may describe active work but is **not** allowed to redefine canonical `main`, canonical checkout role, or re-entry authority.
+Every re-entry starts from canonical `refs/heads/main` and `PROJECT-REENTRY.json`, then reads this current-truth surface.
 
-Repository-owned project hygiene and DRJ policy remain authoritative for workspace paths, prevention rules, and retention handoff:
+A branch-local copy, old checkout, historical planning file, release note, issue comment or familiar worktree may contain useful evidence but cannot redefine canonical `main` or active sequencing by itself.
 
-- `PROJECT-HYGIENE.json` is project hygiene authority;
-- `PROJECT-LOCAL-WORKSPACE.json` declares bounded canonical checkout/worktree roots;
-- `PROJECT-DRJ.json` defines retention/reconciliation boundaries and explicitly does **not** make DRJ project work-admission authority;
-- `POST-MIGRATION-RESTART.json` is the one-time project restart checkpoint under the shared portfolio contract.
+Repository-owned workspace/hygiene/retention contracts remain authoritative:
 
-## Post-migration restart state
+- `PROJECT-HYGIENE.json`;
+- `PROJECT-LOCAL-WORKSPACE.json`;
+- `PROJECT-DRJ.json`;
+- `POST-MIGRATION-RESTART.json`.
 
-This repository reached **`POST-MIGRATION-RESTART = PASS`** on 2026-09-02 after exact host counter-inspection, ancestry-free harvest and local retirement proof.
+## Current project state
 
-Canonical local invariant now proven:
+### DEMO-001 — salvaged checkpoint
 
-- exactly one persistent project checkout remains at `$HOME/projects/job-application-pipeline`;
-- that checkout is clean `main` and equals fresh remote `main` at the recorded proof point;
-- no non-main project worktree remains;
-- no local non-main project branch remains;
-- all discovered unique value was integrated onto current-main ancestry or durably classified/preserved;
-- no remote branch was deleted as part of the local restart proof.
+DEMO-001 / #707 is retained as a proven product checkpoint, not current long-term sequencing authority.
 
-Durable evidence:
+- salvage PR: `#781`;
+- salvage merge: `d63ba7125693b19286d93b8d32bd955581ac84cd`;
+- release checkpoint: `v0.1.0-demo.1`;
+- retained planning/evidence anchor: `../planning/active/demo_001_live_e2e_reentry.md`.
 
-- `POST-MIGRATION-RESTART.json`;
-- issue `#704`;
-- `docs/knowledge/branch_salvage_704.md`;
-- PR `#705` / merge `41c855c3858b40a3d2d1d7b84dc8d6488f81d2a9`.
+The checkpoint established working capabilities across:
 
-A project-local `POST-MIGRATION-RESTART = PASS` restores normal work admission for that project under canonical-main + declared temporary-worktree discipline. Other projects' unfinished restart state is not authority to stop this already-PASS project. Portfolio all-PASS remains a prerequisite only for separately coordinated portfolio-wide Warmrunner/DRJ/convergence steps.
+```text
+discovery -> Employer Origin -> current detail
+-> Bronze / Silver -> Product V1 assessment/ranking
+-> React Control Center -> Application Workspace
+-> CV/letter DOCX/PDF/ZIP draft_for_review
+```
 
-## Salvaged product checkpoint — DEMO-001
+It also exposed integration debt. The existence of the checkpoint does not mean the cold product flow is production-ready.
 
-DEMO-001 / issue `#707` is now a **salvaged product checkpoint**, not the long-term sequencing authority.
+### PRODUCT-RECOVERY-001 — active continuation
 
-The proven demo slice was merged to `main` by PR `#781` / merge `d63ba7125693b19286d93b8d32bd955581ac84cd`.
+Issue **#783** is the current product priority.
 
-The retained vertical journey remains:
+Canonical active plan:
 
-`discovery / market evidence -> employer + origin -> connector/source health -> Bronze -> Silver -> Gold / Product V1 -> authoritative ranking -> selected job -> Application Workspace -> source-grounded draft_for_review`.
+- `../planning/active/product_recovery_001.md`.
 
-The salvage established durable product value around Employer-Origin action truth, live vacancy freshness/detail refresh, rankable refill/review tooling, Product Truth frontend runtime hardening, provider-backed application drafting and local DOCX/PDF/ZIP packaging. It also exposed integration debt that must not be hidden by further demo-only work.
+Primary product truth:
 
-The existing React Control Center remains the reference product UI. No fake Product V1 rows, fabricated ranking fill, weakened origin authority, automatic application submission, or demo-only success branch is allowed.
+```text
+market discovery
+-> Employer-Origin resolution
+-> freshly verified exact vacancy
+-> Bronze / Silver
+-> assessment
+-> capability fit
+-> hard filters
+-> deterministic ranking
+-> recommendations meeting the approved Product contract
+-> Application Workspace
+-> near-submission-quality review package
+```
 
-Canonical retained demo anchor:
+Primary acceptance target:
 
-- `../planning/active/demo_001_live_e2e_reentry.md`.
+> **At least five current Employer-Origin jobs meeting all approved evidence/hard-filter gates and the current 70/100 recommendation threshold, produced through one normal observable flow; plus an application package requiring only small human edits.**
 
-## Release management
+`rankable >= 5` by itself is not success. `PD-050/PD-051` remain authoritative: Top 5 is at most five and is not filled with jobs below the approved quality threshold.
 
-GitHub Releases are now the product-facing change history.
+### ACQ-GENERALIZATION-90 — preserved
 
-Release management was merged by PR `#782` / merge `1acb4b4acc5016b25b8115ef048185448b1d76dc`.
+Issue #676 remains retained and resumable, but is not current sequencing authority.
 
-Canonical release surfaces:
-
-- `.github/RELEASE_MANAGEMENT.md` — versioning, release authority and release-note contract;
-- `.github/release.yml` — generated release-note categories, including explicit bug-fix grouping;
-- `.github/workflows/release.yml` — guarded `main`-only release workflow with exact-SHA CI/re-entry gates;
-- `.github/release-notes/v0.1.0-demo.1.md` — curated first demo milestone notes.
-
-Commit history remains engineering detail. Product-visible checkpoints must be represented by GitHub Releases with features, bug fixes, known limitations and relevant operator proof.
-
-## Active product continuation — PRODUCT-RECOVERY-001
-
-The current product priority is **PRODUCT-RECOVERY-001 / issue #783**.
-
-The optimization target is no longer additional subsystem hardening by default. The primary product truth is one repeatable cold-to-application flow:
-
-`market discovery -> Employer-Origin resolution -> current exact vacancy -> Bronze -> Silver -> assessment -> capability fit -> hard filter -> deterministic ranking -> >=5 current Employer-Origin recommendations -> Application Workspace -> review-ready CV/letter package`.
-
-Primary acceptance metric:
-
-**5 current Employer-Origin jobs -> assessed -> rankable/recommended -> application-ready**.
-
-The path must be reproducible without demo-only rows, stale aggregator action URLs, fabricated freshness, ranking overrides, or manual repair campaigns between normal stages.
-
-Recovery priorities are:
-
-1. propagate discovery vs Employer-Origin truth consistently end to end;
-2. enforce freshness before ranking/recommendation;
-3. converge repair/refill helpers into one normal operator product flow;
-4. increase rankable throughput by removing integration bottlenecks rather than lowering gates;
-5. raise application document content/layout to near-submission quality;
-6. inventory and reduce overlapping views, runners, policies and recovery paths that do not contribute to the primary product truth;
-7. protect each product checkpoint through CI/E2E proof and GitHub Releases.
-
-Until this core path is stable, broad new deterministic hardening, ML expansion beyond already-approved foundation work, post-application expansion and new demo-only orchestration are deprioritized.
-
-## Preserved deterministic continuation
-
-**ACQ-GENERALIZATION-90 / issue #676** remains retained and resumable, but it is not the current product sequencing authority. This is a priority pause, not a stop, rejection, or supersession.
-
-Its retained anchors remain:
+Retained anchors:
 
 - `../planning/active/acq_generalization_90_reentry.md`;
 - `../planning/active/acq_generalization_90_reentry.json`;
 - `../planning/active/acq_generalization_90_target.md`;
 - `../planning/active/acq676_external_deterministic_salvage.md`.
 
-When the operator returns to ACQ-676, the next measured deterministic action remains the same 65-candidate V6 benchmark. Product coverage remains `36/65` until materialized unchanged strict E2E proof establishes a higher numerator.
+Reuse generic deterministic capabilities when they directly advance Product Recovery; otherwise leave the track paused until explicit reprioritization.
 
-The older `REENTRY-001B` / issue #672 material remains predecessor evidence, not current sequencing authority.
+## Current product truth summary
 
-## Mandatory workspace hygiene on every re-entry
+The project is now a Search Intelligence **and application-preparation** product, not only a discovery/connector system.
 
-Even after the one-time restart PASS, every new re-entry must freshly prove the direct workspace conditions relevant to the next action:
+Important current boundaries:
 
-- canonical path, repository identity, origin, branch, HEAD and upstream state;
-- canonical persistent checkout is clean `main`;
-- feature work starts from fresh remote `main` in the declared temporary-worktree root;
-- branch-of-branch continuation is forbidden;
-- dirty, divergent, unpushed, detached, locked/in-use, closed-unmerged or ambiguous state is preserve-by-default and fails closed only for directly affected work;
-- clean retention debt is surfaced for reconciliation but does not by itself block unrelated project work;
-- `RETENTION_DEBT`, `RECONCILIATION_PENDING`, missing DRJ `CHECK=PASS`, or DRJ unavailability alone are not project work-admission blockers;
-- age, path, name, merge-looking status or repository pressure never establish deletion authority.
+- BA/StepStone/GuteJobs and similar aggregators discover; Employer-Origin confirms Product/Application action authority.
+- Historical observation does not prove current vacancy state.
+- Detail drift invalidates stale assessment/ranking evidence and requires audited refresh.
+- `rankable` and `recommended` are distinct states.
+- Top-5 current minimum overall quality is 70/100.
+- Candidate Facts remain candidate factual authority; exact current vacancy evidence remains job factual authority.
+- Application provider calls occur only through explicit Generate behavior approved by the product contract.
+- Application output remains `draft_for_review`; no auto-submit/send exists.
+- CI does not prove local PostgreSQL/provider/live employer state.
 
-Runner workspaces remain execution-only and are not project worktrees.
+## Release management
 
-Read in this order:
+GitHub Releases are the product-facing change history.
+
+Canonical release surfaces:
+
+- `.github/RELEASE_MANAGEMENT.md`;
+- `.github/release.yml`;
+- `.github/workflows/release.yml`;
+- `.github/release-notes/`;
+- `.github/release-requests/`;
+- `.github/release-promotions/`.
+
+Release notes explain features, bug fixes, known limitations and relevant operator proof. Commit history remains engineering detail.
+
+Tags are immutable. GitHub release visibility may be promoted without changing version/tag target or implying production readiness.
+
+## Local operator proof vs repository truth
+
+DEMO-001 local operator evidence showed 6 jobs could be made `rankable` after fresh detail/assessment and evidence-backed review, but only one was above the approved 70/100 recommendation threshold. That proof is local runtime evidence, not shipped DB state.
+
+This distinction is now central to Product Recovery:
+
+- repository/CI proof protects contracts;
+- local DB/live HTTP/provider proof establishes runtime behavior;
+- operator acceptance decides whether visible product output is useful.
+
+## Post-migration workspace state
+
+`POST-MIGRATION-RESTART = PASS` remains valid retained proof from 2026-09-02.
+
+Canonical workspace discipline:
+
+- persistent checkout: `$HOME/projects/job-application-pipeline` on clean `main`;
+- feature worktrees: `$HOME/worktrees/job-application-pipeline/<feature>`;
+- feature work starts from fresh remote `main`;
+- project feature worktrees do not belong under `/tmp`;
+- runner workspaces remain execution-only;
+- branch-of-branch continuation is forbidden.
+
+Dirty/divergent/ambiguous state is preserve-by-default. DRJ/retention debt alone is not unrelated project work-admission authority.
+
+## Mandatory read order
 
 1. `product.md`
-2. `architecture.md`
-3. `pipeline.md`
-4. `system-diagrams.md`
-5. `governance.md`
-6. `operations.md`
-7. `POST-MIGRATION-RESTART.json`
-8. while issue #783 is active priority: issue `#783` plus this current-truth section
-9. retained DEMO-001 evidence when needed: `../planning/active/demo_001_live_e2e_reentry.md`
-10. retained ACQ-676 context when needed: `../planning/active/acq_generalization_90_reentry.md`
+2. `../reference/product-contract/PRD.md`
+3. `../reference/product-contract/PRODUCT_DECISION_REGISTER.md`
+4. `architecture.md`
+5. `pipeline.md`
+6. `system-diagrams.md`
+7. `governance.md`
+8. `operations.md`
+9. `../planning/active/product_recovery_001.md`
+10. issue `#783`
+11. retained DEMO-001 evidence when needed: `../planning/active/demo_001_live_e2e_reentry.md`
+12. retained ACQ-676 context only when relevant: `../planning/active/acq_generalization_90_reentry.md`
+
+## Re-entry rule
+
+Re-entry restores continuation from durable truth; it does not replay business side effects to reconstruct a previous chat narrative.
+
+Before mutation:
+
+- authenticate repository ID/main/workspace;
+- inspect current active issue/PR/CI;
+- inspect DB/live evidence when runtime claims matter;
+- reconcile any conflict with older summaries;
+- resume from the newest legal durable state.
