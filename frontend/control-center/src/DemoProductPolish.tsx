@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import "./demo-product-polish.css";
 
@@ -69,7 +69,7 @@ const viewId = () => {
 const countText = (value: number) => value.toLocaleString();
 
 function Icon({ name }: { name: IconName }) {
-  const paths: Record<IconName, JSX.Element> = {
+  const paths: Record<IconName, ReactNode> = {
     discover: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>,
     verify: <><path d="M12 3 5 6v5c0 4.8 2.9 8.1 7 10 4.1-1.9 7-5.2 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-5" /></>,
     rank: <><path d="m12 3 2.5 5.1 5.6.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.6-.8L12 3Z" /></>,
