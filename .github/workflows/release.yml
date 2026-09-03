@@ -24,6 +24,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -36,6 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION_INPUT: ${{ inputs.version }}
+      RELEASE_NAME_INPUT: ${{ inputs.release_name }}
+      RELEASE_NOTES_FILE_INPUT: ${{ inputs.notes_file }}
+      RELEASE_PRERELEASE_INPUT: ${{ inputs.prerelease }}
 
     steps:
       - name: Require main release authority
@@ -59,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          raw='${{ inputs.version }}'
+          raw="$RELEASE_VERSION_INPUT"
           version="${raw#v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]; then
             echo "Invalid SemVer-compatible version: $raw" >&2
@@ -78,15 +83,57 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "target_sha=${target_sha}" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare release notes
-        id: notes
+      - name: Require green main quality gates
         shell: bash
+        env:
+          TARGET_SHA: ${{ steps.release.outputs.target_sha }}
         run: |
           set -euo pipefail
 
-          tag='${{ steps.release.outputs.tag }}'
-          target_sha='${{ steps.release.outputs.target_sha }}'
-          notes_file='${{ inputs.notes_file }}'
+          require_successful_push_run() {
+            local workflow="$1"
+            local runs
+            local status
+            local conclusion
+            local run_id
+
+            runs="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow "$workflow" \
+              --commit "$TARGET_SHA" \
+              --event push \
+              --limit 1 \
+              --json databaseId,status,conclusion)"
+
+            run_id="$(jq -r '.[0].databaseId // empty' <<<"$runs")"
+            status="$(jq -r '.[0].status // empty' <<<"$runs")"
+            conclusion="$(jq -r '.[0].conclusion // empty' <<<"$runs")"
+
+            if [[ -z "$run_id" ]]; then
+              echo "No push workflow run found for '$workflow' at $TARGET_SHA" >&2
+              exit 8
+            fi
+            if [[ "$status" != "completed" || "$conclusion" != "success" ]]; then
+              echo "Release gate '$workflow' is not green: run=$run_id status=$status conclusion=$conclusion" >&2
+              exit 9
+            fi
+
+            echo "RELEASE_GATE=$workflow|run=$run_id|PASS"
+          }
+
+          require_successful_push_run "Pipeline CI"
+          require_successful_push_run "Pipeline re-entry target identity"
+
+      - name: Prepare release notes
+        id: notes
+        shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          TARGET_SHA: ${{ steps.release.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+
+          notes_file="$RELEASE_NOTES_FILE_INPUT"
           output="${RUNNER_TEMP}/release-notes.md"
 
           if [[ -n "$notes_file" ]]; then
@@ -104,8 +151,8 @@ jobs:
             gh api \
               --method POST \
               "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-              -f "tag_name=${tag}" \
-              -f "target_commitish=${target_sha}" \
+              -f "tag_name=${TAG}" \
+              -f "target_commitish=${TARGET_SHA}" \
               --jq '.body' > "$output"
             source="github-generated"
           fi
@@ -120,39 +167,43 @@ jobs:
 
       - name: Publish GitHub release
         shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          TARGET_SHA: ${{ steps.release.outputs.target_sha }}
+          NOTES_PATH: ${{ steps.notes.outputs.path }}
         run: |
           set -euo pipefail
 
-          tag='${{ steps.release.outputs.tag }}'
-          target_sha='${{ steps.release.outputs.target_sha }}'
-          title='${{ inputs.release_name }}'
-          notes='${{ steps.notes.outputs.path }}'
-
+          title="$RELEASE_NAME_INPUT"
           if [[ -z "$title" ]]; then
-            title="Job Application Pipeline ${tag}"
+            title="Job Application Pipeline ${TAG}"
           fi
 
           prerelease_args=()
-          if [[ '${{ inputs.prerelease }}' == 'true' ]]; then
+          if [[ "$RELEASE_PRERELEASE_INPUT" == "true" ]]; then
             prerelease_args+=(--prerelease)
           fi
 
-          gh release create "$tag" \
+          gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$target_sha" \
+            --target "$TARGET_SHA" \
             --title "$title" \
-            --notes-file "$notes" \
+            --notes-file "$NOTES_PATH" \
             "${prerelease_args[@]}"
 
       - name: Publish release summary
         shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          TARGET_SHA: ${{ steps.release.outputs.target_sha }}
+          NOTES_SOURCE: ${{ steps.notes.outputs.source }}
         run: |
           set -euo pipefail
           {
             echo "## Release published"
             echo
-            echo "- Tag: \`${{ steps.release.outputs.tag }}\`"
-            echo "- Target: \`${{ steps.release.outputs.target_sha }}\`"
-            echo "- Notes: \`${{ steps.notes.outputs.source }}\`"
-            echo "- Pre-release: \`${{ inputs.prerelease }}\`"
+            echo "- Tag: \`${TAG}\`"
+            echo "- Target: \`${TARGET_SHA}\`"
+            echo "- Notes: \`${NOTES_SOURCE}\`"
+            echo "- Pre-release: \`${RELEASE_PRERELEASE_INPUT}\`"
           } >> "$GITHUB_STEP_SUMMARY"
