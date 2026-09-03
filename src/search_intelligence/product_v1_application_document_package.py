@@ -1,18 +1,23 @@
-"""Compose a review-only four-file application package from grounded draft fragments.
+"""Compose a review-only application package from grounded draft fragments.
 
 The provider never creates file bytes. This module combines the validated draft with
-approved local base-document text and renders DOCX/PDF variants locally. It performs
-no database write, approval, submission or send action.
+approved local base-document text and renders DOCX/PDF variants locally. A ZIP is
+assembled locally as a convenience wrapper around the same four review files. It
+performs no database write, approval, submission or send action.
 """
 from __future__ import annotations
 
 from base64 import b64encode
+from io import BytesIO
+import json
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from src.search_intelligence.product_v1_application_context import (
     ProductV1ApplicationContext,
 )
 from src.search_intelligence.product_v1_application_document_export import (
     ApplicationDocumentTextBundle,
+    RenderedApplicationFile,
     render_application_document_bundle,
 )
 from src.search_intelligence.product_v1_application_drafter import (
@@ -71,10 +76,6 @@ def compose_application_document_texts(
     fit = _fragment_texts(package, "letter_fit")
     closing = _fragment_texts(package, "letter_closing")
 
-    # Provider-polished drafts normally contain several bullets. The deterministic
-    # resilience path may have only one approved matched Candidate Fact; the full
-    # approved base CV is still preserved below, so zero added bullets is valid and
-    # preferable to manufacturing unsupported detail.
     if len(summaries) != 1 or len(bullets) > 6:
         raise ApplicationDocumentPackageStop(
             "complete CV adaptation requires one summary and at most six grounded bullets"
@@ -122,6 +123,41 @@ def compose_application_document_texts(
     )
 
 
+def _zip_bundle(files: tuple[RenderedApplicationFile, ...]) -> RenderedApplicationFile:
+    """Wrap the four canonical review files plus a checksum manifest in one ZIP."""
+
+    if len(files) != 4:
+        raise ApplicationDocumentPackageStop("ZIP wrapper requires exactly four review files")
+    manifest = {
+        "schema": "job_application_pipeline.application_download_bundle.v1",
+        "status": "draft_for_review",
+        "files": [file.manifest_entry() for file in files],
+        "boundaries": {
+            "review_required": True,
+            "submission_action": False,
+            "send_action": False,
+        },
+    }
+    output = BytesIO()
+    with ZipFile(output, mode="w", compression=ZIP_DEFLATED) as archive:
+        for file in files:
+            archive.writestr(file.filename, file.content)
+        archive.writestr(
+            "manifest.json",
+            json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        )
+    content = output.getvalue()
+    if not content.startswith(b"PK"):
+        raise ApplicationDocumentPackageStop("ZIP renderer produced invalid output")
+    first = files[0].filename.rsplit("-cv.docx", 1)[0]
+    return RenderedApplicationFile(
+        key="application_zip",
+        filename=f"{first}-review-package.zip",
+        media_type="application/zip",
+        content=content,
+    )
+
+
 def build_application_document_package_payload(
     *,
     context: ProductV1ApplicationContext,
@@ -130,7 +166,8 @@ def build_application_document_package_payload(
     """Return browser-downloadable local files plus human-readable complete previews."""
 
     texts = compose_application_document_texts(context=context, package=package)
-    files = render_application_document_bundle(texts)
+    review_files = render_application_document_bundle(texts)
+    files = (*review_files, _zip_bundle(review_files))
     return {
         "status": "ready_for_download",
         "cv_text": texts.cv_text,
