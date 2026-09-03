@@ -1,0 +1,20 @@
+/* Keep the sticky top line semantically aligned with the Data Layers overlay. */
+body.data-layers-active .ow-topline > div > b {
+  font-size: 0;
+}
+
+body.data-layers-active .ow-topline > div > b::after {
+  content: "Data Layers";
+  font-size: 13px;
+}
+
+/* Demo motion is decorative only. Respect operator/system reduced-motion settings. */
+@media (prefers-reduced-motion: reduce) {
+  .dl-loading > div {
+    animation: none !important;
+  }
+
+  .ow-sidebar nav button i {
+    transition: none !important;
+  }
+}
