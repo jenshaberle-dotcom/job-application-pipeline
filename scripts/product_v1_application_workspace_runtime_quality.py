@@ -16,12 +16,51 @@ from scripts.product_v1_application_workspace_runtime import (
 from src.search_intelligence.product_v1_application_document_package import (
     build_application_document_package_payload,
 )
-from src.search_intelligence.product_v1_application_drafter import (
-    execute_product_v1_application_drafter,
-)
 from src.search_intelligence.product_v1_application_drafter_quality import (
     openai_quality_application_draft_model_callback,
 )
+from src.search_intelligence.product_v1_application_quality_campaign import (
+    execute_quality_application_drafter,
+)
+from src.search_intelligence.product_v1_evidence_first_draft import (
+    build_evidence_first_review_draft,
+)
+
+
+def _fallback_with_documents(
+    *,
+    context: object,
+    final_url: str,
+    fetched_title: str,
+    fallback_reason: str,
+    provider_text_shared: bool,
+    provider_requests: int = 0,
+    llm_requests: int = 0,
+    estimated_model_cost_usd: float = 0.0,
+    stages: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    package = build_evidence_first_review_draft(context)  # type: ignore[arg-type]
+    payload = _evidence_first_draft_payload(
+        context=context,
+        final_url=final_url,
+        fetched_title=fetched_title,
+        fallback_reason=fallback_reason,
+        provider_requests=provider_requests,
+        llm_requests=llm_requests,
+        estimated_model_cost_usd=estimated_model_cost_usd,
+        stages=stages,
+    )
+    payload.update(
+        {
+            "quality_contract": "base_document_style_context_v3",
+            "base_document_text_shared_with_provider": provider_text_shared,
+            "document_package": build_application_document_package_payload(
+                context=context,  # type: ignore[arg-type]
+                package=package,
+            ),
+        }
+    )
+    return payload
 
 
 def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
@@ -53,14 +92,15 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
 
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
-        return _evidence_first_draft_payload(
+        return _fallback_with_documents(
             context=context,
             final_url=final_url,
             fetched_title=fetched_title,
             fallback_reason="provider_key_unavailable",
+            provider_text_shared=False,
         )
 
-    execution = execute_product_v1_application_drafter(
+    execution = execute_quality_application_drafter(
         context=context,
         model=openai_quality_application_draft_model_callback(
             context=context,
@@ -73,17 +113,17 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
             for stage in execution.stages
             if stage.attempted and stage.status in {"unresolved", "failed_closed"}
         ]
-        return _evidence_first_draft_payload(
+        return _fallback_with_documents(
             context=context,
             final_url=final_url,
             fetched_title=fetched_title,
             fallback_reason="quality_provider_campaign_unresolved",
+            provider_text_shared=execution.provider_requests > 0,
             provider_requests=execution.provider_requests,
             llm_requests=execution.llm_requests,
             estimated_model_cost_usd=execution.estimated_model_cost_usd,
             stages=[stage.to_json() for stage in execution.stages],
         ) | {
-            "quality_contract": "base_document_style_context_v3",
             "unresolved_provider_stage_count": len(unresolved),
         }
 
