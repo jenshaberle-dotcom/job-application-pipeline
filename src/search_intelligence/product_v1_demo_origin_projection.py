@@ -18,6 +18,7 @@ def project_demo_origin_truth(
         discovery_url = str(job.get("source_url") or "").strip() or None
         guard = evaluate_demo_origin_guard(
             source_url=discovery_url,
+            source_name=str(job.get("source_name") or "") or None,
             canonical_source_type=str(job.get("canonical_source_type") or "") or None,
             lifecycle_status=str(job.get("lifecycle_status") or "") or None,
             origin_validation_status=str(job.get("origin_validation_status") or "") or None,
