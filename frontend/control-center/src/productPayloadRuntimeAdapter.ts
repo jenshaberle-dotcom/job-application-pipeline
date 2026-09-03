@@ -75,6 +75,14 @@ function normalizeJobs(value: unknown): JsonRecord[] {
   });
 }
 
+function normalizeRepositoryShape(value: JsonRecord): JsonRecord {
+  return {
+    ...value,
+    job_readiness: normalizeJobs(value.job_readiness),
+    top_jobs: normalizeJobs(value.top_jobs),
+  };
+}
+
 function demoActionable(job: JsonRecord): boolean {
   return job.demo_actionable === true && typeof job.employer_origin_url === "string";
 }
@@ -82,8 +90,9 @@ function demoActionable(job: JsonRecord): boolean {
 export function normalizeProductV1Payload(value: unknown): unknown {
   if (!isRecord(value)) return value;
 
-  const allJobs = normalizeJobs(value.job_readiness);
-  const allTopJobs = normalizeJobs(value.top_jobs);
+  const normalized = normalizeRepositoryShape(value);
+  const allJobs = normalized.job_readiness as JsonRecord[];
+  const allTopJobs = normalized.top_jobs as JsonRecord[];
   const actionableJobs = allJobs.filter(demoActionable);
   const actionableTopJobs = allTopJobs.filter(demoActionable);
   const actionableRankable = actionableJobs.filter(
@@ -92,9 +101,9 @@ export function normalizeProductV1Payload(value: unknown): unknown {
   const summary = isRecord(value.summary) ? { ...value.summary } : {};
 
   return {
-    ...value,
-    // Preserve historical/discovery truth separately. The daily review surface is
-    // deliberately fail-closed to current validated Employer-Origin vacancies.
+    ...normalized,
+    // Historical/discovery truth stays inspectable, while the ordinary review
+    // surface fails closed to current validated Employer-Origin vacancies.
     discovery_job_readiness: allJobs,
     job_readiness: actionableJobs,
     top_jobs: actionableTopJobs,
