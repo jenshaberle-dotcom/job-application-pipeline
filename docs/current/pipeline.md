@@ -1,84 +1,166 @@
 # Pipeline State Machine
 
-Status: active architecture contract
-Scope: employer-origin candidate lifecycle and Search Intelligence transitions
+Status: current architecture contract  
+Active product track: **PRODUCT-RECOVERY-001 / issue #783**
 
 ## Purpose
 
-The pipeline needs one lifecycle truth. Local scripts must not invent new state transitions without updating this contract.
+The project has two related state machines:
 
-## Candidate lifecycle
+1. **Employer/source acquisition lifecycle** — how discovery becomes an approved controlled source.
+2. **Concrete job product lifecycle** — how an observed vacancy becomes current, assessed, rankable, recommended and application-ready.
+
+Local scripts must not invent product transitions outside these contracts.
+
+## A. Employer/source acquisition lifecycle
 
 | State | Meaning | Allowed next states | Automatic transition |
 |---|---|---|---:|
-| discovered | candidate was observed by sensors or benchmark input | promotion_recommended, rejected_or_parked | yes |
-| promotion_recommended | Türsteher recommends further inspection | origin_url_required, manual_review_required, rejected_or_parked | no |
-| origin_url_required | candidate needs source URL discovery | origin_url_candidate_found, manual_review_required | yes |
-| origin_url_candidate_found | URL Finder selected a plausible URL | origin_url_validated, manual_review_required | no |
-| origin_url_validated | bounded probe or trusted evidence validated origin URL | detail_evidence_required, connector_candidate | no |
-| detail_evidence_required | concrete job/detail evidence is needed | detail_evidence_found, manual_review_required | yes |
-| detail_evidence_found | detail evidence is available | connector_candidate, manual_review_required | no |
+| discovered | candidate observed by sensors or benchmark input | promotion_recommended, rejected_or_parked | yes |
+| promotion_recommended | candidate deserves further inspection | origin_url_required, manual_review_required, rejected_or_parked | no |
+| origin_url_required | candidate needs Employer-Origin URL discovery | origin_url_candidate_found, manual_review_required | yes |
+| origin_url_candidate_found | bounded resolver selected a plausible origin | origin_url_validated, manual_review_required | no |
+| origin_url_validated | origin URL has bounded/trusted validation | detail_evidence_required, connector_candidate | no |
+| detail_evidence_required | concrete vacancy/detail proof required | detail_evidence_found, manual_review_required | yes |
+| detail_evidence_found | concrete detail evidence available | connector_candidate, manual_review_required | no |
 | connector_candidate | source is a plausible connector candidate | build_approval_required, manual_review_required | no |
-| build_approval_required | connector artifact generation needs approval | connector_artifact_generated, manual_review_required | no |
+| build_approval_required | connector artifact generation needs approval/standing authority | connector_artifact_generated, manual_review_required | no |
 | connector_artifact_generated | generated artifacts exist for review | validation_required, manual_review_required | no |
 | validation_required | connector behavior needs validation | approval_required, manual_review_required | no |
-| approval_required | source activation decision is required | active_controlled, manual_review_required | no |
+| approval_required | controlled-source activation decision required | active_controlled, manual_review_required | no |
 | active_controlled | source is active under controlled operation | monitor, deactivation_review_required | no |
 | manual_review_required | automatic path stopped | previous safe stage or rejected_or_parked | no |
 | rejected_or_parked | candidate intentionally stopped | manual_review_required | no |
 
-## Transition rules
+### Acquisition transition rules
 
-- Automatic transitions may only move into analysis or evidence-request states.
-- Any transition into active_controlled requires manual approval.
-- Any transition affecting active_controlled entities requires explicit opt-in.
-- Reset and reprocess flows must show selected targets before apply.
-- Gate stops must include `stop_reason`, stop taxonomy category and `next_safe_action` context.
+- Discovery signal is never equivalent to source activation.
+- Aggregator provenance may discover a candidate but never supplies final Product/Application action authority by itself.
+- Automatic transitions may move only into bounded analysis/evidence-request states unless an approved standing authorization explicitly covers the transition.
+- Connector registration and controlled activation remain distinct authorities.
+- Reset/reprocess flows must identify exact targets before apply.
+- Gate stops require reason, evidence class and next safe action.
 
-<!-- BEGIN CAND-001-STATE-TRANSITION -->
-## CAND-001 State Transition
+## B. Concrete job Product V1 lifecycle
 
-CAND-001 operationalizes the transition:
+The current product-value pipeline is:
 
-    origin_url_candidate_found -> origin_url_validated
+```text
+observed
+-> employer_origin_resolved
+-> current_vacancy_verified
+-> bronze_observed
+-> silver_canonical
+-> assessment_current
+-> capability_fit_resolved
+-> hard_filter_resolved
+-> rankable
+-> recommendation_eligible
+-> application_ready
+-> draft_for_review
+```
 
-for candidates where a live bounded URL-Finder run selected an A/B-tier origin URL and `candidate_url` is empty.
+### Product stages
 
-The transition is SZ1_CANDIDATE_METADATA and requires dry-run, explicit apply and audit review.
-<!-- END CAND-001-STATE-TRANSITION -->
+| Stage | Required truth | Failure/unknown behavior |
+|---|---|---|
+| `observed` | market/source observation exists | remains historical discovery evidence |
+| `employer_origin_resolved` | concrete Employer-Origin vacancy/action URL resolved | aggregator-only stays discovery-only |
+| `current_vacancy_verified` | fresh exact vacancy evidence supports current activity | stale/closed/unverifiable is not actionable/recommended |
+| `bronze_observed` | raw acquisition/lineage retained | no Product authority implied |
+| `silver_canonical` | normalized canonical job exists | no current/ranking authority implied |
+| `assessment_current` | assessment bound to current vacancy detail fingerprint | detail drift requires audited refresh |
+| `capability_fit_resolved` | approved Candidate Facts support/deny required capability fit | missing evidence stays unknown/review-required |
+| `hard_filter_resolved` | employment/language/hours/seniority and other approved hard filters resolved | failure excludes; required unknown blocks authoritative ranking |
+| `rankable` | all required ranking components/evidence complete | no recommendation claim yet |
+| `recommendation_eligible` | rankable + approved Top-5 policy, currently overall score >=70 | below threshold remains rankable but not Top-5 |
+| `application_ready` | current Employer-Origin job plus approved candidate/job evidence available | generation blocked/fallback as defined by application contract |
+| `draft_for_review` | coherent generated CV/letter package returned | never implies submit/send approval |
 
+## Rankable is not Top-5
 
-<!-- BEGIN STOP-002-STOP-TAXONOMY -->
-## STOP-002 Stop Taxonomy
+Current approved semantics:
 
-Gate stops are interpreted through the shared stop taxonomy and repair strategy
-registry in `docs/reference/search-intelligence/stop_taxonomy_and_repair_registry.md`.
-The taxonomy distinguishes good fail-closed stops from review stops, repairable
-stops and false-negative-risk stops. This does not weaken gates; it prevents
-repairable evidence gaps from being treated as silent terminal pipeline exits.
-<!-- END STOP-002-STOP-TAXONOMY -->
+```text
+rankable
+  = required Product V1 evidence complete enough to calculate authoritative scores
 
-<!-- BEGIN REPAIR-001-STOP-REPAIR-AUDIT -->
-## REPAIR-001 Stop Review and Repair Candidate Audit
+recommended / Top-5 eligible
+  = rankable
+    + no hard-filter blocker
+    + approved minimum score >= 70
+    + at most five highest-ranked qualifying jobs
+```
 
-REPAIR-001 operationalizes STOP-002 as a read-only repair-candidate audit. The
-existing pipeline stop reassessment agent now reports dominant stop category,
-lifecycle class, repair strategy, safety zone and repair-audit order. It may emit
-Stage 2 dry-run/apply command suggestions, but it does not execute repair, write
-gate/candidate state, generate connector artifacts or activate sources.
-<!-- END REPAIR-001-STOP-REPAIR-AUDIT -->
+The result is allowed to contain fewer than five jobs. The pipeline must never lower the threshold or silently promote below-threshold jobs to fill a quota.
 
+## Freshness and detail drift
 
-<!-- BEGIN DIAG-001-GENERIC-REPAIR-DIAGNOSIS -->
-## DIAG-001 Generic Repair Diagnosis
+A previous observation or assessment is not sufficient evidence that a vacancy is current now.
 
-DIAG-001 turns employer-specific repair failures into generic pipeline diagnosis.
-A company such as adesso, HDI or VHV may be used as a representative case, but
-any resulting change must improve reusable pipeline capability rather than push a
-single candidate through the gates.
+Current implementation contract:
 
-The diagnosis is read-only, performs no external requests, discovers relevant
-schema surfaces through `information_schema`, and writes JSON/Markdown reports to
-`exports/` when requested. DIAG-001B adds portfolio matrix mode so representative
-employer cases can be compared before any generic repair capability is changed.
-<!-- END DIAG-001-GENERIC-REPAIR-DIAGNOSIS -->
+```text
+live exact detail matches assessment fingerprint
+    -> existing assessment may remain current
+
+live exact detail differs
+    -> detail_drift
+    -> revisions-audited assessment refresh
+    -> stale capability/ranking evidence reset as required
+    -> capability/hard-filter/ranking gates rerun
+
+explicit closure / dead detail
+    -> not current/actionable/recommended
+```
+
+The exact long-term product policy for publication-age limits and ambiguous currentness remains governed by open product decisions, but **known stale/closed jobs must not survive as current recommendations**.
+
+## Capability and hard-filter review
+
+Current approved hard-filter families include:
+
+- permanent employment requirement;
+- accepted working languages German/English;
+- 35–40 weekly-hours compatibility;
+- capability/requirements fit taking precedence over title-only seniority.
+
+Missing required evidence stays `manual_review_required`/unknown until resolved. Evidence-backed review may close a manual-review state only when bound to the current assessment/vacancy snapshot. It must not override deterministic failure evidence.
+
+## Application transition
+
+Application preparation is deliberately outside ranking authority.
+
+```text
+explicit operator Generate
+-> load approved base CV/letter
+-> load Candidate Facts
+-> load exact current vacancy evidence
+-> provider-backed structured draft when available
+   or evidence-first fallback
+-> validate grounding/package
+-> render CV DOCX/PDF + letter DOCX/PDF + ZIP
+-> draft_for_review
+```
+
+No stage above authorizes automatic submission, email send or silent application-state mutation.
+
+## Current operational gap
+
+DEMO-001 required separate bounded helpers for:
+
+- live candidate scouting;
+- detail-integrity checks;
+- assessment refresh;
+- capability-fit refill;
+- hard-filter evidence closing;
+- ranking persistence;
+- operator smoke.
+
+Those tools are valid recovery/diagnostic evidence, but they are **not the desired steady-state product pipeline**. PRODUCT-RECOVERY-001 must converge them into one normal, observable orchestration path while retaining fail-closed authority boundaries.
+
+## Historical acquisition-control notes
+
+CAND-001, STOP-002, REPAIR-001 and DIAG-001 remain valid retained acquisition/repair capabilities. They are no longer the complete story of the project and must be interpreted inside the broader product-value pipeline above.
+
+Detailed stop taxonomy and repair strategy remain under `docs/reference/search-intelligence/stop_taxonomy_and_repair_registry.md`.
