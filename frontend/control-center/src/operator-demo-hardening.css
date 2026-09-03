@@ -1,0 +1,104 @@
+.ow-job-list-head,
+.ow-job-list > button {
+  grid-template-columns: 74px 96px minmax(270px, 1fr) 150px 108px 138px;
+}
+
+.ow-job-list-head button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ow-muted);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ow-job-list-head button:hover,
+.ow-job-list-head button.active {
+  color: var(--ow-cyan);
+}
+
+.ow-job-list-head button.active::after {
+  content: " ↕";
+  font-size: 8px;
+}
+
+.ow-score-note {
+  margin: 7px 0 0;
+  padding: 7px 8px;
+  border: 1px solid #6f5b2b;
+  border-radius: 6px;
+  background: #2a2413;
+  color: #e5c777;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.ow-source-group-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--ow-line-soft);
+  background: #081b28;
+  color: var(--ow-muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.ow-source-list {
+  max-height: calc(100vh - 190px);
+  overflow: auto;
+}
+
+.ow-source-list > button {
+  min-height: 38px;
+  padding: 6px 8px;
+}
+
+.ow-source-list > button span b {
+  font-size: 9px;
+}
+
+.ow-source-list > button span small {
+  font-size: 7px;
+}
+
+.ow-source-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ow-source-summary-strip > div {
+  padding: 8px 10px;
+  border: 1px solid var(--ow-line-soft);
+  border-radius: 7px;
+  background: #081c29;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ow-source-summary-strip span {
+  color: var(--ow-muted);
+  font-size: 8px;
+}
+
+.ow-source-summary-strip b {
+  font-size: 14px;
+}
+
+@media (max-width: 1250px) {
+  .ow-job-list-head,
+  .ow-job-list > button {
+    grid-template-columns: 70px 88px minmax(220px, 1fr) 128px 96px 120px;
+  }
+}
