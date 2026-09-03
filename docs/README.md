@@ -24,9 +24,10 @@ The goal is that a new re-entry can understand the product and current gaps **wi
 4. `current/architecture.md` — architecture and authority boundaries.
 5. `current/pipeline.md` — acquisition + concrete-job Product V1 state machines.
 6. `current/system-diagrams.md` — current visual architecture.
-7. `current/governance.md` — operational/product governance.
-8. `current/operations.md` — workspace, runtime, proof and release operations.
-9. `planning/active/product_recovery_001.md` — active recovery plan.
+7. `current/engineering_principles.md` — stable engineering values.
+8. `current/governance.md` — operational/product governance.
+9. `current/operations.md` — workspace, runtime, proof and release operations.
+10. `planning/active/product_recovery_001.md` — active recovery plan.
 
 ## Current project story
 
@@ -108,6 +109,8 @@ Current first checkpoint: `v0.1.0-demo.1`.
 
 ## Artifact rules
 
+The documentation architecture applies to files, not only folders.
+
 - Update an existing current artifact before creating another competing summary.
 - Product-contract changes must update decision/scenario/traceability surfaces when semantics change.
 - Current docs must distinguish repository truth from local runtime proof.
@@ -124,17 +127,17 @@ Current first checkpoint: `v0.1.0-demo.1`.
 
 ## Key reference surfaces
 
-- `reference/product-contract/PRD.md`
-- `reference/product-contract/PRODUCT_DECISION_REGISTER.md`
-- `reference/product-contract/ACCEPTANCE_SCENARIOS.md`
-- `reference/product-contract/TRACEABILITY.md`
-- `reference/database/schema_overview.md`
-- `reference/database/schema_relationships.md`
-- `reference/governance/governance_foundation.md`
-- `reference/security/search_intelligence_security_baseline.md`
-- `reference/search-intelligence/llm_booster_cascade.md`
-- `reference/search-intelligence/ml_learning_layer.md`
-- `decisions/adr_status_table.md`
+- `docs/reference/product-contract/PRD.md`
+- `docs/reference/product-contract/PRODUCT_DECISION_REGISTER.md`
+- `docs/reference/product-contract/ACCEPTANCE_SCENARIOS.md`
+- `docs/reference/product-contract/TRACEABILITY.md`
+- `docs/reference/database/schema_overview.md`
+- `docs/reference/database/schema_relationships.md`
+- `docs/reference/governance/governance_foundation.md`
+- `docs/reference/security/search_intelligence_security_baseline.md`
+- `docs/reference/search-intelligence/llm_booster_cascade.md`
+- `docs/reference/search-intelligence/ml_learning_layer.md`
+- `docs/decisions/adr_status_table.md`
 
 ## ADRs
 
