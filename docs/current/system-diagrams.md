@@ -6,7 +6,52 @@ Release checkpoint: `v0.1.0-demo.1`
 
 ## Purpose
 
-These diagrams show the current product architecture after DEMO-001 salvage. They deliberately distinguish discovery provenance, Employer-Origin authority, currentness, Product V1 ranking and application preparation.
+These diagrams show the current product architecture after DEMO-001 salvage. They deliberately distinguish discovery provenance, Employer-Origin authority, currentness, Product V1 ranking and application preparation while preserving the bounded Search Intelligence discovery and repair loops that feed the product path.
+
+## End-to-end Search Intelligence control surface
+
+The bounded acquisition/control layer remains upstream of Product V1. `Promotion Gatekeeper` controls which discoveries may advance; `Origin URL Detective` resolves bounded source evidence before Employer-Origin/current-vacancy authority is claimed.
+
+```mermaid
+flowchart LR
+    S0[Market Sensors / Aggregators]
+    S1[Discovery Evidence]
+    S2[Promotion Gatekeeper]
+    S3[Origin URL Detective]
+    S4[Employer-Origin Resolution]
+    S5[Exact Vacancy Verification]
+    S6[Bronze / Silver]
+    S7[Product V1 Gates]
+    S8[Control Center]
+    S9[Application Workspace]
+
+    S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9
+    S2 -.blocked / uncertain.-> R0[Review / repair]
+    S3 -.no supported origin.-> R0
+    R0 -.bounded retry with new evidence.-> S2
+```
+
+## Learning and repair loops
+
+Search Intelligence remains evidence-driven rather than fail-open. Suspected false negatives, source gaps, rejected origin patterns and stale/detail-drift findings feed bounded learning or repair; they do not silently grant Product authority.
+
+```mermaid
+flowchart TB
+    OBS[Observability / Control Center]
+    MISS[False-negative pressure]
+    DISC[Discovery / search-term learning]
+    PROMO[Promotion Gatekeeper]
+    URL[Origin URL Detective]
+    DETAIL[Employer-Origin detail evidence]
+    STOP[Stopper / stale-state reassessment]
+    GATE[Evidence and Product gates]
+
+    OBS --> MISS --> DISC --> PROMO --> URL --> DETAIL --> GATE --> OBS
+    DETAIL --> STOP
+    GATE --> STOP
+    STOP -->|bounded repair evidence| PROMO
+    STOP -->|hard stop| OBS
+```
 
 ## 1. End-to-end product-value flow
 
