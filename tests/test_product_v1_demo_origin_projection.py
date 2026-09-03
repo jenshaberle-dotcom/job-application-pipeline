@@ -17,11 +17,11 @@ def job(**overrides):
     return value
 
 
-def test_projection_keeps_discovery_url_but_separates_action_url() -> None:
-    projected = project_demo_origin_truth(
-        [job(source_url="https://www.arbeitsagentur.de/jobsuche/jobdetail/123")]
-    )[0]
-    assert projected["source_url"].startswith("https://www.arbeitsagentur.de/")
+def test_projection_keeps_discovery_url_as_provenance_not_action_url() -> None:
+    discovery = "https://www.arbeitsagentur.de/jobsuche/jobdetail/123"
+    projected = project_demo_origin_truth([job(source_url=discovery)])[0]
+    assert projected["discovery_source_url"] == discovery
+    assert projected["source_url"] is None
     assert projected["employer_origin_url"] is None
     assert projected["demo_actionable"] is False
 
@@ -30,6 +30,7 @@ def test_actionable_projection_exposes_employer_origin_url() -> None:
     projected = project_demo_origin_truth([job()])[0]
     assert projected["demo_actionable"] is True
     assert projected["employer_origin_url"] == "https://jobs.example.com/job/1"
+    assert projected["source_url"] == projected["employer_origin_url"]
 
 
 def test_filter_returns_only_current_validated_origin_rows() -> None:
