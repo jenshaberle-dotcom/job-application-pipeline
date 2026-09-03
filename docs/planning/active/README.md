@@ -1,213 +1,188 @@
 # Active Planning
 
 Status: current planning truth  
-Last rebaseline: ACQ-GENERALIZATION-90 builder V5 residual-composition frontier; `#676` active
+Active product track: **PRODUCT-RECOVERY-001 / issue #783**  
+Retained deterministic track: **ACQ-GENERALIZATION-90 / issue #676**  
+Current release checkpoint: **`v0.1.0-demo.1`**
 
 ## Product authority
 
 The Pipeline is a **Class A — Intent Locked** project.
 
-The active engineering backlog remains the implementation inventory, but it is subordinate to the operator-approved product contract under `docs/reference/product-contract/`.
+Active engineering planning is subordinate to the operator-approved product contract under `docs/reference/product-contract/`.
 
-DON may adapt technical design and sequencing. It may not infer unresolved product behavior or treat the current implementation as the desired product definition.
-
-`PRD-001` remains the progressive product-alignment gate. It does not block safety, defect, evidence, lifecycle or bounded deterministic acquisition hardening that preserves existing product authority.
+Current planning must not infer product behavior from code, historical branches or demo pressure.
 
 ## Current steering rule
 
-**ACQ-GENERALIZATION-90 / issue #676 is the current deterministic acquisition continuation.**
+**PRODUCT-RECOVERY-001 / issue #783 is the current sequencing authority.**
 
-Read these first for #676 work:
+Read first:
 
-1. `acq_generalization_90_reentry.md` — active continuation and semantic retention boundary;
-2. `acq_generalization_90_reentry.json` — machine-readable current frontier;
-3. `acq_generalization_90_target.md` — canonical full-population metric and guardrails.
+1. `product_recovery_001.md` — active recovery plan and milestones;
+2. `../../current/product.md` — current product checkpoint and recovery objective;
+3. `../../current/architecture.md` — current architecture/integration debt;
+4. `../../current/pipeline.md` — source + concrete-job state machines;
+5. `../../reference/product-contract/PRODUCT_DECISION_REGISTER.md` — approved/open product semantics.
 
-The older REENTRY-001B / issue #672 material remains valid predecessor evidence and is retained in `reentry001b_deterministic_v41_frontier.md` plus the #672 issue history. It no longer overrides #676 sequencing.
+DEMO-001 is a salvaged checkpoint. ACQ-GENERALIZATION-90 remains preserved and resumable, but neither is allowed to override the current Product Recovery sequence.
 
-## Current deterministic acquisition metric
+## Primary product metric
 
-Primary metric:
+The current target is not connector-count, test-count or raw `rankable` count.
 
-- all current distinct Employer-Origin candidates: `65`;
-- strict functioning deterministic acquisition: `36/65 = 55.4%`;
-- minimum passing numerator at current `N=65`: `59/65 = 90.8%`;
-- historical materialized regression cohort: `36/40` strict proven.
+Primary acceptance metric:
 
-Builder `recipe_ready` is diagnostic and never substitutes for product coverage. A candidate enters the numerator only after materialized connector execution passes unchanged strict genuine-job E2E proof.
+> **At least five current Employer-Origin vacancies that pass all approved evidence/hard-filter gates and the approved recommendation threshold (currently 70/100), produced through one normal observable cold-to-application flow; plus a review-ready application package requiring only small edits.**
 
-## Current #676 frontier
+The result is allowed to contain fewer than five recommendations when fewer than five jobs meet the product contract. Engineering must improve coverage/quality rather than lower the threshold to fill the list.
 
-Completed reusable work includes:
+## Current baseline
 
-- fresh-10 root-cause clustering;
-- balanced Origin V2 breadth-first planning with Origin failures `18 -> 8` and zero earlier-stage regressions;
-- inventory surface and bridge audits;
-- V3 provider-inventory composition with Inventory failures `17 -> 16`;
-- exact 65-candidate first-failure cohorts;
-- historical Workday CXS route recovery;
-- live Clarios proof through employer authority -> Workday board -> CXS inventory -> concrete public detail;
-- same-host Workday CXS detail proof projection without weakening `genuine_job_detail_proof`;
-- bounded Workday acquisition composition: root GET -> exact CXS inventory POST -> exact same-host CXS detail GET;
-- V4 Workday residual overlay;
-- evidence-bounded first-party -> portal delegation class;
-- builder-owned monotonic residual rewrite contract `rewrite_residual_suffix()`;
-- V5 ordered residual composition: `V3 -> Workday -> portal -> remaining residuals`.
+Repository checkpoint:
 
-V5 delivery:
+- DEMO-001 salvage merged by PR #781;
+- release checkpoint `v0.1.0-demo.1`;
+- Release Management established through REL-001/REL-002 and subsequent release requests.
 
-- merge PR `#685`;
-- merge commit `45f99c1919e6869451b6301bf41a6d3d12ba7c78`;
-- exact-head Pipeline CI `#887`: success;
-- exact-head Re-entry `#1454`: success.
+Local operator evidence from 2026-09-03 (non-portable runtime proof):
 
-No numerical V5/product lift is claimed until the same 65-candidate cohort is replayed from the canonical WSL runtime/database.
+- 30 bounded candidates inspected;
+- 28 live vacancies observed;
+- 7 live role/Candidate-Fact matches;
+- 6 stale assessment snapshots refreshed;
+- 6 jobs became rankable after evidence-backed review;
+- only one of the six met the approved 70/100 recommendation threshold;
+- provider-backed application generation and four-file+ZIP packaging worked technically;
+- application content/layout still required product-quality iteration.
 
-## Current deterministic sequence
+This baseline demonstrates **integration debt**: strong components exist, but normal product throughput and usability are not yet strong enough.
 
-1. Resolve the current `origin/main` and any live #676 work PR before creating or editing a branch.
-2. Run `scripts/run_deterministic_connector_builder_layer_audit_v5.py` against the same 65-candidate cohort from the canonical WSL runtime/database.
-3. Record exact V3 -> V4 -> V5 transitions, including Workday and portal promotions, without changing the product numerator.
-4. Re-cluster the V5 residual first-failure population after the measured generic lift.
-5. Select the next reusable deterministic class by population lift, evidence strength and boundedness — never by named-employer convenience.
-6. Materialize only stable evidence-backed connector recipes; rerun unchanged strict E2E acquisition before changing product coverage.
-7. Admit residuals to the LLM booster only when no remaining bounded generic deterministic hypothesis is supported by evidence.
+## Current sequence
 
-Every new mutating slice must branch from the then-current `origin/main` in a declared worktree. Historical #676 feature branches are not continuation bases.
+### 1. M0 — baseline and complexity inventory
 
-## Connector-builder composition rule
+- map the authoritative surface at each product stage;
+- classify demo/refill/recovery runners as retain/integrate/retire;
+- establish cold-run baseline metrics and failure cohorts;
+- surface any product-contract vs implementation drift.
 
-The canonical layer order remains:
+### 2. M1 — Employer-Origin/currentness truth propagation
 
-`identity -> origin -> origin_reachability -> delegation -> provider -> inventory -> detail -> proof -> recipe`
+- keep discovery provenance separate from resolved Employer-Origin action URL;
+- ensure Product read models use current Employer-Origin truth;
+- filter known stale/closed vacancies before recommendation/application;
+- preserve historical observations as lineage only.
 
-Residual adapters are not allowed to rewrite arbitrary history. The shared builder contract requires each adapter to declare the exact current first-failure it handles and the earliest layer whose evidence changes. All earlier layers are preserved exactly, and the rewrite may never introduce an earlier first failure.
+### 3. M2 — single normal orchestration
 
-Current residual ordering is explicit:
+- connect discovery -> origin -> currentness -> ingest -> assessment -> hard filter -> ranking;
+- replace healthy-operation dependence on scout/integrity/refill/evidence-close choreography;
+- expose stage status and exact stop reason.
 
-```text
-V3 base
-  -> Workday CXS adapter if first_failure == inventory
-  -> bounded portal adapter if first_failure still == inventory
-  -> residual cohort
-```
+### 4. M3 — recommendation throughput
 
-This is diagnostic composition. Future materialized connectors must compile only the evidence-backed capabilities required by that candidate; they must not blindly probe every registered adapter.
+- increase evidence-complete rankable population through normal execution;
+- improve relevant Employer-Origin coverage;
+- close avoidable hard-filter evidence gaps;
+- reach >=5 jobs meeting the approved recommendation threshold without product-policy override.
 
-## Workspace / migration state
+### 5. M4 — application quality
 
-The 2026-08-28 canonical-workspace migration is **fully merged and closed as a migration phase** for #676.
+- preserve/rebuild coherent CV layout;
+- improve vacancy-specific content grounded in Candidate Facts/exact job evidence;
+- visually validate DOCX/PDF;
+- retain ZIP convenience and review-only/no-submit boundary.
 
-- canonical persistent checkout authority: WSL `main` under `PROJECT-LOCAL-WORKSPACE.json`;
-- old PR #678: closed and superseded, never merged;
-- old branch ancestry was not imported;
-- qualified old content was harvested as one ancestry-free commit on current-main lineage;
-- delivery PR #682: merged;
-- migration delivery merge: `6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
+### 6. M5 — harvest and release
 
-Historical migration checkpoint files remain retained provenance while #676 is active. Their filenames do not make them disposable.
+- retire redundant demo/recovery wrappers after replacement proof;
+- consolidate overlapping views/policies where safe;
+- update current/reference docs;
+- publish the next product checkpoint via GitHub Release Management.
 
-Retention rule: **qualified content is preserved on main; superseded branch/worktree cleanup is a separate DRJ technical action requiring fresh local observation.** The repository mailbox remains `NO_REQUEST` unless a fresh hygiene pass establishes exact safe retirement candidates.
+See `product_recovery_001.md` for detailed exit criteria.
 
-See `acq_generalization_90_reentry.md` for exact ACTIVE/PRESERVE/SUPERSEDED/disposable dispositions.
+## Hard product boundaries during recovery
 
-## Active control surfaces
+- Aggregator discovery alone is never final Top-5/Application authority.
+- Known stale/closed jobs cannot remain current/recommended.
+- `rankable` does not mean `recommended`.
+- Top 5 remains at most five and current minimum overall quality remains 70/100 unless explicitly changed by the operator.
+- Missing required evidence stays review-required/blocked.
+- Provider output is not ranking/application approval authority.
+- Application output remains `draft_for_review`; no automatic submission/send.
+- CI does not prove local DB/provider/live employer truth.
 
-1. `../../reference/product-contract/README.md` — product authority and decision status.
-2. `prd001_product_intent_rebaseline.md` — progressive PRD-alignment gate.
-3. `acq_generalization_90_reentry.md` — **current acquisition re-entry and retention authority**.
-4. `acq_generalization_90_reentry.json` — machine-readable #676 state.
-5. `acq_generalization_90_target.md` — full-population deterministic target.
-6. `deterministic_connector_builder_layers.md` — evidence-driven builder and residual-adapter architecture.
-7. `backlog_refinement.md` — operator-readable contradiction and work-item view.
-8. `backlog_catalog.json` — machine-readable engineering work-item inventory.
-9. `roadmap.md` — short sequencing view.
-10. `reentry001b_deterministic_v41_frontier.md` — retained predecessor evidence from #672; not current #676 sequencing authority.
-11. `reentry001a_mcp_backed_pipeline_reentry_decision.md` — historical V37-V39 re-entry boundary.
-12. `canonical_target_profile.md` — recorded profile hierarchy pending PRD confirmation.
+## Retained DEMO-001 tooling
 
-## Lifecycle truth already closed
+The following helpers are retained as diagnostic/recovery evidence, not steady-state architecture:
 
-Current main includes both reusable recurring lifecycle classes:
+- `scripts/run_demo_001_local_server.py`
+- `scripts/run_demo_001_operator_smoke.py`
+- `scripts/run_demo_001_rankable_refill_scout.py`
+- `scripts/run_demo_001_rankable_refill_integrity.py`
+- `scripts/run_demo_001_rankable_refill_campaign.py`
+- `scripts/run_demo_001_hard_filter_evidence_close.py`
+- `scripts/run_product_v1_top5_policy_review.py`
 
-- `#502/#668`: exact-detail recurring health reconciliation;
-- `#669/#670`: verified complete-inventory absence deriving `not_seen/complete_inventory` with atomic negative persistence and without rewriting legacy Bronze authority.
+Harvest their useful checks/authority bindings into the normal path before retiring wrappers.
 
-These are completed deterministic layers, not current blockers.
+## Preserved deterministic continuation — ACQ-GENERALIZATION-90 / #676
 
-## Deterministic / booster / ML sequencing
+ACQ-GENERALIZATION-90 remains valid retained work and evidence, but is **not current sequencing authority**.
 
-Development order:
+Retained anchors:
 
-```text
-deterministic hardening -> LLM booster engineering -> ML algorithm engineering
-```
+- `acq_generalization_90_reentry.md`;
+- `acq_generalization_90_reentry.json`;
+- `acq_generalization_90_target.md`;
+- `acq676_external_deterministic_salvage.md`;
+- `deterministic_connector_builder_layers.md`.
 
-Productive decision order:
+Historical metric remains `36/65` strict deterministic acquisition until a newly materialized unchanged strict E2E proof establishes a higher numerator.
 
-```text
-deterministic -> ML algorithm -> booster
-```
+Resume #676 as an independent track only after explicit reprioritization, or reuse its generic deterministic capabilities when they directly support Product Recovery M1–M3.
 
-For acquisition, the booster remains deferred while #676 exposes evidence-backed deterministic classes.
+## Deferred/retained tracks
 
-The StepStone phrase `ML-first` refers to Machine-Learning-Engineer search terms, not to the future ML-algorithm layer.
+- `APP-TRACK-001 / #737` — post-application lifecycle retained, no expansion before core recovery.
+- LLM acquisition booster — retained behind evidence-backed deterministic/current product needs.
+- ML algorithm path — foundation may remain, productive expansion deferred until stable Product Recovery data/feedback surface exists.
+- broad cloud/Kafka/Spark work — deferred without direct product-value justification.
+- further demo-only orchestration — rejected as a substitute for normal product flow.
 
-Matching/ranking behavior remains product-intent gated where required.
+## Release discipline
 
-## Canonical target profile
+Product-visible checkpoints must be published through the canonical GitHub Release process.
 
-The repository currently records:
+A release should document:
 
-- Foundation: Machine Learning Engineer.
-- Technical focus: Data Engineering and data-centric ML systems.
-- Future direction: AI Reliability / Data & AI Reliability Engineering.
-- GenAI is a cross-cutting engineering competency, not a separate target profile.
+- visible features/outcomes;
+- bug fixes;
+- product metric/proof changes;
+- known limitations;
+- safety/authority boundaries;
+- local operator evidence only when explicitly labeled as non-portable runtime proof.
 
-This hierarchy remains recorded repository truth pending explicit confirmation in the product decision register. No runtime or product behavior should silently expand it.
+Release tags are immutable product checkpoints. Commit history alone is not the operator-facing change history.
+
+## Workspace discipline
+
+Every mutating slice:
+
+- starts from fresh remote `main`;
+- uses the declared project worktree root under `$HOME/worktrees/job-application-pipeline`;
+- does not branch from historical feature-branch ancestry;
+- verifies exact head/CI before merge;
+- reconciles re-entry/current docs when sequencing changes.
 
 ## Truth rules
 
-- Operator-approved product requirements and scenarios define desired behavior.
-- Repository code, tests and migrations are implementation truth.
-- DB/runtime/live bounded evidence is required for live-state claims.
-- Merged PRs prove implementation, not current runtime health or product desirability.
-- Reference/archive artifacts may supply ideas; they do not steer directly.
-- Chat and assistant memory are not project truth.
-- Missing evidence yields inspection/blocked state, never a guessed continuation.
-- Missing product intent yields `open_operator_decision`, never an inferred default.
-- Technical failed, cancelled, skipped or startup-failed acquisition runs are non-evidence.
-- A detector exhausting its currently instrumented surfaces does not prove the underlying deterministic problem class is globally exhausted.
-- DRJ never infers semantic value from age/path/name; project semantic dispositions are explicit in current truth/re-entry.
-
-## Parallel work allowed during PRD-001
-
-- safety and security fixes;
-- defect repair;
-- documentation consistency;
-- read-only evidence recomputation;
-- CI/runtime stabilization;
-- bounded deterministic acquisition diagnostics preserving proof/authority boundaries;
-- bounded lifecycle hardening;
-- ML learning-foundation work that does not alter productive ranking/acquisition authority.
-
-## Product-shaping work gated by PRD-001
-
-- candidate apply semantics;
-- Top-5 and ranking behavior;
-- queue composition;
-- operator review actions;
-- target-profile interpretation;
-- application intelligence;
-- autonomous product decisions.
-
-## Retained predecessor / parked tracks
-
-- `#672` residual-cluster evidence remains retained predecessor input; any still-open technical class must be re-admitted through #676's current population/evidence model rather than resumed from stale sequencing text;
-- `#671` StepStone wave-cycle plan/read-only hardening remains deferred behind the current deterministic acquisition frontier;
-- `#522` LLM acquisition booster remains deferred until #676 reaches evidence-backed deterministic exhaustion;
-- V1 application intelligence and later semantic enrichment;
-- FREEZE-002 and REFACTOR-001;
-- Cloud, outbox, Kafka and Spark;
-- CV update automation;
-- provider calls, scheduler changes and mutating paths without explicit gates.
+- Operator-approved PRD/PD/PA surfaces define desired behavior.
+- Repository code/tests/migrations define implementation truth.
+- DB/runtime/live bounded evidence is required for runtime claims.
+- Releases document checkpoints but do not replace current product authority.
+- Chat/assistant memory is not project truth.
+- Missing evidence yields inspection/blocked state, not guessed success.
+- Historical planning remains evidence, not current sequencing authority.
