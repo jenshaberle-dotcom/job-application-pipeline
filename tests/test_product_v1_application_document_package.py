@@ -74,6 +74,33 @@ def _package():
     )
 
 
+def _evidence_first_package():
+    def fragment(kind: str, text: str):
+        return SimpleNamespace(kind=kind, text=text)
+
+    return SimpleNamespace(
+        status="draft_for_review",
+        fragments=(
+            fragment(
+                "cv_summary",
+                "Freigegebene Kandidateninformation für den stellenbezogenen Profilkopf.",
+            ),
+            fragment(
+                "letter_opening",
+                "Die Position adressiert einen durch die Stellenanzeige belegten Schwerpunkt.",
+            ),
+            fragment(
+                "letter_fit",
+                "Die freigegebene Kandidateninformation wird diesem Schwerpunkt zur Prüfung gegenübergestellt.",
+            ),
+            fragment(
+                "letter_closing",
+                "Gern bespreche ich die Position und meinen möglichen Beitrag persönlich.",
+            ),
+        ),
+    )
+
+
 def test_complete_texts_keep_base_cv_and_form_coherent_letter() -> None:
     bundle = compose_application_document_texts(context=_context(), package=_package())
 
@@ -124,3 +151,20 @@ def test_package_exposes_four_downloadable_local_files() -> None:
         "draft_approval_authority": False,
         "application_authority": False,
     }
+
+
+def test_evidence_first_minimal_review_package_still_exports_four_files() -> None:
+    payload = build_application_document_package_payload(
+        context=_context(),
+        package=_evidence_first_package(),
+    )
+
+    assert payload["status"] == "ready_for_download"
+    assert [item["key"] for item in payload["files"]] == [
+        "cv_docx",
+        "cv_pdf",
+        "letter_docx",
+        "letter_pdf",
+    ]
+    assert "RELEVANTE SCHWERPUNKTE" not in payload["cv_text"]
+    assert "BASISLEBENSLAUF" in payload["cv_text"]
