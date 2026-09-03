@@ -1,174 +1,133 @@
-from __future__ import annotations
-
+from base64 import b64decode
+from datetime import date
 from io import BytesIO
 import json
+from types import SimpleNamespace
 from zipfile import ZipFile
 
-from src.search_intelligence.product_v1_application_context import (
-    ApprovedDocumentSnapshot,
-    CandidateFactSnapshot,
-    JobTargetSnapshot,
-    ProductV1ApplicationContext,
-)
+from pypdf import PdfReader
+
 from src.search_intelligence.product_v1_application_document_package import (
     build_application_document_package_payload,
     compose_application_document_texts,
 )
-from src.search_intelligence.product_v1_application_drafter import (
-    ApplicationDraftFragment,
-    ApplicationDraftPackage,
-)
 
 
-def _context() -> ProductV1ApplicationContext:
-    return ProductV1ApplicationContext(
-        target=JobTargetSnapshot(
+def _context():
+    return SimpleNamespace(
+        target=SimpleNamespace(
             silver_job_id=434,
-            product_rank=1,
-            title="Data Engineer",
-            company_name="Muster GmbH",
-            source_name="personio:muster",
-            source_url="https://muster.jobs.personio.de/job/1",
-            product_readiness_status="rankable",
-            authority_source="gold_product_v1_top_jobs",
+            company_name="Muster Data GmbH",
+            title="(Junior) Data Engineer - Data Platform (m/f/d)",
         ),
+        as_of_date=date(2026, 9, 3),
         source_documents=(
-            ApprovedDocumentSnapshot(
+            SimpleNamespace(
                 document_type="base_cv",
-                label="base cv",
-                source_reference="local://base_cv.pdf",
-                source_sha256="a" * 64,
                 content=(
                     "Jens Haberle\n\n"
                     "Berufserfahrung\n"
                     "Data Engineering Projekt mit Python und PostgreSQL.\n\n"
-                    "Weiterbildung\n"
-                    "SQL und Datenmodellierung."
+                    "Weiterbildung\nSQL und Datenmodellierung."
                 ),
-                source_hash_verified=True,
             ),
-            ApprovedDocumentSnapshot(
+            SimpleNamespace(
                 document_type="base_application_letter",
-                label="base letter",
-                source_reference="local://base_letter.pdf",
-                source_sha256="b" * 64,
-                content="Bestehendes Anschreiben als freigegebener Stilkontext.",
-                source_hash_verified=True,
+                content=(
+                    "Jens Haberle\n\nSehr geehrte Damen und Herren,\n\n"
+                    "bisheriger Bewerbungstext.\n\nMit freundlichen Grüßen\nJens Haberle"
+                ),
             ),
         ),
-        approved_candidate_facts=(
-            CandidateFactSnapshot(
-                fact_key="candidate.python",
-                category="experience",
-                evidence_class="professional_employment",
-                approval_status="approved",
-                statement="Python Erfahrung",
-                capability_tags=("python",),
-                limitations=(),
-                valid_from=None,
-                valid_until=None,
-            ),
-        ),
-        claim_plan=(),
-        as_of_date=__import__("datetime").date(2026, 9, 3),
-        candidate_profile_sha256="c" * 64,
-        generation_ready=True,
     )
 
 
-def _package() -> ApplicationDraftPackage:
-    return ApplicationDraftPackage(
+def _package():
+    def fragment(kind: str, text: str):
+        return SimpleNamespace(kind=kind, text=text)
+
+    return SimpleNamespace(
         status="draft_for_review",
         fragments=(
-            ApplicationDraftFragment(
-                kind="cv_summary",
-                text="Stellenbezogenes Profil mit Python und SQL.",
-                candidate_fact_keys=("candidate.python",),
-                job_evidence=(),
+            fragment(
+                "cv_summary",
+                "Data Engineer mit Fokus auf strukturierte Datenverarbeitung, Python und SQL.",
             ),
-            ApplicationDraftFragment(
-                kind="cv_bullet",
-                text="Python-basierte Datenverarbeitung für belastbare Pipelines.",
-                candidate_fact_keys=("candidate.python",),
-                job_evidence=("Python",),
+            fragment("cv_bullet", "Entwicklung reproduzierbarer Datenpipelines."),
+            fragment("cv_bullet", "Praktische Arbeit mit Python, SQL und PostgreSQL."),
+            fragment("cv_bullet", "Fokus auf Datenqualität und nachvollziehbare Verarbeitung."),
+            fragment(
+                "letter_opening",
+                "Die Rolle verbindet Datenplattformarbeit mit zuverlässiger Datenverarbeitung.",
             ),
-            ApplicationDraftFragment(
-                kind="letter_opening",
-                text="Sehr geehrte Damen und Herren,\nDie Position verbindet Datenplattformen mit zuverlässiger Verarbeitung.",
-                candidate_fact_keys=("candidate.python",),
-                job_evidence=("Datenplattform",),
+            fragment(
+                "letter_fit",
+                "Meine praktische Arbeit an Datenpipelines knüpft direkt an diese Aufgaben an.",
             ),
-            ApplicationDraftFragment(
-                kind="letter_fit",
-                text="Meine freigegebene Python-Erfahrung passt zu den Aufgaben.",
-                candidate_fact_keys=("candidate.python",),
-                job_evidence=("Python",),
+            fragment(
+                "letter_fit",
+                "Python, SQL und Datenqualität bilden dabei den fachlichen Schwerpunkt.",
             ),
-            ApplicationDraftFragment(
-                kind="letter_closing",
-                text="Ich freue mich auf ein persönliches Gespräch.\nMit freundlichen Grüßen\nJens Haberle",
-                candidate_fact_keys=(),
-                job_evidence=(),
+            fragment(
+                "letter_closing",
+                "Gern erläutere ich Ihnen meinen möglichen Beitrag in einem persönlichen Gespräch.",
             ),
         ),
     )
 
 
-def _evidence_first_package() -> ApplicationDraftPackage:
-    return ApplicationDraftPackage(
+def _evidence_first_package():
+    def fragment(kind: str, text: str):
+        return SimpleNamespace(kind=kind, text=text)
+
+    return SimpleNamespace(
         status="draft_for_review",
         fragments=(
-            ApplicationDraftFragment(
-                kind="cv_summary",
-                text="Freigegebene Kandidateninformation für den stellenbezogenen Profilkopf.",
-                candidate_fact_keys=("candidate.python",),
-                job_evidence=(),
+            fragment(
+                "cv_summary",
+                "Freigegebene Kandidateninformation für den stellenbezogenen Profilkopf.",
             ),
-            ApplicationDraftFragment(
-                kind="letter_opening",
-                text="Die Position ist für eine evidenzbasierte Bewerbung relevant.",
-                candidate_fact_keys=("candidate.python",),
-                job_evidence=("Datenplattform",),
+            fragment(
+                "letter_opening",
+                "Die Position adressiert einen durch die Stellenanzeige belegten Schwerpunkt.",
             ),
-            ApplicationDraftFragment(
-                kind="letter_fit",
-                text="Python ist als freigegebene Kandidatenkompetenz belegt.",
-                candidate_fact_keys=("candidate.python",),
-                job_evidence=("Python",),
+            fragment(
+                "letter_fit",
+                "Die freigegebene Kandidateninformation wird diesem Schwerpunkt zur Prüfung gegenübergestellt.",
             ),
-            ApplicationDraftFragment(
-                kind="letter_closing",
-                text="Ich freue mich auf die Gelegenheit zum Austausch.",
-                candidate_fact_keys=(),
-                job_evidence=(),
+            fragment(
+                "letter_closing",
+                "Gern bespreche ich die Position und meinen möglichen Beitrag persönlich.",
             ),
         ),
     )
 
 
-def test_complete_document_texts_preserve_base_cv_and_clean_letter_envelope() -> None:
-    texts = compose_application_document_texts(context=_context(), package=_package())
+def test_complete_texts_keep_base_cv_and_form_coherent_letter() -> None:
+    bundle = compose_application_document_texts(context=_context(), package=_package())
 
-    assert "STELLENBEZOGENES PROFIL" in texts.cv_text
-    assert "RELEVANTE SCHWERPUNKTE" in texts.cv_text
-    assert "BASISLEBENSLAUF" not in texts.cv_text
-    assert "Berufserfahrung" in texts.cv_text
-    assert "Data Engineering Projekt mit Python und PostgreSQL" in texts.cv_text
-    assert texts.cv_text.count("Jens Haberle") == 1
+    assert "STELLENBEZOGENES PROFIL" in bundle.cv_text
+    assert "Data Engineering Projekt mit Python und PostgreSQL" in bundle.cv_text
+    assert "RELEVANTE SCHWERPUNKTE" in bundle.cv_text
+    assert "BASISLEBENSLAUF" not in bundle.cv_text
+    assert bundle.cv_text.count("Jens Haberle") == 1
+    assert "Muster Data GmbH" in bundle.letter_text
+    assert "Bewerbung als (Junior) Data Engineer" in bundle.letter_text
+    assert bundle.letter_text.count("Sehr geehrte Damen und Herren") == 1
+    assert bundle.letter_text.count("Mit freundlichen Grüßen") == 1
+    assert "bisheriger Bewerbungstext" not in bundle.letter_text
 
-    assert texts.letter_text.count("Sehr geehrte Damen und Herren") == 1
-    assert texts.letter_text.count("Mit freundlichen Grüßen") == 1
-    assert texts.letter_text.endswith("Jens Haberle")
 
-
-def test_package_contains_four_review_files_and_zip() -> None:
+def test_package_exposes_four_files_plus_one_click_zip() -> None:
     payload = build_application_document_package_payload(
         context=_context(),
         package=_package(),
     )
 
     assert payload["status"] == "ready_for_download"
-    assert [item["key"] for item in payload["files"]] == [
+    files = payload["files"]
+    assert isinstance(files, list)
+    assert [item["key"] for item in files] == [
         "cv_docx",
         "cv_pdf",
         "letter_docx",
@@ -176,10 +135,21 @@ def test_package_contains_four_review_files_and_zip() -> None:
         "application_zip",
     ]
 
-    zip_item = next(item for item in payload["files"] if item["key"] == "application_zip")
-    import base64
+    for item in files:
+        content = b64decode(item["content_base64"])
+        assert len(content) == item["byte_count"]
+        assert len(item["content_sha256"]) == 64
 
-    with ZipFile(BytesIO(base64.b64decode(zip_item["content_base64"]))) as archive:
+    cv_pdf = next(item for item in files if item["key"] == "cv_pdf")
+    cv_pdf_text = "\n".join(
+        page.extract_text() or ""
+        for page in PdfReader(BytesIO(b64decode(cv_pdf["content_base64"]))).pages
+    )
+    assert "STELLENBEZOGENES PROFIL" in cv_pdf_text
+    assert "BASISLEBENSLAUF" not in cv_pdf_text
+
+    zip_item = next(item for item in files if item["key"] == "application_zip")
+    with ZipFile(BytesIO(b64decode(zip_item["content_base64"]))) as archive:
         names = archive.namelist()
         assert "manifest.json" in names
         assert len([name for name in names if name.endswith(".docx")]) == 2
