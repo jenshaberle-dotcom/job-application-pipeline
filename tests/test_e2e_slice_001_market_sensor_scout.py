@@ -168,3 +168,124 @@ def test_reservation_prefers_unknown_role_match_and_stays_out_of_product_plane()
     assert "silver" in payload["required_later_path"]
     assert "gold" in payload["required_later_path"]
     assert payload["discovery_evidence_sha256"]
+
+
+class _KnownCompanyCursor:
+    def __init__(self, rows_by_table):
+        self.rows_by_table = rows_by_table
+        self.query = ""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def execute(self, query, params=None):
+        self.query = str(query)
+
+    def fetchall(self):
+        for table, rows in self.rows_by_table.items():
+            if f"FROM {table}" in self.query:
+                return rows
+        return []
+
+
+class _KnownCompanyConnection:
+    def __init__(self, rows_by_table):
+        self.rows_by_table = rows_by_table
+
+    def cursor(self):
+        return _KnownCompanyCursor(self.rows_by_table)
+
+    def rollback(self):
+        pass
+
+
+def test_market_evidence_only_company_is_already_known() -> None:
+    from scripts.run_e2e_slice_001_market_sensor_scout import (
+        _load_known_companies,
+    )
+
+    conn = _KnownCompanyConnection(
+        {
+            "market_evidence": [
+                {"company_name": "Historical Market GmbH"},
+            ],
+        }
+    )
+
+    known = _load_known_companies(conn)
+
+    assert "historicalmarketgmbh" in known
+
+
+def test_raw_jobs_only_company_is_already_known() -> None:
+    from scripts.run_e2e_slice_001_market_sensor_scout import (
+        _load_known_companies,
+    )
+
+    conn = _KnownCompanyConnection(
+        {
+            "raw_jobs": [
+                {"company_name": "Historical Raw GmbH"},
+            ],
+        }
+    )
+
+    known = _load_known_companies(conn)
+
+    assert "historicalrawgmbh" in known
+
+
+def test_existing_cold_reservation_is_never_overwritten(tmp_path) -> None:
+    from scripts.run_e2e_slice_001_market_sensor_scout import (
+        write_reservation_once,
+    )
+
+    first_record = RawJobRecord(
+        source_name="bundesagentur_fuer_arbeit",
+        source_url="ba://first",
+        external_job_id="first",
+        raw_data={
+            "job": {
+                "titel": "Data Engineer",
+                "arbeitgeber": "First Fresh GmbH",
+            }
+        },
+    )
+
+    second_record = RawJobRecord(
+        source_name="bundesagentur_fuer_arbeit",
+        source_url="ba://second",
+        external_job_id="second",
+        raw_data={
+            "job": {
+                "titel": "Analytics Engineer",
+                "arbeitgeber": "Second Fresh GmbH",
+            }
+        },
+    )
+
+    first = observation_from_record(
+        first_record,
+        profile_name="ba",
+        search_term="data",
+        known_companies=set(),
+    )
+
+    second = observation_from_record(
+        second_record,
+        profile_name="ba",
+        search_term="data",
+        known_companies=set(),
+    )
+
+    reservation_path = tmp_path / "reserved.json"
+
+    assert write_reservation_once(reservation_path, first) is True
+
+    original = reservation_path.read_bytes()
+
+    assert write_reservation_once(reservation_path, second) is False
+    assert reservation_path.read_bytes() == original

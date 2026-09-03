@@ -270,12 +270,51 @@ def _load_terms(
     return by_profile
 
 
+
 def _load_known_companies(conn: psycopg.Connection[object]) -> set[str]:
+    """Load every prior company sighting relevant to cold-E2E novelty.
+
+    Cold novelty is historical, not lifecycle-relative. A company is therefore
+    already known when it has appeared in Silver, Employer-Origin candidate
+    state, Market Evidence, or Raw ingestion history.
+    """
+
     known: set[str] = set()
+
     queries = (
-        "SELECT company_name FROM silver_jobs WHERE company_name IS NOT NULL",
-        "SELECT company_name FROM employer_origin_source_candidates WHERE company_name IS NOT NULL",
+        """
+        SELECT company_name
+        FROM silver_jobs
+        WHERE company_name IS NOT NULL
+        """,
+        """
+        SELECT company_name
+        FROM employer_origin_source_candidates
+        WHERE company_name IS NOT NULL
+        """,
+        """
+        SELECT company_name
+        FROM market_evidence
+        WHERE company_name IS NOT NULL
+        """,
+        """
+        SELECT
+            COALESCE(
+                raw_data #>> '{result_card,company_name}',
+                raw_data #>> '{job,arbeitgeber}',
+                raw_data #>> '{job,company_name}',
+                raw_data #>> '{job,company}'
+            ) AS company_name
+        FROM raw_jobs
+        WHERE COALESCE(
+            raw_data #>> '{result_card,company_name}',
+            raw_data #>> '{job,arbeitgeber}',
+            raw_data #>> '{job,company_name}',
+            raw_data #>> '{job,company}'
+        ) IS NOT NULL
+        """,
     )
+
     for query in queries:
         try:
             with conn.cursor() as cur:
@@ -284,10 +323,12 @@ def _load_known_companies(conn: psycopg.Connection[object]) -> set[str]:
         except psycopg.Error:
             conn.rollback()
             continue
+
         for row in rows:
             normalized = _normalize_company(row["company_name"])
             if normalized:
                 known.add(normalized)
+
     return known
 
 
@@ -344,6 +385,37 @@ def _reservation_payload(observation: Observation) -> dict[str, object]:
             "docx_pdf_zip",
         ],
     }
+
+
+
+def write_reservation_once(
+    path: Path,
+    observation: Observation,
+) -> bool:
+    """Persist a cold-E2E reservation exactly once.
+
+    An existing reservation is immutable evidence and must never be replaced by
+    a later scout run. Return True only when this invocation created the file.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    payload = _reservation_payload(observation)
+
+    try:
+        with path.open("x", encoding="utf-8", newline="\n") as handle:
+            json.dump(
+                payload,
+                handle,
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
+            handle.write("\n")
+    except FileExistsError:
+        return False
+
+    return True
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -465,6 +537,11 @@ def main() -> int:
 
     reservation = choose_reservation(observations)
     fresh_companies = fresh_company_names(observations)
+    reservation_created = (
+        write_reservation_once(args.reservation_output, reservation)
+        if reservation is not None
+        else False
+    )
     report = {
         "schema": "job_application_pipeline.e2e_slice_001.market_sensor_scout.v1",
         "created_at": datetime.now(UTC).isoformat(),
@@ -476,7 +553,7 @@ def main() -> int:
             "job_observation_count": len(observations),
             "fresh_company_count": len(fresh_companies),
             "discovery_unit": "company",
-            "reservation_created": reservation is not None,
+            "reservation_created": reservation_created,
         },
         "sources": report_sources,
         "fresh_companies": fresh_companies,
@@ -504,19 +581,6 @@ def main() -> int:
         json.dumps(report, indent=2, ensure_ascii=False, default=str) + "\n",
         encoding="utf-8",
     )
-
-    if reservation is not None:
-        args.reservation_output.parent.mkdir(parents=True, exist_ok=True)
-        args.reservation_output.write_text(
-            json.dumps(
-                _reservation_payload(reservation),
-                indent=2,
-                ensure_ascii=False,
-                default=str,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
 
     print("=== E2E-SLICE-001 MARKET SENSOR LIVE SCOUT ===")
     print("DISCOVERY_UNIT=company")
