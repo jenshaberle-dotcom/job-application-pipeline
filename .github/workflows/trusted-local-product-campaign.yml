@@ -33,25 +33,137 @@ permissions:
   contents: read
   issues: write
 
-concurrency:
-  group: trusted-local-product-campaign
-  cancel-in-progress: false
-
 jobs:
-  campaign:
-    name: Execute trusted local DB/gate campaign
+  admission:
+    name: Admit trusted local Product request
     if: >-
       (github.event_name == 'workflow_dispatch' && github.actor == 'jenshaberle-dotcom') ||
       (github.event_name == 'issue_comment' &&
        github.event.comment.user.login == 'jenshaberle-dotcom' &&
        github.event.comment.author_association == 'OWNER' &&
        startsWith(github.event.comment.body, '<!-- jap-trusted-local-product-campaign:v1 -->'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      admitted: ${{ steps.request.outputs.admitted }}
+      trusted_main_sha: ${{ steps.request.outputs.trusted_main_sha }}
+      company_key: ${{ steps.request.outputs.company_key }}
+      candidate_id: ${{ steps.request.outputs.candidate_id }}
+      target_location: ${{ steps.request.outputs.target_location }}
+      max_steps: ${{ steps.request.outputs.max_steps }}
+      issue_number: ${{ steps.request.outputs.issue_number }}
+      mode: ${{ steps.request.outputs.mode }}
+
+    steps:
+      - name: Parse request and authenticate exact current main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          DISPATCH_COMPANY_KEY: ${{ inputs.company_key }}
+          DISPATCH_CANDIDATE_ID: ${{ inputs.candidate_id }}
+          DISPATCH_TARGET_LOCATION: ${{ inputs.target_location }}
+          DISPATCH_MAX_STEPS: ${{ inputs.max_steps }}
+          DISPATCH_ISSUE_NUMBER: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+
+          current_main_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')"
+          if [[ "$GITHUB_SHA" != "$current_main_sha" ]]; then
+            echo "CAMPAIGN_ADMISSION_STALE_MAIN: event=$GITHUB_SHA current=$current_main_sha" >&2
+            exit 3
+          fi
+
+          python3 - "$current_main_sha" <<'PY' >> "$GITHUB_OUTPUT"
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+          import sys
+
+          marker = "<!-- jap-trusted-local-product-campaign:v1 -->"
+          trusted_main_sha = sys.argv[1]
+          event_name = os.environ["EVENT_NAME"]
+
+          if event_name == "issue_comment":
+              body = os.environ.get("COMMENT_BODY", "")
+              if not body.startswith(marker):
+                  raise SystemExit("CAMPAIGN_REQUEST_INVALID: marker mismatch")
+              raw = body[len(marker):].strip()
+              payload = json.loads(raw)
+              issue_number = int(os.environ["EVENT_ISSUE_NUMBER"])
+          else:
+              payload = {
+                  "company_key": os.environ["DISPATCH_COMPANY_KEY"],
+                  "candidate_id": os.environ["DISPATCH_CANDIDATE_ID"],
+                  "target_location": os.environ["DISPATCH_TARGET_LOCATION"],
+                  "max_steps": os.environ["DISPATCH_MAX_STEPS"],
+                  "mode": "db_only",
+              }
+              issue_number = int(os.environ["DISPATCH_ISSUE_NUMBER"])
+
+          if not isinstance(payload, dict):
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: JSON root must be an object")
+          allowed = {"company_key", "candidate_id", "target_location", "max_steps", "mode"}
+          unknown = sorted(set(payload) - allowed)
+          if unknown:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: unknown keys=" + ",".join(unknown))
+
+          company_key = str(payload.get("company_key") or "")
+          candidate_id = int(payload.get("candidate_id") or 0)
+          target_location = str(payload.get("target_location") or "hannover")
+          max_steps = int(payload.get("max_steps") or 12)
+          mode = str(payload.get("mode") or "db_only")
+
+          if re.fullmatch(r"[a-z0-9_]{1,80}", company_key) is None:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: company_key")
+          if candidate_id < 1:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: candidate_id")
+          if not 1 <= max_steps <= 20:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: max_steps")
+          if mode != "db_only":
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: mode")
+          if issue_number < 1:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: issue_number")
+          if re.fullmatch(r"[A-Za-z0-9ÄÖÜäöüß ._\-/]{1,100}", target_location) is None:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: target_location")
+          if "\n" in target_location or "\r" in target_location:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: target_location newline")
+
+          print("admitted=true")
+          print(f"trusted_main_sha={trusted_main_sha}")
+          print(f"company_key={company_key}")
+          print(f"candidate_id={candidate_id}")
+          print(f"target_location={target_location}")
+          print(f"max_steps={max_steps}")
+          print(f"issue_number={issue_number}")
+          print(f"mode={mode}")
+          PY
+
+  campaign:
+    name: Execute trusted local DB/gate campaign
+    needs: admission
+    if: needs.admission.outputs.admitted == 'true'
+    concurrency:
+      group: trusted-local-product-campaign
+      cancel-in-progress: false
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      TRUSTED_MAIN_SHA: ${{ needs.admission.outputs.trusted_main_sha }}
+      CAMPAIGN_COMPANY_KEY: ${{ needs.admission.outputs.company_key }}
+      CAMPAIGN_CANDIDATE_ID: ${{ needs.admission.outputs.candidate_id }}
+      CAMPAIGN_TARGET_LOCATION: ${{ needs.admission.outputs.target_location }}
+      CAMPAIGN_MAX_STEPS: ${{ needs.admission.outputs.max_steps }}
+      CAMPAIGN_ISSUE_NUMBER: ${{ needs.admission.outputs.issue_number }}
+      CAMPAIGN_MODE: ${{ needs.admission.outputs.mode }}
 
     steps:
       - name: Resolve verified RCC runtime context
@@ -145,7 +257,7 @@ jobs:
           printf 'RUNTIME_PYTHON=%s\n' "${context_values[1]}" >> "$GITHUB_ENV"
           printf 'RUNTIME_ENV_FILE=%s\n' "${context_values[2]}" >> "$GITHUB_ENV"
 
-      - name: Fast-forward persistent checkout to exact trusted main
+      - name: Fast-forward persistent checkout to exact admitted main
         shell: bash
         run: |
           set -euo pipefail
@@ -154,9 +266,9 @@ jobs:
             > "$RUNNER_TEMP/trusted-product-checkout.json"
 
           actual_sha="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
-          if [[ "$actual_sha" != "$GITHUB_SHA" ]]; then
-            echo "Persistent checkout does not match trusted event main revision." >&2
-            echo "expected=$GITHUB_SHA actual=$actual_sha" >&2
+          if [[ "$actual_sha" != "$TRUSTED_MAIN_SHA" ]]; then
+            echo "Persistent checkout does not match admitted trusted main revision." >&2
+            echo "expected=$TRUSTED_MAIN_SHA actual=$actual_sha" >&2
             exit 3
           fi
           if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain=v1)" ]]; then
@@ -165,78 +277,6 @@ jobs:
           fi
           test -f "$RUNTIME_ENV_FILE"
           echo "TRUSTED_MAIN_SHA=$actual_sha"
-
-      - name: Parse and validate campaign request as data
-        shell: bash
-        env:
-          COMMENT_BODY: ${{ github.event.comment.body }}
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          DISPATCH_COMPANY_KEY: ${{ inputs.company_key }}
-          DISPATCH_CANDIDATE_ID: ${{ inputs.candidate_id }}
-          DISPATCH_TARGET_LOCATION: ${{ inputs.target_location }}
-          DISPATCH_MAX_STEPS: ${{ inputs.max_steps }}
-          DISPATCH_ISSUE_NUMBER: ${{ inputs.issue_number }}
-        run: |
-          set -euo pipefail
-          "$RUNTIME_PYTHON" - <<'PY' >> "$GITHUB_ENV"
-          from __future__ import annotations
-
-          import json
-          import os
-          import re
-
-          marker = "<!-- jap-trusted-local-product-campaign:v1 -->"
-          event_name = os.environ["EVENT_NAME"]
-
-          if event_name == "issue_comment":
-              body = os.environ.get("COMMENT_BODY", "")
-              if not body.startswith(marker):
-                  raise SystemExit("CAMPAIGN_REQUEST_INVALID: marker mismatch")
-              raw = body[len(marker):].strip()
-              payload = json.loads(raw)
-              issue_number = int(os.environ["EVENT_ISSUE_NUMBER"])
-          else:
-              payload = {
-                  "company_key": os.environ["DISPATCH_COMPANY_KEY"],
-                  "candidate_id": os.environ["DISPATCH_CANDIDATE_ID"],
-                  "target_location": os.environ["DISPATCH_TARGET_LOCATION"],
-                  "max_steps": os.environ["DISPATCH_MAX_STEPS"],
-                  "mode": "db_only",
-              }
-              issue_number = int(os.environ["DISPATCH_ISSUE_NUMBER"])
-
-          if not isinstance(payload, dict):
-              raise SystemExit("CAMPAIGN_REQUEST_INVALID: JSON root must be an object")
-          allowed = {"company_key", "candidate_id", "target_location", "max_steps", "mode"}
-          unknown = sorted(set(payload) - allowed)
-          if unknown:
-              raise SystemExit("CAMPAIGN_REQUEST_INVALID: unknown keys=" + ",".join(unknown))
-
-          company_key = str(payload.get("company_key") or "")
-          candidate_id = int(payload.get("candidate_id") or 0)
-          target_location = str(payload.get("target_location") or "hannover")
-          max_steps = int(payload.get("max_steps") or 12)
-          mode = str(payload.get("mode") or "db_only")
-
-          if re.fullmatch(r"[a-z0-9_]{1,80}", company_key) is None:
-              raise SystemExit("CAMPAIGN_REQUEST_INVALID: company_key")
-          if candidate_id < 1:
-              raise SystemExit("CAMPAIGN_REQUEST_INVALID: candidate_id")
-          if not 1 <= max_steps <= 20:
-              raise SystemExit("CAMPAIGN_REQUEST_INVALID: max_steps")
-          if mode != "db_only":
-              raise SystemExit("CAMPAIGN_REQUEST_INVALID: mode")
-          if issue_number < 1:
-              raise SystemExit("CAMPAIGN_REQUEST_INVALID: issue_number")
-
-          print(f"CAMPAIGN_COMPANY_KEY={company_key}")
-          print(f"CAMPAIGN_CANDIDATE_ID={candidate_id}")
-          print(f"CAMPAIGN_TARGET_LOCATION={target_location}")
-          print(f"CAMPAIGN_MAX_STEPS={max_steps}")
-          print(f"CAMPAIGN_MODE={mode}")
-          print(f"CAMPAIGN_ISSUE_NUMBER={issue_number}")
-          PY
 
       - name: Execute bounded trusted local product campaign
         shell: bash
@@ -269,7 +309,7 @@ jobs:
             exit 0
           fi
 
-          "$RUNTIME_PYTHON" - "$CAMPAIGN_RECEIPT" "$GITHUB_TOKEN" "$RCC_REPOSITORY" "$CAMPAIGN_ISSUE_NUMBER" "$GITHUB_RUN_ID" "$GITHUB_SHA" <<'PY'
+          "$RUNTIME_PYTHON" - "$CAMPAIGN_RECEIPT" "$GITHUB_TOKEN" "$RCC_REPOSITORY" "$CAMPAIGN_ISSUE_NUMBER" "$GITHUB_RUN_ID" "$TRUSTED_MAIN_SHA" <<'PY'
           from __future__ import annotations
 
           import json
