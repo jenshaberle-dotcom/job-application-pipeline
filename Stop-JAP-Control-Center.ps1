@@ -29,7 +29,9 @@ if (-not $wsl) {
     throw "WSL is required to stop JAP Control Center."
 }
 $distro = [string]$current.wsl_distro
-$linuxRunner = (& $wsl.Source -d $distro -- wslpath -u $RunnerPath 2>$null | Select-Object -First 1)
+# Keep the Windows path out of the default Linux shell parser. This preserves
+# backslashes for wslpath even when the path contains no spaces.
+$linuxRunner = (& $wsl.Source -d $distro --exec wslpath -u $RunnerPath 2>$null | Select-Object -First 1)
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRunner)) {
     throw "Could not map the installed JAP WSL launcher."
 }
@@ -37,7 +39,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRunner)) {
 $stopArguments = @(
     "-d",
     $distro,
-    "--",
+    "--exec",
     "bash",
     $linuxRunner.Trim(),
     [string]$current.wsl_project_root,
