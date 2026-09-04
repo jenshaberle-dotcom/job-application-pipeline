@@ -112,6 +112,23 @@ The execution boundary is deliberately split:
 
 At the `main@fc70ecb9d315a92e49139a07f3d3e9a7f50cc79d` reconciliation point, PR `#798` explicitly records unavailable local warm capacity as the reason for adding the independent hosted read-only B-ITE proof. Issue `#794` contains Product-campaign trigger requests for VALUNY candidate `83`, but the comments themselves are not execution-completion evidence.
 
+The latest valid VALUNY Trusted Local Product Campaign is already admitted and must be preserved rather than replayed:
+
+```text
+RUN=33870558895
+HEAD=51d182b97fe42c7051adf9953e28086471913bd9
+ADMISSION_JOB=101015265178 completed/success
+EXECUTION_JOB=101015300721 pending
+```
+
+The latest scheduled warm heartbeat observed during this reconciliation is also waiting rather than successful:
+
+```text
+WARM_HEARTBEAT_RUN=33879820472
+WARM_HEARTBEAT_JOB=101045454603
+STATUS=pending/queued
+```
+
 Fresh exact-head route evidence from PR `#799` / Pipeline CI run `#1245` at `2026-09-04T14:00:00Z` resolved the current CI route as:
 
 ```text
@@ -121,6 +138,26 @@ REASON=no-successful-heartbeat
 ```
 
 Therefore the current trusted Linux Product/DB execution surface is **not routable under the canonical warm-route contract**. This establishes the operational blocker, not its service-level root cause. A provisioned/sleep-capable warmrunner profile must not be mistaken for current capacity, and hosted CI must not be promoted into a DB-mutation fallback.
+
+### Cross-project RCC lifecycle authority
+
+A live RCC authority refresh after PR `#799` materially narrows the next action.
+
+Current RCC repository truth at the refresh point:
+
+```text
+RCC_REPOSITORY=jenshaberle-dotcom/Runner-Control-Center---RCC
+RCC_MAIN=0160af23329923e7b3e99063d30e22a5e567e078
+RCC_ACTIVE_LIFECYCLE_AUTHORITY=Issue #32 Cold-to-Warm fleet migration
+RCC_ACTIVE_MIGRATION_AUTHORITY=NONE
+RCC_LAST_SIGNED_PLAN=4 legacy / 0 unknown / migration_ready=true on stale pre-PR312 main
+RCC_INSTALLED_BROKER=stale relative to current main
+RCC_NEXT_PHASE=Issue #28 Sleep/Standby/Wake only after terminal Issue #32 completion
+```
+
+PR `#312` (`Fix #32 Python package-set broken-root recovery`) had automatically closed RCC issue `#32` when it merged, but the PR itself explicitly states that it creates no runner/broker/migration authority and that broker readoption plus a fresh `PLAN_ONLY` are still required. RCC PR `#313` then reconciled the four current Re-Entry documents and preserved exactly that non-terminal state. The automatic #32 closure was therefore corrected and #32 was reopened without runner/service/fleet mutation.
+
+Consequently the unavailable JAP runner must **not** be woken by treating RCC issue `#28` as already-active authority. The cross-project blocker is earlier: RCC issue `#32` must first reach fresh signed terminal `remaining_legacy=0`, `blocked_unknown=0`, `workload_proof_blocked=0`. Until then, the already-admitted JAP Product run remains intentionally pending and no new Product trigger is allowed.
 
 ## Pipeline Development Navigator — diagnostic sidecar
 
@@ -164,7 +201,7 @@ VERTICAL_CAPABILITY
 RETURN_CONDITION
 ```
 
-Current E2E navigator snapshot reconciled to canonical `main@fc70ecb9d315a92e49139a07f3d3e9a7f50cc79d` and durable issue `#794` evidence:
+Current E2E navigator snapshot reconciled to post-#799 canonical `main@703f91eb7ff3558eed4b3fbd57c904ee6ecb873e` plus durable issue `#794` and RCC lifecycle evidence:
 
 ```text
 CAMPAIGN            E2E-SLICE-001 / issue #794 under E2E-FOCUS-001 / #783
@@ -175,7 +212,7 @@ VERTICAL_CAPABILITY B-ITE provider / tenant vacancy acquisition — PROVEN diagn
 RETURN_CONDITION    carry the learned B-ITE contract through the normal generic connector
                     auto-generation + fixture/test-plane contract, then acquire the real
                     current VALUNY vacancy through that connectorized path; only then Bronze
-EXECUTION_CAPACITY  BLOCKED — warm route unavailable: no-successful-heartbeat
+EXECUTION_CAPACITY  BLOCKED — no successful warm heartbeat; RCC #32 not terminal
 
 [PROVEN] Market discovery
 [PROVEN] Fresh-company reservation / immutable discovery evidence
@@ -187,7 +224,8 @@ EXECUTION_CAPACITY  BLOCKED — warm route unavailable: no-successful-heartbeat
 [PROVEN] Exact current VALUNY vacancy through bounded exploratory B-ITE proof
 [ACTIVE] Normal Employer-Origin / connectorized acquisition continuation
          [BLOCKED] DB-backed Employer-Origin gate progression for candidate 83
-                   operational blocker: job-pipeline-runtime-linux not routable
+                   runtime blocker: job-pipeline-runtime-linux not routable
+                   authority blocker: RCC #32 must complete before #28 wake authority
          [PENDING] generic B-ITE connector auto-generation / fixture contract proof
          [PENDING] real current vacancy acquired through normal connectorized path
 [PENDING] Bronze
@@ -202,7 +240,9 @@ EXECUTION_CAPACITY  BLOCKED — warm route unavailable: no-successful-heartbeat
 
 Important truth boundary: the exploratory B-ITE vacancy proof establishes that the real current vacancy exists and that the provider/tenant contract is usable. It does **not** authorize a direct `raw_jobs`/manual DB bypass and does not count as Bronze ingestion. The cold E2E still has to traverse the normal connectorized product path.
 
-The exact next operational action is to inspect the newest Trusted Local Product Campaign admission/request state for candidate `83` and, when it is waiting only on `job-pipeline-runtime-linux`, restore that **existing** warm execution surface through its canonical RCC lifecycle. Do not create a replacement runner and do not route DB mutation to GitHub-hosted CI merely to bypass the heartbeat failure. After restoration, require a successful warm heartbeat/route proof before allowing the bounded Product campaign to execute. If the RCC wake/start path requires UAC or service authority, that is the operator boundary. If newer campaign evidence shows completion, rejection, staleness or a different classified blocker, preserve it and continue from that newer state instead of replaying the request.
+The exact next infrastructure action is **not** a new JAP trigger and **not** an early RCC #28 wake. Preserve Trusted Local Product Campaign run `33870558895` / execution job `101015300721` exactly as admitted. RCC issue `#32` owns the currently required lifecycle continuation: from current RCC exact main `0160af23329923e7b3e99063d30e22a5e567e078`, use a fresh clean detached exact-main WSL worktree, perform the signed broker readoption under the interactive elevated publisher identity, then run exactly one fresh same-main `PLAN_ONLY` and require diagnostic parity. Only the resulting RCC authority may decide terminal completion or one explicitly rebound bounded replacement-first MIGRATE. The broker readoption requires the interactive elevated publisher boundary and therefore is an operator/UAC boundary from this GitHub-only control plane.
+
+After RCC issue `#32` reaches fresh signed terminal `0 legacy / 0 unknown / 0 workload blocker`, issue `#28` becomes the valid Sleep/Standby/Wake continuation. At that point wake the same qualified `job-pipeline-runtime-linux` execution surface, require a successful heartbeat/route proof, and allow the already-admitted JAP Product job to continue without replay. If newer campaign or RCC evidence appears first, preserve it and continue from that newer state.
 
 This snapshot is diagnostic context, not an alternative project truth. If later live evidence has moved the E2E forward, re-entry must update or supersede the snapshot rather than treating stale navigator text as a reason to repeat already-proven work.
 
