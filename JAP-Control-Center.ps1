@@ -128,13 +128,15 @@ $argumentLine = (
     [string]$current.wsl_state_root
 )
 
-$process = Start-Process \
-    -FilePath $wsl.Source \
-    -ArgumentList $argumentLine \
-    -WindowStyle Hidden \
-    -RedirectStandardOutput $stdoutLog \
-    -RedirectStandardError $stderrLog \
-    -PassThru
+$startArguments = @{
+    FilePath = $wsl.Source
+    ArgumentList = $argumentLine
+    WindowStyle = "Hidden"
+    RedirectStandardOutput = $stdoutLog
+    RedirectStandardError = $stderrLog
+    PassThru = $true
+}
+$process = Start-Process @startArguments
 
 Write-JsonAtomic $RuntimePath @{
     repository_id = $ExpectedRepositoryId
