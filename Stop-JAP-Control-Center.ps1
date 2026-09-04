@@ -34,12 +34,19 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRunner)) {
     throw "Could not map the installed JAP WSL launcher."
 }
 
-& $wsl.Source -d $distro -- bash $linuxRunner.Trim() \
-    ([string]$current.wsl_project_root) \
-    ([string]$current.managed_worktree) \
-    ([string]$current.pinned_sha) \
-    ([string]$current.wsl_state_root) \
-    --stop
+$stopArguments = @(
+    "-d",
+    $distro,
+    "--",
+    "bash",
+    $linuxRunner.Trim(),
+    [string]$current.wsl_project_root,
+    [string]$current.managed_worktree,
+    [string]$current.pinned_sha,
+    [string]$current.wsl_state_root,
+    "--stop"
+)
+& $wsl.Source @stopArguments
 if ($LASTEXITCODE -ne 0) {
     throw "Managed JAP Control Center stop failed."
 }
