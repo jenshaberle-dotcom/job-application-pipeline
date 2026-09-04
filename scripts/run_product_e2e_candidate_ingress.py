@@ -94,16 +94,96 @@ def collect_manual_observation_seeds(
     return [classify_seed_row(row) for row in rows]
 
 
+
+def load_cold_reservation_seed(path: Path) -> ObservationSeed:
+    """Read one immutable cold-E2E company reservation as discovery evidence.
+
+    The reservation remains read-only.  Its exposing job URL is discovery
+    provenance only and never becomes an Employer-Origin URL or Product job.
+    """
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    if payload.get("status") != "held_out_of_pipeline_for_cold_e2e":
+        raise ValueError(
+            f"Reservation {path} is not an active cold-E2E holdout."
+        )
+
+    if payload.get("must_not_pre_ingest") is not True:
+        raise ValueError(
+            f"Reservation {path} does not preserve must_not_pre_ingest=true."
+        )
+
+    observation = payload.get("observation")
+    if not isinstance(observation, dict):
+        raise ValueError(f"Reservation {path} lacks observation evidence.")
+
+    company_name = str(
+        observation.get("company_name") or ""
+    ).strip()
+    source_name = str(
+        observation.get("source_name")
+        or observation.get("source")
+        or payload.get("source_name")
+        or ""
+    ).strip()
+    source_url = str(
+        observation.get("source_url")
+        or observation.get("url")
+        or observation.get("discovery_url")
+        or payload.get("source_url")
+        or ""
+    ).strip()
+
+    if not company_name:
+        raise ValueError(
+            f"Reservation {path} lacks an explicit company_name."
+        )
+
+    if not source_name:
+        raise ValueError(
+            f"Reservation {path} lacks discovery source provenance."
+        )
+
+    seed = classify_seed_row(
+        {
+            "seed_source_table": "e2e_cold_reservation",
+            "company_name": company_name,
+            "source_name": source_name,
+            "evidence_url": source_url or None,
+        }
+    )
+
+    case = case_from_seed(seed)
+    if case.discovery_source_class not in {
+        "aggregator_company_discovery",
+        "public_job_api_discovery",
+        "manual_observation",
+    }:
+        raise ValueError(
+            "Cold reservation does not map to a supported Product E2E "
+            f"discovery class: {case.discovery_source_class!r}."
+        )
+
+    return seed
+
 def collect_portfolio_cases(
     conn: psycopg.Connection[Any],
     *,
     limit: int,
     limit_per_seed_source: int,
     manual_limit: int,
+    reservation_files: Iterable[Path] = (),
 ) -> list[DiscoveryCase]:
     seeds = collect_seeds(conn, limit_per_source=limit_per_seed_source)
     manual_seeds = collect_manual_observation_seeds(conn, limit=manual_limit)
-    combined = deduplicate_seeds([*seeds, *manual_seeds])
+    reservation_seeds = [
+        load_cold_reservation_seed(path)
+        for path in reservation_files
+    ]
+    combined = deduplicate_seeds(
+        [*seeds, *manual_seeds, *reservation_seeds]
+    )
     return select_representative_cases(
         (case_from_seed(seed) for seed in combined),
         limit=limit,
@@ -274,6 +354,8 @@ def write_report(
         "plans": [asdict(plan) for plan in plans],
         "boundary": {
             "dry_run_default": True,
+            "reservation_files_read_only": True,
+            "reservation_job_is_discovery_evidence_only": True,
             "explicit_company_keys_required_for_apply": True,
             "exact_approval_token_required": True,
             "candidate_status_created": "discovery",
@@ -299,6 +381,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--limit", type=int, default=5)
     parser.add_argument("--limit-per-seed-source", type=int, default=100)
     parser.add_argument("--manual-limit", type=int, default=50)
+    parser.add_argument(
+        "--reservation-file",
+        action="append",
+        type=Path,
+        default=[],
+        help=(
+            "Read one immutable E2E cold-company reservation as generic "
+            "discovery evidence. The file is never mutated."
+        ),
+    )
     parser.add_argument("--company-key", action="append", default=[])
     parser.add_argument("--reviewed-by", default="jens")
     parser.add_argument("--apply", action="store_true")
@@ -326,6 +418,7 @@ def run(args: argparse.Namespace) -> int:
             limit=args.limit,
             limit_per_seed_source=args.limit_per_seed_source,
             manual_limit=args.manual_limit,
+            reservation_files=args.reservation_file,
         )
         plans = build_plans(conn, cases)
         selected: tuple[CandidateIngressPlan, ...] = ()
