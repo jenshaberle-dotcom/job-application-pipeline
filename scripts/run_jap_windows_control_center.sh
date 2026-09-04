@@ -30,13 +30,14 @@ mkdir -p "$STATE_ROOT"
 
 managed_pid() {
   [[ -f "$PID_FILE" ]] || return 1
-  local pid
+  local pid cmdline cwd expected_cwd
   pid="$(tr -dc '0-9' < "$PID_FILE")"
   [[ -n "$pid" && -r "/proc/$pid/cmdline" ]] || return 1
-  local cmdline
   cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
   [[ "$cmdline" == *"scripts/run_product_v1_live_demo.py"* ]] || return 1
-  [[ "$cmdline" == *"$MANAGED_WORKTREE"* || -d "/proc/$pid/cwd" ]] || return 1
+  cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
+  expected_cwd="$(readlink -f "$MANAGED_WORKTREE" 2>/dev/null || true)"
+  [[ -n "$expected_cwd" && "$cwd" == "$expected_cwd" ]] || return 1
   printf '%s' "$pid"
 }
 
