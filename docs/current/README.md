@@ -71,9 +71,9 @@ Canonical release surfaces:
 
 Commit history remains engineering detail. Product-visible checkpoints must be represented by GitHub Releases with features, bug fixes, known limitations and relevant operator proof.
 
-## Active product continuation — PRODUCT-RECOVERY-001
+## Active product continuation — E2E-FOCUS-001 / PRODUCT-RECOVERY-001
 
-The current product priority is **PRODUCT-RECOVERY-001 / issue #783**.
+The current product priority is **E2E-FOCUS-001 / issue #783** (former working title `PRODUCT-RECOVERY-001`).
 
 The optimization target is no longer additional subsystem hardening by default. The primary product truth is one repeatable cold-to-application flow:
 
@@ -96,6 +96,21 @@ Recovery priorities are:
 7. protect each product checkpoint through CI/E2E proof and GitHub Releases.
 
 Until this core path is stable, broad new deterministic hardening, ML expansion beyond already-approved foundation work, post-application expansion and new demo-only orchestration are deprioritized.
+
+## CI-max execution boundary
+
+Routine deterministic Product/DB continuation uses the Trusted Local Product CI contract in `ci-max-execution.md` and `.github/workflows/trusted-local-product-campaign.yml`.
+
+The execution boundary is deliberately split:
+
+- GitHub-hosted admission may authenticate and reject stale/invalid requests before scarce local execution is requested;
+- Product/DB execution that requires the local `.env` and PostgreSQL remains on the trusted self-hosted Linux runtime surface;
+- GitHub-hosted execution is not a fallback for local Product/DB mutation;
+- the hosted B-ITE read-only probe introduced by PR `#798` is a bounded evidence surface only and does not provide local DB access;
+- a warmrunner profile being provisioned/migrated is not proof that the runner is currently online or routable; execution capacity must be established from fresh heartbeat/route evidence before any wake/retry decision;
+- do not replay an already-triggered Product campaign merely because a chat/context interruption occurred. First classify the newest Actions/runtime state and preserve completed admission or mutation evidence.
+
+At the `main@fc70ecb9d315a92e49139a07f3d3e9a7f50cc79d` reconciliation point, PR `#798` explicitly records unavailable local warm capacity as the reason for adding the independent hosted read-only B-ITE proof. Issue `#794` contains Product-campaign trigger requests for VALUNY candidate `83`, but the comments themselves are not execution-completion evidence. Fresh Actions/runtime truth decides whether the next step is to consume an already-admitted waiting job, restore warmrunner capacity through the canonical RCC lifecycle, or classify another concrete blocker.
 
 ## Pipeline Development Navigator — diagnostic sidecar
 
@@ -139,27 +154,30 @@ VERTICAL_CAPABILITY
 RETURN_CONDITION
 ```
 
-Current E2E navigator snapshot at the time of this branch work:
+Current E2E navigator snapshot reconciled to canonical `main@fc70ecb9d315a92e49139a07f3d3e9a7f50cc79d` and durable issue `#794` evidence:
 
 ```text
-CAMPAIGN            E2E-SLICE-001 / issue #794 under PRODUCT-RECOVERY-001 / #783
-SUBJECT             VALUNY GmbH
-MOVEMENT            VERTICAL_SPIKE
-HORIZONTAL_POSITION Employer-Origin -> current exact vacancy
-VERTICAL_CAPABILITY B-ITE provider / tenant vacancy acquisition
-RETURN_CONDITION    one current VALUNY Employer-Origin vacancy is acquired from the
-                    employer-authorized B-ITE path; then resume horizontally at Bronze
+CAMPAIGN            E2E-SLICE-001 / issue #794 under E2E-FOCUS-001 / #783
+SUBJECT             VALUNY GmbH / employer-origin candidate 83
+MOVEMENT            RETURNING_HORIZONTAL
+HORIZONTAL_POSITION Employer-Origin candidate -> connectorized current vacancy -> Bronze
+VERTICAL_CAPABILITY B-ITE provider / tenant vacancy acquisition — PROVEN diagnostically
+RETURN_CONDITION    carry the learned B-ITE contract through the normal generic connector
+                    auto-generation + fixture/test-plane contract, then acquire the real
+                    current VALUNY vacancy through that connectorized path; only then Bronze
 
 [PROVEN] Market discovery
-[PROVEN] Employer-Origin
-[ACTIVE] Current exact vacancy acquisition
-         [PROVEN] VALUNY first-party career/listing surface
-         [PROVEN] employer-backed B-ITE loader binding
-         [PROVEN] tenant/listing binding: spectrumk:spectrumk-listing-2026
-         [PROVEN] B-ITE customer asset reachable
-         [PROVEN] B-ITE API v5 runtime reachable
-         [PROVEN] POST/JSON transport contract and jobs.b-ite.com search service observed
-         [SPIKE ] exact live vacancy retrieval
+[PROVEN] Fresh-company reservation / immutable discovery evidence
+[PROVEN] Canonical Employer-Origin candidate ingress: id=83, company_key=valuny
+[PROVEN] Employer-owned VALUNY career/listing surface
+[PROVEN] Employer-backed B-ITE loader binding
+[PROVEN] Tenant/listing binding: spectrumk:spectrumk-listing-2026
+[PROVEN] B-ITE customer asset and API-v5 runtime contract
+[PROVEN] Exact current VALUNY vacancy through bounded exploratory B-ITE proof
+[ACTIVE] Normal Employer-Origin / connectorized acquisition continuation
+         [PENDING] DB-backed Employer-Origin gate progression for candidate 83
+         [PENDING] generic B-ITE connector auto-generation / fixture contract proof
+         [PENDING] real current vacancy acquired through normal connectorized path
 [PENDING] Bronze
 [PENDING] Silver
 [PENDING] Assessment / capability fit
@@ -169,6 +187,10 @@ RETURN_CONDITION    one current VALUNY Employer-Origin vacancy is acquired from 
 [PENDING] Application Workspace
 [PENDING] Review-ready CV/letter package
 ```
+
+Important truth boundary: the exploratory B-ITE vacancy proof establishes that the real current vacancy exists and that the provider/tenant contract is usable. It does **not** authorize a direct `raw_jobs`/manual DB bypass and does not count as Bronze ingestion. The cold E2E still has to traverse the normal connectorized product path.
+
+The exact next operational action after a re-entry is therefore not an unconditional retry. Resolve fresh Trusted Local Product CI / warmrunner state first. If candidate `83` already has an admitted Product job waiting only for `job-pipeline-runtime-linux`, restore that existing execution surface through its canonical RCC lifecycle and let the bounded job continue. If restoring the existing runner requires UAC/service authority, that is the operator boundary. If the job already completed or failed for a different classified reason, preserve that newer evidence and continue from it instead of replaying the campaign.
 
 This snapshot is diagnostic context, not an alternative project truth. If later live evidence has moved the E2E forward, re-entry must update or supersede the snapshot rather than treating stale navigator text as a reason to repeat already-proven work.
 
@@ -212,7 +234,8 @@ Read in this order:
 4. `system-diagrams.md`
 5. `governance.md`
 6. `operations.md`
-7. `POST-MIGRATION-RESTART.json`
-8. while issue #783 is active priority: issue `#783` plus this current-truth section, including the Pipeline Development Navigator contract/snapshot
-9. retained DEMO-001 evidence when needed: `../planning/active/demo_001_live_e2e_reentry.md`
-10. retained ACQ-676 context when needed: `../planning/active/acq_generalization_90_reentry.md`
+7. `ci-max-execution.md`
+8. `POST-MIGRATION-RESTART.json`
+9. while issue #783 is active priority: issue `#783`, active slice issue `#794`, and this current-truth section including the Pipeline Development Navigator contract/snapshot
+10. retained DEMO-001 evidence when needed: `../planning/active/demo_001_live_e2e_reentry.md`
+11. retained ACQ-676 context when needed: `../planning/active/acq_generalization_90_reentry.md`
