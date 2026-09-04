@@ -107,7 +107,10 @@ if (-not (Test-Path $RunnerPath)) {
 }
 
 $distro = [string]$current.wsl_distro
-$linuxRunner = (& $wsl.Source -d $distro -- wslpath -u $RunnerPath 2>$null | Select-Object -First 1)
+# Use --exec so wsl.exe bypasses the default Linux shell while translating the
+# Windows path. Otherwise an unquoted path without spaces can lose backslashes
+# before wslpath receives it (for example C:\Users\... -> C:Users...).
+$linuxRunner = (& $wsl.Source -d $distro --exec wslpath -u $RunnerPath 2>$null | Select-Object -First 1)
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRunner)) {
     throw "Could not map the installed JAP WSL launcher into distribution '$distro'."
 }
@@ -119,7 +122,7 @@ $stderrLog = Join-Path $LogRoot "runtime.stderr.log"
 Remove-Item -Force $stdoutLog, $stderrLog -ErrorAction SilentlyContinue
 
 $argumentLine = (
-    '-d "{0}" -- bash "{1}" "{2}" "{3}" "{4}" "{5}"' -f
+    '-d "{0}" --exec bash "{1}" "{2}" "{3}" "{4}" "{5}"' -f
     $distro,
     $linuxRunner,
     [string]$current.wsl_project_root,
