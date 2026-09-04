@@ -1,0 +1,59 @@
+name: E2E B-ITE Employer-Origin read-only probe
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-bite-origin-readonly
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    if: >-
+      github.event.issue.number == 794 &&
+      github.event.comment.user.login == github.repository_owner &&
+      github.event.comment.body == 'E2E-BITE-PROBE v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact trigger source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Execute one bounded employer-authorized B-ITE POST
+        shell: bash
+        env:
+          BITE_PUBLIC_CLIENT_KEY: c43d274d4610e2b8ad9bd71ee4cc5feff92848b5
+        run: |
+          set -euo pipefail
+          python3 scripts/run_bite_employer_origin_probe.py \
+            --subject 'VALUNY GmbH' \
+            --origin 'https://www.valuny.de/karriere/stellenangebote' \
+            --key "$BITE_PUBLIC_CLIENT_KEY" \
+            --filter-key 'custom.zuordnung_homepage' \
+            --filter-value 'spectrumk' \
+            --match-term 'machine learning' \
+            --match-term 'hannover' \
+            2>&1 | tee "$RUNNER_TEMP/bite-probe.log"
+
+      - name: Publish compact non-secret job summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '## E2E B-ITE Employer-Origin probe'
+            echo
+            if [[ -f "$RUNNER_TEMP/bite-probe.log" ]]; then
+              grep -E '^(CAMPAIGN|SUBJECT|MOVEMENT|HORIZONTAL_POSITION|VERTICAL_CAPABILITY|RETURN_CONDITION|HTTP_|RESPONSE_|CANDIDATE_CONTAINER_COUNT|CONTAINER\[|MATCH_COUNT|MATCH\[|PRODUCT_|RAW_RESPONSE_|BITE_EMPLOYER_ORIGIN_PROBE|JOB_API_POST_BUDGET|KNOWN_EXTERNAL_VACANCY_URL_SEEDED)=' "$RUNNER_TEMP/bite-probe.log" || true
+            else
+              echo 'probe log unavailable'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
