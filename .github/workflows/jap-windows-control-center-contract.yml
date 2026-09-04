@@ -67,6 +67,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install isolated test dependency
+        run: python -m pip install pytest
       - name: Parse Bash entrypoints
         run: |
           bash -n scripts/run_jap_windows_control_center.sh
