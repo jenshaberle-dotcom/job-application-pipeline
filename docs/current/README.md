@@ -110,7 +110,17 @@ The execution boundary is deliberately split:
 - a warmrunner profile being provisioned/migrated is not proof that the runner is currently online or routable; execution capacity must be established from fresh heartbeat/route evidence before any wake/retry decision;
 - do not replay an already-triggered Product campaign merely because a chat/context interruption occurred. First classify the newest Actions/runtime state and preserve completed admission or mutation evidence.
 
-At the `main@fc70ecb9d315a92e49139a07f3d3e9a7f50cc79d` reconciliation point, PR `#798` explicitly records unavailable local warm capacity as the reason for adding the independent hosted read-only B-ITE proof. Issue `#794` contains Product-campaign trigger requests for VALUNY candidate `83`, but the comments themselves are not execution-completion evidence. Fresh Actions/runtime truth decides whether the next step is to consume an already-admitted waiting job, restore warmrunner capacity through the canonical RCC lifecycle, or classify another concrete blocker.
+At the `main@fc70ecb9d315a92e49139a07f3d3e9a7f50cc79d` reconciliation point, PR `#798` explicitly records unavailable local warm capacity as the reason for adding the independent hosted read-only B-ITE proof. Issue `#794` contains Product-campaign trigger requests for VALUNY candidate `83`, but the comments themselves are not execution-completion evidence.
+
+Fresh exact-head route evidence from PR `#799` / Pipeline CI run `#1245` at `2026-09-04T14:00:00Z` resolved the current CI route as:
+
+```text
+WARM_LABELS=["self-hosted","Linux","X64","job-pipeline-runtime-linux"]
+ROUTE=github-hosted
+REASON=no-successful-heartbeat
+```
+
+Therefore the current trusted Linux Product/DB execution surface is **not routable under the canonical warm-route contract**. This establishes the operational blocker, not its service-level root cause. A provisioned/sleep-capable warmrunner profile must not be mistaken for current capacity, and hosted CI must not be promoted into a DB-mutation fallback.
 
 ## Pipeline Development Navigator — diagnostic sidecar
 
@@ -165,6 +175,7 @@ VERTICAL_CAPABILITY B-ITE provider / tenant vacancy acquisition — PROVEN diagn
 RETURN_CONDITION    carry the learned B-ITE contract through the normal generic connector
                     auto-generation + fixture/test-plane contract, then acquire the real
                     current VALUNY vacancy through that connectorized path; only then Bronze
+EXECUTION_CAPACITY  BLOCKED — warm route unavailable: no-successful-heartbeat
 
 [PROVEN] Market discovery
 [PROVEN] Fresh-company reservation / immutable discovery evidence
@@ -175,7 +186,8 @@ RETURN_CONDITION    carry the learned B-ITE contract through the normal generic 
 [PROVEN] B-ITE customer asset and API-v5 runtime contract
 [PROVEN] Exact current VALUNY vacancy through bounded exploratory B-ITE proof
 [ACTIVE] Normal Employer-Origin / connectorized acquisition continuation
-         [PENDING] DB-backed Employer-Origin gate progression for candidate 83
+         [BLOCKED] DB-backed Employer-Origin gate progression for candidate 83
+                   operational blocker: job-pipeline-runtime-linux not routable
          [PENDING] generic B-ITE connector auto-generation / fixture contract proof
          [PENDING] real current vacancy acquired through normal connectorized path
 [PENDING] Bronze
@@ -190,7 +202,7 @@ RETURN_CONDITION    carry the learned B-ITE contract through the normal generic 
 
 Important truth boundary: the exploratory B-ITE vacancy proof establishes that the real current vacancy exists and that the provider/tenant contract is usable. It does **not** authorize a direct `raw_jobs`/manual DB bypass and does not count as Bronze ingestion. The cold E2E still has to traverse the normal connectorized product path.
 
-The exact next operational action after a re-entry is therefore not an unconditional retry. Resolve fresh Trusted Local Product CI / warmrunner state first. If candidate `83` already has an admitted Product job waiting only for `job-pipeline-runtime-linux`, restore that existing execution surface through its canonical RCC lifecycle and let the bounded job continue. If restoring the existing runner requires UAC/service authority, that is the operator boundary. If the job already completed or failed for a different classified reason, preserve that newer evidence and continue from it instead of replaying the campaign.
+The exact next operational action is to inspect the newest Trusted Local Product Campaign admission/request state for candidate `83` and, when it is waiting only on `job-pipeline-runtime-linux`, restore that **existing** warm execution surface through its canonical RCC lifecycle. Do not create a replacement runner and do not route DB mutation to GitHub-hosted CI merely to bypass the heartbeat failure. After restoration, require a successful warm heartbeat/route proof before allowing the bounded Product campaign to execute. If the RCC wake/start path requires UAC or service authority, that is the operator boundary. If newer campaign evidence shows completion, rejection, staleness or a different classified blocker, preserve it and continue from that newer state instead of replaying the request.
 
 This snapshot is diagnostic context, not an alternative project truth. If later live evidence has moved the E2E forward, re-entry must update or supersede the snapshot rather than treating stale navigator text as a reason to repeat already-proven work.
 
