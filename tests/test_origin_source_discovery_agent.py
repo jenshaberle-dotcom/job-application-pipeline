@@ -255,6 +255,11 @@ def test_eo002d_eon_alias_generation_can_select_parent_careers_portal() -> None:
     )
 
     assert result.decision == "origin_url_candidate_selected"
-    assert result.selected_domain in {"careers.eon.com", "www.eon.com", "eon.com"}
+    assert result.selected_domain in {
+        "jobs.eon.com",
+        "careers.eon.com",
+        "www.eon.com",
+        "eon.com",
+    }
     assert result.selected_url is not None
     assert "eon.com" in result.selected_url

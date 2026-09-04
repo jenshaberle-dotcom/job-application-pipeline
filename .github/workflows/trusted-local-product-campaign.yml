@@ -1,0 +1,332 @@
+name: Trusted Local Product Campaign
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      company_key:
+        description: Canonical company key
+        required: true
+        type: string
+      candidate_id:
+        description: Exact employer-origin candidate id
+        required: true
+        type: string
+      target_location:
+        description: Target location
+        required: true
+        default: hannover
+        type: string
+      max_steps:
+        description: Maximum bounded DB/gate transitions
+        required: true
+        default: "12"
+        type: string
+      issue_number:
+        description: Issue receiving the safe campaign receipt
+        required: true
+        default: "794"
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: trusted-local-product-campaign
+  cancel-in-progress: false
+
+jobs:
+  campaign:
+    name: Execute trusted local DB/gate campaign
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.actor == 'jenshaberle-dotcom') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.comment.user.login == 'jenshaberle-dotcom' &&
+       github.event.comment.author_association == 'OWNER' &&
+       startsWith(github.event.comment.body, '<!-- jap-trusted-local-product-campaign:v1 -->'))
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+
+    steps:
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_NAME" != "$RCC_RUNNER_NAME" ]]; then
+            echo "Unexpected self-hosted runner: $RUNNER_NAME" >&2
+            exit 2
+          fi
+
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file" || {
+            echo "RCC runtime context is unavailable." >&2
+            exit 2
+          }
+
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import PurePosixPath
+          import sys
+
+          context_path, repository_id, repository, runner_name = sys.argv[1:]
+          with open(context_path, encoding="utf-8") as handle:
+              context = json.load(handle)
+
+          if context.get("RepositoryId") != int(repository_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("RunnerName") != runner_name:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: runner mismatch")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_CONTEXT_STALE: platform mismatch")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_STALE: runtime context is not PASS")
+
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "env_file",
+              "env_keys",
+              "interpreter",
+              "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(check for check in required if checks.get(check) != "PASS")
+          if failed:
+              raise SystemExit(
+                  "RUNTIME_CONTEXT_STALE: required checks not PASS: " + ",".join(failed)
+              )
+
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          for label, value in (
+              ("checkout", checkout),
+              ("interpreter", interpreter),
+              ("env_file", env_file),
+          ):
+              if not isinstance(value, str) or not value.startswith("/") or "\n" in value or "\0" in value:
+                  raise SystemExit(f"RUNTIME_CONTEXT_STALE: invalid {label} path")
+
+          checkout_path = PurePosixPath(checkout)
+          if checkout_path not in PurePosixPath(interpreter).parents:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: interpreter outside checkout")
+          if checkout_path not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: env file outside checkout")
+
+          print(checkout)
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+
+          mapfile -t context_values <<< "$context_output"
+          if [[ "${#context_values[@]}" -ne 3 ]]; then
+            echo "RCC runtime context returned an invalid projection." >&2
+            exit 2
+          fi
+
+          printf 'PROJECT_DIR=%s\n' "${context_values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_PYTHON=%s\n' "${context_values[1]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${context_values[2]}" >> "$GITHUB_ENV"
+
+      - name: Fast-forward persistent checkout to exact trusted main
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" "$PROJECT_DIR/scripts/prepare_scheduled_pipeline_checkout.py" \
+            --root "$PROJECT_DIR" \
+            > "$RUNNER_TEMP/trusted-product-checkout.json"
+
+          actual_sha="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+          if [[ "$actual_sha" != "$GITHUB_SHA" ]]; then
+            echo "Persistent checkout does not match trusted event main revision." >&2
+            echo "expected=$GITHUB_SHA actual=$actual_sha" >&2
+            exit 3
+          fi
+          if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain=v1)" ]]; then
+            echo "Persistent checkout is not clean after preflight." >&2
+            exit 3
+          fi
+          test -f "$RUNTIME_ENV_FILE"
+          echo "TRUSTED_MAIN_SHA=$actual_sha"
+
+      - name: Parse and validate campaign request as data
+        shell: bash
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          DISPATCH_COMPANY_KEY: ${{ inputs.company_key }}
+          DISPATCH_CANDIDATE_ID: ${{ inputs.candidate_id }}
+          DISPATCH_TARGET_LOCATION: ${{ inputs.target_location }}
+          DISPATCH_MAX_STEPS: ${{ inputs.max_steps }}
+          DISPATCH_ISSUE_NUMBER: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY' >> "$GITHUB_ENV"
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+
+          marker = "<!-- jap-trusted-local-product-campaign:v1 -->"
+          event_name = os.environ["EVENT_NAME"]
+
+          if event_name == "issue_comment":
+              body = os.environ.get("COMMENT_BODY", "")
+              if not body.startswith(marker):
+                  raise SystemExit("CAMPAIGN_REQUEST_INVALID: marker mismatch")
+              raw = body[len(marker):].strip()
+              payload = json.loads(raw)
+              issue_number = int(os.environ["EVENT_ISSUE_NUMBER"])
+          else:
+              payload = {
+                  "company_key": os.environ["DISPATCH_COMPANY_KEY"],
+                  "candidate_id": os.environ["DISPATCH_CANDIDATE_ID"],
+                  "target_location": os.environ["DISPATCH_TARGET_LOCATION"],
+                  "max_steps": os.environ["DISPATCH_MAX_STEPS"],
+                  "mode": "db_only",
+              }
+              issue_number = int(os.environ["DISPATCH_ISSUE_NUMBER"])
+
+          if not isinstance(payload, dict):
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: JSON root must be an object")
+          allowed = {"company_key", "candidate_id", "target_location", "max_steps", "mode"}
+          unknown = sorted(set(payload) - allowed)
+          if unknown:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: unknown keys=" + ",".join(unknown))
+
+          company_key = str(payload.get("company_key") or "")
+          candidate_id = int(payload.get("candidate_id") or 0)
+          target_location = str(payload.get("target_location") or "hannover")
+          max_steps = int(payload.get("max_steps") or 12)
+          mode = str(payload.get("mode") or "db_only")
+
+          if re.fullmatch(r"[a-z0-9_]{1,80}", company_key) is None:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: company_key")
+          if candidate_id < 1:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: candidate_id")
+          if not 1 <= max_steps <= 20:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: max_steps")
+          if mode != "db_only":
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: mode")
+          if issue_number < 1:
+              raise SystemExit("CAMPAIGN_REQUEST_INVALID: issue_number")
+
+          print(f"CAMPAIGN_COMPANY_KEY={company_key}")
+          print(f"CAMPAIGN_CANDIDATE_ID={candidate_id}")
+          print(f"CAMPAIGN_TARGET_LOCATION={target_location}")
+          print(f"CAMPAIGN_MAX_STEPS={max_steps}")
+          print(f"CAMPAIGN_MODE={mode}")
+          print(f"CAMPAIGN_ISSUE_NUMBER={issue_number}")
+          PY
+
+      - name: Execute bounded trusted local product campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/trusted-product-campaign-${GITHUB_RUN_ID}.json"
+          printf 'CAMPAIGN_RECEIPT=%s\n' "$receipt" >> "$GITHUB_ENV"
+
+          (
+            cd "$PROJECT_DIR"
+            "$RUNTIME_PYTHON" -m scripts.run_trusted_local_product_campaign \
+              --company-key "$CAMPAIGN_COMPANY_KEY" \
+              --candidate-id "$CAMPAIGN_CANDIDATE_ID" \
+              --target-location "$CAMPAIGN_TARGET_LOCATION" \
+              --reviewed-by "trusted-local-ci:${GITHUB_ACTOR}" \
+              --max-steps "$CAMPAIGN_MAX_STEPS" \
+              --mode "$CAMPAIGN_MODE" \
+              --output-json "$receipt"
+          )
+
+      - name: Publish safe campaign summary
+        if: always()
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CAMPAIGN_RECEIPT:-}" || ! -f "$CAMPAIGN_RECEIPT" ]]; then
+            echo "No safe receipt was produced; inspect workflow logs." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          "$RUNTIME_PYTHON" - "$CAMPAIGN_RECEIPT" "$GITHUB_TOKEN" "$RCC_REPOSITORY" "$CAMPAIGN_ISSUE_NUMBER" "$GITHUB_RUN_ID" "$GITHUB_SHA" <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+          import sys
+          from urllib.request import Request, urlopen
+
+          receipt_path = Path(sys.argv[1])
+          token, repository, issue_number, run_id, main_sha = sys.argv[2:]
+          receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+
+          summary = {
+              "contract_version": receipt.get("contract_version"),
+              "campaign_status": receipt.get("campaign_status"),
+              "next_action": receipt.get("next_action"),
+              "company_key": receipt.get("company_key"),
+              "candidate_id": receipt.get("candidate_id"),
+              "final_candidate": receipt.get("final_candidate"),
+              "step_count": len(receipt.get("steps") or []),
+              "main_sha": main_sha,
+              "workflow_run_id": run_id,
+          }
+
+          body = (
+              "<!-- jap-trusted-local-product-campaign-receipt:v1 -->\n"
+              "Trusted Local Product Campaign receipt\n\n"
+              "```json\n"
+              + json.dumps(summary, indent=2, ensure_ascii=False, sort_keys=True)
+              + "\n```"
+          )
+
+          url = f"https://api.github.com/repos/{repository}/issues/{issue_number}/comments"
+          request = Request(
+              url,
+              data=json.dumps({"body": body}).encode("utf-8"),
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "job-pipeline-trusted-local-product-campaign/1.0",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+              method="POST",
+          )
+          with urlopen(request, timeout=20) as response:  # noqa: S310 - fixed GitHub API origin.
+              result = json.load(response)
+          if not result.get("id"):
+              raise SystemExit("CAMPAIGN_RECEIPT_PERSISTENCE_FAILED")
+
+          summary_path = Path(__import__("os").environ["GITHUB_STEP_SUMMARY"])
+          summary_path.write_text(
+              "## Trusted Local Product Campaign\n\n"
+              f"- Company: `{summary['company_key']}`\n"
+              f"- Candidate: `{summary['candidate_id']}`\n"
+              f"- Status: `{summary['campaign_status']}`\n"
+              f"- Next: `{summary['next_action']}`\n"
+              f"- Steps: `{summary['step_count']}`\n",
+              encoding="utf-8",
+          )
+          PY

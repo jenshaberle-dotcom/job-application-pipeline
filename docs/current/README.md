@@ -97,6 +97,83 @@ Recovery priorities are:
 
 Until this core path is stable, broad new deterministic hardening, ML expansion beyond already-approved foundation work, post-application expansion and new demo-only orchestration are deprioritized.
 
+## Pipeline Development Navigator — diagnostic sidecar
+
+The **Pipeline Development Navigator** is a project-local operator/developer aid for understanding where active engineering sits inside the product E2E. It is deliberately a **sidecar**, not a product-work authority.
+
+Hard contract:
+
+- the navigator is read-only/derived from existing product, runtime, issue and E2E evidence;
+- it may never become a CI gate, merge gate, re-entry gate, work-admission authority or prerequisite for continuing the E2E;
+- when navigator maintenance conflicts with product progress, product E2E work wins immediately;
+- navigator updates should be harvested opportunistically while a transition is already being touched, not developed as a separate campaign;
+- it must distinguish **horizontal product progress** from a **vertical capability spike** required to unblock one horizontal transition;
+- a vertical spike must always declare the horizontal return condition so that local debugging cannot silently replace the end-to-end goal.
+
+Canonical horizontal product journey:
+
+`market discovery -> Employer-Origin -> current exact vacancy -> Bronze -> Silver -> assessment -> capability fit -> hard filter -> deterministic ranking -> UI recommendation -> Application Workspace -> review-ready package`.
+
+Navigator movement values:
+
+- `HORIZONTAL` — advancing the same subject through the canonical product journey;
+- `VERTICAL_SPIKE` — implementing or proving a reusable capability at the current horizontal transition;
+- `RETURNING_HORIZONTAL` — the vertical capability has produced the evidence needed to resume the product journey.
+
+Navigator stage status values:
+
+- `PROVEN` — the current E2E subject has live evidence for the transition;
+- `ACTIVE` — the current horizontal transition being pursued;
+- `SPIKE` — the active reusable capability nested under that transition;
+- `PENDING` — not yet traversed by the current subject;
+- `BLOCKED` — attempted and concretely blocked; must include the observed reason and next safe action.
+
+Minimum operator fields:
+
+```text
+CAMPAIGN
+SUBJECT
+MOVEMENT
+HORIZONTAL_POSITION
+VERTICAL_CAPABILITY
+RETURN_CONDITION
+```
+
+Current E2E navigator snapshot at the time of this branch work:
+
+```text
+CAMPAIGN            E2E-SLICE-001 / issue #794 under PRODUCT-RECOVERY-001 / #783
+SUBJECT             VALUNY GmbH
+MOVEMENT            VERTICAL_SPIKE
+HORIZONTAL_POSITION Employer-Origin -> current exact vacancy
+VERTICAL_CAPABILITY B-ITE provider / tenant vacancy acquisition
+RETURN_CONDITION    one current VALUNY Employer-Origin vacancy is acquired from the
+                    employer-authorized B-ITE path; then resume horizontally at Bronze
+
+[PROVEN] Market discovery
+[PROVEN] Employer-Origin
+[ACTIVE] Current exact vacancy acquisition
+         [PROVEN] VALUNY first-party career/listing surface
+         [PROVEN] employer-backed B-ITE loader binding
+         [PROVEN] tenant/listing binding: spectrumk:spectrumk-listing-2026
+         [PROVEN] B-ITE customer asset reachable
+         [PROVEN] B-ITE API v5 runtime reachable
+         [PROVEN] POST/JSON transport contract and jobs.b-ite.com search service observed
+         [SPIKE ] exact live vacancy retrieval
+[PENDING] Bronze
+[PENDING] Silver
+[PENDING] Assessment / capability fit
+[PENDING] Hard filter
+[PENDING] Deterministic ranking
+[PENDING] UI recommendation
+[PENDING] Application Workspace
+[PENDING] Review-ready CV/letter package
+```
+
+This snapshot is diagnostic context, not an alternative project truth. If later live evidence has moved the E2E forward, re-entry must update or supersede the snapshot rather than treating stale navigator text as a reason to repeat already-proven work.
+
+Operator blocks may render the navigator as a compact header when useful. Rendering is optional and must not add network calls, database writes or product mutations merely to display status.
+
 ## Preserved deterministic continuation
 
 **ACQ-GENERALIZATION-90 / issue #676** remains retained and resumable, but it is not the current product sequencing authority. This is a priority pause, not a stop, rejection, or supersession.
@@ -136,6 +213,6 @@ Read in this order:
 5. `governance.md`
 6. `operations.md`
 7. `POST-MIGRATION-RESTART.json`
-8. while issue #783 is active priority: issue `#783` plus this current-truth section
+8. while issue #783 is active priority: issue `#783` plus this current-truth section, including the Pipeline Development Navigator contract/snapshot
 9. retained DEMO-001 evidence when needed: `../planning/active/demo_001_live_e2e_reentry.md`
 10. retained ACQ-676 context when needed: `../planning/active/acq_generalization_90_reentry.md`

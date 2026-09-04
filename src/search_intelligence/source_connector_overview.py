@@ -5,13 +5,15 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
 
-SCHEMA_VERSION = "pipeline.source_connector_overview.v1"
+SCHEMA_VERSION = "pipeline.source_connector_overview.v2"
 
 
 class ConnectorRegistryLike(Protocol):
     exact_factories: Mapping[str, object]
 
     def create(self, source_name: str) -> object: ...
+
+    def role_for(self, source_name: str) -> object: ...
 
 
 def _get(row: Mapping[str, Any] | None, key: str, default: Any = None) -> Any:
@@ -48,6 +50,21 @@ def _latest_candidates(
     return result
 
 
+def _source_role(registry: ConnectorRegistryLike, source_name: str) -> str:
+    role_for = getattr(registry, "role_for", None)
+    if role_for is None:
+        return "unknown"
+    try:
+        role = role_for(source_name)
+    except (KeyError, ValueError):
+        return "unknown"
+    except Exception:  # pragma: no cover - runtime diagnostic only
+        return "unknown"
+    value = getattr(role, "value", role)
+    normalized = str(value or "unknown").strip().lower()
+    return normalized or "unknown"
+
+
 def _gate(
     candidate: Mapping[str, Any] | None,
     prefix: str,
@@ -61,9 +78,20 @@ def _gate(
         "decision": decision,
         "passed": status == "passed"
         and (required_decision is None or decision == required_decision),
+        "required": True,
         "truth_source": (
             "employer_origin_candidate_gate_reviews" if candidate else "unknown"
         ),
+    }
+
+
+def _not_applicable_gate() -> dict[str, Any]:
+    return {
+        "status": "not_applicable",
+        "decision": None,
+        "passed": True,
+        "required": False,
+        "truth_source": "connector_registry.source_role",
     }
 
 
@@ -127,6 +155,33 @@ def _layer_status(
     return "ingestion_run_without_persisted_rows" if ingestion_observed else "no_ingestion"
 
 
+def _run_health(
+    run: Mapping[str, Any] | None,
+    *,
+    available: bool,
+) -> dict[str, Any]:
+    if not available:
+        return {
+            "status": "unknown",
+            "latest_run_status": "unknown",
+            "truth_source": "ingestion_runs",
+            "truth_available": False,
+        }
+    raw = str(_get(run, "last_ingestion_status") or "not_run").strip().lower()
+    status = {
+        "success": "healthy",
+        "failed": "failed",
+        "running": "running",
+        "not_run": "not_run",
+    }.get(raw, "unknown")
+    return {
+        "status": status,
+        "latest_run_status": raw,
+        "truth_source": "ingestion_runs",
+        "truth_available": True,
+    }
+
+
 def _lifecycle(
     implemented: bool,
     validation: Mapping[str, Any],
@@ -135,10 +190,20 @@ def _lifecycle(
     activated: bool | None,
     ingested: bool | None,
 ) -> dict[str, str]:
+    validation_status = (
+        "not_applicable"
+        if not validation.get("required", True)
+        else ("passed" if validation["passed"] else str(validation["status"]))
+    )
+    approval_status = (
+        "not_applicable"
+        if not approval.get("required", True)
+        else ("approved" if approval["passed"] else str(approval["status"]))
+    )
     return {
         "implementation": "implemented" if implemented else "not_implemented",
-        "validation": "passed" if validation["passed"] else str(validation["status"]),
-        "final_approval": "approved" if approval["passed"] else str(approval["status"]),
+        "validation": validation_status,
+        "final_approval": approval_status,
         "registration": "registered" if registered else "not_registered",
         "activation": (
             "unknown" if activated is None else ("active" if activated else "not_activated")
@@ -160,15 +225,19 @@ def _issues(
     silver: int,
     bronze_available: bool,
     silver_available: bool,
+    *,
+    source_role: str,
+    run_health: Mapping[str, Any],
 ) -> list[str]:
     issues: list[str] = []
+    origin_gates_required = source_role != "sensor"
     if registration_status == "registration_error":
         issues.append("connector_registry_factory_error")
     if activated and not registered:
         issues.append("active_source_without_code_backed_registration")
-    if activated and not validation["passed"]:
+    if origin_gates_required and activated and not validation["passed"]:
         issues.append("active_source_without_proven_validation_gate")
-    if activated and not approval["passed"]:
+    if origin_gates_required and activated and not approval["passed"]:
         issues.append("active_source_without_proven_final_approval")
     if candidate_status == "active_controlled" and activated is False:
         issues.append("candidate_marked_active_without_active_search_profile")
@@ -176,6 +245,13 @@ def _issues(
         issues.append("persisted_ingestion_data_without_active_search_profile")
     if bronze_available and silver_available and silver and not bronze:
         issues.append("silver_rows_without_bronze_rows")
+    if source_role == "sensor" and activated is True:
+        if run_health["status"] == "failed":
+            issues.append("market_sensor_latest_run_failed")
+        elif run_health["status"] == "unknown":
+            issues.append("market_sensor_run_health_unknown")
+        elif run_health["status"] == "not_run" and (bronze or silver):
+            issues.append("market_sensor_run_evidence_missing")
     return issues
 
 
@@ -189,18 +265,28 @@ def _next_action(
     bronze: int,
     silver: int,
     issues: Sequence[str],
+    *,
+    source_role: str,
 ) -> tuple[str | None, str]:
     if issues:
-        return issues[0], "Resolve lifecycle truth inconsistency"
+        issue_actions = {
+            "market_sensor_latest_run_failed": "Run a bounded live sensor probe and resolve the latest ingestion failure",
+            "market_sensor_run_health_unknown": "Inspect the latest sensor run status before trusting market coverage",
+            "market_sensor_run_evidence_missing": "Restore sensor run evidence before trusting historical layer rows",
+        }
+        return issues[0], issue_actions.get(
+            issues[0], "Resolve lifecycle truth inconsistency"
+        )
+    origin_gates_required = source_role != "sensor"
     stages = (
         (not implemented, "connector_not_implemented", "Implement the connector"),
         (
-            not validation["passed"],
+            origin_gates_required and not validation["passed"],
             "connector_validation_incomplete",
             "Complete the connector validation gate",
         ),
         (
-            not approval["passed"],
+            origin_gates_required and not approval["passed"],
             "final_approval_incomplete",
             "Complete the final approval gate",
         ),
@@ -234,7 +320,11 @@ def _next_action(
     for applies, blocker, action in stages:
         if applies:
             return blocker, action
-    return None, "Monitor source lifecycle and ingestion quality"
+    return None, (
+        "Monitor market-sensor run health and ingestion quality"
+        if source_role == "sensor"
+        else "Monitor source lifecycle and ingestion quality"
+    )
 
 
 def empty_source_connector_overview() -> dict[str, Any]:
@@ -242,6 +332,9 @@ def empty_source_connector_overview() -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "summary": {
             "source_count": 0,
+            "sensor_count": 0,
+            "healthy_sensor_count": 0,
+            "employer_origin_count": 0,
             "implemented_count": 0,
             "validated_count": 0,
             "final_approved_count": 0,
@@ -258,6 +351,8 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "no_scheduler_mutation": True,
             "unknown_is_not_success": True,
             "registration_is_not_activation": True,
+            "sensor_gates_are_role_specific": True,
+            "historical_layers_are_not_live_sensor_health": True,
         },
     }
 
@@ -295,6 +390,7 @@ def build_source_connector_overview(
         profile = profiles_by_source.get(source_name)
         run = runs_by_source.get(source_name)
         layers = layers_by_source.get(source_name)
+        source_role = _source_role(registry, source_name)
         registration = _registration(registry, source_name)
         probed = (
             implementation_probe(candidate)
@@ -302,8 +398,16 @@ def build_source_connector_overview(
             else bool(_get(candidate, "connector_implemented", False))
         )
         implemented = bool(registration["registered"] or probed)
-        validation = _gate(candidate, "connector_validation_gate")
-        approval = _gate(candidate, "final_approval_gate", "approve_connector_registration")
+        if source_role == "sensor":
+            validation = _not_applicable_gate()
+            approval = _not_applicable_gate()
+        else:
+            validation = _gate(candidate, "connector_validation_gate")
+            approval = _gate(
+                candidate,
+                "final_approval_gate",
+                "approve_connector_registration",
+            )
         profile_count = _count(profile, "profile_count")
         active_count = _count(profile, "active_profile_count")
         activated = active_count > 0 if availability["search_profiles"] else None
@@ -320,6 +424,7 @@ def build_source_connector_overview(
                 else None
             )
         )
+        run_health = _run_health(run, available=availability["ingestion_runs"])
         candidate_status = str(_get(candidate, "candidate_status") or "unknown")
         candidate_id = int(
             _get(candidate, "candidate_id") or _get(candidate, "id") or 0
@@ -335,6 +440,8 @@ def build_source_connector_overview(
             silver,
             availability["raw_jobs"],
             availability["silver_jobs"],
+            source_role=source_role,
+            run_health=run_health,
         )
         blocker, next_action = _next_action(
             implemented,
@@ -346,15 +453,20 @@ def build_source_connector_overview(
             bronze,
             silver,
             issues,
+            source_role=source_role,
         )
         company_name = str(_get(candidate, "company_name") or "").strip()
+        source_type = str(_get(candidate, "source_type") or "").strip() or (
+            "market_sensor" if source_role == "sensor" else "unknown"
+        )
         sources.append(
             {
                 "candidate_id": candidate_id,
                 "source_name": source_name,
                 "source_label": company_name
                 or source_name.replace(":", " · ").replace("_", " ").title(),
-                "source_type": str(_get(candidate, "source_type") or "unknown"),
+                "source_type": source_type,
+                "source_role": source_role,
                 "candidate_status": candidate_status,
                 "connector": {
                     "implemented": implemented,
@@ -392,6 +504,10 @@ def build_source_connector_overview(
                     "active_search_term_count": _count(profile, "active_search_term_count"),
                     "truth_source": "search_profiles/search_terms",
                     "truth_available": availability["search_profiles"],
+                },
+                "operational_health": {
+                    **run_health,
+                    "applies": source_role == "sensor",
                 },
                 "last_ingestion": {
                     "status": (
@@ -443,12 +559,24 @@ def build_source_connector_overview(
     payload = empty_source_connector_overview()
     payload["summary"] = {
         "source_count": len(sources),
+        "sensor_count": count_where(lambda s: s["source_role"] == "sensor"),
+        "healthy_sensor_count": count_where(
+            lambda s: s["source_role"] == "sensor"
+            and s["activation"]["active"] is True
+            and s["operational_health"]["status"] == "healthy"
+            and s["current_blocker"] is None
+        ),
+        "employer_origin_count": count_where(
+            lambda s: s["source_role"] == "employer_origin"
+        ),
         "implemented_count": count_where(lambda s: bool(s["connector"]["implemented"])),
         "validated_count": count_where(
-            lambda s: bool(s["gates"]["connector_validation_gate"]["passed"])
+            lambda s: bool(s["gates"]["connector_validation_gate"]["required"])
+            and bool(s["gates"]["connector_validation_gate"]["passed"])
         ),
         "final_approved_count": count_where(
-            lambda s: bool(s["gates"]["final_approval_gate"]["passed"])
+            lambda s: bool(s["gates"]["final_approval_gate"]["required"])
+            and bool(s["gates"]["final_approval_gate"]["passed"])
         ),
         "registered_count": count_where(
             lambda s: bool(s["connector"]["code_backed_registered"])
