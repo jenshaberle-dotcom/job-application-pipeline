@@ -70,6 +70,17 @@ def test_launcher_is_loopback_fail_closed_and_has_no_implicit_update() -> None:
     assert "Update-JAP-Control-Center.ps1" not in text
 
 
+def test_windows_path_translation_bypasses_default_linux_shell() -> None:
+    launcher = _text(LAUNCHER)
+    stopper = _text(STOPPER)
+    assert "--exec wslpath -u $RunnerPath" in launcher
+    assert "--exec wslpath -u $RunnerPath" in stopper
+    assert "-- wslpath -u $RunnerPath" not in launcher
+    assert "-- wslpath -u $RunnerPath" not in stopper
+    assert "--exec bash" in launcher
+    assert '"--exec",' in stopper
+
+
 def test_updater_only_stages_exact_origin_main() -> None:
     text = _text(UPDATER)
     assert '"fetch", "origin", "main"' in text
