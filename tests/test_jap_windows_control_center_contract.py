@@ -6,6 +6,7 @@ LAUNCHER = ROOT / "JAP-Control-Center.ps1"
 INSTALLER = ROOT / "install-jap-control-center.ps1"
 UPDATER = ROOT / "Update-JAP-Control-Center.ps1"
 STOPPER = ROOT / "Stop-JAP-Control-Center.ps1"
+WSL_INSTALLER = ROOT / "scripts" / "install_jap_windows_control_center.sh"
 WSL_RUNNER = ROOT / "scripts" / "run_jap_windows_control_center.sh"
 
 
@@ -14,7 +15,14 @@ def _text(path: Path) -> str:
 
 
 def test_windows_app_entrypoints_are_present() -> None:
-    for path in (LAUNCHER, INSTALLER, UPDATER, STOPPER, WSL_RUNNER):
+    for path in (
+        LAUNCHER,
+        INSTALLER,
+        UPDATER,
+        STOPPER,
+        WSL_INSTALLER,
+        WSL_RUNNER,
+    ):
         assert path.is_file(), path
 
 
@@ -70,13 +78,25 @@ def test_launcher_is_loopback_fail_closed_and_has_no_implicit_update() -> None:
     assert "Update-JAP-Control-Center.ps1" not in text
 
 
-def test_windows_path_translation_bypasses_default_linux_shell() -> None:
+def test_installer_precomputes_linux_runner_path_inside_wsl() -> None:
+    shell = _text(WSL_INSTALLER)
+    installer = _text(INSTALLER)
+    assert 'WINDOWS_LOCALAPPDATA="$(powershell.exe -NoProfile -Command' in shell
+    assert 'WSL_LOCALAPPDATA="$(wslpath -u "$WINDOWS_LOCALAPPDATA")"' in shell
+    assert 'WSL_INSTALLED_RUNNER="$WSL_LOCALAPPDATA/JAP-Control-Center/run-jap-control-center-wsl.sh"' in shell
+    assert '-WslInstalledRunnerPath "$WSL_INSTALLED_RUNNER"' in shell
+    assert '[string]$WslInstalledRunnerPath' in installer
+    assert 'wsl_installed_runner_path = $WslInstalledRunnerPath' in installer
+    assert 'WSL_INSTALLED_RUNNER=$WslInstalledRunnerPath' in installer
+
+
+def test_windows_runtime_never_translates_windows_path_with_wslpath() -> None:
     launcher = _text(LAUNCHER)
     stopper = _text(STOPPER)
-    assert "--exec wslpath -u $RunnerPath" in launcher
-    assert "--exec wslpath -u $RunnerPath" in stopper
-    assert "-- wslpath -u $RunnerPath" not in launcher
-    assert "-- wslpath -u $RunnerPath" not in stopper
+    for text in (launcher, stopper):
+        assert "wslpath" not in text
+        assert "wsl_installed_runner_path" in text
+        assert "StartsWith('/')" in text
     assert "--exec bash" in launcher
     assert '"--exec",' in stopper
 

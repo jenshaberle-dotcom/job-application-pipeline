@@ -2,6 +2,7 @@ param(
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "JAP-Control-Center"),
     [string]$WslDistro,
     [string]$WslProjectRoot,
+    [string]$WslInstalledRunnerPath,
     [switch]$NoStart,
     [switch]$NoShortcuts
 )
@@ -49,6 +50,14 @@ function New-AppShortcut([string]$Path, [string]$Target, [string]$Arguments) {
 $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
 if (-not $wsl) {
     throw "WSL is required to install JAP Control Center."
+}
+
+if ([string]::IsNullOrWhiteSpace($WslInstalledRunnerPath)) {
+    throw "WSL installed runner path is required. Run scripts/install_jap_windows_control_center.sh from WSL."
+}
+$WslInstalledRunnerPath = $WslInstalledRunnerPath.Trim()
+if (-not $WslInstalledRunnerPath.StartsWith('/')) {
+    throw "WSL installed runner path must be an absolute Linux path."
 }
 
 if ([string]::IsNullOrWhiteSpace($WslDistro)) {
@@ -123,6 +132,7 @@ Write-JsonAtomic $CurrentPath @{
     wsl_project_root = $WslProjectRoot
     managed_worktree = $managedWorktree
     wsl_state_root = $wslStateRoot
+    wsl_installed_runner_path = $WslInstalledRunnerPath
     port = $Port
     installed_at = [DateTime]::UtcNow.ToString("o")
     update_authority = "explicit_github_https_main"
@@ -149,6 +159,7 @@ Write-Host "JAP_CONTROL_CENTER_INSTALL=PASS"
 Write-Host "INSTALL_ROOT=$InstallRoot"
 Write-Host "WSL_DISTRO=$WslDistro"
 Write-Host "WSL_PROJECT_ROOT=$WslProjectRoot"
+Write-Host "WSL_INSTALLED_RUNNER=$WslInstalledRunnerPath"
 Write-Host "PINNED_MAIN=$pinnedSha"
 Write-Host "FETCH_TRANSPORT=https"
 Write-Host "URI=http://127.0.0.1:$Port/"
