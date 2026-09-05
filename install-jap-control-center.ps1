@@ -9,6 +9,7 @@ param(
 $ErrorActionPreference = "Stop"
 $ExpectedRepositoryId = 1230805345
 $ExpectedOrigin = "jenshaberle-dotcom/job-application-pipeline"
+$ReadOnlyFetchUrl = "https://github.com/$ExpectedOrigin.git"
 $Port = 8780
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $CurrentPath = Join-Path $InstallRoot "current.json"
@@ -78,11 +79,13 @@ if ($origin -notmatch [regex]::Escape($ExpectedOrigin)) {
     throw "WSL project origin does not match the JAP repository."
 }
 
-Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "fetch", "origin", "main") | Out-Null
-$shaOutput = Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "rev-parse", "origin/main")
+# Fetch public product code over HTTPS so installation does not depend on SSH port 22.
+# `origin` remains the repository identity authority and is never rewritten here.
+Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "fetch", "--no-tags", $ReadOnlyFetchUrl, "main") | Out-Null
+$shaOutput = Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "rev-parse", "FETCH_HEAD")
 $pinnedSha = (($shaOutput | Select-Object -First 1) -as [string]).Trim()
 if ($pinnedSha -notmatch '^[0-9a-f]{40}$') {
-    throw "Could not resolve an exact origin/main SHA for JAP."
+    throw "Could not resolve an exact GitHub main SHA for JAP."
 }
 
 $homeOutput = Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", 'printf "%s" "$HOME"')
@@ -122,7 +125,7 @@ Write-JsonAtomic $CurrentPath @{
     wsl_state_root = $wslStateRoot
     port = $Port
     installed_at = [DateTime]::UtcNow.ToString("o")
-    update_authority = "explicit_origin_main"
+    update_authority = "explicit_github_https_main"
     secrets_location = "wsl_project_env_only"
     private_documents_location = "wsl_project_private_application_sources_only"
 }
@@ -147,6 +150,7 @@ Write-Host "INSTALL_ROOT=$InstallRoot"
 Write-Host "WSL_DISTRO=$WslDistro"
 Write-Host "WSL_PROJECT_ROOT=$WslProjectRoot"
 Write-Host "PINNED_MAIN=$pinnedSha"
+Write-Host "FETCH_TRANSPORT=https"
 Write-Host "URI=http://127.0.0.1:$Port/"
 Write-Host "Boundary: no .env, credentials, PostgreSQL data, CV or application documents are copied to Windows."
 
