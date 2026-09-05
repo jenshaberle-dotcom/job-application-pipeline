@@ -81,13 +81,25 @@ def test_windows_path_translation_bypasses_default_linux_shell() -> None:
     assert '"--exec",' in stopper
 
 
-def test_updater_only_stages_exact_origin_main() -> None:
-    text = _text(UPDATER)
-    assert '"fetch", "origin", "main"' in text
-    assert '"rev-parse", "origin/main"' in text
-    assert 'JAP_CONTROL_CENTER_UPDATE=STAGED' in text
-    assert "git reset --hard" not in text
-    assert "Remove-Item -Recurse" not in text
+def test_install_and_update_fetch_main_over_https_not_ssh_origin() -> None:
+    installer = _text(INSTALLER)
+    updater = _text(UPDATER)
+    for text in (installer, updater):
+        assert "https://github.com/$ExpectedOrigin.git" in text
+        assert '"fetch", "--no-tags", $ReadOnlyFetchUrl, "main"' in text
+        assert '"rev-parse", "FETCH_HEAD"' in text
+        assert '"fetch", "origin", "main"' not in text
+    assert 'update_authority = "explicit_github_https_main"' in installer
+    assert "FETCH_TRANSPORT=https" in installer
+    assert "FETCH_TRANSPORT=https" in updater
+
+
+def test_managed_runner_has_https_recovery_for_missing_pinned_commit() -> None:
+    text = _text(WSL_RUNNER)
+    assert "READ_ONLY_FETCH_URL='https://github.com/jenshaberle-dotcom/job-application-pipeline.git'" in text
+    assert 'fetch --no-tags "$READ_ONLY_FETCH_URL" main' in text
+    assert "fetch origin main" not in text
+    assert "github_https_fetch_failed" in text
 
 
 def test_stop_path_is_managed_pid_only() -> None:
