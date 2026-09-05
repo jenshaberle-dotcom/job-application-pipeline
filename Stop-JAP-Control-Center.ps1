@@ -23,25 +23,27 @@ if ([int64]$current.repository_id -ne $ExpectedRepositoryId) {
 if (-not (Test-Path $RunnerPath)) {
     throw "Installed WSL launcher is missing: $RunnerPath"
 }
+if ([string]::IsNullOrWhiteSpace([string]$current.wsl_installed_runner_path)) {
+    throw "Installed JAP configuration has no pretranslated WSL runner path. Re-run the current installer from WSL."
+}
+
+$linuxRunner = ([string]$current.wsl_installed_runner_path).Trim()
+if (-not $linuxRunner.StartsWith('/')) {
+    throw "Installed JAP WSL runner path is not an absolute Linux path."
+}
 
 $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
 if (-not $wsl) {
     throw "WSL is required to stop JAP Control Center."
 }
 $distro = [string]$current.wsl_distro
-# Keep the Windows path out of the default Linux shell parser. This preserves
-# backslashes for wslpath even when the path contains no spaces.
-$linuxRunner = (& $wsl.Source -d $distro --exec wslpath -u $RunnerPath 2>$null | Select-Object -First 1)
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRunner)) {
-    throw "Could not map the installed JAP WSL launcher."
-}
 
 $stopArguments = @(
     "-d",
     $distro,
     "--exec",
     "bash",
-    $linuxRunner.Trim(),
+    $linuxRunner,
     [string]$current.wsl_project_root,
     [string]$current.managed_worktree,
     [string]$current.pinned_sha,
