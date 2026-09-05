@@ -21,6 +21,40 @@ require_nonempty() {
   [[ -n "$value" ]] || fail "missing_${name}"
 }
 
+native_node_ready() {
+  local node_path npm_path major
+  node_path="$(command -v node 2>/dev/null || true)"
+  npm_path="$(command -v npm 2>/dev/null || true)"
+  [[ -n "$node_path" && -n "$npm_path" ]] || return 1
+  [[ "$node_path" != /mnt/* && "$npm_path" != /mnt/* ]] || return 1
+  major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
+  [[ "$major" =~ ^[0-9]+$ ]] || return 1
+  (( major >= 22 ))
+}
+
+activate_native_node_runtime() {
+  if native_node_ready; then
+    return 0
+  fi
+
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  [[ -s "$NVM_DIR/nvm.sh" ]] || fail native_node22_runtime_unavailable
+
+  # nvm is normally loaded by an interactive shell. The installed Windows app
+  # starts WSL non-interactively, so load it explicitly and select an already
+  # installed Node 22 runtime without performing any network installation.
+  set +u
+  # shellcheck disable=SC1090
+  source "$NVM_DIR/nvm.sh"
+  if ! nvm use --silent 22 >/dev/null; then
+    set -u
+    fail native_node22_runtime_unavailable
+  fi
+  set -u
+
+  native_node_ready || fail native_node22_runtime_unavailable
+}
+
 require_nonempty project_root "$PROJECT_ROOT"
 require_nonempty managed_worktree "$MANAGED_WORKTREE"
 require_nonempty pinned_sha "$PINNED_SHA"
@@ -115,6 +149,11 @@ source "$PROJECT_ROOT/.env"
 set -u
 set +a
 
+# WSL inherits the Windows PATH, while NVM is normally initialized only by an
+# interactive Linux shell. Select a native Linux Node 22 runtime explicitly so npm
+# never falls through to /mnt/c/Program Files/nodejs/npm and CMD.EXE/UNC semantics.
+activate_native_node_runtime
+
 for key in POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
   [[ -n "${!key:-}" ]] || fail "missing_${key}"
 done
@@ -132,6 +171,9 @@ fi
 printf 'JAP_WINDOWS_APP_HEAD=%s\n' "$(git rev-parse HEAD)"
 printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
 printf 'JAP_WINDOWS_APP_FETCH_TRANSPORT=https\n'
+printf 'JAP_WINDOWS_APP_NODE=%s\n' "$(command -v node)"
+printf 'JAP_WINDOWS_APP_NODE_VERSION=%s\n' "$(node --version)"
+printf 'JAP_WINDOWS_APP_NPM=%s\n' "$(command -v npm)"
 printf 'JAP_WINDOWS_APP_URI=http://127.0.0.1:8780/\n'
 
 "${launcher[@]}" &

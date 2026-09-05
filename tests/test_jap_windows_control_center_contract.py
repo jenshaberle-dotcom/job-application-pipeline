@@ -144,6 +144,18 @@ def test_managed_runner_has_https_recovery_for_missing_pinned_commit() -> None:
     assert "github_https_fetch_failed" in text
 
 
+def test_managed_runner_selects_native_linux_node22_not_windows_npm() -> None:
+    text = _text(WSL_RUNNER)
+    assert "activate_native_node_runtime" in text
+    assert 'export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"' in text
+    assert 'source "$NVM_DIR/nvm.sh"' in text
+    assert "nvm use --silent 22" in text
+    assert '[[ "$node_path" != /mnt/* && "$npm_path" != /mnt/* ]]' in text
+    assert "native_node22_runtime_unavailable" in text
+    assert "JAP_WINDOWS_APP_NODE_VERSION=" in text
+    assert "JAP_WINDOWS_APP_NPM=" in text
+
+
 def test_stop_path_is_managed_pid_only() -> None:
     windows = _text(STOPPER)
     runner = _text(WSL_RUNNER)
