@@ -78,8 +78,16 @@ if ([string]::IsNullOrWhiteSpace([string]$current.managed_worktree)) {
 if ([string]::IsNullOrWhiteSpace([string]$current.wsl_state_root)) {
     throw "Installed JAP configuration has no managed WSL state root."
 }
+if ([string]::IsNullOrWhiteSpace([string]$current.wsl_installed_runner_path)) {
+    throw "Installed JAP configuration has no pretranslated WSL runner path. Re-run the current installer from WSL."
+}
 if ([string]$current.pinned_sha -notmatch '^[0-9a-f]{40}$') {
     throw "Installed JAP configuration has an invalid pinned SHA."
+}
+
+$linuxRunner = ([string]$current.wsl_installed_runner_path).Trim()
+if (-not $linuxRunner.StartsWith('/')) {
+    throw "Installed JAP WSL runner path is not an absolute Linux path."
 }
 
 $port = if ($current.port) { [int]$current.port } else { $DefaultPort }
@@ -107,14 +115,6 @@ if (-not (Test-Path $RunnerPath)) {
 }
 
 $distro = [string]$current.wsl_distro
-# Use --exec so wsl.exe bypasses the default Linux shell while translating the
-# Windows path. Otherwise an unquoted path without spaces can lose backslashes
-# before wslpath receives it (for example C:\Users\... -> C:Users...).
-$linuxRunner = (& $wsl.Source -d $distro --exec wslpath -u $RunnerPath 2>$null | Select-Object -First 1)
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRunner)) {
-    throw "Could not map the installed JAP WSL launcher into distribution '$distro'."
-}
-$linuxRunner = $linuxRunner.Trim()
 
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 $stdoutLog = Join-Path $LogRoot "runtime.stdout.log"
