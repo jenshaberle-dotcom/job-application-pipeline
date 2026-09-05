@@ -114,26 +114,45 @@ if (-not (Test-Path $RunnerPath)) {
     throw "Installed WSL launcher is missing: $RunnerPath"
 }
 
-$distro = [string]$current.wsl_distro
+$distro = ([string]$current.wsl_distro).Trim()
+
+# Prove the persisted distribution and Linux runner path with a direct native
+# invocation before backgrounding. The installer already used this direct form
+# successfully; keeping the proof here distinguishes WSL identity/path failures
+# from Start-Process command-line serialization failures.
+& $wsl.Source -d $distro --exec test -f $linuxRunner
+if ($LASTEXITCODE -ne 0) {
+    throw "Installed JAP WSL distribution/runner proof failed for '$distro' and '$linuxRunner'."
+}
 
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 $stdoutLog = Join-Path $LogRoot "runtime.stdout.log"
 $stderrLog = Join-Path $LogRoot "runtime.stderr.log"
 Remove-Item -Force $stdoutLog, $stderrLog -ErrorAction SilentlyContinue
 
-$argumentLine = (
-    '-d "{0}" --exec bash "{1}" "{2}" "{3}" "{4}" "{5}"' -f
+# Windows PowerShell 5.1 Start-Process ultimately serializes ArgumentList into a
+# native command line. Keep every WSL argument as a token and reject whitespace
+# rather than embedding literal quote characters into one formatted string.
+$argumentVector = @(
+    "-d",
     $distro,
+    "--exec",
+    "bash",
     $linuxRunner,
     [string]$current.wsl_project_root,
     [string]$current.managed_worktree,
     [string]$current.pinned_sha,
     [string]$current.wsl_state_root
 )
+foreach ($argument in $argumentVector) {
+    if ([string]::IsNullOrWhiteSpace($argument) -or $argument -match '\s') {
+        throw "Installed JAP WSL launch argument is empty or contains whitespace; refusing ambiguous native serialization."
+    }
+}
 
 $startArguments = @{
     FilePath = $wsl.Source
-    ArgumentList = $argumentLine
+    ArgumentList = $argumentVector
     WindowStyle = "Hidden"
     RedirectStandardOutput = $stdoutLog
     RedirectStandardError = $stderrLog
@@ -163,11 +182,18 @@ for ($attempt = 0; $attempt -lt 240; $attempt++) {
     if ($process.HasExited) { break }
 }
 
+$stdoutTail = ""
+if (Test-Path $stdoutLog) {
+    $stdoutTail = ((Get-Content $stdoutLog -Tail 12 -ErrorAction SilentlyContinue) -join " | ")
+}
 $stderrTail = ""
 if (Test-Path $stderrLog) {
     $stderrTail = ((Get-Content $stderrLog -Tail 12 -ErrorAction SilentlyContinue) -join " | ")
 }
-if ([string]::IsNullOrWhiteSpace($stderrTail)) {
-    throw "JAP Control Center did not become ready. See $stdoutLog and $stderrLog."
+if (-not [string]::IsNullOrWhiteSpace($stderrTail)) {
+    throw "JAP Control Center did not become ready: $stderrTail"
 }
-throw "JAP Control Center did not become ready: $stderrTail"
+if (-not [string]::IsNullOrWhiteSpace($stdoutTail)) {
+    throw "JAP Control Center did not become ready: $stdoutTail"
+}
+throw "JAP Control Center did not become ready. See $stdoutLog and $stderrLog."

@@ -97,8 +97,30 @@ def test_windows_runtime_never_translates_windows_path_with_wslpath() -> None:
         assert "wslpath" not in text
         assert "wsl_installed_runner_path" in text
         assert "StartsWith('/')" in text
-    assert "--exec bash" in launcher
+    assert '"--exec",' in launcher
     assert '"--exec",' in stopper
+
+
+def test_launcher_proves_direct_wsl_identity_before_background_start() -> None:
+    text = _text(LAUNCHER)
+    assert '& $wsl.Source -d $distro --exec test -f $linuxRunner' in text
+    assert "Installed JAP WSL distribution/runner proof failed" in text
+
+
+def test_launcher_uses_tokenized_startprocess_arguments_without_embedded_quotes() -> None:
+    text = _text(LAUNCHER)
+    assert "$argumentVector = @(" in text
+    assert 'ArgumentList = $argumentVector' in text
+    assert "$argumentLine = (" not in text
+    assert "'-d \"{0}\" --exec bash" not in text
+    assert "contains whitespace" in text
+
+
+def test_launcher_surfaces_stdout_when_wsl_reports_runtime_failure_there() -> None:
+    text = _text(LAUNCHER)
+    assert '$stdoutTail = ""' in text
+    assert "Get-Content $stdoutLog -Tail 12" in text
+    assert 'did not become ready: $stdoutTail' in text
 
 
 def test_install_and_update_fetch_main_over_https_not_ssh_origin() -> None:
