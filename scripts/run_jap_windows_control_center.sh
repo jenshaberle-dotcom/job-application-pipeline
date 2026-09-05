@@ -7,6 +7,7 @@ PINNED_SHA="${3:-}"
 STATE_ROOT="${4:-}"
 ACTION="${5:-start}"
 EXPECTED_ORIGIN='jenshaberle-dotcom/job-application-pipeline'
+READ_ONLY_FETCH_URL='https://github.com/jenshaberle-dotcom/job-application-pipeline.git'
 PID_FILE="${STATE_ROOT}/runtime.pid"
 
 fail() {
@@ -76,8 +77,10 @@ case "$origin" in
   *) fail repository_origin_mismatch ;;
 esac
 
+# A pinned main commit normally already exists locally from install/update. If it does
+# not, recover it over HTTPS; the managed app must not depend on GitHub SSH port 22.
 if ! git -C "$PROJECT_ROOT" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null; then
-  git -C "$PROJECT_ROOT" fetch origin main
+  git -C "$PROJECT_ROOT" fetch --no-tags "$READ_ONLY_FETCH_URL" main || fail github_https_fetch_failed
 fi
 git -C "$PROJECT_ROOT" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null || fail pinned_sha_unavailable
 
@@ -128,6 +131,7 @@ fi
 
 printf 'JAP_WINDOWS_APP_HEAD=%s\n' "$(git rev-parse HEAD)"
 printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
+printf 'JAP_WINDOWS_APP_FETCH_TRANSPORT=https\n'
 printf 'JAP_WINDOWS_APP_URI=http://127.0.0.1:8780/\n'
 
 "${launcher[@]}" &
