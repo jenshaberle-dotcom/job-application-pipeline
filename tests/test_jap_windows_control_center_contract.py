@@ -2,6 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+GITIGNORE = ROOT / ".gitignore"
 LAUNCHER = ROOT / "JAP-Control-Center.ps1"
 INSTALLER = ROOT / "install-jap-control-center.ps1"
 UPDATER = ROOT / "Update-JAP-Control-Center.ps1"
@@ -154,6 +155,21 @@ def test_managed_runner_selects_native_linux_node22_not_windows_npm() -> None:
     assert "native_node22_runtime_unavailable" in text
     assert "JAP_WINDOWS_APP_NODE_VERSION=" in text
     assert "JAP_WINDOWS_APP_NPM=" in text
+
+
+def test_generated_frontend_dependencies_are_ignored_and_reset_before_cleanliness_gate() -> None:
+    ignore = _text(GITIGNORE)
+    runner = _text(WSL_RUNNER)
+    reset = 'rm -rf -- "$FRONTEND_NODE_MODULES"'
+    cleanliness = 'git -C "$MANAGED_WORKTREE" status --porcelain'
+
+    assert "frontend/control-center/node_modules/" in ignore
+    assert 'FRONTEND_NODE_MODULES="${MANAGED_WORKTREE}/frontend/control-center/node_modules"' in runner
+    assert reset in runner
+    assert "JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET" in runner
+    assert runner.index(reset) < runner.index(cleanliness)
+    assert 'if [[ -f frontend/control-center/dist/index.html ]]; then' in runner
+    assert 'launcher+=(--reuse-frontend)' in runner
 
 
 def test_stop_path_is_managed_pid_only() -> None:

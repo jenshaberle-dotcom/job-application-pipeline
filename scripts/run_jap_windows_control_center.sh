@@ -9,6 +9,7 @@ ACTION="${5:-start}"
 EXPECTED_ORIGIN='jenshaberle-dotcom/job-application-pipeline'
 READ_ONLY_FETCH_URL='https://github.com/jenshaberle-dotcom/job-application-pipeline.git'
 PID_FILE="${STATE_ROOT}/runtime.pid"
+FRONTEND_NODE_MODULES="${MANAGED_WORKTREE}/frontend/control-center/node_modules"
 
 fail() {
   printf 'JAP_WINDOWS_APP_BLOCKED=%s\n' "$1" >&2
@@ -119,6 +120,15 @@ fi
 git -C "$PROJECT_ROOT" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null || fail pinned_sha_unavailable
 
 if [[ -e "$MANAGED_WORKTREE/.git" ]]; then
+  # node_modules is generated runtime state. A previous Windows-npm invocation can
+  # leave non-executable .bin shims in this WSL worktree. Remove that generated tree
+  # before the cleanliness gate and let the selected native WSL npm rebuild it only
+  # when no qualified frontend dist is available.
+  if [[ -e "$FRONTEND_NODE_MODULES" || -L "$FRONTEND_NODE_MODULES" ]]; then
+    rm -rf -- "$FRONTEND_NODE_MODULES"
+    printf 'JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET\n'
+  fi
+
   [[ -z "$(git -C "$MANAGED_WORKTREE" status --porcelain)" ]] || fail managed_worktree_dirty
   current_sha="$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)"
   if [[ "$current_sha" != "$PINNED_SHA" ]]; then
