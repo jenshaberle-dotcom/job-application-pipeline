@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPECTED_REPOSITORY_ID="1230805345"
 EXPECTED_REPOSITORY="jenshaberle-dotcom/job-application-pipeline"
 EXPECTED_RUNNER="job-pipeline-runtime-linux"
+MIGRATED_RUNNER="job-pipeline-runtime-warm-01-linux"
 READ_ONLY_FETCH_URL="https://github.com/${EXPECTED_REPOSITORY}.git"
 DESKTOP_ASSET="JAP-Control-Center-Desktop-win-x64.zip"
 INSTALL_SCHEMA="job_application_pipeline.windows_control_center_install.v2"
@@ -23,7 +24,7 @@ deferred() {
   exit 0
 }
 
-if [[ "${GITHUB_ACTIONS:-}" == "true" && "${RUNNER_NAME:-}" != "$EXPECTED_RUNNER" ]]; then
+if [[ "${GITHUB_ACTIONS:-}" == "true" && "${RUNNER_NAME:-}" != "$EXPECTED_RUNNER" && "${RUNNER_NAME:-}" != "$MIGRATED_RUNNER" ]]; then
   blocked "unexpected_runner:${RUNNER_NAME:-missing}"
 fi
 
