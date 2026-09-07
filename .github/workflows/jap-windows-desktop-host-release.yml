@@ -32,6 +32,35 @@ jobs:
           "DESKTOP_VERSION=$Version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "DESKTOP_TAG=jap-winapp-desktop-v$Version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Prove direct latest-update compatibility contract
+        shell: powershell
+        run: |
+          $Path = "windows/JAP.ControlCenter.Desktop/UPDATE_COMPATIBILITY.json"
+          if (-not (Test-Path $Path)) {
+            throw "Desktop update compatibility contract is missing."
+          }
+          $Contract = Get-Content $Path -Raw | ConvertFrom-Json
+          if ($Contract.schema -ne "job_application_pipeline.windows_update_compatibility.v1") {
+            throw "Unexpected update compatibility schema: $($Contract.schema)"
+          }
+          if ($Contract.policy -ne "latest_direct") {
+            throw "Desktop releases must remain direct latest-state upgrades."
+          }
+          if ($Contract.compatibility_line -ne "1" -or $Contract.direct_upgrade_from -ne "1.x") {
+            throw "Desktop release is outside compatibility line 1."
+          }
+          if ($Contract.installer_schema -ne "job_application_pipeline.windows_control_center_install.v2") {
+            throw "Desktop release installer schema is incompatible."
+          }
+          if ([int]$Contract.snooze_hours -ne 6) {
+            throw "GUI update snooze contract must remain 6 hours."
+          }
+          if (-not $env:DESKTOP_VERSION.StartsWith("1.")) {
+            throw "A breaking desktop update requires a new compatibility bridge instead of a v1 release."
+          }
+          Write-Host "JAP_UPDATE_POLICY=latest_direct"
+          Write-Host "JAP_UPDATE_COMPATIBILITY_LINE=1"
+
       - name: Prove tracked branded application icon
         shell: powershell
         run: |
@@ -61,6 +90,8 @@ jobs:
             source_sha = $env:GITHUB_SHA
             runtime = "win-x64-self-contained"
             surface = "webview2-winforms"
+            update_policy = "latest_direct"
+            compatibility_line = "1"
           } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $Out "build-info.json")
 
       - name: Package and checksum
@@ -81,6 +112,7 @@ jobs:
         run: |
           # Inventory only the tagName field that is supported by the runner's gh CLI.
           # An existing version is immutable: do not overwrite its assets; bump VERSION before changing the host.
+          # Every v1 release is a direct upgrade target from every older supported v1 installation.
           $ReleaseJson = gh release list `
             --repo $env:GITHUB_REPOSITORY `
             --limit 1000 `
@@ -99,6 +131,6 @@ jobs:
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
             --title "JAP Control Center Desktop v$env:DESKTOP_VERSION" `
-            --notes "Immutable self-contained Windows x64 WebView2 host for JAP Control Center. Source: $env:GITHUB_SHA"
+            --notes "Immutable self-contained Windows x64 WebView2 host for JAP Control Center. Direct v1 latest-state upgrade. Source: $env:GITHUB_SHA"
           if ($LASTEXITCODE -ne 0) { throw "Desktop host release creation failed." }
           Write-Host "DESKTOP_HOST_RELEASE=PASS tag=$env:DESKTOP_TAG"
