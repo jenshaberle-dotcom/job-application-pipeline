@@ -9,6 +9,14 @@ UPDATER = ROOT / "Update-JAP-Control-Center.ps1"
 STOPPER = ROOT / "Stop-JAP-Control-Center.ps1"
 WSL_INSTALLER = ROOT / "scripts" / "install_jap_windows_control_center.sh"
 WSL_RUNNER = ROOT / "scripts" / "run_jap_windows_control_center.sh"
+ICON_GENERATOR = ROOT / "scripts" / "generate_jap_control_center_icon.py"
+DESKTOP_ROOT = ROOT / "windows" / "JAP.ControlCenter.Desktop"
+DESKTOP_PROJECT = DESKTOP_ROOT / "JAP.ControlCenter.Desktop.csproj"
+DESKTOP_PROGRAM = DESKTOP_ROOT / "Program.cs"
+DESKTOP_VERSION = DESKTOP_ROOT / "VERSION"
+DESKTOP_RELEASE_WORKFLOW = (
+    ROOT / ".github" / "workflows" / "jap-windows-desktop-host-release.yml"
+)
 
 
 def _text(path: Path) -> str:
@@ -23,6 +31,11 @@ def test_windows_app_entrypoints_are_present() -> None:
         STOPPER,
         WSL_INSTALLER,
         WSL_RUNNER,
+        ICON_GENERATOR,
+        DESKTOP_PROJECT,
+        DESKTOP_PROGRAM,
+        DESKTOP_VERSION,
+        DESKTOP_RELEASE_WORKFLOW,
     ):
         assert path.is_file(), path
 
@@ -63,8 +76,11 @@ def test_wsl_runner_reuses_canonical_runtime_and_exact_pinned_code() -> None:
         in text
     )
     assert 'git -C "$PROJECT_ROOT" worktree add --detach' in text
-    assert '[[ "$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)" == "$PINNED_SHA" ]]' in text
-    assert 'scripts/run_product_v1_live_demo.py' in text
+    assert (
+        '[[ "$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)" == "$PINNED_SHA" ]]'
+        in text
+    )
+    assert "scripts/run_product_v1_live_demo.py" in text
     assert 'PRODUCT_V1_UI_HOST="127.0.0.1"' in text
     assert 'PRODUCT_V1_UI_PORT="8780"' in text
 
@@ -84,7 +100,10 @@ def test_installer_precomputes_linux_runner_path_inside_wsl() -> None:
     installer = _text(INSTALLER)
     assert 'WINDOWS_LOCALAPPDATA="$(powershell.exe -NoProfile -Command' in shell
     assert 'WSL_LOCALAPPDATA="$(wslpath -u "$WINDOWS_LOCALAPPDATA")"' in shell
-    assert 'WSL_INSTALLED_RUNNER="$WSL_LOCALAPPDATA/JAP-Control-Center/run-jap-control-center-wsl.sh"' in shell
+    assert (
+        'WSL_INSTALLED_RUNNER="$WSL_LOCALAPPDATA/JAP-Control-Center/'
+        'run-jap-control-center-wsl.sh"' in shell
+    )
     assert '-WslInstalledRunnerPath "$WSL_INSTALLED_RUNNER"' in shell
     assert '[string]$WslInstalledRunnerPath' in installer
     assert 'wsl_installed_runner_path = $WslInstalledRunnerPath' in installer
@@ -111,7 +130,7 @@ def test_launcher_proves_direct_wsl_identity_before_background_start() -> None:
 def test_launcher_uses_tokenized_startprocess_arguments_without_embedded_quotes() -> None:
     text = _text(LAUNCHER)
     assert "$argumentVector = @(" in text
-    assert 'ArgumentList = $argumentVector' in text
+    assert "ArgumentList = $argumentVector" in text
     assert "$argumentLine = (" not in text
     assert "'-d \"{0}\" --exec bash" not in text
     assert "contains whitespace" in text
@@ -121,7 +140,7 @@ def test_launcher_surfaces_stdout_when_wsl_reports_runtime_failure_there() -> No
     text = _text(LAUNCHER)
     assert '$stdoutTail = ""' in text
     assert "Get-Content $stdoutLog -Tail 12" in text
-    assert 'did not become ready: $stdoutTail' in text
+    assert "did not become ready: $stdoutTail" in text
 
 
 def test_install_and_update_fetch_main_over_https_not_ssh_origin() -> None:
@@ -139,7 +158,10 @@ def test_install_and_update_fetch_main_over_https_not_ssh_origin() -> None:
 
 def test_managed_runner_has_https_recovery_for_missing_pinned_commit() -> None:
     text = _text(WSL_RUNNER)
-    assert "READ_ONLY_FETCH_URL='https://github.com/jenshaberle-dotcom/job-application-pipeline.git'" in text
+    assert (
+        "READ_ONLY_FETCH_URL='https://github.com/"
+        "jenshaberle-dotcom/job-application-pipeline.git'" in text
+    )
     assert 'fetch --no-tags "$READ_ONLY_FETCH_URL" main' in text
     assert "fetch origin main" not in text
     assert "github_https_fetch_failed" in text
@@ -164,12 +186,75 @@ def test_generated_frontend_dependencies_are_ignored_and_reset_before_cleanlines
     cleanliness = 'git -C "$MANAGED_WORKTREE" status --porcelain'
 
     assert "frontend/control-center/node_modules/" in ignore
-    assert 'FRONTEND_NODE_MODULES="${MANAGED_WORKTREE}/frontend/control-center/node_modules"' in runner
+    assert (
+        'FRONTEND_NODE_MODULES="${MANAGED_WORKTREE}/frontend/control-center/'
+        'node_modules"' in runner
+    )
     assert reset in runner
     assert "JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET" in runner
     assert runner.index(reset) < runner.index(cleanliness)
     assert 'if [[ -f frontend/control-center/dist/index.html ]]; then' in runner
-    assert 'launcher+=(--reuse-frontend)' in runner
+    assert "launcher+=(--reuse-frontend)" in runner
+
+
+def test_desktop_host_is_self_contained_webview2_window() -> None:
+    project = _text(DESKTOP_PROJECT)
+    program = _text(DESKTOP_PROGRAM)
+    assert "<OutputType>WinExe</OutputType>" in project
+    assert "<UseWindowsForms>true</UseWindowsForms>" in project
+    assert "<SelfContained>true</SelfContained>" in project
+    assert 'PackageReference Include="Microsoft.Web.WebView2"' in project
+    assert 'new("http://127.0.0.1:8780/")' in program
+    assert "CoreWebView2" in program
+    assert "MutexName" in program
+    assert "Width = 1440" in program
+    assert "MinimumSize = new Size(1180, 720)" in program
+    assert 'RunPowerShellAsync(launcher, "-NoBrowser")' in program
+    assert 'Path.Combine(_installRoot, "Stop-JAP-Control-Center.ps1")' in program
+
+
+def test_desktop_host_keeps_product_navigation_local_and_externalizes_links() -> None:
+    program = _text(DESKTOP_PROGRAM)
+    assert 'uri.Host == "127.0.0.1"' in program
+    assert "uri.Port == 8780" in program
+    assert "core.NavigationStarting += OnNavigationStarting" in program
+    assert "core.NewWindowRequested += OnNewWindowRequested" in program
+    assert "e.Cancel = true" in program
+    assert "e.Handled = true" in program
+    assert "UseShellExecute = true" in program
+
+
+def test_installer_adopts_checksum_verified_immutable_desktop_release() -> None:
+    installer = _text(INSTALLER)
+    version = _text(DESKTOP_VERSION).strip()
+    assert version.count(".") == 2
+    assert 'tag = "jap-winapp-desktop-v$Version"' in installer
+    assert "releases/download/$tag" in installer
+    assert "Get-FileHash $zip -Algorithm SHA256" in installer
+    assert "Expand-Archive -Path $zip" in installer
+    assert 'desktop_host = "webview2_winforms"' in installer
+    assert "desktop_host_sha256 = $desktopHost.sha256" in installer
+    assert 'New-AppShortcut (Join-Path $desktop "JAP Control Center.lnk")' in installer
+    assert "$DesktopHostExe \"\" \"$DesktopHostExe,0\"" in installer
+    assert "Start-Process -FilePath $DesktopHostExe" in installer
+
+
+def test_desktop_host_release_is_built_in_ci_and_immutable() -> None:
+    workflow = _text(DESKTOP_RELEASE_WORKFLOW)
+    assert "permissions:\n  contents: write" in workflow
+    assert "dotnet publish windows/JAP.ControlCenter.Desktop/" in workflow
+    assert "--self-contained true" in workflow
+    assert "JAP-Control-Center-Desktop-win-x64.zip.sha256" in workflow
+    assert "gh release create $env:DESKTOP_TAG" in workflow
+    assert "--target $env:GITHUB_SHA" in workflow
+    assert "bump VERSION before changing the host" in workflow
+
+
+def test_desktop_build_products_are_ignored() -> None:
+    ignore = _text(GITIGNORE)
+    assert "windows/JAP.ControlCenter.Desktop/bin/" in ignore
+    assert "windows/JAP.ControlCenter.Desktop/obj/" in ignore
+    assert "windows/JAP.ControlCenter.Desktop/JAP-Control-Center.ico" in ignore
 
 
 def test_stop_path_is_managed_pid_only() -> None:
