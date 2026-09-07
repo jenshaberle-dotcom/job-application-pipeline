@@ -9,7 +9,6 @@ on:
       - "Stop-JAP-Control-Center.ps1"
       - "scripts/run_jap_windows_control_center.sh"
       - "scripts/install_jap_windows_control_center.sh"
-      - "scripts/generate_jap_control_center_icon.py"
       - "windows/JAP.ControlCenter.Desktop/**"
       - "tests/test_jap_windows_control_center_contract.py"
       - ".github/workflows/jap-windows-control-center-contract.yml"
@@ -23,7 +22,6 @@ on:
       - "Stop-JAP-Control-Center.ps1"
       - "scripts/run_jap_windows_control_center.sh"
       - "scripts/install_jap_windows_control_center.sh"
-      - "scripts/generate_jap_control_center_icon.py"
       - "windows/JAP.ControlCenter.Desktop/**"
       - "tests/test_jap_windows_control_center_contract.py"
       - ".github/workflows/jap-windows-control-center-contract.yml"
@@ -70,17 +68,18 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - name: Generate deterministic application icon
+      - name: Prove tracked branded application icon
         shell: powershell
         run: |
-          python scripts/generate_jap_control_center_icon.py `
-            windows/JAP.ControlCenter.Desktop/JAP-Control-Center.ico
+          $Icon = "windows/JAP.ControlCenter.Desktop/JAP-Control-Center.ico"
+          if (-not (Test-Path $Icon)) {
+            throw "Tracked JAP application icon is missing."
+          }
+          $Hash = (Get-FileHash $Icon -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "JAP_DESKTOP_ICON_SHA256=$Hash"
       - name: Publish Windows x64 host
         shell: powershell
         run: |
