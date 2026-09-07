@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.request import Request, urlopen
 
-from scripts.check_reentry_identity import classify_live, load_json, validate_static
+if __package__:
+    from scripts.check_reentry_identity import classify_live, load_json, validate_static
+else:
+    from check_reentry_identity import classify_live, load_json, validate_static
 
 
 EXPECTED_REPOSITORY = "jenshaberle-dotcom/job-application-pipeline"
