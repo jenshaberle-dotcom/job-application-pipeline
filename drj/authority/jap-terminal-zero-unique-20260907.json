@@ -4,22 +4,30 @@
   "repository_id": 1230805345,
   "authority_head_sha": "d1992a8fd0f27bf79978333baf13e0dd017a0540",
   "effect_authorized": true,
-  "authority_reference": "github-issue-comment:jenshaberle-dotcom/Data-Retention-Janitor#76:5571241095",
-  "issued_at": "2026-09-07T13:17:00Z",
-  "expires_at": "2026-09-07T13:30:00Z",
-  "max_effects": 2,
+  "authority_reference": "github-issue-comment:jenshaberle-dotcom/Data-Retention-Janitor#76:5571402736",
+  "issued_at": "2026-09-07T13:32:00Z",
+  "expires_at": "2026-09-07T13:45:00Z",
+  "max_effects": 20,
   "targets": [
-    {
-      "branch": "agent/676-generalization-harvest",
-      "expected_sha": "64571b517499a827d9c2fc49c96662533f29d35d",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    },
-    {
-      "branch": "agent/676-connector-builder-v5-portal-overlay",
-      "expected_sha": "ac5d2d916bb83ac834dfaf34d9ab091fce724514",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    }
+    {"branch":"agent/393-s7n-dynamic-jobboard-recognition","expected_sha":"08d84d617875230e36c5dec67afd816ceb4a4962","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/395-candidate-origin-url-replacement","expected_sha":"ae073cea54d89e526f8ebd89e467a9b62c6e1831","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/398-s7n-query-detail-recognition","expected_sha":"4c2bd37129ea9a88f34ba75f53b18c0f243bd655","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/415-controlled-activation-cap","expected_sha":"317dd1629d6f1cdac9e7e26b09e369ab072406c6","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/424-computacenter-detail-boundary","expected_sha":"0728f24114bef46c6d71bfd3d203e50a1432b8a0","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/428-invalid-bronze-quarantine","expected_sha":"b8fd305c4711b975e3168f48b3ebdf882297af50","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/430-typed-employer-origin-silver","expected_sha":"a7e57c837596d4405f03f79d5555fa3d7e98505e","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/432-generic-country-truth","expected_sha":"d9b9b58847800187f45ae1715ee31fafeacbce61","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/435-acquisition-evidence-boundary","expected_sha":"d260323b86e9094a2d6be257fd382431d4cc352b","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/435b-url-slug-evidence-boundary","expected_sha":"f2426e9f060ae47cc96e4463b17081d4b29f53e8","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/448-exact-cand001-target","expected_sha":"0bb49e9785b8329d8e95f6a32dc5ead391b35c14","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/454-upstream-gate-truth","expected_sha":"c927ff4450f3a6b7f769a5deeaa6688e7d44f8ac","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/458-job-invite-detail-shape","expected_sha":"66ee69f227b4a0278569441fcc582b1a3c0c2dc8","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/461-same-host-search-seed","expected_sha":"9021e12d9ec8068165efefc3bcf8b64c97e6ae45","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/464-reviewed-detail-pass-apply","expected_sha":"2e027d7130d594b6a2c1cc05cf1be09c047ddd4e","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/468-job-lifecycle-health","expected_sha":"62a650ff3cb2856c245a33e34a8102d0181dffdc","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/471-authoritative-origin-health","expected_sha":"80624748ce67528079966927c269470f9a249e33","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/475-ingestion-run-bound-silver","expected_sha":"7b5e481d82dd5194e2a4dfd374d2acf99a261bfa","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/477-readonly-silver-preflight","expected_sha":"7a720d0f45a27a0973c1e90f5522e7d7fd7bcd8d","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/479-exact-vacancy-health-probe","expected_sha":"18bd13b3a88b6074c085dcee070db798adc5c30a","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"}
   ]
 }
