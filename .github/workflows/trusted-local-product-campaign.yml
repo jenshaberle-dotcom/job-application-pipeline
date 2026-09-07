@@ -156,6 +156,7 @@ jobs:
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
       TRUSTED_MAIN_SHA: ${{ needs.admission.outputs.trusted_main_sha }}
       CAMPAIGN_COMPANY_KEY: ${{ needs.admission.outputs.company_key }}
       CAMPAIGN_CANDIDATE_ID: ${{ needs.admission.outputs.candidate_id }}
@@ -176,15 +177,15 @@ jobs:
           fi
 
           # The `runs-on` capability label is the routing authority. The concrete
-          # runner instance may change during RCC lifecycle migrations, so bind
-          # the fail-closed runtime context to the actual assigned instance.
-          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${runtime_runner_name}.json}"
+          # runner instance may change during RCC lifecycle migrations, while the
+          # attested runtime context remains keyed to JAP's canonical logical slot.
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
           test -f "$context_file" || {
-            echo "RCC runtime context is unavailable for assigned runner: $runtime_runner_name" >&2
+            echo "RCC runtime context is unavailable for logical runner: $RCC_RUNNER_NAME (assigned=$runtime_runner_name)" >&2
             exit 2
           }
 
-          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$runtime_runner_name" <<'PY'
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
           from __future__ import annotations
 
           import json
