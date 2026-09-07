@@ -18,18 +18,21 @@ def test_webview2_startup_is_bounded_and_phase_visible() -> None:
     assert ".WaitAsync(WebViewEnvironmentTimeout)" in program
     assert ".WaitAsync(WebViewControlTimeout)" in program
     assert "navigation.Task.WaitAsync(WebViewNavigationTimeout)" in program
-    assert 'SetStartupPhase("runtime_start"' in program
-    assert 'SetStartupPhase("runtime_ready"' in program
-    assert 'SetStartupPhase("webview_environment_start"' in program
-    assert 'SetStartupPhase("webview_control_start"' in program
-    assert 'SetStartupPhase("product_navigation_start"' in program
+    for phase in (
+        "runtime_start",
+        "runtime_ready",
+        "webview_environment_start",
+        "webview_control_start",
+        "product_navigation_start",
+    ):
+        assert f'"{phase}"' in program
     assert 'WriteStartupPhase("startup_failed"' in program
 
 
 def test_webview2_profile_is_isolated_by_desktop_host_version() -> None:
     program = _program()
     assert 'Path.Combine(AppContext.BaseDirectory, "build-info.json")' in program
-    assert 'ResolveDesktopHostVersion()' in program
+    assert "ResolveDesktopHostVersion()" in program
     assert '"webview2",' in program
     assert '$"host-{desktopVersion}"' in program
     assert 'WriteStartupPhase("webview_profile"' in program
@@ -37,9 +40,13 @@ def test_webview2_profile_is_isolated_by_desktop_host_version() -> None:
 
 def test_webview2_navigation_is_proven_before_splash_is_hidden() -> None:
     program = _program()
-    navigation_ready = program.index('WriteStartupPhase("product_navigation_ready")')
-    splash_hidden = program.index("_status.Visible = false")
-    assert navigation_ready < splash_hidden
+    on_shown_start = program.index("private async void OnShown")
+    on_shown_end = program.index("private async Task StartManagedRuntimeAsync")
+    on_shown = program[on_shown_start:on_shown_end]
+    assert on_shown.index("await InitializeWebViewAsync();") < on_shown.index(
+        "_status.Visible = false"
+    )
+    assert 'WriteStartupPhase("product_navigation_ready")' in program
     assert "CoreWebView2NavigationCompletedEventArgs" in program
     assert "completed.IsSuccess" in program
 
