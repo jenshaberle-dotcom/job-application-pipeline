@@ -52,6 +52,19 @@ def test_startup_screen_shows_phase_progress_and_elapsed_time() -> None:
     assert "UpdateElapsedLabel()" in program
 
 
+def test_redirected_powershell_io_cannot_outlive_parent_unbounded() -> None:
+    program = _program()
+    assert "ConcurrentQueue<string>" in program
+    assert "process.BeginOutputReadLine()" in program
+    assert "process.BeginErrorReadLine()" in program
+    assert "TryCancelRedirectedRead(process)" in program
+    assert "process.CancelOutputRead()" in program
+    assert "process.CancelErrorRead()" in program
+    assert "ReadToEndAsync" not in program
+    assert ".WaitAsync(timeoutValue)" in program
+    assert ".WaitAsync(TimeSpan.FromSeconds(5))" in program
+
+
 def test_webview2_profile_is_isolated_by_desktop_host_version() -> None:
     program = _program()
     assert 'Path.Combine(AppContext.BaseDirectory, "build-info.json")' in program
@@ -75,4 +88,4 @@ def test_webview2_navigation_is_proven_before_splash_is_hidden() -> None:
 
 
 def test_webview2_hardening_bumps_immutable_host_version() -> None:
-    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.3"
+    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.4"

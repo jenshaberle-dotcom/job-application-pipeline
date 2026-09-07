@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
@@ -33,6 +34,7 @@ internal sealed class MainWindow : Form
 {
     private static readonly Uri ProductUri = new("http://127.0.0.1:8780/");
     private static readonly TimeSpan RuntimeStartTimeout = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan WebViewEnvironmentTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan WebViewControlTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan WebViewNavigationTimeout = TimeSpan.FromSeconds(15);
@@ -56,8 +58,12 @@ internal sealed class MainWindow : Form
             Path.DirectorySeparatorChar,
             Path.AltDirectorySeparatorChar);
         _installRoot = Directory.GetParent(hostRoot)?.FullName
-            ?? throw new InvalidOperationException("Desktop host installation root could not be resolved.");
-        _startupLog = Path.Combine(_installRoot, "logs", "desktop-host-startup.log");
+            ?? throw new InvalidOperationException(
+                "Desktop host installation root could not be resolved.");
+        _startupLog = Path.Combine(
+            _installRoot,
+            "logs",
+            "desktop-host-startup.log");
 
         Text = "JAP Control Center";
         StartPosition = FormStartPosition.CenterScreen;
@@ -214,7 +220,9 @@ internal sealed class MainWindow : Form
         var launcher = Path.Combine(_installRoot, "JAP-Control-Center.ps1");
         if (!File.Exists(launcher))
         {
-            throw new FileNotFoundException("Der installierte JAP Runtime-Launcher fehlt.", launcher);
+            throw new FileNotFoundException(
+                "Der installierte JAP Runtime-Launcher fehlt.",
+                launcher);
         }
 
         ProcessResult result;
@@ -302,7 +310,8 @@ internal sealed class MainWindow : Form
         }
 
         var core = _webView.CoreWebView2
-            ?? throw new InvalidOperationException("WebView2 initialization completed without a CoreWebView2 instance.");
+            ?? throw new InvalidOperationException(
+                "WebView2 initialization completed without a CoreWebView2 instance.");
         WriteStartupPhase("webview_control_ready");
 
         core.Settings.AreDevToolsEnabled = false;
@@ -317,6 +326,7 @@ internal sealed class MainWindow : Form
             "JAP Oberfläche wird geladen …");
         var navigation = new TaskCompletionSource<CoreWebView2NavigationCompletedEventArgs>(
             TaskCreationOptions.RunContinuationsAsynchronously);
+
         void OnNavigationCompleted(
             object? navigationSender,
             CoreWebView2NavigationCompletedEventArgs args)
@@ -364,7 +374,9 @@ internal sealed class MainWindow : Form
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllText(buildInfo));
-            if (document.RootElement.TryGetProperty("version", out var versionElement))
+            if (document.RootElement.TryGetProperty(
+                    "version",
+                    out var versionElement))
             {
                 var version = versionElement.GetString();
                 if (!string.IsNullOrWhiteSpace(version))
@@ -386,7 +398,10 @@ internal sealed class MainWindow : Form
         var presentation = StartupPhasePresentation(phase);
         _phaseLabel.Text = presentation.Label;
         _status.Text = message;
-        _progress.Value = Math.Clamp(presentation.Progress, _progress.Minimum, _progress.Maximum);
+        _progress.Value = Math.Clamp(
+            presentation.Progress,
+            _progress.Minimum,
+            _progress.Maximum);
         UpdateElapsedLabel();
         _phaseLabel.Refresh();
         _status.Refresh();
@@ -431,6 +446,7 @@ internal sealed class MainWindow : Form
             {
                 line += $"\t{detail.Replace("\r", " ").Replace("\n", " ")}";
             }
+
             File.AppendAllText(_startupLog, line + Environment.NewLine);
         }
         catch
@@ -439,7 +455,9 @@ internal sealed class MainWindow : Form
         }
     }
 
-    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    private void OnNavigationStarting(
+        object? sender,
+        CoreWebView2NavigationStartingEventArgs e)
     {
         if (IsLocalProductUri(e.Uri))
         {
@@ -450,7 +468,9 @@ internal sealed class MainWindow : Form
         OpenExternal(e.Uri);
     }
 
-    private void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+    private void OnNewWindowRequested(
+        object? sender,
+        CoreWebView2NewWindowRequestedEventArgs e)
     {
         e.Handled = true;
         if (IsLocalProductUri(e.Uri))
@@ -513,7 +533,7 @@ internal sealed class MainWindow : Form
             var stopper = Path.Combine(_installRoot, "Stop-JAP-Control-Center.ps1");
             if (File.Exists(stopper))
             {
-                var result = await RunPowerShellAsync(stopper);
+                var result = await RunPowerShellAsync(stopper, StopTimeout);
                 if (result.ExitCode != 0)
                 {
                     MessageBox.Show(
@@ -553,7 +573,9 @@ internal sealed class MainWindow : Form
             "powershell.exe");
         if (!File.Exists(powershell))
         {
-            throw new FileNotFoundException("Windows PowerShell wurde nicht gefunden.", powershell);
+            throw new FileNotFoundException(
+                "Windows PowerShell wurde nicht gefunden.",
+                powershell);
         }
 
         var startInfo = new ProcessStartInfo
@@ -577,21 +599,48 @@ internal sealed class MainWindow : Form
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Windows PowerShell process could not be created.");
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
+        var stdout = new ConcurrentQueue<string>();
+        var stderr = new ConcurrentQueue<string>();
+        using var process = new Process
+        {
+            StartInfo = startInfo
+        };
+        process.OutputDataReceived += (_, eventArgs) =>
+        {
+            if (eventArgs.Data is { } line)
+            {
+                stdout.Enqueue(line);
+            }
+        };
+        process.ErrorDataReceived += (_, eventArgs) =>
+        {
+            if (eventArgs.Data is { } line)
+            {
+                stderr.Enqueue(line);
+            }
+        };
 
+        if (!process.Start())
+        {
+            throw new InvalidOperationException(
+                "Windows PowerShell process could not be created.");
+        }
+
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
         try
         {
+            var exitTask = process.WaitForExitAsync();
             if (timeout is { } timeoutValue)
             {
-                await process.WaitForExitAsync().WaitAsync(timeoutValue);
+                await exitTask.WaitAsync(timeoutValue);
             }
             else
             {
-                await process.WaitForExitAsync();
+                await exitTask;
             }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
         }
         catch (TimeoutException)
         {
@@ -604,13 +653,48 @@ internal sealed class MainWindow : Form
                 // Best-effort cleanup only; the caller receives the timeout truth.
             }
 
+            try
+            {
+                await process.WaitForExitAsync()
+                    .WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch
+            {
+                // Do not turn cleanup into another unbounded wait.
+            }
+
             throw;
+        }
+        finally
+        {
+            TryCancelRedirectedRead(process);
         }
 
         return new ProcessResult(
             process.ExitCode,
-            await stdoutTask,
-            await stderrTask);
+            string.Join(Environment.NewLine, stdout),
+            string.Join(Environment.NewLine, stderr));
+    }
+
+    private static void TryCancelRedirectedRead(Process process)
+    {
+        try
+        {
+            process.CancelOutputRead();
+        }
+        catch
+        {
+            // The process may have closed the stream itself.
+        }
+
+        try
+        {
+            process.CancelErrorRead();
+        }
+        catch
+        {
+            // The process may have closed the stream itself.
+        }
     }
 
     private static string CompactDiagnostics(ProcessResult result)
