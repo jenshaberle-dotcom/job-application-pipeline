@@ -3,6 +3,9 @@ param(
     [string]$WslDistro,
     [string]$WslProjectRoot,
     [string]$WslInstalledRunnerPath,
+    [string]$PinnedSha,
+    [string]$DesktopHostArchivePath,
+    [string]$DesktopHostChecksumPath,
     [switch]$NoStart,
     [switch]$NoShortcuts
 )
@@ -12,12 +15,16 @@ $ExpectedRepositoryId = 1230805345
 $ExpectedOrigin = "jenshaberle-dotcom/job-application-pipeline"
 $ReadOnlyFetchUrl = "https://github.com/$ExpectedOrigin.git"
 $DesktopHostAsset = "JAP-Control-Center-Desktop-win-x64.zip"
+$InstallSchema = "job_application_pipeline.windows_control_center_install.v2"
+$UpdateMode = "gui_prompt_latest_direct_v1"
+$CompatibilityLine = "1"
 $Port = 8780
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $CurrentPath = Join-Path $InstallRoot "current.json"
 $StableLauncher = Join-Path $InstallRoot "JAP-Control-Center.ps1"
 $StableUpdater = Join-Path $InstallRoot "Update-JAP-Control-Center.ps1"
 $StableStopper = Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"
+$StableApplier = Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1"
 $StableRunner = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
 $DesktopHostRoot = Join-Path $InstallRoot "desktop-host"
 $DesktopHostExe = Join-Path $DesktopHostRoot "JAP.ControlCenter.Desktop.exe"
@@ -60,7 +67,11 @@ function New-AppShortcut(
     $shortcut.Save()
 }
 
-function Install-DesktopHost([string]$Version) {
+function Install-DesktopHost(
+    [string]$Version,
+    [string]$ArchivePath,
+    [string]$ChecksumPath
+) {
     if ($Version -notmatch '^\d+\.\d+\.\d+$') {
         throw "Invalid JAP desktop host version: $Version"
     }
@@ -68,16 +79,29 @@ function Install-DesktopHost([string]$Version) {
     $tag = "jap-winapp-desktop-v$Version"
     $releaseBase = "https://github.com/$ExpectedOrigin/releases/download/$tag"
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("jap-desktop-host-" + [guid]::NewGuid().ToString("N"))
-    $zip = Join-Path $tempRoot $DesktopHostAsset
-    $checksum = "$zip.sha256"
-    $staged = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
-    $backup = Join-Path $InstallRoot ("desktop-host.previous." + $PID)
-
     New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
-    try {
+
+    $useLocalPayload = -not [string]::IsNullOrWhiteSpace($ArchivePath) -or -not [string]::IsNullOrWhiteSpace($ChecksumPath)
+    if ($useLocalPayload) {
+        if ([string]::IsNullOrWhiteSpace($ArchivePath) -or [string]::IsNullOrWhiteSpace($ChecksumPath)) {
+            throw "Desktop host archive and checksum must be supplied together."
+        }
+        $zip = [System.IO.Path]::GetFullPath($ArchivePath)
+        $checksum = [System.IO.Path]::GetFullPath($ChecksumPath)
+        if (-not (Test-Path $zip) -or -not (Test-Path $checksum)) {
+            throw "Staged desktop host payload is incomplete."
+        }
+    }
+    else {
+        $zip = Join-Path $tempRoot $DesktopHostAsset
+        $checksum = "$zip.sha256"
         Invoke-WebRequest -UseBasicParsing -Uri "$releaseBase/$DesktopHostAsset" -OutFile $zip
         Invoke-WebRequest -UseBasicParsing -Uri "$releaseBase/$DesktopHostAsset.sha256" -OutFile $checksum
+    }
 
+    $staged = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
+    $backup = Join-Path $InstallRoot ("desktop-host.previous." + $PID)
+    try {
         $checksumLine = (Get-Content -Raw $checksum).Trim()
         $expectedHash = ($checksumLine -split '\s+')[0].ToLowerInvariant()
         if ($expectedHash -notmatch '^[0-9a-f]{64}$') {
@@ -171,9 +195,25 @@ if ($origin -notmatch [regex]::Escape($ExpectedOrigin)) {
 # `origin` remains the repository identity authority and is never rewritten here.
 Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "fetch", "--no-tags", $ReadOnlyFetchUrl, "main") | Out-Null
 $shaOutput = Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "rev-parse", "FETCH_HEAD")
-$pinnedSha = (($shaOutput | Select-Object -First 1) -as [string]).Trim()
-if ($pinnedSha -notmatch '^[0-9a-f]{40}$') {
+$fetchedMain = (($shaOutput | Select-Object -First 1) -as [string]).Trim()
+if ($fetchedMain -notmatch '^[0-9a-f]{40}$') {
     throw "Could not resolve an exact GitHub main SHA for JAP."
+}
+
+if ([string]::IsNullOrWhiteSpace($PinnedSha)) {
+    $pinnedSha = $fetchedMain
+}
+else {
+    $PinnedSha = $PinnedSha.Trim().ToLowerInvariant()
+    if ($PinnedSha -notmatch '^[0-9a-f]{40}$') {
+        throw "Requested pinned JAP SHA is invalid: $PinnedSha"
+    }
+    Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "cat-file", "-e", "$PinnedSha^{commit}") | Out-Null
+    & wsl.exe -d $WslDistro -- git -C $WslProjectRoot merge-base --is-ancestor $PinnedSha $fetchedMain
+    if ($LASTEXITCODE -ne 0) {
+        throw "Requested pinned JAP SHA is not an ancestor of current GitHub main: $PinnedSha"
+    }
+    $pinnedSha = $PinnedSha
 }
 
 $homeOutput = Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", 'printf "%s" "$HOME"')
@@ -187,14 +227,23 @@ $wslStateRoot = "$wslHome/.local/state/jap-control-center"
 $sourceLauncher = Join-Path $PSScriptRoot "JAP-Control-Center.ps1"
 $sourceUpdater = Join-Path $PSScriptRoot "Update-JAP-Control-Center.ps1"
 $sourceStopper = Join-Path $PSScriptRoot "Stop-JAP-Control-Center.ps1"
+$sourceApplier = Join-Path $PSScriptRoot "Apply-JAP-Control-Center-Update.ps1"
 $sourceRunner = Join-Path $PSScriptRoot "scripts\run_jap_windows_control_center.sh"
 $desktopVersionPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\VERSION"
-foreach ($required in @($sourceLauncher, $sourceUpdater, $sourceStopper, $sourceRunner, $desktopVersionPath)) {
+$compatibilityPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\UPDATE_COMPATIBILITY.json"
+foreach ($required in @($sourceLauncher, $sourceUpdater, $sourceStopper, $sourceApplier, $sourceRunner, $desktopVersionPath, $compatibilityPath)) {
     if (-not (Test-Path $required)) {
         throw "Installer source is missing: $required"
     }
 }
 $desktopHostVersion = (Get-Content -Raw $desktopVersionPath).Trim()
+$compatibility = Get-Content -Raw $compatibilityPath | ConvertFrom-Json
+if ($compatibility.policy -ne "latest_direct" -or $compatibility.compatibility_line -ne $CompatibilityLine -or $compatibility.installer_schema -ne $InstallSchema) {
+    throw "Desktop host update compatibility contract is invalid."
+}
+if ($desktopHostVersion -notmatch '^1\.\d+\.\d+$') {
+    throw "Desktop host version is outside compatibility line 1: $desktopHostVersion"
+}
 
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot "state") | Out-Null
@@ -202,15 +251,16 @@ New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot "logs") | Out-
 Copy-Item -Force $sourceLauncher $StableLauncher
 Copy-Item -Force $sourceUpdater $StableUpdater
 Copy-Item -Force $sourceStopper $StableStopper
+Copy-Item -Force $sourceApplier $StableApplier
 Copy-Item -Force $sourceRunner $StableRunner
 
-$desktopHost = Install-DesktopHost $desktopHostVersion
+$desktopHost = Install-DesktopHost $desktopHostVersion $DesktopHostArchivePath $DesktopHostChecksumPath
 if (-not (Test-Path $DesktopHostExe)) {
     throw "Installed JAP desktop host executable is missing: $DesktopHostExe"
 }
 
 Write-JsonAtomic $CurrentPath @{
-    schema = "job_application_pipeline.windows_control_center_install.v2"
+    schema = $InstallSchema
     repository_id = $ExpectedRepositoryId
     repository = $ExpectedOrigin
     pinned_sha = $pinnedSha
@@ -226,7 +276,9 @@ Write-JsonAtomic $CurrentPath @{
     desktop_host_release = $desktopHost.tag
     desktop_host_exe = $DesktopHostExe
     installed_at = [DateTime]::UtcNow.ToString("o")
-    update_authority = "explicit_github_https_main"
+    update_authority = "local_runner_staged_gui_prompt"
+    update_mode = $UpdateMode
+    compatibility_line = $CompatibilityLine
     secrets_location = "wsl_project_env_only"
     private_documents_location = "wsl_project_private_application_sources_only"
 }
@@ -256,6 +308,8 @@ Write-Host "DESKTOP_HOST=webview2_winforms"
 Write-Host "DESKTOP_HOST_VERSION=$($desktopHost.version)"
 Write-Host "DESKTOP_HOST_SHA256=$($desktopHost.sha256)"
 Write-Host "DESKTOP_HOST_EXE=$DesktopHostExe"
+Write-Host "UPDATE_MODE=$UpdateMode"
+Write-Host "UPDATE_COMPATIBILITY_LINE=$CompatibilityLine"
 Write-Host "URI=http://127.0.0.1:$Port/"
 Write-Host "Boundary: no .env, credentials, PostgreSQL data, CV or application documents are copied to Windows."
 

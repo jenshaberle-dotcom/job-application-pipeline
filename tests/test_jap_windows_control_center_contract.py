@@ -7,6 +7,7 @@ LAUNCHER = ROOT / "JAP-Control-Center.ps1"
 INSTALLER = ROOT / "install-jap-control-center.ps1"
 UPDATER = ROOT / "Update-JAP-Control-Center.ps1"
 STOPPER = ROOT / "Stop-JAP-Control-Center.ps1"
+APPLIER = ROOT / "Apply-JAP-Control-Center-Update.ps1"
 WSL_INSTALLER = ROOT / "scripts" / "install_jap_windows_control_center.sh"
 WSL_RUNNER = ROOT / "scripts" / "run_jap_windows_control_center.sh"
 ICON_GENERATOR = ROOT / "scripts" / "generate_jap_control_center_icon.py"
@@ -14,6 +15,7 @@ DESKTOP_ROOT = ROOT / "windows" / "JAP.ControlCenter.Desktop"
 DESKTOP_PROJECT = DESKTOP_ROOT / "JAP.ControlCenter.Desktop.csproj"
 DESKTOP_PROGRAM = DESKTOP_ROOT / "Program.cs"
 DESKTOP_VERSION = DESKTOP_ROOT / "VERSION"
+DESKTOP_COMPATIBILITY = DESKTOP_ROOT / "UPDATE_COMPATIBILITY.json"
 DESKTOP_RELEASE_WORKFLOW = (
     ROOT / ".github" / "workflows" / "jap-windows-desktop-host-release.yml"
 )
@@ -29,12 +31,14 @@ def test_windows_app_entrypoints_are_present() -> None:
         INSTALLER,
         UPDATER,
         STOPPER,
+        APPLIER,
         WSL_INSTALLER,
         WSL_RUNNER,
         ICON_GENERATOR,
         DESKTOP_PROJECT,
         DESKTOP_PROGRAM,
         DESKTOP_VERSION,
+        DESKTOP_COMPATIBILITY,
         DESKTOP_RELEASE_WORKFLOW,
     ):
         assert path.is_file(), path
@@ -143,17 +147,18 @@ def test_launcher_surfaces_stdout_when_wsl_reports_runtime_failure_there() -> No
     assert "did not become ready: $stdoutTail" in text
 
 
-def test_install_and_update_fetch_main_over_https_not_ssh_origin() -> None:
+def test_installer_fetches_main_over_https_and_manual_updater_cannot_bypass_release() -> None:
     installer = _text(INSTALLER)
     updater = _text(UPDATER)
-    for text in (installer, updater):
-        assert "https://github.com/$ExpectedOrigin.git" in text
-        assert '"fetch", "--no-tags", $ReadOnlyFetchUrl, "main"' in text
-        assert '"rev-parse", "FETCH_HEAD"' in text
-        assert '"fetch", "origin", "main"' not in text
-    assert 'update_authority = "explicit_github_https_main"' in installer
+    assert "https://github.com/$ExpectedOrigin.git" in installer
+    assert '"fetch", "--no-tags", $ReadOnlyFetchUrl, "main"' in installer
+    assert '"rev-parse", "FETCH_HEAD"' in installer
+    assert '"fetch", "origin", "main"' not in installer
+    assert 'update_authority = "local_runner_staged_gui_prompt"' in installer
     assert "FETCH_TRANSPORT=https" in installer
-    assert "FETCH_TRANSPORT=https" in updater
+    assert "git fetch" not in updater
+    assert "pinned_sha =" not in updater
+    assert 'ExpectedUpdateMode = "gui_prompt_latest_direct_v1"' in updater
 
 
 def test_managed_runner_has_https_recovery_for_missing_pinned_commit() -> None:
@@ -249,6 +254,7 @@ def test_desktop_host_release_is_built_in_ci_and_immutable() -> None:
     assert "gh release create $env:DESKTOP_TAG" in workflow
     assert "--target $env:GITHUB_SHA" in workflow
     assert "bump VERSION before changing the host" in workflow
+    assert "latest_direct" in workflow
 
 
 def test_desktop_build_products_are_ignored() -> None:
@@ -271,6 +277,6 @@ def test_stop_path_is_managed_pid_only() -> None:
 
 
 def test_powershell_does_not_use_bash_line_continuations() -> None:
-    for path in (LAUNCHER, INSTALLER, UPDATER, STOPPER):
+    for path in (LAUNCHER, INSTALLER, UPDATER, STOPPER, APPLIER):
         lines = _text(path).splitlines()
         assert not any(line.rstrip().endswith("\\") for line in lines), path

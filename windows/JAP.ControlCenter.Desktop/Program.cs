@@ -25,7 +25,7 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainWindow());
+        Application.Run(new UpdateAwareApplicationContext());
         GC.KeepAlive(mutex);
     }
 }

@@ -1,0 +1,8 @@
+{
+  "schema": "job_application_pipeline.windows_update_compatibility.v1",
+  "compatibility_line": "1",
+  "policy": "latest_direct",
+  "direct_upgrade_from": "1.x",
+  "installer_schema": "job_application_pipeline.windows_control_center_install.v2",
+  "snooze_hours": 6
+}
