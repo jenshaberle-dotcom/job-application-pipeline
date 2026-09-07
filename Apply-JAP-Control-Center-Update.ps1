@@ -14,6 +14,7 @@ $ExpectedPendingSchema = "job_application_pipeline.windows_pending_update.v1"
 $ExpectedCompatibilityLine = "1"
 $ResultSchema = "job_application_pipeline.windows_update_result.v1"
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
+$ManifestPath = [System.IO.Path]::GetFullPath($ManifestPath)
 $CurrentPath = Join-Path $InstallRoot "current.json"
 $PendingPath = Join-Path $InstallRoot "state\pending-update.json"
 $SnoozePath = Join-Path $InstallRoot "state\update-snooze.json"
@@ -43,8 +44,17 @@ function Read-Json([string]$Path) {
 }
 
 function Restart-JapIfPresent {
+    if (Get-Process -Id $HostPid -ErrorAction SilentlyContinue) {
+        return
+    }
     if (Test-Path $DesktopHostExe) {
         Start-Process -FilePath $DesktopHostExe -WorkingDirectory (Split-Path -Parent $DesktopHostExe) | Out-Null
+    }
+}
+
+function Remove-AcceptedManifest {
+    if ($ManifestPath -ne $PendingPath) {
+        Remove-Item -Force $ManifestPath -ErrorAction SilentlyContinue
     }
 }
 
@@ -101,10 +111,10 @@ try {
         throw "Staged desktop host checksum verification failed."
     }
 
-    $host = Get-Process -Id $HostPid -ErrorAction SilentlyContinue
-    if ($null -ne $host) {
+    $hostProcess = Get-Process -Id $HostPid -ErrorAction SilentlyContinue
+    if ($null -ne $hostProcess) {
         Write-UpdateLog "wait_host_exit" "pid=$HostPid"
-        if (-not $host.WaitForExit(60000)) {
+        if (-not $hostProcess.WaitForExit(60000)) {
             throw "JAP desktop host did not exit within 60 seconds."
         }
     }
@@ -155,6 +165,7 @@ try {
         }
     }
     Remove-Item -Force $SnoozePath -ErrorAction SilentlyContinue
+    Remove-AcceptedManifest
 
     Write-JsonAtomic $ResultPath @{
         schema = $ResultSchema
@@ -170,6 +181,7 @@ try {
 }
 catch {
     $detail = $_.Exception.Message
+    Remove-AcceptedManifest
     try {
         Write-JsonAtomic $ResultPath @{
             schema = $ResultSchema
