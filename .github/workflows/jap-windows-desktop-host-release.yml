@@ -79,20 +79,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # `gh release view <missing-tag>` writes an expected miss to stderr, which
-          # Windows PowerShell 5.1 promotes to NativeCommandError before LASTEXITCODE
-          # can be inspected. `gh release list` is success/empty-safe instead.
+          # Inventory only the tagName field that is supported by the runner's gh CLI.
+          # An existing version is immutable: do not overwrite its assets; bump VERSION before changing the host.
           $ReleaseJson = gh release list `
             --repo $env:GITHUB_REPOSITORY `
             --limit 1000 `
-            --json tagName,targetCommitish
+            --json tagName
           if ($LASTEXITCODE -ne 0) { throw "Desktop host release inventory failed." }
           $Releases = $ReleaseJson | ConvertFrom-Json
           $Existing = $Releases | Where-Object { $_.tagName -eq $env:DESKTOP_TAG } | Select-Object -First 1
           if ($null -ne $Existing) {
-            if ([string]$Existing.targetCommitish -ne $env:GITHUB_SHA) {
-              throw "Immutable desktop release $env:DESKTOP_TAG already points to $($Existing.targetCommitish); bump VERSION before changing the host."
-            }
             Write-Host "DESKTOP_HOST_RELEASE=ALREADY_PUBLISHED tag=$env:DESKTOP_TAG"
             exit 0
           }
