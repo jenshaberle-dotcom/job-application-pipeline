@@ -80,8 +80,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Inventory only the tagName field that is supported by the runner's gh CLI.
-          # An existing version is immutable: do not overwrite its assets. Host changes
-          # therefore require VERSION to be bumped before this workflow can publish.
+          # An existing version is immutable: do not overwrite its assets; bump VERSION before changing the host.
           $ReleaseJson = gh release list `
             --repo $env:GITHUB_REPOSITORY `
             --limit 1000 `
