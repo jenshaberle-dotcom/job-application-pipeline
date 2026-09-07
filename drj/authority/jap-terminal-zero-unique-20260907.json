@@ -4,62 +4,20 @@
   "repository_id": 1230805345,
   "authority_head_sha": "d1992a8fd0f27bf79978333baf13e0dd017a0540",
   "effect_authorized": true,
-  "authority_reference": "github-issue-comment:jenshaberle-dotcom/Data-Retention-Janitor#76:5570924089",
-  "issued_at": "2026-09-07T12:52:00Z",
-  "expires_at": "2026-09-07T13:05:00Z",
-  "max_effects": 9,
+  "authority_reference": "github-issue-comment:jenshaberle-dotcom/Data-Retention-Janitor#76:5571241095",
+  "issued_at": "2026-09-07T13:17:00Z",
+  "expires_at": "2026-09-07T13:30:00Z",
+  "max_effects": 2,
   "targets": [
     {
-      "branch": "agent/acq-v37-structural-target-precision",
-      "expected_sha": "4ada550e4a0ec0d84b62217528408e6e3d8b2956",
+      "branch": "agent/676-generalization-harvest",
+      "expected_sha": "64571b517499a827d9c2fc49c96662533f29d35d",
       "terminal_disposition": "SAFE_TO_RETIRE",
       "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
     },
     {
-      "branch": "agent/eon-profile-heading-diagnostic-2",
-      "expected_sha": "67ceea52e2ecb9fe9494d010a11dfe6da3184c57",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    },
-    {
-      "branch": "agent/eon-profile-heading-diagnostic-3",
-      "expected_sha": "67ceea52e2ecb9fe9494d010a11dfe6da3184c57",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    },
-    {
-      "branch": "agent/eon-profile-heading-diagnostic-actual",
-      "expected_sha": "67ceea52e2ecb9fe9494d010a11dfe6da3184c57",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    },
-    {
-      "branch": "agent/eon-profile-heading-diagnostic-canonical",
-      "expected_sha": "67ceea52e2ecb9fe9494d010a11dfe6da3184c57",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    },
-    {
-      "branch": "agent/eon-profile-heading-diagnostic-final",
-      "expected_sha": "67ceea52e2ecb9fe9494d010a11dfe6da3184c57",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    },
-    {
-      "branch": "agent/eon-profile-heading-diagnostic-repro",
-      "expected_sha": "67ceea52e2ecb9fe9494d010a11dfe6da3184c57",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    },
-    {
-      "branch": "agent/eon-profile-heading-diagnostic-single",
-      "expected_sha": "67ceea52e2ecb9fe9494d010a11dfe6da3184c57",
-      "terminal_disposition": "SAFE_TO_RETIRE",
-      "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
-    },
-    {
-      "branch": "agent/eon-profile-heading-diagnostic-work",
-      "expected_sha": "67ceea52e2ecb9fe9494d010a11dfe6da3184c57",
+      "branch": "agent/676-connector-builder-v5-portal-overlay",
+      "expected_sha": "ac5d2d916bb83ac834dfaf34d9ab091fce724514",
       "terminal_disposition": "SAFE_TO_RETIRE",
       "terminal_record_ref": "github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JOB-APPLICATION-PIPELINE-DISPOSITION.json"
     }
