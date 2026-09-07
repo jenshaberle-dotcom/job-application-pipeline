@@ -92,7 +92,6 @@ internal sealed class MainWindow : Form
                 "JAP Control Center",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
-            _allowClose = true;
             Close();
         }
     }
