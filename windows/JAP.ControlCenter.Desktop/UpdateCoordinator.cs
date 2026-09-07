@@ -159,7 +159,7 @@ internal sealed class UpdateCoordinator : IDisposable
             startInfo.ArgumentList.Add("-HostPid");
             startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
 
-            Process.Start(startInfo)
+            _ = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("JAP update process could not be started.");
             _applyingUpdate = true;
             _pollTimer.Stop();
