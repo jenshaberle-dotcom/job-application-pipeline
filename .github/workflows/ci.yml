@@ -99,27 +99,43 @@ jobs:
       - name: Prevent E402 baseline growth
         shell: bash
         run: |
+          set -euo pipefail
+
+          e402_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/pipeline-e402.XXXXXX")"
+          head_json="$e402_root/head-e402.json"
+          base_json="$e402_root/base-e402.json"
+          base_worktree="$e402_root/base"
+
+          cleanup_e402() {
+            if [[ -e "$base_worktree/.git" ]]; then
+              git worktree remove --force "$base_worktree" >/dev/null 2>&1 || true
+            fi
+            rm -rf "$e402_root"
+          }
+          trap cleanup_e402 EXIT
+
           python -m ruff check . \
             --select E402 \
             --output-format json \
-            --exit-zero > /tmp/head-e402.json
+            --exit-zero > "$head_json"
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git worktree add --detach /tmp/pipeline-base "origin/${{ github.base_ref }}"
-            python -m ruff check /tmp/pipeline-base \
-              --config /tmp/pipeline-base/pyproject.toml \
+            git worktree add --detach "$base_worktree" "origin/${{ github.base_ref }}"
+            python -m ruff check "$base_worktree" \
+              --config "$base_worktree/pyproject.toml" \
               --select E402 \
               --output-format json \
-              --exit-zero > /tmp/base-e402.json
+              --exit-zero > "$base_json"
           fi
 
-          python - <<'PY'
+          python - "$head_json" "$base_json" <<'PY'
           import json
           import os
           from pathlib import Path
+          import sys
 
-          head = json.loads(Path("/tmp/head-e402.json").read_text(encoding="utf-8"))
-          base_path = Path("/tmp/base-e402.json")
+          head = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          base_path = Path(sys.argv[2])
           base = (
               json.loads(base_path.read_text(encoding="utf-8"))
               if base_path.exists()
