@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -31,7 +32,12 @@ internal static class Program
 internal sealed class MainWindow : Form
 {
     private static readonly Uri ProductUri = new("http://127.0.0.1:8780/");
+    private static readonly TimeSpan WebViewEnvironmentTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan WebViewControlTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan WebViewNavigationTimeout = TimeSpan.FromSeconds(15);
+
     private readonly string _installRoot;
+    private readonly string _startupLog;
     private readonly WebView2 _webView;
     private readonly Label _status;
     private bool _allowClose;
@@ -44,6 +50,7 @@ internal sealed class MainWindow : Form
             Path.AltDirectorySeparatorChar);
         _installRoot = Directory.GetParent(hostRoot)?.FullName
             ?? throw new InvalidOperationException("Desktop host installation root could not be resolved.");
+        _startupLog = Path.Combine(_installRoot, "logs", "desktop-host-startup.log");
 
         Text = "JAP Control Center";
         StartPosition = FormStartPosition.CenterScreen;
@@ -78,14 +85,22 @@ internal sealed class MainWindow : Form
     {
         try
         {
+            SetStartupPhase("runtime_start", "JAP Runtime wird gestartet …");
             await StartManagedRuntimeAsync();
+
+            SetStartupPhase(
+                "runtime_ready",
+                "JAP Runtime ist bereit. Desktop-Oberfläche wird initialisiert …");
             await InitializeWebViewAsync();
+
+            SetStartupPhase("ready", "JAP Control Center ist bereit.");
             _status.Visible = false;
             _webView.Visible = true;
             _webView.BringToFront();
         }
         catch (Exception exc)
         {
+            WriteStartupPhase("startup_failed", exc.ToString());
             MessageBox.Show(
                 this,
                 $"JAP Control Center konnte nicht gestartet werden.\n\n{exc.Message}",
@@ -114,10 +129,10 @@ internal sealed class MainWindow : Form
 
     private async Task InitializeWebViewAsync()
     {
-        string? version;
+        string? runtimeVersion;
         try
         {
-            version = CoreWebView2Environment.GetAvailableBrowserVersionString();
+            runtimeVersion = CoreWebView2Environment.GetAvailableBrowserVersionString();
         }
         catch (WebView2RuntimeNotFoundException)
         {
@@ -125,28 +140,159 @@ internal sealed class MainWindow : Form
                 "Microsoft Edge WebView2 Runtime ist auf diesem Windows-System nicht verfügbar.");
         }
 
-        if (string.IsNullOrWhiteSpace(version))
+        if (string.IsNullOrWhiteSpace(runtimeVersion))
         {
             throw new InvalidOperationException(
                 "Microsoft Edge WebView2 Runtime ist auf diesem Windows-System nicht verfügbar.");
         }
 
-        var userDataFolder = Path.Combine(_installRoot, "state", "webview2");
+        WriteStartupPhase("webview_runtime_found", runtimeVersion);
+        SetStartupPhase(
+            "webview_environment_start",
+            "WebView2-Umgebung wird vorbereitet …");
+
+        var desktopVersion = ResolveDesktopHostVersion();
+        var userDataFolder = Path.Combine(
+            _installRoot,
+            "state",
+            "webview2",
+            $"host-{desktopVersion}");
         Directory.CreateDirectory(userDataFolder);
-        var environment = await CoreWebView2Environment.CreateAsync(
-            browserExecutableFolder: null,
-            userDataFolder: userDataFolder);
-        await _webView.EnsureCoreWebView2Async(environment);
+        WriteStartupPhase("webview_profile", userDataFolder);
+
+        CoreWebView2Environment environment;
+        try
+        {
+            environment = await CoreWebView2Environment.CreateAsync(
+                    browserExecutableFolder: null,
+                    userDataFolder: userDataFolder)
+                .WaitAsync(WebViewEnvironmentTimeout);
+        }
+        catch (TimeoutException)
+        {
+            throw new TimeoutException(
+                $"WebView2-Umgebung wurde innerhalb von {WebViewEnvironmentTimeout.TotalSeconds:0} Sekunden nicht bereit.");
+        }
+
+        WriteStartupPhase("webview_environment_ready");
+        SetStartupPhase(
+            "webview_control_start",
+            "WebView2-Fenster wird initialisiert …");
+
+        try
+        {
+            await _webView.EnsureCoreWebView2Async(environment)
+                .WaitAsync(WebViewControlTimeout);
+        }
+        catch (TimeoutException)
+        {
+            throw new TimeoutException(
+                $"WebView2-Fenster wurde innerhalb von {WebViewControlTimeout.TotalSeconds:0} Sekunden nicht initialisiert.");
+        }
 
         var core = _webView.CoreWebView2
             ?? throw new InvalidOperationException("WebView2 initialization completed without a CoreWebView2 instance.");
+        WriteStartupPhase("webview_control_ready");
+
         core.Settings.AreDevToolsEnabled = false;
         core.Settings.IsStatusBarEnabled = false;
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.AreBrowserAcceleratorKeysEnabled = false;
         core.NavigationStarting += OnNavigationStarting;
         core.NewWindowRequested += OnNewWindowRequested;
-        core.Navigate(ProductUri.AbsoluteUri);
+
+        SetStartupPhase(
+            "product_navigation_start",
+            "JAP Oberfläche wird geladen …");
+        var navigation = new TaskCompletionSource<CoreWebView2NavigationCompletedEventArgs>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnNavigationCompleted(
+            object? navigationSender,
+            CoreWebView2NavigationCompletedEventArgs args)
+        {
+            navigation.TrySetResult(args);
+        }
+
+        core.NavigationCompleted += OnNavigationCompleted;
+        try
+        {
+            core.Navigate(ProductUri.AbsoluteUri);
+            CoreWebView2NavigationCompletedEventArgs completed;
+            try
+            {
+                completed = await navigation.Task.WaitAsync(WebViewNavigationTimeout);
+            }
+            catch (TimeoutException)
+            {
+                throw new TimeoutException(
+                    $"JAP Oberfläche wurde innerhalb von {WebViewNavigationTimeout.TotalSeconds:0} Sekunden nicht geladen.");
+            }
+
+            if (!completed.IsSuccess)
+            {
+                throw new InvalidOperationException(
+                    $"JAP Oberfläche konnte in WebView2 nicht geladen werden: {completed.WebErrorStatus}.");
+            }
+        }
+        finally
+        {
+            core.NavigationCompleted -= OnNavigationCompleted;
+        }
+
+        WriteStartupPhase("product_navigation_ready");
+    }
+
+    private string ResolveDesktopHostVersion()
+    {
+        var buildInfo = Path.Combine(AppContext.BaseDirectory, "build-info.json");
+        if (!File.Exists(buildInfo))
+        {
+            return "unknown";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(buildInfo));
+            if (document.RootElement.TryGetProperty("version", out var versionElement))
+            {
+                var version = versionElement.GetString();
+                if (!string.IsNullOrWhiteSpace(version))
+                {
+                    return version.Trim();
+                }
+            }
+        }
+        catch (JsonException exc)
+        {
+            WriteStartupPhase("build_info_invalid", exc.Message);
+        }
+
+        return "unknown";
+    }
+
+    private void SetStartupPhase(string phase, string message)
+    {
+        _status.Text = message;
+        _status.Refresh();
+        WriteStartupPhase(phase, message);
+    }
+
+    private void WriteStartupPhase(string phase, string? detail = null)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_startupLog)!);
+            var line = $"{DateTime.UtcNow:o}\t{phase}";
+            if (!string.IsNullOrWhiteSpace(detail))
+            {
+                line += $"\t{detail.Replace("\r", " ").Replace("\n", " ")}";
+            }
+            File.AppendAllText(_startupLog, line + Environment.NewLine);
+        }
+        catch
+        {
+            // Startup diagnostics must never become a startup dependency.
+        }
     }
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
