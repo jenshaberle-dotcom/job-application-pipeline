@@ -1,6 +1,8 @@
 name: Warm runner heartbeat
 
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: '2-57/5 * * * *'
   workflow_dispatch:
