@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/drj-readonly-branch-observer.yml
+      - .github/drj/portable_branch_observer_v1.py
   workflow_dispatch:
 
 permissions:
@@ -16,17 +17,16 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch attested DRJ observer
+      - name: Verify attested DRJ observer blob
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL "https://raw.githubusercontent.com/jenshaberle-dotcom/Data-Retention-Janitor/7a1b0efb77338a815e831751ab79fb6b6cc4e9f4/scripts/portable_branch_observer_v1.py" -o /tmp/drj-observer.py
-          test "$(git hash-object /tmp/drj-observer.py)" = "87f53c3ed0daf462bd6823c1a31b51c298bd23c7"
+          test "$(git hash-object .github/drj/portable_branch_observer_v1.py)" = "87f53c3ed0daf462bd6823c1a31b51c298bd23c7"
       - name: Run DRJ read-only observer
         env:
           GH_TOKEN: ${{ github.token }}
           DRJ_OBSERVER_OUTPUT: /tmp/drj-branch-observer.json
-        run: python /tmp/drj-observer.py
+        run: python .github/drj/portable_branch_observer_v1.py
       - uses: actions/upload-artifact@v4
         with:
           name: drj-branch-observer-${{ github.run_id }}
