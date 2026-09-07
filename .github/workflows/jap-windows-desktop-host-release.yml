@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "windows/JAP.ControlCenter.Desktop/**"
-      - "scripts/generate_jap_control_center_icon.py"
       - ".github/workflows/jap-windows-desktop-host-release.yml"
   workflow_dispatch:
 
@@ -19,9 +18,6 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
@@ -36,11 +32,15 @@ jobs:
           "DESKTOP_VERSION=$Version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "DESKTOP_TAG=jap-winapp-desktop-v$Version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Generate deterministic application icon
+      - name: Prove tracked branded application icon
         shell: powershell
         run: |
-          python scripts/generate_jap_control_center_icon.py `
-            windows/JAP.ControlCenter.Desktop/JAP-Control-Center.ico
+          $Icon = "windows/JAP.ControlCenter.Desktop/JAP-Control-Center.ico"
+          if (-not (Test-Path $Icon)) {
+            throw "Tracked JAP application icon is missing."
+          }
+          $Hash = (Get-FileHash $Icon -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "JAP_DESKTOP_ICON_SHA256=$Hash"
 
       - name: Publish self-contained Windows x64 host
         shell: powershell
