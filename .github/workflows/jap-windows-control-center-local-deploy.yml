@@ -1,0 +1,51 @@
+name: JAP Windows Control Center local deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "JAP-Control-Center.ps1"
+      - "Update-JAP-Control-Center.ps1"
+      - "Stop-JAP-Control-Center.ps1"
+      - "install-jap-control-center.ps1"
+      - "scripts/install_jap_windows_control_center.sh"
+      - "scripts/deploy_jap_windows_control_center_local.sh"
+      - "windows/JAP.ControlCenter.Desktop/**"
+      - ".github/workflows/jap-windows-control-center-local-deploy.yml"
+  workflow_run:
+    workflows: ["JAP Windows Desktop Host release"]
+    types: [completed]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jap-windows-control-center-local-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy installed JAP Control Center on local workstation
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out exact deployment source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Prove local Windows interop and deploy fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "JAP_LOCAL_DEPLOY_RUNNER=$RUNNER_NAME"
+          echo "JAP_LOCAL_DEPLOY_SOURCE=$(git rev-parse HEAD)"
+          bash scripts/deploy_jap_windows_control_center_local.sh

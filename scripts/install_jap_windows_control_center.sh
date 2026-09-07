@@ -4,6 +4,24 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALLER="$ROOT/install-jap-control-center.ps1"
 
+NO_START=0
+NO_SHORTCUTS=0
+while (($#)); do
+  case "$1" in
+    --no-start)
+      NO_START=1
+      ;;
+    --no-shortcuts)
+      NO_SHORTCUTS=1
+      ;;
+    *)
+      printf 'JAP_WINDOWS_APP_INSTALL=BLOCKED unknown_argument=%s\n' "$1" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
 [[ -f "$INSTALLER" ]] || {
   printf 'JAP_WINDOWS_APP_INSTALL=BLOCKED installer_missing=%s\n' "$INSTALLER" >&2
   exit 2
@@ -31,8 +49,17 @@ WSL_LOCALAPPDATA="$(wslpath -u "$WINDOWS_LOCALAPPDATA")"
 }
 WSL_INSTALLED_RUNNER="$WSL_LOCALAPPDATA/JAP-Control-Center/run-jap-control-center-wsl.sh"
 
-exec powershell.exe \
-  -NoProfile \
-  -ExecutionPolicy Bypass \
-  -File "$WINDOWS_INSTALLER" \
+args=(
+  -NoProfile
+  -ExecutionPolicy Bypass
+  -File "$WINDOWS_INSTALLER"
   -WslInstalledRunnerPath "$WSL_INSTALLED_RUNNER"
+)
+if ((NO_START)); then
+  args+=(-NoStart)
+fi
+if ((NO_SHORTCUTS)); then
+  args+=(-NoShortcuts)
+fi
+
+exec powershell.exe "${args[@]}"
