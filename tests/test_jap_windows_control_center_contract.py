@@ -209,7 +209,8 @@ def test_desktop_host_is_self_contained_webview2_window() -> None:
     assert "MutexName" in program
     assert "Width = 1440" in program
     assert "MinimumSize = new Size(1180, 720)" in program
-    assert 'RunPowerShellAsync(launcher, "-NoBrowser")' in program
+    assert '"-NoBrowser"' in program
+    assert "RuntimeStartTimeout" in program
     assert 'Path.Combine(_installRoot, "Stop-JAP-Control-Center.ps1")' in program
 
 
