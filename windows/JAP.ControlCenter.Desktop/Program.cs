@@ -530,9 +530,7 @@ internal sealed class MainWindow : Form
         Hide();
         try
         {
-            var stopper = Path.Combine(
-                _installRoot,
-                "Stop-JAP-Control-Center.ps1");
+            var stopper = Path.Combine(_installRoot, "Stop-JAP-Control-Center.ps1");
             if (File.Exists(stopper))
             {
                 var result = await RunPowerShellAsync(stopper, StopTimeout);
@@ -642,8 +640,6 @@ internal sealed class MainWindow : Form
                 await exitTask;
             }
 
-            // Give the parent's final complete lines a small bounded window to arrive.
-            // Never wait for EOF: detached WSL children may inherit redirected handles.
             await Task.Delay(TimeSpan.FromMilliseconds(100));
         }
         catch (TimeoutException)
