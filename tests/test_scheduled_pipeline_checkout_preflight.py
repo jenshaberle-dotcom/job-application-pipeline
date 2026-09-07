@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -54,6 +56,21 @@ def _live_repository(repository_id: int = 1230805345) -> dict[str, object]:
         "full_name": "jenshaberle-dotcom/job-application-pipeline",
         "default_branch": "main",
     }
+
+
+def test_direct_script_entrypoint_resolves_sibling_imports(tmp_path: Path) -> None:
+    script = Path("scripts/prepare_scheduled_pipeline_checkout.py").resolve()
+    completed = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "--root" in completed.stdout
+    assert "ModuleNotFoundError" not in completed.stderr
 
 
 def test_normalize_remote_accepts_supported_github_forms() -> None:
