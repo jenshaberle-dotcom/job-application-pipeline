@@ -33,17 +33,18 @@ def test_only_admitted_request_reaches_exact_local_product_runner() -> None:
     assert "ubuntu-latest" not in execution
 
 
-def test_product_runner_identity_is_bound_to_actual_assigned_instance() -> None:
+def test_product_runner_uses_logical_runtime_context_on_assigned_instance() -> None:
     text = _workflow_text()
     campaign = text.index("\n  campaign:\n")
     execution = text[campaign:]
 
     assert 'runtime_runner_name="${RUNNER_NAME:-}"' in execution
-    assert '${RCC_REPOSITORY_ID}-${runtime_runner_name}.json' in execution
-    assert '"$RCC_REPOSITORY" "$runtime_runner_name" <<\'PY\'' in execution
+    assert "RCC_RUNNER_NAME: job-pipeline-runtime-linux" in execution
+    assert '${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json' in execution
+    assert '${RCC_REPOSITORY_ID}-${runtime_runner_name}.json' not in execution
+    assert '"$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<\'PY\'' in execution
     assert 'context.get("RunnerName") != runner_name' in execution
     assert 'if [[ "$RUNNER_NAME" != "$RCC_RUNNER_NAME" ]]' not in execution
-    assert "RCC_RUNNER_NAME: job-pipeline-runtime-linux" not in execution
 
 
 def test_only_db_execution_is_serialized_not_hosted_admission() -> None:
