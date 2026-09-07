@@ -11,6 +11,7 @@ on:
       - "scripts/install_jap_windows_control_center.sh"
       - "windows/JAP.ControlCenter.Desktop/**"
       - "tests/test_jap_windows_control_center_contract.py"
+      - "tests/test_jap_windows_control_center_webview2_startup.py"
       - ".github/workflows/jap-windows-control-center-contract.yml"
       - ".github/workflows/jap-windows-desktop-host-release.yml"
   push:
@@ -24,6 +25,7 @@ on:
       - "scripts/install_jap_windows_control_center.sh"
       - "windows/JAP.ControlCenter.Desktop/**"
       - "tests/test_jap_windows_control_center_contract.py"
+      - "tests/test_jap_windows_control_center_webview2_startup.py"
       - ".github/workflows/jap-windows-control-center-contract.yml"
       - ".github/workflows/jap-windows-desktop-host-release.yml"
   workflow_dispatch:
@@ -111,4 +113,7 @@ jobs:
           bash -n scripts/run_jap_windows_control_center.sh
           bash -n scripts/install_jap_windows_control_center.sh
       - name: Run Windows app contract tests
-        run: python -m pytest -q tests/test_jap_windows_control_center_contract.py
+        run: |
+          python -m pytest -q \
+            tests/test_jap_windows_control_center_contract.py \
+            tests/test_jap_windows_control_center_webview2_startup.py
