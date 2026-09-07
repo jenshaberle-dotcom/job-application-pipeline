@@ -13,6 +13,7 @@ frontend/control-center/dist/
 frontend/control-center/node_modules/
 windows/JAP.ControlCenter.Desktop/bin/
 windows/JAP.ControlCenter.Desktop/obj/
+windows/JAP.ControlCenter.Desktop/JAP-Control-Center.ico
 private_candidate_facts/
 private_application_sources/
 *.candidate-facts.private.json
