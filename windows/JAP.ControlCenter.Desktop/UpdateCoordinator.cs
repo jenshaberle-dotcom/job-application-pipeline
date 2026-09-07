@@ -15,6 +15,7 @@ internal sealed class UpdateCoordinator : IDisposable
     private readonly Form _owner;
     private readonly string _installRoot;
     private readonly string _pendingPath;
+    private readonly string _acceptedPath;
     private readonly string _snoozePath;
     private readonly string _resultPath;
     private readonly string _eventLog;
@@ -29,6 +30,7 @@ internal sealed class UpdateCoordinator : IDisposable
         _installRoot = installRoot;
         var stateRoot = Path.Combine(_installRoot, "state");
         _pendingPath = Path.Combine(stateRoot, "pending-update.json");
+        _acceptedPath = Path.Combine(stateRoot, "accepted-update.json");
         _snoozePath = Path.Combine(stateRoot, "update-snooze.json");
         _resultPath = Path.Combine(stateRoot, "update-result.json");
         _eventLog = Path.Combine(_installRoot, "logs", "desktop-host-update.log");
@@ -131,6 +133,7 @@ internal sealed class UpdateCoordinator : IDisposable
                 return false;
             }
 
+            WriteAcceptedManifest(pending.ManifestJson);
             var powershell = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.Windows),
                 "System32",
@@ -152,7 +155,7 @@ internal sealed class UpdateCoordinator : IDisposable
             startInfo.ArgumentList.Add("-File");
             startInfo.ArgumentList.Add(applier);
             startInfo.ArgumentList.Add("-ManifestPath");
-            startInfo.ArgumentList.Add(_pendingPath);
+            startInfo.ArgumentList.Add(_acceptedPath);
             startInfo.ArgumentList.Add("-HostPid");
             startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
 
@@ -162,11 +165,12 @@ internal sealed class UpdateCoordinator : IDisposable
             _pollTimer.Stop();
             TryDelete(_snoozePath);
             WriteEvent("update_accepted", $"target={pending.TargetDesktopVersion}");
-            _owner.BeginInvoke(() => _owner.Close());
+            _owner.BeginInvoke(new Action(() => _owner.Close()));
             return true;
         }
         catch (Exception exc)
         {
+            TryDelete(_acceptedPath);
             WriteEvent("update_start_failed", exc.ToString());
             MessageBox.Show(
                 _owner,
@@ -235,7 +239,8 @@ internal sealed class UpdateCoordinator : IDisposable
 
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(_pendingPath));
+            var raw = File.ReadAllText(_pendingPath);
+            using var document = JsonDocument.Parse(raw);
             var root = document.RootElement;
             if (GetString(root, "schema") != PendingSchema)
             {
@@ -246,7 +251,8 @@ internal sealed class UpdateCoordinator : IDisposable
                 GetString(root, "target_main_sha"),
                 GetString(root, "target_desktop_version"),
                 GetString(root, "compatibility_line"),
-                GetString(root, "installer_schema"));
+                GetString(root, "installer_schema"),
+                raw);
         }
         catch (Exception exc) when (exc is IOException or JsonException)
         {
@@ -301,6 +307,14 @@ internal sealed class UpdateCoordinator : IDisposable
                 target_main_sha = pending.TargetMainSha,
                 target_desktop_version = pending.TargetDesktopVersion
             });
+    }
+
+    private void WriteAcceptedManifest(string rawJson)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_acceptedPath)!);
+        var temporary = _acceptedPath + ".tmp";
+        File.WriteAllText(temporary, rawJson);
+        File.Move(temporary, _acceptedPath, overwrite: true);
     }
 
     private void ShowPreviousUpdateFailureOnce()
@@ -406,7 +420,8 @@ internal sealed class UpdateCoordinator : IDisposable
         string TargetMainSha,
         string TargetDesktopVersion,
         string CompatibilityLine,
-        string InstallerSchema);
+        string InstallerSchema,
+        string ManifestJson);
 
     private sealed record SnoozeState(
         DateTimeOffset SnoozeUntilUtc,
