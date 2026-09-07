@@ -40,25 +40,28 @@ def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:
     assert "TimeSpan.FromHours(6)" in coordinator
     assert "Interval = 60_000" in coordinator
     assert 'pending-update.json' in coordinator
+    assert 'accepted-update.json' in coordinator
     assert 'update-snooze.json' in coordinator
     assert "MessageBoxButtons.YesNo" in coordinator
     assert "Jetzt installieren?" in coordinator
     assert "für 6 Stunden zurückgestellt" in coordinator
     assert "Während des Aufschubs wurde ein neuerer kompatibler Stand bereitgestellt." in coordinator
     assert "Apply-JAP-Control-Center-Update.ps1" in coordinator
-    assert "_owner.BeginInvoke(() => _owner.Close())" in coordinator
+    assert "WriteAcceptedManifest(pending.ManifestJson)" in coordinator
+    assert "_owner.BeginInvoke(new Action(() => _owner.Close()))" in coordinator
     assert "_updates.StartPolling()" in context
     assert "Application.Run(new UpdateAwareApplicationContext())" in program
 
 
 def test_update_applier_closes_stops_installs_exact_staged_target_and_restarts() -> None:
     applier = _text(APPLIER)
-    assert "$host.WaitForExit(60000)" in applier
+    assert "$hostProcess.WaitForExit(60000)" in applier
     assert 'Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"' in applier
     assert "-PinnedSha $targetSha" in applier
     assert "-DesktopHostArchivePath $archive" in applier
     assert "-DesktopHostChecksumPath $checksum" in applier
     assert "Get-FileHash $archive -Algorithm SHA256" in applier
+    assert "Remove-AcceptedManifest" in applier
     assert 'status = "success"' in applier
     assert 'status = "failed"' in applier
     assert "Restart-JapIfPresent" in applier
