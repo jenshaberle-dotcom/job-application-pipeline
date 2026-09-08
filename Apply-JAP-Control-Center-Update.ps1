@@ -43,7 +43,11 @@ function Read-Json([string]$Path) {
 }
 
 function Restart-JapIfPresent {
-    if ($HostPid -gt 0 -and (Get-Process -Id $HostPid -ErrorAction SilentlyContinue)) {
+    if ($HostPid -le 0) {
+        Write-UpdateLog "restart_deferred" "reason=headless_apply_requires_interactive_launch"
+        return
+    }
+    if (Get-Process -Id $HostPid -ErrorAction SilentlyContinue) {
         return
     }
     if (Test-Path $DesktopHostExe) {

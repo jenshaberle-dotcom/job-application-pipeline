@@ -29,7 +29,7 @@ def test_update_compatibility_contract_is_latest_direct_v1_with_six_hour_snooze(
     assert contract["direct_upgrade_from"] == "1.x"
     assert contract["installer_schema"] == "job_application_pipeline.windows_control_center_install.v2"
     assert contract["snooze_hours"] == 6
-    assert _text(VERSION).strip() == "1.0.12"
+    assert _text(VERSION).strip() == "1.0.13"
 
 
 def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:
@@ -52,9 +52,11 @@ def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:
     assert "Application.Run(new UpdateAwareApplicationContext())" in program
 
 
-def test_update_applier_closes_stops_installs_exact_staged_target_and_restarts() -> None:
+def test_update_applier_restarts_only_an_interactive_host_initiated_update() -> None:
     applier = _text(APPLIER)
     assert "[int]$HostPid = 0" in applier
+    assert "if ($HostPid -le 0)" in applier
+    assert 'Write-UpdateLog "restart_deferred" "reason=headless_apply_requires_interactive_launch"' in applier
     assert "if ($HostPid -gt 0)" in applier
     assert "$hostProcess.WaitForExit(60000)" in applier
     assert 'Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"' in applier
@@ -66,6 +68,7 @@ def test_update_applier_closes_stops_installs_exact_staged_target_and_restarts()
     assert 'status = "success"' in applier
     assert 'status = "failed"' in applier
     assert "Restart-JapIfPresent" in applier
+    assert "Start-Process -FilePath $DesktopHostExe" in applier
     assert "target_main_sha" in applier
     assert "target_desktop_version" in applier
 

@@ -88,4 +88,4 @@ def test_webview2_navigation_is_proven_before_splash_is_hidden() -> None:
 
 
 def test_webview2_hardening_bumps_immutable_host_version() -> None:
-    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.12"
+    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.13"
