@@ -29,6 +29,8 @@ def test_about_is_operator_tab_with_installed_app_identity() -> None:
     assert "source_revision" in about
     assert "update_policy" in about
     assert "Internal diagnostic only" in about
+    assert "Integrated self-update" in about
+    assert "Prompted inside this app" in about
 
 
 def test_demo_pilot_badge_is_hidden_from_operator_header() -> None:
