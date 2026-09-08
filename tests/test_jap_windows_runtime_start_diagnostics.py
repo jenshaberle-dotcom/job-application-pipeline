@@ -22,8 +22,8 @@ def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() ->
     launcher = _text(LAUNCHER)
     assert "$readinessDeadline = [DateTime]::UtcNow.AddSeconds(75)" in launcher
     assert "while ([DateTime]::UtcNow -lt $readinessDeadline)" in launcher
-    assert "Get-Content $stdoutLog -Tail 16" in launcher
-    assert "Get-Content $stderrLog -Tail 16" in launcher
+    assert "Get-Content $stdoutLog -Tail 12" in launcher
+    assert "Get-Content $stderrLog -Tail 12" in launcher
     assert "Last endpoint error" in launcher
     assert "attempt -lt 240" not in launcher
 
