@@ -173,7 +173,7 @@ $distro = ([string]$current.wsl_distro).Trim()
 # Prove the persisted distribution and Linux runner path with a direct native
 # invocation before backgrounding. The installer already used this direct form
 # successfully; keeping the proof here distinguishes WSL identity/path failures
-# from Start-Process command-line serialization failures.
+# from detached-launch command-line failures.
 & $wsl.Source -d $distro --exec test -f $linuxRunner
 if ($LASTEXITCODE -ne 0) {
     throw "Installed JAP WSL distribution/runner proof failed for '$distro' and '$linuxRunner'."
@@ -184,10 +184,12 @@ $stdoutLog = Join-Path $LogRoot "runtime.stdout.log"
 $stderrLog = Join-Path $LogRoot "runtime.stderr.log"
 Remove-Item -Force $stdoutLog, $stderrLog -ErrorAction SilentlyContinue
 
-# Windows PowerShell 5.1 Start-Process ultimately serializes ArgumentList into a
-# native command line. Keep every WSL argument as a token and reject whitespace
-# rather than embedding literal quote characters into one formatted string.
-$argumentVector = @(
+# The native desktop host redirects this PowerShell process' stdout/stderr. A
+# long-lived WSL child must therefore never be launched through PowerShell's own
+# redirected Start-Process streams: PowerShell can keep those child-owned handles
+# alive after the readiness probe already passed. Use a short-lived cmd/start
+# handoff instead; the long-lived WSL process writes directly to bounded log files.
+$wslArgumentVector = @(
     "-d",
     $distro,
     "--exec",
@@ -198,29 +200,54 @@ $argumentVector = @(
     [string]$current.pinned_sha,
     [string]$current.wsl_state_root
 )
-foreach ($argument in $argumentVector) {
-    if ([string]::IsNullOrWhiteSpace($argument) -or $argument -match '\s') {
-        throw "Installed JAP WSL launch argument is empty or contains whitespace; refusing ambiguous native serialization."
+foreach ($argument in $wslArgumentVector) {
+    if ([string]::IsNullOrWhiteSpace($argument) -or $argument -match '[\s&|<>^()%!"]') {
+        throw "Installed JAP WSL launch argument is empty or contains whitespace/unsafe cmd characters; refusing ambiguous native serialization."
+    }
+}
+foreach ($pathValue in @([string]$wsl.Source, $stdoutLog, $stderrLog)) {
+    if ($pathValue.Contains('"') -or $pathValue.Contains("`r") -or $pathValue.Contains("`n") -or $pathValue.Contains('%') -or $pathValue.Contains('!')) {
+        throw "Installed JAP Windows launch path contains characters that are unsafe for the detached cmd handoff."
     }
 }
 
+$starterName = "jap-runtime-detached.cmd"
+$starterPath = Join-Path $LogRoot $starterName
+$starterCommand = 'start "" /b "{0}" {1} 1>"{2}" 2>"{3}"' -f $wsl.Source, ($wslArgumentVector -join " "), $stdoutLog, $stderrLog
+Set-Content -LiteralPath $starterPath -Encoding OEM -Value @("@echo off", $starterCommand)
+
+# Keep Start-Process tokenized, but only for the short-lived cmd starter. The
+# actual WSL runtime is detached by cmd/start and owns no desktop-host pipe.
+$argumentVector = @(
+    "/d",
+    "/c",
+    $starterName
+)
 $startArguments = @{
-    FilePath = $wsl.Source
+    FilePath = $env:ComSpec
     ArgumentList = $argumentVector
+    WorkingDirectory = $LogRoot
     WindowStyle = "Hidden"
-    RedirectStandardOutput = $stdoutLog
-    RedirectStandardError = $stderrLog
     PassThru = $true
 }
 $process = Start-Process @startArguments
+if (-not $process.WaitForExit(10000)) {
+    try { $process.Kill() } catch { }
+    throw "Detached JAP runtime launch helper did not finish within 10 seconds."
+}
+if ($process.ExitCode -ne 0) {
+    throw "Detached JAP runtime launch helper failed with exit code $($process.ExitCode)."
+}
 
 Write-JsonAtomic $RuntimePath @{
     repository_id = $ExpectedRepositoryId
-    wsl_client_pid = $process.Id
+    launch_helper_pid = $process.Id
+    launch_mode = "cmd_start_detached"
     pinned_sha = [string]$current.pinned_sha
     started_at = [DateTime]::UtcNow.ToString("o")
     uri = $uri
 }
+$process.Dispose()
 
 # Keep the launcher readiness deadline comfortably inside the native desktop
 # host's 90-second hard bound. This guarantees that the launcher can surface the
@@ -239,8 +266,6 @@ while ([DateTime]::UtcNow -lt $readinessDeadline) {
         Open-Jap $uri
         exit 0
     }
-    $process.Refresh()
-    if ($process.HasExited) { break }
 }
 
 $stdoutTail = ""
