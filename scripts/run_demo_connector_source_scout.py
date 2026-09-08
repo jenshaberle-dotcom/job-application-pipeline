@@ -7,6 +7,11 @@ Silver, Gold, activate a source, call an LLM/provider, or create ranking authori
 Profile proximity deliberately reuses Product V1's existing role-title classifier.
 The scout is only source-selection evidence for the demo; authoritative ranking still
 belongs to Product V1 after normal ingestion and assessment.
+
+For delivery diagnostics the report also exposes the acquisition capability contract
+of every connector. In particular, a connector that advertises ``supports_full_fetch``
+while carrying a finite ``max_detail_pages`` bound is marked explicitly. This is
+read-only evidence; it does not reinterpret or change the connector contract.
 """
 from __future__ import annotations
 
@@ -130,6 +135,41 @@ def _location_signals(value: str) -> list[str]:
     return [signal for signal in LOCATION_SIGNALS if normalize_text(signal) in normalized]
 
 
+def connector_contract(connector: JobSourceConnector) -> dict[str, object]:
+    capabilities = getattr(connector, "capabilities", None)
+    max_detail_pages = getattr(connector, "max_detail_pages", None)
+    supports_full_fetch = (
+        bool(getattr(capabilities, "supports_full_fetch", False))
+        if capabilities is not None
+        else None
+    )
+    supports_keyword = (
+        bool(getattr(capabilities, "supports_keyword", False))
+        if capabilities is not None
+        else None
+    )
+    supports_location = (
+        bool(getattr(capabilities, "supports_location", False))
+        if capabilities is not None
+        else None
+    )
+    supports_radius = (
+        bool(getattr(capabilities, "supports_radius", False))
+        if capabilities is not None
+        else None
+    )
+    finite_detail_cap = isinstance(max_detail_pages, int) and max_detail_pages >= 0
+
+    return {
+        "supports_full_fetch": supports_full_fetch,
+        "supports_keyword": supports_keyword,
+        "supports_location": supports_location,
+        "supports_radius": supports_radius,
+        "max_detail_pages": max_detail_pages if finite_detail_cap else None,
+        "bounded_full_fetch_claim": bool(supports_full_fetch and finite_detail_cap),
+    }
+
+
 def record_to_observation(record: RawJobRecord) -> dict[str, object]:
     raw = record.raw_data if isinstance(record.raw_data, Mapping) else {}
     title = _first_text(raw, ("job", "title"), ("result_card", "title"))
@@ -174,8 +214,17 @@ def _search_term() -> SearchTerm:
 
 def run_connector(spec: ConnectorSpec) -> dict[str, object]:
     started = datetime.now(UTC)
+    contract: dict[str, object] = {
+        "supports_full_fetch": None,
+        "supports_keyword": None,
+        "supports_location": None,
+        "supports_radius": None,
+        "max_detail_pages": None,
+        "bounded_full_fetch_claim": False,
+    }
     try:
         connector = spec.factory()
+        contract = connector_contract(connector)
         records, final_url = connector.fetch_jobs(
             _profile_for(spec.source_name),
             _search_term(),
@@ -205,6 +254,7 @@ def run_connector(spec: ConnectorSpec) -> dict[str, object]:
         "error": error,
         "final_url": final_url,
         "duration_seconds": round((finished - started).total_seconds(), 3),
+        "contract": contract,
         "observed_job_count": len(observations),
         "profile_match_count": len(profile_matches),
         "profile_and_location_signal_count": len(profile_location_matches),
@@ -231,6 +281,12 @@ def build_report(specs: Sequence[ConnectorSpec] = CONNECTOR_SPECS) -> dict[str, 
         for source in sources
         if int(source["profile_match_count"]) > 0
     ]
+    bounded_full_fetch_claims = [
+        source
+        for source in sources
+        if isinstance(source.get("contract"), Mapping)
+        and source["contract"].get("bounded_full_fetch_claim") is True
+    ]
 
     return {
         "schema": "job_application_pipeline.demo_connector_source_scout.v1",
@@ -248,6 +304,7 @@ def build_report(specs: Sequence[ConnectorSpec] = CONNECTOR_SPECS) -> dict[str, 
             "profile_match_count": len(profile_matches),
             "profile_and_location_signal_count": len(strong_demo_candidates),
             "sources_with_profile_matches": len(sources_with_profile_matches),
+            "bounded_full_fetch_claim_count": len(bounded_full_fetch_claims),
         },
         "sources": sources,
         "profile_matches": profile_matches,
@@ -291,13 +348,18 @@ def main() -> int:
     print(f"PROFILE_MATCHES={summary['profile_match_count']}")
     print(f"PROFILE_LOCATION_MATCHES={summary['profile_and_location_signal_count']}")
     print(f"SOURCES_WITH_PROFILE_MATCHES={summary['sources_with_profile_matches']}")
+    print(f"BOUNDED_FULL_FETCH_CLAIMS={summary['bounded_full_fetch_claim_count']}")
     for source in report["sources"]:
+        contract = source["contract"]
         print(
             "SOURCE="
             f"{source['source_name']}|{source['status']}|"
             f"jobs={source['observed_job_count']}|"
             f"profile={source['profile_match_count']}|"
-            f"profile_location={source['profile_and_location_signal_count']}"
+            f"profile_location={source['profile_and_location_signal_count']}|"
+            f"full_fetch={contract['supports_full_fetch']}|"
+            f"max_detail_pages={contract['max_detail_pages']}|"
+            f"bounded_full_fetch={contract['bounded_full_fetch_claim']}"
         )
         if source["error"]:
             print(f"SOURCE_ERROR={source['source_name']}|{source['error']}")
