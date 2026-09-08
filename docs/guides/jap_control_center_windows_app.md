@@ -1,6 +1,6 @@
 # JAP Control Center — installed Windows app
 
-The Windows app is the operator-facing shell for the existing JAP Product V1 Control Center. It deliberately does **not** duplicate the JAP runtime onto Windows. Windows owns installation, shortcuts and the native desktop window; WSL remains the runtime authority for Python, PostgreSQL connectivity, `.env`, private application documents and the exact Product V1 launcher.
+The Windows app is the operator-facing shell for the existing JAP Product V1 Control Center. It deliberately does **not** duplicate the JAP runtime onto Windows. Windows owns installation, the native desktop window and update consent; WSL remains the runtime authority for Python, PostgreSQL connectivity, `.env`, private application documents and the exact Product V1 launcher.
 
 ## Why the WSL-backed design
 
@@ -51,12 +51,13 @@ The Windows installer defaults to:
 
 No administrator privileges or local .NET SDK are required. The desktop host is built in GitHub Actions as a self-contained `win-x64` bundle, published as an immutable versioned release, downloaded by the installer and verified by SHA-256 before adoption.
 
-The installer also resolves the WSL distribution, verifies the configured repository identity, fetches public product code over HTTPS, records the exact `main` SHA and creates:
+The installer also resolves the WSL distribution, verifies the configured repository identity, fetches public product code over HTTPS, records the exact `main` SHA and creates only the operator surfaces that belong to the application:
 
 - Desktop shortcut: **JAP Control Center**;
 - Start Menu: **JAP Control Center**;
-- Start Menu: **Update JAP Control Center**;
 - Start Menu: **Stop JAP Control Center**.
+
+There is deliberately no separately launchable update program or update shortcut. Update discovery and consent live inside the main JAP Control Center window.
 
 ## Installed layout
 
@@ -64,8 +65,8 @@ The installer also resolves the WSL distribution, verifies the configured reposi
 JAP-Control-Center\
 ├── current.json
 ├── JAP-Control-Center.ps1
-├── Update-JAP-Control-Center.ps1
 ├── Stop-JAP-Control-Center.ps1
+├── Apply-JAP-Control-Center-Update.ps1   # internal helper, not an operator surface
 ├── run-jap-control-center-wsl.sh
 ├── desktop-host\
 │   ├── JAP.ControlCenter.Desktop.exe
@@ -73,11 +74,16 @@ JAP-Control-Center\
 │   └── self-contained .NET/WebView2 host files
 ├── logs\
 │   ├── runtime.stdout.log
-│   └── runtime.stderr.log
+│   ├── runtime.stderr.log
+│   └── desktop-host-update.log
 └── state\
     ├── runtime.json
+    ├── pending-update.json
+    ├── accepted-update.json
     └── webview2\
 ```
+
+`Apply-JAP-Control-Center-Update.ps1` is an implementation detail used after explicit consent because a running Windows executable cannot safely replace its own files. It has no shortcut and is not intended to be invoked by the operator.
 
 Secrets, PostgreSQL data, Candidate Facts, CV/application files and `private_application_sources/` are not copied to this directory.
 
@@ -90,7 +96,7 @@ The installed launcher keeps two distinct WSL paths:
 
 The managed worktree is pinned to the exact `main` SHA recorded by the installer/updater. The launcher refuses a dirty managed worktree, resets generated frontend dependency state when necessary, activates the canonical checkout's `.venv`, sources the canonical `.env`, selects native WSL Node 22/npm, binds `PRODUCT_V1_PRIVATE_DOCUMENT_ROOT` to the canonical `private_application_sources/`, and then invokes the existing fail-closed `scripts/run_product_v1_live_demo.py` path.
 
-If a qualified frontend build already exists in the managed worktree, the launcher uses `--reuse-frontend`; otherwise the canonical launcher performs its normal frontend install/build before the readiness probes.
+Generated frontend state is source-bound. A `dist` bundle can be reused only when its `.jap-source-sha` marker matches the exact installed pin. The generated `app-info.json` publishes the same source revision to the local desktop shell.
 
 ## Normal launch
 
@@ -100,9 +106,10 @@ The desktop host:
 
 1. starts the existing hidden PowerShell launcher with `-NoBrowser`;
 2. that launcher proves or starts the managed WSL runtime on `127.0.0.1:8780`;
-3. it reuses an already running endpoint only when its HTTP server identity is `DeepOceanProductV1/*`;
-4. it fails closed if another process owns port 8780;
-5. after readiness succeeds, WebView2 renders the loopback Control Center in the native window.
+3. an already running JAP endpoint is reusable only when both its `DeepOceanProductV1/*` server identity and `/app-info.json` source revision match `current.json.pinned_sha` exactly;
+4. a managed stale JAP runtime from an older installed source is stopped and replaced;
+5. an unrelated process on port 8780 remains fail-closed and is never killed;
+6. after readiness succeeds, WebView2 renders the loopback Control Center in the native window.
 
 Runtime output is retained in `%LOCALAPPDATA%\JAP-Control-Center\logs`.
 
@@ -118,13 +125,26 @@ The stop action is fail-closed. The WSL runner will send a signal only when the 
 
 A manually started or unrelated process is not eligible for termination. The Start Menu stop shortcut remains available for explicit recovery/operator use.
 
-## Updating
+## Integrated self-update
 
-Product-code updates remain intentionally **explicit**. Normal app launch does not fetch or advance JAP code.
+Normal app launch does not fetch or advance JAP code. The local JAP runner stages a checksum-verified compatible release and writes bounded pending-update metadata. The running JAP Control Center polls that local pending state and owns the complete user-facing update interaction.
 
-Choose **Update JAP Control Center** from the Start Menu. It fetches `main` over the read-only HTTPS transport and atomically stages the new exact SHA in `current.json`. That SHA is used on the next managed start.
+The operator flow is:
 
-The desktop shell has a separate immutable release/version contract. Changing its Windows host code requires a desktop-host version bump and a new checksum-verified release; ordinary JAP product-code updates do not rebuild the desktop shell.
+```text
+JAP Control Center
+  -> "Update available"
+  -> Yes: freeze the exact offered target
+  -> main window closes
+  -> hidden internal applier verifies and installs the staged target
+  -> JAP Control Center restarts
+```
+
+Choosing **No** snoozes the prompt for six hours. During the snooze, a newer compatible v1 release may replace the pending desired state. Once the operator chooses **Yes**, the exact displayed release is frozen in `accepted-update.json`; a newer release appearing during application of that update is not silently substituted.
+
+The compatibility line uses the `latest_direct` policy: supported v1 releases are direct upgrade targets from older supported v1 releases. Breaking changes require an explicit compatibility bridge rather than silently reusing the v1 line.
+
+The separate historical `Update JAP Control Center` Start Menu entry and installed `Update-JAP-Control-Center.ps1` operator wrapper are removed when WINAPP-018 or later is installed.
 
 ## Product and privacy boundaries
 
@@ -138,6 +158,4 @@ The Windows app grants no additional JAP authority. In particular it does not:
 - copy private CV/application documents to Windows;
 - silently update the runtime on normal launch.
 
-The existing Product V1 readiness chain remains authoritative:
-
-`frontend build/reuse -> live preflight -> Application Workspace probe -> offline draft handoff -> loopback Control Center -> native WebView2 window`.
+The installed interactive start is local-only; the broader external employer-origin/demo qualification probe remains a separate explicit validation path rather than a dependency of every desktop launch.
