@@ -77,11 +77,12 @@ function AboutScreen({ info, error }: { info: AppInfo | null; error: string | nu
 
       <article className="ow-card">
         <span className="ow-kicker">Updates</span>
-        <h2>Managed desktop channel</h2>
+        <h2>Integrated self-update</h2>
         <div className="about-facts">
+          <div><span>Surface</span><b>JAP Control Center</b></div>
           <div><span>Policy</span><b>{value(info?.update_policy, "latest-direct")}</b></div>
           <div><span>Compatibility line</span><b>v{value(info?.compatibility_line, "1")}.x</b></div>
-          <div><span>Consent</span><b>GUI-confirmed updates</b></div>
+          <div><span>Consent</span><b>Prompted inside this app</b></div>
           <div><span>Deferral</span><b>6 hour snooze</b></div>
         </div>
       </article>

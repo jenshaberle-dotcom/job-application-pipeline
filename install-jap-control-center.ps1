@@ -22,7 +22,7 @@ $Port = 8780
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $CurrentPath = Join-Path $InstallRoot "current.json"
 $StableLauncher = Join-Path $InstallRoot "JAP-Control-Center.ps1"
-$StableUpdater = Join-Path $InstallRoot "Update-JAP-Control-Center.ps1"
+$LegacyStableUpdater = Join-Path $InstallRoot "Update-JAP-Control-Center.ps1"
 $StableStopper = Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"
 $StableApplier = Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1"
 $StableRunner = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
@@ -225,13 +225,12 @@ $managedWorktree = "$wslHome/.local/share/jap-control-center/runtime"
 $wslStateRoot = "$wslHome/.local/state/jap-control-center"
 
 $sourceLauncher = Join-Path $PSScriptRoot "JAP-Control-Center.ps1"
-$sourceUpdater = Join-Path $PSScriptRoot "Update-JAP-Control-Center.ps1"
 $sourceStopper = Join-Path $PSScriptRoot "Stop-JAP-Control-Center.ps1"
 $sourceApplier = Join-Path $PSScriptRoot "Apply-JAP-Control-Center-Update.ps1"
 $sourceRunner = Join-Path $PSScriptRoot "scripts\run_jap_windows_control_center.sh"
 $desktopVersionPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\VERSION"
 $compatibilityPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\UPDATE_COMPATIBILITY.json"
-foreach ($required in @($sourceLauncher, $sourceUpdater, $sourceStopper, $sourceApplier, $sourceRunner, $desktopVersionPath, $compatibilityPath)) {
+foreach ($required in @($sourceLauncher, $sourceStopper, $sourceApplier, $sourceRunner, $desktopVersionPath, $compatibilityPath)) {
     if (-not (Test-Path $required)) {
         throw "Installer source is missing: $required"
     }
@@ -248,8 +247,13 @@ if ($desktopHostVersion -notmatch '^1\.\d+\.\d+$') {
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot "state") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot "logs") | Out-Null
+
+# WINAPP-018 removes the old separately launchable updater surface. The product
+# update coordinator in JAP.ControlCenter.Desktop remains the only user-facing
+# update entrypoint; Apply-JAP-Control-Center-Update.ps1 is an internal helper
+# invoked only after explicit consent from the main application.
+Remove-Item -Force $LegacyStableUpdater -ErrorAction SilentlyContinue
 Copy-Item -Force $sourceLauncher $StableLauncher
-Copy-Item -Force $sourceUpdater $StableUpdater
 Copy-Item -Force $sourceStopper $StableStopper
 Copy-Item -Force $sourceApplier $StableApplier
 Copy-Item -Force $sourceRunner $StableRunner
@@ -278,22 +282,24 @@ Write-JsonAtomic $CurrentPath @{
     installed_at = [DateTime]::UtcNow.ToString("o")
     update_authority = "local_runner_staged_gui_prompt"
     update_mode = $UpdateMode
+    update_surface = "integrated_main_app"
     compatibility_line = $CompatibilityLine
     secrets_location = "wsl_project_env_only"
     private_documents_location = "wsl_project_private_application_sources_only"
 }
 
+$programs = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\JAP Control Center"
+$legacyUpdateShortcut = Join-Path $programs "Update JAP Control Center.lnk"
+Remove-Item -Force $legacyUpdateShortcut -ErrorAction SilentlyContinue
+
 if (-not $NoShortcuts) {
     $powershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $updateArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$StableUpdater`""
     $stopArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$StableStopper`""
 
     $desktop = [Environment]::GetFolderPath("Desktop")
     New-AppShortcut (Join-Path $desktop "JAP Control Center.lnk") $DesktopHostExe "" "$DesktopHostExe,0"
 
-    $programs = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\JAP Control Center"
     New-AppShortcut (Join-Path $programs "JAP Control Center.lnk") $DesktopHostExe "" "$DesktopHostExe,0"
-    New-AppShortcut (Join-Path $programs "Update JAP Control Center.lnk") $powershell $updateArguments
     New-AppShortcut (Join-Path $programs "Stop JAP Control Center.lnk") $powershell $stopArguments
 }
 
@@ -309,6 +315,7 @@ Write-Host "DESKTOP_HOST_VERSION=$($desktopHost.version)"
 Write-Host "DESKTOP_HOST_SHA256=$($desktopHost.sha256)"
 Write-Host "DESKTOP_HOST_EXE=$DesktopHostExe"
 Write-Host "UPDATE_MODE=$UpdateMode"
+Write-Host "UPDATE_SURFACE=integrated_main_app"
 Write-Host "UPDATE_COMPATIBILITY_LINE=$CompatibilityLine"
 Write-Host "URI=http://127.0.0.1:$Port/"
 Write-Host "Boundary: no .env, credentials, PostgreSQL data, CV or application documents are copied to Windows."

@@ -30,5 +30,15 @@ def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() ->
     assert "attempt -lt 240" not in launcher
 
 
+def test_existing_runtime_is_reused_only_for_exact_installed_source_revision() -> None:
+    launcher = _text(LAUNCHER)
+    assert "/app-info.json" in launcher
+    assert "source_revision" in launcher
+    assert "$sourceRevision -eq $expected" in launcher
+    assert "JAP_CONTROL_CENTER_RUNTIME=STALE" in launcher
+    assert "& $StopperPath -InstallRoot $InstallRoot" in launcher
+    assert "The stale managed JAP runtime did not release port" in launcher
+
+
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.9"
+    assert _text(VERSION).strip() == "1.0.10"

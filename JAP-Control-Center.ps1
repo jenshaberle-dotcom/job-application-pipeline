@@ -10,6 +10,7 @@ $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $CurrentPath = Join-Path $InstallRoot "current.json"
 $RuntimePath = Join-Path $InstallRoot "state\runtime.json"
 $RunnerPath = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
+$StopperPath = Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"
 $LogRoot = Join-Path $InstallRoot "logs"
 
 function Read-Json([string]$Path) {
@@ -41,15 +42,46 @@ function Test-LoopbackPort([int]$Port) {
     }
 }
 
-function Get-JapEndpointState([string]$Uri) {
+function Get-JapEndpointState([string]$Uri, [string]$ExpectedSha) {
     try {
         $response = Invoke-WebRequest -UseBasicParsing -Uri $Uri -TimeoutSec 3
         $server = [string]$response.Headers["Server"]
-        $healthy = ($response.StatusCode -eq 200) -and ($server -match '^DeepOceanProductV1/')
-        return @{ Healthy = $healthy; Server = $server; Error = $null }
+        $isJap = ($response.StatusCode -eq 200) -and ($server -match '^DeepOceanProductV1/')
+        $sourceRevision = ""
+        $identityError = $null
+
+        if ($isJap) {
+            try {
+                $infoUri = "$($Uri.TrimEnd('/'))/app-info.json"
+                $infoResponse = Invoke-WebRequest -UseBasicParsing -Uri $infoUri -TimeoutSec 3
+                if ($infoResponse.StatusCode -eq 200) {
+                    $info = $infoResponse.Content | ConvertFrom-Json
+                    $sourceRevision = ([string]$info.source_revision).Trim().ToLowerInvariant()
+                }
+            }
+            catch {
+                $identityError = $_.Exception.Message
+            }
+        }
+
+        $expected = $ExpectedSha.Trim().ToLowerInvariant()
+        $healthy = $isJap -and ($sourceRevision -eq $expected)
+        return @{
+            Healthy = $healthy
+            IsJap = $isJap
+            SourceRevision = $sourceRevision
+            Server = $server
+            Error = $identityError
+        }
     }
     catch {
-        return @{ Healthy = $false; Server = ""; Error = $_.Exception.Message }
+        return @{
+            Healthy = $false
+            IsJap = $false
+            SourceRevision = ""
+            Server = ""
+            Error = $_.Exception.Message
+        }
     }
 }
 
@@ -96,14 +128,36 @@ if ($port -ne $DefaultPort) {
 }
 $uri = "http://127.0.0.1:$port/"
 
-$endpoint = Get-JapEndpointState $uri
+$endpoint = Get-JapEndpointState $uri ([string]$current.pinned_sha)
 if ($endpoint.Healthy) {
     Write-Host "JAP Control Center already running: $uri"
+    Write-Host "Runtime source: $($endpoint.SourceRevision)"
     Open-Jap $uri
     exit 0
 }
+
+# A healthy JAP-shaped server is reusable only when it proves the exact installed
+# source pin. This prevents a pre-update runtime from serving an old ignored
+# frontend bundle after the desktop host has already moved to a newer release.
+if ($endpoint.IsJap) {
+    if (-not (Test-Path $StopperPath)) {
+        throw "A stale JAP runtime is serving $uri, but the managed stopper is missing. Refusing unsafe runtime reuse."
+    }
+
+    Write-Host "JAP_CONTROL_CENTER_RUNTIME=STALE source=$($endpoint.SourceRevision) expected=$($current.pinned_sha)"
+    & $StopperPath -InstallRoot $InstallRoot
+
+    for ($attempt = 0; $attempt -lt 40; $attempt += 1) {
+        if (-not (Test-LoopbackPort $port)) { break }
+        Start-Sleep -Milliseconds 250
+    }
+    if (Test-LoopbackPort $port) {
+        throw "The stale managed JAP runtime did not release port $port. Refusing to start a second runtime."
+    }
+}
+
 if (Test-LoopbackPort $port) {
-    throw "Port $port is already occupied by a service that is not the JAP Control Center. Refusing to start another runtime."
+    throw "Port $port is already occupied by a service that is not the current JAP Control Center. Refusing to start another runtime."
 }
 
 $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
@@ -175,11 +229,12 @@ $readinessDeadline = [DateTime]::UtcNow.AddSeconds(75)
 $lastEndpointError = [string]$endpoint.Error
 while ([DateTime]::UtcNow -lt $readinessDeadline) {
     Start-Sleep -Milliseconds 500
-    $endpoint = Get-JapEndpointState $uri
+    $endpoint = Get-JapEndpointState $uri ([string]$current.pinned_sha)
     $lastEndpointError = [string]$endpoint.Error
     if ($endpoint.Healthy) {
         Write-Host "JAP Control Center: $uri"
         Write-Host "Pinned main: $($current.pinned_sha)"
+        Write-Host "Runtime source: $($endpoint.SourceRevision)"
         Write-Host "WSL distribution: $distro"
         Open-Jap $uri
         exit 0

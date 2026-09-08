@@ -44,13 +44,17 @@ def test_windows_app_entrypoints_are_present() -> None:
         assert path.is_file(), path
 
 
-def test_installer_is_per_user_and_creates_operator_shortcuts() -> None:
+def test_installer_is_per_user_and_exposes_one_app_not_a_separate_updater() -> None:
     text = _text(INSTALLER)
     assert 'Join-Path $env:LOCALAPPDATA "JAP-Control-Center"' in text
     assert "WScript.Shell" in text
     assert "JAP Control Center.lnk" in text
-    assert "Update JAP Control Center.lnk" in text
     assert "Stop JAP Control Center.lnk" in text
+    assert 'New-AppShortcut (Join-Path $programs "Update JAP Control Center.lnk")' not in text
+    assert '$legacyUpdateShortcut = Join-Path $programs "Update JAP Control Center.lnk"' in text
+    assert "Remove-Item -Force $legacyUpdateShortcut -ErrorAction SilentlyContinue" in text
+    assert "Remove-Item -Force $LegacyStableUpdater -ErrorAction SilentlyContinue" in text
+    assert 'update_surface = "integrated_main_app"' in text
     assert "$ExpectedRepositoryId = 1230805345" in text
     assert "$Port = 8780" in text
 
@@ -148,7 +152,7 @@ def test_launcher_surfaces_stdout_when_wsl_reports_runtime_failure_there() -> No
     assert "did not become ready: $stdoutTail" in text
 
 
-def test_installer_fetches_main_over_https_and_manual_updater_cannot_bypass_release() -> None:
+def test_installer_fetches_main_over_https_and_legacy_manual_updater_cannot_bypass_release() -> None:
     installer = _text(INSTALLER)
     updater = _text(UPDATER)
     assert "https://github.com/$ExpectedOrigin.git" in installer

@@ -4,7 +4,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "install-jap-control-center.ps1"
-MANUAL_UPDATER = ROOT / "Update-JAP-Control-Center.ps1"
 APPLIER = ROOT / "Apply-JAP-Control-Center-Update.ps1"
 UPDATE_COORDINATOR = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "UpdateCoordinator.cs"
 UPDATE_CONTEXT = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "UpdateAwareApplicationContext.cs"
@@ -30,7 +29,7 @@ def test_update_compatibility_contract_is_latest_direct_v1_with_six_hour_snooze(
     assert contract["direct_upgrade_from"] == "1.x"
     assert contract["installer_schema"] == "job_application_pipeline.windows_control_center_install.v2"
     assert contract["snooze_hours"] == 6
-    assert _text(VERSION).strip() == "1.0.9"
+    assert _text(VERSION).strip() == "1.0.10"
 
 
 def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:
@@ -78,18 +77,23 @@ def test_installer_supports_exact_staged_payload_without_losing_main_ancestry_pr
     assert "merge-base --is-ancestor $PinnedSha $fetchedMain" in installer
     assert "Install-DesktopHost $desktopHostVersion $DesktopHostArchivePath $DesktopHostChecksumPath" in installer
     assert 'update_mode = $UpdateMode' in installer
+    assert 'update_surface = "integrated_main_app"' in installer
     assert 'compatibility_line = $CompatibilityLine' in installer
     assert 'update_authority = "local_runner_staged_gui_prompt"' in installer
     assert "Copy-Item -Force $sourceApplier $StableApplier" in installer
 
 
-def test_manual_update_entrypoint_cannot_bypass_gui_release_contract() -> None:
-    updater = _text(MANUAL_UPDATER)
-    assert "git fetch" not in updater
-    assert "pinned_sha =" not in updater
-    assert 'ExpectedUpdateMode = "gui_prompt_latest_direct_v1"' in updater
-    assert "Remove-Item -Force $SnoozePath" in updater
-    assert "JAP_CONTROL_CENTER_UPDATE=PROMPT_REQUESTED" in updater
+def test_standalone_update_shortcut_and_script_are_removed_from_installed_surface() -> None:
+    installer = _text(INSTALLER)
+    coordinator = _text(UPDATE_COORDINATOR)
+    assert '$LegacyStableUpdater = Join-Path $InstallRoot "Update-JAP-Control-Center.ps1"' in installer
+    assert "Remove-Item -Force $LegacyStableUpdater -ErrorAction SilentlyContinue" in installer
+    assert '$legacyUpdateShortcut = Join-Path $programs "Update JAP Control Center.lnk"' in installer
+    assert "Remove-Item -Force $legacyUpdateShortcut -ErrorAction SilentlyContinue" in installer
+    assert 'New-AppShortcut (Join-Path $programs "Update JAP Control Center.lnk")' not in installer
+    assert "Copy-Item -Force $sourceUpdater $StableUpdater" not in installer
+    assert "MessageBoxButtons.YesNo" in coordinator
+    assert "Apply-JAP-Control-Center-Update.ps1" in coordinator
 
 
 def test_release_workflow_enforces_direct_v1_compatibility_before_publish() -> None:
