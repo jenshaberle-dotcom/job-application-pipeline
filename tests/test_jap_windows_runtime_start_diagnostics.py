@@ -11,11 +11,13 @@ def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_runtime_launcher_is_unbuffered_for_live_phase_diagnostics() -> None:
+def test_runtime_launcher_is_unbuffered_and_uses_installed_fast_start() -> None:
     runner = _text(WSL_RUNNER)
     assert "export PYTHONUNBUFFERED=1" in runner
-    assert "launcher=(python -u scripts/run_product_v1_live_demo.py)" in runner
+    assert "launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime)" in runner
+    assert 'export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"' in runner
     assert "JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1" in runner
+    assert "JAP_WINDOWS_APP_PINNED_SHA=" in runner
 
 
 def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() -> None:
@@ -29,4 +31,4 @@ def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() ->
 
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.8"
+    assert _text(VERSION).strip() == "1.0.9"
