@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GUARD = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "DesktopLifecycleGuard.cs"
 REAPER = ROOT / "scripts" / "reap_jap_headless_desktop.ps1"
+PROOF = ROOT / "scripts" / "prove_jap_headless_desktop_rejection.ps1"
 LOCAL_DEPLOY_WORKFLOW = (
     ROOT / ".github" / "workflows" / "jap-windows-control-center-local-deploy.yml"
 )
@@ -48,6 +49,21 @@ def test_local_deploy_reaps_only_exact_session_zero_managed_desktop() -> None:
     assert 'JAP_HEADLESS_DESKTOP_REAP=PASS' in reaper
     assert "Reap exact stale Session-0 JAP desktop host" in workflow
     assert "scripts/reap_jap_headless_desktop.ps1" in workflow
+
+
+def test_local_deploy_proves_exact_installed_host_rejects_headless_launch() -> None:
+    proof = _text(PROOF)
+    workflow = _text(LOCAL_DEPLOY_WORKFLOW)
+    assert "$current.pinned_sha -ne $ExpectedSha" in proof
+    assert "$current.desktop_host_version -ne $ExpectedVersion" in proof
+    assert 'JAP_HEADLESS_DESKTOP_PROOF=SKIP' in proof
+    assert "$_.SessionId -eq 0" in proof
+    assert "Start-Process -FilePath $exe" in proof
+    assert "$process.WaitForExit(10_000)" in proof
+    assert 'noninteractive_start_rejected`tpid=$pidUnderTest' in proof
+    assert 'JAP_HEADLESS_DESKTOP_PROOF=PASS' in proof
+    assert "Prove installed desktop rejects headless runner launch" in workflow
+    assert "scripts/prove_jap_headless_desktop_rejection.ps1" in workflow
 
 
 def test_zombie_prevention_bumps_immutable_desktop_release() -> None:
