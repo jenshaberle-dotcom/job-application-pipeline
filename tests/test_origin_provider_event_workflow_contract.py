@@ -100,13 +100,19 @@ def test_runtime_lease_is_advisory_lock_based_and_windows_fail_safe() -> None:
     assert "$ShouldHold = $LeaseActive -or $InsideGrace" in LEASE_WATCHER
 
 
-def test_windows_watcher_matches_the_deployed_wsl_powershell_topology() -> None:
+def test_windows_watcher_reuses_one_hidden_wsl_command_session() -> None:
     assert 'Join-Path $env:LOCALAPPDATA "JobPipelineRuntimeLeaseWatcher"' in LEASE_WATCHER
     assert '$HOME/projects/job-application-pipeline' in LEASE_WATCHER
-    assert 'wsl.exe -d $WslDistro -- bash -lc' in LEASE_WATCHER
+    assert "Start-WslCommandSession" in LEASE_WATCHER
+    assert "Stop-WslCommandSession" in LEASE_WATCHER
+    assert "System.Diagnostics.ProcessStartInfo" in LEASE_WATCHER
+    assert "$StartInfo.CreateNoWindow = $true" in LEASE_WATCHER
+    assert "$StartInfo.RedirectStandardInput = $true" in LEASE_WATCHER
+    assert 'wsl_session_mode = "persistent_single_process"' in LEASE_WATCHER
     assert "WindowStyle Hidden" in LEASE_WATCHER
     assert "windows_python_required=false" in LEASE_WATCHER
     assert ".venv\\Scripts\\python.exe" not in LEASE_WATCHER
+    assert "& wsl.exe -d $WslDistro -- bash -lc" not in LEASE_WATCHER
 
 
 def test_windows_watcher_records_conservative_awake_time() -> None:
@@ -122,7 +128,9 @@ def test_windows_watcher_tailscale_recovery_is_bounded_and_fail_closed() -> None
     assert "RecoveryCooldownSeconds" in LEASE_WATCHER
     assert "RecoveryMaxPerHour" in LEASE_WATCHER
     assert '[ValidateSet("start", "restart")]' in LEASE_WATCHER
-    assert "wsl.exe -d $WslDistro -u root -- systemctl $Action tailscaled" in LEASE_WATCHER
+    assert "Invoke-HiddenWslRootServiceAction" in LEASE_WATCHER
+    assert "-u root -- systemctl " in LEASE_WATCHER
+    assert "$StartInfo.CreateNoWindow = $true" in LEASE_WATCHER
     assert "NeedsLogin" in LEASE_WATCHER
     assert "NeedsMachineAuth" in LEASE_WATCHER
     assert "tailscale up" not in LEASE_WATCHER
