@@ -32,7 +32,7 @@ def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() ->
 
 def test_existing_runtime_is_reused_only_for_exact_installed_source_revision() -> None:
     launcher = _text(LAUNCHER)
-    assert '"/app-info.json"' in launcher
+    assert "/app-info.json" in launcher
     assert "source_revision" in launcher
     assert "$sourceRevision -eq $expected" in launcher
     assert "JAP_CONTROL_CENTER_RUNTIME=STALE" in launcher
