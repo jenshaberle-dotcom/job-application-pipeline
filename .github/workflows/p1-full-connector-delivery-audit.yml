@@ -1,0 +1,166 @@
+name: P1 full connector delivery audit
+
+on:
+  pull_request:
+    paths:
+      - "scripts/run_full_connector_delivery_audit.py"
+      - ".github/workflows/p1-full-connector-delivery-audit.yml"
+      - "src/connectors/**"
+      - "src/ingestion/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-full-connector-delivery-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Read-only full connector inventory and live delivery audit
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 60
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      AUDIT_OUTPUT: /tmp/jap-full-connector-delivery-audit.json
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "env_file",
+              "env_keys",
+              "interpreter",
+              "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          for label, value in (("checkout", checkout), ("interpreter", interpreter), ("env_file", env_file)):
+              if not isinstance(value, str) or not value.startswith("/"):
+                  raise SystemExit("INVALID_" + label.upper())
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          echo "RCC_CONTEXT=PASS runner=${RUNNER_NAME}"
+
+      - name: Compile audit script
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m py_compile scripts/run_full_connector_delivery_audit.py
+
+      - name: Run full connector audit with DB read-only enforcement
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_full_connector_delivery_audit \
+            --output "$AUDIT_OUTPUT"
+
+      - name: Publish compact audit summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$AUDIT_OUTPUT" ]]; then
+            echo "Audit artifact unavailable." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          "$RUNTIME_PYTHON" - "$AUDIT_OUTPUT" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          summary = report["summary"]
+          print("## P1 full connector delivery audit")
+          print()
+          for key, value in summary.items():
+              print(f"- **{key}**: `{value}`")
+          print()
+          print("| Profile | Source | Recurring | Live connector/post/deliverable | Diagnosis |")
+          print("|---|---|---:|---:|---|")
+          for row in report["profiles"]:
+              if not row.get("active"):
+                  continue
+              counts = "/".join(str(row.get(key, "-")) for key in (
+                  "connector_record_count_unique",
+                  "post_keyword_count_unique",
+                  "deliverable_count_unique",
+              ))
+              diagnosis = ", ".join(row.get("diagnosis") or [])
+              print(
+                  f"| {row['profile_name']} | {row['source_name']} | "
+                  f"{row['recurring_ingestion_enabled']} | {counts} | {diagnosis} |"
+              )
+          PY
+
+      - name: Upload complete audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-full-connector-delivery-audit
+          path: /tmp/jap-full-connector-delivery-audit.json
+          if-no-files-found: warn
+          retention-days: 7
