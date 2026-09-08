@@ -190,11 +190,11 @@ while ([DateTime]::UtcNow -lt $readinessDeadline) {
 
 $stdoutTail = ""
 if (Test-Path $stdoutLog) {
-    $stdoutTail = ((Get-Content $stdoutLog -Tail 16 -ErrorAction SilentlyContinue) -join " | ")
+    $stdoutTail = ((Get-Content $stdoutLog -Tail 12 -ErrorAction SilentlyContinue) -join " | ")
 }
 $stderrTail = ""
 if (Test-Path $stderrLog) {
-    $stderrTail = ((Get-Content $stderrLog -Tail 16 -ErrorAction SilentlyContinue) -join " | ")
+    $stderrTail = ((Get-Content $stderrLog -Tail 12 -ErrorAction SilentlyContinue) -join " | ")
 }
 if (-not [string]::IsNullOrWhiteSpace($stderrTail)) {
     throw "JAP Control Center did not become ready: $stderrTail"
