@@ -9,7 +9,10 @@ ACTION="${5:-start}"
 EXPECTED_ORIGIN='jenshaberle-dotcom/job-application-pipeline'
 READ_ONLY_FETCH_URL='https://github.com/jenshaberle-dotcom/job-application-pipeline.git'
 PID_FILE="${STATE_ROOT}/runtime.pid"
-FRONTEND_NODE_MODULES="${MANAGED_WORKTREE}/frontend/control-center/node_modules"
+FRONTEND_ROOT="${MANAGED_WORKTREE}/frontend/control-center"
+FRONTEND_NODE_MODULES="${FRONTEND_ROOT}/node_modules"
+FRONTEND_DIST="${FRONTEND_ROOT}/dist"
+FRONTEND_BUILD_SHA_FILE="${FRONTEND_DIST}/.jap-source-sha"
 
 fail() {
   printf 'JAP_WINDOWS_APP_BLOCKED=%s\n' "$1" >&2
@@ -122,8 +125,7 @@ git -C "$PROJECT_ROOT" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null || fail 
 if [[ -e "$MANAGED_WORKTREE/.git" ]]; then
   # node_modules is generated runtime state. A previous Windows-npm invocation can
   # leave non-executable .bin shims in this WSL worktree. Remove that generated tree
-  # before the cleanliness gate and let the selected native WSL npm rebuild it only
-  # when no qualified frontend dist is available.
+  # before the cleanliness gate.
   if [[ -e "$FRONTEND_NODE_MODULES" || -L "$FRONTEND_NODE_MODULES" ]]; then
     rm -rf -- "$FRONTEND_NODE_MODULES"
     printf 'JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET\n'
@@ -142,6 +144,20 @@ fi
 
 [[ "$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)" == "$PINNED_SHA" ]] || fail managed_worktree_sha_mismatch
 [[ -f "$MANAGED_WORKTREE/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
+
+# dist is ignored generated state. It must never survive a source update unless it
+# carries an exact marker proving that the bundle was built from the installed pin.
+frontend_build_sha=""
+if [[ -f "$FRONTEND_BUILD_SHA_FILE" ]]; then
+  frontend_build_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
+fi
+if [[ -e "$FRONTEND_DIST" || -L "$FRONTEND_DIST" ]]; then
+  if [[ ! -f "$FRONTEND_DIST/index.html" || "$frontend_build_sha" != "$PINNED_SHA" ]]; then
+    rm -rf -- "$FRONTEND_DIST"
+    printf 'JAP_WINDOWS_APP_FRONTEND_DIST=RESET previous=%s target=%s\n' "${frontend_build_sha:-unbound}" "$PINNED_SHA"
+    frontend_build_sha=""
+  fi
+fi
 
 if pid="$(managed_pid 2>/dev/null)"; then
   fail "managed_runtime_already_running_pid_${pid}"
@@ -172,11 +188,15 @@ export PRODUCT_V1_PRIVATE_DOCUMENT_ROOT="$PROJECT_ROOT/private_application_sourc
 export PRODUCT_V1_UI_HOST="127.0.0.1"
 export PRODUCT_V1_UI_PORT="8780"
 export PYTHONUNBUFFERED=1
+export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"
 
 cd "$MANAGED_WORKTREE"
-launcher=(python -u scripts/run_product_v1_live_demo.py)
-if [[ -f frontend/control-center/dist/index.html ]]; then
-  launcher+=(--reuse-frontend)
+launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime)
+if [[ -f frontend/control-center/dist/index.html && -f frontend/control-center/dist/.jap-source-sha ]]; then
+  frontend_build_sha="$(tr -d '\r\n[:space:]' < frontend/control-center/dist/.jap-source-sha)"
+  if [[ "$frontend_build_sha" == "$PINNED_SHA" ]]; then
+    launcher+=(--reuse-frontend)
+  fi
 fi
 
 printf 'JAP_WINDOWS_APP_HEAD=%s\n' "$(git rev-parse HEAD)"
@@ -186,6 +206,7 @@ printf 'JAP_WINDOWS_APP_NODE=%s\n' "$(command -v node)"
 printf 'JAP_WINDOWS_APP_NODE_VERSION=%s\n' "$(node --version)"
 printf 'JAP_WINDOWS_APP_NPM=%s\n' "$(command -v npm)"
 printf 'JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1\n'
+printf 'JAP_WINDOWS_APP_PINNED_SHA=%s\n' "$JAP_CONTROL_CENTER_PINNED_SHA"
 printf 'JAP_WINDOWS_APP_URI=http://127.0.0.1:8780/\n'
 
 "${launcher[@]}" &
