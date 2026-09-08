@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "repository_id": 1230805345,
+  "repository": "jenshaberle-dotcom/job-application-pipeline",
+  "project_key": "jap",
+  "fallback_policy": {
+    "strategy": "WARM_PREFERRED_GITHUB_HOSTED",
+    "provider": "GITHUB_HOSTED_STANDARD",
+    "billing_class": "ACCOUNT_INCLUDED_MINUTES",
+    "monthly_minutes_budget": 2000,
+    "heartbeat_workflow": "warm-runner-heartbeat.yml",
+    "heartbeat_max_age_seconds": 900,
+    "portable_workloads_only": true,
+    "required_workflow_opt_in": true
+  },
+  "slots": [
+    {
+      "slot_id": "runtime-linux",
+      "capacity_kind": "GENERAL",
+      "role": "runtime",
+      "platform": "linux-wsl",
+      "desired_count": 1,
+      "min_active": 0,
+      "max_active": 1,
+      "sleep_allowed": true,
+      "routing_labels": ["job-pipeline-runtime-linux"],
+      "profile_id": "job-pipeline-runtime-linux-warm",
+      "runtime_capabilities": []
+    }
+  ]
+}

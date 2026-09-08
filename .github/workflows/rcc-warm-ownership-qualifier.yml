@@ -1,0 +1,48 @@
+name: JAP RCC warm ownership qualifier
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.rcc/runner-contract.json'
+      - '.rcc/runner-profiles/linux-wsl.json'
+      - '.github/workflows/rcc-warm-ownership-qualifier.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    name: Qualify JAP Linux warm ownership
+    runs-on: [self-hosted, job-pipeline-runtime-linux]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+      - name: Prove repository, runner, profile and Python surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.repository_id }}' = '1230805345'
+          test "${RUNNER_NAME}" = 'job-pipeline-runtime-warm-01-linux'
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          contract = json.loads(Path('.rcc/runner-contract.json').read_text())
+          profile = json.loads(Path('.rcc/runner-profiles/linux-wsl.json').read_text())
+          assert contract['repository_id'] == 1230805345
+          assert contract['repository'] == 'jenshaberle-dotcom/job-application-pipeline'
+          assert len(contract['slots']) == 1
+          slot = contract['slots'][0]
+          assert slot['platform'] == 'linux-wsl'
+          assert slot['routing_labels'] == ['job-pipeline-runtime-linux']
+          assert slot['profile_id'] == 'job-pipeline-runtime-linux-warm'
+          assert profile['profile_id'] == 'job-pipeline-runtime-linux-warm'
+          assert profile['runner_labels'] == ['job-pipeline-runtime-linux']
+          assert profile['requirements'] == []
+          assert profile['profile_hash'] == '5fee300694b870f759ab9c7b0b05db7ab10a1a3b07f8b3f6a2909535b773abfe'
+          print('JAP_RCC_LINUX_WARM_OWNERSHIP=PASS')
+          PY
+          python3 --version
