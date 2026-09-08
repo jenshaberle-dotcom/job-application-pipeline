@@ -50,3 +50,55 @@ jobs:
           echo "JAP_LOCAL_DEPLOY_RUNNER=$RUNNER_NAME"
           echo "JAP_LOCAL_DEPLOY_SOURCE=$(git rev-parse HEAD)"
           bash scripts/deploy_jap_windows_control_center_local.sh
+
+      - name: Capture bounded installed startup diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          win_localappdata="$(timeout 10s cmd.exe /d /c 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
+          if [[ -z "$win_localappdata" ]]; then
+            echo "JAP_STARTUP_DIAG=UNAVAILABLE reason=localappdata_resolution_failed"
+            exit 0
+          fi
+
+          install_root="$(wslpath -u "$win_localappdata")/JAP-Control-Center"
+          echo "JAP_STARTUP_DIAG_INSTALL_ROOT=$install_root"
+
+          for relative in \
+            current.json \
+            state/pending-update.json \
+            state/update-result.json \
+            state/runtime.json; do
+            path="$install_root/$relative"
+            echo "=== $relative ==="
+            if [[ -f "$path" ]]; then
+              sed -n '1,160p' "$path"
+            else
+              echo "MISSING"
+            fi
+          done
+
+          for relative in \
+            logs/desktop-host-startup.log \
+            logs/desktop-host-update.log \
+            logs/runtime.stdout.log \
+            logs/runtime.stderr.log; do
+            path="$install_root/$relative"
+            echo "=== tail:$relative ==="
+            if [[ -f "$path" ]]; then
+              tail -n 120 "$path"
+            else
+              echo "MISSING"
+            fi
+          done
+
+          echo "=== runtime-processes ==="
+          ps -ef | grep -E 'run_product_v1_live_demo|run_jap_windows_control_center|python.*8780' | grep -v grep || true
+
+          echo "=== port-8780 ==="
+          ss -ltnp 2>/dev/null | grep ':8780' || echo "NO_LISTENER"
+
+          echo "=== app-info ==="
+          timeout 5s curl -fsS http://127.0.0.1:8780/app-info.json 2>&1 || echo "APP_INFO_UNAVAILABLE"
