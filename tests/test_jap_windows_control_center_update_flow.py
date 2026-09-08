@@ -29,7 +29,7 @@ def test_update_compatibility_contract_is_latest_direct_v1_with_six_hour_snooze(
     assert contract["direct_upgrade_from"] == "1.x"
     assert contract["installer_schema"] == "job_application_pipeline.windows_control_center_install.v2"
     assert contract["snooze_hours"] == 6
-    assert _text(VERSION).strip() == "1.0.11"
+    assert _text(VERSION).strip() == "1.0.12"
 
 
 def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:
@@ -54,6 +54,8 @@ def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:
 
 def test_update_applier_closes_stops_installs_exact_staged_target_and_restarts() -> None:
     applier = _text(APPLIER)
+    assert "[int]$HostPid = 0" in applier
+    assert "if ($HostPid -gt 0)" in applier
     assert "$hostProcess.WaitForExit(60000)" in applier
     assert 'Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"' in applier
     assert "-PinnedSha $targetSha" in applier

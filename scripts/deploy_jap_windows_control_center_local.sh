@@ -143,7 +143,7 @@ if [[ "${installed[2]}" == "$SOURCE_SHA" && "${installed[3]}" == "$DESKTOP_VERSI
 fi
 
 # One-time bridge from pre-GUI-update installations. After this succeeds the
-# local runner never replaces a running/closed product silently again; it stages only.
+# local runner uses the normal immutable staging/apply contract.
 if [[ "${installed[6]}" != "$UPDATE_MODE" || "${installed[7]}" != "$COMPATIBILITY_LINE" ]]; then
   if ((HOST_RUNNING)); then
     deferred "bootstrap_requires_closed_app:${installed[3]}:${DESKTOP_VERSION}"
@@ -175,7 +175,10 @@ PY
   exit 0
 fi
 
-# GUI-update capable installations receive only a staged immutable release.
+# GUI-update capable installations always receive a staged immutable release.
+# If the desktop is closed, the same checksum-verified staged manifest may be
+# applied immediately by the local runner. A running desktop is never killed by
+# this workflow; it keeps the existing in-app consent path.
 STAGE_BASE="$INSTALL_ROOT/updates"
 STAGE_ROOT="$STAGE_BASE/$SOURCE_SHA"
 STAGE_TMP="$STAGE_BASE/.staging.$SOURCE_SHA.$$"
@@ -261,3 +264,39 @@ printf 'DESKTOP_HOST_VERSION_TARGET=%s\n' "$DESKTOP_VERSION"
 printf 'UPDATE_POLICY=latest_direct\n'
 printf 'UPDATE_COMPATIBILITY_LINE=%s\n' "$COMPATIBILITY_LINE"
 printf 'PENDING_UPDATE=%s\n' "$WINDOWS_LOCALAPPDATA\\JAP-Control-Center\\state\\pending-update.json"
+
+if ((HOST_RUNNING)); then
+  printf 'JAP_LOCAL_DEPLOY=AWAITING_GUI_CONSENT\n'
+  exit 0
+fi
+
+WINDOWS_APPLIER="$(wslpath -w "$STAGE_ROOT/source/Apply-JAP-Control-Center-Update.ps1")"
+WINDOWS_PENDING="$(wslpath -w "$PENDING_JSON")"
+printf 'JAP_LOCAL_DEPLOY=AUTO_APPLY_CLOSED\n'
+set +e
+powershell.exe \
+  -NoProfile \
+  -ExecutionPolicy Bypass \
+  -File "$WINDOWS_APPLIER" \
+  -ManifestPath "$WINDOWS_PENDING" \
+  -HostPid 0
+apply_status=$?
+set -e
+[[ "$apply_status" -eq 0 ]] || blocked "auto_apply_failed:${apply_status}"
+
+mapfile -t deployed < <(
+  python3 - "$CURRENT_JSON" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig"))
+print(data.get("pinned_sha", ""))
+print(data.get("desktop_host_version", ""))
+PY
+)
+[[ "${deployed[0]}" == "$SOURCE_SHA" ]] || blocked "auto_apply_main_sha_mismatch:${deployed[0]}:${SOURCE_SHA}"
+[[ "${deployed[1]}" == "$DESKTOP_VERSION" ]] || blocked "auto_apply_desktop_version_mismatch:${deployed[1]}:${DESKTOP_VERSION}"
+printf 'JAP_LOCAL_DEPLOY=AUTO_APPLY_PASS\n'
+printf 'PINNED_MAIN=%s\n' "$SOURCE_SHA"
+printf 'DESKTOP_HOST_VERSION=%s\n' "$DESKTOP_VERSION"
