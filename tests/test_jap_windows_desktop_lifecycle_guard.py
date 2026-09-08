@@ -3,6 +3,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GUARD = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "DesktopLifecycleGuard.cs"
+REAPER = ROOT / "scripts" / "reap_jap_headless_desktop.ps1"
+LOCAL_DEPLOY_WORKFLOW = (
+    ROOT / ".github" / "workflows" / "jap-windows-control-center-local-deploy.yml"
+)
 VERSION = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "VERSION"
 
 
@@ -30,6 +34,20 @@ def test_unhandled_ui_failure_is_fail_closed_and_cleans_runtime_bounded() -> Non
     assert "process.Kill(entireProcessTree: true)" in guard
     assert "Environment.Exit(1)" in guard
     assert '"desktop-host-lifecycle.log"' in guard
+
+
+def test_local_deploy_reaps_only_exact_session_zero_managed_desktop() -> None:
+    reaper = _text(REAPER)
+    workflow = _text(LOCAL_DEPLOY_WORKFLOW)
+    assert 'JAP-Control-Center\\desktop-host\\JAP.ControlCenter.Desktop.exe' in reaper
+    assert 'Get-Process -Name "JAP.ControlCenter.Desktop"' in reaper
+    assert "$hostProcess.SessionId -ne 0" in reaper
+    assert "StringComparison]::OrdinalIgnoreCase" in reaper
+    assert "Stop-Process -Id $pidToReap -Force" in reaper
+    assert "$hostProcess.WaitForExit(5000)" in reaper
+    assert 'JAP_HEADLESS_DESKTOP_REAP=PASS' in reaper
+    assert "Reap exact stale Session-0 JAP desktop host" in workflow
+    assert "scripts/reap_jap_headless_desktop.ps1" in workflow
 
 
 def test_zombie_prevention_bumps_immutable_desktop_release() -> None:
