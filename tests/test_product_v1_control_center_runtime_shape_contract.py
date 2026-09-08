@@ -37,8 +37,8 @@ def test_runtime_adapter_prefers_structured_location_truth_for_display() -> None
     adapter = ADAPTER.read_text(encoding="utf-8")
 
     assert "export function structuredLocationText(value: unknown): string | null" in adapter
-    assert 'const city = compactValue(item.city)' in adapter
-    assert 'const countryCode = compactValue(item.country_code)' in adapter
+    assert "const city = compactValue(item.city)" in adapter
+    assert "const countryCode = compactValue(item.country_code)" in adapter
     assert 'labels.join(" · ")' in adapter
     assert "const structuredLocation = structuredLocationText(job.structured_locations)" in adapter
     assert "city: structuredLocation || job.city" in adapter
@@ -64,7 +64,9 @@ def test_control_center_renders_without_global_fetch_monkeypatch() -> None:
     assert 'import "./compact-control-center.css";' in main
     assert "<RuntimeErrorBoundary>" in main
     assert "<App />" in main
-    assert "<EvidencePreviewPanel />" in main
+    assert "<AboutPanel />" in main
+    assert "<EvidencePreviewPanel />" not in main
+    assert 'import EvidencePreviewPanel from "./EvidencePreviewPanel";' not in main
 
     assert "Control Center render failed" in boundary
     assert "frontend runtime" in boundary

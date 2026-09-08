@@ -1,0 +1,99 @@
+.ow-about-nav {
+  margin-top: 4px;
+}
+
+.ow-about-nav button {
+  width: 100%;
+}
+
+body.about-active .ow-sidebar nav > div:not(.ow-about-nav) > button.active {
+  background: transparent;
+  border-color: transparent;
+  color: inherit;
+}
+
+body.about-active .ow-main > :not(.about-screen) {
+  display: none !important;
+}
+
+/* The old demo/pilot label is planning residue, not operator-facing product identity. */
+.ow-topline > div > span {
+  display: none;
+}
+
+.about-screen {
+  min-width: 0;
+  width: 100%;
+}
+
+.about-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.about-version-card {
+  align-content: start;
+  display: grid;
+}
+
+.about-version {
+  color: #65d8ff;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1;
+  margin: 12px 0 4px;
+}
+
+.about-version-card p {
+  color: #91aab7;
+  margin: 8px 0 0;
+}
+
+.about-facts {
+  display: grid;
+  gap: 0;
+  margin-top: 12px;
+}
+
+.about-facts > div {
+  align-items: center;
+  border-top: 1px solid rgba(137, 181, 201, 0.1);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 8px 0;
+}
+
+.about-facts span {
+  color: #829eac;
+  font-size: 0.76rem;
+}
+
+.about-facts b,
+.about-facts code {
+  color: #dceef6;
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.about-facts code {
+  background: rgba(7, 20, 31, 0.68);
+  border: 1px solid rgba(105, 177, 209, 0.18);
+  border-radius: 7px;
+  padding: 4px 7px;
+}
+
+.about-error {
+  border-color: rgba(229, 101, 101, 0.35);
+}
+
+.about-error p {
+  color: #eb8a8a;
+}
+
+@media (max-width: 900px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+  }
+}
