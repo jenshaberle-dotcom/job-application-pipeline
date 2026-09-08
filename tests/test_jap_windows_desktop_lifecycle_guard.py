@@ -59,7 +59,8 @@ def test_local_deploy_proves_exact_installed_host_rejects_headless_launch() -> N
     assert 'JAP_HEADLESS_DESKTOP_PROOF=SKIP' in proof
     assert "$_.SessionId -eq 0" in proof
     assert "Start-Process -FilePath $exe" in proof
-    assert "$process.WaitForExit(10_000)" in proof
+    assert "$process.WaitForExit(10000)" in proof
+    assert "$process.WaitForExit(10_000)" not in proof
     assert 'noninteractive_start_rejected`tpid=$pidUnderTest' in proof
     assert 'JAP_HEADLESS_DESKTOP_PROOF=PASS' in proof
     assert "Prove installed desktop rejects headless runner launch" in workflow
@@ -67,4 +68,4 @@ def test_local_deploy_proves_exact_installed_host_rejects_headless_launch() -> N
 
 
 def test_zombie_prevention_bumps_immutable_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.14"
+    assert _text(VERSION).strip() == "1.0.15"
