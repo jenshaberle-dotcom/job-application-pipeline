@@ -45,6 +45,11 @@ function Invoke-Wsl([string[]]$Arguments) {
     return $output
 }
 
+function Test-WslPath([string]$Distro, [string]$Path) {
+    & wsl.exe -d $Distro --exec test -e $Path
+    return $LASTEXITCODE -eq 0
+}
+
 function New-AppShortcut(
     [string]$Path,
     [string]$Target,
@@ -70,10 +75,14 @@ function New-AppShortcut(
 function Install-DesktopHost(
     [string]$Version,
     [string]$ArchivePath,
-    [string]$ChecksumPath
+    [string]$ChecksumPath,
+    [string]$SourceSha
 ) {
     if ($Version -notmatch '^\d+\.\d+\.\d+$') {
         throw "Invalid JAP desktop host version: $Version"
+    }
+    if ($SourceSha -notmatch '^[0-9a-f]{40}$') {
+        throw "Invalid JAP desktop host source SHA: $SourceSha"
     }
 
     $tag = "jap-winapp-desktop-v$Version"
@@ -120,6 +129,17 @@ function Install-DesktopHost(
             throw "Desktop host release is missing JAP.ControlCenter.Desktop.exe."
         }
 
+        $stagedFrontend = Join-Path $staged "frontend-dist"
+        $stagedFrontendIndex = Join-Path $stagedFrontend "index.html"
+        $stagedFrontendMarker = Join-Path $stagedFrontend ".jap-source-sha"
+        if (-not (Test-Path $stagedFrontendIndex) -or -not (Test-Path $stagedFrontendMarker)) {
+            throw "Desktop host release is missing the source-bound prebuilt frontend."
+        }
+        $frontendSourceSha = (Get-Content -Raw $stagedFrontendMarker).Trim().ToLowerInvariant()
+        if ($frontendSourceSha -ne $SourceSha.ToLowerInvariant()) {
+            throw "Desktop host prebuilt frontend source mismatch: $frontendSourceSha expected $SourceSha"
+        }
+
         Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue
         if (Test-Path $DesktopHostRoot) {
             Move-Item -Path $DesktopHostRoot -Destination $backup
@@ -142,12 +162,82 @@ function Install-DesktopHost(
             version = $Version
             sha256 = $actualHash
             tag = $tag
+            frontend_source_sha = $frontendSourceSha
         }
     }
     finally {
         Remove-Item -Recurse -Force $staged -ErrorAction SilentlyContinue
         Remove-Item -Recurse -Force $tempRoot -ErrorAction SilentlyContinue
     }
+}
+
+function Prepare-ManagedWorktree(
+    [string]$Distro,
+    [string]$ProjectRoot,
+    [string]$ManagedWorktree,
+    [string]$WslHome,
+    [string]$SourceSha
+) {
+    $managedGit = "$ManagedWorktree/.git"
+    if (Test-WslPath $Distro $managedGit) {
+        $statusOutput = Invoke-Wsl @("-d", $Distro, "--exec", "git", "-C", $ManagedWorktree, "status", "--porcelain")
+        $status = (($statusOutput -join "`n") -as [string]).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($status)) {
+            throw "Managed JAP worktree is dirty; refusing update-time source preparation."
+        }
+        $currentOutput = Invoke-Wsl @("-d", $Distro, "--exec", "git", "-C", $ManagedWorktree, "rev-parse", "HEAD")
+        $currentSha = (($currentOutput | Select-Object -First 1) -as [string]).Trim().ToLowerInvariant()
+        if ($currentSha -ne $SourceSha.ToLowerInvariant()) {
+            Invoke-Wsl @("-d", $Distro, "--exec", "git", "-C", $ManagedWorktree, "checkout", "--detach", $SourceSha) | Out-Null
+        }
+    }
+    else {
+        $managedParent = "$WslHome/.local/share/jap-control-center"
+        Invoke-Wsl @("-d", $Distro, "--exec", "mkdir", "-p", $managedParent) | Out-Null
+        Invoke-Wsl @("-d", $Distro, "--exec", "git", "-C", $ProjectRoot, "worktree", "prune") | Out-Null
+        Invoke-Wsl @("-d", $Distro, "--exec", "git", "-C", $ProjectRoot, "worktree", "add", "--detach", $ManagedWorktree, $SourceSha) | Out-Null
+    }
+
+    $verifiedOutput = Invoke-Wsl @("-d", $Distro, "--exec", "git", "-C", $ManagedWorktree, "rev-parse", "HEAD")
+    $verifiedSha = (($verifiedOutput | Select-Object -First 1) -as [string]).Trim().ToLowerInvariant()
+    if ($verifiedSha -ne $SourceSha.ToLowerInvariant()) {
+        throw "Managed JAP worktree source mismatch after preparation: $verifiedSha expected $SourceSha"
+    }
+}
+
+function Install-SourceBoundFrontend(
+    [string]$Distro,
+    [string]$ManagedWorktree,
+    [string]$SourceSha
+) {
+    $windowsFrontend = Join-Path $DesktopHostRoot "frontend-dist"
+    $windowsMarker = Join-Path $windowsFrontend ".jap-source-sha"
+    $windowsIndex = Join-Path $windowsFrontend "index.html"
+    if (-not (Test-Path $windowsIndex) -or -not (Test-Path $windowsMarker)) {
+        throw "Installed desktop host does not contain the source-bound prebuilt frontend."
+    }
+    $markerSha = (Get-Content -Raw $windowsMarker).Trim().ToLowerInvariant()
+    if ($markerSha -ne $SourceSha.ToLowerInvariant()) {
+        throw "Installed desktop frontend source mismatch: $markerSha expected $SourceSha"
+    }
+
+    $sourceOutput = Invoke-Wsl @("-d", $Distro, "--exec", "wslpath", "-u", $windowsFrontend)
+    $linuxSource = (($sourceOutput | Select-Object -First 1) -as [string]).Trim()
+    if ([string]::IsNullOrWhiteSpace($linuxSource) -or -not $linuxSource.StartsWith('/')) {
+        throw "Could not translate the packaged frontend into the configured WSL distribution."
+    }
+
+    $target = "$ManagedWorktree/frontend/control-center/dist"
+    Invoke-Wsl @("-d", $Distro, "--exec", "rm", "-rf", $target) | Out-Null
+    Invoke-Wsl @("-d", $Distro, "--exec", "mkdir", "-p", $target) | Out-Null
+    Invoke-Wsl @("-d", $Distro, "--exec", "cp", "-a", "$linuxSource/.", $target) | Out-Null
+    Invoke-Wsl @("-d", $Distro, "--exec", "test", "-f", "$target/index.html") | Out-Null
+    $installedMarkerOutput = Invoke-Wsl @("-d", $Distro, "--exec", "cat", "$target/.jap-source-sha")
+    $installedMarker = (($installedMarkerOutput | Select-Object -First 1) -as [string]).Trim().ToLowerInvariant()
+    if ($installedMarker -ne $SourceSha.ToLowerInvariant()) {
+        throw "Managed prebuilt frontend source mismatch after installation: $installedMarker expected $SourceSha"
+    }
+    return $target
 }
 
 $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
@@ -258,10 +348,14 @@ Copy-Item -Force $sourceStopper $StableStopper
 Copy-Item -Force $sourceApplier $StableApplier
 Copy-Item -Force $sourceRunner $StableRunner
 
-$desktopHost = Install-DesktopHost $desktopHostVersion $DesktopHostArchivePath $DesktopHostChecksumPath
+# Prepare immutable product code and frontend before the user-facing host restarts.
+# Interactive startup therefore never needs npm/network/build work for a released app.
+Prepare-ManagedWorktree $WslDistro $WslProjectRoot $managedWorktree $wslHome $pinnedSha
+$desktopHost = Install-DesktopHost $desktopHostVersion $DesktopHostArchivePath $DesktopHostChecksumPath $pinnedSha
 if (-not (Test-Path $DesktopHostExe)) {
     throw "Installed JAP desktop host executable is missing: $DesktopHostExe"
 }
+$wslFrontendDist = Install-SourceBoundFrontend $WslDistro $managedWorktree $pinnedSha
 
 Write-JsonAtomic $CurrentPath @{
     schema = $InstallSchema
@@ -273,6 +367,7 @@ Write-JsonAtomic $CurrentPath @{
     managed_worktree = $managedWorktree
     wsl_state_root = $wslStateRoot
     wsl_installed_runner_path = $WslInstalledRunnerPath
+    wsl_frontend_dist = $wslFrontendDist
     port = $Port
     desktop_host = "webview2_winforms"
     desktop_host_version = $desktopHost.version
@@ -284,6 +379,8 @@ Write-JsonAtomic $CurrentPath @{
     update_mode = $UpdateMode
     update_surface = "integrated_main_app"
     compatibility_line = $CompatibilityLine
+    startup_frontend = "prebuilt_source_bound"
+    frontend_source_sha = $desktopHost.frontend_source_sha
     secrets_location = "wsl_project_env_only"
     private_documents_location = "wsl_project_private_application_sources_only"
 }
@@ -314,6 +411,9 @@ Write-Host "DESKTOP_HOST=webview2_winforms"
 Write-Host "DESKTOP_HOST_VERSION=$($desktopHost.version)"
 Write-Host "DESKTOP_HOST_SHA256=$($desktopHost.sha256)"
 Write-Host "DESKTOP_HOST_EXE=$DesktopHostExe"
+Write-Host "FRONTEND_STARTUP=prebuilt_source_bound"
+Write-Host "FRONTEND_SOURCE_SHA=$($desktopHost.frontend_source_sha)"
+Write-Host "WSL_FRONTEND_DIST=$wslFrontendDist"
 Write-Host "UPDATE_MODE=$UpdateMode"
 Write-Host "UPDATE_SURFACE=integrated_main_app"
 Write-Host "UPDATE_COMPATIBILITY_LINE=$CompatibilityLine"
