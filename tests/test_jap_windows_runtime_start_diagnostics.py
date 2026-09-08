@@ -40,5 +40,17 @@ def test_existing_runtime_is_reused_only_for_exact_installed_source_revision() -
     assert "The stale managed JAP runtime did not release port" in launcher
 
 
+def test_long_lived_wsl_runtime_is_detached_from_powershell_redirected_pipes() -> None:
+    launcher = _text(LAUNCHER)
+    assert '$starterName = "jap-runtime-detached.cmd"' in launcher
+    assert 'start "" /b "{0}" {1} 1>"{2}" 2>"{3}"' in launcher
+    assert 'FilePath = $env:ComSpec' in launcher
+    assert 'WorkingDirectory = $LogRoot' in launcher
+    assert 'launch_mode = "cmd_start_detached"' in launcher
+    assert 'RedirectStandardOutput = $stdoutLog' not in launcher
+    assert 'RedirectStandardError = $stderrLog' not in launcher
+    assert "$process.WaitForExit(10000)" in launcher
+
+
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.10"
+    assert _text(VERSION).strip() == "1.0.11"
