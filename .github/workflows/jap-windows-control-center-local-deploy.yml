@@ -11,6 +11,7 @@ on:
       - "install-jap-control-center.ps1"
       - "scripts/install_jap_windows_control_center.sh"
       - "scripts/deploy_jap_windows_control_center_local.sh"
+      - "scripts/reap_jap_headless_desktop.ps1"
       - "windows/JAP.ControlCenter.Desktop/**"
       - ".github/workflows/jap-windows-control-center-local-deploy.yml"
   workflow_run:
@@ -42,6 +43,16 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
+
+      - name: Reap exact stale Session-0 JAP desktop host
+        shell: bash
+        run: |
+          set -euo pipefail
+          reaper="$(wslpath -w "$PWD/scripts/reap_jap_headless_desktop.ps1")"
+          powershell.exe \
+            -NoProfile \
+            -ExecutionPolicy Bypass \
+            -File "$reaper"
 
       - name: Prove local Windows interop and stage update fail-closed
         shell: bash
@@ -83,6 +94,7 @@ jobs:
           for relative in \
             logs/desktop-host-startup.log \
             logs/desktop-host-update.log \
+            logs/desktop-host-lifecycle.log \
             logs/runtime.stdout.log \
             logs/runtime.stderr.log; do
             path="$install_root/$relative"
