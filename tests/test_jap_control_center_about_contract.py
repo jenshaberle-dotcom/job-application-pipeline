@@ -39,6 +39,10 @@ def test_demo_pilot_badge_is_hidden_from_operator_header() -> None:
 
 def test_live_launcher_publishes_exact_release_metadata_into_generated_dist() -> None:
     launcher = _text(LIVE_LAUNCHER)
+    assert 'FRONTEND_SOURCE_MARKER = ".jap-source-sha"' in launcher
+    assert 'os.environ.get("JAP_CONTROL_CENTER_PINNED_SHA"' in launcher
+    assert "_write_frontend_source_marker" in launcher
+    assert "_assert_reusable_frontend_source" in launcher
     assert '"app-info.json"' in launcher
     assert '"desktop_version": desktop_version' in launcher
     assert '"source_revision": source_revision' in launcher
@@ -50,6 +54,17 @@ def test_live_launcher_publishes_exact_release_metadata_into_generated_dist() ->
     assert "JAP_APP_INFO=PASS" in launcher
 
 
+def test_installed_runtime_does_not_block_startup_on_external_demo_probe() -> None:
+    launcher = _text(LIVE_LAUNCHER)
+    assert '"--installed-runtime"' in launcher
+    assert "if args.installed_runtime:" in launcher
+    installed_start = launcher.index("if args.installed_runtime:")
+    preflight_start = launcher.index("preflight_output = _demo_artifact_path")
+    assert installed_start < preflight_start
+    assert "JAP_INSTALLED_RUNTIME_NETWORK=startup_local_only" in launcher
+    assert "JAP_INSTALLED_RUNTIME_BOUNDARY=no_auto_submit,no_send,no_startup_provider" in launcher
+
+
 def test_operator_surface_drops_preview_button_but_keeps_internal_preview_runtime() -> None:
     main = _text(MAIN)
     server = _text(CANONICAL_SERVER)
@@ -59,4 +74,4 @@ def test_operator_surface_drops_preview_button_but_keeps_internal_preview_runtim
 
 
 def test_bugfix_round_bumps_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.8"
+    assert _text(VERSION).strip() == "1.0.9"
