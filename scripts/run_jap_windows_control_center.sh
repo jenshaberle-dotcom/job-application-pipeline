@@ -171,9 +171,10 @@ done
 export PRODUCT_V1_PRIVATE_DOCUMENT_ROOT="$PROJECT_ROOT/private_application_sources"
 export PRODUCT_V1_UI_HOST="127.0.0.1"
 export PRODUCT_V1_UI_PORT="8780"
+export PYTHONUNBUFFERED=1
 
 cd "$MANAGED_WORKTREE"
-launcher=(python scripts/run_product_v1_live_demo.py)
+launcher=(python -u scripts/run_product_v1_live_demo.py)
 if [[ -f frontend/control-center/dist/index.html ]]; then
   launcher+=(--reuse-frontend)
 fi
@@ -184,6 +185,7 @@ printf 'JAP_WINDOWS_APP_FETCH_TRANSPORT=https\n'
 printf 'JAP_WINDOWS_APP_NODE=%s\n' "$(command -v node)"
 printf 'JAP_WINDOWS_APP_NODE_VERSION=%s\n' "$(node --version)"
 printf 'JAP_WINDOWS_APP_NPM=%s\n' "$(command -v npm)"
+printf 'JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1\n'
 printf 'JAP_WINDOWS_APP_URI=http://127.0.0.1:8780/\n'
 
 "${launcher[@]}" &

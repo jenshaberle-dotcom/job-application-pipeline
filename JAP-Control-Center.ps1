@@ -168,9 +168,15 @@ Write-JsonAtomic $RuntimePath @{
     uri = $uri
 }
 
-for ($attempt = 0; $attempt -lt 240; $attempt++) {
+# Keep the launcher readiness deadline comfortably inside the native desktop
+# host's 90-second hard bound. This guarantees that the launcher can surface the
+# bounded WSL stdout/stderr tail instead of being killed before it reports cause.
+$readinessDeadline = [DateTime]::UtcNow.AddSeconds(75)
+$lastEndpointError = [string]$endpoint.Error
+while ([DateTime]::UtcNow -lt $readinessDeadline) {
     Start-Sleep -Milliseconds 500
     $endpoint = Get-JapEndpointState $uri
+    $lastEndpointError = [string]$endpoint.Error
     if ($endpoint.Healthy) {
         Write-Host "JAP Control Center: $uri"
         Write-Host "Pinned main: $($current.pinned_sha)"
@@ -195,5 +201,8 @@ if (-not [string]::IsNullOrWhiteSpace($stderrTail)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($stdoutTail)) {
     throw "JAP Control Center did not become ready: $stdoutTail"
+}
+if (-not [string]::IsNullOrWhiteSpace($lastEndpointError)) {
+    throw "JAP Control Center did not become ready. Last endpoint error: $lastEndpointError"
 }
 throw "JAP Control Center did not become ready. See $stdoutLog and $stderrLog."
