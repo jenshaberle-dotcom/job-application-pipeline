@@ -29,4 +29,4 @@ def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() ->
 
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.7"
+    assert _text(VERSION).strip() == "1.0.8"
