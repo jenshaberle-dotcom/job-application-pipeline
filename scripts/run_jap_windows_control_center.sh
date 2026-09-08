@@ -123,14 +123,6 @@ fi
 git -C "$PROJECT_ROOT" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null || fail pinned_sha_unavailable
 
 if [[ -e "$MANAGED_WORKTREE/.git" ]]; then
-  # node_modules is generated runtime state. A previous Windows-npm invocation can
-  # leave non-executable .bin shims in this WSL worktree. Remove that generated tree
-  # before the cleanliness gate.
-  if [[ -e "$FRONTEND_NODE_MODULES" || -L "$FRONTEND_NODE_MODULES" ]]; then
-    rm -rf -- "$FRONTEND_NODE_MODULES"
-    printf 'JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET\n'
-  fi
-
   [[ -z "$(git -C "$MANAGED_WORKTREE" status --porcelain)" ]] || fail managed_worktree_dirty
   current_sha="$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)"
   if [[ "$current_sha" != "$PINNED_SHA" ]]; then
@@ -145,17 +137,28 @@ fi
 [[ "$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)" == "$PINNED_SHA" ]] || fail managed_worktree_sha_mismatch
 [[ -f "$MANAGED_WORKTREE/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
 
-# dist is ignored generated state. It must never survive a source update unless it
-# carries an exact marker proving that the bundle was built from the installed pin.
+# A released desktop host carries an exact source-bound prebuilt frontend that the
+# installer seeds into this managed worktree before restart. When that proof exists,
+# interactive startup must not initialize Node, run npm, or rebuild React.
 frontend_build_sha=""
 if [[ -f "$FRONTEND_BUILD_SHA_FILE" ]]; then
   frontend_build_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
 fi
-if [[ -e "$FRONTEND_DIST" || -L "$FRONTEND_DIST" ]]; then
-  if [[ ! -f "$FRONTEND_DIST/index.html" || "$frontend_build_sha" != "$PINNED_SHA" ]]; then
+frontend_reuse=0
+if [[ -f "$FRONTEND_DIST/index.html" && "$frontend_build_sha" == "$PINNED_SHA" ]]; then
+  frontend_reuse=1
+  printf 'JAP_WINDOWS_APP_FRONTEND=PREBUILT source=%s\n' "$frontend_build_sha"
+else
+  if [[ -e "$FRONTEND_DIST" || -L "$FRONTEND_DIST" ]]; then
     rm -rf -- "$FRONTEND_DIST"
     printf 'JAP_WINDOWS_APP_FRONTEND_DIST=RESET previous=%s target=%s\n' "${frontend_build_sha:-unbound}" "$PINNED_SHA"
-    frontend_build_sha=""
+  fi
+
+  # node_modules is generated runtime state. Only the fallback build path needs it;
+  # remove potentially Windows-generated shims before a local WSL rebuild.
+  if [[ -e "$FRONTEND_NODE_MODULES" || -L "$FRONTEND_NODE_MODULES" ]]; then
+    rm -rf -- "$FRONTEND_NODE_MODULES"
+    printf 'JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET\n'
   fi
 fi
 
@@ -175,10 +178,11 @@ source "$PROJECT_ROOT/.env"
 set -u
 set +a
 
-# WSL inherits the Windows PATH, while NVM is normally initialized only by an
-# interactive Linux shell. Select a native Linux Node 22 runtime explicitly so npm
-# never falls through to /mnt/c/Program Files/nodejs/npm and CMD.EXE/UNC semantics.
-activate_native_node_runtime
+# A source-bound release frontend needs no Node runtime at interactive startup.
+# Node 22 is loaded only for the backward-compatible fallback build path.
+if (( frontend_reuse == 0 )); then
+  activate_native_node_runtime
+fi
 
 for key in POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
   [[ -n "${!key:-}" ]] || fail "missing_${key}"
@@ -192,19 +196,22 @@ export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"
 
 cd "$MANAGED_WORKTREE"
 launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime)
-if [[ -f frontend/control-center/dist/index.html && -f frontend/control-center/dist/.jap-source-sha ]]; then
-  frontend_build_sha="$(tr -d '\r\n[:space:]' < frontend/control-center/dist/.jap-source-sha)"
-  if [[ "$frontend_build_sha" == "$PINNED_SHA" ]]; then
-    launcher+=(--reuse-frontend)
-  fi
+if (( frontend_reuse == 1 )); then
+  launcher+=(--reuse-frontend)
 fi
 
 printf 'JAP_WINDOWS_APP_HEAD=%s\n' "$(git rev-parse HEAD)"
 printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
 printf 'JAP_WINDOWS_APP_FETCH_TRANSPORT=https\n'
-printf 'JAP_WINDOWS_APP_NODE=%s\n' "$(command -v node)"
-printf 'JAP_WINDOWS_APP_NODE_VERSION=%s\n' "$(node --version)"
-printf 'JAP_WINDOWS_APP_NPM=%s\n' "$(command -v npm)"
+if (( frontend_reuse == 1 )); then
+  printf 'JAP_WINDOWS_APP_NODE=not_required_prebuilt_frontend\n'
+  printf 'JAP_WINDOWS_APP_NODE_VERSION=not_required_prebuilt_frontend\n'
+  printf 'JAP_WINDOWS_APP_NPM=not_required_prebuilt_frontend\n'
+else
+  printf 'JAP_WINDOWS_APP_NODE=%s\n' "$(command -v node)"
+  printf 'JAP_WINDOWS_APP_NODE_VERSION=%s\n' "$(node --version)"
+  printf 'JAP_WINDOWS_APP_NPM=%s\n' "$(command -v npm)"
+fi
 printf 'JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1\n'
 printf 'JAP_WINDOWS_APP_PINNED_SHA=%s\n' "$JAP_CONTROL_CENTER_PINNED_SHA"
 printf 'JAP_WINDOWS_APP_URI=http://127.0.0.1:8780/\n'
