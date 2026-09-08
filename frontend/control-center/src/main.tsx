@@ -1,12 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import AboutPanel from "./AboutPanel";
 import ApplicationWorkspaceEventBridge from "./ApplicationWorkspaceEventBridge";
 import DataLayersTab from "./DataLayersTab";
 import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
 import DemoOperatorHardening from "./DemoOperatorHardening";
 import DemoProductPolish from "./DemoProductPolish";
 import DemoTruthRibbon from "./DemoTruthRibbon";
-import EvidencePreviewPanel from "./EvidencePreviewPanel";
 import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
 import "./styles.css";
@@ -25,10 +25,10 @@ createRoot(root).render(
     <RuntimeErrorBoundary>
       <App />
       <DataLayersTab />
+      <AboutPanel />
       <DemoOperatorHardening />
       <DemoProductPolish />
       <DemoTruthRibbon />
-      <EvidencePreviewPanel />
       <DemoApplicationWorkspace />
       <ApplicationWorkspaceEventBridge />
     </RuntimeErrorBoundary>
