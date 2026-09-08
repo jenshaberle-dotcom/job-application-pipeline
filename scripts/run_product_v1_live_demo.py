@@ -38,6 +38,10 @@ from scripts.run_product_v1_demo_control_center import (  # noqa: E402
 )
 FRONTEND = ROOT / "frontend" / "control-center"
 DEFAULT_DIST = FRONTEND / "dist"
+DESKTOP_VERSION_FILE = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "VERSION"
+UPDATE_COMPATIBILITY_FILE = (
+    ROOT / "windows" / "JAP.ControlCenter.Desktop" / "UPDATE_COMPATIBILITY.json"
+)
 DEMO_ARTIFACT_ROOT = (ROOT / ".runtime" / "demo").resolve()
 DEFAULT_PREFLIGHT = DEMO_ARTIFACT_ROOT / "product_v1_demo_preflight.json"
 DEFAULT_WORKSPACE_PROBE = DEMO_ARTIFACT_ROOT / "product_v1_demo_workspace_probe.json"
@@ -63,6 +67,37 @@ def _frontend_install_command(npm: str) -> tuple[list[str], str]:
     if any((FRONTEND / name).is_file() for name in _FRONTEND_LOCKFILES):
         return [npm, "ci"], "LOCKFILE_CI"
     return [npm, "install", "--package-lock=false", "--no-audit", "--no-fund"], "LOCKFILE_ABSENT_INSTALL"
+
+
+def _publish_app_info(frontend_dist: Path) -> None:
+    """Publish local install identity into generated frontend state only."""
+    desktop_version = DESKTOP_VERSION_FILE.read_text(encoding="utf-8").strip()
+    if not desktop_version:
+        raise RuntimeError("desktop VERSION is empty")
+    compatibility = json.loads(UPDATE_COMPATIBILITY_FILE.read_text(encoding="utf-8"))
+    if not isinstance(compatibility, dict):
+        raise RuntimeError("update compatibility root is not an object")
+
+    source_revision = os.environ.get("JAP_CONTROL_CENTER_PINNED_SHA", "").strip()
+    if not source_revision:
+        source_revision = "development"
+
+    payload = {
+        "schema": "job_application_pipeline.control_center_app_info.v1",
+        "app_name": "JAP Control Center",
+        "product_name": "Job Application Pipeline",
+        "desktop_version": desktop_version,
+        "source_revision": source_revision,
+        "desktop_host": "WebView2 WinForms",
+        "runtime_surface": "WSL-backed local runtime",
+        "data_truth": "PostgreSQL / DB-backed",
+        "product_mode": "review-first",
+        "update_policy": str(compatibility.get("policy") or "unknown"),
+        "compatibility_line": str(compatibility.get("compatibility_line") or "unknown"),
+    }
+    target = frontend_dist / "app-info.json"
+    target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"JAP_APP_INFO=PASS version={desktop_version} source={source_revision}")
 
 
 def _demo_artifact_path(path: Path) -> Path:
@@ -240,6 +275,11 @@ def main() -> int:
     except (RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"DEMO_START_BLOCKED=frontend:{exc}", file=sys.stderr)
         return 2
+
+    try:
+        _publish_app_info(frontend_dist)
+    except (OSError, RuntimeError, json.JSONDecodeError) as exc:
+        print(f"JAP_APP_INFO=UNAVAILABLE reason={exc}", file=sys.stderr)
 
     try:
         preflight_code = run_preflight(frontend_dist=frontend_dist, output=preflight_output)
