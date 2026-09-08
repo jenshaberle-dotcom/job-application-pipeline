@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from src.connectors.base import JobSourceConnector, RawJobRecord
+from src.connectors.capabilities import SourceCapabilities
 from scripts.run_demo_connector_source_scout import (
     ConnectorSpec,
     build_report,
+    connector_contract,
     record_to_observation,
 )
 
@@ -19,6 +21,22 @@ class FakeConnector(JobSourceConnector):
         if self.error is not None:
             raise self.error
         return self.records, "https://jobs.example.test/search"
+
+
+class FakeBoundedFullFetchConnector(FakeConnector):
+    capabilities = SourceCapabilities(
+        supports_keyword=False,
+        supports_location=False,
+        supports_radius=False,
+        supports_employment_type=False,
+        supports_remote_filter=False,
+        supports_pagination=False,
+        supports_full_fetch=True,
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.max_detail_pages = 3
 
 
 def _record(
@@ -71,6 +89,19 @@ def test_non_profile_job_is_observed_without_becoming_demo_candidate() -> None:
     assert row["location_signal_match"] is True
 
 
+def test_bounded_full_fetch_contract_is_exposed_as_delivery_evidence() -> None:
+    contract = connector_contract(FakeBoundedFullFetchConnector())
+
+    assert contract == {
+        "supports_full_fetch": True,
+        "supports_keyword": False,
+        "supports_location": False,
+        "supports_radius": False,
+        "max_detail_pages": 3,
+        "bounded_full_fetch_claim": True,
+    }
+
+
 def test_build_report_keeps_connector_failures_as_health_evidence() -> None:
     good = ConnectorSpec(
         "fake:good",
@@ -97,11 +128,22 @@ def test_build_report_keeps_connector_failures_as_health_evidence() -> None:
         "profile_match_count": 1,
         "profile_and_location_signal_count": 1,
         "sources_with_profile_matches": 1,
+        "bounded_full_fetch_claim_count": 0,
     }
     assert report["sources"][1]["status"] == "error"
     assert "HTTP 503" in report["sources"][1]["error"]
     assert report["boundaries"]["database_writes"] is False
     assert report["boundaries"]["demo_ranking_created"] is False
+
+
+def test_build_report_counts_bounded_full_fetch_claims() -> None:
+    spec = ConnectorSpec("fake:bounded", FakeBoundedFullFetchConnector)
+
+    report = build_report((spec,))
+
+    assert report["summary"]["bounded_full_fetch_claim_count"] == 1
+    assert report["sources"][0]["contract"]["max_detail_pages"] == 3
+    assert report["sources"][0]["contract"]["bounded_full_fetch_claim"] is True
 
 
 def test_profile_match_without_location_signal_is_not_strong_demo_candidate() -> None:
