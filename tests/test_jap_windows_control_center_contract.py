@@ -87,6 +87,7 @@ def test_wsl_runner_reuses_canonical_runtime_and_exact_pinned_code() -> None:
     assert "scripts/run_product_v1_live_demo.py" in text
     assert 'PRODUCT_V1_UI_HOST="127.0.0.1"' in text
     assert 'PRODUCT_V1_UI_PORT="8780"' in text
+    assert 'export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"' in text
 
 
 def test_launcher_is_loopback_fail_closed_and_has_no_implicit_update() -> None:
@@ -184,21 +185,25 @@ def test_managed_runner_selects_native_linux_node22_not_windows_npm() -> None:
     assert "JAP_WINDOWS_APP_NPM=" in text
 
 
-def test_generated_frontend_dependencies_are_ignored_and_reset_before_cleanliness_gate() -> None:
+def test_generated_frontend_state_is_source_bound_before_reuse() -> None:
     ignore = _text(GITIGNORE)
     runner = _text(WSL_RUNNER)
-    reset = 'rm -rf -- "$FRONTEND_NODE_MODULES"'
+    dependency_reset = 'rm -rf -- "$FRONTEND_NODE_MODULES"'
+    dist_reset = 'rm -rf -- "$FRONTEND_DIST"'
     cleanliness = 'git -C "$MANAGED_WORKTREE" status --porcelain'
 
     assert "frontend/control-center/node_modules/" in ignore
     assert (
-        'FRONTEND_NODE_MODULES="${MANAGED_WORKTREE}/frontend/control-center/'
-        'node_modules"' in runner
+        'FRONTEND_NODE_MODULES="${FRONTEND_ROOT}/node_modules"' in runner
     )
-    assert reset in runner
+    assert 'FRONTEND_BUILD_SHA_FILE="${FRONTEND_DIST}/.jap-source-sha"' in runner
+    assert dependency_reset in runner
     assert "JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET" in runner
-    assert runner.index(reset) < runner.index(cleanliness)
-    assert 'if [[ -f frontend/control-center/dist/index.html ]]; then' in runner
+    assert runner.index(dependency_reset) < runner.index(cleanliness)
+    assert dist_reset in runner
+    assert "JAP_WINDOWS_APP_FRONTEND_DIST=RESET" in runner
+    assert 'frontend_build_sha" == "$PINNED_SHA"' in runner
+    assert "launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime)" in runner
     assert "launcher+=(--reuse-frontend)" in runner
 
 
