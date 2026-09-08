@@ -44,7 +44,7 @@ $startedAt = [DateTimeOffset]::UtcNow
 $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path -Parent $exe) -PassThru
 $pidUnderTest = $process.Id
 
-if (-not $process.WaitForExit(10_000)) {
+if (-not $process.WaitForExit(10000)) {
     try {
         Stop-Process -Id $pidUnderTest -Force -ErrorAction SilentlyContinue
     }
