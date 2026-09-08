@@ -1,0 +1,103 @@
+name: P1 Product V1 to Control Center visibility audit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/p1-product-visibility-audit.yml"
+      - "frontend/control-center/src/productPayloadRuntimeAdapter.ts"
+      - "src/search_intelligence/product_v1_demo_origin_*.py"
+      - "scripts/run_product_v1_control_center.py"
+      - "scripts/run_product_v1_demo_live_scope_audit.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-product-visibility-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Read-only Product V1 visibility audit
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 20
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      OUTPUT: /tmp/p1-product-visibility-audit.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json, sys
+          from pathlib import PurePosixPath
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding='utf-8') as handle:
+              c = json.load(handle)
+          if c.get('RepositoryId') != int(repo_id) or c.get('Repository') != repository:
+              raise SystemExit('RUNTIME_REPOSITORY_MISMATCH')
+          if c.get('RunnerName') != runner or c.get('Platform') != 'linux-wsl':
+              raise SystemExit('RUNTIME_RUNNER_MISMATCH')
+          if c.get('Status') != 'PASS' or c.get('PrimaryFailure') not in (None, ''):
+              raise SystemExit('RUNTIME_CONTEXT_NOT_PASS')
+          checks = {x.get('Id'): x.get('Status') for x in c.get('Checks', []) if isinstance(x, dict)}
+          required = {'repository_identity','checkout','checkout_repository','env_file','env_keys','interpreter','interpreter_probe','capability:postgresql'}
+          failed = sorted(x for x in required if checks.get(x) != 'PASS')
+          if failed:
+              raise SystemExit('RUNTIME_CHECKS_NOT_PASS:' + ','.join(failed))
+          root = PurePosixPath(c['CheckoutRoot'])
+          if root not in PurePosixPath(c['Interpreter']).parents or root not in PurePosixPath(c['EnvFile']).parents:
+              raise SystemExit('RUNTIME_PATH_BINDING_MISMATCH')
+          print(c['Interpreter'])
+          print(c['EnvFile'])
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Run canonical visibility projection in read-only DB mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_product_v1_demo_live_scope_audit > "$OUTPUT"
+          "$RUNTIME_PYTHON" - "$OUTPUT" <<'PY'
+          import collections, json, sys
+          p = json.load(open(sys.argv[1], encoding='utf-8'))
+          rows = p['rows']
+          current = [r for r in rows if r.get('demo_live_reason') != 'current_lifecycle_not_confirmed']
+          actionable = [r for r in rows if r.get('demo_actionable') is True]
+          reasons = collections.Counter(str(r.get('demo_actionability_reason')) for r in rows if not r.get('demo_actionable'))
+          print(f"BACKEND_JOB_ROWS={len(rows)}")
+          print(f"BACKEND_DEMO_ACTIONABLE={len(actionable)}")
+          print(f"DEMO_LIVE_VERIFIED={p['demo_live_verified']}")
+          print(f"DEMO_LIVE_RANKABLE={p['demo_live_rankable']}")
+          for reason, count in sorted(reasons.items(), key=lambda x: (-x[1], x[0])):
+              print(f"HIDDEN_REASON={reason}|{count}")
+          print('DATABASE_WRITES=0')
+          PY
+
+      - name: Upload complete visibility audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-product-visibility-audit
+          path: /tmp/p1-product-visibility-audit.json
+          if-no-files-found: warn
+          retention-days: 7
