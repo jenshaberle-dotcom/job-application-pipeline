@@ -8,13 +8,18 @@ Default sequence:
 5. validate its carried provider-free evidence-first review-draft proof offline;
 6. start the demo Control Center only when all readiness probes pass.
 
+The installed Windows application uses ``--installed-runtime``. That mode keeps the
+same reviewed server/action boundaries but does not block every interactive startup
+on the external demo workspace probe. It still binds the generated frontend bundle
+to the exact installed source SHA and publishes local app identity for About.
+
 The launcher never changes pipeline product truth, activates a source, persists an
 application/draft, submits, or sends anything. The final readiness proof invokes no
 provider and performs no second vacancy fetch. Readiness diagnostics are published
 atomically only after the staged artifact parses as a JSON object and its readiness
 state agrees with the child exit status. Interrupted or contradictory child output
-therefore cannot become canonical. Use ``--reuse-frontend`` after a previously
-qualified build when network-independent frontend startup is preferred.
+therefore cannot become canonical. Use ``--reuse-frontend`` only for a source-bound
+build matching the current installed revision.
 """
 
 from __future__ import annotations
@@ -38,6 +43,7 @@ from scripts.run_product_v1_demo_control_center import (  # noqa: E402
 )
 FRONTEND = ROOT / "frontend" / "control-center"
 DEFAULT_DIST = FRONTEND / "dist"
+FRONTEND_SOURCE_MARKER = ".jap-source-sha"
 DESKTOP_VERSION_FILE = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "VERSION"
 UPDATE_COMPATIBILITY_FILE = (
     ROOT / "windows" / "JAP.ControlCenter.Desktop" / "UPDATE_COMPATIBILITY.json"
@@ -69,6 +75,44 @@ def _frontend_install_command(npm: str) -> tuple[list[str], str]:
     return [npm, "install", "--package-lock=false", "--no-audit", "--no-fund"], "LOCKFILE_ABSENT_INSTALL"
 
 
+def _installed_source_revision() -> str | None:
+    raw = os.environ.get("JAP_CONTROL_CENTER_PINNED_SHA", "").strip().lower()
+    if len(raw) == 40 and all(character in "0123456789abcdef" for character in raw):
+        return raw
+    return None
+
+
+def _source_marker_path(frontend_dist: Path) -> Path:
+    return frontend_dist / FRONTEND_SOURCE_MARKER
+
+
+def _write_frontend_source_marker(frontend_dist: Path) -> None:
+    source_revision = _installed_source_revision()
+    if source_revision is None:
+        return
+    _source_marker_path(frontend_dist).write_text(
+        source_revision + "\n",
+        encoding="utf-8",
+    )
+    print(f"FRONTEND_BUILD_SOURCE={source_revision}")
+
+
+def _assert_reusable_frontend_source(frontend_dist: Path) -> None:
+    expected = _installed_source_revision()
+    if expected is None:
+        return
+    marker = _source_marker_path(frontend_dist)
+    if not marker.is_file():
+        raise RuntimeError(
+            "--reuse-frontend requested for installed runtime without source marker"
+        )
+    actual = marker.read_text(encoding="utf-8").strip().lower()
+    if actual != expected:
+        raise RuntimeError(
+            f"--reuse-frontend source mismatch: built={actual or 'unknown'} installed={expected}"
+        )
+
+
 def _publish_app_info(frontend_dist: Path) -> None:
     """Publish local install identity into generated frontend state only."""
     desktop_version = DESKTOP_VERSION_FILE.read_text(encoding="utf-8").strip()
@@ -78,9 +122,7 @@ def _publish_app_info(frontend_dist: Path) -> None:
     if not isinstance(compatibility, dict):
         raise RuntimeError("update compatibility root is not an object")
 
-    source_revision = os.environ.get("JAP_CONTROL_CENTER_PINNED_SHA", "").strip()
-    if not source_revision:
-        source_revision = "development"
+    source_revision = _installed_source_revision() or "development"
 
     payload = {
         "schema": "job_application_pipeline.control_center_app_info.v1",
@@ -129,6 +171,7 @@ def prepare_frontend(*, reuse_frontend: bool) -> Path:
     if reuse_frontend:
         if not (dist / "index.html").is_file():
             raise RuntimeError("--reuse-frontend requested but no built Control Center exists")
+        _assert_reusable_frontend_source(dist)
         print(f"FRONTEND_BUILD=REUSED path={dist}")
         return dist
 
@@ -141,6 +184,7 @@ def prepare_frontend(*, reuse_frontend: bool) -> Path:
     _run([npm, "run", "build"], cwd=FRONTEND)
     if not (dist / "index.html").is_file():
         raise RuntimeError("React build completed without dist/index.html")
+    _write_frontend_source_marker(dist)
     print(f"FRONTEND_BUILD=PASS path={dist}")
     return dist
 
@@ -236,6 +280,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Reuse an existing dist build instead of installing/building the frontend.",
     )
+    parser.add_argument(
+        "--installed-runtime",
+        action="store_true",
+        help=(
+            "Start the installed interactive Control Center after local frontend preparation "
+            "without rerunning the external demo workspace readiness probe."
+        ),
+    )
     parser.add_argument("--preflight-output", type=Path, default=DEFAULT_PREFLIGHT)
     parser.add_argument("--workspace-probe-output", type=Path, default=DEFAULT_WORKSPACE_PROBE)
     parser.add_argument("--draft-probe-output", type=Path, default=DEFAULT_DRAFT_PROBE)
@@ -257,6 +309,33 @@ def main() -> int:
         return 2
     print(f"DEMO_PRIVATE_DOCUMENT_ROOT={private_document_root}")
 
+    if args.preflight_only and args.installed_runtime:
+        print(
+            "DEMO_START_BLOCKED=arguments:--preflight-only and --installed-runtime are mutually exclusive",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        frontend_dist = prepare_frontend(reuse_frontend=args.reuse_frontend)
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+        print(f"DEMO_START_BLOCKED=frontend:{exc}", file=sys.stderr)
+        return 2
+
+    try:
+        _publish_app_info(frontend_dist)
+    except (OSError, RuntimeError, json.JSONDecodeError) as exc:
+        print(f"JAP_APP_INFO=UNAVAILABLE reason={exc}", file=sys.stderr)
+
+    if args.installed_runtime:
+        print("JAP_INSTALLED_RUNTIME=READY_TO_SERVE")
+        print("JAP_INSTALLED_RUNTIME_NETWORK=startup_local_only")
+        print("JAP_INSTALLED_RUNTIME_BOUNDARY=no_auto_submit,no_send,no_startup_provider")
+        run_server(
+            argparse.Namespace(host=args.host, port=args.port, frontend_dist=frontend_dist)
+        )
+        return 0
+
     try:
         preflight_output = _demo_artifact_path(args.preflight_output)
         workspace_probe_output = _demo_artifact_path(args.workspace_probe_output)
@@ -269,17 +348,6 @@ def main() -> int:
     except RuntimeError as exc:
         print(f"DEMO_START_BLOCKED=artifact_path:{exc}", file=sys.stderr)
         return 2
-
-    try:
-        frontend_dist = prepare_frontend(reuse_frontend=args.reuse_frontend)
-    except (RuntimeError, subprocess.CalledProcessError) as exc:
-        print(f"DEMO_START_BLOCKED=frontend:{exc}", file=sys.stderr)
-        return 2
-
-    try:
-        _publish_app_info(frontend_dist)
-    except (OSError, RuntimeError, json.JSONDecodeError) as exc:
-        print(f"JAP_APP_INFO=UNAVAILABLE reason={exc}", file=sys.stderr)
 
     try:
         preflight_code = run_preflight(frontend_dist=frontend_dist, output=preflight_output)

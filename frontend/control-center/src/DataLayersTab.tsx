@@ -233,6 +233,17 @@ export default function DataLayersTab() {
     return () => document.body.classList.remove("data-layers-active");
   }, [active]);
 
+  useEffect(() => {
+    const onNavigationClick = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      const button = target?.closest<HTMLButtonElement>(".ow-sidebar nav button");
+      if (!button || button.closest(".ow-data-layers-nav")) return;
+      setActive(false);
+    };
+    document.addEventListener("click", onNavigationClick);
+    return () => document.removeEventListener("click", onNavigationClick);
+  }, []);
+
   const load = async () => {
     setRefreshing(true);
     try {
