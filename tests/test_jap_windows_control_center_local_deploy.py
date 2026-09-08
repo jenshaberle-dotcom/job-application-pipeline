@@ -32,7 +32,7 @@ def test_local_deploy_is_bound_to_the_existing_jap_warm_runner() -> None:
     assert "Apply-JAP-Control-Center-Update.ps1" in workflow
 
 
-def test_local_runner_stages_latest_direct_update_instead_of_silent_install() -> None:
+def test_local_runner_stages_latest_direct_update_and_auto_applies_when_closed() -> None:
     script = _text(LOCAL_DEPLOY)
     assert 'EXPECTED_REPOSITORY_ID="1230805345"' in script
     assert 'EXPECTED_RUNNER="job-pipeline-runtime-linux"' in script
@@ -44,7 +44,10 @@ def test_local_runner_stages_latest_direct_update_instead_of_silent_install() ->
     assert 'desktop_archive' in script
     assert 'desktop_checksum' in script
     assert 'sha256sum "$ARCHIVE"' in script
-    assert 'JAP_LOCAL_DEPLOY=APPLY' not in script
+    assert 'JAP_LOCAL_DEPLOY=AUTO_APPLY_CLOSED' in script
+    assert 'JAP_LOCAL_DEPLOY=AUTO_APPLY_PASS' in script
+    assert 'JAP_LOCAL_DEPLOY=AWAITING_GUI_CONSENT' in script
+    assert '-HostPid 0' in script
 
 
 def test_local_runner_requires_release_tag_to_point_at_exact_source() -> None:
