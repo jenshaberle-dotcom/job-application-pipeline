@@ -1,8 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$ManifestPath,
-    [Parameter(Mandatory = $true)]
-    [int]$HostPid,
+    [int]$HostPid = 0,
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "JAP-Control-Center")
 )
 
@@ -44,7 +43,7 @@ function Read-Json([string]$Path) {
 }
 
 function Restart-JapIfPresent {
-    if (Get-Process -Id $HostPid -ErrorAction SilentlyContinue) {
+    if ($HostPid -gt 0 -and (Get-Process -Id $HostPid -ErrorAction SilentlyContinue)) {
         return
     }
     if (Test-Path $DesktopHostExe) {
@@ -111,11 +110,13 @@ try {
         throw "Staged desktop host checksum verification failed."
     }
 
-    $hostProcess = Get-Process -Id $HostPid -ErrorAction SilentlyContinue
-    if ($null -ne $hostProcess) {
-        Write-UpdateLog "wait_host_exit" "pid=$HostPid"
-        if (-not $hostProcess.WaitForExit(60000)) {
-            throw "JAP desktop host did not exit within 60 seconds."
+    if ($HostPid -gt 0) {
+        $hostProcess = Get-Process -Id $HostPid -ErrorAction SilentlyContinue
+        if ($null -ne $hostProcess) {
+            Write-UpdateLog "wait_host_exit" "pid=$HostPid"
+            if (-not $hostProcess.WaitForExit(60000)) {
+                throw "JAP desktop host did not exit within 60 seconds."
+            }
         }
     }
 
