@@ -21,6 +21,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
       - name: Resolve immutable desktop host version
         shell: powershell
@@ -71,6 +74,24 @@ jobs:
           $Hash = (Get-FileHash $Icon -Algorithm SHA256).Hash.ToLowerInvariant()
           Write-Host "JAP_DESKTOP_ICON_SHA256=$Hash"
 
+      - name: Build source-bound Control Center frontend
+        shell: powershell
+        working-directory: frontend/control-center
+        run: |
+          npm install --package-lock=false --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw "Frontend dependency installation failed." }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw "Frontend build failed." }
+          if (-not (Test-Path "dist/index.html")) {
+            throw "Frontend build did not produce dist/index.html."
+          }
+          $env:GITHUB_SHA | Set-Content -Encoding ASCII "dist/.jap-source-sha"
+          $Marker = (Get-Content "dist/.jap-source-sha" -Raw).Trim().ToLowerInvariant()
+          if ($Marker -ne $env:GITHUB_SHA.ToLowerInvariant()) {
+            throw "Frontend source marker does not match release source."
+          }
+          Write-Host "JAP_FRONTEND_BUILD_SOURCE=$Marker"
+
       - name: Publish self-contained Windows x64 host
         shell: powershell
         run: |
@@ -83,6 +104,19 @@ jobs:
           if (-not (Test-Path (Join-Path $Out "JAP.ControlCenter.Desktop.exe"))) {
             throw "Desktop host publish did not produce JAP.ControlCenter.Desktop.exe"
           }
+
+          $FrontendSource = (Resolve-Path "frontend/control-center/dist").Path
+          $FrontendOut = Join-Path $Out "frontend-dist"
+          New-Item -ItemType Directory -Force -Path $FrontendOut | Out-Null
+          Get-ChildItem -Force $FrontendSource | Copy-Item -Destination $FrontendOut -Recurse -Force
+          $FrontendMarker = (Get-Content (Join-Path $FrontendOut ".jap-source-sha") -Raw).Trim().ToLowerInvariant()
+          if ($FrontendMarker -ne $env:GITHUB_SHA.ToLowerInvariant()) {
+            throw "Packaged frontend source marker does not match release source."
+          }
+          if (-not (Test-Path (Join-Path $FrontendOut "index.html"))) {
+            throw "Packaged desktop host is missing the prebuilt frontend."
+          }
+
           @{
             schema = "job_application_pipeline.desktop_host_build.v1"
             version = $env:DESKTOP_VERSION
@@ -92,6 +126,8 @@ jobs:
             surface = "webview2-winforms"
             update_policy = "latest_direct"
             compatibility_line = "1"
+            startup_frontend = "prebuilt_source_bound"
+            frontend_source_sha = $env:GITHUB_SHA
           } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $Out "build-info.json")
 
       - name: Package and checksum
@@ -131,6 +167,6 @@ jobs:
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
             --title "JAP Control Center Desktop v$env:DESKTOP_VERSION" `
-            --notes "Immutable self-contained Windows x64 WebView2 host for JAP Control Center. Direct v1 latest-state upgrade. Source: $env:GITHUB_SHA"
+            --notes "Immutable self-contained Windows x64 WebView2 host plus exact source-bound prebuilt Control Center frontend. Direct v1 latest-state upgrade. Source: $env:GITHUB_SHA"
           if ($LASTEXITCODE -ne 0) { throw "Desktop host release creation failed." }
           Write-Host "DESKTOP_HOST_RELEASE=PASS tag=$env:DESKTOP_TAG"
