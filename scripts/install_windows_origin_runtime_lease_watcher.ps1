@@ -23,6 +23,8 @@ $StatePath = Join-Path $DeployRoot "origin-runtime-watcher-state.json"
 $MetadataPath = Join-Path $DeployRoot "installation.json"
 $SchemaVersion = 1
 $AuthRequiredStates = @("NeedsLogin", "NeedsMachineAuth", "NeedsApproval")
+$script:WslCommandSession = $null
+$script:WslCommandSequence = 0
 
 function Ensure-DeployRoot {
     if (-not (Test-Path $DeployRoot)) {
@@ -245,50 +247,184 @@ function Record-RecoveryResult {
     }
 }
 
+function Start-WslCommandSession {
+    if ($script:WslCommandSession -and -not $script:WslCommandSession.HasExited) {
+        return
+    }
+
+    if ($WslDistro -notmatch '^[A-Za-z0-9._-]+$') {
+        throw "Unsafe WSL distro name: $WslDistro"
+    }
+
+    if ($script:WslCommandSession) {
+        try { $script:WslCommandSession.Dispose() } catch {}
+        $script:WslCommandSession = $null
+    }
+
+    $WslExe = Join-Path $env:SystemRoot "System32\wsl.exe"
+    if (-not (Test-Path -LiteralPath $WslExe -PathType Leaf)) {
+        throw "wsl.exe is unavailable: $WslExe"
+    }
+
+    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $StartInfo.FileName = $WslExe
+    $StartInfo.Arguments = '-d "' + $WslDistro + '" -- bash --noprofile --norc'
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $StartInfo.RedirectStandardInput = $true
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $false
+
+    $Process = New-Object System.Diagnostics.Process
+    $Process.StartInfo = $StartInfo
+    if (-not $Process.Start()) {
+        $Process.Dispose()
+        throw "Persistent WSL command session could not be started."
+    }
+
+    $Process.StandardInput.AutoFlush = $true
+    $script:WslCommandSession = $Process
+    Write-TelemetryEvent -Event "persistent_wsl_session_started" -Fields @{
+        wsl_distro = $WslDistro
+        process_id = $Process.Id
+        session_mode = "persistent_single_process"
+    }
+}
+
+function Stop-WslCommandSession {
+    $Process = $script:WslCommandSession
+    $script:WslCommandSession = $null
+
+    if (-not $Process) {
+        return
+    }
+
+    try {
+        if (-not $Process.HasExited) {
+            try {
+                $Process.StandardInput.WriteLine("exit")
+                $Process.StandardInput.Flush()
+                $Process.StandardInput.Close()
+            }
+            catch {}
+
+            if (-not $Process.WaitForExit(2000)) {
+                try { $Process.Kill() } catch {}
+                try { $Process.WaitForExit(2000) | Out-Null } catch {}
+            }
+        }
+    }
+    finally {
+        try { $Process.Dispose() } catch {}
+    }
+}
+
 function Invoke-WslCommand {
     param([Parameter(Mandatory = $true)][string]$Command)
 
-    $PreviousPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
+    $LastFailure = $null
 
-    try {
-        $Output = @(
-            & wsl.exe -d $WslDistro -- bash -lc $Command 2>&1 |
-                ForEach-Object { "$_" }
-        )
-        $ExitCode = $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $PreviousPreference
+    for ($Attempt = 0; $Attempt -lt 2; $Attempt++) {
+        try {
+            Start-WslCommandSession
+            if (-not $script:WslCommandSession -or $script:WslCommandSession.HasExited) {
+                throw "Persistent WSL command session exited before request dispatch."
+            }
+
+            $script:WslCommandSequence += 1
+            $Marker = "__JAP_WSL_COMMAND_{0}_{1}_{2}__" -f `
+                $PID,
+                $script:WslCommandSequence,
+                ([Guid]::NewGuid().ToString("N"))
+            $EncodedCommand = [Convert]::ToBase64String(
+                [System.Text.Encoding]::UTF8.GetBytes($Command)
+            )
+            $RequestLine = (
+                'printf "%s" "{0}" | base64 -d | bash 2>&1; __jap_rc=$?; printf "\n{1}:%s\n" "$__jap_rc"' -f
+                $EncodedCommand,
+                $Marker
+            )
+
+            $script:WslCommandSession.StandardInput.WriteLine($RequestLine)
+            $script:WslCommandSession.StandardInput.Flush()
+
+            $Output = @()
+            $ExitCode = $null
+            $MarkerPattern = '^{0}:(-?[0-9]+)$' -f [regex]::Escape($Marker)
+
+            while ($true) {
+                $Line = $script:WslCommandSession.StandardOutput.ReadLine()
+                if ($null -eq $Line) {
+                    throw "Persistent WSL command session closed stdout before completion marker."
+                }
+
+                if ($Line -match $MarkerPattern) {
+                    $ExitCode = [int]$Matches[1]
+                    break
+                }
+
+                $Output += $Line
+            }
+
+            return [pscustomobject]@{
+                Output = @($Output)
+                ExitCode = $ExitCode
+            }
+        }
+        catch {
+            $LastFailure = $_
+            Stop-WslCommandSession
+        }
     }
 
     return [pscustomobject]@{
-        Output = $Output
-        ExitCode = $ExitCode
+        Output = @("persistent_wsl_session_failed:$($LastFailure.Exception.Message)")
+        ExitCode = 1
+    }
+}
+
+function Invoke-HiddenWslRootServiceAction {
+    param([Parameter(Mandatory = $true)][ValidateSet("start", "restart")][string]$Action)
+
+    if ($WslDistro -notmatch '^[A-Za-z0-9._-]+$') {
+        throw "Unsafe WSL distro name: $WslDistro"
+    }
+
+    $WslExe = Join-Path $env:SystemRoot "System32\wsl.exe"
+    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $StartInfo.FileName = $WslExe
+    $StartInfo.Arguments = '-d "' + $WslDistro + '" -u root -- systemctl ' + $Action + ' tailscaled'
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+
+    $Process = New-Object System.Diagnostics.Process
+    $Process.StartInfo = $StartInfo
+
+    try {
+        if (-not $Process.Start()) {
+            return [pscustomobject]@{ Output = @("wsl_root_start_failed"); ExitCode = 1 }
+        }
+
+        $Stdout = $Process.StandardOutput.ReadToEnd()
+        $Stderr = $Process.StandardError.ReadToEnd()
+        $Process.WaitForExit()
+        $Lines = @()
+        if (-not [string]::IsNullOrWhiteSpace($Stdout)) { $Lines += ($Stdout -split "`r?`n") }
+        if (-not [string]::IsNullOrWhiteSpace($Stderr)) { $Lines += ($Stderr -split "`r?`n") }
+        return [pscustomobject]@{ Output = @($Lines); ExitCode = $Process.ExitCode }
+    }
+    finally {
+        $Process.Dispose()
     }
 }
 
 function Invoke-TailscaledServiceAction {
     param([Parameter(Mandatory = $true)][ValidateSet("start", "restart")][string]$Action)
-
-    $PreviousPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-
-    try {
-        $Output = @(
-            & wsl.exe -d $WslDistro -u root -- systemctl $Action tailscaled 2>&1 |
-                ForEach-Object { "$_" }
-        )
-        $ExitCode = $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $PreviousPreference
-    }
-
-    return [pscustomobject]@{
-        Output = $Output
-        ExitCode = $ExitCode
-    }
+    return (Invoke-HiddenWslRootServiceAction -Action $Action)
 }
 
 function Get-PipelineHead {
@@ -481,6 +617,7 @@ if ($Uninstall) {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
     }
 
+    Stop-WslCommandSession
     Write-Host "runtime_lease_watcher=uninstalled"
     exit 0
 }
@@ -489,7 +626,12 @@ if ($Install) {
     Ensure-DeployRoot
 
     Write-Host "=== 1/5 Pipeline-Stand prüfen ==="
-    $PipelineHead = Get-PipelineHead
+    try {
+        $PipelineHead = Get-PipelineHead
+    }
+    finally {
+        Stop-WslCommandSession
+    }
 
     if ($ExpectedPipelineSha -and $PipelineHead -ne $ExpectedPipelineSha) {
         throw "Falscher Pipeline-Stand: $PipelineHead; erwartet: $ExpectedPipelineSha"
@@ -524,7 +666,9 @@ if ($Install) {
     try {
         $OnceOutput = @(
             & $PowerShellExe `
+                -NoLogo `
                 -NoProfile `
+                -NonInteractive `
                 -ExecutionPolicy Bypass `
                 -File $CandidateScript `
                 -Once `
@@ -570,6 +714,7 @@ if ($Install) {
             pipeline_head = $PipelineHead
             wsl_distro = $WslDistro
             installed_script = $InstalledScript
+            wsl_session_mode = "persistent_single_process"
         })
 
         $CurrentIdentity = (
@@ -577,7 +722,7 @@ if ($Install) {
         )
 
         $ActionArguments = (
-            '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -WslDistro "{1}"' -f
+            '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -WslDistro "{1}"' -f
             $InstalledScript,
             $WslDistro
         )
@@ -608,7 +753,7 @@ if ($Install) {
             -Trigger $Trigger `
             -Principal $Principal `
             -Settings $Settings `
-            -Description "Hält Windows nur während einer aktiven Origin-Runtime-Lease wach, protokolliert beobachtete Wachzeit und repariert begrenzt den lokalen Tailscale-Dienst."
+            -Description "Hält Windows nur während einer aktiven Origin-Runtime-Lease wach; WSL-Probes laufen über eine persistente, fensterlose Session."
 
         Register-ScheduledTask `
             -TaskName $TaskName `
@@ -640,7 +785,7 @@ if ($Install) {
                 [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
             )
             $RollbackArguments = (
-                '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f
+                '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f
                 $InstalledScript
             )
             $RollbackAction = New-ScheduledTaskAction `
@@ -687,6 +832,7 @@ if ($Install) {
     Write-Host "watcher_log=$LogPath"
     Write-Host "telemetry_output=$TelemetryPath"
     Write-Host "telemetry_state=$StatePath"
+    Write-Host "wsl_session_mode=persistent_single_process"
     Write-Host "windows_python_required=false"
     Write-Host "copied_database_env=false"
     Write-Host "runtime_lease_setup=complete"
@@ -723,6 +869,7 @@ Write-TelemetryEvent -Event "watcher_started" -Fields @{
     recovery_failures = $RecoveryFailures
     recovery_cooldown_seconds = $RecoveryCooldownSeconds
     recovery_max_per_hour = $RecoveryMaxPerHour
+    wsl_session_mode = "persistent_single_process"
 }
 
 function Set-WindowsAwake {
@@ -831,8 +978,10 @@ finally {
         Write-WatcherLog "origin_runtime_windows_wake_lock=released_on_exit"
     }
 
+    Stop-WslCommandSession
     Write-JsonAtomically -Path $StatePath -Value $WatcherState
     Write-TelemetryEvent -Event "watcher_stopped" -Fields @{
         wake_lock_was_active = $WakeLockActive
+        wsl_session_mode = "persistent_single_process"
     }
 }
