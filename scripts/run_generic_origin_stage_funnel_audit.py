@@ -9,8 +9,12 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.connectors.base import RawJobRecord
 from src.connectors.employer_origin_acquisition import AcquiredJobPage
 from src.connectors.generic_employer_origin import GenericOriginSource, _record
+from src.connectors.generic_job_detail_evidence import (
+    project_detail_evidence_into_raw_data,
+)
 from src.ingestion.generic_origin_bronze_admission import (
     admit_generic_origin_bronze_record,
     evaluate_generic_origin_bronze_record,
@@ -79,7 +83,7 @@ def _term_for_job(source: dict, final_url: str) -> str:
     return ""
 
 
-def _raw_jobs(search_payload: dict) -> list[tuple[dict, object]]:
+def _raw_jobs(search_payload: dict) -> list[tuple[dict, RawJobRecord]]:
     proven_sources = [
         source
         for source in search_payload.get("sources") or []
@@ -87,7 +91,7 @@ def _raw_jobs(search_payload: dict) -> list[tuple[dict, object]]:
     ]
     candidate_ids = [int(source["candidate_id"]) for source in proven_sources]
     company_names = _load_company_names(candidate_ids)
-    rows: list[tuple[dict, object]] = []
+    rows: list[tuple[dict, RawJobRecord]] = []
     synthetic_id = 1
 
     for source in proven_sources:
@@ -104,9 +108,21 @@ def _raw_jobs(search_payload: dict) -> list[tuple[dict, object]]:
         for item in source.get("jobs") or []:
             if not isinstance(item, dict):
                 continue
-            job = AcquiredJobPage(**item)
+            job_payload = dict(item)
+            detail_evidence = job_payload.pop("detail_evidence", None)
+            job = AcquiredJobPage(**job_payload)
             term = _term_for_job(source, job.final_url)
-            record = _record(source_name, generic_source, job, term)
+            base_record = _record(source_name, generic_source, job, term)
+            projected_raw_data = project_detail_evidence_into_raw_data(
+                base_record.raw_data,
+                detail_evidence if isinstance(detail_evidence, dict) else None,
+            )
+            record = RawJobRecord(
+                source_name=base_record.source_name,
+                source_url=base_record.source_url,
+                external_job_id=base_record.external_job_id,
+                raw_data=projected_raw_data,
+            )
             rows.append(
                 (
                     {
@@ -138,8 +154,28 @@ def main(argv: list[str] | None = None) -> int:
     silver_relevant_if_selected_count = 0
     silver_transformed_if_selected_count = 0
     actual_current_path_silver_count = 0
+    detail_evidence_count = 0
+    structured_jobposting_count = 0
+    description_evidence_count = 0
+    location_evidence_count = 0
+    remote_evidence_count = 0
 
     for raw_job, record in rows:
+        detail_evidence = raw_job.get("raw_data", {}).get("detail_evidence")
+        if isinstance(detail_evidence, dict):
+            if detail_evidence.get("methods"):
+                detail_evidence_count += 1
+            if detail_evidence.get("structured_jobposting_found") is True:
+                structured_jobposting_count += 1
+            if detail_evidence.get("description_excerpt"):
+                description_evidence_count += 1
+            if detail_evidence.get("locations") or detail_evidence.get(
+                "applicant_locations"
+            ):
+                location_evidence_count += 1
+            if detail_evidence.get("remote") is not None:
+                remote_evidence_count += 1
+
         bronze_decision = evaluate_generic_origin_bronze_record(record)
         for failure in bronze_decision.failures:
             bronze_failures[failure] += 1
@@ -189,6 +225,29 @@ def main(argv: list[str] | None = None) -> int:
                 "source_name": record.source_name,
                 "source_url": record.source_url,
                 "title": raw_job.get("raw_data", {}).get("job", {}).get("title"),
+                "detail_evidence": {
+                    "present": isinstance(detail_evidence, dict)
+                    and bool(detail_evidence.get("methods")),
+                    "structured_jobposting": isinstance(detail_evidence, dict)
+                    and detail_evidence.get("structured_jobposting_found") is True,
+                    "description": isinstance(detail_evidence, dict)
+                    and bool(detail_evidence.get("description_excerpt")),
+                    "location": isinstance(detail_evidence, dict)
+                    and bool(
+                        detail_evidence.get("locations")
+                        or detail_evidence.get("applicant_locations")
+                    ),
+                    "remote": (
+                        detail_evidence.get("remote")
+                        if isinstance(detail_evidence, dict)
+                        else None
+                    ),
+                    "methods": (
+                        detail_evidence.get("methods")
+                        if isinstance(detail_evidence, dict)
+                        else []
+                    ),
+                },
                 "bronze": {
                     "passed": bronze_decision.passed,
                     "failures": list(bronze_decision.failures),
@@ -224,6 +283,11 @@ def main(argv: list[str] | None = None) -> int:
         "status": "generic_origin_stage_funnel_audit",
         "summary": {
             "search_query_proven_job_count": len(rows),
+            "detail_evidence_job_count": detail_evidence_count,
+            "structured_jobposting_job_count": structured_jobposting_count,
+            "description_evidence_job_count": description_evidence_count,
+            "location_evidence_job_count": location_evidence_count,
+            "remote_evidence_job_count": remote_evidence_count,
             "bronze_admitted_count": bronze_pass_count,
             "bronze_rejected_count": len(rows) - bronze_pass_count,
             "silver_default_selector_count": silver_default_selected_count,
@@ -249,6 +313,10 @@ def main(argv: list[str] | None = None) -> int:
             "production_gate_functions_reused": True,
             "special_company_allowlist": False,
             "gate_semantics_changed": False,
+            "generic_detail_evidence_projected": True,
+            "detail_extraction_local_oss_only": True,
+            "external_extraction_provider": False,
+            "raw_html_persisted": False,
             "downstream_gold_and_cc_not_faked": True,
             "downstream_reason": (
                 "Gold/Product/CC are not evaluated until records actually pass the "
@@ -263,6 +331,11 @@ def main(argv: list[str] | None = None) -> int:
 
     summary = payload["summary"]
     print(f"FUNNEL_SEARCH_QUERY_PROVEN={summary['search_query_proven_job_count']}")
+    print(f"FUNNEL_DETAIL_EVIDENCE={summary['detail_evidence_job_count']}")
+    print(f"FUNNEL_DETAIL_STRUCTURED={summary['structured_jobposting_job_count']}")
+    print(f"FUNNEL_DETAIL_DESCRIPTION={summary['description_evidence_job_count']}")
+    print(f"FUNNEL_DETAIL_LOCATION={summary['location_evidence_job_count']}")
+    print(f"FUNNEL_DETAIL_REMOTE={summary['remote_evidence_job_count']}")
     print(f"FUNNEL_BRONZE_ADMITTED={summary['bronze_admitted_count']}")
     print(f"FUNNEL_BRONZE_REJECTED={summary['bronze_rejected_count']}")
     print(f"FUNNEL_SILVER_DEFAULT_SELECTED={summary['silver_default_selector_count']}")
