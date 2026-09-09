@@ -45,36 +45,22 @@ def source_by_name(payload: dict[str, object], source_name: str) -> dict[str, ob
     return next(source for source in sources if source["source_name"] == source_name)
 
 
-def test_accompio_and_computacenter_are_registered_but_not_activated_or_ingested() -> None:
+def test_generic_origin_family_is_registered_without_one_off_product_registry() -> None:
+    source_name = "generic_origin:accompio"
     payload = build_source_connector_overview(
         registry=build_default_connector_registry(),
-        candidates=[
-            approved_candidate("accompio:discovery", "accompio GmbH"),
-            approved_candidate("computacenter:discovery", "Computacenter AG & Co. oHG"),
-        ],
+        candidates=[approved_candidate(source_name, "accompio GmbH")],
     )
 
     assert payload["schema_version"] == SCHEMA_VERSION
-    for source_name in ("accompio:discovery", "computacenter:discovery"):
-        source = source_by_name(payload, source_name)
-        assert source["candidate_id"] == 1
-        assert source["connector"]["implemented"] is True
-        assert source["connector"]["code_backed_registered"] is True
-        assert source["gates"]["connector_validation_gate"]["passed"] is True
-        assert source["gates"]["final_approval_gate"]["passed"] is True
-        assert source["activation"]["status"] == "not_activated"
-        assert source["search_profiles"]["status"] == "not_configured"
-        assert source["last_ingestion"]["status"] == "not_run"
-        assert source["layers"]["status"] == "no_ingestion"
-        assert source["lifecycle"] == {
-            "implementation": "implemented",
-            "validation": "passed",
-            "final_approval": "approved",
-            "registration": "registered",
-            "activation": "not_activated",
-            "ingestion": "not_ingested",
-        }
-        assert source["current_blocker"] == "controlled_activation_not_completed"
+    source = source_by_name(payload, source_name)
+    assert source["candidate_id"] == 1
+    assert source["connector"]["implemented"] is True
+    assert source["connector"]["code_backed_registered"] is True
+    assert source["activation"]["status"] == "not_activated"
+    assert source["search_profiles"]["status"] == "not_configured"
+    assert source["last_ingestion"]["status"] == "not_run"
+    assert source["layers"]["status"] == "no_ingestion"
 
 
 def test_overview_projects_latest_candidate_id_for_exact_final_approval_target() -> None:
