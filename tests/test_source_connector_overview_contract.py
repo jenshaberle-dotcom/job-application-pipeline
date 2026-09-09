@@ -37,6 +37,9 @@ def test_product_payload_embeds_read_only_source_connector_overview() -> None:
         "registration_is_not_activation": True,
         "sensor_gates_are_role_specific": True,
         "historical_layers_are_not_live_sensor_health": True,
+        "generic_origin_source_validity_gate": "proof=PASS",
+        "generic_origin_final_approval_gate": "retired",
+        "generic_origin_job_admission_is_separate": True,
     }
 
 
