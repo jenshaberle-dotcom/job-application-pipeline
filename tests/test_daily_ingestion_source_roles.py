@@ -1,3 +1,5 @@
+import pytest
+
 from src.connectors.base import SearchProfile
 from src.connectors.registry import SourceRole, source_role
 from src.ingest_jobs import select_profiles
@@ -35,31 +37,37 @@ class FakeRepository:
         return set(self._recurring_names)
 
 
-def test_default_registry_separates_sensors_from_employer_origin() -> None:
+def test_default_registry_separates_sensors_from_generic_employer_origin() -> None:
     assert source_role("bundesagentur_fuer_arbeit") == SourceRole.SENSOR
     assert source_role("stepstone") == SourceRole.SENSOR
+    assert source_role("generic_origin:finanz_informatik") == SourceRole.EMPLOYER_ORIGIN
+    assert source_role("generic_origin:example") == SourceRole.EMPLOYER_ORIGIN
 
-    assert source_role("greenhouse:stripe") == SourceRole.EMPLOYER_ORIGIN
-    assert source_role("personio:example") == SourceRole.EMPLOYER_ORIGIN
-    assert source_role("successfactors:example") == SourceRole.EMPLOYER_ORIGIN
-    assert source_role("finanz_informatik:hannover") == SourceRole.EMPLOYER_ORIGIN
-    assert source_role("hdi:hannover") == SourceRole.EMPLOYER_ORIGIN
-    assert source_role("enercity:discovery") == SourceRole.EMPLOYER_ORIGIN
-    assert source_role("computacenter:discovery") == SourceRole.EMPLOYER_ORIGIN
-    assert source_role("accompio:discovery") == SourceRole.EMPLOYER_ORIGIN
+    for retired_product_source in (
+        "greenhouse:stripe",
+        "personio:example",
+        "successfactors:example",
+        "finanz_informatik:hannover",
+        "hdi:hannover",
+        "enercity:discovery",
+        "computacenter:discovery",
+        "accompio:discovery",
+    ):
+        with pytest.raises(ValueError):
+            source_role(retired_product_source)
 
 
-def test_role_selection_uses_only_recurring_enabled_profiles() -> None:
+def test_role_selection_uses_only_recurring_enabled_generic_profiles() -> None:
     profiles = [
         _profile(1, "ba", "bundesagentur_fuer_arbeit"),
         _profile(2, "stepstone", "stepstone"),
-        _profile(3, "fi", "finanz_informatik:hannover"),
-        _profile(4, "personio", "personio:example"),
-        _profile(5, "computacenter_controlled", "computacenter:discovery"),
+        _profile(3, "fi", "generic_origin:finanz_informatik"),
+        _profile(4, "madsack", "generic_origin:madsack"),
+        _profile(5, "computacenter_controlled", "generic_origin:computacenter"),
     ]
     repository = FakeRepository(
         profiles,
-        recurring_names={"ba", "stepstone", "fi", "personio"},
+        recurring_names={"ba", "stepstone", "fi", "madsack"},
     )
 
     sensors = select_profiles(
@@ -76,11 +84,15 @@ def test_role_selection_uses_only_recurring_enabled_profiles() -> None:
     )
 
     assert [profile.profile_name for profile in sensors] == ["ba", "stepstone"]
-    assert [profile.profile_name for profile in origins] == ["fi", "personio"]
+    assert [profile.profile_name for profile in origins] == ["fi", "madsack"]
 
 
 def test_exact_profile_execution_still_bypasses_recurring_role_selection() -> None:
-    controlled = _profile(5, "computacenter_controlled", "computacenter:discovery")
+    controlled = _profile(
+        5,
+        "computacenter_controlled",
+        "generic_origin:computacenter",
+    )
     repository = FakeRepository([controlled], recurring_names=set())
 
     selected = select_profiles(
