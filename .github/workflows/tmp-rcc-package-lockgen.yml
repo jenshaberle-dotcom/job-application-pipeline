@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check 'pip-tools==7.5.2'
+          python -m pip install --disable-pip-version-check 'pip==25.3' 'pip-tools==7.5.2'
           python -m piptools compile requirements-dev.txt \
             --generate-hashes \
             --no-header \
