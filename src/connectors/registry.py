@@ -6,6 +6,9 @@ from typing import Protocol
 
 from src.connectors.base import JobSourceConnector
 from src.connectors.bundesagentur import BundesagenturConnector
+from src.connectors.generic_employer_origin_product import (
+    GenericEmployerOriginProductConnector,
+)
 from src.connectors.greenhouse import GreenhouseConnector
 from src.connectors.personio import PersonioConnector
 from src.connectors.stepstone import StepStoneConnector
@@ -20,8 +23,8 @@ class SourceRole(StrEnum):
     """Operational role of one registered acquisition source.
 
     Sensors discover or observe the market but are not employer-origin activity
-    authority. Employer-origin sources are the only connector role allowed to
-    establish authoritative positive job freshness through normal ingestion.
+    authority. Employer-origin sources are admitted only through the canonical
+    generic layer product and its ``generic_origin:<company_key>`` family.
     """
 
     SENSOR = "sensor"
@@ -32,14 +35,10 @@ class SourceRole(StrEnum):
 class ConnectorRegistry:
     """Code-backed connector registry for ingestion-time connector creation.
 
-    The registry keeps CLI/runner connector lookup separate from source activation.
-    Registering a connector factory here only teaches the ingestion code how to
-    instantiate a connector for a source name. A source still needs an active DB
-    search profile before ingestion can run and write Bronze rows.
-
-    Source role is separate metadata on the same registration. This keeps sensor
-    and employer-origin failure domains explicit without maintaining a second
-    company/source allowlist in the scheduler.
+    Registration and source activation remain separate. The default product
+    registry intentionally exposes one Employer-Origin family only:
+    ``generic_origin``. Provider-specific connectors remain reusable capability
+    implementations but are not alternate product-admission truths.
     """
 
     exact_factories: dict[str, ConnectorFactory] = field(default_factory=dict)
@@ -148,6 +147,7 @@ def source_target(source_name: str) -> str:
 
 
 def bundesagentur_factory(source_name: str) -> JobSourceConnector:
+    del source_name
     return BundesagenturConnector()
 
 
@@ -160,11 +160,19 @@ def personio_factory(source_name: str) -> JobSourceConnector:
 
 
 def stepstone_factory(source_name: str) -> JobSourceConnector:
+    del source_name
     return StepStoneConnector()
 
 
 def successfactors_factory(source_name: str) -> JobSourceConnector:
     return SuccessFactorsConnector(target_key=source_target(source_name))
+
+
+def generic_origin_factory(source_name: str) -> JobSourceConnector:
+    return GenericEmployerOriginProductConnector(
+        company_key=source_target(source_name),
+        source_name=source_name,
+    )
 
 
 def build_default_connector_registry() -> ConnectorRegistry:
@@ -174,30 +182,16 @@ def build_default_connector_registry() -> ConnectorRegistry:
         bundesagentur_factory,
         role=SourceRole.SENSOR,
     )
-    registry.register_family(
-        "greenhouse",
-        greenhouse_factory,
-        role=SourceRole.EMPLOYER_ORIGIN,
-    )
-    registry.register_family(
-        "personio",
-        personio_factory,
-        role=SourceRole.EMPLOYER_ORIGIN,
-    )
     registry.register_exact(
         "stepstone",
         stepstone_factory,
         role=SourceRole.SENSOR,
     )
     registry.register_family(
-        "successfactors",
-        successfactors_factory,
+        "generic_origin",
+        generic_origin_factory,
         role=SourceRole.EMPLOYER_ORIGIN,
     )
-
-    from src.connectors.employer_origin_registry import register_employer_origin_connectors
-
-    register_employer_origin_connectors(registry)
     return registry
 
 

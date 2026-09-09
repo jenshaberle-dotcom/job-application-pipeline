@@ -1,4 +1,5 @@
 from src.connectors.base import SearchProfile
+from src.connectors.generic_employer_origin import GenericEmployerOriginConnector
 from src.ingest_jobs import create_connector, select_profiles, source_matches
 
 
@@ -23,15 +24,15 @@ def test_source_matches_exact_source_name() -> None:
 
 def test_source_matches_source_family_for_colon_separated_targets() -> None:
     assert source_matches(
-        source_name="greenhouse:stripe",
-        source_filter="greenhouse",
+        source_name="generic_origin:stripe",
+        source_filter="generic_origin",
     )
 
 
 def test_source_does_not_match_partial_prefix() -> None:
     assert not source_matches(
-        source_name="greenhouse_custom:stripe",
-        source_filter="greenhouse",
+        source_name="generic_origin_custom:stripe",
+        source_filter="generic_origin",
     )
 
 
@@ -40,7 +41,7 @@ def test_select_profiles_without_filter_returns_all_active_profiles() -> None:
         def load_active_search_profiles(self):
             return [
                 make_profile("ba_data_engineer_30629_50km", "bundesagentur_fuer_arbeit"),
-                make_profile("greenhouse_stripe", "greenhouse:stripe"),
+                make_profile("generic_stripe", "generic_origin:stripe"),
             ]
 
     selected = select_profiles(
@@ -51,7 +52,7 @@ def test_select_profiles_without_filter_returns_all_active_profiles() -> None:
 
     assert [profile.profile_name for profile in selected] == [
         "ba_data_engineer_30629_50km",
-        "greenhouse_stripe",
+        "generic_stripe",
     ]
 
 
@@ -60,16 +61,16 @@ def test_select_profiles_by_source_family() -> None:
         def load_active_search_profiles(self):
             return [
                 make_profile("ba_data_engineer_30629_50km", "bundesagentur_fuer_arbeit"),
-                make_profile("greenhouse_stripe", "greenhouse:stripe"),
+                make_profile("generic_stripe", "generic_origin:stripe"),
             ]
 
     selected = select_profiles(
         repository=FakeRepository(),
         profile_name=None,
-        source_filter="greenhouse",
+        source_filter="generic_origin",
     )
 
-    assert [profile.profile_name for profile in selected] == ["greenhouse_stripe"]
+    assert [profile.profile_name for profile in selected] == ["generic_stripe"]
 
 
 def test_select_profiles_by_exact_profile_name() -> None:
@@ -77,7 +78,7 @@ def test_select_profiles_by_exact_profile_name() -> None:
         def load_active_search_profiles(self):
             return [
                 make_profile("ba_data_engineer_30629_50km", "bundesagentur_fuer_arbeit"),
-                make_profile("greenhouse_stripe", "greenhouse:stripe"),
+                make_profile("generic_stripe", "generic_origin:stripe"),
             ]
 
     selected = select_profiles(
@@ -96,7 +97,7 @@ def test_select_profiles_unknown_profile_lists_available_profiles() -> None:
         def load_active_search_profiles(self):
             return [
                 make_profile("ba_data_engineer_30629_50km", "bundesagentur_fuer_arbeit"),
-                make_profile("greenhouse_stripe", "greenhouse:stripe"),
+                make_profile("generic_stripe", "generic_origin:stripe"),
             ]
 
     try:
@@ -114,7 +115,7 @@ def test_select_profiles_unknown_profile_lists_available_profiles() -> None:
     assert "Available active profiles:" in message
     assert "ba_data_engineer_30629_50km" in message
     assert "Available source filters:" in message
-    assert "greenhouse" in message
+    assert "generic_origin" in message
 
 
 def test_select_profiles_unknown_source_lists_available_source_filters() -> None:
@@ -122,8 +123,8 @@ def test_select_profiles_unknown_source_lists_available_source_filters() -> None
         def load_active_search_profiles(self):
             return [
                 make_profile("ba_data_engineer_30629_50km", "bundesagentur_fuer_arbeit"),
-                make_profile("greenhouse_stripe", "greenhouse:stripe"),
-                make_profile("personio_eraneos_data_engineer_remote", "personio:eraneos"),
+                make_profile("generic_stripe", "generic_origin:stripe"),
+                make_profile("generic_eraneos", "generic_origin:eraneos"),
             ]
 
     try:
@@ -142,8 +143,7 @@ def test_select_profiles_unknown_source_lists_available_source_filters() -> None
         in message
     )
     assert "Available source filters:" in message
-    assert "personio" in message
-    assert "greenhouse" in message
+    assert "generic_origin" in message
 
 
 def test_build_parser_accepts_log_level() -> None:
@@ -158,7 +158,9 @@ def test_build_parser_accepts_log_level() -> None:
     assert args.log_level == "DEBUG"
 
 
-def test_create_connector_supports_finanz_informatik_hannover() -> None:
-    connector = create_connector("finanz_informatik:hannover")
+def test_create_connector_supports_generic_employer_origin() -> None:
+    connector = create_connector("generic_origin:finanz_informatik")
 
-    assert connector.source_name == "finanz_informatik:hannover"
+    assert isinstance(connector, GenericEmployerOriginConnector)
+    assert connector.source_name == "generic_origin:finanz_informatik"
+    assert connector.company_key == "finanz_informatik"

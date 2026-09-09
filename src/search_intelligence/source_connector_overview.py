@@ -6,6 +6,7 @@ from typing import Any, Protocol
 
 
 SCHEMA_VERSION = "pipeline.source_connector_overview.v2"
+GENERIC_SOURCE_PREFIX = "generic_origin:"
 
 
 class ConnectorRegistryLike(Protocol):
@@ -85,13 +86,36 @@ def _gate(
     }
 
 
-def _not_applicable_gate() -> dict[str, Any]:
+def _not_applicable_gate(*, truth_source: str = "connector_registry.source_role") -> dict[str, Any]:
     return {
         "status": "not_applicable",
         "decision": None,
         "passed": True,
         "required": False,
-        "truth_source": "connector_registry.source_role",
+        "truth_source": truth_source,
+    }
+
+
+def _generic_proof_gate(
+    profile: Mapping[str, Any] | None,
+    *,
+    truth_available: bool,
+) -> dict[str, Any]:
+    if not truth_available:
+        return {
+            "status": "unknown",
+            "decision": None,
+            "passed": False,
+            "required": True,
+            "truth_source": "generic_origin_activation_projection",
+        }
+    active = _count(profile, "active_profile_count") > 0
+    return {
+        "status": "passed" if active else "not_materialized",
+        "decision": "proof_pass_source_admission" if active else None,
+        "passed": active,
+        "required": True,
+        "truth_source": "generic_origin_activation_projection",
     }
 
 
@@ -127,7 +151,8 @@ def _registration(registry: ConnectorRegistryLike, source_name: str) -> dict[str
 def _profile_status(profile: Mapping[str, Any] | None, available: bool) -> str:
     if not available:
         return "unknown"
-    total, active = _count(profile, "profile_count"), _count(profile, "active_profile_count")
+    total = _count(profile, "profile_count")
+    active = _count(profile, "active_profile_count")
     if total == 0:
         return "not_configured"
     if active == 0:
@@ -227,17 +252,23 @@ def _issues(
     silver_available: bool,
     *,
     source_role: str,
+    source_name: str,
     run_health: Mapping[str, Any],
 ) -> list[str]:
     issues: list[str] = []
     origin_gates_required = source_role != "sensor"
+    generic_origin = source_name.startswith(GENERIC_SOURCE_PREFIX)
     if registration_status == "registration_error":
         issues.append("connector_registry_factory_error")
     if activated and not registered:
         issues.append("active_source_without_code_backed_registration")
     if origin_gates_required and activated and not validation["passed"]:
-        issues.append("active_source_without_proven_validation_gate")
-    if origin_gates_required and activated and not approval["passed"]:
+        issues.append(
+            "active_generic_source_without_proof_projection"
+            if generic_origin
+            else "active_source_without_proven_validation_gate"
+        )
+    if origin_gates_required and approval.get("required") and activated and not approval["passed"]:
         issues.append("active_source_without_proven_final_approval")
     if candidate_status == "active_controlled" and activated is False:
         issues.append("candidate_marked_active_without_active_search_profile")
@@ -267,26 +298,41 @@ def _next_action(
     issues: Sequence[str],
     *,
     source_role: str,
+    source_name: str,
 ) -> tuple[str | None, str]:
     if issues:
         issue_actions = {
-            "market_sensor_latest_run_failed": "Run a bounded live sensor probe and resolve the latest ingestion failure",
-            "market_sensor_run_health_unknown": "Inspect the latest sensor run status before trusting market coverage",
-            "market_sensor_run_evidence_missing": "Restore sensor run evidence before trusting historical layer rows",
+            "market_sensor_latest_run_failed": (
+                "Run a bounded live sensor probe and resolve the latest ingestion failure"
+            ),
+            "market_sensor_run_health_unknown": (
+                "Inspect the latest sensor run status before trusting market coverage"
+            ),
+            "market_sensor_run_evidence_missing": (
+                "Restore sensor run evidence before trusting historical layer rows"
+            ),
+            "active_generic_source_without_proof_projection": (
+                "Repair the generic proof-pass activation projection"
+            ),
         }
         return issues[0], issue_actions.get(
             issues[0], "Resolve lifecycle truth inconsistency"
         )
     origin_gates_required = source_role != "sensor"
+    generic_origin = source_name.startswith(GENERIC_SOURCE_PREFIX)
     stages = (
         (not implemented, "connector_not_implemented", "Implement the connector"),
         (
             origin_gates_required and not validation["passed"],
-            "connector_validation_incomplete",
-            "Complete the connector validation gate",
+            "generic_proof_not_materialized" if generic_origin else "connector_validation_incomplete",
+            (
+                "Materialize current generic proof=PASS source admission"
+                if generic_origin
+                else "Complete the connector validation gate"
+            ),
         ),
         (
-            origin_gates_required and not approval["passed"],
+            origin_gates_required and approval.get("required") and not approval["passed"],
             "final_approval_incomplete",
             "Complete the final approval gate",
         ),
@@ -309,7 +355,11 @@ def _next_action(
         (
             bronze == 0 and silver == 0,
             "no_persisted_ingestion",
-            "Run separately approved bounded ingestion",
+            (
+                "Observe the active source; zero current Bronze-ready jobs is valid"
+                if generic_origin
+                else "Run separately approved bounded ingestion"
+            ),
         ),
         (
             bronze > 0 and silver == 0,
@@ -353,6 +403,9 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "registration_is_not_activation": True,
             "sensor_gates_are_role_specific": True,
             "historical_layers_are_not_live_sensor_health": True,
+            "generic_origin_source_validity_gate": "proof=PASS",
+            "generic_origin_final_approval_gate": "retired",
+            "generic_origin_job_admission_is_separate": True,
         },
     }
 
@@ -381,7 +434,12 @@ def build_source_connector_overview(
     runs_by_source = _by_source(ingestion_runs)
     layers_by_source = _by_source(layer_presence)
     source_names = set(getattr(registry, "exact_factories", {}).keys())
-    for rows in (candidates_by_source, profiles_by_source, runs_by_source, layers_by_source):
+    for rows in (
+        candidates_by_source,
+        profiles_by_source,
+        runs_by_source,
+        layers_by_source,
+    ):
         source_names.update(rows)
 
     sources: list[dict[str, Any]] = []
@@ -392,6 +450,11 @@ def build_source_connector_overview(
         layers = layers_by_source.get(source_name)
         source_role = _source_role(registry, source_name)
         registration = _registration(registry, source_name)
+        profile_count = _count(profile, "profile_count")
+        active_count = _count(profile, "active_profile_count")
+        activated = active_count > 0 if availability["search_profiles"] else None
+        generic_origin = source_name.startswith(GENERIC_SOURCE_PREFIX)
+
         probed = (
             implementation_probe(candidate)
             if implementation_probe and candidate is not None
@@ -401,6 +464,14 @@ def build_source_connector_overview(
         if source_role == "sensor":
             validation = _not_applicable_gate()
             approval = _not_applicable_gate()
+        elif generic_origin:
+            validation = _generic_proof_gate(
+                profile,
+                truth_available=availability["search_profiles"],
+            )
+            approval = _not_applicable_gate(
+                truth_source="retired_by_generic_evidence_driven_layer_model"
+            )
         else:
             validation = _gate(candidate, "connector_validation_gate")
             approval = _gate(
@@ -408,10 +479,9 @@ def build_source_connector_overview(
                 "final_approval_gate",
                 "approve_connector_registration",
             )
-        profile_count = _count(profile, "profile_count")
-        active_count = _count(profile, "active_profile_count")
-        activated = active_count > 0 if availability["search_profiles"] else None
-        bronze, silver = _count(layers, "bronze_count"), _count(layers, "silver_count")
+
+        bronze = _count(layers, "bronze_count")
+        silver = _count(layers, "silver_count")
         observed_rows = (availability["raw_jobs"] and bronze > 0) or (
             availability["silver_jobs"] and silver > 0
         )
@@ -441,6 +511,7 @@ def build_source_connector_overview(
             availability["raw_jobs"],
             availability["silver_jobs"],
             source_role=source_role,
+            source_name=source_name,
             run_health=run_health,
         )
         blocker, next_action = _next_action(
@@ -454,10 +525,17 @@ def build_source_connector_overview(
             silver,
             issues,
             source_role=source_role,
+            source_name=source_name,
         )
         company_name = str(_get(candidate, "company_name") or "").strip()
         source_type = str(_get(candidate, "source_type") or "").strip() or (
-            "market_sensor" if source_role == "sensor" else "unknown"
+            "market_sensor"
+            if source_role == "sensor"
+            else (
+                "employer_origin_career_site"
+                if generic_origin
+                else "unknown"
+            )
         )
         sources.append(
             {
@@ -484,6 +562,7 @@ def build_source_connector_overview(
                     "registration_error": registration["error"],
                 },
                 "gates": {
+                    "source_admission_gate": validation,
                     "connector_validation_gate": validation,
                     "final_approval_gate": approval,
                 },
@@ -501,7 +580,9 @@ def build_source_connector_overview(
                     "status": _profile_status(profile, availability["search_profiles"]),
                     "profile_count": profile_count,
                     "active_profile_count": active_count,
-                    "active_search_term_count": _count(profile, "active_search_term_count"),
+                    "active_search_term_count": _count(
+                        profile, "active_search_term_count"
+                    ),
                     "truth_source": "search_profiles/search_terms",
                     "truth_available": availability["search_profiles"],
                 },
@@ -531,9 +612,13 @@ def build_source_connector_overview(
                         availability["raw_jobs"],
                         availability["silver_jobs"],
                     ),
-                    "bronze_present": bronze > 0 if availability["raw_jobs"] else None,
+                    "bronze_present": (
+                        bronze > 0 if availability["raw_jobs"] else None
+                    ),
                     "bronze_count": bronze,
-                    "silver_present": silver > 0 if availability["silver_jobs"] else None,
+                    "silver_present": (
+                        silver > 0 if availability["silver_jobs"] else None
+                    ),
                     "silver_count": silver,
                     "truth_source": "raw_jobs/silver_jobs",
                     "bronze_truth_available": availability["raw_jobs"],
@@ -569,7 +654,9 @@ def build_source_connector_overview(
         "employer_origin_count": count_where(
             lambda s: s["source_role"] == "employer_origin"
         ),
-        "implemented_count": count_where(lambda s: bool(s["connector"]["implemented"])),
+        "implemented_count": count_where(
+            lambda s: bool(s["connector"]["implemented"])
+        ),
         "validated_count": count_where(
             lambda s: bool(s["gates"]["connector_validation_gate"]["required"])
             and bool(s["gates"]["connector_validation_gate"]["passed"])
@@ -586,7 +673,9 @@ def build_source_connector_overview(
             lambda s: s["layers"]["bronze_present"] is True
             or s["layers"]["silver_present"] is True
         ),
-        "attention_count": count_where(lambda s: s["current_blocker"] is not None),
+        "attention_count": count_where(
+            lambda s: s["current_blocker"] is not None
+        ),
     }
     payload["sources"] = sources
     return payload

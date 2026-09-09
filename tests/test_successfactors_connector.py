@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from scripts.run_successfactors_connector_preview import build_preview_payload
 from src.connectors.base import SearchProfile, SearchTerm
-from src.connectors.registry import create_connector
+from src.connectors.registry import ConnectorRegistry, successfactors_factory
 from src.connectors.successfactors import (
     EON_GERMANY_TARGET,
     MAX_DETAIL_PAGES_HARD_LIMIT,
@@ -249,8 +249,10 @@ def test_raw_builder_does_not_infer_unlabelled_prose_locations() -> None:
     assert record.raw_data["detail_evidence"]["structured_location_count"] == 0
 
 
-def test_registry_creates_target_without_activating_ingestion() -> None:
-    connector = create_connector("successfactors:eon_germany")
+def test_successfactors_factory_remains_reusable_capability() -> None:
+    registry = ConnectorRegistry()
+    registry.register_family("successfactors", successfactors_factory)
+    connector = registry.create("successfactors:eon_germany")
 
     assert isinstance(connector, SuccessFactorsConnector)
     assert connector.source_name == "successfactors:eon_germany"

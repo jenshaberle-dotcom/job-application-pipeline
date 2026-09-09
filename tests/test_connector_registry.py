@@ -2,64 +2,63 @@ from __future__ import annotations
 
 import pytest
 
-from src.connectors.accompio import AccompioConnector
-from src.connectors.computacenter import ComputacenterConnector
-from src.connectors.enercity import EnercityConnector
-from src.connectors.finanz_informatik import FinanzInformatikConnector
+from src.connectors.generic_employer_origin import GenericEmployerOriginConnector
 from src.connectors.greenhouse import GreenhouseConnector
 from src.connectors.personio import PersonioConnector
 from src.connectors.registry import (
     ConnectorRegistry,
+    SourceRole,
     create_connector,
     greenhouse_factory,
     personio_factory,
     source_family,
+    source_role,
     source_target,
 )
 
 
 def test_source_family_and_target_are_explicit() -> None:
-    assert source_family("greenhouse:stripe") == "greenhouse"
-    assert source_target("greenhouse:stripe") == "stripe"
+    assert source_family("generic_origin:finanz_informatik") == "generic_origin"
+    assert source_target("generic_origin:finanz_informatik") == "finanz_informatik"
 
     with pytest.raises(ValueError):
-        source_target("greenhouse")
+        source_target("generic_origin")
 
     with pytest.raises(ValueError):
-        source_target("greenhouse:")
+        source_target("generic_origin:")
 
 
-def test_default_registry_creates_existing_dynamic_connectors() -> None:
-    assert isinstance(create_connector("greenhouse:stripe"), GreenhouseConnector)
-    assert isinstance(create_connector("personio:eraneos"), PersonioConnector)
+def test_default_registry_exposes_one_generic_employer_origin_family() -> None:
+    connector = create_connector("generic_origin:finanz_informatik")
+
+    assert isinstance(connector, GenericEmployerOriginConnector)
+    assert connector.company_key == "finanz_informatik"
+    assert connector.source_name == "generic_origin:finanz_informatik"
+    assert source_role(connector.source_name) == SourceRole.EMPLOYER_ORIGIN
 
 
-def test_default_registry_creates_existing_employer_origin_connector() -> None:
-    connector = create_connector("finanz_informatik:hannover")
-
-    assert isinstance(connector, FinanzInformatikConnector)
-    assert connector.source_name == "finanz_informatik:hannover"
-
-
-def test_default_registry_creates_enercity_employer_origin_connector_without_activation() -> None:
-    connector = create_connector("enercity:discovery")
-
-    assert isinstance(connector, EnercityConnector)
-    assert connector.source_name == "enercity:discovery"
-
-
-def test_default_registry_creates_accompio_connector_without_activation() -> None:
-    connector = create_connector("accompio:discovery")
-
-    assert isinstance(connector, AccompioConnector)
-    assert connector.source_name == "accompio:discovery"
+def test_provider_specific_connectors_are_capabilities_not_default_product_truth() -> None:
+    for source_name in (
+        "greenhouse:stripe",
+        "personio:eraneos",
+        "successfactors:eon_germany",
+        "finanz_informatik:hannover",
+        "enercity:discovery",
+        "hdi:hannover",
+        "accompio:discovery",
+        "computacenter:discovery",
+    ):
+        with pytest.raises(ValueError, match="No connector configured"):
+            create_connector(source_name)
 
 
-def test_default_registry_creates_computacenter_connector_without_activation() -> None:
-    connector = create_connector("computacenter:discovery")
+def test_provider_connector_factories_remain_reusable_generic_capabilities() -> None:
+    registry = ConnectorRegistry()
+    registry.register_family("greenhouse", greenhouse_factory)
+    registry.register_family("personio", personio_factory)
 
-    assert isinstance(connector, ComputacenterConnector)
-    assert connector.source_name == "computacenter:discovery"
+    assert isinstance(registry.create("greenhouse:stripe"), GreenhouseConnector)
+    assert isinstance(registry.create("personio:eraneos"), PersonioConnector)
 
 
 def test_registry_rejects_duplicate_registration_without_replace() -> None:
@@ -78,13 +77,3 @@ def test_registry_keeps_registration_separate_from_activation() -> None:
 
     assert isinstance(connector, PersonioConnector)
     assert not hasattr(registry, "activate")
-
-
-def test_default_registry_can_create_hdi_connector() -> None:
-    from src.connectors.hdi import HdiConnector
-    from src.connectors.registry import create_connector
-
-    connector = create_connector("hdi:hannover")
-
-    assert isinstance(connector, HdiConnector)
-    assert connector.source_name == "hdi:hannover"

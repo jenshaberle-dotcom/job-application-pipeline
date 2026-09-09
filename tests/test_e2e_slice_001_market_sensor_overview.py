@@ -89,8 +89,8 @@ def test_failed_latest_sensor_run_is_attention_even_with_historical_layers() -> 
     assert source["last_ingestion"]["error_message"] == "HTTP 503"
 
 
-def test_employer_origin_source_still_requires_candidate_gates() -> None:
-    source_name = "personio:eraneos"
+def test_generic_employer_origin_is_the_only_product_origin_family() -> None:
+    source_name = "generic_origin:eraneos"
     payload = build_source_connector_overview(
         registry=build_default_connector_registry(),
         search_profiles=[
@@ -105,17 +105,17 @@ def test_employer_origin_source_still_requires_candidate_gates() -> None:
             {
                 "source_name": source_name,
                 "last_ingestion_status": "success",
-                "total_loaded": 12,
-                "inserted_count": 2,
+                "total_loaded": 1,
+                "inserted_count": 1,
             }
         ],
         layer_presence=[
-            {"source_name": source_name, "bronze_count": 12, "silver_count": 10}
+            {"source_name": source_name, "bronze_count": 1, "silver_count": 0}
         ],
     )
 
     source = _source(payload, source_name)
     assert source["source_role"] == "employer_origin"
-    assert source["gates"]["connector_validation_gate"]["required"] is True
-    assert source["gates"]["connector_validation_gate"]["passed"] is False
-    assert source["current_blocker"] == "active_source_without_proven_validation_gate"
+    assert source["connector"]["code_backed_registered"] is True
+    assert source["activation"]["status"] == "active"
+    assert source["layers"]["bronze_count"] == 1
