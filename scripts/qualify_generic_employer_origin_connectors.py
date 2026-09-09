@@ -3,19 +3,68 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.registry import SourceRole, create_connector, source_role
 
 
-def _load_proof_keys(path: Path) -> list[str]:
+def _proof_layer(item: dict[str, Any]) -> dict[str, Any] | None:
+    layers = item.get("layers") or []
+    return next(
+        (
+            layer
+            for layer in layers
+            if isinstance(layer, dict) and layer.get("layer") == "proof"
+        ),
+        None,
+    )
+
+
+def _origin_layer(item: dict[str, Any]) -> dict[str, Any] | None:
+    layers = item.get("layers") or []
+    return next(
+        (
+            layer
+            for layer in layers
+            if isinstance(layer, dict) and layer.get("layer") == "origin"
+        ),
+        None,
+    )
+
+
+def _load_proof_sources(path: Path) -> dict[str, dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     authority = payload.get("authority") or {}
     if authority.get("sole_connector_truth") != "generic_evidence_driven_layer_model":
         raise ValueError("qualification input is not the canonical generic layer product")
     if authority.get("source_validity_gate") != "proof=PASS":
         raise ValueError("qualification input does not use proof=PASS")
-    return [str(value) for value in payload.get("proof_pass_company_keys", [])]
+
+    sources: dict[str, dict[str, Any]] = {}
+    for item in payload.get("results", []):
+        if not isinstance(item, dict):
+            continue
+        proof = _proof_layer(item)
+        if proof is None or proof.get("state") != "pass":
+            continue
+        company_key = str(item.get("company_key") or "")
+        if company_key:
+            sources[company_key] = item
+    return sources
+
+
+def _preactivation_materialization_pending(item: dict[str, Any], exc: Exception) -> bool:
+    if not isinstance(exc, ValueError) or "no materialized origin URL" not in str(exc):
+        return False
+    origin = _origin_layer(item)
+    if origin is None or origin.get("state") != "pass":
+        return False
+    evidence = origin.get("evidence") or {}
+    return (
+        isinstance(evidence, dict)
+        and evidence.get("source") == "provider_free_origin_discovery"
+    )
 
 
 def _record_failure(source_name: str, record: object) -> str | None:
@@ -43,7 +92,8 @@ def main() -> int:
     parser.add_argument("--proof-json", type=Path, required=True)
     args = parser.parse_args()
 
-    keys = _load_proof_keys(args.proof_json)
+    proof_sources = _load_proof_sources(args.proof_json)
+    keys = list(proof_sources)
     if not keys:
         raise RuntimeError("proof-PASS cohort is empty")
 
@@ -51,6 +101,7 @@ def main() -> int:
     total_records = 0
     zero_bronze_ready = 0
     delivering_sources = 0
+    materialization_pending = 0
     for index, company_key in enumerate(keys, start=1):
         source_name = f"generic_origin:{company_key}"
         try:
@@ -73,6 +124,18 @@ def main() -> int:
                 SearchTerm("*", id=None),
             )
         except Exception as exc:
+            if _preactivation_materialization_pending(proof_sources[company_key], exc):
+                zero_bronze_ready += 1
+                materialization_pending += 1
+                print(
+                    f"GENERIC_CONNECTOR={index}/{len(keys)}|{company_key}|"
+                    "records=0|final_url=PREACTIVATION_MATERIALIZATION_PENDING"
+                )
+                print(
+                    f"GENERIC_SOURCE_MATERIALIZATION_PENDING={company_key}|"
+                    "reason=proof_discovered_origin_not_yet_projected"
+                )
+                continue
             failures.append(
                 f"{company_key}: {type(exc).__name__}: {exc}"
             )
@@ -102,6 +165,7 @@ def main() -> int:
     print(f"GENERIC_PROOF_COHORT={len(keys)}")
     print(f"GENERIC_DELIVERING_SOURCES={delivering_sources}")
     print(f"GENERIC_ZERO_BRONZE_READY_SOURCES={zero_bronze_ready}")
+    print(f"GENERIC_PREACTIVATION_MATERIALIZATION_PENDING={materialization_pending}")
     print(f"GENERIC_BRONZE_READY_RECORDS={total_records}")
     print(f"GENERIC_CONNECTOR_FAILURES={len(failures)}")
     for failure in failures:
