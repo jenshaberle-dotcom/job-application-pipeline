@@ -3,7 +3,7 @@ name: P1 origin search-intelligence revalidation
 on:
   pull_request:
     paths:
-      - "scripts/run_origin_initial_proof_revalidation.py"
+      - "scripts/run_origin_search_intelligence_probe.py"
       - ".github/workflows/p1-origin-initial-proof-revalidation.yml"
 
 permissions:
@@ -15,14 +15,14 @@ concurrency:
 
 jobs:
   audit:
-    name: Read-only origin initial-proof revalidation
+    name: Read-only origin search-intelligence probe
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 90
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
-      AUDIT_OUTPUT: /tmp/jap-origin-initial-proof-revalidation.json
+      AUDIT_OUTPUT: /tmp/jap-origin-search-intelligence-probe.json
 
     steps:
       - name: Check out exact PR head
@@ -89,7 +89,7 @@ jobs:
       - name: Compile audit
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m py_compile scripts/run_origin_initial_proof_revalidation.py
+          "$RUNTIME_PYTHON" -m py_compile scripts/run_origin_search_intelligence_probe.py
 
       - name: Run read-only targeted source audit
         shell: bash
@@ -100,14 +100,14 @@ jobs:
           source "$RUNTIME_ENV_FILE"
           set +a
           export PGOPTIONS="-c default_transaction_read_only=on"
-          "$RUNTIME_PYTHON" -m scripts.run_origin_initial_proof_revalidation \
+          "$RUNTIME_PYTHON" -m scripts.run_origin_search_intelligence_probe \
             --output "$AUDIT_OUTPUT"
 
       - name: Upload audit artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: p1-origin-initial-proof-revalidation
-          path: /tmp/jap-origin-initial-proof-revalidation.json
+          name: p1-origin-search-intelligence-probe
+          path: /tmp/jap-origin-search-intelligence-probe.json
           if-no-files-found: warn
           retention-days: 7
