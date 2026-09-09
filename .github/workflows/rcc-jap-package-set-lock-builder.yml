@@ -29,7 +29,11 @@ jobs:
           test '${{ github.repository_id }}' = '1230805345'
           test "${RUNNER_NAME}" = 'job-pipeline-runtime-warm-01-linux'
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          test "$(python3.12 -c 'import platform; print(platform.python_version())')" = '3.12.14'
+          echo "python3=$(command -v python3 || true)"
+          echo "python3_version=$(python3 -c 'import platform; print(platform.python_version())' 2>/dev/null || true)"
+          echo "python3.12=$(command -v python3.12 || true)"
+          echo "python3.12_version=$(python3.12 -c 'import platform; print(platform.python_version())' 2>/dev/null || true)"
+          test "$(python3 -c 'import platform; print(platform.python_version())')" = '3.12.14'
 
       - name: Resolve and hash exact wheel closure
         shell: bash
@@ -41,7 +45,8 @@ jobs:
           out="${root}/jap-warm-v1.txt"
           rm -rf -- "${root}"
           mkdir -p "${wheels}"
-          python3.12 -m venv "${venv}"
+          python3 -m venv "${venv}"
+          test "$("${venv}/bin/python" -c 'import platform; print(platform.python_version())')" = '3.12.14'
           "${venv}/bin/python" -m pip install --disable-pip-version-check -r requirements-dev.txt
           "${venv}/bin/python" -m pip check
           "${venv}/bin/python" -m pip freeze --exclude-editable | LC_ALL=C sort -f > "${root}/freeze.txt"
