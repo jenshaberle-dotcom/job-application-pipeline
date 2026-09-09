@@ -30,7 +30,7 @@ permissions:
 
 concurrency:
   group: p1-generic-employer-origin-product-proof
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   proof:
