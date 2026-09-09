@@ -4,7 +4,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ENV_FILE = PROJECT_ROOT / ".env"
+DEFAULT_ENV_FILE = PROJECT_ROOT / ".env"
+RUNTIME_ENV_FILE = os.getenv("RUNTIME_ENV_FILE")
+ENV_FILE = Path(RUNTIME_ENV_FILE).expanduser() if RUNTIME_ENV_FILE else DEFAULT_ENV_FILE
 
 load_dotenv(dotenv_path=ENV_FILE, override=False)
 
