@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlparse
 
 import psycopg
 from psycopg.rows import dict_row
@@ -29,16 +30,20 @@ def _load_product(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _proof_layer(item: dict[str, Any]) -> dict[str, Any] | None:
+def _layer(item: dict[str, Any], layer_name: str) -> dict[str, Any] | None:
     layers = item.get("layers") or []
     return next(
         (
             layer
             for layer in layers
-            if isinstance(layer, dict) and layer.get("layer") == "proof"
+            if isinstance(layer, dict) and layer.get("layer") == layer_name
         ),
         None,
     )
+
+
+def _proof_layer(item: dict[str, Any]) -> dict[str, Any] | None:
+    return _layer(item, "proof")
 
 
 def _proof_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -59,10 +64,55 @@ def _relation_exists(conn: psycopg.Connection[Any], relation_name: str) -> bool:
     return bool(row and row[0])
 
 
-def _validate_db_candidates(conn: psycopg.Connection[Any], rows: list[dict[str, Any]]) -> None:
+def _url_shape(value: str) -> dict[str, object]:
+    parsed = urlparse(value)
+    return {
+        "scheme": parsed.scheme.casefold(),
+        "host": (parsed.hostname or "").casefold(),
+        "path": parsed.path or "/",
+        "query_keys": sorted({key for key, _ in parse_qsl(parsed.query, keep_blank_values=True)}),
+    }
+
+
+def _shape_to_https_url(shape: object) -> str | None:
+    if not isinstance(shape, dict):
+        return None
+    scheme = str(shape.get("scheme") or "").casefold()
+    host = str(shape.get("host") or "").casefold().strip(".")
+    path = str(shape.get("path") or "/")
+    query_keys = shape.get("query_keys") or []
+    if scheme != "https" or not host or query_keys:
+        return None
+    if not path.startswith("/"):
+        path = "/" + path
+    return f"https://{host}{path}"
+
+
+def _proof_origin_shape(row: dict[str, Any]) -> object:
+    origin = _layer(row, "origin")
+    if origin is None or origin.get("state") != "pass":
+        raise ValueError(f"missing origin=PASS evidence for {row.get('company_key')}")
+    evidence = origin.get("evidence") or {}
+    if not isinstance(evidence, dict):
+        raise ValueError(f"invalid origin evidence for {row.get('company_key')}")
+    source = str(evidence.get("source") or "")
+    if source == "persisted_candidate_url":
+        return evidence.get("candidate_url")
+    if source == "provider_free_origin_discovery":
+        return evidence.get("selected_url")
+    raise ValueError(
+        f"unsupported proof origin source for {row.get('company_key')}: {source or 'unknown'}"
+    )
+
+
+def _resolve_projection_origins(
+    conn: psycopg.Connection[Any],
+    rows: list[dict[str, Any]],
+) -> dict[int, str]:
     expected = {int(row["candidate_id"]): str(row["company_key"]) for row in rows}
     if not expected:
         raise ValueError("generic product contains zero proof-passed candidates")
+
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
@@ -73,17 +123,42 @@ def _validate_db_candidates(conn: psycopg.Connection[Any], rows: list[dict[str, 
             (list(expected),),
         )
         actual = {int(row["id"]): row for row in cur.fetchall()}
+
     if set(actual) != set(expected):
         missing = sorted(set(expected) - set(actual))
         raise ValueError(f"proof cohort candidate IDs missing in DB: {missing}")
+
+    origins: dict[int, str] = {}
+    proof_by_id = {int(row["candidate_id"]): row for row in rows}
     for candidate_id, company_key in expected.items():
-        row = actual[candidate_id]
-        if str(row["company_key"]) != company_key:
+        db_row = actual[candidate_id]
+        if str(db_row["company_key"]) != company_key:
             raise ValueError(
-                f"candidate identity mismatch for {candidate_id}: {row['company_key']} != {company_key}"
+                f"candidate identity mismatch for {candidate_id}: {db_row['company_key']} != {company_key}"
             )
-        if not str(row.get("candidate_url") or "").strip():
-            raise ValueError(f"proof-passed candidate {company_key} has no persisted origin URL")
+
+        proof_shape = _proof_origin_shape(proof_by_id[candidate_id])
+        persisted = str(db_row.get("candidate_url") or "").strip()
+        if persisted:
+            parsed = urlparse(persisted)
+            if parsed.scheme.casefold() != "https" or not parsed.hostname:
+                raise ValueError(f"proof-passed candidate {company_key} has invalid persisted origin URL")
+            if isinstance(proof_shape, dict) and _url_shape(persisted) != proof_shape:
+                raise ValueError(
+                    f"persisted origin no longer matches fresh proof for {company_key}"
+                )
+            origins[candidate_id] = persisted
+            continue
+
+        discovered = _shape_to_https_url(proof_shape)
+        if discovered is None:
+            raise ValueError(
+                "fresh proof discovered an origin that cannot be exactly materialized "
+                f"without persisted query values for {company_key}"
+            )
+        origins[candidate_id] = discovered
+
+    return origins
 
 
 def _legacy_active_profile_count(conn: psycopg.Connection[Any]) -> int:
@@ -126,6 +201,7 @@ def _current_projection_count(conn: psycopg.Connection[Any]) -> int | None:
 def _sync_active_source_projection(
     cur: psycopg.Cursor[Any],
     rows: list[dict[str, Any]],
+    origin_urls: dict[int, str],
 ) -> None:
     proof_ids = [int(row["candidate_id"]) for row in rows]
     cur.execute(
@@ -145,15 +221,17 @@ def _sync_active_source_projection(
                 candidate_id,
                 company_key,
                 source_name,
+                origin_url,
                 authority,
                 proof_state,
                 proof_evidence
             )
-            VALUES (%s, %s, %s, %s, 'pass', %s)
+            VALUES (%s, %s, %s, %s, %s, 'pass', %s)
             ON CONFLICT (candidate_id)
             DO UPDATE SET
                 company_key = EXCLUDED.company_key,
                 source_name = EXCLUDED.source_name,
+                origin_url = EXCLUDED.origin_url,
                 authority = EXCLUDED.authority,
                 proof_state = EXCLUDED.proof_state,
                 proof_evidence = EXCLUDED.proof_evidence,
@@ -163,6 +241,7 @@ def _sync_active_source_projection(
                 candidate_id,
                 company_key,
                 source_name,
+                origin_urls[candidate_id],
                 GENERIC_AUTHORITY,
                 Jsonb(proof),
             ),
@@ -172,6 +251,7 @@ def _sync_active_source_projection(
 def apply_activation(
     conn: psycopg.Connection[Any],
     rows: list[dict[str, Any]],
+    origin_urls: dict[int, str],
 ) -> None:
     proof_ids = [int(row["candidate_id"]) for row in rows]
     if not _relation_exists(conn, ACTIVE_SOURCE_RELATION):
@@ -182,7 +262,7 @@ def apply_activation(
     with conn.cursor() as cur:
         # The table is a materialized projection of the current generic proof cohort,
         # not an independent approval mechanism.
-        _sync_active_source_projection(cur, rows)
+        _sync_active_source_projection(cur, rows, origin_urls)
 
         # Market sensors stay active; all legacy Employer-Origin execution profiles retire.
         cur.execute(
@@ -285,7 +365,7 @@ def main() -> int:
     rows = _proof_rows(payload)
 
     with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
-        _validate_db_candidates(conn, rows)
+        origin_urls = _resolve_projection_origins(conn, rows)
         legacy_before = _legacy_active_profile_count(conn)
         generic_before = _current_generic_profile_count(conn)
         projection_before = _current_projection_count(conn)
@@ -298,9 +378,11 @@ def main() -> int:
             + ("MISSING" if projection_before is None else str(projection_before))
         )
         for row in rows:
+            candidate_id = int(row["candidate_id"])
             print(
                 "ACTIVATION_SOURCE="
-                f"generic_origin:{row['company_key']}|candidate_id={row['candidate_id']}"
+                f"generic_origin:{row['company_key']}|candidate_id={candidate_id}|"
+                f"origin_url={origin_urls[candidate_id]}"
             )
 
         if not args.apply:
@@ -309,7 +391,7 @@ def main() -> int:
             print("DATABASE_WRITES=0")
             return 0
 
-        apply_activation(conn, rows)
+        apply_activation(conn, rows, origin_urls)
         conn.commit()
 
         legacy_after = _legacy_active_profile_count(conn)
