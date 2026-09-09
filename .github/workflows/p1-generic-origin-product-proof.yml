@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/p1-generic-origin-product-proof.yml"
       - ".github/workflows/p1-generic-origin-product-activate.yml"
+      - "requirements.txt"
       - "db/migrations/107_create_generic_employer_origin_active_sources.sql"
       - "scripts/run_generic_employer_origin_product.py"
       - "scripts/qualify_generic_employer_origin_connectors.py"
@@ -12,6 +13,7 @@ on:
       - "scripts/run_deterministic_connector_builder_layer_audit.py"
       - "src/connectors/generic_employer_origin.py"
       - "src/connectors/generic_employer_origin_product.py"
+      - "src/connectors/generic_job_detail_evidence.py"
       - "src/ingestion/generic_origin_bronze_admission.py"
       - "src/connectors/employer_origin_**"
       - "src/connectors/registry.py"
@@ -20,6 +22,7 @@ on:
       - "tests/test_generic_employer_origin_product.py"
       - "tests/test_generic_employer_origin_connector.py"
       - "tests/test_generic_employer_origin_product_connector.py"
+      - "tests/test_generic_job_detail_evidence.py"
       - "tests/test_generic_origin_bronze_admission.py"
       - "tests/test_generic_origin_product_activation_contract.py"
       - "tests/test_generic_origin_source_overview_truth.py"
@@ -105,6 +108,20 @@ jobs:
           printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
           echo "RCC_CONTEXT=PASS runner=${RUNNER_NAME}"
 
+      - name: Provision pinned local OSS detail extractors
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$RUNNER_TEMP/jap-p1-product-local-oss-site"
+          rm -rf "$local_oss_site"
+          "$RUNTIME_PYTHON" -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --target "$local_oss_site" \
+            'extruct==0.18.0' \
+            'trafilatura==2.2.0'
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
       - name: Compile canonical product path
         run: |
           set -euo pipefail
@@ -114,6 +131,7 @@ jobs:
             scripts/apply_generic_employer_origin_activation.py \
             src/connectors/generic_employer_origin.py \
             src/connectors/generic_employer_origin_product.py \
+            src/connectors/generic_job_detail_evidence.py \
             src/ingestion/generic_origin_bronze_admission.py \
             src/search_intelligence/source_connector_overview.py
 
@@ -124,6 +142,7 @@ jobs:
             tests/test_generic_employer_origin_product.py \
             tests/test_generic_employer_origin_connector.py \
             tests/test_generic_employer_origin_product_connector.py \
+            tests/test_generic_job_detail_evidence.py \
             tests/test_generic_origin_bronze_admission.py \
             tests/test_generic_origin_product_activation_contract.py \
             tests/test_generic_origin_source_overview_truth.py \
