@@ -119,12 +119,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
-          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py \
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
             --apply-exact "$GENERIC_MIGRATION" \
             --require-sole-pending \
             --applied-by "p1-generic-origin-main-${GITHUB_RUN_ID}"
-          status="$($RUNTIME_PYTHON scripts/apply_db_migrations.py --status)"
+          status="$("$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status)"
           printf '%s\n' "$status"
           grep -q '^pending_migrations: 0$' <<< "$status"
           grep -q '^checksum_mismatches: 0$' <<< "$status"
