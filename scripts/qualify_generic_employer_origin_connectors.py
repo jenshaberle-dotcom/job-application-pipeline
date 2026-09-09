@@ -70,7 +70,7 @@ def main() -> int:
             )
             records, final_url = connector.fetch_jobs(
                 profile,
-                SearchTerm("jobs", id=None),
+                SearchTerm("*", id=None),
             )
         except Exception as exc:
             failures.append(
