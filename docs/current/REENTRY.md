@@ -6,9 +6,9 @@ Read this file from canonical `refs/heads/main` before continuing product work. 
 
 ## Employer-Origin product authority
 
-The Employer-Origin acquisition architecture is now version-independent and has exactly one product admission path:
+The Employer-Origin acquisition architecture is version-independent and has exactly one product admission path:
 
-`candidate -> generic evidence-driven layers -> strict proof -> valid source -> generic_origin:<company_key> -> active recurring observation -> job plausibility gate -> Bronze`
+`candidate -> generic evidence-driven layers -> strict proof -> valid source -> generic_origin:<company_key> -> active recurring observation -> job plausibility gate -> Bronze -> Silver -> Gold -> Product -> Control Center`
 
 The **generic evidence-driven layer model is the sole Employer-Origin source-validity truth**.
 
@@ -41,37 +41,95 @@ The generic recurring profile uses `*` only as a non-semantic execution trigger.
 
 Search profiles and candidate `active_controlled` state are downstream activation projections of the same current generic proof cohort.
 
+## Current repository state
+
+PR #846 (`P1: turn generic origin proof into bounded systematic search`) merged successfully to `main` as:
+
+- merge SHA: `ee013d85152fa0f3dcb4e412fe5707b26976f2bc`
+- proof head before squash merge: `a2f056eefbdc0445e1c751f305efe14fdc52c853`
+- PR validation: green
+- Pipeline CI run: `34355468312` — PASS
+- systematic-search/read-only funnel run: `34355467837` — PASS
+- systematic-search artifact: `p1-generic-origin-systematic-search`
+- artifact digest: `sha256:d186f26b9f58708e108bf2a8acd194d7c4d26df296e4fad8ea71003c3273e8d5`
+
+PR #846 added the bounded generic targeted-search runtime, query-semantic discrimination, local OSS detail evidence using pinned `extruct` plus bounded `trafilatura` fallback, normal `generic_origin:%` Silver-family plumbing, and a read-only stage-funnel audit that reuses the existing Bronze and Silver production functions.
+
 ## Current measured evidence
 
-The last completed read-only generic product run before this authority cutover evaluated all 66 persisted Employer-Origin candidates and produced 23 `proof=PASS` sources:
+The latest completed read-only systematic-search proof on exact head `a2f056eefbdc0445e1c751f305efe14fdc52c853` produced:
 
-- workflow run `34326006832`
-- job `102383543763`
-- evaluated candidates: `66`
-- proof-pass sources: `23`
-- database writes: `0`
+### Search/discovery funnel
 
-This 23-source result is evidence, not a hard-coded cohort. Main activation must recompute the generic model and use the fresh resulting PASS set. Candidate-count/coverage improvement for the remaining sources is a separate hardening stream and must not block activation of the currently proven sources.
+- active proof-valid Employer-Origin sources: `23`
+- deterministic search surface detected: `9`
+- query semantics proven: `3`
+- query semantics unconfirmed-zero: `4`
+- query semantics failed: `2`
+- raw delivering sources: `5`
+- accepted/query-proven delivering sources: `3`
+- raw target jobs: `69`
+- accepted/query-proven jobs: `67`
+- HTTP requests: `647`
+
+### Detail evidence
+
+- detail evidence present: `67/67`
+- structured schema.org `JobPosting`: `67/67`
+- descriptions present: `67/67`
+- structured location evidence: `20/67`
+- explicit remote evidence: `0/67`
+- live Trafilatura fallback cases: `0`
+
+The current live evidence therefore strongly confirms `extruct` on the discovered cohort. `trafilatura` remains qualified only by its bounded fallback/unit contract until a real live fallback case naturally occurs. Do not manufacture a fallback case merely to raise coverage.
+
+### Bronze -> Silver funnel
+
+- Bronze admitted: `67/67`
+- Bronze rejected: `0`
+- accepted by normal Silver source selector: `67/67`
+- Silver selector rejected: `0`
+- Silver relevant if selected: `26/67`
+- Silver successfully transformed: `26/26`
+- Silver transformation failures: `0`
+- Gold/Product readiness reached by this read-only audit: `0`
+- Control Center reached by this read-only audit: `0`
+
+Silver relevance reasons:
+
+- `16` — `relevant_role_and_accessibility`
+- `10` — `relevant_skills_and_accessibility`
+- `30` — `missing_accessibility_signal`
+- `11` — `missing_role_or_skill_signal`
+
+The current evidence disproves the prior concern that naturally discovered Employer-Origin jobs lose required detail evidence at the Bronze -> Silver boundary. Once a query-proven job is reached in this cohort, the new local detail-evidence layer is sufficient for the existing Bronze and Silver production functions.
+
+## Current bottleneck interpretation
+
+The dominant measured gap is now **before detail extraction**, not after it:
+
+`23 proof-valid sources -> 9 deterministic search surfaces -> 3 query-semantically proven sources`
+
+The downstream reached-job path is currently healthy:
+
+`67 query-proven -> 67 detail evidence -> 67 Bronze -> 67 Silver-selector eligible -> 26 relevant -> 26 transformed`
+
+Do **not** start portal-specific hardening, company allowlists, vocabulary/taxonomy tuning, search-space expansion, provider introduction, or cosmetic location/remote extraction work merely to improve these counts before the first normal Gold -> Product -> Control Center E2E is proven.
 
 ## Effect authority
 
-PR validation remains read-only.
+PR validation and the systematic-search qualifier remain read-only.
 
-After the generic product architecture is merged to `main`, `.github/workflows/p1-generic-origin-product-activate.yml` is the sole bounded Employer-Origin activation effect path for this cutover. It must:
+`.github/workflows/p1-generic-origin-product-activate.yml` remains the sole bounded Employer-Origin activation effect path for the source-admission cutover. It must use exact main, the verified local Product/PostgreSQL runtime, the generic proof projection, the normal `generic_origin` registry, normal ingestion and Bronze-admission verification. No demo workflow, V6 runner, manual fixed cohort or provider-specific registry path may substitute for it.
 
-1. check out the exact main SHA;
-2. use the verified local Product/PostgreSQL runtime;
-3. apply the generic active-source projection migration fail-closed;
-4. recompute the current generic proof cohort;
-5. execute every proof-pass source through the normal `generic_origin` registry;
-6. activate exactly the fresh proof-pass set and retire legacy Employer-Origin execution profiles;
-7. run normal `generic_origin` ingestion;
-8. verify that every persisted generic Bronze row passed the separate Bronze-admission gate.
+The next downstream proof must likewise reuse the normal persisted product path. A read-only audit must not fake Gold/Product/Control-Center success.
 
-No demo workflow, V6 runner, manual fixed cohort or provider-specific registry path may substitute for this chain.
+## Sole next action
 
-## Current continuation
+Take at least one of the `26` real Silver-relevant results produced by the proven systematic-search path and drive it through the **unchanged normal persisted** downstream chain:
 
-Complete PR #841 on exact-head CI/read-only proof. If green, merge it normally. Then let the automatic exact-main activation workflow execute on the trusted local Product runtime. Report the fresh source count, successful per-source observation runs, number of sources currently delivering Bronze-ready potential jobs, and Bronze row count.
+`query-proven search -> generic local detail evidence -> Bronze -> Silver -> Gold -> Product -> Control Center`
 
-Only after this activation/E2E boundary is proven should the separate residual work resume to improve generic coverage beyond the current proof-pass set.
+Success requires real persisted state and operator-visible Control Center evidence for the same job identity, with no special-case source/company path and no relaxed gate semantics.
+
+Only after at least one such real E2E reaches Control Center should work return to the measured `3/23` query-semantics/search-surface gap. The first residual priority after E2E is generic search-surface/query-semantic generalization, not detail-extractor or vocabulary tuning.
