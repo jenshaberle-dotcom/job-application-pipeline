@@ -21,6 +21,8 @@ from src.connectors.generic_employer_origin_search import (
 
 REQUEST_TIMEOUT_SECONDS = 30.0
 MAX_TOTAL_REQUESTS = 2_000
+QUERY_CONTROL_TERM = "qzxvplmn847362951"
+QUERY_CONTROL_JOB_CAP = 5
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -148,6 +150,41 @@ def _serialize_outcome(outcome: GenericSearchOutcome) -> dict:
     }
 
 
+def _job_urls(outcome: GenericSearchOutcome) -> set[str]:
+    return {job.final_url for job in outcome.jobs}
+
+
+def _query_semantics_status(
+    *,
+    target_outcomes: list[GenericSearchOutcome],
+    control_outcome: GenericSearchOutcome | None,
+    source_error: str | None,
+) -> tuple[str, str]:
+    if source_error is not None:
+        return "failed", "target_or_control_error"
+    mechanisms = {
+        outcome.mechanism for outcome in target_outcomes if outcome.mechanism != "none"
+    }
+    if not mechanisms:
+        return "not_available", "no_deterministic_targeted_search_surface"
+    if control_outcome is None or control_outcome.mechanism == "none":
+        return "failed", "control_query_could_not_use_same_search_surface"
+    if control_outcome.stop_reason in {
+        "inventory_request_failed",
+        "search_request_failed",
+        "origin_unreachable",
+    }:
+        return "failed", "control_query_request_failed"
+
+    positive_targets = [outcome for outcome in target_outcomes if outcome.jobs]
+    control_urls = _job_urls(control_outcome)
+    if control_urls:
+        return "failed", "impossible_control_query_returned_jobs"
+    if positive_targets:
+        return "proven", "target_query_returned_jobs_control_query_returned_zero"
+    return "unconfirmed_zero", "target_and_control_queries_returned_zero_jobs"
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.page_size < 1 or args.page_size > 50:
@@ -171,13 +208,15 @@ def main(argv: list[str] | None = None) -> None:
 
     executor = MeteredHttpExecutor(max_requests=args.max_total_requests)
     source_rows: list[dict] = []
-    all_jobs: dict[str, dict] = {}
+    proven_jobs: dict[str, dict] = {}
+    raw_target_jobs: dict[str, dict] = {}
 
     for index, source in enumerate(sources, start=1):
         source_name = str(source["source_name"])
         origin_url = str(source["origin_url"])
         source_jobs: dict[str, dict] = {}
         outcomes: list[dict] = []
+        raw_outcomes: list[GenericSearchOutcome] = []
         mechanisms: set[str] = set()
         source_error: str | None = None
 
@@ -200,6 +239,7 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"SEARCH_ERROR={source_name}|term={term}|{source_error}")
                 break
 
+            raw_outcomes.append(outcome)
             serialized = _serialize_outcome(outcome)
             outcomes.append(serialized)
             if outcome.mechanism != "none":
@@ -207,7 +247,7 @@ def main(argv: list[str] | None = None) -> None:
             for job in outcome.jobs:
                 key = job.final_url
                 source_jobs.setdefault(key, asdict(job))
-                all_jobs.setdefault(f"{source_name}|{key}", asdict(job))
+                raw_target_jobs.setdefault(f"{source_name}|{key}", asdict(job))
 
             print(
                 "SEARCH_RESULT="
@@ -219,35 +259,105 @@ def main(argv: list[str] | None = None) -> None:
                 f"stop={outcome.stop_reason}"
             )
 
-        operational = bool(mechanisms) and source_error is None
+        control_outcome: GenericSearchOutcome | None = None
+        if mechanisms and source_error is None:
+            try:
+                control_outcome = search_generic_origin(
+                    origin_url=origin_url,
+                    query=QUERY_CONTROL_TERM,
+                    execute=executor,
+                    page_size=args.page_size,
+                    page_cap=args.page_cap,
+                    job_cap=min(QUERY_CONTROL_JOB_CAP, args.job_cap),
+                )
+            except Exception as exc:
+                source_error = f"{type(exc).__name__}:{exc}"
+                print(
+                    f"SEARCH_CONTROL_ERROR={source_name}|term={QUERY_CONTROL_TERM}|"
+                    f"{source_error}"
+                )
+
+        semantics_status, semantics_reason = _query_semantics_status(
+            target_outcomes=raw_outcomes,
+            control_outcome=control_outcome,
+            source_error=source_error,
+        )
+        if control_outcome is not None:
+            print(
+                "SEARCH_CONTROL="
+                f"{source_name}|mechanism={control_outcome.mechanism}|"
+                f"jobs={len(control_outcome.jobs)}|"
+                f"candidates={control_outcome.detail_candidates_seen}|"
+                f"stop={control_outcome.stop_reason}"
+            )
+        print(
+            f"SEARCH_SEMANTICS={source_name}|status={semantics_status}|"
+            f"reason={semantics_reason}"
+        )
+
+        search_surface_detected = bool(mechanisms) and source_error is None
+        search_semantics_proven = semantics_status == "proven"
         pagination_exercised = any(row["pages_requested"] > 1 for row in outcomes)
+        if search_semantics_proven:
+            for key, job in source_jobs.items():
+                proven_jobs.setdefault(f"{source_name}|{key}", job)
+
         source_rows.append(
             {
                 **source,
-                "search_operational": operational,
+                "search_surface_detected": search_surface_detected,
+                "search_semantics_status": semantics_status,
+                "search_semantics_reason": semantics_reason,
+                "search_semantics_proven": search_semantics_proven,
                 "mechanisms": sorted(mechanisms),
                 "pagination_exercised": pagination_exercised,
-                "unique_job_count": len(source_jobs),
+                "target_unique_job_count": len(source_jobs),
+                "accepted_y_job_count": len(source_jobs) if search_semantics_proven else 0,
                 "jobs": list(source_jobs.values()),
                 "outcomes": outcomes,
+                "control_outcome": (
+                    _serialize_outcome(control_outcome)
+                    if control_outcome is not None
+                    else None
+                ),
                 "error": source_error,
             }
         )
 
-    operational_count = sum(1 for row in source_rows if row["search_operational"])
-    delivering_count = sum(1 for row in source_rows if row["unique_job_count"] > 0)
+    surface_count = sum(1 for row in source_rows if row["search_surface_detected"])
+    semantics_proven_count = sum(
+        1 for row in source_rows if row["search_semantics_proven"]
+    )
+    delivering_candidate_count = sum(
+        1 for row in source_rows if row["target_unique_job_count"] > 0
+    )
+    delivering_proven_count = sum(
+        1 for row in source_rows if row["accepted_y_job_count"] > 0
+    )
     pagination_count = sum(1 for row in source_rows if row["pagination_exercised"])
+    unconfirmed_zero_count = sum(
+        1 for row in source_rows if row["search_semantics_status"] == "unconfirmed_zero"
+    )
+    semantics_failed_count = sum(
+        1 for row in source_rows if row["search_semantics_status"] == "failed"
+    )
 
     payload = {
         "status": "generic_origin_systematic_search_baseline",
         "transaction_read_only": transaction_read_only,
         "canonical_search_terms": terms,
+        "query_control_term": QUERY_CONTROL_TERM,
         "summary": {
             "active_source_count": len(source_rows),
-            "search_operational_source_count": operational_count,
-            "delivering_source_count": delivering_count,
+            "search_surface_detected_source_count": surface_count,
+            "search_semantics_proven_source_count": semantics_proven_count,
+            "search_semantics_unconfirmed_zero_source_count": unconfirmed_zero_count,
+            "search_semantics_failed_source_count": semantics_failed_count,
+            "raw_delivering_source_count": delivering_candidate_count,
+            "accepted_y_delivering_source_count": delivering_proven_count,
             "pagination_exercised_source_count": pagination_count,
-            "unique_job_count": len(all_jobs),
+            "raw_target_job_count": len(raw_target_jobs),
+            "accepted_y_job_count": len(proven_jobs),
             "http_request_count": executor.calls,
         },
         "sources": source_rows,
@@ -260,6 +370,7 @@ def main(argv: list[str] | None = None) -> None:
             "full_scrape": False,
             "vocabulary_tuning": False,
             "search_space_expansion": False,
+            "query_discrimination_required_for_s": True,
             "page_cap": args.page_cap,
             "job_cap_per_source": args.job_cap,
             "absolute_request_cap": args.max_total_requests,
@@ -273,10 +384,15 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     print(f"S_BASELINE_ACTIVE_SOURCES={len(source_rows)}")
-    print(f"S_BASELINE_SEARCH_OPERATIONAL={operational_count}")
-    print(f"S_BASELINE_DELIVERING_SOURCES={delivering_count}")
+    print(f"S_BASELINE_SEARCH_SURFACE_DETECTED={surface_count}")
+    print(f"S_BASELINE_QUERY_SEMANTICS_PROVEN={semantics_proven_count}")
+    print(f"S_BASELINE_QUERY_SEMANTICS_UNCONFIRMED_ZERO={unconfirmed_zero_count}")
+    print(f"S_BASELINE_QUERY_SEMANTICS_FAILED={semantics_failed_count}")
+    print(f"S_BASELINE_RAW_DELIVERING_SOURCES={delivering_candidate_count}")
+    print(f"S_BASELINE_ACCEPTED_Y_DELIVERING_SOURCES={delivering_proven_count}")
     print(f"S_BASELINE_PAGINATION_EXERCISED={pagination_count}")
-    print(f"Y_BASELINE_UNIQUE_JOBS={len(all_jobs)}")
+    print(f"Y_BASELINE_RAW_TARGET_JOBS={len(raw_target_jobs)}")
+    print(f"Y_BASELINE_ACCEPTED_JOBS={len(proven_jobs)}")
     print(f"S_BASELINE_HTTP_REQUESTS={executor.calls}")
     print("S_BASELINE_DATABASE_WRITES=0")
     print("S_BASELINE=COMPLETE")
