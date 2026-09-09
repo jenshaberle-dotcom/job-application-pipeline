@@ -145,7 +145,7 @@ cd "$PROJECT_DIR" || {
   exit 1
 }
 
-LOCAL_OSS_SITE="$($PROJECT_DIR/scripts/ensure_pinned_local_oss_runtime.sh \
+LOCAL_OSS_SITE="$(bash "$PROJECT_DIR/scripts/ensure_pinned_local_oss_runtime.sh" \
   "$RUNTIME_PYTHON" \
   "$PROJECT_DIR/requirements.txt" \
   "$PROJECT_DIR/.runtime/local-oss-sites" 2>>"$LOG_FILE")" || {
