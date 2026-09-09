@@ -10,6 +10,7 @@ from psycopg.rows import dict_row
 import requests
 
 from src.config import get_database_config
+from src.connectors.employer_origin_acquisition import AcquiredJobPage, canonical_url
 from src.connectors.generic_employer_origin_search import (
     DEFAULT_JOB_CAP,
     DEFAULT_PAGE_CAP,
@@ -17,6 +18,9 @@ from src.connectors.generic_employer_origin_search import (
     GenericSearchOutcome,
     SearchRequest,
     search_generic_origin,
+)
+from src.connectors.generic_job_detail_evidence import (
+    extract_generic_job_detail_evidence,
 )
 
 REQUEST_TIMEOUT_SECONDS = 30.0
@@ -93,6 +97,10 @@ class MeteredHttpExecutor:
         )
         self.max_requests = max_requests
         self.calls = 0
+        self._plain_get_responses: dict[str, tuple[str, str, int]] = {}
+
+    def cached_plain_get(self, url: str) -> tuple[str, str, int] | None:
+        return self._plain_get_responses.get(canonical_url(url))
 
     def __call__(self, request: SearchRequest) -> tuple[str, str, int]:
         if self.calls >= self.max_requests:
@@ -129,14 +137,65 @@ class MeteredHttpExecutor:
         body = response.content
         if len(body) > 5_000_000:
             raise RuntimeError("systematic search response body cap exceeded")
-        return (
+        result = (
             body.decode(response.encoding or "utf-8", errors="replace"),
             str(response.url),
             int(response.status_code),
         )
+        if method == "GET" and not fields:
+            self._plain_get_responses[canonical_url(request.url)] = result
+            self._plain_get_responses[canonical_url(result[1])] = result
+        return result
 
 
-def _serialize_outcome(outcome: GenericSearchOutcome) -> dict:
+def _detail_evidence(
+    *,
+    job: AcquiredJobPage,
+    executor: MeteredHttpExecutor,
+    cache: dict[str, dict],
+) -> dict | None:
+    key = canonical_url(job.final_url)
+    if key in cache:
+        return cache[key]
+
+    response = executor.cached_plain_get(job.final_url)
+    if response is None:
+        response = executor(SearchRequest(job.final_url))
+    body, final_url, status_code = response
+    if int(status_code) >= 400 or canonical_url(final_url) != key:
+        return None
+
+    evidence = extract_generic_job_detail_evidence(
+        html=body,
+        url=final_url,
+        page_title=job.title,
+    )
+    cache[key] = evidence
+    return evidence
+
+
+def _serialize_outcome(
+    outcome: GenericSearchOutcome,
+    *,
+    executor: MeteredHttpExecutor | None = None,
+    evidence_cache: dict[str, dict] | None = None,
+    enrich_details: bool = False,
+) -> dict:
+    serialized_jobs: list[dict] = []
+    for job in outcome.jobs:
+        payload = asdict(job)
+        if enrich_details:
+            if executor is None or evidence_cache is None:
+                raise RuntimeError("detail enrichment requires executor and evidence cache")
+            evidence = _detail_evidence(
+                job=job,
+                executor=executor,
+                cache=evidence_cache,
+            )
+            if evidence is not None:
+                payload["detail_evidence"] = evidence
+        serialized_jobs.append(payload)
+
     return {
         "mechanism": outcome.mechanism,
         "query": outcome.query,
@@ -146,7 +205,7 @@ def _serialize_outcome(outcome: GenericSearchOutcome) -> dict:
         "exhausted": outcome.exhausted,
         "stop_reason": outcome.stop_reason,
         "final_url": outcome.final_url,
-        "jobs": [asdict(job) for job in outcome.jobs],
+        "jobs": serialized_jobs,
     }
 
 
@@ -207,6 +266,7 @@ def main(argv: list[str] | None = None) -> None:
         terms = terms[: args.term_cap]
 
     executor = MeteredHttpExecutor(max_requests=args.max_total_requests)
+    detail_evidence_cache: dict[str, dict] = {}
     source_rows: list[dict] = []
     proven_jobs: dict[str, dict] = {}
     raw_target_jobs: dict[str, dict] = {}
@@ -240,14 +300,26 @@ def main(argv: list[str] | None = None) -> None:
                 break
 
             raw_outcomes.append(outcome)
-            serialized = _serialize_outcome(outcome)
+            serialized = _serialize_outcome(
+                outcome,
+                executor=executor,
+                evidence_cache=detail_evidence_cache,
+                enrich_details=True,
+            )
             outcomes.append(serialized)
             if outcome.mechanism != "none":
                 mechanisms.add(outcome.mechanism)
+            serialized_by_url = {
+                str(job["final_url"]): job for job in serialized["jobs"]
+            }
             for job in outcome.jobs:
                 key = job.final_url
-                source_jobs.setdefault(key, asdict(job))
-                raw_target_jobs.setdefault(f"{source_name}|{key}", asdict(job))
+                serialized_job = serialized_by_url[key]
+                source_jobs.setdefault(key, serialized_job)
+                raw_target_jobs.setdefault(
+                    f"{source_name}|{key}",
+                    serialized_job,
+                )
 
             print(
                 "SEARCH_RESULT="
@@ -341,6 +413,24 @@ def main(argv: list[str] | None = None) -> None:
     semantics_failed_count = sum(
         1 for row in source_rows if row["search_semantics_status"] == "failed"
     )
+    detail_evidence_count = sum(
+        1
+        for job in proven_jobs.values()
+        if isinstance(job.get("detail_evidence"), dict)
+        and bool(job["detail_evidence"].get("methods"))
+    )
+    structured_jobposting_count = sum(
+        1
+        for job in proven_jobs.values()
+        if isinstance(job.get("detail_evidence"), dict)
+        and job["detail_evidence"].get("structured_jobposting_found") is True
+    )
+    trafilatura_fallback_count = sum(
+        1
+        for job in proven_jobs.values()
+        if isinstance(job.get("detail_evidence"), dict)
+        and "trafilatura:main_text" in (job["detail_evidence"].get("methods") or [])
+    )
 
     payload = {
         "status": "generic_origin_systematic_search_baseline",
@@ -358,6 +448,9 @@ def main(argv: list[str] | None = None) -> None:
             "pagination_exercised_source_count": pagination_count,
             "raw_target_job_count": len(raw_target_jobs),
             "accepted_y_job_count": len(proven_jobs),
+            "detail_evidence_job_count": detail_evidence_count,
+            "structured_jobposting_job_count": structured_jobposting_count,
+            "trafilatura_fallback_job_count": trafilatura_fallback_count,
             "http_request_count": executor.calls,
         },
         "sources": source_rows,
@@ -371,6 +464,10 @@ def main(argv: list[str] | None = None) -> None:
             "vocabulary_tuning": False,
             "search_space_expansion": False,
             "query_discrimination_required_for_s": True,
+            "generic_detail_evidence": True,
+            "detail_extraction_local_oss_only": True,
+            "external_extraction_provider": False,
+            "raw_html_persisted": False,
             "page_cap": args.page_cap,
             "job_cap_per_source": args.job_cap,
             "absolute_request_cap": args.max_total_requests,
@@ -393,6 +490,9 @@ def main(argv: list[str] | None = None) -> None:
     print(f"S_BASELINE_PAGINATION_EXERCISED={pagination_count}")
     print(f"Y_BASELINE_RAW_TARGET_JOBS={len(raw_target_jobs)}")
     print(f"Y_BASELINE_ACCEPTED_JOBS={len(proven_jobs)}")
+    print(f"DETAIL_EVIDENCE_JOBS={detail_evidence_count}")
+    print(f"DETAIL_STRUCTURED_JOBPOSTING={structured_jobposting_count}")
+    print(f"DETAIL_TRAFILATURA_FALLBACK={trafilatura_fallback_count}")
     print(f"S_BASELINE_HTTP_REQUESTS={executor.calls}")
     print("S_BASELINE_DATABASE_WRITES=0")
     print("S_BASELINE=COMPLETE")
