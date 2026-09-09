@@ -59,9 +59,12 @@ def _proof_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _relation_exists(conn: psycopg.Connection[Any], relation_name: str) -> bool:
     with conn.cursor() as cur:
-        cur.execute("SELECT to_regclass(%s) IS NOT NULL", (f"public.{relation_name}",))
+        cur.execute(
+            "SELECT to_regclass(%s) IS NOT NULL AS relation_exists",
+            (f"public.{relation_name}",),
+        )
         row = cur.fetchone()
-    return bool(row and row[0])
+    return bool(row and row["relation_exists"])
 
 
 def _url_shape(value: str) -> dict[str, object]:
@@ -165,7 +168,7 @@ def _legacy_active_profile_count(conn: psycopg.Connection[Any]) -> int:
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT count(*)
+            SELECT count(*) AS count
             FROM search_profiles
             WHERE is_active = TRUE
               AND source_name <> ALL(%s)
@@ -173,29 +176,32 @@ def _legacy_active_profile_count(conn: psycopg.Connection[Any]) -> int:
             """,
             (list(SENSOR_SOURCE_NAMES), f"{GENERIC_SOURCE_PREFIX}%"),
         )
-        return int(cur.fetchone()[0])
+        row = cur.fetchone()
+    return int(row["count"])
 
 
 def _current_generic_profile_count(conn: psycopg.Connection[Any]) -> int:
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT count(*)
+            SELECT count(*) AS count
             FROM search_profiles
             WHERE is_active = TRUE
               AND source_name LIKE %s
             """,
             (f"{GENERIC_SOURCE_PREFIX}%",),
         )
-        return int(cur.fetchone()[0])
+        row = cur.fetchone()
+    return int(row["count"])
 
 
 def _current_projection_count(conn: psycopg.Connection[Any]) -> int | None:
     if not _relation_exists(conn, ACTIVE_SOURCE_RELATION):
         return None
     with conn.cursor() as cur:
-        cur.execute(f"SELECT count(*) FROM {ACTIVE_SOURCE_RELATION}")
-        return int(cur.fetchone()[0])
+        cur.execute(f"SELECT count(*) AS count FROM {ACTIVE_SOURCE_RELATION}")
+        row = cur.fetchone()
+    return int(row["count"])
 
 
 def _sync_active_source_projection(
@@ -337,7 +343,8 @@ def apply_activation(
                 "SELECT id FROM search_profiles WHERE profile_name = %s",
                 (profile_name,),
             )
-            profile_id = int(cur.fetchone()[0])
+            profile_row = cur.fetchone()
+            profile_id = int(profile_row["id"])
             cur.execute(
                 "UPDATE search_terms SET is_active = FALSE WHERE search_profile_id = %s",
                 (profile_id,),
