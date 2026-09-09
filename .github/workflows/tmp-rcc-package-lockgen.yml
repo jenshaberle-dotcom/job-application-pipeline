@@ -1,0 +1,40 @@
+name: TEMP RCC package lock generator
+
+on:
+  push:
+    branches:
+      - tmp/jap-lockgen-final
+
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.14'
+      - name: Generate deterministic hashed lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'pip-tools==7.5.2'
+          python -m piptools compile requirements-dev.txt \
+            --generate-hashes \
+            --no-header \
+            --no-annotate \
+            --no-emit-index-url \
+            --no-emit-trusted-host \
+            --strip-extras \
+            --output-file /tmp/jap-ci.lock
+          if grep -Eq '^[[:space:]]*--|https?://|git\+|file:' /tmp/jap-ci.lock; then
+            echo 'LOCK_POLICY=FAIL'
+            exit 1
+          fi
+          echo 'LOCK_BEGIN'
+          cat /tmp/jap-ci.lock
+          echo 'LOCK_END'
+          sha256sum /tmp/jap-ci.lock | awk '{print "LOCK_SHA256=" $1}'
