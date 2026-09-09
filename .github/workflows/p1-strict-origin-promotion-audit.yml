@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   audit:
-    name: Fresh strict genuine-job proof across all origin candidates
+    name: Fresh deterministic builder diagnostic across all origin candidates
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 120
     env:
@@ -100,7 +100,7 @@ jobs:
             scripts/run_deterministic_connector_builder_layer_audit_v5.py \
             scripts/run_deterministic_connector_builder_layer_audit_v6.py
 
-      - name: Run fresh strict all-candidate audit read-only
+      - name: Run fresh all-candidate builder diagnostic read-only
         shell: bash
         run: |
           set -euo pipefail
@@ -112,7 +112,7 @@ jobs:
           "$RUNTIME_PYTHON" -m scripts.run_deterministic_connector_builder_layer_audit_v6 \
             --output "$AUDIT_OUTPUT"
 
-      - name: Print promotion-ready cohort
+      - name: Print diagnostic recipe-ready cohort
         shell: bash
         run: |
           set -euo pipefail
@@ -125,13 +125,14 @@ jobs:
           rows = payload.get("results", [])
           ready = [row for row in rows if row.get("recipe_ready") is True]
           print(f"P1_CANDIDATE_COUNT={len(rows)}")
-          print(f"P1_STRICT_PROMOTION_READY={len(ready)}")
+          print(f"P1_DIAGNOSTIC_RECIPE_READY={len(ready)}")
           for row in ready:
-              print(f"P1_PROMOTION_READY={row.get('company_key')}|candidate_id={row.get('candidate_id')}")
+              print(f"P1_DIAGNOSTIC_READY={row.get('company_key')}|candidate_id={row.get('candidate_id')}")
+          print("P1_CANONICAL_PROMOTION_AUTHORITY=NONE_FROM_RECIPE_READY")
           print("P1_DATABASE_WRITES=0")
           PY
 
-      - name: Upload strict audit artifact
+      - name: Upload builder diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
