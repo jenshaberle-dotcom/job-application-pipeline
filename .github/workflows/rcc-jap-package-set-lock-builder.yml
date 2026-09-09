@@ -22,18 +22,28 @@ jobs:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
 
-      - name: Prove exact source and runtime
+      - name: Bootstrap exact Python 3.12.14 into runner-owned toolcache
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.14'
+          cache: false
+
+      - name: Prove exact source and persistent toolcache runtime
         shell: bash
         run: |
           set -euo pipefail
           test '${{ github.repository_id }}' = '1230805345'
           test "${RUNNER_NAME}" = 'job-pipeline-runtime-warm-01-linux'
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          echo "python3=$(command -v python3 || true)"
-          echo "python3_version=$(python3 -c 'import platform; print(platform.python_version())' 2>/dev/null || true)"
-          echo "python3.12=$(command -v python3.12 || true)"
-          echo "python3.12_version=$(python3.12 -c 'import platform; print(platform.python_version())' 2>/dev/null || true)"
-          test "$(python3 -c 'import platform; print(platform.python_version())')" = '3.12.14'
+          test -n "${RUNNER_TOOL_CACHE:-}"
+          tool_python="${RUNNER_TOOL_CACHE}/Python/3.12.14/x64/bin/python"
+          echo "RUNNER_TOOL_CACHE=${RUNNER_TOOL_CACHE}"
+          echo "PATH_PYTHON=$(command -v python || true)"
+          echo "PATH_PYTHON_VERSION=$(python -c 'import platform; print(platform.python_version())' 2>/dev/null || true)"
+          echo "TOOLCACHE_PYTHON=${tool_python}"
+          test -x "${tool_python}"
+          test "$("${tool_python}" -c 'import platform; print(platform.python_version())')" = '3.12.14'
+          test "$(python -c 'import platform; print(platform.python_version())')" = '3.12.14'
 
       - name: Resolve and hash exact wheel closure
         shell: bash
@@ -43,9 +53,10 @@ jobs:
           venv="${root}/venv"
           wheels="${root}/wheels"
           out="${root}/jap-warm-v1.txt"
+          base_python="${RUNNER_TOOL_CACHE}/Python/3.12.14/x64/bin/python"
           rm -rf -- "${root}"
           mkdir -p "${wheels}"
-          python3 -m venv "${venv}"
+          "${base_python}" -m venv "${venv}"
           test "$("${venv}/bin/python" -c 'import platform; print(platform.python_version())')" = '3.12.14'
           "${venv}/bin/python" -m pip install --disable-pip-version-check -r requirements-dev.txt
           "${venv}/bin/python" -m pip check
