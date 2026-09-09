@@ -6,6 +6,7 @@ on:
     paths:
       - '.rcc/runner-contract.json'
       - '.rcc/runner-profiles/linux-wsl.json'
+      - '.rcc/python-package-sets/**'
       - '.github/workflows/rcc-warm-ownership-qualifier.yml'
   workflow_dispatch:
 
@@ -20,7 +21,7 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
-      - name: Prove repository, runner, profile and Python surface
+      - name: Prove repository, runner, profile and exact Python surface
         shell: bash
         run: |
           set -euo pipefail
@@ -40,9 +41,13 @@ jobs:
           assert slot['routing_labels'] == ['job-pipeline-runtime-linux']
           assert slot['profile_id'] == 'job-pipeline-runtime-linux-warm'
           assert profile['profile_id'] == 'job-pipeline-runtime-linux-warm'
+          assert profile['profile_version'] == 2
           assert profile['runner_labels'] == ['job-pipeline-runtime-linux']
-          assert profile['requirements'] == []
-          assert profile['profile_hash'] == '5fee300694b870f759ab9c7b0b05db7ab10a1a3b07f8b3f6a2909535b773abfe'
+          assert profile['requirements'] == [
+              {'id': 'python', 'version': '3.12.14', 'hash': ''},
+          ]
+          assert profile['profile_hash'] == 'aae77e3041aee50ea435f31b136ae4b9a67872ab4bc1d874a5cac95110aa3cd6'
           print('JAP_RCC_LINUX_WARM_OWNERSHIP=PASS')
           PY
-          python3 --version
+          test "$(python3.12 -c 'import platform; print(platform.python_version())')" = '3.12.14'
+          echo 'JAP_RCC_EXACT_PYTHON_3_12_14=PASS'
