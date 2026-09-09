@@ -14,7 +14,7 @@ from src.config import get_database_config
 SENSOR_SOURCE_NAMES = ("bundesagentur_fuer_arbeit", "stepstone")
 GENERIC_SOURCE_PREFIX = "generic_origin:"
 PROFILE_PREFIX = "generic_origin__"
-NEUTRAL_TRIGGER_TERM = "jobs"
+NEUTRAL_TRIGGER_TERM = "*"
 ACTIVE_SOURCE_RELATION = "generic_employer_origin_active_sources"
 GENERIC_AUTHORITY = "generic_evidence_driven_layer_model"
 
