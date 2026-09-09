@@ -6,6 +6,7 @@ on:
       - ".github/workflows/p1-generic-origin-systematic-search.yml"
       - "src/connectors/generic_employer_origin_search.py"
       - "scripts/run_generic_origin_systematic_search_baseline.py"
+      - "scripts/run_generic_origin_stage_funnel_audit.py"
       - "tests/test_generic_employer_origin_search.py"
 
 permissions:
@@ -25,6 +26,7 @@ jobs:
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       BASELINE_OUTPUT: /tmp/jap-generic-origin-systematic-search.json
+      FUNNEL_OUTPUT: /tmp/jap-generic-origin-stage-funnel.json
 
     steps:
       - name: Check out exact PR head
@@ -82,9 +84,21 @@ jobs:
             --job-cap 30 \
             --max-total-requests 2000
 
-      - name: Upload systematic search artifact
+      - name: Audit query-proven jobs through current production gates
+        shell: bash
+        env:
+          PGOPTIONS: "-c default_transaction_read_only=on"
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_generic_origin_stage_funnel_audit \
+            --search-json "$BASELINE_OUTPUT" \
+            --output "$FUNNEL_OUTPUT"
+
+      - name: Upload systematic search and funnel artifacts
         uses: actions/upload-artifact@v4
         with:
           name: p1-generic-origin-systematic-search
-          path: /tmp/jap-generic-origin-systematic-search.json
+          path: |
+            /tmp/jap-generic-origin-systematic-search.json
+            /tmp/jap-generic-origin-stage-funnel.json
           if-no-files-found: error
