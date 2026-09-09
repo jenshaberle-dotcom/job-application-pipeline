@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS generic_employer_origin_active_sources (
         REFERENCES employer_origin_source_candidates(id) ON DELETE RESTRICT,
     company_key TEXT NOT NULL UNIQUE,
     source_name TEXT NOT NULL UNIQUE,
+    origin_url TEXT NOT NULL
+        CHECK (origin_url ~ '^https://'),
     authority TEXT NOT NULL
         CHECK (authority = 'generic_evidence_driven_layer_model'),
     proof_state TEXT NOT NULL
@@ -15,5 +17,7 @@ CREATE TABLE IF NOT EXISTS generic_employer_origin_active_sources (
 
 COMMENT ON TABLE generic_employer_origin_active_sources IS
     'Materialized current proof=PASS projection from the sole generic Employer-Origin layer model; not an independent admission authority.';
+COMMENT ON COLUMN generic_employer_origin_active_sources.origin_url IS
+    'Exact Employer-Origin URL bound to the current proof=PASS source projection.';
 COMMENT ON COLUMN generic_employer_origin_active_sources.proof_evidence IS
     'Evidence copied from the current generic proof layer that caused source admission.';
