@@ -1,0 +1,137 @@
+name: P1 generic Employer-Origin z baseline
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/p1-generic-origin-z-baseline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    name: Read-only current relevance baseline for generic-origin Bronze
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      BASELINE_OUTPUT: /tmp/jap-generic-origin-z-baseline.json
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Measure unchanged y-to-z baseline read-only
+        shell: bash
+        env:
+          PGOPTIONS: "-c default_transaction_read_only=on"
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$BASELINE_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from scripts.review_silver_selection import review_raw_job
+          from src.config import get_database_config
+
+          output = Path(sys.argv[1])
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SHOW transaction_read_only")
+                  transaction_read_only = cur.fetchone()["transaction_read_only"]
+                  if transaction_read_only != "on":
+                      raise SystemExit("Z_BASELINE_NOT_READ_ONLY")
+                  cur.execute(
+                      """
+                      SELECT id, source_name, external_job_id, source_url, raw_data
+                      FROM raw_jobs
+                      WHERE source_name LIKE 'generic_origin:%'
+                      ORDER BY id
+                      """
+                  )
+                  raw_jobs = [dict(row) for row in cur.fetchall()]
+
+          reviewed = [review_raw_job(row) for row in raw_jobs]
+          relevant = [row for row in reviewed if row["relevant"]]
+          non_relevant = [row for row in reviewed if not row["relevant"]]
+          payload = {
+              "status": "generic_origin_z_baseline",
+              "transaction_read_only": transaction_read_only,
+              "y_bronze_count": len(reviewed),
+              "z_relevant_count": len(relevant),
+              "non_relevant_count": len(non_relevant),
+              "rows": reviewed,
+              "boundary": {
+                  "database_writes": False,
+                  "silver_writes": False,
+                  "bronze_writes": False,
+                  "network_requests": False,
+                  "vocabulary_tuning": False,
+                  "search_space_expansion": False,
+              },
+          }
+          output.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+          print(f"Z_BASELINE_Y={len(reviewed)}")
+          print(f"Z_BASELINE_Z={len(relevant)}")
+          print(f"Z_BASELINE_NON_RELEVANT={len(non_relevant)}")
+          for row in reviewed:
+              transformed = row.get("transformed_if_relevant") or {}
+              print(
+                  "Z_ROW="
+                  f"{row['source_name']}|relevant={str(row['relevant']).lower()}|"
+                  f"reason={row['decision_reason']}|"
+                  f"title={transformed.get('title') or '-'}|"
+                  f"city={transformed.get('city') or '-'}|"
+                  f"roles={','.join(row['role_matches']) or '-'}|"
+                  f"skills={','.join(row['skill_matches']) or '-'}|"
+                  f"access={','.join(row['accessibility_matches']) or '-'}"
+              )
+          print("Z_BASELINE_DATABASE_WRITES=0")
+          print("Z_BASELINE=COMPLETE")
+          PY
+
+      - name: Upload z baseline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-generic-origin-z-baseline
+          path: /tmp/jap-generic-origin-z-baseline.json
+          if-no-files-found: error
