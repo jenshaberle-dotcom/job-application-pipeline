@@ -5,10 +5,15 @@ on:
     paths:
       - ".github/workflows/p1-generic-origin-product-proof.yml"
       - "scripts/run_generic_employer_origin_product.py"
+      - "scripts/qualify_generic_employer_origin_connectors.py"
+      - "scripts/apply_generic_employer_origin_activation.py"
       - "scripts/run_deterministic_connector_builder_layer_audit.py"
+      - "src/connectors/generic_employer_origin.py"
       - "src/connectors/employer_origin_**"
+      - "src/connectors/registry.py"
       - "src/search_intelligence/deterministic_connector_builder.py"
       - "tests/test_generic_employer_origin_product.py"
+      - "tests/test_connector_registry.py"
 
 permissions:
   contents: read
@@ -93,12 +98,18 @@ jobs:
       - name: Compile canonical product path
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m py_compile scripts/run_generic_employer_origin_product.py
+          "$RUNTIME_PYTHON" -m py_compile \
+            scripts/run_generic_employer_origin_product.py \
+            scripts/qualify_generic_employer_origin_connectors.py \
+            scripts/apply_generic_employer_origin_activation.py \
+            src/connectors/generic_employer_origin.py
 
-      - name: Test sole-truth contract
+      - name: Test sole-truth and registry contracts
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m pytest -q tests/test_generic_employer_origin_product.py
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_generic_employer_origin_product.py \
+            tests/test_connector_registry.py
 
       - name: Run generic product proof read-only
         shell: bash
@@ -129,6 +140,30 @@ jobs:
               print(f"GENERIC_VALID_SOURCE={key}")
           print("GENERIC_PRODUCT_DATABASE_WRITES=0")
           PY
+
+      - name: Qualify every proof-passed source through normal registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.qualify_generic_employer_origin_connectors \
+            --proof-json "$PRODUCT_OUTPUT"
+
+      - name: Prove activation plan is exact and read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation \
+            --proof-json "$PRODUCT_OUTPUT"
 
       - name: Upload generic product proof artifact
         if: always()
