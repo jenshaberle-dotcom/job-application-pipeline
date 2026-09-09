@@ -4,16 +4,25 @@ on:
   pull_request:
     paths:
       - ".github/workflows/p1-generic-origin-product-proof.yml"
+      - ".github/workflows/p1-generic-origin-product-activate.yml"
+      - "db/migrations/107_create_generic_employer_origin_active_sources.sql"
       - "scripts/run_generic_employer_origin_product.py"
       - "scripts/qualify_generic_employer_origin_connectors.py"
       - "scripts/apply_generic_employer_origin_activation.py"
       - "scripts/run_deterministic_connector_builder_layer_audit.py"
       - "src/connectors/generic_employer_origin.py"
+      - "src/connectors/generic_employer_origin_product.py"
+      - "src/ingestion/generic_origin_bronze_admission.py"
       - "src/connectors/employer_origin_**"
       - "src/connectors/registry.py"
       - "src/search_intelligence/deterministic_connector_builder.py"
+      - "src/search_intelligence/source_connector_overview.py"
       - "tests/test_generic_employer_origin_product.py"
       - "tests/test_generic_employer_origin_connector.py"
+      - "tests/test_generic_employer_origin_product_connector.py"
+      - "tests/test_generic_origin_bronze_admission.py"
+      - "tests/test_generic_origin_product_activation_contract.py"
+      - "tests/test_generic_origin_source_overview_truth.py"
       - "tests/test_connector_registry.py"
 
 permissions:
@@ -103,14 +112,21 @@ jobs:
             scripts/run_generic_employer_origin_product.py \
             scripts/qualify_generic_employer_origin_connectors.py \
             scripts/apply_generic_employer_origin_activation.py \
-            src/connectors/generic_employer_origin.py
+            src/connectors/generic_employer_origin.py \
+            src/connectors/generic_employer_origin_product.py \
+            src/ingestion/generic_origin_bronze_admission.py \
+            src/search_intelligence/source_connector_overview.py
 
-      - name: Test sole-truth and registry contracts
+      - name: Test sole-truth registry and Bronze contracts
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_generic_employer_origin_product.py \
             tests/test_generic_employer_origin_connector.py \
+            tests/test_generic_employer_origin_product_connector.py \
+            tests/test_generic_origin_bronze_admission.py \
+            tests/test_generic_origin_product_activation_contract.py \
+            tests/test_generic_origin_source_overview_truth.py \
             tests/test_connector_registry.py
 
       - name: Run generic product proof read-only
@@ -143,7 +159,7 @@ jobs:
           print("GENERIC_PRODUCT_DATABASE_WRITES=0")
           PY
 
-      - name: Qualify every proof-passed source through normal registry
+      - name: Qualify proof-pass sources through Bronze-gated product registry
         shell: bash
         run: |
           set -euo pipefail
