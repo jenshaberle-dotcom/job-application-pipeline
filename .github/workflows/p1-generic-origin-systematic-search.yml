@@ -4,12 +4,15 @@ on:
   pull_request:
     paths:
       - ".github/workflows/p1-generic-origin-systematic-search.yml"
+      - "requirements.txt"
       - "src/connectors/generic_employer_origin_search.py"
+      - "src/connectors/generic_job_detail_evidence.py"
       - "src/silver/transformer.py"
       - "src/silver/relevance.py"
       - "scripts/run_generic_origin_systematic_search_baseline.py"
       - "scripts/run_generic_origin_stage_funnel_audit.py"
       - "tests/test_generic_employer_origin_search.py"
+      - "tests/test_generic_job_detail_evidence.py"
       - "tests/test_generic_origin_silver_plumbing.py"
 
 permissions:
@@ -68,12 +71,27 @@ jobs:
           printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
           printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
 
-      - name: Qualify systematic-search unit contracts
+      - name: Install pinned local OSS detail extractors in isolated job path
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$RUNNER_TEMP/jap-p1-local-oss-site"
+          rm -rf "$local_oss_site"
+          "$RUNTIME_PYTHON" -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --target "$local_oss_site" \
+            'extruct==0.18.0' \
+            'trafilatura==2.2.0'
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Qualify systematic-search and detail-evidence unit contracts
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_generic_employer_origin_search.py \
+            tests/test_generic_job_detail_evidence.py \
             tests/test_generic_origin_silver_plumbing.py
 
       - name: Run systematic search baseline read-only
