@@ -53,9 +53,12 @@ CandidateLoader = Callable[[str], GenericOriginSource]
 
 def _active_projection_exists(conn: psycopg.Connection[object]) -> bool:
     with conn.cursor() as cur:
-        cur.execute("SELECT to_regclass(%s) IS NOT NULL", (f"public.{ACTIVE_SOURCE_RELATION}",))
+        cur.execute(
+            "SELECT to_regclass(%s) IS NOT NULL AS relation_exists",
+            (f"public.{ACTIVE_SOURCE_RELATION}",),
+        )
         row = cur.fetchone()
-    return bool(row and row[0])
+    return bool(row and row["relation_exists"])
 
 
 def load_generic_origin_source(company_key: str) -> GenericOriginSource:
