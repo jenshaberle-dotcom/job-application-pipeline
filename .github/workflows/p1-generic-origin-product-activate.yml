@@ -9,6 +9,7 @@ on:
       - "scripts/run_generic_employer_origin_product.py"
       - "scripts/qualify_generic_employer_origin_connectors.py"
       - "scripts/apply_generic_employer_origin_activation.py"
+      - "src/config.py"
       - "src/connectors/generic_employer_origin.py"
       - "src/connectors/generic_employer_origin_product.py"
       - "src/connectors/registry.py"
