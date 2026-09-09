@@ -1,0 +1,293 @@
+name: P1 generic Employer-Origin product activation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/p1-generic-origin-product-activate.yml"
+      - "db/migrations/107_create_generic_employer_origin_active_sources.sql"
+      - "scripts/run_generic_employer_origin_product.py"
+      - "scripts/qualify_generic_employer_origin_connectors.py"
+      - "scripts/apply_generic_employer_origin_activation.py"
+      - "src/connectors/generic_employer_origin.py"
+      - "src/connectors/generic_employer_origin_product.py"
+      - "src/connectors/registry.py"
+      - "src/ingestion/generic_origin_bronze_admission.py"
+      - "src/connectors/employer_origin_**"
+      - "src/search_intelligence/deterministic_connector_builder.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-generic-employer-origin-product-activation
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    name: Activate generic proof-pass sources and ingest admissible jobs
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 180
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      PRODUCT_OUTPUT: /tmp/jap-generic-employer-origin-product-main.json
+      GENERIC_MIGRATION: 107_create_generic_employer_origin_active_sources.sql
+
+    steps:
+      - name: Check out exact main commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact main checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$GITHUB_SHA"
+          echo "GENERIC_ACTIVATION_SOURCE=$actual"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity", "checkout", "checkout_repository",
+              "env_file", "env_keys", "interpreter", "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          echo "RCC_CONTEXT=PASS runner=${RUNNER_NAME}"
+
+      - name: Load product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          env | grep '^POSTGRES_' | sed 's/=.*$/=<set>/'
+
+      - name: Apply sole generic active-source projection migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py \
+            --apply-exact "$GENERIC_MIGRATION" \
+            --require-sole-pending \
+            --applied-by "p1-generic-origin-main-${GITHUB_RUN_ID}"
+          status="$($RUNTIME_PYTHON scripts/apply_db_migrations.py --status)"
+          printf '%s\n' "$status"
+          grep -q '^pending_migrations: 0$' <<< "$status"
+          grep -q '^checksum_mismatches: 0$' <<< "$status"
+
+      - name: Recompute sole generic source truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_generic_employer_origin_product \
+            --output "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" - "$PRODUCT_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          keys = payload.get("proof_pass_company_keys", [])
+          if not keys:
+              raise SystemExit("GENERIC_PROOF_PASS_COHORT_EMPTY")
+          print(f"GENERIC_MAIN_CANDIDATES={payload['summary']['candidate_count']}")
+          print(f"GENERIC_MAIN_PROOF_PASS={len(keys)}")
+          for key in keys:
+              print(f"GENERIC_MAIN_VALID_SOURCE={key}")
+          PY
+
+      - name: Qualify proof-pass sources through product registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.qualify_generic_employer_origin_connectors \
+            --proof-json "$PRODUCT_OUTPUT"
+
+      - name: Prove exact activation plan before effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation \
+            --proof-json "$PRODUCT_OUTPUT"
+
+      - name: Apply exact proof-pass source activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation \
+            --proof-json "$PRODUCT_OUTPUT" \
+            --apply
+
+      - name: Run normal recurring generic-origin ingestion
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m src.ingest_jobs \
+            --source generic_origin \
+            --log-level INFO
+
+      - name: Verify source truth and Bronze admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$PRODUCT_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from src.config import get_database_config
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          keys = [str(value) for value in payload.get("proof_pass_company_keys", [])]
+          expected_sources = {f"generic_origin:{key}" for key in keys}
+
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT source_name FROM generic_employer_origin_active_sources ORDER BY source_name"
+                  )
+                  projection = {str(row["source_name"]) for row in cur.fetchall()}
+
+                  cur.execute(
+                      """
+                      SELECT source_name
+                      FROM search_profiles
+                      WHERE is_active = TRUE
+                        AND recurring_ingestion_enabled = TRUE
+                        AND source_name LIKE 'generic_origin:%'
+                      ORDER BY source_name
+                      """
+                  )
+                  active_profiles = {str(row["source_name"]) for row in cur.fetchall()}
+
+                  cur.execute(
+                      """
+                      SELECT count(*) AS count
+                      FROM search_profiles
+                      WHERE is_active = TRUE
+                        AND source_name NOT IN ('bundesagentur_fuer_arbeit', 'stepstone')
+                        AND source_name NOT LIKE 'generic_origin:%'
+                      """
+                  )
+                  legacy_active = int(cur.fetchone()["count"])
+
+                  cur.execute(
+                      """
+                      SELECT DISTINCT ON (source_name)
+                          source_name, status, total_loaded, inserted_count
+                      FROM ingestion_runs
+                      WHERE source_name LIKE 'generic_origin:%'
+                      ORDER BY source_name, started_at DESC, id DESC
+                      """
+                  )
+                  latest_runs = {str(row["source_name"]): row for row in cur.fetchall()}
+
+                  cur.execute(
+                      """
+                      SELECT
+                          count(*) AS total,
+                          count(*) FILTER (
+                              WHERE raw_data->'bronze_admission'->>'status' = 'pass'
+                          ) AS admitted,
+                          count(DISTINCT source_name) AS delivering_sources
+                      FROM raw_jobs
+                      WHERE source_name LIKE 'generic_origin:%'
+                      """
+                  )
+                  bronze = cur.fetchone()
+
+          if projection != expected_sources:
+              raise SystemExit(
+                  f"GENERIC_PROJECTION_MISMATCH expected={sorted(expected_sources)} actual={sorted(projection)}"
+              )
+          if active_profiles != expected_sources:
+              raise SystemExit(
+                  f"GENERIC_PROFILE_MISMATCH expected={sorted(expected_sources)} actual={sorted(active_profiles)}"
+              )
+          if legacy_active != 0:
+              raise SystemExit(f"LEGACY_EMPLOYER_ORIGIN_ACTIVE={legacy_active}")
+          if set(latest_runs) != expected_sources:
+              missing = sorted(expected_sources - set(latest_runs))
+              raise SystemExit(f"GENERIC_INGESTION_RUNS_MISSING={missing}")
+          failed = sorted(
+              source for source, row in latest_runs.items() if row["status"] != "success"
+          )
+          if failed:
+              raise SystemExit(f"GENERIC_LATEST_RUN_NOT_SUCCESS={failed}")
+
+          total = int(bronze["total"])
+          admitted = int(bronze["admitted"])
+          if total != admitted:
+              raise SystemExit(
+                  f"GENERIC_BRONZE_ADMISSION_BYPASS total={total} admitted={admitted}"
+              )
+
+          print(f"GENERIC_ACTIVE_SOURCES={len(projection)}")
+          print("LEGACY_ACTIVE_EMPLOYER_SOURCES=0")
+          print(f"GENERIC_SUCCESSFUL_LATEST_INGESTION_RUNS={len(latest_runs)}")
+          print(f"GENERIC_BRONZE_ROWS={total}")
+          print(f"GENERIC_BRONZE_DELIVERING_SOURCES={int(bronze['delivering_sources'])}")
+          for source in sorted(latest_runs):
+              row = latest_runs[source]
+              print(
+                  f"GENERIC_SOURCE_RUN={source}|status={row['status']}|"
+                  f"loaded={int(row['total_loaded'] or 0)}|inserted={int(row['inserted_count'] or 0)}"
+              )
+          print("GENERIC_PRODUCT_ACTIVATION_E2E=PASS")
+          PY
