@@ -1,0 +1,33 @@
+name: TEMP JAP warm runtime probe
+
+on:
+  push:
+    branches:
+      - rcc-workload-ready-jap-canary
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 3
+    steps:
+      - name: Inspect pre-setup warm runtime state
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RUNNER_NAME=$RUNNER_NAME"
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "PYTHON_PATH=$(command -v python || true)"
+          python --version || true
+          echo "NODE_PATH=$(command -v node || true)"
+          node --version || true
+          echo "NPM_PATH=$(command -v npm || true)"
+          npm --version || true
+          echo 'PYTHON_TOOLCACHE_BEGIN'
+          find "$RUNNER_TOOL_CACHE/Python" -maxdepth 3 -type f -name python -print 2>/dev/null | sort | tail -20 || true
+          echo 'PYTHON_TOOLCACHE_END'
+          echo 'NODE_TOOLCACHE_BEGIN'
+          find "$RUNNER_TOOL_CACHE/node" -maxdepth 4 -type f -name node -print 2>/dev/null | sort | tail -20 || true
+          echo 'NODE_TOOLCACHE_END'
