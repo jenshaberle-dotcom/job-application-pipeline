@@ -1,0 +1,127 @@
+name: P1 generic Employer-Origin systematic search
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/p1-generic-origin-systematic-search.yml"
+      - "requirements.txt"
+      - "src/connectors/generic_employer_origin_search.py"
+      - "src/connectors/generic_job_detail_evidence.py"
+      - "src/silver/transformer.py"
+      - "src/silver/relevance.py"
+      - "scripts/run_generic_origin_systematic_search_baseline.py"
+      - "scripts/run_generic_origin_stage_funnel_audit.py"
+      - "tests/test_generic_employer_origin_search.py"
+      - "tests/test_generic_job_detail_evidence.py"
+      - "tests/test_generic_origin_silver_plumbing.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-generic-origin-systematic-search-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Bounded targeted-search baseline across active generic origins
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 45
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      BASELINE_OUTPUT: /tmp/jap-generic-origin-systematic-search.json
+      FUNNEL_OUTPUT: /tmp/jap-generic-origin-stage-funnel.json
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Install pinned local OSS detail extractors in isolated job path
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$RUNNER_TEMP/jap-p1-local-oss-site"
+          rm -rf "$local_oss_site"
+          "$RUNTIME_PYTHON" -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --target "$local_oss_site" \
+            'extruct==0.18.0' \
+            'trafilatura==2.2.0'
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Qualify systematic-search and detail-evidence unit contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_generic_employer_origin_search.py \
+            tests/test_generic_job_detail_evidence.py \
+            tests/test_generic_origin_silver_plumbing.py
+
+      - name: Run systematic search baseline read-only
+        shell: bash
+        env:
+          PGOPTIONS: "-c default_transaction_read_only=on"
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_generic_origin_systematic_search_baseline \
+            --output "$BASELINE_OUTPUT" \
+            --page-size 20 \
+            --page-cap 3 \
+            --job-cap 30 \
+            --max-total-requests 2000
+
+      - name: Audit query-proven jobs through current production gates
+        shell: bash
+        env:
+          PGOPTIONS: "-c default_transaction_read_only=on"
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_generic_origin_stage_funnel_audit \
+            --search-json "$BASELINE_OUTPUT" \
+            --output "$FUNNEL_OUTPUT"
+
+      - name: Upload systematic search and funnel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-generic-origin-systematic-search
+          path: |
+            /tmp/jap-generic-origin-systematic-search.json
+            /tmp/jap-generic-origin-stage-funnel.json
+          if-no-files-found: error
