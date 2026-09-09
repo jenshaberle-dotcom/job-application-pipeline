@@ -237,7 +237,7 @@ def _structured_job_posting(html: str, url: str) -> tuple[str | None, dict[str, 
         extracted = extruct.extract(
             html,
             base_url=url,
-            syntaxes=("json-ld", "microdata"),
+            syntaxes=["json-ld", "microdata"],
             uniform=False,
         )
     except Exception:
