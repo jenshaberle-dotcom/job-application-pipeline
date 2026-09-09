@@ -37,6 +37,7 @@ MAX_BODY_BYTES = 5_000_000
 WORKDAY_REQUEST_CAP = 3
 PORTAL_REQUEST_CAP = 4
 PUBLIC_FEED_REQUEST_CAP = 3
+ACTIVE_SOURCE_RELATION = "generic_employer_origin_active_sources"
 
 
 @dataclass(frozen=True)
@@ -50,25 +51,56 @@ class GenericOriginSource:
 CandidateLoader = Callable[[str], GenericOriginSource]
 
 
+def _active_projection_exists(conn: psycopg.Connection[object]) -> bool:
+    with conn.cursor() as cur:
+        cur.execute("SELECT to_regclass(%s) IS NOT NULL", (f"public.{ACTIVE_SOURCE_RELATION}",))
+        row = cur.fetchone()
+    return bool(row and row[0])
+
+
 def load_generic_origin_source(company_key: str) -> GenericOriginSource:
     with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, company_key, company_name, candidate_url
-                FROM employer_origin_source_candidates
-                WHERE company_key = %s
-                ORDER BY updated_at DESC NULLS LAST, id DESC
-                LIMIT 1
-                """,
-                (company_key,),
-            )
-            row = cur.fetchone()
+        row = None
+        if _active_projection_exists(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        active.candidate_id AS id,
+                        active.company_key,
+                        candidate.company_name,
+                        active.origin_url AS candidate_url
+                    FROM {ACTIVE_SOURCE_RELATION} AS active
+                    JOIN employer_origin_source_candidates AS candidate
+                      ON candidate.id = active.candidate_id
+                    WHERE active.company_key = %s
+                    LIMIT 1
+                    """,
+                    (company_key,),
+                )
+                row = cur.fetchone()
+
+        if row is None:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, company_key, company_name, candidate_url
+                    FROM employer_origin_source_candidates
+                    WHERE company_key = %s
+                    ORDER BY updated_at DESC NULLS LAST, id DESC
+                    LIMIT 1
+                    """,
+                    (company_key,),
+                )
+                row = cur.fetchone()
+
     if row is None:
         raise ValueError(f"No Employer-Origin candidate found for {company_key!r}")
     candidate_url = str(row.get("candidate_url") or "").strip()
     if not candidate_url:
-        raise ValueError(f"Employer-Origin candidate {company_key!r} has no persisted origin URL")
+        raise ValueError(
+            f"Employer-Origin candidate {company_key!r} has no materialized origin URL"
+        )
     return GenericOriginSource(
         candidate_id=int(row["id"]),
         company_key=str(row["company_key"]),
