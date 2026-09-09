@@ -58,7 +58,7 @@ def test_form_search_follows_explicit_next_page_and_collects_multiple_jobs(
         calls.append(request)
         if "page=2" in request.url:
             return (
-                '<html><a href="/job/2">Data Engineer II</a></html>',
+                '<html><a href="/stellenanzeige/ML-Engineer-mwd-23456.html">Data Engineer II</a></html>',
                 request.url,
                 200,
             )
@@ -66,7 +66,7 @@ def test_form_search_follows_explicit_next_page_and_collects_multiple_jobs(
         return (
             """
             <html><body>
-              <a href="/job/1">Data Engineer I</a>
+              <a href="/stellenanzeige/Data-Engineer-mwd-12345.html">Data Engineer I</a>
               <a href="/jobs?keyword=Data+Engineer&page=2">Next</a>
             </body></html>
             """,
@@ -96,8 +96,8 @@ def test_form_search_follows_explicit_next_page_and_collects_multiple_jobs(
     assert outcome.stop_reason == "no_next_page"
     assert len(outcome.jobs) == 2
     assert {job.final_url for job in outcome.jobs} == {
-        "https://example.test/job/1",
-        "https://example.test/job/2",
+        "https://example.test/stellenanzeige/Data-Engineer-mwd-12345.html",
+        "https://example.test/stellenanzeige/ML-Engineer-mwd-23456.html",
     }
     assert len(calls) == 2
 
