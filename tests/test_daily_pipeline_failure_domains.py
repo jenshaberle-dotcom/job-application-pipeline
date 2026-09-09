@@ -180,7 +180,7 @@ def test_sensor_failure_does_not_block_silver_or_daily_core_success(tmp_path: Pa
     assert any("--role sensor" in call for call in calls)
     assert any("-m src.run_silver_jobs" in call for call in calls)
     assert any("-m scripts.create_source_value_snapshot" in call for call in calls)
-    assert "Pinned local OSS detail runtime ready" in log_text
+    assert "local_oss_site=" in log_text
     assert "OK_WITH_SENSOR_DEGRADATION" in log_text
     assert "authoritative origin freshness will continue" in log_text
 
