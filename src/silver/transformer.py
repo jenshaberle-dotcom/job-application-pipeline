@@ -398,5 +398,6 @@ def get_supported_source_patterns() -> list[str]:
         "enercity:%",
         "hdi:%",
         "successfactors:%",
+        "generic_origin:%",
         "stepstone",
     ]
