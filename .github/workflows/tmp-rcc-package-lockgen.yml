@@ -29,12 +29,17 @@ jobs:
             --no-emit-index-url \
             --no-emit-trusted-host \
             --strip-extras \
-            --output-file /tmp/jap-ci.lock
-          if grep -Eq '^[[:space:]]*--|https?://|git\+|file:' /tmp/jap-ci.lock; then
+            --output-file jap-ci.lock
+          if grep -Eq '^[[:space:]]*--(index-url|extra-index-url|trusted-host|find-links)|https?://|git\+|file:' jap-ci.lock; then
             echo 'LOCK_POLICY=FAIL'
             exit 1
           fi
-          echo 'LOCK_BEGIN'
-          cat /tmp/jap-ci.lock
-          echo 'LOCK_END'
-          sha256sum /tmp/jap-ci.lock | awk '{print "LOCK_SHA256=" $1}'
+          echo 'LOCK_POLICY=PASS'
+          sha256sum jap-ci.lock | awk '{print "LOCK_SHA256=" $1}'
+      - name: Upload exact lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: jap-ci-lock
+          path: jap-ci.lock
+          if-no-files-found: error
+          retention-days: 1
