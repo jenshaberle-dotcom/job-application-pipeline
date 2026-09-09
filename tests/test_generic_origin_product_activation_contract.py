@@ -5,6 +5,8 @@ MIGRATION = Path(
     "db/migrations/107_create_generic_employer_origin_active_sources.sql"
 )
 ACTIVATION = Path("scripts/apply_generic_employer_origin_activation.py")
+CONNECTOR = Path("src/connectors/generic_employer_origin.py")
+QUALIFIER = Path("scripts/qualify_generic_employer_origin_connectors.py")
 WORKFLOW = Path(".github/workflows/p1-generic-origin-product-activate.yml")
 
 
@@ -13,6 +15,7 @@ def test_generic_active_source_projection_accepts_only_canonical_pass_state() ->
 
     assert "generic_employer_origin_active_sources" in sql
     assert "generic_evidence_driven_layer_model" in sql
+    assert "origin_url TEXT NOT NULL" in sql
     assert "CHECK (proof_state = 'pass')" in sql
     assert "source_name = 'generic_origin:' || company_key" in sql
     assert "employer_origin_candidate_gate_reviews" not in sql
@@ -24,8 +27,28 @@ def test_activation_uses_proof_projection_and_nonsemantic_wildcard_trigger() -> 
     assert 'GENERIC_AUTHORITY = "generic_evidence_driven_layer_model"' in source
     assert 'NEUTRAL_TRIGGER_TERM = "*"' in source
     assert "generic_employer_origin_active_sources" in source
+    assert "origin_url" in source
+    assert "provider_free_origin_discovery" in source
+    assert "_shape_to_https_url" in source
     assert "connector_validation_gate" not in source
     assert "final_approval_gate" not in source
+
+
+def test_product_connector_prefers_materialized_proof_source_identity() -> None:
+    source = CONNECTOR.read_text(encoding="utf-8")
+
+    assert 'ACTIVE_SOURCE_RELATION = "generic_employer_origin_active_sources"' in source
+    assert "active.candidate_id AS id" in source
+    assert "active.origin_url AS candidate_url" in source
+    assert "JOIN employer_origin_source_candidates AS candidate" in source
+
+
+def test_preactivation_discovered_origin_is_not_misclassified_as_connector_failure() -> None:
+    source = QUALIFIER.read_text(encoding="utf-8")
+
+    assert "PREACTIVATION_MATERIALIZATION_PENDING" in source
+    assert "proof_discovered_origin_not_yet_projected" in source
+    assert "GENERIC_PREACTIVATION_MATERIALIZATION_PENDING" in source
 
 
 def test_main_activation_is_automatic_not_a_demo_or_manual_effect_path() -> None:
