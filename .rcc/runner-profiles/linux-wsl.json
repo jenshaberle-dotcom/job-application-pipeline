@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "profile_id": "job-pipeline-runtime-linux-warm",
-  "profile_version": 2,
+  "profile_version": 3,
   "platform": "linux-wsl",
   "runner_labels": [
     "job-pipeline-runtime-linux"
@@ -11,7 +11,12 @@
       "id": "python",
       "version": "3.12.14",
       "hash": ""
+    },
+    {
+      "id": "python-package-set",
+      "version": "jap-warm-v1",
+      "hash": "617352a994089a5e438dee31bf012183f535bfbe647d3b14e718352176e11e69"
     }
   ],
-  "profile_hash": "aae77e3041aee50ea435f31b136ae4b9a67872ab4bc1d874a5cac95110aa3cd6"
+  "profile_hash": "62dda18c8360e15ae054cdb4e0420effcca26a04a7f6ac751a9332fd966001e7"
 }
