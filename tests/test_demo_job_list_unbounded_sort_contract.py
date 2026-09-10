@@ -36,7 +36,7 @@ def test_jobs_default_to_all_published_newest_and_expose_first_observed_sort() -
     assert 'value="fit_asc">Affinity low → high' in source
     assert "compareJobs(a, b, sort)" in source
     assert 'sortHeader("published", "Published")' in source
-    assert 'sortHeader("observed", "First observed")' in source
+    assert 'sortHeader("observed", "First JAP observed")' in source
     assert "displayDate(job.publication_date)" in source
     assert "displayDate(job.first_jap_observed_at)" in source
 
