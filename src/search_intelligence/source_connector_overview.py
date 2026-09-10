@@ -587,8 +587,15 @@ def build_source_connector_overview(
             source_role=source_role,
             source_name=source_name,
         )
+        latest_run = str(run_health.get("latest_run_status") or "unknown")
+        if (
+            blocker == "no_persisted_ingestion"
+            and activated is True
+            and latest_run == "success"
+            and source_role in {"sensor", "employer_origin"}
+        ):
+            blocker = None
         if blocker is None and activated is True:
-            latest_run = str(run_health.get("latest_run_status") or "unknown")
             if source_role == "sensor":
                 next_action = (
                     f"Market sensor active; latest run={latest_run}, "
