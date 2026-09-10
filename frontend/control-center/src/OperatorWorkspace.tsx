@@ -17,6 +17,7 @@ type Job = {
   city?: string | null;
   country?: string | null;
   publication_date?: string | null;
+  first_jap_observed_at?: string | null;
   source_url?: string | null;
   discovery_source_url?: string | null;
   product_readiness_status?: string;
@@ -100,6 +101,8 @@ type JobFilter = "current" | "unreviewed" | "interesting" | "not_relevant" | "ra
 type JobSort =
   | "newest"
   | "oldest"
+  | "observed_newest"
+  | "observed_oldest"
   | "fit_desc"
   | "fit_asc"
   | "review_asc"
@@ -110,7 +113,7 @@ type JobSort =
   | "location_desc"
   | "gate_asc"
   | "gate_desc";
-type SortColumn = "fit" | "review" | "job" | "location" | "published" | "gate";
+type SortColumn = "fit" | "review" | "job" | "location" | "published" | "observed" | "gate";
 type SourceGroup = "Needs attention" | "Active" | "Pending" | "Not implemented";
 
 const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
@@ -142,6 +145,12 @@ function externalJobUrl(job: Job): string | null {
 const publicationTime = (job: Job) => {
   if (!job.publication_date) return null;
   const value = Date.parse(job.publication_date);
+  return Number.isNaN(value) ? null : value;
+};
+
+const observedTime = (job: Job) => {
+  if (!job.first_jap_observed_at) return null;
+  const value = Date.parse(job.first_jap_observed_at);
   return Number.isNaN(value) ? null : value;
 };
 
@@ -184,6 +193,17 @@ function compareJobs(a: Job, b: Job, sort: JobSort) {
   if (sort === "gate_asc" || sort === "gate_desc") {
     const delta = compareText(gateText(a), gateText(b));
     if (delta !== 0) return sort === "gate_asc" ? delta : -delta;
+  }
+
+  if (sort === "observed_newest" || sort === "observed_oldest") {
+    const aObserved = observedTime(a);
+    const bObserved = observedTime(b);
+    if (aObserved == null && bObserved != null) return 1;
+    if (aObserved != null && bObserved == null) return -1;
+    if (aObserved != null && bObserved != null) {
+      const delta = sort === "observed_oldest" ? aObserved - bObserved : bObserved - aObserved;
+      if (delta !== 0) return delta;
+    }
   }
 
   const aDate = publicationTime(a);
@@ -240,7 +260,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
     </header>
 
     <section className="ow-metrics">
-      <Metric labelText="Current jobs" value={currentJobs.length} helper="confirmed active in review scope" />
+      <Metric labelText="Current jobs" value={currentJobs.length} helper="confirmed active employer-origin vacancies" />
       <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="hard gates passed" />
       <Metric labelText="Top 5" value={`${payload.summary.top_job_count}/5`} helper="authoritative shortlist" />
       <Metric labelText="Application ready" value={payload.summary.application_ready_count} helper="review draft context" />
@@ -270,8 +290,8 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
       </article>
 
       <article className="ow-card">
-        <div className="ow-card-title"><div><span>Discovery health</span><h2>Remote is producing value</h2></div></div>
-        <p>{currentJobs.length} current vacancies are in the visible review scope. Product V1 keeps broader source/lifecycle truth separate from this review surface.</p>
+        <div className="ow-card-title"><div><span>Discovery health</span><h2>Origin review scope</h2></div></div>
+        <p>{currentJobs.length} current employer-origin vacancies are in the visible review scope. Market sensors and historical lifecycle memory stay separate.</p>
         <div className="ow-actions"><button type="button" onClick={() => onNavigate("sources")}>Sources</button><button type="button" onClick={() => onNavigate("applications")}>Applications</button></div>
       </article>
     </section>
@@ -296,7 +316,7 @@ function JobDetail({ job, payload, refresh }: { job: Job; payload: ProductPayloa
     <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{rankable && <OpenApplicationButton />}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-score-card"><h3>{rankable ? "Profile fit" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
-    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div></section>
+    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
     <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected explanation evidence.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected uncertainty.</p>}</div></section>
   </aside>;
 }
@@ -353,6 +373,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
     if (column === "review") return ["review_asc", "review_desc"];
     if (column === "job") return ["job_asc", "job_desc"];
     if (column === "location") return ["location_asc", "location_desc"];
+    if (column === "observed") return ["observed_newest", "observed_oldest"];
     if (column === "gate") return ["gate_asc", "gate_desc"];
     return ["newest", "oldest"];
   };
@@ -374,9 +395,8 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
         <span>Review surface</span>
         <h1>All jobs</h1>
         <p>
-          Every displayed job has a deterministic preliminary role-affinity signal.
+          Current employer-origin vacancies only. Market sensors and historical jobs remain auditable outside this review list.
           A real Profile Fit exists only after detail evidence, capability fit and hard gates.
-          Sorting and filters never change Product V1 ranking authority.
         </p>
       </div>
     </header>
@@ -384,7 +404,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
     <section className="ow-job-toolbar">
       <div className="ow-filter-row">
         {([
-          ["all", "All observed"],
+          ["all", "All current"],
           ["current", "Current"],
           ["unreviewed", "Unreviewed"],
           ["interesting", "Interesting"],
@@ -418,8 +438,10 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
             value={sort}
             onChange={(event) => setSort(event.target.value as JobSort)}
           >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
+            <option value="newest">Published newest</option>
+            <option value="oldest">Published oldest</option>
+            <option value="observed_newest">First observed newest</option>
+            <option value="observed_oldest">First observed oldest</option>
             <option value="fit_desc">Affinity high → low</option>
             <option value="fit_asc">Affinity low → high</option>
             <option value="review_asc">Review A → Z</option>
@@ -439,6 +461,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
           {sortHeader("job", "Job")}
           {sortHeader("location", "Location")}
           {sortHeader("published", "Published")}
+          {sortHeader("observed", "First JAP observed")}
           {sortHeader("gate", "Gate")}
         </div>
 
@@ -466,6 +489,10 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
 
             <span className="ow-published">
               {displayDate(job.publication_date)}
+            </span>
+
+            <span className="ow-observed">
+              {displayDate(job.first_jap_observed_at)}
             </span>
 
             <Status value={job.product_readiness_status} />
@@ -589,7 +616,7 @@ function Approvals({ payload }: { payload: ProductPayload }) {
 function Operations({ payload }: { payload: ProductPayload }) {
   const overview = payload.source_connector_overview.summary;
   const stages: Array<[string, number]> = [["Known", overview.source_count], ["Implemented", overview.implemented_count], ["Validated", overview.validated_count], ["Approved", overview.final_approved_count], ["Registered", overview.registered_count], ["Active", overview.active_count], ["Ingested", overview.ingested_count]];
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Runtime truth</span><h1>Operations</h1><p>Observability and lifecycle health, separated from daily job review.</p></div></header><section className="ow-card"><h2>Source lifecycle</h2><div className="ow-pipeline">{stages.map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}</div></section><section className="ow-metrics"><Metric labelText="Current active" value={payload.summary.current_active_job_count} helper="all persisted vacancies" /><Metric labelText="Review scope current" value={payload.summary.review_scope_current_active_job_count ?? payload.job_readiness.filter(isCurrent).length} helper="visible vacancies" /><Metric labelText="Stale" value={payload.summary.stale_job_count} helper="refresh required" /><Metric labelText="Attention sources" value={overview.attention_count} helper="need action" /></section></div>;
+  return <div className="ow-stack"><header className="ow-page-header"><div><span>Runtime truth</span><h1>Operations</h1><p>Observability and lifecycle health, separated from daily job review.</p></div></header><section className="ow-card"><h2>Source lifecycle</h2><div className="ow-pipeline">{stages.map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}</div></section><section className="ow-metrics"><Metric labelText="Current active" value={payload.summary.current_active_job_count} helper="all persisted vacancies" /><Metric labelText="Review scope current" value={payload.summary.review_scope_current_active_job_count ?? payload.job_readiness.filter(isCurrent).length} helper="current employer-origin vacancies" /><Metric labelText="Stale" value={payload.summary.stale_job_count} helper="historical refresh required" /><Metric labelText="Attention sources" value={overview.attention_count} helper="need action" /></section></div>;
 }
 
 const navItems: Array<{ id: View; label: string; glyph: string }> = [
