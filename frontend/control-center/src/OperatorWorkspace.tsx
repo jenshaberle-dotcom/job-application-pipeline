@@ -18,6 +18,7 @@ type Job = {
   country?: string | null;
   publication_date?: string | null;
   source_url?: string | null;
+  discovery_source_url?: string | null;
   product_readiness_status?: string;
   lifecycle_status?: string;
   overall_quality_score?: number | null;
@@ -123,7 +124,10 @@ const reviewText = (job: Job) => job.review_label?.label || "unreviewed";
 const gateText = (job: Job) => job.product_readiness_status || "unknown";
 
 function externalJobUrl(job: Job): string | null {
-  const raw = (job.source_url || "").trim();
+  // Product/application authority still uses the guarded source_url. For review
+  // navigation only, fall back to the exact Silver discovery URL when the old
+  // demo-origin guard intentionally withholds an application-authoritative URL.
+  const raw = (job.source_url || job.discovery_source_url || "").trim();
   if (!raw) return null;
   if (raw.startsWith("https://") || raw.startsWith("http://")) return raw;
   if (raw.startsWith("ba://")) {
@@ -648,7 +652,7 @@ export default function OperatorWorkspace() {
       <footer><span><i /> DB truth</span><small>Product V1 · review-first</small></footer>
     </aside>
     <div className="ow-content-shell">
-      <header className="ow-topline"><div><b>{navItems.find((item) => item.id === view)?.label}</b><span>DEMO-001 · Personio pilot</span></div><button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button></header>
+      <header className="ow-topline"><div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Product V1 · live pipeline</span></div><button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button></header>
       <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} onPrepare={() => setView("application")} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
