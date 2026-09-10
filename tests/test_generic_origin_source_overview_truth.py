@@ -89,7 +89,36 @@ def test_generic_zero_bronze_is_observation_state_not_source_invalidity() -> Non
 
     source = _source(payload, source_name)
     assert source["gates"]["source_admission_gate"]["passed"] is True
-    assert source["current_blocker"] == "no_persisted_ingestion"
+    assert source["activation"]["active"] is True
+    assert source["current_blocker"] is None
     assert source["next_action"] == (
         "Observe the active source; zero current Bronze-ready jobs is valid"
     )
+
+
+def test_active_generic_latest_failed_run_remains_attention_worthy() -> None:
+    source_name = "generic_origin:example"
+    payload = build_source_connector_overview(
+        registry=build_default_connector_registry(),
+        search_profiles=[
+            {
+                "source_name": source_name,
+                "profile_count": 1,
+                "active_profile_count": 1,
+                "active_search_term_count": 1,
+            }
+        ],
+        ingestion_runs=[
+            {
+                "source_name": source_name,
+                "last_ingestion_status": "failed",
+                "total_loaded": 0,
+                "inserted_count": 0,
+            }
+        ],
+    )
+
+    source = _source(payload, source_name)
+    assert source["activation"]["active"] is True
+    assert source["current_blocker"] == "employer_origin_latest_run_failed"
+    assert source["next_action"] == "Resolve the latest Employer-Origin ingestion failure"
