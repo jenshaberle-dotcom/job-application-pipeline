@@ -8,6 +8,7 @@ memory and market-sensor rows remain separately auditable.
 from __future__ import annotations
 
 from typing import Mapping
+from urllib.parse import urlsplit, urlunsplit
 
 import psycopg
 from psycopg.rows import dict_row
@@ -137,6 +138,46 @@ def _observation_parts(value: object) -> tuple[object, object]:
     return value, None
 
 
+def _structured_identifier(normalized_evidence: object) -> str | None:
+    if not isinstance(normalized_evidence, Mapping):
+        return None
+    raw = normalized_evidence.get("raw_evidence")
+    if not isinstance(raw, Mapping):
+        return None
+    job = raw.get("job")
+    if not isinstance(job, Mapping):
+        return None
+    metadata = job.get("metadata")
+    if not isinstance(metadata, Mapping):
+        return None
+    value = str(metadata.get("structured_identifier") or "").strip()
+    return value or None
+
+
+def _canonical_review_url(value: object) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    parsed = urlsplit(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    path = parsed.path.rstrip("/") or "/"
+    return urlunsplit((parsed.scheme.casefold(), parsed.netloc.casefold(), path, parsed.query, ""))
+
+
+def _origin_identity_key(row: Mapping[str, object]) -> tuple[str, str, str] | None:
+    """Return only source-local identities safe enough for review deduplication."""
+
+    source_name = str(row.get("source_name") or "").strip().casefold()
+    identifier = str(row.get("origin_vacancy_identifier") or "").strip()
+    if source_name and identifier:
+        return (source_name, "structured_identifier", identifier.casefold())
+    url = _canonical_review_url(row.get("source_url") or row.get("discovery_source_url"))
+    if source_name and url:
+        return (source_name, "origin_url", url)
+    return None
+
+
 def _decorate_collection(
     raw_collection: object,
     *,
@@ -161,8 +202,39 @@ def _decorate_collection(
             normalized_observation_evidence=normalized_evidence,
         )
         projected["first_jap_observed_at"] = first_observed
+        projected["origin_vacancy_identifier"] = _structured_identifier(normalized_evidence)
         decorated.append(projected)
     return decorated
+
+
+def _deduplicate_origin_rows(
+    rows: list[Mapping[str, object]],
+) -> tuple[list[Mapping[str, object]], list[Mapping[str, object]]]:
+    """Collapse only exact source-local identifiers; preserve uncertain variants."""
+
+    unique: list[Mapping[str, object]] = []
+    duplicates: list[Mapping[str, object]] = []
+    position_by_key: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        key = _origin_identity_key(row)
+        if key is None:
+            unique.append(row)
+            continue
+        previous_position = position_by_key.get(key)
+        if previous_position is None:
+            position_by_key[key] = len(unique)
+            unique.append(row)
+            continue
+
+        previous = unique[previous_position]
+        # For one multi-location vacancy, prefer the representative that remains
+        # eligible for the current profile. Otherwise preserve upstream Product order.
+        if previous.get("profile_geography_eligible") is False and row.get("profile_geography_eligible") is not False:
+            duplicates.append(previous)
+            unique[previous_position] = row
+        else:
+            duplicates.append(row)
+    return unique, duplicates
 
 
 def enrich_product_payload_for_operator(
@@ -174,7 +246,8 @@ def enrich_product_payload_for_operator(
 
     Normal `job_readiness` contains only lifecycle-current employer-origin vacancies
     that are geography-review eligible. Sensor-derived Product memory and historical
-    origin jobs remain separately auditable. Top-5 membership is never filtered or
+    origin jobs remain separately auditable. Exact source-local duplicate identities
+    are collapsed only for presentation. Top-5 membership is never filtered or
     rewritten here.
     """
 
@@ -189,9 +262,7 @@ def enrich_product_payload_for_operator(
         result.get("job_readiness"),
         evidence_by_job=evidence_by_job,
     )
-    review_scope: list[object] = []
-    out_of_profile: list[object] = []
-    historical_jobs: list[object] = []
+    origin_rows: list[Mapping[str, object]] = []
     discovery_source_jobs: list[object] = []
     for item in decorated_readiness:
         if not isinstance(item, Mapping):
@@ -199,6 +270,14 @@ def enrich_product_payload_for_operator(
         if not is_employer_origin_review_source(item):
             discovery_source_jobs.append(item)
             continue
+        origin_rows.append(item)
+
+    unique_origin_rows, duplicate_origin_jobs = _deduplicate_origin_rows(origin_rows)
+
+    review_scope: list[object] = []
+    out_of_profile: list[object] = []
+    historical_jobs: list[object] = []
+    for item in unique_origin_rows:
         if not is_current_product_job(item):
             historical_jobs.append(item)
             continue
@@ -211,6 +290,7 @@ def enrich_product_payload_for_operator(
     result["out_of_profile_jobs"] = out_of_profile
     result["historical_jobs"] = historical_jobs
     result["discovery_source_jobs"] = discovery_source_jobs
+    result["duplicate_origin_jobs"] = duplicate_origin_jobs
     result["top_jobs"] = _decorate_collection(
         result.get("top_jobs"),
         evidence_by_job=evidence_by_job,
@@ -222,6 +302,7 @@ def enrich_product_payload_for_operator(
     summary["out_of_profile_job_count"] = len(out_of_profile)
     summary["historical_review_excluded_job_count"] = len(historical_jobs)
     summary["discovery_source_review_excluded_job_count"] = len(discovery_source_jobs)
+    summary["exact_origin_duplicate_review_excluded_job_count"] = len(duplicate_origin_jobs)
     result["summary"] = summary
 
     boundaries = dict(result.get("boundaries") or {})
@@ -236,6 +317,8 @@ def enrich_product_payload_for_operator(
             "market_sensor_jobs_remain_discovery_evidence_only": True,
             "normal_review_scope_requires_current_employer_origin": True,
             "first_jap_observed_is_observation_history_not_source_publish_time": True,
+            "review_dedup_requires_exact_source_local_identity": True,
+            "title_company_similarity_alone_never_merges_vacancies": True,
             "top5_membership_not_filtered_by_presentation": True,
         }
     )
