@@ -1,0 +1,102 @@
+name: JAP RCC package-set lock builder
+
+on:
+  push:
+    branches:
+      - 'rcc/352-jap-canary'
+    paths:
+      - 'requirements.txt'
+      - 'requirements-dev.txt'
+      - '.github/workflows/rcc-jap-package-set-lock-builder.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-lock:
+    name: Resolve exact Python 3.12.14 wheel closure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Set up exact Python 3.12.14 on ephemeral builder
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.14'
+
+      - name: Prove exact source and builder runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.repository_id }}' = '1230805345'
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(python -c 'import platform; print(platform.python_version())')" = '3.12.14'
+          test "$(uname -s)" = 'Linux'
+          test "$(uname -m)" = 'x86_64'
+
+      - name: Resolve and hash exact wheel closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/jap-package-lock-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          venv="${root}/venv"
+          wheels="${root}/wheels"
+          out="${root}/jap-warm-v1.txt"
+          rm -rf -- "${root}"
+          mkdir -p "${wheels}"
+          python -m venv "${venv}"
+          test "$("${venv}/bin/python" -c 'import platform; print(platform.python_version())')" = '3.12.14'
+          "${venv}/bin/python" -m pip install --disable-pip-version-check -r requirements-dev.txt
+          "${venv}/bin/python" -m pip check
+          "${venv}/bin/python" -m pip freeze --exclude-editable | LC_ALL=C sort -f > "${root}/freeze.txt"
+
+          # extruct 0.18.0 still requires jstyleson 0.0.2, for which PyPI exposes
+          # no wheel. Keep that narrow project-owned OSS layer outside RCC rather
+          # than weakening RCC's wheel-only executable-authority boundary.
+          grep -Fxi 'extruct==0.18.0' "${root}/freeze.txt"
+          grep -Fxi 'jstyleson==0.0.2' "${root}/freeze.txt"
+
+          : > "${out}"
+          while IFS= read -r spec; do
+            [ -n "${spec}" ] || continue
+            case "${spec}" in
+              *"=="*) ;;
+              *) echo "Non-exact freeze entry: ${spec}" >&2; exit 1 ;;
+            esac
+            name="${spec%%==*}"
+            case "${name,,}" in
+              extruct|jstyleson)
+                echo "RCC_WHEEL_SET_EXCEPTION=${spec} owner=JAP_LOCAL_OSS" >&2
+                continue
+                ;;
+            esac
+            rm -rf -- "${wheels:?}"/*
+            "${venv}/bin/python" -m pip download \
+              --disable-pip-version-check \
+              --no-deps \
+              --only-binary=:all: \
+              --dest "${wheels}" \
+              "${spec}"
+            mapfile -t files < <(find "${wheels}" -maxdepth 1 -type f -printf '%p\n')
+            test "${#files[@]}" -eq 1
+            hash="$(sha256sum -- "${files[0]}" | awk '{print $1}')"
+            printf '%s --hash=sha256:%s\n' "${spec}" "${hash}" >> "${out}"
+          done < "${root}/freeze.txt"
+          test -s "${out}"
+          ! grep -Eiq '^(extruct|jstyleson)==' "${out}"
+          cp "${out}" "${GITHUB_WORKSPACE}/jap-warm-v1.txt"
+          sha256sum "${GITHUB_WORKSPACE}/jap-warm-v1.txt" | tee "${GITHUB_WORKSPACE}/jap-warm-v1.sha256"
+          cat "${GITHUB_WORKSPACE}/jap-warm-v1.txt"
+
+      - name: Upload exact package-set lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: jap-warm-v1-package-set-lock
+          path: |
+            jap-warm-v1.txt
+            jap-warm-v1.sha256
+          if-no-files-found: error
+          retention-days: 1

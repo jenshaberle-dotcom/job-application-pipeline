@@ -6,6 +6,7 @@ on:
     paths:
       - '.rcc/runner-contract.json'
       - '.rcc/runner-profiles/linux-wsl.json'
+      - '.rcc/python-package-sets/**'
       - '.github/workflows/rcc-warm-ownership-qualifier.yml'
   workflow_dispatch:
 
@@ -20,7 +21,7 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
-      - name: Prove repository, runner, profile and Python surface
+      - name: Prove repository, runner and profile v3 declaration
         shell: bash
         run: |
           set -euo pipefail
@@ -30,8 +31,10 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+
           contract = json.loads(Path('.rcc/runner-contract.json').read_text())
           profile = json.loads(Path('.rcc/runner-profiles/linux-wsl.json').read_text())
+
           assert contract['repository_id'] == 1230805345
           assert contract['repository'] == 'jenshaberle-dotcom/job-application-pipeline'
           assert len(contract['slots']) == 1
@@ -39,10 +42,22 @@ jobs:
           assert slot['platform'] == 'linux-wsl'
           assert slot['routing_labels'] == ['job-pipeline-runtime-linux']
           assert slot['profile_id'] == 'job-pipeline-runtime-linux-warm'
+
           assert profile['profile_id'] == 'job-pipeline-runtime-linux-warm'
+          assert profile['profile_version'] == 3
           assert profile['runner_labels'] == ['job-pipeline-runtime-linux']
-          assert profile['requirements'] == []
-          assert profile['profile_hash'] == '5fee300694b870f759ab9c7b0b05db7ab10a1a3b07f8b3f6a2909535b773abfe'
+          assert profile['requirements'] == [
+              {'id': 'python', 'version': '3.12.14', 'hash': ''},
+              {
+                  'id': 'python-package-set',
+                  'version': 'jap-warm-v1',
+                  'hash': '617352a994089a5e438dee31bf012183f535bfbe647d3b14e718352176e11e69',
+              },
+          ]
+          assert profile['profile_hash'] == '62dda18c8360e15ae054cdb4e0420effcca26a04a7f6ac751a9332fd966001e7'
           print('JAP_RCC_LINUX_WARM_OWNERSHIP=PASS')
+          print('JAP_RCC_PROFILE_V3_DECLARATION=PASS')
           PY
-          python3 --version
+          test "$(sha256sum .rcc/python-package-sets/jap-warm-v1.txt | awk '{print $1}')" = '617352a994089a5e438dee31bf012183f535bfbe647d3b14e718352176e11e69'
+          echo 'JAP_RCC_PERSISTENT_PACKAGE_SET_DECLARED=PASS'
+          echo 'JAP_RCC_INSTALLED_PROFILE_AUTHORITY=RCC_POST_MERGE_ENSURE'
