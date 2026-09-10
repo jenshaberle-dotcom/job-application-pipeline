@@ -14,6 +14,9 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+from src.search_intelligence.origin_vacancy_identity import (
+    exact_origin_vacancy_identity,
+)
 from src.search_intelligence.product_v1_job_presentation import decorate_job_for_operator
 
 
@@ -42,6 +45,9 @@ MARKET_SENSOR_SOURCE_FAMILIES = frozenset(
         "indeed",
         "linkedin",
     }
+)
+CROSS_PROJECTION_IDENTIFIER_EVIDENCE_KINDS = frozenset(
+    {"schema_org", "explicit_label"}
 )
 
 
@@ -138,20 +144,31 @@ def _observation_parts(value: object) -> tuple[object, object]:
     return value, None
 
 
-def _structured_identifier(normalized_evidence: object) -> str | None:
+def _identity_metadata(normalized_evidence: object) -> dict[str, str | None]:
+    result: dict[str, str | None] = {
+        "identifier": None,
+        "identifier_evidence_kind": None,
+        "canonical_origin_url": None,
+    }
     if not isinstance(normalized_evidence, Mapping):
-        return None
+        return result
     raw = normalized_evidence.get("raw_evidence")
     if not isinstance(raw, Mapping):
-        return None
+        return result
     job = raw.get("job")
     if not isinstance(job, Mapping):
-        return None
+        return result
     metadata = job.get("metadata")
     if not isinstance(metadata, Mapping):
-        return None
-    value = str(metadata.get("structured_identifier") or "").strip()
-    return value or None
+        return result
+    for source_key, target_key in (
+        ("structured_identifier", "identifier"),
+        ("identifier_evidence_kind", "identifier_evidence_kind"),
+        ("canonical_origin_url", "canonical_origin_url"),
+    ):
+        value = str(metadata.get(source_key) or "").strip()
+        result[target_key] = value or None
+    return result
 
 
 def _canonical_review_url(value: object) -> str | None:
@@ -165,23 +182,51 @@ def _canonical_review_url(value: object) -> str | None:
     return urlunsplit((parsed.scheme.casefold(), parsed.netloc.casefold(), path, parsed.query, ""))
 
 
-def _origin_identity_key(row: Mapping[str, object]) -> tuple[str, str, str] | None:
-    """Return only exact identities safe enough for review deduplication.
+def _origin_identity_keys(row: Mapping[str, object]) -> tuple[tuple[str, str, str], ...]:
+    """Return all exact identity keys evidenced by one review row.
 
-    Structured identifiers remain source-local because unrelated systems may reuse
-    short requisition ids. An exact canonical Origin URL is already the identity of
-    the same web vacancy and therefore safely collapses duplicate Employer-Origin
-    projections even when they arrived through different connector/source names.
+    The keys are intentionally conservative and inspectable:
+
+    * a page-declared canonical Origin URL may cross source projections;
+    * the exact observed Origin URL may cross source projections;
+    * an explicit/schema identifier may cross projections only inside the exact
+      normalized Origin host namespace;
+    * every structured identifier keeps the older source-local fallback.
+
+    There is deliberately no title/company/location similarity key.
     """
 
+    keys: list[tuple[str, str, str]] = []
     source_name = str(row.get("source_name") or "").strip().casefold()
     identifier = str(row.get("origin_vacancy_identifier") or "").strip()
+    evidence_kind = str(row.get("origin_identifier_evidence_kind") or "").strip().casefold()
+
+    canonical_url = _canonical_review_url(row.get("origin_canonical_url"))
+    if canonical_url:
+        keys.append(("exact_origin_url", "canonical_origin_url", canonical_url))
+
+    observed_url = _canonical_review_url(
+        row.get("source_url") or row.get("discovery_source_url")
+    )
+    if observed_url:
+        keys.append(("exact_origin_url", "origin_url", observed_url))
+        # Canonical and observed URLs are aliases for this exact row; use the same
+        # namespace key shape so another row's observed URL can intersect a
+        # declared canonical URL.
+        keys.append(("exact_origin_url", "canonical_origin_url", observed_url))
+
+    if identifier and evidence_kind in CROSS_PROJECTION_IDENTIFIER_EVIDENCE_KINDS:
+        strong_identity = exact_origin_vacancy_identity(
+            origin_url=canonical_url or observed_url,
+            identifier=identifier,
+        )
+        if strong_identity is not None:
+            keys.append(strong_identity)
+
     if source_name and identifier:
-        return (source_name, "structured_identifier", identifier.casefold())
-    url = _canonical_review_url(row.get("source_url") or row.get("discovery_source_url"))
-    if url:
-        return ("exact_origin_url", "origin_url", url)
-    return None
+        keys.append((source_name, "structured_identifier", identifier.casefold()))
+
+    return tuple(dict.fromkeys(keys))
 
 
 def _decorate_collection(
@@ -207,8 +252,13 @@ def _decorate_collection(
             item,
             normalized_observation_evidence=normalized_evidence,
         )
+        identity = _identity_metadata(normalized_evidence)
         projected["first_jap_observed_at"] = first_observed
-        projected["origin_vacancy_identifier"] = _structured_identifier(normalized_evidence)
+        projected["origin_vacancy_identifier"] = identity["identifier"]
+        projected["origin_identifier_evidence_kind"] = identity[
+            "identifier_evidence_kind"
+        ]
+        projected["origin_canonical_url"] = identity["canonical_origin_url"]
         decorated.append(projected)
     return decorated
 
@@ -222,16 +272,30 @@ def _deduplicate_origin_rows(
     duplicates: list[Mapping[str, object]] = []
     position_by_key: dict[tuple[str, str, str], int] = {}
     for row in rows:
-        key = _origin_identity_key(row)
-        if key is None:
+        keys = _origin_identity_keys(row)
+        prior_positions = {
+            position_by_key[key]
+            for key in keys
+            if key in position_by_key
+        }
+        if not prior_positions:
+            position = len(unique)
             unique.append(row)
-            continue
-        previous_position = position_by_key.get(key)
-        if previous_position is None:
-            position_by_key[key] = len(unique)
-            unique.append(row)
+            for key in keys:
+                position_by_key[key] = position
             continue
 
+        # More than one prior position would mean the new row bridges two formerly
+        # independent exact identities. Fail open for review instead of suppressing
+        # a potentially real vacancy.
+        if len(prior_positions) != 1:
+            position = len(unique)
+            unique.append(row)
+            for key in keys:
+                position_by_key.setdefault(key, position)
+            continue
+
+        previous_position = next(iter(prior_positions))
         previous = unique[previous_position]
         # For one multi-location vacancy, prefer the representative that remains
         # eligible for the current profile. Otherwise preserve upstream Product order.
@@ -240,6 +304,8 @@ def _deduplicate_origin_rows(
             unique[previous_position] = row
         else:
             duplicates.append(row)
+        for key in keys:
+            position_by_key[key] = previous_position
     return unique, duplicates
 
 
@@ -323,8 +389,11 @@ def enrich_product_payload_for_operator(
             "market_sensor_jobs_remain_discovery_evidence_only": True,
             "normal_review_scope_requires_current_employer_origin": True,
             "first_jap_observed_is_observation_history_not_source_publish_time": True,
-            "review_dedup_structured_identifier_remains_source_local": True,
+            "review_dedup_structured_identifier_retains_source_local_fallback": True,
+            "review_dedup_strong_identifier_may_cross_same_origin_host": True,
+            "review_dedup_page_declared_canonical_url_may_cross_source_projections": True,
             "review_dedup_exact_origin_url_may_cross_source_projections": True,
+            "review_dedup_ambiguous_multi_identity_bridge_fails_open": True,
             "title_company_similarity_alone_never_merges_vacancies": True,
             "top5_membership_not_filtered_by_presentation": True,
         }

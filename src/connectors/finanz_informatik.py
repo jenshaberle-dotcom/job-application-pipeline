@@ -11,6 +11,9 @@ import requests
 
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.capabilities import SourceCapabilities
+from src.search_intelligence.origin_vacancy_identity import (
+    extract_explicit_vacancy_identifier,
+)
 
 LISTING_URL = "https://www.f-i.de/de/karriere/offene-stellen"
 REQUEST_TIMEOUT_SECONDS = 20
@@ -422,6 +425,36 @@ def build_raw_job_record(
     location = "; ".join(detail_cities) if detail_cities else "; ".join(candidate.location_terms) or "hannover"
     profile_terms = find_terms(" ".join([candidate.url, detail.title, detail.text]), PROFILE_TERMS)
     final_origin_url = detail.final_url or candidate.url
+    identifier_evidence = extract_explicit_vacancy_identifier(detail.text)
+    vacancy_identifier = identifier_evidence.value if identifier_evidence else None
+
+    metadata = {
+        "parser_family": PARSER_FAMILY,
+        "vacancy_identity_kind": (
+            "explicit_label_identifier" if vacancy_identifier else "source_url"
+        ),
+        "structure_field_presence": {
+            "title": bool(title),
+            "locations": bool(detail_locations),
+            "identifier": bool(vacancy_identifier),
+        },
+    }
+    if identifier_evidence is not None:
+        metadata.update(
+            {
+                "structured_identifier": identifier_evidence.value,
+                "identifier_evidence_kind": identifier_evidence.evidence_kind,
+                "identifier_label": identifier_evidence.label,
+            }
+        )
+
+    detail_identity_evidence = {
+        "identifier": vacancy_identifier,
+        "identifier_evidence_kind": (
+            identifier_evidence.evidence_kind if identifier_evidence else None
+        ),
+        "identifier_label": identifier_evidence.label if identifier_evidence else None,
+    }
 
     return RawJobRecord(
         source_name="finanz_informatik:hannover",
@@ -452,14 +485,7 @@ def build_raw_job_record(
                 "locations": detail_locations,
                 "source_url": final_origin_url,
                 "profile_terms": list(profile_terms),
-                "metadata": {
-                    "parser_family": PARSER_FAMILY,
-                    "vacancy_identity_kind": "source_url",
-                    "structure_field_presence": {
-                        "title": bool(title),
-                        "locations": bool(detail_locations),
-                    },
-                },
+                "metadata": metadata,
             },
             "listing_evidence": {
                 "candidate_path": candidate.path,
@@ -474,6 +500,7 @@ def build_raw_job_record(
                 "status_code": detail.status_code,
                 "parser_family": PARSER_FAMILY,
                 "structured_locations": detail_locations,
+                **detail_identity_evidence,
                 "raw_html_persisted": False,
             },
             "observed_at_utc": observed_at_utc,

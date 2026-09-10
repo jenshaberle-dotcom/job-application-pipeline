@@ -22,123 +22,85 @@ Source admission and job admission remain separate:
 
 The recurring `*` remains a non-semantic execution trigger. Learned source vocabulary is search/relevance evidence, not source-validity authority.
 
-## Proven persisted baseline
+## Proven baseline and current release truth
 
-PR #847 established the real persisted generic product path. Its exact-main activation run `34445141597` emitted `GENERIC_PRODUCT_ACTIVATION_E2E=PASS` and proved the normal chain through PostgreSQL, Silver, Gold/Product readiness and Control Center reads.
+PR #847 established the real persisted generic product path. Exact-main activation run `34445141597` emitted `GENERIC_PRODUCT_ACTIVATION_E2E=PASS` and proved PostgreSQL -> Silver -> Gold/Product readiness -> Control Center.
 
-That baseline included 24 current proof-pass generic Employer-Origin sources, 121 persisted generic Bronze rows, 26 normal Silver rows and 26 Gold/Product-readiness identities at the time of the proof. Silver `575`, `Director Data and Analytics`, Clarios, was the first concrete unchanged identity proven through the full persisted downstream read path.
+Relevant Windows/Product checkpoints:
 
-Subsequent Windows releases closed the operator/UI integration gaps:
+- 1.0.17: pinned local OSS detail runtime (`extruct`, `trafilatura`) fixed.
+- 1.0.18: canonical Product truth and Origin navigation aligned.
+- 1.0.19: F0 Origin-learning/review-truth foundation merged as `77402ce6565c22f4c8d21207e95cb184b6926fd0`; local deploy run `34471391370` PASS.
+- 1.0.20: exact Origin URL cross-source review dedupe merged as current main `b1360671658627f09d49b94f5bcadff7e5747674`; immutable release published; local deploy run `34475650818` PASS.
 
-- 1.0.17: Windows runtime binds the pinned local OSS detail layer (`extruct`, `trafilatura`) correctly.
-- 1.0.18: Product review UI consumes canonical Product truth without the old demo-only visibility guard; Source projection and review-navigation Origin links were hardened.
-- Installed/operator-proven 1.0.18 source revision before the freeze implementation: `b233809d769b5a25e749ff4f1c43e9abda14495b`.
-- 1.0.19: F0 Origin-learning/review-truth foundation merged as main `77402ce6565c22f4c8d21207e95cb184b6926fd0`; local deploy run `34471391370` PASS on the managed warm runner.
+## F0 operator result — accepted with one carried residual
 
-## 1.0.19 operator checkpoint
-
-The interactive operator test on 2026-09-10 materially improved Product truth and is a **partial PASS, not F0 exit**.
+The 1.0.19/1.0.20 operator tests materially improved Product truth.
 
 Observed PASS:
 
-- `All jobs` no longer showed stale/dead jobs in the normal review list.
-- BA/StepStone/other market-sensor jobs no longer appeared as Product review jobs.
-- `Published` and independent `First JAP observed` values were present in the GUI. Their layout is presentation polish and is explicitly not a freeze blocker.
-- real Employer-Origin rows such as Finanz Informatik remained visible and geography-eligible.
+- normal `All jobs` no longer showed stale/dead jobs;
+- BA/StepStone/other market-sensor rows no longer appeared as Product review jobs;
+- `Published` and independent `First JAP observed` are both present; their layout is presentation polish and not a freeze blocker;
+- Employer-Origin rows remain visible and geography-eligible;
+- exact same canonical Origin URLs can collapse across different Employer-Origin source projections.
 
-Observed residual:
+Carried residual `CR-F0-001`:
 
-- the same Finanz Informatik `Business Analyst für das OBB Pro ...` vacancy appeared twice with the same visible title/employer/date. The F0 dedupe rule was still source-local, so the same exact canonical Origin URL could survive when projected once through a legacy/specific Employer-Origin source and once through `generic_origin:*`.
+- Finanz Informatik `Data Platform Engineer (m/w/d)` still appears twice because the same real vacancy is exposed through two origin URL aliases:
+  - `https://www.f-i.de/karriere/offene-stellen/frankfurt/data-platform-engineer-m-w-d`
+  - `https://www.f-i.de/de/karriere/offene-stellen/frankfurt/data-platform-engineer-m-w-d`
+- these are not exact canonical URL matches under the current conservative URL canonicalizer;
+- do **not** solve this by globally stripping `/de/`, by title/company fuzzy matching, or by an FI-specific special case;
+- preferred generic evidence hierarchy for this residual: explicit structured/labelled vacancy identifier and/or canonical/final Origin identity before URL fallback;
+- the current generic detail extractor already understands schema.org `JobPosting.identifier`; F1 may extend generic explicit identifier/canonical-link evidence when justified.
 
-Operator guidance for this residual:
+Also explicitly deferred from F0:
 
-- do **not** add title/company fuzzy dedupe;
-- do **not** add a 42% affinity cutoff; preliminary role affinity is not authoritative Profile Fit and low preliminary scores can still hide relevant titles;
-- do **not** do UI/location presentation polish in this closure patch;
-- fix only the safe generic invariant: an exact canonical Origin URL identifies one vacancy across Employer-Origin source projections, while structured identifiers remain source-local unless a stronger shared namespace is proven.
+- no hard cutoff at 42% preliminary affinity; low preliminary affinity can still contain relevant titles;
+- no UI/date/location cosmetics;
+- no Profile Fit or ranking changes.
 
-Location/source-semantic quality continues in F2/F3 through Origin understanding and downstream truth hardening; no cosmetic CC work is required to close F0.
+# Frozen campaign execution policy
 
-## Current repository/branch state
+The package order remains frozen, but the release policy is now optimized for development throughput rather than one release per minor residual.
 
-Current canonical main before the F0 residual patch: `77402ce6565c22f4c8d21207e95cb184b6926fd0`.
+Normal package flow:
 
-Current implementation branch:
+`implementation -> focused tests -> Full Suite/Ruff/React/Windows contracts -> real Product/Origin proof where applicable -> merge exact tested head -> immutable Windows release -> automatic local deploy -> interactive operator test -> record evidence -> next package`
 
-`agent/f0-operator-residuals`
+## Cascading residual rule
 
-This branch is intentionally a narrow F0 closure patch. Allowed mutations are:
+A package may advance after its main product objective is operator-proven even when a **bounded, understood, non-critical residual** remains. Such a residual is carried into the next semantically suitable package instead of forcing an immediate standalone release.
 
-- exact canonical Origin URL dedupe across Employer-Origin source projections;
-- focused regression tests proving cross-source exact-URL collapse while different URLs remain separate;
-- immutable Windows release bump to 1.0.20 and matching release contracts;
-- re-entry evidence/renumbering only.
+A residual may cascade only when all are true:
 
-Explicitly forbidden in this branch:
+- it is explicitly recorded here with a stable ID, concrete evidence and intended target package;
+- it does not represent a security/credential issue, destructive/data-loss risk, irreversible migration problem or external side-effect boundary violation;
+- the failure mode is visible and bounded rather than silently corrupting broad Product truth;
+- carrying it forward creates useful overlap with the next package and avoids release-only churn;
+- the next package adds a regression proof for it before claiming closure.
 
-- fuzzy title/company dedupe;
-- affinity/Profile-Fit/ranking changes;
-- FI-specific extraction heuristics;
-- location or date-column UI polish;
-- F1 discovery work.
+Residuals must not silently hop across multiple packages. If a carried residual is still open at the next package checkpoint, it must either be closed there or explicitly reclassified by operator decision.
 
-Finanz Informatik remains a reference Origin case, not an architectural special-case authority. No further employer-specific hardening is allowed unless fresh evidence from multiple independent Origins justifies a reusable parser family or generic capability.
+This rule intentionally trades perfect package purity for faster end-to-end product progress.
 
-# JAP Product Freeze Campaign
+## F0 — Origin Learning + Review Truth Foundation — COMPLETE WITH `CR-F0-001` CARRIED TO F1
 
-The following package order is frozen. Do not start unrelated features, portal-specific one-offs, new model/provider work, UI cosmetics or speculative refactors while a package is open. A later package may be researched read-only while CI/release waits, but only one product package may mutate the product path at a time.
+Delivered through releases 1.0.19 and 1.0.20:
 
-Every release follows the same completion contract:
+- proof-grounded company vocabulary learning before recurring Origin acquisition;
+- Structure Learning before Bronze from already-fetched detail HTML;
+- parser-family and structured identity evidence;
+- Origin multi-location Bronze -> Silver projection foundation;
+- current Employer-Origin-only review scope;
+- sensor and stale/dead rows excluded from normal review while remaining auditable;
+- source-local structured-identifier dedupe plus exact canonical Origin URL dedupe across Employer-Origin projections;
+- independent `Published` and `First JAP observed`.
 
-`implementation -> focused tests -> Full Suite/Ruff/React/Windows contracts -> real Product/Origin proof where applicable -> merge exact tested head -> immutable Windows release -> automatic local deploy -> interactive operator test -> update this re-entry with evidence -> next package`
+F0 is accepted under the cascading residual rule. `CR-F0-001` is part of F1 acceptance scope.
 
-A package is **not complete at merge**. The operator test is part of Definition of Done.
-
-Because immutable 1.0.19 exposed one operator-visible F0 residual, F0 receives closure release **1.0.20**. All later frozen release numbers move forward by one. Scope/order do not change.
-
-## F0 — Origin Learning + Review Truth Foundation — releases 1.0.19 + 1.0.20 closure — ACTIVE
-
-Purpose: close the observed regressions and establish the early-learning architecture before expanding source coverage.
-
-Bundled scope:
-
-- company-specific Vocabulary Learning before Origin job acquisition;
-- Structure Learning before Bronze using the same fetched detail HTML;
-- parser-family evidence and structured identifiers;
-- Origin multi-location Bronze -> Silver normalization;
-- current-only Employer-Origin review scope;
-- sensor rows excluded from normal job review;
-- stale/dead Product memory excluded from current review while remaining auditable;
-- safe identity dedupe: source-local structured vacancy id plus exact canonical Origin URL across Employer-Origin projections;
-- `Published` and independent `First JAP observed` in Control Center.
-
-Explicit non-goals:
-
-- no more FI-only heuristics unless they immediately generalize;
-- no fuzzy title/company dedupe;
-- no new ranking algorithm;
-- no automatic application tracking yet;
-- no UI presentation polish.
-
-1.0.20 closure gate:
-
-- focused exact-URL cross-source dedupe regression passes;
-- complete PR gates including Full Suite, Ruff, frontend build, Windows host contracts and real Generic Employer-Origin Product Proof;
-- merge only exact green head;
-- publish/deploy immutable 1.0.20.
-
-Operator test 1.0.20:
-
-1. About shows 1.0.20 and exact release SHA.
-2. `All jobs` still contains current Employer-Origin vacancies only: no BA/StepStone sensor jobs and no stale/dead jobs.
-3. `Published` and `First JAP observed` remain available; layout is not assessed.
-4. The previously duplicated Finanz Informatik `Business Analyst für das OBB Pro ...` exact Origin vacancy appears once.
-5. Two genuinely different Origin URLs with the same company/title remain separate vacancies.
-6. `Open original` remains the real Origin detail page.
-
-Exit: operator PASS + re-entry evidence. Only then F1 starts.
-
-## F1 — Company -> Official Origin Jobspace Discovery — target release 1.0.21
+## F1 — Company -> Official Origin Jobspace Discovery — RELEASE QUALIFICATION ACTIVE — target release 1.0.21
 
 Purpose: maximize the upstream multiplier: given only a company identity, find the official domain, careers/job space and likely ATS/job surface generically.
 
@@ -146,157 +108,140 @@ Bundled scope:
 
 - evaluate public/open datasets and local libraries/reference implementations for company -> official website and careers/ATS discovery;
 - inspect reusable ATS fingerprints, common careers URL patterns, structured metadata and public unauthenticated ATS endpoints;
-- build this as a native deterministic JAP capability, not a dependency on a hosted tool/service;
-- existing libraries/data may be used as research/reference and may be adopted only when locally pinned, inspectable and replaceable; no opaque external runtime authority;
-- candidate domain -> careers surface -> ATS/portal fingerprint -> generic source proof handoff;
-- impossible-control and host-bound validation remain fail-closed.
+- build the production capability natively/deterministically in JAP; no opaque hosted service becomes runtime authority;
+- external/open libraries may be research/reference and may be adopted only when locally pinned, inspectable and replaceable;
+- candidate company -> official domain -> careers surface -> ATS/portal fingerprint -> generic source proof handoff;
+- impossible-control and host-bound validation remain fail-closed;
+- classify discovery failures explicitly rather than hiding them;
+- absorb `CR-F0-001` through generic vacancy identity/canonical evidence where it naturally overlaps with origin-space canonicalization; no FI-specific branch and no global locale-path stripping.
 
-Operator test 1.0.21:
+Implemented F1 release slice:
 
-Take several genuinely fresh company names from discovery evidence and show in Control Center/diagnostics that JAP can resolve company -> official Origin jobspace -> proof outcome without a company allowlist.
+- existing `discover_origin_source` scorer/selection remains sole discovery authority;
+- optional official-domain evidence can be provided from Wikidata P856 or explicit operator evidence and remains fail-soft/non-authoritative;
+- bounded official-page parsing inspects URL-bearing HTML attributes only;
+- ATS recognition is data-driven and employer-agnostic;
+- discovered career/ATS surfaces are fed back through the existing JAP scoring/proof chain instead of creating a second resolver;
+- generic detail evidence now supports page-declared canonical Origin URLs and explicitly labelled vacancy identifiers such as `Kennziffer`, `Job ID`, `Requisition ID`, `Reference Number`, and `Stellen-ID`, never free-number mining;
+- review dedupe can use exact multi-key origin identity while retaining the prohibition on title/company fuzzy merging;
+- `CR-F0-001` is regression-covered by the generic identity path.
 
-Exit metric: measured discovery funnel (`company -> official domain -> careers space -> proof`) with failures classified, not hidden.
+Pre-release qualification truth:
+
+- exact F1 head `26d6a4fb4e7cb942196b50e721745f3f51b0de1a` passed Pipeline CI, Pipeline re-entry target identity, P1 generic Employer-Origin systematic search, and P1 generic Employer-Origin product proof;
+- operator chose to start the 1.0.21 release path after those product gates were green and not wait for the independent RCC Warmrunner Canary;
+- desktop VERSION is now `1.0.21`; the final version-bumped PR head is being requalified before merge/release;
+- PR #848 Warmrunner Canary is explicitly independent from this product release and is not a F1 release blocker.
+
+F1 operator test 1.0.21:
+
+- verify installed/About identity is 1.0.21;
+- normal review remains free of stale/dead and market-sensor rows;
+- inspect representative Employer-Origin jobs and original navigation;
+- recheck `CR-F0-001` after fresh evidence can carry the new canonical/labelled vacancy identity;
+- record any remaining bounded residual instead of forcing an additional release solely for cosmetic or non-critical cleanup.
+
+Exit metric: measurable `company -> official domain -> careers space -> proof` coverage plus closure of the carried residual or an explicit operator reclassification.
 
 ## F2 — Origin Understanding + Parser-Family Scale-Out — target release 1.0.22
 
-Purpose: turn proof-valid sources into productive sources without creating one connector per employer.
+Purpose: turn proof-valid sources into productive sources without one connector per employer.
 
 Bundled scope:
 
 - run a real 10-20 company cohort through `proof -> vocabulary -> query-proven jobs -> structure learning -> Bronze -> parser family -> Silver`;
 - persist/measure per-source learned vocabulary, search mechanism, parser family and field coverage;
-- form a parser family only when repeated independent source evidence justifies it;
-- keep generic JSON-LD/Microdata/DOM extraction as first choice;
-- sources not understood well enough remain explicit Bronze/structure-learning evidence rather than receiving ad-hoc parser code;
-- improve Origin semantic understanding including source vocabulary, structured metadata and multi-location facts before downstream normalization;
-- add stage-funnel observability for coverage and failure reasons.
+- form parser families only from repeated independent source evidence or generic ATS/standard contracts;
+- prefer JSON-LD/Microdata/generic DOM extraction;
+- misunderstood sources remain explicit structure-learning evidence rather than receiving ad-hoc parser code;
+- improve structured metadata, multi-location facts and source semantic understanding;
+- expose stage-funnel counts and failure reasons.
 
-Operator test 1.0.22:
-
-Inspect multiple independent Origin families in Sources/Data Layers and several real jobs in `All jobs`; verify learned vocabulary/structure produces correct titles, employers, URLs, published dates and locations across more than one employer.
-
-Exit metric: funnel counts and parser-family coverage are recorded in re-entry; no success claim based only on one FI-like source.
+Operator test: inspect multiple independent Origin families and real jobs; verify correct titles, employer, URL, published date and locations across more than one employer.
 
 ## F3 — Bronze -> Silver -> Gold Truth/Lifecycle Hardening — target release 1.0.23
 
-Purpose: make the downstream truth boundary resistant to stale, dead and duplicate vacancies regardless of which upstream Origin family produced them.
+Purpose: make downstream truth resistant to stale, dead and duplicate vacancies regardless of upstream family.
 
 Bundled scope:
 
-- current/dead/stale determination from exact Origin evidence, source publication/valid-through and recurring observations;
-- sensor evidence may support discovery/freshness diagnostics but cannot become review authority;
-- vacancy identity hierarchy: structured requisition/vacancy id -> exact canonical Origin URL -> only then bounded evidence-based equivalence; never title similarity alone;
-- multi-location vacancy identity must not fork one vacancy into multiple jobs;
-- regression cohort across multiple Origin families for currentness, dedupe and lifecycle;
-- Product/CC projections consume these invariants instead of repairing bad truth in UI code.
+- exact current/dead/stale determination from Origin evidence, valid-through/publication and recurring observations;
+- market sensors may support discovery/freshness diagnostics but never review authority;
+- vacancy identity hierarchy: explicit structured requisition/vacancy identity -> canonical/final Origin identity -> exact canonical Origin URL -> bounded evidence equivalence only when safely proven; never title similarity alone;
+- multi-location must not fork one vacancy;
+- regression cohort across multiple Origin families;
+- Product/CC consumes upstream truth instead of repairing it in UI code.
 
-Operator test 1.0.23:
-
-A curated real cohort must demonstrate: current jobs remain, deliberately stale/dead jobs leave current review, sensor-only rows stay out, known duplicate aliases collapse safely, and historical rows remain auditable.
+Operator test: current jobs remain, deliberately dead/stale jobs disappear from current review, sensor-only rows stay out, known safe aliases collapse, history remains auditable.
 
 ## F4 — Decision Intelligence Coverage — releases 1.0.24 and 1.0.25
 
-This is one package with two mandatory release/operator checkpoints because ranking must not get ahead of fit truth.
+### F4A — Profile Fit coverage — 1.0.24
 
-### F4A — Profile Fit coverage — release 1.0.24
+Every current review job gets either an evidence-backed Jens<->Job Profile Fit or explicit `insufficient_evidence`; preliminary role affinity remains visibly separate.
 
-Purpose: every current review job gets either an evidence-backed Jens<->Job fit result or an explicit `insufficient_evidence`, never a manufactured score.
+Scope includes normalized Origin requirements, approved Candidate Facts, location/work model/commute, seniority, skills/capabilities and hard requirements, with factor-level explanations and coverage metrics.
 
-Scope:
+### F4B — Ranking coverage — 1.0.25
 
-- requirements/capability evidence from normalized Origin detail data;
-- compare against approved Candidate Facts;
-- location/work model/commute, seniority, skills/capabilities and hard requirements remain distinguishable factors;
-- preliminary role affinity stays visibly separate from authoritative Profile Fit;
-- coverage funnel: current -> fit complete / insufficient evidence / blocked.
+Only fit-complete, lifecycle-current and hard-gate-qualified jobs become rankable. Every exclusion exposes a reason. Deterministic ranking remains authority; Top 5 comes from the complete eligible cohort.
 
-Operator test: sample high, medium and low-fit current Origin jobs and inspect factor-level explanations against the actual job detail and Candidate Facts.
-
-### F4B — Ranking coverage — release 1.0.25
-
-Purpose: rank the whole eligible current cohort, not just the old small subset.
-
-Scope:
-
-- only fit-complete, lifecycle-current, hard-gate-qualified jobs may become rankable;
-- every excluded current job exposes the exact reason;
-- deterministic ranking components remain authority; no ML/LLM ranking authority in this freeze;
-- Top 5 is derived only from the complete eligible ranked cohort.
-
-Operator test: `current -> fit complete -> rankable -> Top 5` counts reconcile, sorting does not alter ranking authority, and several ranked jobs have understandable factor breakdowns.
+Operator test: `current -> fit complete -> rankable -> Top 5` counts reconcile and sampled rankings have inspectable factor breakdowns.
 
 ## F5 — Application Lifecycle + Gmail-backed Outcome Tracking — release 1.0.26
 
-Purpose: close the product loop from discovered job to real application outcome.
+Purpose: close the loop from discovered job to real application outcome.
 
-Real seed evidence already exists in Gmail from 2026-09-10 for three applications:
+Real seed evidence exists in Gmail from 2026-09-10 for:
 
 - Finanz Informatik — `E362/B - AI Engineer / KI-Entwickler (m/w/d)`;
 - enercity — `Data Engineer (m/w/d)`;
-- ROSSMANN — `(Junior) Data Engineer (m/w/d) Logistics Business Analysis` (including identity-confirmation flow and later receipt confirmation).
+- ROSSMANN — `(Junior) Data Engineer (m/w/d) Logistics Business Analysis`, with multiple emails that must map to one application.
 
-These mails are evidence only until this package implements the persisted application model.
+Scope:
 
-Bundled scope:
-
-- persisted application identity linked to the canonical vacancy where possible;
+- persisted application identity linked to canonical vacancy where possible;
 - append-only application events: prepared/applied/receipt confirmed/interview/rejected/offer/withdrawn/follow-up;
-- Gmail ingestion/classification for application lifecycle evidence with explicit provenance and no inferred submission when evidence is absent;
-- `Applications` Control Center becomes a real portfolio rather than a placeholder;
-- outcomes become future evaluation/learning evidence but do not directly rewrite deterministic ranking authority.
-
-Operator test 1.0.26:
-
-The three real 2026-09-10 applications appear correctly in CC with employer, role, applied/confirmation timestamps and current lifecycle state, with no duplicate ROSSMANN application caused by its two emails.
+- Gmail lifecycle evidence with provenance and no inferred submission without evidence;
+- real `Applications` portfolio in CC;
+- outcomes become later evaluation/learning evidence but do not rewrite deterministic ranking authority.
 
 ## F6 — Template-Authoritative Application Drafting — release 1.0.27
 
-Purpose: reproduce the quality of the current chat-assisted application workflow while freezing user-approved layout/design.
+Purpose: reproduce the quality of chat-assisted applications while freezing approved layout/design.
 
-Bundled scope:
+Scope:
 
-- user supplies an approved template/layout version;
-- template bytes/layout/style become hash-bound authority;
-- JAP generates only bounded content deltas in defined editable zones;
-- Candidate Facts remain authority for factual candidate claims;
-- job-specific wording derives from exact current Origin job evidence;
-- render/layout validation proves the template was not unintentionally redesigned;
+- approved template/layout becomes hash-bound authority;
+- JAP mutates only explicitly editable content zones;
+- Candidate Facts remain factual authority;
+- wording derives from exact current Origin job evidence;
+- render/layout validation proves unauthorized layout changes did not occur;
 - human review remains mandatory; no automatic submit/send.
-
-Operator test 1.0.27:
-
-Generate at least one real application package from an approved template, compare it with the source template and job posting, and verify only authorized content zones changed while visual/layout identity remained stable.
 
 # Cross-cutting freeze invariants
 
-These apply to every package and do not wait for a later release:
-
-- Maintain a single funnel: `companies discovered -> official Origin found -> proof PASS -> vocabulary proven -> real jobs found -> structure understood -> Bronze -> Silver -> current -> fit complete -> rankable -> applied -> outcome`.
-- Every stage exposes counts plus classified failure/unknown reasons.
-- Market sensors are discovery inputs, not Product review authority.
+- Maintain one funnel: `companies discovered -> official Origin found -> proof PASS -> vocabulary proven -> real jobs found -> structure understood -> Bronze -> Silver -> current -> fit complete -> rankable -> applied -> outcome`.
+- Every stage exposes counts and classified failure/unknown reasons.
+- Market sensors are discovery inputs, never Product review authority.
 - Origin detail evidence outranks listing/search-card heuristics for vacancy facts.
-- No source-specific parser is added for one employer merely to improve counts. Reusable parser families require repeated evidence or a clearly generic standard/ATS contract.
+- No one-employer parser merely to improve counts; parser families require repeated evidence or a generic standard/ATS contract.
 - No fuzzy dedupe may suppress real vacancies without inspectable evidence.
-- No LLM/ML layer becomes production decision authority during this deterministic freeze; later ML remains subordinate to deterministic truth and Candidate Facts.
-- No new external hosted tool/service becomes a required runtime dependency for source discovery or parsing. Research may inspect external/open implementations; production capability must remain local, bounded and replaceable.
-- Existing operator feedback (`Interesting`, `Not relevant`, `Unsure`) remains learning evidence and does not directly rewrite ranking.
-- Re-entry must be updated at every release/operator checkpoint with exact SHA, run IDs, measured funnel delta and next package.
+- No ML/LLM layer becomes production decision authority during this deterministic freeze.
+- No hosted external tool/service becomes a required runtime dependency for discovery or parsing.
+- Operator feedback remains learning evidence, not direct ranking authority.
+- Re-entry is updated at release/operator checkpoints with exact SHA/run evidence, measured funnel delta and carried residuals.
 
-## Freeze completion / feature thaw
+## Current repository/branch state
 
-The feature freeze ends only after F6 operator PASS, or by an explicit user decision to amend this frozen campaign in this file. Bugs/security/runtime blockers may interrupt the sequence only to restore the active package; they do not silently reprioritize the campaign.
+Canonical main: `b1360671658627f09d49b94f5bcadff7e5747674`.
+
+Current implementation branch:
+
+`agent/f1-origin-jobspace-discovery`
+
+F1 is the sole mutating product package. Read-only research may run in parallel, but unrelated product mutations remain frozen.
 
 ## Sole next action
 
-**Finish the narrow F0 closure / release 1.0.20 from `agent/f0-operator-residuals`.**
-
-Immediate sequence:
-
-1. Keep the patch limited to exact canonical Origin URL dedupe across Employer-Origin source projections plus focused regression coverage and release metadata.
-2. Open the F0 closure PR against exact current main `77402ce6565c22f4c8d21207e95cb184b6926fd0`.
-3. Run normal Pipeline CI, Re-Entry Identity, Windows Control Center contract and real Generic Employer-Origin Product Proof.
-4. Fix only evidence-backed failures; no UI polish, affinity/ranking work or FI-specific heuristics.
-5. Merge only the exact fully-green head.
-6. Publish immutable 1.0.20 and let the normal local-deploy path install it.
-7. Re-run the narrow operator checklist above, especially the previously duplicated FI vacancy.
-8. Record exact evidence here; then and only then begin F1.
+**Complete final 1.0.21 qualification on PR #855. If all release/product gates are green, squash-merge the exact tested head, let the immutable GitHub release and automatic local deploy complete, then run the combined F1 + `CR-F0-001` operator test.**
