@@ -34,11 +34,29 @@ def test_ba_internal_reference_is_never_opened_as_browser_scheme() -> None:
     assert "href={job.source_url}" not in source
 
 
-def test_sources_are_status_clustered_and_compact() -> None:
+def test_sources_separate_delivery_zero_yield_sensors_and_attention() -> None:
     source = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
-    for group in ("Needs attention", "Active", "Pending", "Not implemented"):
+    for group in (
+        "Needs attention",
+        "Delivering now",
+        "Active, 0 current jobs",
+        "Market sensors",
+        "Pending",
+        "Not implemented",
+    ):
         assert group in source
+    for summary in (
+        "Employer origins",
+        "active_last_run_loaded_count",
+        "active_last_run_zero_count",
+        "sensor_count",
+        "attention_count",
+    ):
+        assert summary in source
+    assert "source.source_role" in source
+    assert "Latest run" in source
+    assert "Latest load" in source
     assert "ow-source-summary-strip" in source
     assert "ow-source-group-title" in source
 
