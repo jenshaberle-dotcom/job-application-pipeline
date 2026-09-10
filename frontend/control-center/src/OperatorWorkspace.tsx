@@ -42,6 +42,7 @@ type SourceConnector = {
   source_name: string;
   source_label: string;
   source_type: string;
+  source_role: string;
   candidate_status: string;
   current_blocker?: string | null;
   next_action: string;
@@ -80,6 +81,12 @@ type ProductPayload = {
   source_connector_overview: {
     summary: {
       source_count: number;
+      sensor_count: number;
+      healthy_sensor_count: number;
+      employer_origin_count: number;
+      employer_origin_active_count: number;
+      active_last_run_loaded_count: number;
+      active_last_run_zero_count: number;
       implemented_count: number;
       validated_count: number;
       final_approved_count: number;
@@ -114,7 +121,7 @@ type JobSort =
   | "gate_asc"
   | "gate_desc";
 type SortColumn = "fit" | "review" | "job" | "location" | "published" | "observed" | "gate";
-type SourceGroup = "Needs attention" | "Active" | "Pending" | "Not implemented";
+type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Pending" | "Not implemented";
 
 const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
 const label = (value: string | undefined | null) => (value || "unknown").replaceAll("_", " ");
@@ -222,7 +229,7 @@ function compareJobs(a: Job, b: Job, sort: JobSort) {
 
 function tone(value: string | undefined | null) {
   const normalized = normalize(value);
-  if (["rankable", "active", "active confirmed", "active_confirmed", "approved", "interesting", "passed"].includes(normalized)) return "good";
+  if (["rankable", "active", "active confirmed", "active_confirmed", "approved", "interesting", "passed"].includes(normalized) || normalized.startsWith("active_last_run_")) return "good";
   if (normalized.includes("failed") || normalized.includes("blocked") || normalized === "not_relevant") return "bad";
   if (normalized.includes("required") || normalized.includes("unknown") || normalized.includes("stale") || normalized === "unsure") return "warn";
   return "neutral";
@@ -573,37 +580,57 @@ function Applications({ payload, onPrepare }: { payload: ProductPayload; onPrepa
 
 function sourceGroup(source: SourceConnector): SourceGroup {
   if (source.current_blocker) return "Needs attention";
-  if (source.activation.active === true) return "Active";
+  if (normalize(source.source_role) === "sensor") return "Market sensors";
+  if (source.activation.active === true) {
+    if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded > 0) return "Delivering now";
+    if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded === 0) return "Active, 0 current jobs";
+    return "Pending";
+  }
   if (normalize(source.connector.implementation_status).includes("not implemented")) return "Not implemented";
   return "Pending";
 }
 
 function Sources({ payload }: { payload: ProductPayload }) {
   const sources = payload.source_connector_overview.sources;
-  const [selectedName, setSelectedName] = useState(sources.find((source) => source.current_blocker)?.source_name || sources.find((source) => source.activation.active === true)?.source_name || sources[0]?.source_name || "");
+  const overview = payload.source_connector_overview.summary;
+  const [selectedName, setSelectedName] = useState(
+    sources.find((source) => source.current_blocker)?.source_name ||
+    sources.find((source) => sourceGroup(source) === "Delivering now")?.source_name ||
+    sources.find((source) => sourceGroup(source) === "Active, 0 current jobs")?.source_name ||
+    sources.find((source) => sourceGroup(source) === "Market sensors")?.source_name ||
+    sources[0]?.source_name || ""
+  );
   const [showAll, setShowAll] = useState(false);
-  const groups: SourceGroup[] = ["Needs attention", "Active", "Pending", "Not implemented"];
+  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Pending", "Not implemented"];
+  const defaultGroups = new Set<SourceGroup>(["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors"]);
   const groupCounts = Object.fromEntries(groups.map((group) => [group, sources.filter((source) => sourceGroup(source) === group).length])) as Record<SourceGroup, number>;
   const visibleGroups = groups
     .map((group) => ({
       group,
       sources: sources
         .filter((source) => sourceGroup(source) === group)
-        .filter((source) => showAll || group === "Needs attention" || group === "Active")
+        .filter(() => showAll || defaultGroups.has(group))
         .sort((left, right) => compareText(left.source_label, right.source_label)),
     }))
     .filter((entry) => entry.sources.length > 0);
   const visible = visibleGroups.flatMap((entry) => entry.sources);
   const selected = sources.find((source) => source.source_name === selectedName) || visible[0] || null;
+  const summaryTruth = [
+    ["Employer origins", overview.employer_origin_count],
+    ["Delivering now", overview.active_last_run_loaded_count],
+    ["Active, 0 current jobs", overview.active_last_run_zero_count],
+    ["Market sensors", overview.sensor_count],
+    ["Needs attention", overview.attention_count],
+  ] as Array<[string, number]>;
 
   return <div className="ow-stack">
-    <header className="ow-page-header"><div><span>Source control</span><h1>Sources</h1><p>Status-clustered connector truth. Active and attention sources stay prominent; the long tail remains available on demand.</p></div><button type="button" className="ow-secondary" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show active/attention" : `Show all ${sources.length}`}</button></header>
+    <header className="ow-page-header"><div><span>Source control</span><h1>Sources</h1><p>Employer-origin delivery, zero-yield activation, market sensors and real blockers are separate truths. Pending inventory stays available on demand.</p></div><button type="button" className="ow-secondary" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show delivery/attention" : `Show all ${sources.length}`}</button></header>
     <section className="ow-source-summary-strip">
-      {groups.map((group) => <div key={group}><span>{group}</span><b>{groupCounts[group]}</b></div>)}
+      {summaryTruth.map(([name, value]) => <div key={name}><span>{name}</span><b>{value}</b></div>)}
     </section>
     <section className="ow-source-workspace">
       <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{group}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{source.source_name}</small></span><Status value={source.current_blocker || source.activation.status} /></button>)}</div>)}</div>
-      {selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{sourceGroup(selected)} · {selected.source_type}</span><h2>{selected.source_label}</h2><code>{selected.source_name}</code><div className="ow-source-facts"><div><span>Implementation</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Validation</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Approval</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Activation</span><b>{label(selected.activation.status)}</b></div><div><span>Profiles</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Layers</span><b>Bronze {selected.layers.bronze_count} · Silver {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>{label(selected.current_blocker)}</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No current blocker</b><span>{selected.next_action}</span></div>}</article>}
+      {selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{sourceGroup(selected)} · {selected.source_type}</span><h2>{selected.source_label}</h2><code>{selected.source_name}</code><div className="ow-source-facts"><div><span>Role</span><b>{label(selected.source_role)}</b></div><div><span>Implementation</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Validation</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Approval</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Activation</span><b>{label(selected.activation.status)}</b></div><div><span>Latest run</span><b>{label(selected.last_ingestion.status)}</b></div><div><span>Latest load</span><b>{selected.last_ingestion.total_loaded} loaded · {selected.last_ingestion.inserted_count} inserted</b></div><div><span>Profiles</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Layers</span><b>Bronze {selected.layers.bronze_count} · Silver {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>{label(selected.current_blocker)}</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No current blocker</b><span>{selected.next_action}</span></div>}</article>}
     </section>
   </div>;
 }
