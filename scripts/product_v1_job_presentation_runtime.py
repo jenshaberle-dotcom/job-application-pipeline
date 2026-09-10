@@ -166,15 +166,21 @@ def _canonical_review_url(value: object) -> str | None:
 
 
 def _origin_identity_key(row: Mapping[str, object]) -> tuple[str, str, str] | None:
-    """Return only source-local identities safe enough for review deduplication."""
+    """Return only exact identities safe enough for review deduplication.
+
+    Structured identifiers remain source-local because unrelated systems may reuse
+    short requisition ids. An exact canonical Origin URL is already the identity of
+    the same web vacancy and therefore safely collapses duplicate Employer-Origin
+    projections even when they arrived through different connector/source names.
+    """
 
     source_name = str(row.get("source_name") or "").strip().casefold()
     identifier = str(row.get("origin_vacancy_identifier") or "").strip()
     if source_name and identifier:
         return (source_name, "structured_identifier", identifier.casefold())
     url = _canonical_review_url(row.get("source_url") or row.get("discovery_source_url"))
-    if source_name and url:
-        return (source_name, "origin_url", url)
+    if url:
+        return ("exact_origin_url", "origin_url", url)
     return None
 
 
@@ -210,7 +216,7 @@ def _decorate_collection(
 def _deduplicate_origin_rows(
     rows: list[Mapping[str, object]],
 ) -> tuple[list[Mapping[str, object]], list[Mapping[str, object]]]:
-    """Collapse only exact source-local identifiers; preserve uncertain variants."""
+    """Collapse only exact safe identities; preserve uncertain variants."""
 
     unique: list[Mapping[str, object]] = []
     duplicates: list[Mapping[str, object]] = []
@@ -246,9 +252,9 @@ def enrich_product_payload_for_operator(
 
     Normal `job_readiness` contains only lifecycle-current employer-origin vacancies
     that are geography-review eligible. Sensor-derived Product memory and historical
-    origin jobs remain separately auditable. Exact source-local duplicate identities
-    are collapsed only for presentation. Top-5 membership is never filtered or
-    rewritten here.
+    origin jobs remain separately auditable. Exact safe duplicate identities are
+    collapsed only for presentation. Top-5 membership is never filtered or rewritten
+    here.
     """
 
     result = dict(payload)
@@ -317,7 +323,8 @@ def enrich_product_payload_for_operator(
             "market_sensor_jobs_remain_discovery_evidence_only": True,
             "normal_review_scope_requires_current_employer_origin": True,
             "first_jap_observed_is_observation_history_not_source_publish_time": True,
-            "review_dedup_requires_exact_source_local_identity": True,
+            "review_dedup_structured_identifier_remains_source_local": True,
+            "review_dedup_exact_origin_url_may_cross_source_projections": True,
             "title_company_similarity_alone_never_merges_vacancies": True,
             "top5_membership_not_filtered_by_presentation": True,
         }
