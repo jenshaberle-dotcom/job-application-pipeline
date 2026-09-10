@@ -117,5 +117,5 @@ def test_generic_employer_origin_is_the_only_product_origin_family() -> None:
     source = _source(payload, source_name)
     assert source["source_role"] == "employer_origin"
     assert source["connector"]["code_backed_registered"] is True
-    assert source["activation"]["status"] == "active"
+    assert source["activation"]["status"] == "active_last_run_1_jobs"
     assert source["layers"]["bronze_count"] == 1
