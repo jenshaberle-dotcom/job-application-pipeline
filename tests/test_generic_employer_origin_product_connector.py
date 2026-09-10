@@ -153,15 +153,16 @@ def test_non_neutral_manual_execution_keeps_existing_connector_path(monkeypatch)
     assert records[0].raw_data["bronze_admission"]["status"] == "pass"
 
 
-def test_neutral_trigger_uses_canonical_target_raster_not_star(monkeypatch) -> None:
+def test_neutral_trigger_uses_company_vocabulary_not_star(monkeypatch) -> None:
     from src.connectors import generic_employer_origin_product as product
 
     seen: dict[str, object] = {}
-    monkeypatch.setattr(
-        product,
-        "load_canonical_target_terms",
-        lambda: ["Data Engineer", "ML Engineer"],
-    )
+
+    def fake_vocabulary(company_key: str) -> list[str]:
+        seen["vocabulary_company"] = company_key
+        return ["Platform", "Analytics"]
+
+    monkeypatch.setattr(product, "load_company_target_terms", fake_vocabulary)
 
     def fake_search(*, source, target_terms, **kwargs):
         seen["source"] = source.company_key
@@ -179,22 +180,28 @@ def test_neutral_trigger_uses_canonical_target_raster_not_star(monkeypatch) -> N
 
     assert final_url == "https://example.test/careers"
     assert seen["source"] == "example"
-    assert seen["terms"] == ["Data Engineer", "ML Engineer"]
+    assert seen["vocabulary_company"] == "example"
+    assert seen["terms"] == ["Platform", "Analytics"]
     assert "*" not in seen["terms"]
     assert len(records) == 1
     record = records[0]
     assert record.raw_data["bronze_admission"]["status"] == "pass"
     assert record.raw_data["acquisition_boundary"]["detail_pages_fetched"] is True
     assert record.raw_data["acquisition_boundary"]["query_semantics_proven"] is True
+    assert record.raw_data["acquisition_boundary"]["company_vocabulary_key"] == "example"
     assert record.raw_data["detail_evidence"]["status_code"] == 200
     assert record.raw_data["acquisition_evidence"]["search_term_requested"] == "Data Engineer"
     assert record.raw_data["acquisition_evidence"]["neutral_execution_trigger"] == "*"
+    assert (
+        record.raw_data["acquisition_evidence"]["target_vocabulary_scope"]
+        == "company_vocabulary_then_canonical_fallback"
+    )
 
 
 def test_product_connector_drops_noncredible_query_proven_record(monkeypatch) -> None:
     from src.connectors import generic_employer_origin_product as product
 
-    monkeypatch.setattr(product, "load_canonical_target_terms", lambda: ["Data Engineer"])
+    monkeypatch.setattr(product, "load_company_target_terms", lambda company_key: ["Data Engineer"])
     monkeypatch.setattr(
         product,
         "acquire_query_proven_jobs",
@@ -215,7 +222,7 @@ def test_product_connector_returns_zero_when_query_semantics_are_not_proven(
 ) -> None:
     from src.connectors import generic_employer_origin_product as product
 
-    monkeypatch.setattr(product, "load_canonical_target_terms", lambda: ["Data Engineer"])
+    monkeypatch.setattr(product, "load_company_target_terms", lambda company_key: ["Data Engineer"])
     monkeypatch.setattr(
         product,
         "acquire_query_proven_jobs",
