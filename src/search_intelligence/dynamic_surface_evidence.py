@@ -98,7 +98,11 @@ def _normalize_http_url(value: str | None) -> str | None:
     if parsed.scheme.casefold() not in {"http", "https"} or not parsed.hostname:
         return None
     host = parsed.hostname.casefold().strip(".")
-    port = f":{parsed.port}" if parsed.port else ""
+    try:
+        parsed_port = parsed.port
+    except ValueError:
+        return None
+    port = f":{parsed_port}" if parsed_port else ""
     path = parsed.path or "/"
     return urlunparse((parsed.scheme.casefold(), host + port, path, "", parsed.query, ""))
 
