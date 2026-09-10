@@ -33,6 +33,20 @@ def test_runtime_adapter_accepts_repository_backed_structured_evidence() -> None
     assert "top_jobs: normalizeJobs(value.top_jobs)" in adapter
 
 
+def test_runtime_adapter_keeps_product_readiness_visible_before_assessment() -> None:
+    adapter = ADAPTER.read_text(encoding="utf-8")
+
+    # Product V1 readiness is already the canonical persisted review surface.
+    # Legacy demo actionability may remain as diagnostics, but it must not hide
+    # assessment_required or other operator-visible Product gate states.
+    assert "const actionableJobs = allJobs.filter(demoActionable)" in adapter
+    assert "job_readiness: allJobs" in adapter
+    assert "top_jobs: allTopJobs" in adapter
+    assert "demo_actionable_job_count: actionableJobs.length" in adapter
+    assert "job_readiness: actionableJobs" not in adapter
+    assert "top_jobs: actionableTopJobs" not in adapter
+
+
 def test_runtime_adapter_prefers_structured_location_truth_for_display() -> None:
     adapter = ADAPTER.read_text(encoding="utf-8")
 

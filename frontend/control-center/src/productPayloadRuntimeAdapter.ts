@@ -87,6 +87,14 @@ function demoActionable(job: JsonRecord): boolean {
   return job.demo_actionable === true && typeof job.employer_origin_url === "string";
 }
 
+function isCurrentProductJob(job: JsonRecord): boolean {
+  return String(job.lifecycle_status || "").trim().toLowerCase() === "active_confirmed";
+}
+
+function isRankableProductJob(job: JsonRecord): boolean {
+  return String(job.product_readiness_status || "").trim().toLowerCase() === "rankable";
+}
+
 export function normalizeProductV1Payload(value: unknown): unknown {
   if (!isRecord(value)) return value;
 
@@ -94,25 +102,25 @@ export function normalizeProductV1Payload(value: unknown): unknown {
   const allJobs = normalized.job_readiness as JsonRecord[];
   const allTopJobs = normalized.top_jobs as JsonRecord[];
   const actionableJobs = allJobs.filter(demoActionable);
-  const actionableTopJobs = allTopJobs.filter(demoActionable);
-  const actionableRankable = actionableJobs.filter(
-    (job) => String(job.product_readiness_status || "").trim().toLowerCase() === "rankable",
-  );
+  const currentJobs = allJobs.filter(isCurrentProductJob);
+  const rankableJobs = allJobs.filter(isRankableProductJob);
   const summary = isRecord(value.summary) ? { ...value.summary } : {};
 
   return {
     ...normalized,
-    // Historical/discovery truth stays inspectable, while the ordinary review
-    // surface fails closed to current validated Employer-Origin vacancies.
+    // Product V1 job_readiness is the canonical operator review truth. A legacy
+    // demo_actionable flag is diagnostic metadata only and must never hide a
+    // persisted Product job that still needs assessment, hard-filter evidence,
+    // lifecycle review or another operator-visible gate decision.
     discovery_job_readiness: allJobs,
-    job_readiness: actionableJobs,
-    top_jobs: actionableTopJobs,
+    job_readiness: allJobs,
+    top_jobs: allTopJobs,
     summary: {
       ...summary,
       demo_actionable_job_count: actionableJobs.length,
-      review_scope_current_active_job_count: actionableJobs.length,
-      rankable_job_count: actionableRankable.length,
-      top_job_count: actionableTopJobs.length,
+      review_scope_current_active_job_count: currentJobs.length,
+      rankable_job_count: rankableJobs.length,
+      top_job_count: allTopJobs.length,
     },
   };
 }
