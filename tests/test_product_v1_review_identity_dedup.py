@@ -32,6 +32,26 @@ def test_exact_same_origin_url_collapses_duplicate_review_rows() -> None:
     assert result["summary"]["exact_origin_duplicate_review_excluded_job_count"] == 1
 
 
+def test_exact_same_origin_url_collapses_across_employer_origin_source_projections() -> None:
+    canonical = "https://www.f-i.de/de/karriere/offene-stellen/business-analyst-obb-pro"
+    legacy = _job(605, url=canonical)
+    generic = _job(606, url=canonical + "/")
+    generic["source_name"] = "generic_origin:finanz_informatik"
+    generic["canonical_source_type"] = "employer_origin_ats_backed_career_site"
+    payload = {
+        "job_readiness": [legacy, generic],
+        "top_jobs": [],
+        "summary": {},
+        "boundaries": {},
+    }
+
+    result = enrich_product_payload_for_operator(payload, observation_evidence={})
+
+    assert [item["silver_job_id"] for item in result["job_readiness"]] == [605]
+    assert [item["silver_job_id"] for item in result["duplicate_origin_jobs"]] == [606]
+    assert result["boundaries"]["review_dedup_exact_origin_url_may_cross_source_projections"] is True
+
+
 def test_same_title_company_with_different_origin_urls_remains_two_vacancies() -> None:
     payload = {
         "job_readiness": [
