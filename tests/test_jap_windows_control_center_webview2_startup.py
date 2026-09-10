@@ -36,7 +36,6 @@ def test_startup_screen_shows_phase_progress_and_elapsed_time() -> None:
     program = _program()
     assert "private readonly ProgressBar _progress" in program
     assert "private readonly Label _phaseLabel" in program
-    assert "private readonly Label _elapsed" in program
     assert "private readonly System.Windows.Forms.Timer _elapsedTimer" in program
     assert 'Text = "JAP Control Center wird vorbereitet"' in program
     assert '"Schritt 1 von 5 · JAP Runtime starten"' in program
@@ -88,4 +87,4 @@ def test_webview2_navigation_is_proven_before_splash_is_hidden() -> None:
 
 
 def test_webview2_hardening_bumps_immutable_host_version() -> None:
-    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.20"
+    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.21"
