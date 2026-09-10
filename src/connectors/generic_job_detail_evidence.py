@@ -23,11 +23,17 @@ from typing import Any, Iterable
 import extruct
 from trafilatura import extract as extract_main_text
 
+from src.search_intelligence.origin_surface_evidence import extract_origin_surface_evidence
+from src.search_intelligence.origin_vacancy_identity import (
+    extract_explicit_vacancy_identifier,
+)
+
 EVIDENCE_SCHEMA = "generic_job_detail_evidence_v1"
 MAX_SCALAR_CHARS = 1_000
 MAX_DESCRIPTION_CHARS = 4_000
 MAX_SKILLS_CHARS = 2_000
 MAX_LOCATION_CHARS = 500
+MAX_IDENTITY_TEXT_CHARS = 20_000
 GENERIC_LOCATION_EVIDENCE_SOURCE = "generic_origin_schema_job_location"
 
 
@@ -332,6 +338,11 @@ def extract_generic_job_detail_evidence(
     """Extract bounded provider-neutral job evidence from already-fetched HTML."""
 
     syntax, posting = _structured_job_posting(html, url)
+    surface_evidence = extract_origin_surface_evidence(
+        html=html,
+        base_url=url,
+        max_urls=32,
+    )
     methods: list[str] = []
     if syntax:
         methods.append(f"extruct:{syntax}")
@@ -348,6 +359,8 @@ def extract_generic_job_detail_evidence(
     date_posted = ""
     valid_through = ""
     identifier = ""
+    identifier_evidence_kind = ""
+    identifier_label = ""
 
     if posting is not None:
         title = _first_scalar(_schema_value(posting, "title"))
@@ -373,6 +386,17 @@ def extract_generic_job_detail_evidence(
         date_posted = _first_scalar(_schema_value(posting, "datePosted"))
         valid_through = _first_scalar(_schema_value(posting, "validThrough"))
         identifier = _first_scalar(_schema_value(posting, "identifier"))
+        if identifier:
+            identifier_evidence_kind = "schema_org"
+
+    visible_identity_text = _html_to_text(html, limit=MAX_IDENTITY_TEXT_CHARS)
+    if not identifier:
+        labelled_identifier = extract_explicit_vacancy_identifier(visible_identity_text)
+        if labelled_identifier is not None:
+            identifier = labelled_identifier.value
+            identifier_evidence_kind = labelled_identifier.evidence_kind
+            identifier_label = labelled_identifier.label
+            methods.append("explicit_label:vacancy_identifier")
 
     description_source = syntax if description else None
     if not description:
@@ -398,6 +422,7 @@ def extract_generic_job_detail_evidence(
     if not title:
         title = _bounded(page_title)
 
+    canonical_origin_url = surface_evidence.canonical_url
     parser_family = (
         f"schema_org_{syntax.replace('-', '_')}"
         if syntax
@@ -414,7 +439,17 @@ def extract_generic_job_detail_evidence(
         "date_posted": bool(date_posted),
         "valid_through": bool(valid_through),
         "identifier": bool(identifier),
+        "canonical_origin_url": bool(canonical_origin_url),
     }
+
+    if identifier_evidence_kind == "schema_org":
+        vacancy_identity_kind = "structured_identifier"
+    elif identifier:
+        vacancy_identity_kind = "explicit_label_identifier"
+    elif canonical_origin_url:
+        vacancy_identity_kind = "canonical_origin_url"
+    else:
+        vacancy_identity_kind = "source_url"
 
     return {
         "schema": EVIDENCE_SCHEMA,
@@ -436,7 +471,10 @@ def extract_generic_job_detail_evidence(
         "date_posted": date_posted or None,
         "valid_through": valid_through or None,
         "identifier": identifier or None,
-        "vacancy_identity_kind": "structured_identifier" if identifier else "source_url",
+        "identifier_evidence_kind": identifier_evidence_kind or None,
+        "identifier_label": identifier_label or None,
+        "canonical_origin_url": canonical_origin_url,
+        "vacancy_identity_kind": vacancy_identity_kind,
         "raw_html_persisted": False,
     }
 
@@ -508,6 +546,9 @@ def project_detail_evidence_into_raw_data(
         ("date_posted", "date_posted"),
         ("valid_through", "valid_through"),
         ("identifier", "structured_identifier"),
+        ("identifier_evidence_kind", "identifier_evidence_kind"),
+        ("identifier_label", "identifier_label"),
+        ("canonical_origin_url", "canonical_origin_url"),
         ("parser_family", "parser_family"),
         ("vacancy_identity_kind", "vacancy_identity_kind"),
     ):
