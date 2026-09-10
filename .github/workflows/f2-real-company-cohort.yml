@@ -94,15 +94,58 @@ jobs:
           printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
           printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
 
-      - name: Load product database environment
+      - name: Load product database environment without shell reinterpretation
         shell: bash
         run: |
           set -euo pipefail
-          set -a
-          # shellcheck disable=SC1090
-          source "$RUNTIME_ENV_FILE"
-          set +a
-          env | grep '^POSTGRES_' | sed 's/=.*$/=<set>/'
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+
+          from dotenv import dotenv_values
+
+          env_file = Path(sys.argv[1])
+          github_env = Path(sys.argv[2])
+          values = dotenv_values(env_file)
+          required = (
+              "POSTGRES_HOST",
+              "POSTGRES_PORT",
+              "POSTGRES_DB",
+              "POSTGRES_USER",
+              "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+
+          with github_env.open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+
+          print("RUNTIME_DOTENV_POSTGRES_KEYS=PASS")
+          print("RUNTIME_DOTENV_MODE=python_dotenv_no_shell_source")
+          PY
+
+      - name: Prove product database authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import psycopg
+
+          from src.config import get_database_config
+
+          with psycopg.connect(**get_database_config()) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SELECT current_database(), current_user")
+                  database, user = cur.fetchone()
+          print(f"F2_DATABASE_AUTH=PASS database={database} user={user}")
+          PY
 
       - name: Provision pinned local OSS detail runtime
         shell: bash
