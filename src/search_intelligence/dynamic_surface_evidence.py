@@ -13,7 +13,7 @@ import re
 from urllib.parse import urljoin, urlparse, urlunparse
 
 MAX_HTML_URLS = 96
-MAX_SCRIPT_SOURCES = 8
+MAX_SCRIPT_SOURCES = 24
 MAX_SCRIPT_LITERALS = 96
 MAX_LITERAL_LENGTH = 320
 
@@ -32,6 +32,21 @@ _ROUTE_MARKERS = (
     "stellen",
     "vacanc",
     "graphql",
+)
+_APP_SCRIPT_MARKERS = ("main", "app", "bundle", "career", "job", "position", "vacanc", "recruit")
+_LOW_VALUE_SCRIPT_MARKERS = ("jquery", "editor", "richtext", "cookie", "analytics", "swiper", "aos")
+_STATIC_SUFFIXES = (
+    ".css",
+    ".gif",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".svg",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".pdf",
 )
 _QUOTED_LITERAL = re.compile(r"(?P<quote>['\"])(?P<value>[^'\"\r\n]{3,320})(?P=quote)")
 
@@ -88,6 +103,28 @@ def _normalize_http_url(value: str | None) -> str | None:
     return urlunparse((parsed.scheme.casefold(), host + port, path, "", parsed.query, ""))
 
 
+def _script_priority(url: str) -> tuple[int, int, str]:
+    parsed = urlparse(url)
+    path_query = f"{parsed.path}?{parsed.query}".casefold()
+    app_hits = sum(marker in path_query for marker in _APP_SCRIPT_MARKERS)
+    low_hits = sum(marker in path_query for marker in _LOW_VALUE_SCRIPT_MARKERS)
+    return (-app_hits, low_hits, path_query)
+
+
+def prioritize_script_sources(
+    values: tuple[str, ...] | list[str],
+    *,
+    max_scripts: int,
+) -> tuple[str, ...]:
+    unique: list[str] = []
+    for value in values:
+        normalized = _normalize_http_url(value)
+        if normalized and normalized not in unique:
+            unique.append(normalized)
+    ordered = sorted(unique, key=_script_priority)
+    return tuple(ordered[: max(1, max_scripts)])
+
+
 def extract_html_dynamic_surface_evidence(
     *,
     html: str,
@@ -101,13 +138,10 @@ def extract_html_dynamic_surface_evidence(
     except Exception:
         return HtmlDynamicSurfaceEvidence((), ())
 
-    scripts: list[str] = []
-    for value in parser.script_sources:
-        normalized = _normalize_http_url(value)
-        if normalized and normalized not in scripts:
-            scripts.append(normalized)
-        if len(scripts) >= max(1, max_script_sources):
-            break
+    scripts = prioritize_script_sources(
+        parser.script_sources,
+        max_scripts=max_script_sources,
+    )
 
     urls: list[str] = []
     for value in parser.url_attributes:
@@ -117,12 +151,23 @@ def extract_html_dynamic_surface_evidence(
         if len(urls) >= max(1, max_urls):
             break
 
-    return HtmlDynamicSurfaceEvidence(tuple(scripts), tuple(urls))
+    return HtmlDynamicSurfaceEvidence(scripts, tuple(urls))
 
 
-def _route_markers(value: str) -> tuple[str, ...]:
-    lowered = value.casefold()
-    return tuple(marker for marker in _ROUTE_MARKERS if marker in lowered)
+def _route_markers(value: str, *, normalized_url: str | None = None) -> tuple[str, ...]:
+    raw = value.casefold()
+    parsed = urlparse(normalized_url or value)
+    path_query = f"{parsed.path}?{parsed.query}".casefold()
+    path_markers = tuple(marker for marker in _ROUTE_MARKERS if marker in path_query)
+    if path_markers:
+        return path_markers
+
+    # A jobs/careers hostname may itself be useful evidence, but do not let it
+    # turn every static asset on that host into a dynamic route candidate.
+    if parsed.path.casefold().endswith(_STATIC_SUFFIXES):
+        return ()
+    host = (parsed.hostname or "").casefold()
+    return tuple(marker for marker in _ROUTE_MARKERS if marker in host or marker in raw)
 
 
 def _literal_to_url(raw: str, *, base_url: str) -> str | None:
@@ -152,11 +197,11 @@ def extract_dynamic_route_literals(
     seen: set[tuple[str, str | None]] = set()
     for match in _QUOTED_LITERAL.finditer(text or ""):
         raw = match.group("value").strip()
-        markers = _route_markers(raw)
-        if not markers:
-            continue
         normalized = _literal_to_url(raw, base_url=base_url)
         if normalized is None:
+            continue
+        markers = _route_markers(raw, normalized_url=normalized)
+        if not markers:
             continue
         parsed = urlparse(normalized)
         key = (raw, normalized)
@@ -191,5 +236,6 @@ __all__ = [
     "exact_host",
     "extract_dynamic_route_literals",
     "extract_html_dynamic_surface_evidence",
+    "prioritize_script_sources",
     "same_host",
 ]
