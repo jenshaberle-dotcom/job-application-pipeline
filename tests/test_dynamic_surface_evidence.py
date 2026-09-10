@@ -61,6 +61,20 @@ def test_dynamic_literals_require_quoted_url_shape_and_job_or_api_marker() -> No
     assert "vacanc" in evidence[1].markers
 
 
+def test_malformed_port_literal_is_ignored_instead_of_crashing() -> None:
+    text = """
+    const broken='https://jobs.example.test:blank/api/jobs';
+    const valid='/api/jobs';
+    """
+    evidence = extract_dynamic_route_literals(
+        text=text,
+        base_url="https://careers.example.test/",
+    )
+    assert [item.normalized_url for item in evidence] == [
+        "https://careers.example.test/api/jobs",
+    ]
+
+
 def test_static_assets_on_careers_host_are_not_route_literals() -> None:
     text = """
     const a='https://careers.example.test/assets/logo.svg';
