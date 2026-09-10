@@ -55,6 +55,12 @@ HTTP_USER_AGENT = (
 MAX_HTTP_BODY_BYTES = 5_000_000
 
 
+def _arg(args: argparse.Namespace, name: str, default: object) -> object:
+    """Keep older internal callers compatible with additive F1 CLI options."""
+
+    return getattr(args, name, default)
+
+
 def connect() -> psycopg.Connection[Any]:
     return psycopg.connect(**get_database_config(), row_factory=dict_row)
 
@@ -430,7 +436,7 @@ def collect_official_domain_evidence(
     company_name: str,
 ) -> list[OfficialDomainEvidence]:
     evidence: list[OfficialDomainEvidence] = []
-    for url in args.official_domain_url:
+    for url in _arg(args, "official_domain_url", []):
         normalized = str(url or "").strip()
         if normalized:
             evidence.append(
@@ -443,7 +449,8 @@ def collect_official_domain_evidence(
                 )
             )
 
-    if args.official_domain_provider == "wikidata":
+    provider = str(_arg(args, "official_domain_provider", "none"))
+    if provider == "wikidata":
         try:
             evidence.extend(
                 resolve_wikidata_official_domains(
@@ -451,7 +458,9 @@ def collect_official_domain_evidence(
                     request_json=lambda url, params: _wikidata_request_json(
                         url,
                         params,
-                        timeout_seconds=args.official_domain_timeout_seconds,
+                        timeout_seconds=float(
+                            _arg(args, "official_domain_timeout_seconds", 8.0)
+                        ),
                     ),
                 )
             )
@@ -488,9 +497,11 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         company_name=company_name,
     )
 
-    http = None if args.no_probe else HttpDiscoveryClient(
-        timeout_seconds=args.timeout_seconds,
-        max_requests=args.http_request_cap,
+    no_probe = bool(_arg(args, "no_probe", False))
+    no_surface_expansion = bool(_arg(args, "no_surface_expansion", False))
+    http = None if no_probe else HttpDiscoveryClient(
+        timeout_seconds=float(args.timeout_seconds),
+        max_requests=int(_arg(args, "http_request_cap", 48)),
     )
     expanded = discover_official_origin_jobspace(
         company_key=str(candidate["company_key"]),
@@ -503,7 +514,7 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         probe=None if http is None else http.probe,
         fetch_page=(
             None
-            if http is None or args.no_surface_expansion
+            if http is None or no_surface_expansion
             else http.fetch_page
         ),
         max_generated_candidates=args.max_candidates,
@@ -525,13 +536,15 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         }
         for item in search_results
     ]
-    payload["probe_enabled"] = not args.no_probe
+    payload["probe_enabled"] = not no_probe
     payload["f1_initial_decision"] = expanded.initial.decision
     payload["f1_surface_page_count"] = expanded.surface_page_count
     payload["f1_discovered_jobspace_url_count"] = expanded.discovered_jobspace_url_count
     payload["f1_ats_families"] = list(expanded.ats_families)
     payload["f1_official_domain_evidence_count"] = expanded.official_domain_evidence_count
-    payload["f1_official_domain_provider"] = args.official_domain_provider
+    payload["f1_official_domain_provider"] = str(
+        _arg(args, "official_domain_provider", "none")
+    )
     payload["f1_official_domain_evidence"] = [
         {
             "url": item.url,
@@ -544,7 +557,7 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         for item in official_evidence
     ]
     payload["f1_http_request_count"] = 0 if http is None else http.request_count
-    payload["f1_surface_expansion_enabled"] = not args.no_surface_expansion and http is not None
+    payload["f1_surface_expansion_enabled"] = not no_surface_expansion and http is not None
     return payload
 
 
