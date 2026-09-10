@@ -64,4 +64,4 @@ def test_long_lived_wsl_runtime_is_detached_from_powershell_redirected_pipes() -
 
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.19"
+    assert _text(VERSION).strip() == "1.0.20"
