@@ -40,6 +40,7 @@ QUERY_CONTROL_TERM = "qzxvplmn847362951"
 QUERY_CONTROL_JOB_CAP = 5
 PRODUCT_MAX_REQUESTS = 250
 MAX_BODY_BYTES = 5_000_000
+MAX_TARGET_TERMS = 12
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,63 @@ def load_canonical_target_terms() -> list[str]:
     if not terms:
         raise RuntimeError("canonical target search raster is empty")
     return terms
+
+
+def load_company_target_terms(company_key: str) -> list[str]:
+    """Prefer proof-grounded company vocabulary, then fill from the canonical raster.
+
+    `origin_job_title` observations are produced only from the materialized proof=PASS
+    origin cohort. Market vocabulary remains a lower-authority prior. Neither source
+    mutates search profiles; this function is the bounded execution projection.
+    """
+
+    learned: list[str] = []
+    try:
+        with psycopg.connect(**get_database_config()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT to_regclass('public.company_vocabulary_observations') IS NOT NULL"
+                )
+                row = cur.fetchone()
+                if row and bool(row[0]):
+                    cur.execute(
+                        """
+                        SELECT observed_term
+                        FROM company_vocabulary_observations
+                        WHERE company_key = %s
+                          AND evidence_type IN ('origin_job_title', 'market_evidence_title')
+                          AND btrim(observed_term) <> ''
+                        ORDER BY
+                            CASE evidence_type
+                                WHEN 'origin_job_title' THEN 0
+                                ELSE 1
+                            END,
+                            observation_count DESC,
+                            last_seen_at DESC,
+                            observed_term
+                        LIMIT %s
+                        """,
+                        (company_key, MAX_TARGET_TERMS),
+                    )
+                    learned = [str(item[0]).strip() for item in cur.fetchall()]
+    except psycopg.Error as exc:
+        LOGGER.warning(
+            "Company vocabulary unavailable; canonical fallback retained: company=%s error=%s",
+            company_key,
+            exc,
+        )
+
+    canonical = load_canonical_target_terms()
+    combined = list(
+        dict.fromkeys(
+            term
+            for term in (*learned, *canonical)
+            if term and term != NEUTRAL_TRIGGER_TERM
+        )
+    )
+    if not combined:
+        raise RuntimeError("company and canonical target vocabulary are empty")
+    return combined[:MAX_TARGET_TERMS]
 
 
 def _job_urls(outcome: GenericSearchOutcome) -> set[str]:
@@ -335,6 +393,7 @@ def _product_record(
             "query_semantics_proven": True,
             "query_control_term": QUERY_CONTROL_TERM,
             "target_profile_name": CANONICAL_TARGET_PROFILE_NAME,
+            "company_vocabulary_key": source.company_key,
         }
     )
     raw_data["acquisition_boundary"] = boundary
@@ -347,6 +406,7 @@ def _product_record(
             "query_semantics_status": "proven",
             "search_mechanism": item.mechanism,
             "neutral_execution_trigger": NEUTRAL_TRIGGER_TERM,
+            "target_vocabulary_scope": "company_vocabulary_then_canonical_fallback",
         }
     )
     raw_data["acquisition_evidence"] = acquisition
@@ -364,11 +424,11 @@ class GenericEmployerOriginProductConnector(GenericEmployerOriginConnector):
 
     The generic layer ``proof=PASS`` gate decides whether the source itself is
     valid and active. The recurring profile keeps ``*`` as a non-semantic execution
-    trigger. Product acquisition resolves the already-canonical target raster
-    internally, proves target-vs-impossible-control query discrimination, enriches
-    exact detail pages locally, and only then exposes records to the existing Bronze
-    gate. A valid source may therefore return zero records without losing source
-    validity.
+    trigger. Product acquisition prefers company vocabulary learned from the proved
+    origin, fills only missing breadth from the canonical target raster, proves
+    target-vs-impossible-control query discrimination, enriches exact detail pages
+    locally, and only then exposes records to the existing Bronze gate. A valid
+    source may therefore return zero records without losing source validity.
     """
 
     def fetch_jobs(
@@ -381,9 +441,10 @@ class GenericEmployerOriginProductConnector(GenericEmployerOriginConnector):
             return filter_generic_origin_bronze_records(records), final_url
 
         source = self.candidate_loader(self.company_key)
+        target_terms = load_company_target_terms(source.company_key)
         result = acquire_query_proven_jobs(
             source=source,
-            target_terms=load_canonical_target_terms(),
+            target_terms=target_terms,
         )
         if result.status != "proven":
             LOGGER.warning(
@@ -401,10 +462,11 @@ class GenericEmployerOriginProductConnector(GenericEmployerOriginConnector):
         ]
         admitted = filter_generic_origin_bronze_records(records)
         LOGGER.info(
-            "Generic product search admitted source=%s query_proven=%s bronze=%s requests=%s",
+            "Generic product search admitted source=%s query_proven=%s bronze=%s requests=%s vocabulary_terms=%s",
             self.source_name,
             len(records),
             len(admitted),
             result.request_count,
+            len(target_terms),
         )
         return admitted, source.candidate_url
