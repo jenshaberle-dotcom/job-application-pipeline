@@ -145,6 +145,29 @@ cd "$PROJECT_DIR" || {
   exit 1
 }
 
+LOCAL_OSS_SITE="$(bash "$PROJECT_DIR/scripts/ensure_pinned_local_oss_runtime.sh" \
+  "$RUNTIME_PYTHON" \
+  "$PROJECT_DIR/requirements.txt" \
+  "$PROJECT_DIR/.runtime/local-oss-sites" 2>>"$LOG_FILE")" || {
+  log "ERROR pinned local OSS runtime provisioning failed"
+  exit 1
+}
+if [ -z "$LOCAL_OSS_SITE" ] || [ ! -d "$LOCAL_OSS_SITE" ]; then
+  log "ERROR pinned local OSS runtime returned invalid site: $LOCAL_OSS_SITE"
+  exit 1
+fi
+export PYTHONPATH="$LOCAL_OSS_SITE${PYTHONPATH:+:$PYTHONPATH}"
+if ! "$RUNTIME_PYTHON" - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+import extruct
+import trafilatura
+print("Pinned local OSS detail runtime ready")
+PY
+then
+  log "ERROR pinned local OSS runtime import probe failed"
+  exit 1
+fi
+log "local_oss_site=$LOCAL_OSS_SITE"
+
 DB_READY_EXIT=1
 for ((attempt = 1; attempt <= DB_READY_MAX_ATTEMPTS; attempt++)); do
   log "Checking configured Postgres dependency attempt=$attempt/$DB_READY_MAX_ATTEMPTS"
