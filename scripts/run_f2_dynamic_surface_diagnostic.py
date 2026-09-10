@@ -27,7 +27,7 @@ from src.search_intelligence.dynamic_surface_evidence import (
 SCHEMA = "job_application_pipeline.f2_dynamic_surface_diagnostic.v1"
 USER_AGENT = "job-application-pipeline-f2-dynamic-surface/0.1 (+bounded read-only)"
 MAX_BODY_BYTES = 5_000_000
-MAX_SCRIPT_BODY_BYTES = 2_000_000
+MAX_SCRIPT_BODY_BYTES = 4_000_000
 
 BOUNDARY = {
     "database_reads": True,
@@ -230,11 +230,14 @@ def run(args: argparse.Namespace) -> int:
             for script in scripts
             if isinstance(script, dict)
         )
+        errors = sum(
+            1 for script in scripts if isinstance(script, dict) and script.get("error")
+        )
         if isinstance(root, dict):
             routes += len(root.get("route_literals") or [])
         print(
             f"F2_DYNAMIC_SOURCE={item['company_key']}|status={status}|"
-            f"same_host_scripts={len(scripts)}|route_literals={routes}"
+            f"same_host_scripts={len(scripts)}|route_literals={routes}|script_errors={errors}"
         )
     print("F2_DYNAMIC_RECURRING_HOSTS=" + json.dumps(recurring_route_hosts, sort_keys=True))
     print("F2_DYNAMIC_RECURRING_MARKERS=" + json.dumps(recurring_markers, sort_keys=True))
