@@ -2,8 +2,10 @@
 
 This agent is a safer successor to pure URL recovery. It probes bounded URL
 candidates but only selects URLs that are both career/job-like and plausibly
-matched to the company identity. It never writes candidate_url, never builds or
-registers connectors and never changes schedules.
+matched to the company identity. F1 extends the same authority with optional
+official-domain evidence and bounded official-page career/ATS link discovery. It
+never writes candidate_url, never builds/registers connectors and never changes
+schedules.
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 from urllib.parse import urlencode
 
 import psycopg
@@ -21,10 +23,17 @@ from psycopg.rows import dict_row
 import requests
 
 from src.config import get_database_config
+from src.search_intelligence.official_domain_evidence import (
+    OfficialDomainEvidence,
+    resolve_wikidata_official_domains,
+)
+from src.search_intelligence.origin_jobspace_discovery import (
+    FetchedOriginPage,
+    discover_official_origin_jobspace,
+)
 from src.search_intelligence.origin_source_discovery_agent import (
     OriginDiscoveryProbeResult,
     OriginSearchResult,
-    discover_origin_source,
     generate_search_query_hints,
     probe_result_from_http_response,
     result_to_json,
@@ -37,7 +46,13 @@ BOUNDARY = (
     "no source activation",
     "no Bronze/Silver write",
     "no scheduler change",
+    "official-domain evidence never bypasses company identity or proof",
 )
+HTTP_USER_AGENT = (
+    "job-application-pipeline-origin-source-discovery/0.2 "
+    "(+bounded personal portfolio project)"
+)
+MAX_HTTP_BODY_BYTES = 5_000_000
 
 
 def connect() -> psycopg.Connection[Any]:
@@ -126,7 +141,6 @@ def load_search_results_json(path: Path, *, company_key: str) -> list[OriginSear
             )
         )
     return results
-
 
 
 def load_local_env_file(path: str = ".env") -> None:
@@ -325,27 +339,137 @@ def collect_search_results(args: argparse.Namespace, *, company_key: str, compan
     return results
 
 
+class HttpDiscoveryClient:
+    """Bounded cache shared by score probes and official-page surface reads."""
+
+    def __init__(self, *, timeout_seconds: float, max_requests: int = 48) -> None:
+        self.timeout_seconds = timeout_seconds
+        self.max_requests = max_requests
+        self.request_count = 0
+        self._responses: dict[str, requests.Response | None] = {}
+
+    def _get(self, url: str) -> requests.Response | None:
+        if url in self._responses:
+            return self._responses[url]
+        if self.request_count >= self.max_requests:
+            self._responses[url] = None
+            return None
+        self.request_count += 1
+        try:
+            response = requests.get(
+                url,
+                timeout=self.timeout_seconds,
+                headers={
+                    "User-Agent": HTTP_USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                },
+                allow_redirects=True,
+            )
+        except requests.RequestException:
+            response = None
+        self._responses[url] = response
+        return response
+
+    def probe(self, url: str) -> OriginDiscoveryProbeResult:
+        response = self._get(url)
+        if response is None:
+            return OriginDiscoveryProbeResult(
+                url=url,
+                final_url=None,
+                status_code=None,
+                reachable=False,
+                career_like=False,
+                reason="request failed or F1 HTTP request cap reached",
+            )
+        return probe_result_from_http_response(url, response)
+
+    def fetch_page(self, url: str) -> FetchedOriginPage:
+        response = self._get(url)
+        if response is None:
+            return FetchedOriginPage(url, url, 599, "")
+        body = response.content or b""
+        if len(body) > MAX_HTTP_BODY_BYTES:
+            return FetchedOriginPage(url, str(response.url), 598, "")
+        return FetchedOriginPage(
+            requested_url=url,
+            final_url=str(response.url),
+            status_code=int(response.status_code),
+            html=response.text,
+        )
+
+
 def http_probe(url: str, *, timeout_seconds: float) -> OriginDiscoveryProbeResult:
-    try:
-        response = requests.get(
-            url,
-            timeout=timeout_seconds,
-            headers={
-                "User-Agent": "job-application-pipeline-origin-source-discovery/0.1 (+bounded personal portfolio project)",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            },
-            allow_redirects=True,
-        )
-    except requests.RequestException as exc:
-        return OriginDiscoveryProbeResult(
-            url=url,
-            final_url=None,
-            status_code=None,
-            reachable=False,
-            career_like=False,
-            reason=f"request failed: {exc.__class__.__name__}",
-        )
-    return probe_result_from_http_response(url, response)
+    """Compatibility helper retained for existing tests/callers."""
+
+    return HttpDiscoveryClient(timeout_seconds=timeout_seconds, max_requests=1).probe(url)
+
+
+def _wikidata_request_json(
+    url: str,
+    params: Mapping[str, str],
+    *,
+    timeout_seconds: float,
+) -> Mapping[str, object]:
+    response = requests.get(
+        url,
+        params=dict(params),
+        timeout=timeout_seconds,
+        headers={
+            "User-Agent": HTTP_USER_AGENT,
+            "Accept": "application/json",
+        },
+    )
+    response.raise_for_status()
+    payload = response.json()
+    return payload if isinstance(payload, dict) else {}
+
+
+def collect_official_domain_evidence(
+    args: argparse.Namespace,
+    *,
+    company_name: str,
+) -> list[OfficialDomainEvidence]:
+    evidence: list[OfficialDomainEvidence] = []
+    for url in args.official_domain_url:
+        normalized = str(url or "").strip()
+        if normalized:
+            evidence.append(
+                OfficialDomainEvidence(
+                    url=normalized,
+                    provider="operator_supplied",
+                    entity_id="",
+                    entity_label=company_name,
+                    entity_description="operator-supplied official-domain candidate",
+                )
+            )
+
+    if args.official_domain_provider == "wikidata":
+        try:
+            evidence.extend(
+                resolve_wikidata_official_domains(
+                    company_name,
+                    request_json=lambda url, params: _wikidata_request_json(
+                        url,
+                        params,
+                        timeout_seconds=args.official_domain_timeout_seconds,
+                    ),
+                )
+            )
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            print(
+                "official_domain_warning: provider=wikidata "
+                f"reason={exc.__class__.__name__}",
+                file=sys.stderr,
+            )
+
+    unique: list[OfficialDomainEvidence] = []
+    seen: set[str] = set()
+    for item in evidence:
+        if item.url in seen:
+            continue
+        seen.add(item.url)
+        unique.append(item)
+    return unique
 
 
 def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, object]:
@@ -353,23 +477,38 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         candidate = load_candidate(conn, company_key)
         market_urls = load_market_evidence_urls(conn, company_key, limit=args.market_evidence_limit)
 
+    company_name = str(candidate["company_name"])
     search_results = collect_search_results(
         args,
         company_key=str(candidate["company_key"]),
-        company_name=str(candidate["company_name"]),
+        company_name=company_name,
+    )
+    official_evidence = collect_official_domain_evidence(
+        args,
+        company_name=company_name,
     )
 
-    result = discover_origin_source(
+    http = None if args.no_probe else HttpDiscoveryClient(
+        timeout_seconds=args.timeout_seconds,
+        max_requests=args.http_request_cap,
+    )
+    expanded = discover_official_origin_jobspace(
         company_key=str(candidate["company_key"]),
-        company_name=str(candidate["company_name"]),
+        company_name=company_name,
         source_family_candidate=str(candidate.get("source_family_candidate") or ""),
         market_evidence_urls=market_urls,
         search_results=search_results,
+        official_domain_urls=[item.url for item in official_evidence],
         target_location=args.target_location,
-        probe=None if args.no_probe else (lambda url: http_probe(url, timeout_seconds=args.timeout_seconds)),
+        probe=None if http is None else http.probe,
+        fetch_page=(
+            None
+            if http is None or args.no_surface_expansion
+            else http.fetch_page
+        ),
         max_generated_candidates=args.max_candidates,
     )
-    payload = result_to_json(result)
+    payload = result_to_json(expanded.origin)
     payload["candidate_id"] = candidate["id"]
     payload["candidate_status"] = candidate.get("status")
     payload["candidate_risk_level"] = candidate.get("risk_level")
@@ -387,11 +526,30 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         for item in search_results
     ]
     payload["probe_enabled"] = not args.no_probe
+    payload["f1_initial_decision"] = expanded.initial.decision
+    payload["f1_surface_page_count"] = expanded.surface_page_count
+    payload["f1_discovered_jobspace_url_count"] = expanded.discovered_jobspace_url_count
+    payload["f1_ats_families"] = list(expanded.ats_families)
+    payload["f1_official_domain_evidence_count"] = expanded.official_domain_evidence_count
+    payload["f1_official_domain_provider"] = args.official_domain_provider
+    payload["f1_official_domain_evidence"] = [
+        {
+            "url": item.url,
+            "provider": item.provider,
+            "entity_id": item.entity_id,
+            "entity_label": item.entity_label,
+            "entity_description": item.entity_description,
+            "property_id": item.property_id,
+        }
+        for item in official_evidence
+    ]
+    payload["f1_http_request_count"] = 0 if http is None else http.request_count
+    payload["f1_surface_expansion_enabled"] = not args.no_surface_expansion and http is not None
     return payload
 
 
 def print_result(payload: dict[str, object]) -> None:
-    print("Origin Source Discovery Agent v3")
+    print("Origin Source Discovery Agent v4 / F1 jobspace expansion")
     print("boundary: " + ", ".join(BOUNDARY))
     print("---")
     for key in (
@@ -413,6 +571,14 @@ def print_result(payload: dict[str, object]) -> None:
         "search_result_count",
         "search_provider",
         "probe_enabled",
+        "f1_initial_decision",
+        "f1_official_domain_provider",
+        "f1_official_domain_evidence_count",
+        "f1_surface_page_count",
+        "f1_discovered_jobspace_url_count",
+        "f1_ats_families",
+        "f1_http_request_count",
+        "f1_surface_expansion_enabled",
     ):
         print(f"{key}: {payload.get(key)}")
 
@@ -438,6 +604,15 @@ def print_result(payload: dict[str, object]) -> None:
         )
 
     print("---")
+    official_evidence = payload.get("f1_official_domain_evidence", [])
+    if official_evidence:
+        print("official_domain_evidence:")
+        for item in official_evidence[:8]:
+            print(
+                f"- {item.get('provider')} | {item.get('entity_id')} | "
+                f"{item.get('entity_label')} | {item.get('url')}"
+            )
+
     search_results = payload.get("search_results", [])
     if search_results:
         print("search_results:")
@@ -458,6 +633,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--target-location", default="Hannover")
     parser.add_argument("--reviewed-by", default="agent")
     parser.add_argument("--timeout-seconds", type=float, default=6.0)
+    parser.add_argument("--http-request-cap", type=int, default=48)
     parser.add_argument("--max-candidates", type=int, default=30)
     parser.add_argument("--market-evidence-limit", type=int, default=20)
     parser.add_argument(
@@ -474,6 +650,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--search-results-json",
         help="Optional offline search-result JSON file for replay/validation without external API calls.",
+    )
+    parser.add_argument(
+        "--official-domain-provider",
+        default="none",
+        choices=("none", "wikidata"),
+        help="Optional fail-soft official-domain evidence provider. Never bypasses JAP proof.",
+    )
+    parser.add_argument(
+        "--official-domain-url",
+        action="append",
+        default=[],
+        help="Optional explicit official-domain candidate evidence. Repeat as needed.",
+    )
+    parser.add_argument("--official-domain-timeout-seconds", type=float, default=8.0)
+    parser.add_argument(
+        "--no-surface-expansion",
+        action="store_true",
+        help="Disable bounded extraction of career/ATS links from plausible official pages.",
     )
     parser.add_argument("--no-probe", action="store_true", help="Only score generated/evidence/search URLs without HTTP probing.")
     parser.add_argument("--json", action="store_true", help="Print JSON payload instead of human-readable output.")
