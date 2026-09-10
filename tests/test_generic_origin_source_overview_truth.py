@@ -90,9 +90,11 @@ def test_generic_zero_bronze_is_observation_state_not_source_invalidity() -> Non
     source = _source(payload, source_name)
     assert source["gates"]["source_admission_gate"]["passed"] is True
     assert source["activation"]["active"] is True
+    assert source["activation"]["status"] == "active_last_run_0_jobs"
     assert source["current_blocker"] is None
     assert source["next_action"] == (
-        "Observe the active source; zero current Bronze-ready jobs is valid"
+        "Active Employer-Origin source; latest ingestion loaded 0 jobs and inserted 0. "
+        "Activation alone is not evidence of current Product delivery"
     )
 
 

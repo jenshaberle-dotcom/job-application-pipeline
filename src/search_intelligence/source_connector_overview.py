@@ -5,7 +5,7 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
 
-SCHEMA_VERSION = "pipeline.source_connector_overview.v2"
+SCHEMA_VERSION = "pipeline.source_connector_overview.v3"
 GENERIC_SOURCE_PREFIX = "generic_origin:"
 
 
@@ -207,6 +207,39 @@ def _run_health(
     }
 
 
+def _activation_status(
+    *,
+    activated: bool | None,
+    source_role: str,
+    run: Mapping[str, Any] | None,
+    run_health: Mapping[str, Any],
+) -> str:
+    """Expose activation separately from latest delivery evidence.
+
+    The existing Control Center already renders this status directly. Encoding the
+    latest bounded delivery observation here makes an active-but-zero source visible
+    without pretending that activation itself proves job delivery.
+    """
+
+    if activated is None:
+        return "unknown"
+    if not activated:
+        return "not_activated"
+    if source_role == "sensor":
+        return "market_sensor_active"
+
+    latest = str(run_health.get("latest_run_status") or "unknown")
+    if latest == "success":
+        return f"active_last_run_{_count(run, 'total_loaded')}_jobs"
+    if latest == "failed":
+        return "active_latest_run_failed"
+    if latest == "running":
+        return "active_ingestion_running"
+    if latest == "not_run":
+        return "active_not_yet_run"
+    return "active_delivery_unknown"
+
+
 def _lifecycle(
     implemented: bool,
     validation: Mapping[str, Any],
@@ -324,6 +357,13 @@ def _next_action(
         return issues[0], issue_actions.get(
             issues[0], "Resolve lifecycle truth inconsistency"
         )
+
+    # A known but intentionally unimplemented candidate is inventory, not an
+    # operational incident.  This distinction keeps the Sources attention count
+    # meaningful instead of turning the long candidate tail into 70+ false alerts.
+    if not implemented:
+        return None, "Known source candidate; implement only when selected for adoption"
+
     origin_gates_required = source_role != "sensor"
     generic_origin = source_name.startswith(GENERIC_SOURCE_PREFIX)
     if (
@@ -335,7 +375,6 @@ def _next_action(
     ):
         return None, "Observe the active source; zero current Bronze-ready jobs is valid"
     stages = (
-        (not implemented, "connector_not_implemented", "Implement the connector"),
         (
             origin_gates_required and not validation["passed"],
             "generic_proof_not_materialized" if generic_origin else "connector_validation_incomplete",
@@ -395,6 +434,9 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "sensor_count": 0,
             "healthy_sensor_count": 0,
             "employer_origin_count": 0,
+            "employer_origin_active_count": 0,
+            "active_last_run_loaded_count": 0,
+            "active_last_run_zero_count": 0,
             "implemented_count": 0,
             "validated_count": 0,
             "final_approved_count": 0,
@@ -413,6 +455,8 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "registration_is_not_activation": True,
             "sensor_gates_are_role_specific": True,
             "historical_layers_are_not_live_sensor_health": True,
+            "active_is_not_delivery": True,
+            "not_implemented_is_inventory_not_attention": True,
             "generic_origin_source_validity_gate": "proof=PASS",
             "generic_origin_final_approval_gate": "retired",
             "generic_origin_job_admission_is_separate": True,
@@ -505,6 +549,12 @@ def build_source_connector_overview(
             )
         )
         run_health = _run_health(run, available=availability["ingestion_runs"])
+        activation_status = _activation_status(
+            activated=activated,
+            source_role=source_role,
+            run=run,
+            run_health=run_health,
+        )
         candidate_status = str(_get(candidate, "candidate_status") or "unknown")
         candidate_id = int(
             _get(candidate, "candidate_id") or _get(candidate, "id") or 0
@@ -537,6 +587,33 @@ def build_source_connector_overview(
             source_role=source_role,
             source_name=source_name,
         )
+        latest_run = str(run_health.get("latest_run_status") or "unknown")
+        if (
+            blocker == "no_persisted_ingestion"
+            and activated is True
+            and latest_run == "success"
+            and source_role in {"sensor", "employer_origin"}
+        ):
+            blocker = None
+        if blocker is None and activated is True:
+            if source_role == "sensor":
+                next_action = (
+                    f"Market sensor active; latest run={latest_run}, "
+                    f"loaded={_count(run, 'total_loaded')}, inserted={_count(run, 'inserted_count')}. "
+                    "Sensor rows are discovery evidence, not Product review jobs"
+                )
+            elif latest_run == "success":
+                next_action = (
+                    f"Active Employer-Origin source; latest ingestion loaded {_count(run, 'total_loaded')} "
+                    f"jobs and inserted {_count(run, 'inserted_count')}. "
+                    "Activation alone is not evidence of current Product delivery"
+                )
+            elif latest_run == "not_run":
+                next_action = (
+                    "Active Employer-Origin source but no ingestion run is recorded yet; "
+                    "activation is not delivery evidence"
+                )
+
         company_name = str(_get(candidate, "company_name") or "").strip()
         source_type = str(_get(candidate, "source_type") or "").strip() or (
             "market_sensor"
@@ -577,13 +654,9 @@ def build_source_connector_overview(
                     "final_approval_gate": approval,
                 },
                 "activation": {
-                    "status": (
-                        "unknown"
-                        if activated is None
-                        else ("active" if activated else "not_activated")
-                    ),
+                    "status": activation_status,
                     "active": activated,
-                    "truth_source": "search_profiles.is_active",
+                    "truth_source": "search_profiles.is_active + latest ingestion observation",
                     "truth_available": availability["search_profiles"],
                 },
                 "search_profiles": {
@@ -598,7 +671,7 @@ def build_source_connector_overview(
                 },
                 "operational_health": {
                     **run_health,
-                    "applies": source_role == "sensor",
+                    "applies": source_role in {"sensor", "employer_origin"},
                 },
                 "last_ingestion": {
                     "status": (
@@ -663,6 +736,22 @@ def build_source_connector_overview(
         ),
         "employer_origin_count": count_where(
             lambda s: s["source_role"] == "employer_origin"
+        ),
+        "employer_origin_active_count": count_where(
+            lambda s: s["source_role"] == "employer_origin"
+            and s["activation"]["active"] is True
+        ),
+        "active_last_run_loaded_count": count_where(
+            lambda s: s["source_role"] == "employer_origin"
+            and s["activation"]["active"] is True
+            and s["last_ingestion"]["status"] == "success"
+            and int(s["last_ingestion"]["total_loaded"]) > 0
+        ),
+        "active_last_run_zero_count": count_where(
+            lambda s: s["source_role"] == "employer_origin"
+            and s["activation"]["active"] is True
+            and s["last_ingestion"]["status"] == "success"
+            and int(s["last_ingestion"]["total_loaded"]) == 0
         ),
         "implemented_count": count_where(
             lambda s: bool(s["connector"]["implemented"])

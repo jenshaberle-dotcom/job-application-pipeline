@@ -83,7 +83,7 @@
 
 .ow-source-summary-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -111,5 +111,9 @@
   .ow-job-list-head,
   .ow-job-list > button {
     grid-template-columns: 70px 88px minmax(220px, 1fr) 122px 88px 104px 120px;
+  }
+
+  .ow-source-summary-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
