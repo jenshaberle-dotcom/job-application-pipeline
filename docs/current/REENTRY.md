@@ -100,7 +100,7 @@ Delivered through releases 1.0.19 and 1.0.20:
 
 F0 is accepted under the cascading residual rule. `CR-F0-001` is part of F1 acceptance scope.
 
-## F1 — Company -> Official Origin Jobspace Discovery — ACTIVE — target release 1.0.21
+## F1 — Company -> Official Origin Jobspace Discovery — RELEASE QUALIFICATION ACTIVE — target release 1.0.21
 
 Purpose: maximize the upstream multiplier: given only a company identity, find the official domain, careers/job space and likely ATS/job surface generically.
 
@@ -115,12 +115,31 @@ Bundled scope:
 - classify discovery failures explicitly rather than hiding them;
 - absorb `CR-F0-001` through generic vacancy identity/canonical evidence where it naturally overlaps with origin-space canonicalization; no FI-specific branch and no global locale-path stripping.
 
+Implemented F1 release slice:
+
+- existing `discover_origin_source` scorer/selection remains sole discovery authority;
+- optional official-domain evidence can be provided from Wikidata P856 or explicit operator evidence and remains fail-soft/non-authoritative;
+- bounded official-page parsing inspects URL-bearing HTML attributes only;
+- ATS recognition is data-driven and employer-agnostic;
+- discovered career/ATS surfaces are fed back through the existing JAP scoring/proof chain instead of creating a second resolver;
+- generic detail evidence now supports page-declared canonical Origin URLs and explicitly labelled vacancy identifiers such as `Kennziffer`, `Job ID`, `Requisition ID`, `Reference Number`, and `Stellen-ID`, never free-number mining;
+- review dedupe can use exact multi-key origin identity while retaining the prohibition on title/company fuzzy merging;
+- `CR-F0-001` is regression-covered by the generic identity path.
+
+Pre-release qualification truth:
+
+- exact F1 head `26d6a4fb4e7cb942196b50e721745f3f51b0de1a` passed Pipeline CI, Pipeline re-entry target identity, P1 generic Employer-Origin systematic search, and P1 generic Employer-Origin product proof;
+- operator chose to start the 1.0.21 release path after those product gates were green and not wait for the independent RCC Warmrunner Canary;
+- desktop VERSION is now `1.0.21`; the final version-bumped PR head is being requalified before merge/release;
+- PR #848 Warmrunner Canary is explicitly independent from this product release and is not a F1 release blocker.
+
 F1 operator test 1.0.21:
 
-- take several genuinely fresh company names from discovery evidence;
-- show company -> official domain -> official Origin jobspace -> proof outcome without a company allowlist;
-- show measured funnel counts and classified failures;
-- prove `CR-F0-001` no longer yields two review rows when exact generic vacancy identity evidence proves one vacancy.
+- verify installed/About identity is 1.0.21;
+- normal review remains free of stale/dead and market-sensor rows;
+- inspect representative Employer-Origin jobs and original navigation;
+- recheck `CR-F0-001` after fresh evidence can carry the new canonical/labelled vacancy identity;
+- record any remaining bounded residual instead of forcing an additional release solely for cosmetic or non-critical cleanup.
 
 Exit metric: measurable `company -> official domain -> careers space -> proof` coverage plus closure of the carried residual or an explicit operator reclassification.
 
@@ -225,14 +244,4 @@ F1 is the sole mutating product package. Read-only research may run in parallel,
 
 ## Sole next action
 
-**Execute F1: company identity -> official domain -> careers/jobspace -> ATS/portal fingerprint -> generic proof, while absorbing `CR-F0-001` through generic identity/canonical evidence rather than another standalone release.**
-
-Immediate sequence:
-
-1. Research existing open datasets/libraries/reference implementations for company-domain and ATS/jobspace discovery; classify what can be reused as data/algorithm without hosted runtime dependency.
-2. Audit current JAP company-candidate/origin-discovery code to identify the smallest insertion point for deterministic domain/jobspace discovery.
-3. Define a generic discovery evidence record and failure taxonomy.
-4. Implement and unit-test the smallest deterministic chain from company name/domain candidate to official careers/jobspace candidate and existing proof handoff.
-5. Add generic canonical/vacancy identity evidence needed to close `CR-F0-001` where this overlaps naturally; no FI-specific path handling.
-6. Run several fresh real companies through the F1 funnel and measure conversion/failure classes.
-7. When the package has enough product value, advance VERSION once to 1.0.21, run full gates, merge exact green head, release/deploy once, and perform the combined F1 + carried-residual operator test.
+**Complete final 1.0.21 qualification on PR #855. If all release/product gates are green, squash-merge the exact tested head, let the immutable GitHub release and automatic local deploy complete, then run the combined F1 + `CR-F0-001` operator test.**
