@@ -52,12 +52,26 @@ jobs:
           "${venv}/bin/python" -m pip install --disable-pip-version-check -r requirements-dev.txt
           "${venv}/bin/python" -m pip check
           "${venv}/bin/python" -m pip freeze --exclude-editable | LC_ALL=C sort -f > "${root}/freeze.txt"
+
+          # extruct 0.18.0 still requires jstyleson 0.0.2, for which PyPI exposes
+          # no wheel. Keep that narrow project-owned OSS layer outside RCC rather
+          # than weakening RCC's wheel-only executable-authority boundary.
+          grep -Fxi 'extruct==0.18.0' "${root}/freeze.txt"
+          grep -Fxi 'jstyleson==0.0.2' "${root}/freeze.txt"
+
           : > "${out}"
           while IFS= read -r spec; do
             [ -n "${spec}" ] || continue
             case "${spec}" in
               *"=="*) ;;
               *) echo "Non-exact freeze entry: ${spec}" >&2; exit 1 ;;
+            esac
+            name="${spec%%==*}"
+            case "${name,,}" in
+              extruct|jstyleson)
+                echo "RCC_WHEEL_SET_EXCEPTION=${spec} owner=JAP_LOCAL_OSS" >&2
+                continue
+                ;;
             esac
             rm -rf -- "${wheels:?}"/*
             "${venv}/bin/python" -m pip download \
@@ -72,6 +86,7 @@ jobs:
             printf '%s --hash=sha256:%s\n' "${spec}" "${hash}" >> "${out}"
           done < "${root}/freeze.txt"
           test -s "${out}"
+          ! grep -Eiq '^(extruct|jstyleson)==' "${out}"
           cp "${out}" "${GITHUB_WORKSPACE}/jap-warm-v1.txt"
           sha256sum "${GITHUB_WORKSPACE}/jap-warm-v1.txt" | tee "${GITHUB_WORKSPACE}/jap-warm-v1.sha256"
           cat "${GITHUB_WORKSPACE}/jap-warm-v1.txt"
