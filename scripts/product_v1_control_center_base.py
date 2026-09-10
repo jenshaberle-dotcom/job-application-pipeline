@@ -215,14 +215,31 @@ def _load_source_candidates(
             approval.decision AS final_approval_gate_decision
         """
 
+    generic_join = ""
+    source_name_column = "candidate.source_name_candidate"
+    source_type_column = "candidate.source_type_candidate"
+    if _relation_exists(conn, "generic_employer_origin_active_sources"):
+        generic_join = """
+            LEFT JOIN generic_employer_origin_active_sources generic_active
+              ON generic_active.candidate_id = candidate.id
+        """
+        source_name_column = (
+            "coalesce(generic_active.source_name, candidate.source_name_candidate)"
+        )
+        source_type_column = (
+            "CASE WHEN generic_active.candidate_id IS NOT NULL "
+            "THEN 'employer_origin_career_site' "
+            "ELSE candidate.source_type_candidate END"
+        )
+
     return _fetch_all(
         conn,
         f"""
         SELECT
             candidate.id AS candidate_id,
             candidate.company_name,
-            candidate.source_name_candidate AS source_name,
-            candidate.source_type_candidate AS source_type,
+            {source_name_column} AS source_name,
+            {source_type_column} AS source_type,
             candidate.status AS candidate_status,
             candidate.updated_at,
             {module_path_column},
@@ -230,6 +247,7 @@ def _load_source_candidates(
         FROM employer_origin_source_candidates candidate
         {lifecycle_join}
         {gate_join}
+        {generic_join}
         ORDER BY candidate.updated_at, candidate.id
         """,
     )
