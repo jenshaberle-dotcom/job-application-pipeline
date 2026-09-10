@@ -43,93 +43,94 @@ Search profiles and candidate `active_controlled` state are downstream activatio
 
 ## Current repository state
 
-PR #846 (`P1: turn generic origin proof into bounded systematic search`) merged successfully to `main` as:
+PR #846 (`P1: turn generic origin proof into bounded systematic search`) established the generic read-only search/detail funnel and merged as `ee013d85152fa0f3dcb4e412fe5707b26976f2bc`.
 
-- merge SHA: `ee013d85152fa0f3dcb4e412fe5707b26976f2bc`
-- proof head before squash merge: `a2f056eefbdc0445e1c751f305efe14fdc52c853`
-- PR validation: green
-- Pipeline CI run: `34355468312` — PASS
-- systematic-search/read-only funnel run: `34355467837` — PASS
-- systematic-search artifact: `p1-generic-origin-systematic-search`
-- artifact digest: `sha256:d186f26b9f58708e108bf2a8acd194d7c4d26df296e4fad8ea71003c3273e8d5`
+PR #847 (`P1: bridge query-proven generic search into product ingestion`) is now merged to `main` as:
 
-PR #846 added the bounded generic targeted-search runtime, query-semantic discrimination, local OSS detail evidence using pinned `extruct` plus bounded `trafilatura` fallback, normal `generic_origin:%` Silver-family plumbing, and a read-only stage-funnel audit that reuses the existing Bronze and Silver production functions.
+- merge SHA / activation source SHA: `49ddc067c912eac44aa1de85155adc721d617e72`
+- validated PR head before squash: `170f860627791ff5ec3524400c6de2d3bd3ad486`
+- Product Proof run: `34362163108` — PASS
+- post-merge activation run: `34445141597` — PASS
+- activation job: `102768208072`
 
-## Current measured evidence
+PR #847 moved the systematic search from audit-only evidence into the normal product registry. It preserves `*` only as the neutral recurring trigger, performs bounded target-vs-impossible-control query-semantic discrimination, fetches generic local detail evidence, stamps the existing Bronze/lifecycle evidence contract, and then reuses normal ingestion and Silver/Gold/Product/Control-Center read models. It also added a requirements-bound pinned local OSS runtime layer for `extruct==0.18.0` and `trafilatura==2.2.0`, including daily RCC self-healing so the Warmrunner no longer depends on stale global/runtime imports.
 
-The latest completed read-only systematic-search proof on exact head `a2f056eefbdc0445e1c751f305efe14fdc52c853` produced:
+No Control-Center frontend or Windows desktop-host file changed in PR #847. The persisted E2E therefore remains compatible with the already-installed Product V1 Control Center contract.
 
-### Search/discovery funnel
+## Persisted Product E2E — proven
 
-- active proof-valid Employer-Origin sources: `23`
-- deterministic search surface detected: `9`
-- query semantics proven: `3`
-- query semantics unconfirmed-zero: `4`
-- query semantics failed: `2`
-- raw delivering sources: `5`
-- accepted/query-proven delivering sources: `3`
-- raw target jobs: `69`
-- accepted/query-proven jobs: `67`
-- HTTP requests: `647`
+The exact-main post-merge activation effect on `49ddc067c912eac44aa1de85155adc721d617e72` completed the real persisted chain and emitted `GENERIC_PRODUCT_ACTIVATION_E2E=PASS`.
 
-### Detail evidence
+Verified state after the run:
 
-- detail evidence present: `67/67`
-- structured schema.org `JobPosting`: `67/67`
-- descriptions present: `67/67`
-- structured location evidence: `20/67`
-- explicit remote evidence: `0/67`
-- live Trafilatura fallback cases: `0`
+- current proof-pass / active generic Employer-Origin sources: `24`
+- legacy active Employer-Origin sources: `0`
+- latest successful generic ingestion runs: `24`
+- persisted generic Bronze rows: `121`
+- query-semantically proven Bronze rows: `95`
+- detail-fetched Bronze rows: `95`
+- normal Silver rows: `26`
+- Gold Product V1 readiness rows: `26`
+- Control Center `job_readiness` rows for those Gold identities: `26`
 
-The current live evidence therefore strongly confirms `extruct` on the discovered cohort. `trafilatura` remains qualified only by its bounded fallback/unit contract until a real live fallback case naturally occurs. Do not manufacture a fallback case merely to raise coverage.
+The first concrete persisted identity proven unchanged through the downstream product read path is:
 
-### Bronze -> Silver funnel
+- Silver ID: `575`
+- source: `generic_origin:clarios_germany`
+- employer: `Clarios Germany GmbH & Co. KG`
+- title: `Director Data and Analytics`
+- Product V1 gate: `assessment_required`
+- originating persisted raw job in this activation: `37802`
 
-- Bronze admitted: `67/67`
-- Bronze rejected: `0`
-- accepted by normal Silver source selector: `67/67`
-- Silver selector rejected: `0`
-- Silver relevant if selected: `26/67`
-- Silver successfully transformed: `26/26`
-- Silver transformation failures: `0`
-- Gold/Product readiness reached by this read-only audit: `0`
-- Control Center reached by this read-only audit: `0`
+The same activation also persisted current jobs from Finanz Informatik, GFT Technologies and Hannover Rück. GFT jobs correctly did not reach Silver where current accessibility evidence was absent; this is gate behavior, not an ingestion failure.
 
-Silver relevance reasons:
+This closes the previous sole-next-action requirement. Gold/Product/Control Center is no longer inferred from a read-only audit: it is backed by persisted PostgreSQL state and the normal Product V1 payload loader.
 
-- `16` — `relevant_role_and_accessibility`
-- `10` — `relevant_skills_and_accessibility`
-- `30` — `missing_accessibility_signal`
-- `11` — `missing_role_or_skill_signal`
+## Current measured search funnel
 
-The current evidence disproves the prior concern that naturally discovered Employer-Origin jobs lose required detail evidence at the Bronze -> Silver boundary. Once a query-proven job is reached in this cohort, the new local detail-evidence layer is sufficient for the existing Bronze and Silver production functions.
+The earlier #846 read-only proof measured:
 
-## Current bottleneck interpretation
+`23 proof-valid -> 9 deterministic search surfaces -> 3 query-semantically proven sources -> 67 accepted jobs -> 67 detail evidence -> 67 Bronze -> 26 Silver-relevant`
 
-The dominant measured gap is now **before detail extraction**, not after it:
+The later exact-main activation re-proved the live source cohort at `24` proof-pass sources and produced new persisted jobs from four currently delivering sources. Individual live source outcomes remain allowed to move between proof/search observations over time; the current source authority is always the fresh generic proof projection, not the historical 23-source cohort.
 
-`23 proof-valid sources -> 9 deterministic search surfaces -> 3 query-semantically proven sources`
+The dominant engineering opportunity remains **before detail extraction**: generic deterministic search-surface detection and query-semantic generalization. The reached-job detail/Bronze/Silver path has now been proven both read-only and persisted.
 
-The downstream reached-job path is currently healthy:
-
-`67 query-proven -> 67 detail evidence -> 67 Bronze -> 67 Silver-selector eligible -> 26 relevant -> 26 transformed`
-
-Do **not** start portal-specific hardening, company allowlists, vocabulary/taxonomy tuning, search-space expansion, provider introduction, or cosmetic location/remote extraction work merely to improve these counts before the first normal Gold -> Product -> Control Center E2E is proven.
+Do **not** reopen portal-specific hardening, company allowlists, vocabulary/taxonomy tuning, provider introduction or cosmetic location/remote extraction merely to increase counts unless fresh evidence identifies one of those as the next product bottleneck.
 
 ## Effect authority
 
-PR validation and the systematic-search qualifier remain read-only.
+`.github/workflows/p1-generic-origin-product-activate.yml` remains the sole bounded Employer-Origin activation effect path for this source-admission/product cutover. PR validation stays read-only. The activation workflow must use exact main, the verified local Product/PostgreSQL runtime, generic proof projection, normal `generic_origin` registry and normal Bronze/Silver/Gold/Product read path.
 
-`.github/workflows/p1-generic-origin-product-activate.yml` remains the sole bounded Employer-Origin activation effect path for the source-admission cutover. It must use exact main, the verified local Product/PostgreSQL runtime, the generic proof projection, the normal `generic_origin` registry, normal ingestion and Bronze-admission verification. No demo workflow, V6 runner, manual fixed cohort or provider-specific registry path may substitute for it.
+No demo workflow, V6 runner, manual fixed cohort or provider-specific registry path may substitute for it.
 
-The next downstream proof must likewise reuse the normal persisted product path. A read-only audit must not fake Gold/Product/Control-Center success.
+## Operator-visible Control Center checkpoint
+
+The persisted backend E2E is complete. The remaining checkpoint is only interactive operator inspection in the already-installed Windows Control Center.
+
+Installed desktop release observed before this activation:
+
+- version: `1.0.15`
+- release source SHA: `afbeb50f0f1bce9902e6be46bbaf0f7f8f6784c7`
+- executable: `C:\Users\jensh\AppData\Local\JAP-Control-Center\desktop-host\JAP.ControlCenter.Desktop.exe`
+- local Product V1 runtime port: `8780`
+
+The scheduled local-deploy workflow correctly refuses to replace that release with arbitrary unreleased `main`. A new Windows release is **not required merely to view this E2E**, because #847 did not alter the frontend/desktop Product V1 contract and the existing UI already consumes `job_readiness` from the live Product V1 payload.
+
+Operator check:
+
+1. Launch the installed JAP Control Center interactively on Windows.
+2. Open `All jobs`.
+3. Keep the default `All observed` filter or ensure it is selected.
+4. Search for `Director Data and Analytics` or `Clarios`.
+5. Open the result and verify the detail pane shows `Silver #575` and Product gate `assessment required`.
+
+The GitHub/Warmrunner path must not be used to force an interactive Desktop window: the desktop host intentionally rejects noninteractive/headless runner launch. That boundary is expected behavior.
 
 ## Sole next action
 
-Take at least one of the `26` real Silver-relevant results produced by the proven systematic-search path and drive it through the **unchanged normal persisted** downstream chain:
+**Operator-visible inspection of the already-persisted E2E job in the local Windows Control Center is the sole immediate action.**
 
-`query-proven search -> generic local detail evidence -> Bronze -> Silver -> Gold -> Product -> Control Center`
+Once Silver `575` / `Director Data and Analytics` / Clarios is visible there, the Employer-Origin persisted E2E milestone is closed end-to-end from source proof through operator UI.
 
-Success requires real persisted state and operator-visible Control Center evidence for the same job identity, with no special-case source/company path and no relaxed gate semantics.
-
-Only after at least one such real E2E reaches Control Center should work return to the measured `3/23` query-semantics/search-surface gap. The first residual priority after E2E is generic search-surface/query-semantic generalization, not detail-extractor or vocabulary tuning.
+After that confirmation, return to the measured upstream bottleneck: improve generic deterministic search-surface/query-semantic coverage from the current live proof-valid source cohort without weakening source proof, Bronze admission, accessibility or Product V1 gates.
