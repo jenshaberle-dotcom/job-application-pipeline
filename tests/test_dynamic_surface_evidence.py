@@ -1,6 +1,7 @@
 from src.search_intelligence.dynamic_surface_evidence import (
     extract_dynamic_route_literals,
     extract_html_dynamic_surface_evidence,
+    prioritize_script_sources,
     same_host,
 )
 
@@ -25,6 +26,22 @@ def test_html_dynamic_surface_collects_script_and_url_attributes() -> None:
     )
 
 
+def test_job_module_and_app_bundle_outrank_generic_editor_assets() -> None:
+    ordered = prioritize_script_sources(
+        [
+            "https://careers.example.test/richtexteditor/rte.js",
+            "https://careers.example.test/static/vendor/jquery.js",
+            "https://careers.example.test/hub/module_40-careers.min.js",
+            "https://careers.example.test/static/js/main.abc123.js",
+        ],
+        max_scripts=2,
+    )
+    assert ordered == (
+        "https://careers.example.test/hub/module_40-careers.min.js",
+        "https://careers.example.test/static/js/main.abc123.js",
+    )
+
+
 def test_dynamic_literals_require_quoted_url_shape_and_job_or_api_marker() -> None:
     text = """
     const a='/api/jobs?lang=de';
@@ -42,6 +59,20 @@ def test_dynamic_literals_require_quoted_url_shape_and_job_or_api_marker() -> No
     ]
     assert "job" in evidence[0].markers
     assert "vacanc" in evidence[1].markers
+
+
+def test_static_assets_on_careers_host_are_not_route_literals() -> None:
+    text = """
+    const a='https://careers.example.test/assets/logo.svg';
+    const b='https://careers.example.test/open-positions/';
+    """
+    evidence = extract_dynamic_route_literals(
+        text=text,
+        base_url="https://careers.example.test/",
+    )
+    assert [item.normalized_url for item in evidence] == [
+        "https://careers.example.test/open-positions/",
+    ]
 
 
 def test_dynamic_literal_extraction_is_bounded() -> None:
