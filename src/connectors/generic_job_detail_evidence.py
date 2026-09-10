@@ -9,8 +9,8 @@ local open-source parsers only:
   evidence is absent.
 
 No source HTML is returned or persisted by this module. The caller receives only
-normalized fields and a bounded text excerpt suitable for downstream evidence
-and relevance processing.
+normalized fields and a bounded text excerpt suitable for downstream evidence,
+structure learning and relevance processing before Bronze.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ MAX_SCALAR_CHARS = 1_000
 MAX_DESCRIPTION_CHARS = 4_000
 MAX_SKILLS_CHARS = 2_000
 MAX_LOCATION_CHARS = 500
+GENERIC_LOCATION_EVIDENCE_SOURCE = "generic_origin_schema_job_location"
 
 
 class _VisibleTextParser(HTMLParser):
@@ -155,6 +156,16 @@ def _country_text(value: object) -> str:
     return _first_scalar(value)
 
 
+def _country_code(value: object) -> str:
+    raw = _country_text(value).strip()
+    normalized = raw.casefold()
+    if normalized in {"de", "deu", "germany", "deutschland"}:
+        return "DE"
+    if len(raw) == 2 and raw.isalpha():
+        return raw.upper()
+    return ""
+
+
 def _location_strings(value: object) -> list[str]:
     if isinstance(value, list):
         result: list[str] = []
@@ -187,6 +198,55 @@ def _location_strings(value: object) -> list[str]:
     if combined and combined not in result:
         result.append(combined)
     return result
+
+
+def _structured_location_records(value: object) -> list[dict[str, str]]:
+    if isinstance(value, list):
+        result: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for item in value:
+            for row in _structured_location_records(item):
+                identity = (row["city"].casefold(), row["country_code"].casefold())
+                if identity not in seen:
+                    result.append(row)
+                    seen.add(identity)
+        return result
+    if not isinstance(value, dict):
+        return []
+
+    props = _properties(value)
+    address = props.get("address")
+    address_props = _properties(address) if isinstance(address, dict) else {}
+    city = _first_scalar(
+        address_props.get("addressLocality"),
+        limit=MAX_LOCATION_CHARS,
+    )
+    if not city:
+        city = _first_scalar(props.get("name"), limit=MAX_LOCATION_CHARS)
+        if "," in city:
+            city = city.split(",", 1)[0].strip()
+    if not city:
+        return []
+
+    country = _country_code(address_props.get("addressCountry"))
+    evidence_text = " | ".join(
+        item
+        for item in (
+            city,
+            _first_scalar(address_props.get("addressRegion"), limit=MAX_LOCATION_CHARS),
+            _first_scalar(address_props.get("postalCode"), limit=MAX_LOCATION_CHARS),
+            _country_text(address_props.get("addressCountry")),
+        )
+        if item
+    )
+    return [
+        {
+            "city": city,
+            "country_code": country,
+            "evidence_source": GENERIC_LOCATION_EVIDENCE_SOURCE,
+            "evidence_text": evidence_text or city,
+        }
+    ]
 
 
 def _string_list(value: object, *, limit: int = MAX_SCALAR_CHARS) -> list[str]:
@@ -280,6 +340,7 @@ def extract_generic_job_detail_evidence(
     company_name = ""
     description = ""
     locations: list[str] = []
+    structured_locations: list[dict[str, str]] = []
     applicant_locations: list[str] = []
     remote: bool | None = None
     employment_types: list[str] = []
@@ -295,7 +356,9 @@ def extract_generic_job_detail_evidence(
             _first_scalar(_schema_value(posting, "description"), limit=50_000),
             limit=MAX_DESCRIPTION_CHARS,
         )
-        locations = _location_strings(_schema_value(posting, "jobLocation"))
+        raw_job_location = _schema_value(posting, "jobLocation")
+        locations = _location_strings(raw_job_location)
+        structured_locations = _structured_location_records(raw_job_location)
         applicant_locations = _location_strings(
             _schema_value(posting, "applicantLocationRequirements")
         )
@@ -335,9 +398,29 @@ def extract_generic_job_detail_evidence(
     if not title:
         title = _bounded(page_title)
 
+    parser_family = (
+        f"schema_org_{syntax.replace('-', '_')}"
+        if syntax
+        else "generic_dom_text"
+    )
+    field_presence = {
+        "title": bool(title),
+        "company_name": bool(company_name),
+        "description": bool(description),
+        "locations": bool(locations or structured_locations),
+        "remote": remote is not None,
+        "employment_types": bool(employment_types),
+        "skills": bool(skills),
+        "date_posted": bool(date_posted),
+        "valid_through": bool(valid_through),
+        "identifier": bool(identifier),
+    }
+
     return {
         "schema": EVIDENCE_SCHEMA,
         "methods": methods,
+        "parser_family": parser_family,
+        "field_presence": field_presence,
         "structured_jobposting_found": posting is not None,
         "structured_source": syntax,
         "title": title or None,
@@ -345,6 +428,7 @@ def extract_generic_job_detail_evidence(
         "description_excerpt": description or None,
         "description_source": description_source,
         "locations": locations,
+        "structured_locations": structured_locations,
         "applicant_locations": applicant_locations,
         "remote": remote,
         "employment_types": employment_types,
@@ -352,6 +436,7 @@ def extract_generic_job_detail_evidence(
         "date_posted": date_posted or None,
         "valid_through": valid_through or None,
         "identifier": identifier or None,
+        "vacancy_identity_kind": "structured_identifier" if identifier else "source_url",
         "raw_html_persisted": False,
     }
 
@@ -360,7 +445,7 @@ def project_detail_evidence_into_raw_data(
     raw_data: dict[str, Any],
     evidence: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Project generic evidence into the existing canonical raw-job shape."""
+    """Project generic structure/detail evidence into the canonical Origin Bronze shape."""
 
     normalized = deepcopy(raw_data)
     if not isinstance(evidence, dict) or evidence.get("schema") != EVIDENCE_SCHEMA:
@@ -391,11 +476,15 @@ def project_detail_evidence_into_raw_data(
         job["description"] = description
 
     locations = _string_list(evidence.get("locations"), limit=MAX_LOCATION_CHARS)
+    structured_locations = evidence.get("structured_locations")
     applicant_locations = _string_list(
         evidence.get("applicant_locations"), limit=MAX_LOCATION_CHARS
     )
     if locations:
         job["location"] = " | ".join(locations)
+    if isinstance(structured_locations, list) and structured_locations:
+        job["locations"] = deepcopy(structured_locations)
+    elif locations:
         job["locations"] = locations
     if applicant_locations:
         job["applicant_locations"] = applicant_locations
@@ -419,10 +508,15 @@ def project_detail_evidence_into_raw_data(
         ("date_posted", "date_posted"),
         ("valid_through", "valid_through"),
         ("identifier", "structured_identifier"),
+        ("parser_family", "parser_family"),
+        ("vacancy_identity_kind", "vacancy_identity_kind"),
     ):
         value = _bounded(evidence.get(source_key))
         if value:
             metadata[target_key] = value
+    field_presence = evidence.get("field_presence")
+    if isinstance(field_presence, dict):
+        metadata["structure_field_presence"] = deepcopy(field_presence)
     if metadata:
         job["metadata"] = metadata
 
@@ -432,6 +526,7 @@ def project_detail_evidence_into_raw_data(
 
 __all__ = [
     "EVIDENCE_SCHEMA",
+    "GENERIC_LOCATION_EVIDENCE_SOURCE",
     "extract_generic_job_detail_evidence",
     "project_detail_evidence_into_raw_data",
 ]

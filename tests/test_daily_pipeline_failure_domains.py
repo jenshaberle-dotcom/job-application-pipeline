@@ -51,6 +51,7 @@ if [ \"${1:-}\" = \"-c\" ]; then
 fi
 case \"$*\" in
   *\"-m pip install\"*) exit 0 ;;
+  *\"-m scripts.run_company_vocabulary_agent\"*) exit 0 ;;
   *\"-m src.ingest_jobs --role employer_origin\"*) exit \"${FAKE_ORIGIN_EXIT:-0}\" ;;
   *\"-m src.ingest_jobs --role sensor\"*) exit \"${FAKE_SENSOR_EXIT:-0}\" ;;
   *\"-m src.run_silver_jobs\"*) exit \"${FAKE_SILVER_EXIT:-0}\" ;;
@@ -176,12 +177,13 @@ def test_sensor_failure_does_not_block_silver_or_daily_core_success(tmp_path: Pa
 
     assert completed.returncode == 0
     assert any("-m pip install" in call for call in calls)
+    assert any("-m scripts.run_company_vocabulary_agent" in call for call in calls)
     assert any("--role employer_origin" in call for call in calls)
     assert any("--role sensor" in call for call in calls)
     assert any("-m src.run_silver_jobs" in call for call in calls)
     assert any("-m scripts.create_source_value_snapshot" in call for call in calls)
     assert "local_oss_site=" in log_text
-    assert "OK_WITH_SENSOR_DEGRADATION" in log_text
+    assert "OK_WITH_DISCOVERY_LEARNING_DEGRADATION" in log_text
     assert "authoritative origin freshness will continue" in log_text
 
 

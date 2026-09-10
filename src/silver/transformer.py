@@ -116,6 +116,29 @@ def is_generated_employer_origin_gate_evidence(raw_job: dict) -> bool:
     return acquisition_boundary.get("generated_from_gate_evidence") is True
 
 
+def first_structured_origin_location(job_data: dict) -> dict:
+    locations = job_data.get("locations")
+    if not isinstance(locations, list):
+        return {}
+    for value in locations:
+        if not isinstance(value, dict):
+            continue
+        city = value.get("city")
+        if isinstance(city, str) and city.strip():
+            return value
+    return {}
+
+
+def origin_metadata(job_data: dict) -> dict:
+    value = job_data.get("metadata")
+    return value if isinstance(value, dict) else {}
+
+
+def origin_publication_date(job_data: dict) -> date | None:
+    metadata = origin_metadata(job_data)
+    return parse_date(metadata.get("date_posted"))
+
+
 def employer_origin_location(
     raw_job: dict,
     job_data: dict,
@@ -124,7 +147,21 @@ def employer_origin_location(
     if is_generated_employer_origin_gate_evidence(raw_job):
         return None
 
+    structured = first_structured_origin_location(job_data)
+    if structured:
+        return structured.get("city")
     return job_data.get("location") or result_card.get("location")
+
+
+def employer_origin_country(
+    job_data: dict,
+    result_card: dict,
+    default_country: str | None,
+) -> object:
+    structured = first_structured_origin_location(job_data)
+    if structured and structured.get("country_code"):
+        return structured.get("country_code")
+    return job_data.get("country") or result_card.get("country") or default_country
 
 
 def add_canonicalization_fields(
@@ -253,8 +290,8 @@ def transform_finanz_informatik_raw_job(raw_job: dict) -> dict:
             ),
             "city": employer_origin_location(raw_job, job_data, result_card),
             "postal_code": None,
-            "country": "DE",
-            "publication_date": None,
+            "country": employer_origin_country(job_data, result_card, "DE"),
+            "publication_date": origin_publication_date(job_data),
         }
     )
 
@@ -282,8 +319,8 @@ def transform_enercity_raw_job(raw_job: dict) -> dict:
             ),
             "city": employer_origin_location(raw_job, job_data, result_card),
             "postal_code": None,
-            "country": "DE",
-            "publication_date": None,
+            "country": employer_origin_country(job_data, result_card, "DE"),
+            "publication_date": origin_publication_date(job_data),
         }
     )
 
@@ -317,12 +354,8 @@ def transform_employer_origin_raw_job(
             ),
             "city": employer_origin_location(raw_job, job_data, result_card),
             "postal_code": None,
-            "country": (
-                job_data.get("country")
-                or result_card.get("country")
-                or default_country
-            ),
-            "publication_date": None,
+            "country": employer_origin_country(job_data, result_card, default_country),
+            "publication_date": origin_publication_date(job_data),
         },
         canonical_source_type_override=canonical_source_type_override,
     )

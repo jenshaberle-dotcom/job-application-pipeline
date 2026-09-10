@@ -1,5 +1,8 @@
 import argparse
 
+from src.silver.origin_location_projection import (
+    write_silver_job_with_origin_locations,
+)
 from src.silver.relevance import (
     get_accessibility_matches,
     get_role_matches,
@@ -8,9 +11,6 @@ from src.silver.relevance import (
     is_relevant_for_silver,
 )
 from src.silver.repository import SilverJobRepository
-from src.silver.successfactors_location_projection import (
-    write_silver_job_with_successfactors_locations,
-)
 from src.silver.transformer import (
     get_supported_source_patterns,
     transform_raw_job_to_silver,
@@ -113,7 +113,7 @@ def main(argv: list[str] | None = None) -> None:
             continue
 
         silver_job = transform_raw_job_to_silver(raw_job)
-        write_silver_job_with_successfactors_locations(
+        write_silver_job_with_origin_locations(
             repository,
             silver_job=silver_job,
             raw_job=raw_job,
