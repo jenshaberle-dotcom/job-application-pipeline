@@ -144,6 +144,8 @@ fi
 
 [[ "$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)" == "$PINNED_SHA" ]] || fail managed_worktree_sha_mismatch
 [[ -f "$MANAGED_WORKTREE/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
+[[ -f "$MANAGED_WORKTREE/scripts/ensure_pinned_local_oss_runtime.sh" ]] || fail local_oss_provisioner_missing
+[[ -f "$MANAGED_WORKTREE/requirements.txt" ]] || fail pinned_requirements_missing
 
 # dist is ignored generated state. It must never survive a source update unless it
 # carries an exact marker proving that the bundle was built from the installed pin.
@@ -175,6 +177,22 @@ source "$PROJECT_ROOT/.env"
 set -u
 set +a
 
+# Keep the Windows-managed Product runtime on the same requirements-bound local OSS
+# layer as the scheduled pipeline. The canonical venv is intentionally long-lived;
+# extruct/trafilatura therefore live in a digest-addressed side site that is reused
+# when already valid and provisioned from the exact pinned requirements otherwise.
+LOCAL_OSS_SITE="$(
+  bash "$MANAGED_WORKTREE/scripts/ensure_pinned_local_oss_runtime.sh" \
+    "$PROJECT_ROOT/.venv/bin/python" \
+    "$MANAGED_WORKTREE/requirements.txt" \
+    "$PROJECT_ROOT/.runtime/local-oss-sites"
+)" || fail pinned_local_oss_runtime_unavailable
+[[ -n "$LOCAL_OSS_SITE" && -d "$LOCAL_OSS_SITE" ]] || fail pinned_local_oss_runtime_invalid
+export PYTHONPATH="$LOCAL_OSS_SITE${PYTHONPATH:+:$PYTHONPATH}"
+if ! python -c 'import extruct, trafilatura'; then
+  fail pinned_local_oss_runtime_import_failed
+fi
+
 # WSL inherits the Windows PATH, while NVM is normally initialized only by an
 # interactive Linux shell. Select a native Linux Node 22 runtime explicitly so npm
 # never falls through to /mnt/c/Program Files/nodejs/npm and CMD.EXE/UNC semantics.
@@ -202,6 +220,7 @@ fi
 printf 'JAP_WINDOWS_APP_HEAD=%s\n' "$(git rev-parse HEAD)"
 printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
 printf 'JAP_WINDOWS_APP_FETCH_TRANSPORT=https\n'
+printf 'JAP_WINDOWS_APP_LOCAL_OSS_SITE=%s\n' "$LOCAL_OSS_SITE"
 printf 'JAP_WINDOWS_APP_NODE=%s\n' "$(command -v node)"
 printf 'JAP_WINDOWS_APP_NODE_VERSION=%s\n' "$(node --version)"
 printf 'JAP_WINDOWS_APP_NPM=%s\n' "$(command -v npm)"

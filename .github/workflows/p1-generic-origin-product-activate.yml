@@ -5,13 +5,17 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/p1-generic-origin-product-activate.yml"
+      - "requirements.txt"
       - "db/migrations/107_create_generic_employer_origin_active_sources.sql"
       - "scripts/run_generic_employer_origin_product.py"
       - "scripts/qualify_generic_employer_origin_connectors.py"
       - "scripts/apply_generic_employer_origin_activation.py"
+      - "scripts/ensure_pinned_local_oss_runtime.sh"
+      - "scripts/run_daily_pipeline.sh"
       - "src/config.py"
       - "src/connectors/generic_employer_origin.py"
       - "src/connectors/generic_employer_origin_product.py"
+      - "src/connectors/generic_job_detail_evidence.py"
       - "src/connectors/registry.py"
       - "src/ingestion/generic_origin_bronze_admission.py"
       - "src/connectors/employer_origin_**"
@@ -26,7 +30,7 @@ concurrency:
 
 jobs:
   activate:
-    name: Activate generic proof-pass sources and ingest admissible jobs
+    name: Activate generic proof-pass sources and prove persisted Product E2E
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 180
     env:
@@ -106,6 +110,19 @@ jobs:
           printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
           echo "RCC_CONTEXT=PASS runner=${RUNNER_NAME}"
 
+      - name: Provision pinned local OSS detail runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
+            "$RUNTIME_PYTHON" \
+            requirements.txt \
+            "$RUNNER_TEMP/jap-p1-activation-local-oss-sites")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          PYTHONPATH="$local_oss_site${PYTHONPATH:+:$PYTHONPATH}" \
+            "$RUNTIME_PYTHON" -c 'import extruct, trafilatura'
+
       - name: Load product database environment
         shell: bash
         run: |
@@ -116,15 +133,20 @@ jobs:
           set +a
           env | grep '^POSTGRES_' | sed 's/=.*$/=<set>/'
 
-      - name: Apply sole generic active-source projection migration
+      - name: Ensure sole generic active-source projection migration
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status
-          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
-            --apply-exact "$GENERIC_MIGRATION" \
-            --require-sole-pending \
-            --applied-by "p1-generic-origin-main-${GITHUB_RUN_ID}"
+          status="$("$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status)"
+          printf '%s\n' "$status"
+          if grep -q '^pending_migrations: 0$' <<< "$status"; then
+            echo "GENERIC_MIGRATION_ALREADY_CURRENT=1"
+          else
+            "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
+              --apply-exact "$GENERIC_MIGRATION" \
+              --require-sole-pending \
+              --applied-by "p1-generic-origin-main-${GITHUB_RUN_ID}"
+          fi
           status="$("$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status)"
           printf '%s\n' "$status"
           grep -q '^pending_migrations: 0$' <<< "$status"
@@ -180,7 +202,13 @@ jobs:
             --source generic_origin \
             --log-level INFO
 
-      - name: Verify source truth and Bronze admission
+      - name: Run unchanged normal Silver transformation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m src.run_silver_jobs
+
+      - name: Verify Bronze Silver Gold and canonical Control Center projection
         shell: bash
         run: |
           set -euo pipefail
@@ -192,6 +220,7 @@ jobs:
           import psycopg
           from psycopg.rows import dict_row
 
+          from scripts.run_product_v1_control_center import load_product_v1_payload
           from src.config import get_database_config
 
           payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
@@ -246,12 +275,38 @@ jobs:
                           count(*) FILTER (
                               WHERE raw_data->'bronze_admission'->>'status' = 'pass'
                           ) AS admitted,
+                          count(*) FILTER (
+                              WHERE raw_data->'acquisition_evidence'->>'query_semantics_status' = 'proven'
+                          ) AS query_proven,
+                          count(*) FILTER (
+                              WHERE raw_data->'acquisition_boundary'->>'detail_pages_fetched' = 'true'
+                          ) AS detail_fetched,
                           count(DISTINCT source_name) AS delivering_sources
                       FROM raw_jobs
                       WHERE source_name LIKE 'generic_origin:%'
                       """
                   )
                   bronze = cur.fetchone()
+
+                  cur.execute(
+                      """
+                      SELECT id, source_name, source_url, title
+                      FROM silver_jobs
+                      WHERE source_name LIKE 'generic_origin:%'
+                      ORDER BY id
+                      """
+                  )
+                  silver_rows = [dict(row) for row in cur.fetchall()]
+
+                  cur.execute(
+                      """
+                      SELECT silver_job_id, source_name, source_url, title, product_readiness_status
+                      FROM gold_product_v1_job_readiness
+                      WHERE source_name LIKE 'generic_origin:%'
+                      ORDER BY silver_job_id
+                      """
+                  )
+                  gold_rows = [dict(row) for row in cur.fetchall()]
 
           if projection != expected_sources:
               raise SystemExit(
@@ -274,16 +329,51 @@ jobs:
 
           total = int(bronze["total"])
           admitted = int(bronze["admitted"])
+          query_proven = int(bronze["query_proven"])
+          detail_fetched = int(bronze["detail_fetched"])
           if total != admitted:
               raise SystemExit(
                   f"GENERIC_BRONZE_ADMISSION_BYPASS total={total} admitted={admitted}"
               )
+          if query_proven < 1 or detail_fetched < 1:
+              raise SystemExit(
+                  f"GENERIC_QUERY_DETAIL_EVIDENCE_MISSING query_proven={query_proven} detail={detail_fetched}"
+              )
+          if not silver_rows:
+              raise SystemExit("GENERIC_SILVER_EMPTY")
+          if not gold_rows:
+              raise SystemExit("GENERIC_GOLD_PRODUCT_READINESS_EMPTY")
+
+          control_center = load_product_v1_payload()
+          job_readiness = control_center.get("job_readiness") or []
+          gold_ids = {int(row["silver_job_id"]) for row in gold_rows}
+          cc_rows = [
+              row
+              for row in job_readiness
+              if isinstance(row, dict)
+              and row.get("silver_job_id") is not None
+              and int(row["silver_job_id"]) in gold_ids
+              and str(row.get("source_name") or "").startswith("generic_origin:")
+          ]
+          if not cc_rows:
+              raise SystemExit("GENERIC_CONTROL_CENTER_PROJECTION_EMPTY")
 
           print(f"GENERIC_ACTIVE_SOURCES={len(projection)}")
           print("LEGACY_ACTIVE_EMPLOYER_SOURCES=0")
           print(f"GENERIC_SUCCESSFUL_LATEST_INGESTION_RUNS={len(latest_runs)}")
           print(f"GENERIC_BRONZE_ROWS={total}")
+          print(f"GENERIC_QUERY_PROVEN_BRONZE_ROWS={query_proven}")
+          print(f"GENERIC_DETAIL_FETCHED_BRONZE_ROWS={detail_fetched}")
           print(f"GENERIC_BRONZE_DELIVERING_SOURCES={int(bronze['delivering_sources'])}")
+          print(f"GENERIC_SILVER_ROWS={len(silver_rows)}")
+          print(f"GENERIC_GOLD_PRODUCT_READINESS_ROWS={len(gold_rows)}")
+          print(f"GENERIC_CONTROL_CENTER_ROWS={len(cc_rows)}")
+          first = cc_rows[0]
+          print(
+              "GENERIC_E2E_JOB="
+              f"{first['silver_job_id']}|{first.get('source_name')}|"
+              f"{first.get('title')}|{first.get('product_readiness_status')}"
+          )
           for source in sorted(latest_runs):
               row = latest_runs[source]
               print(

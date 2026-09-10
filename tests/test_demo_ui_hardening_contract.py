@@ -18,9 +18,12 @@ def test_every_job_table_heading_is_a_sort_control_and_gate_stays_in_grid() -> N
     source = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
     css = (FRONTEND / "operator-demo-hardening.css").read_text(encoding="utf-8")
 
-    for column in ("fit", "review", "job", "location", "published", "gate"):
+    for column in ("fit", "review", "job", "location", "published", "observed", "gate"):
         assert f'sortHeader("{column}"' in source
-    assert "grid-template-columns: 74px 96px minmax(270px, 1fr) 150px 108px 138px" in css
+    assert (
+        "grid-template-columns: 74px 96px minmax(270px, 1fr) "
+        "145px 96px 118px 138px"
+    ) in css
 
 
 def test_ba_internal_reference_is_never_opened_as_browser_scheme() -> None:

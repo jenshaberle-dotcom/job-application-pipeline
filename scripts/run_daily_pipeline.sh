@@ -145,6 +145,29 @@ cd "$PROJECT_DIR" || {
   exit 1
 }
 
+LOCAL_OSS_SITE="$(bash "$PROJECT_DIR/scripts/ensure_pinned_local_oss_runtime.sh" \
+  "$RUNTIME_PYTHON" \
+  "$PROJECT_DIR/requirements.txt" \
+  "$PROJECT_DIR/.runtime/local-oss-sites" 2>>"$LOG_FILE")" || {
+  log "ERROR pinned local OSS runtime provisioning failed"
+  exit 1
+}
+if [ -z "$LOCAL_OSS_SITE" ] || [ ! -d "$LOCAL_OSS_SITE" ]; then
+  log "ERROR pinned local OSS runtime returned invalid site: $LOCAL_OSS_SITE"
+  exit 1
+fi
+export PYTHONPATH="$LOCAL_OSS_SITE${PYTHONPATH:+:$PYTHONPATH}"
+if ! "$RUNTIME_PYTHON" - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+import extruct
+import trafilatura
+print("Pinned local OSS detail runtime ready")
+PY
+then
+  log "ERROR pinned local OSS runtime import probe failed"
+  exit 1
+fi
+log "local_oss_site=$LOCAL_OSS_SITE"
+
 DB_READY_EXIT=1
 for ((attempt = 1; attempt <= DB_READY_MAX_ATTEMPTS; attempt++)); do
   log "Checking configured Postgres dependency attempt=$attempt/$DB_READY_MAX_ATTEMPTS"
@@ -173,10 +196,26 @@ if [ "$DB_READY_EXIT" -ne 0 ]; then
   exit "$DB_READY_EXIT"
 fi
 
+VOCAB_EXIT=0
 ORIGIN_EXIT=0
 SENSOR_EXIT=0
 SILVER_EXIT=0
 SNAPSHOT_EXIT=0
+
+# Origin understanding deliberately precedes normal Bronze acquisition. This step
+# learns company language only from the current proof-valid origin cohort, with
+# market vocabulary retained as a lower-authority prior. Failure is fail-soft here
+# because the product connector has a deterministic canonical vocabulary fallback.
+log "Learning proof-valid employer-origin vocabulary before Bronze acquisition"
+"$RUNTIME_PYTHON" -m scripts.run_company_vocabulary_agent \
+  --write \
+  --reviewed-by scheduled_daily 2>&1 | tee -a "$LOG_FILE"
+VOCAB_EXIT=${PIPESTATUS[0]}
+if [ "$VOCAB_EXIT" -ne 0 ]; then
+  log "WARN origin vocabulary learning degraded exit_code=$VOCAB_EXIT; canonical target vocabulary fallback remains active"
+else
+  log "Employer-origin vocabulary learning completed"
+fi
 
 log "Running employer-origin Bronze ingestion"
 "$RUNTIME_PYTHON" -m src.ingest_jobs --role employer_origin --log-level INFO 2>&1 | tee -a "$LOG_FILE"
@@ -217,18 +256,18 @@ else
   log "SKIP source value snapshot because Silver normalization failed"
 fi
 
-log "component_status origin=$ORIGIN_EXIT sensor=$SENSOR_EXIT silver=$SILVER_EXIT snapshot=$SNAPSHOT_EXIT"
+log "component_status vocabulary=$VOCAB_EXIT origin=$ORIGIN_EXIT sensor=$SENSOR_EXIT silver=$SILVER_EXIT snapshot=$SNAPSHOT_EXIT"
 
-# Employer-origin freshness and Silver are the authoritative daily core. A sensor
-# outage remains explicit evidence in ingestion_runs/logs but cannot suppress a
-# successful origin observation from reaching Silver/current lifecycle truth.
+# Employer-origin freshness and Silver are the authoritative daily core. Vocabulary
+# learning and market sensors can degrade explicitly without suppressing a successful
+# origin observation from reaching Silver/current lifecycle truth.
 if [ "$ORIGIN_EXIT" -ne 0 ] || [ "$SILVER_EXIT" -ne 0 ] || [ "$SNAPSHOT_EXIT" -ne 0 ]; then
   log "END daily job pipeline FAILED_AUTHORITATIVE_CORE"
   exit 1
 fi
 
-if [ "$SENSOR_EXIT" -ne 0 ]; then
-  log "END daily job pipeline OK_WITH_SENSOR_DEGRADATION"
+if [ "$VOCAB_EXIT" -ne 0 ] || [ "$SENSOR_EXIT" -ne 0 ]; then
+  log "END daily job pipeline OK_WITH_DISCOVERY_LEARNING_DEGRADATION"
   exit 0
 fi
 

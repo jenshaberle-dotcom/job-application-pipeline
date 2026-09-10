@@ -52,6 +52,17 @@ EXCLUSION_TERMS = (
     "trainee",
 )
 
+PARSER_FAMILY = "finanz_informatik_html_text_v1"
+LOCATION_EVIDENCE_SOURCE = "finanz_informatik_detail_text"
+# This is deliberately a bounded vocabulary learned from the real FI detail-page
+# structure. Aliases normalize only orthographic variants; they do not invent cities.
+DETAIL_LOCATION_ALIASES = (
+    ("hannover", "Hannover"),
+    ("münster", "Münster"),
+    ("muenster", "Münster"),
+    ("frankfurt", "Frankfurt"),
+)
+
 
 @dataclass(frozen=True)
 class CandidateLink:
@@ -133,14 +144,11 @@ class TextExtractor(HTMLParser):
 
 
 class FinanzInformatikConnector(JobSourceConnector):
-    """Bounded Finanz Informatik connector candidate.
+    """Bounded Finanz Informatik origin connector.
 
-    This connector is intentionally conservative:
-    - one configured listing page
-    - max three detail pages
-    - no OnApply crawling
-    - relevance gates before RawJobRecord creation
-    - not activated by migrations in this patch
+    Listing evidence discovers candidate detail URLs. The fetched origin detail page
+    is the authority for structure evidence such as multi-location vacancies. The
+    connector remains bounded to three detail pages and never follows OnApply links.
     """
 
     source_name = "finanz_informatik:hannover"
@@ -180,7 +188,7 @@ class FinanzInformatikConnector(JobSourceConnector):
         )
 
         observed_at_utc = datetime.now(UTC).isoformat()
-        records: list[RawJobRecord] = []
+        records_by_identity: dict[str, RawJobRecord] = {}
 
         for candidate in candidates:
             detail_html, detail_final_url, detail_status = self.fetcher(candidate.url)
@@ -193,16 +201,17 @@ class FinanzInformatikConnector(JobSourceConnector):
             if not detail_supports_record(candidate, detail):
                 continue
 
-            records.append(
-                build_raw_job_record(
-                    candidate=candidate,
-                    detail=detail,
-                    requested_listing_url=final_url,
-                    observed_at_utc=observed_at_utc,
-                )
+            record = build_raw_job_record(
+                candidate=candidate,
+                detail=detail,
+                requested_listing_url=final_url,
+                observed_at_utc=observed_at_utc,
             )
+            # Different listing links can refer to one canonical multi-location
+            # vacancy. Exact final-origin identity is safe to collapse here.
+            records_by_identity.setdefault(record.external_job_id or record.source_url, record)
 
-        return records, final_url
+        return list(records_by_identity.values()), final_url
 
 
 def fetch_url(url: str) -> tuple[str, str, int]:
@@ -234,6 +243,32 @@ def find_terms(value: str, terms: tuple[str, ...]) -> tuple[str, ...]:
         if normalize_text(term) in lowered and term not in matches:
             matches.append(term)
     return tuple(matches)
+
+
+def extract_detail_locations(detail_text: str) -> tuple[str, ...]:
+    """Extract explicit FI location names from the real vacancy detail text."""
+
+    raw = (detail_text or "").casefold()
+    normalized = normalize_text(detail_text)
+    result: list[str] = []
+    for raw_alias, canonical in DETAIL_LOCATION_ALIASES:
+        raw_hit = raw_alias.casefold() in raw
+        normalized_hit = normalize_text(raw_alias) in normalized
+        if (raw_hit or normalized_hit) and canonical not in result:
+            result.append(canonical)
+    return tuple(result)
+
+
+def structured_detail_locations(detail: DetailPage) -> list[dict[str, str]]:
+    return [
+        {
+            "city": city,
+            "country_code": "DE",
+            "evidence_source": LOCATION_EVIDENCE_SOURCE,
+            "evidence_text": f"origin detail page explicitly names {city}",
+        }
+        for city in extract_detail_locations(detail.text)
+    ]
 
 
 def is_allowed_finanz_informatik_host(url: str) -> bool:
@@ -382,13 +417,16 @@ def build_raw_job_record(
     observed_at_utc: str,
 ) -> RawJobRecord:
     title = detail.title.removesuffix(" - Finanz Informatik").strip() or candidate.text or candidate.path.rsplit("/", 1)[-1]
-    location = "; ".join(candidate.location_terms) or "hannover"
+    detail_locations = structured_detail_locations(detail)
+    detail_cities = [row["city"] for row in detail_locations]
+    location = "; ".join(detail_cities) if detail_cities else "; ".join(candidate.location_terms) or "hannover"
     profile_terms = find_terms(" ".join([candidate.url, detail.title, detail.text]), PROFILE_TERMS)
+    final_origin_url = detail.final_url or candidate.url
 
     return RawJobRecord(
         source_name="finanz_informatik:hannover",
-        source_url=detail.final_url or candidate.url,
-        external_job_id=stable_external_job_id(candidate.url),
+        source_url=final_origin_url,
+        external_job_id=stable_external_job_id(final_origin_url),
         raw_data={
             "source_family": "finanz_informatik",
             "source_target": "hannover",
@@ -399,30 +437,43 @@ def build_raw_job_record(
                 "detail_pages_fetched": True,
                 "onapply_used": False,
                 "relevance_gated": True,
+                "structure_learning_before_bronze": True,
             },
             "result_card": {
                 "title": title,
                 "company_name": "Finanz Informatik GmbH & Co. KG",
                 "location": location,
-                "detail_url": detail.final_url or candidate.url,
+                "detail_url": final_origin_url,
             },
             "job": {
                 "title": title,
                 "company_name": "Finanz Informatik GmbH & Co. KG",
                 "location": location,
-                "source_url": detail.final_url or candidate.url,
+                "locations": detail_locations,
+                "source_url": final_origin_url,
                 "profile_terms": list(profile_terms),
+                "metadata": {
+                    "parser_family": PARSER_FAMILY,
+                    "vacancy_identity_kind": "source_url",
+                    "structure_field_presence": {
+                        "title": bool(title),
+                        "locations": bool(detail_locations),
+                    },
+                },
             },
             "listing_evidence": {
                 "candidate_path": candidate.path,
                 "listing_text": candidate.text,
                 "listing_recommendation": candidate.recommendation,
                 "listing_reason": candidate.reason,
+                "listing_location_terms": list(candidate.location_terms),
             },
             "detail_evidence": {
                 "page_title": detail.title,
                 "html_bytes": detail.html_bytes,
                 "status_code": detail.status_code,
+                "parser_family": PARSER_FAMILY,
+                "structured_locations": detail_locations,
                 "raw_html_persisted": False,
             },
             "observed_at_utc": observed_at_utc,

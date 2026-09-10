@@ -283,6 +283,9 @@ def _issues(
             issues.append("market_sensor_run_health_unknown")
         elif run_health["status"] == "not_run" and (bronze or silver):
             issues.append("market_sensor_run_evidence_missing")
+    elif source_role == "employer_origin" and activated is True:
+        if run_health["status"] == "failed":
+            issues.append("employer_origin_latest_run_failed")
     return issues
 
 
@@ -311,6 +314,9 @@ def _next_action(
             "market_sensor_run_evidence_missing": (
                 "Restore sensor run evidence before trusting historical layer rows"
             ),
+            "employer_origin_latest_run_failed": (
+                "Resolve the latest Employer-Origin ingestion failure"
+            ),
             "active_generic_source_without_proof_projection": (
                 "Repair the generic proof-pass activation projection"
             ),
@@ -320,6 +326,14 @@ def _next_action(
         )
     origin_gates_required = source_role != "sensor"
     generic_origin = source_name.startswith(GENERIC_SOURCE_PREFIX)
+    if (
+        generic_origin
+        and activated is True
+        and ingested is False
+        and bronze == 0
+        and silver == 0
+    ):
+        return None, "Observe the active source; zero current Bronze-ready jobs is valid"
     stages = (
         (not implemented, "connector_not_implemented", "Implement the connector"),
         (
@@ -355,11 +369,7 @@ def _next_action(
         (
             bronze == 0 and silver == 0,
             "no_persisted_ingestion",
-            (
-                "Observe the active source; zero current Bronze-ready jobs is valid"
-                if generic_origin
-                else "Run separately approved bounded ingestion"
-            ),
+            "Run separately approved bounded ingestion",
         ),
         (
             bronze > 0 and silver == 0,

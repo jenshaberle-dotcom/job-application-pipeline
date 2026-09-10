@@ -336,7 +336,7 @@ def test_standard_silver_runner_uses_atomic_writer(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr(
         run_silver_jobs,
-        "write_silver_job_with_successfactors_locations",
+        "write_silver_job_with_origin_locations",
         fake_writer,
     )
 

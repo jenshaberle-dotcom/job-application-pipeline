@@ -1,6 +1,6 @@
 .ow-job-list-head,
 .ow-job-list > button {
-  grid-template-columns: 74px 96px minmax(270px, 1fr) 150px 108px 138px;
+  grid-template-columns: 74px 96px minmax(270px, 1fr) 145px 96px 118px 138px;
 }
 
 .ow-sort {
@@ -26,6 +26,13 @@
 .ow-job-list-head button.active::after {
   content: " ↕";
   font-size: 8px;
+}
+
+.ow-published,
+.ow-observed {
+  color: #b5cbd8;
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .ow-score-note {
@@ -103,6 +110,6 @@
 @media (max-width: 1250px) {
   .ow-job-list-head,
   .ow-job-list > button {
-    grid-template-columns: 70px 88px minmax(220px, 1fr) 128px 96px 120px;
+    grid-template-columns: 70px 88px minmax(220px, 1fr) 122px 88px 104px 120px;
   }
 }

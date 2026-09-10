@@ -20,6 +20,17 @@ def test_runtime_launcher_is_unbuffered_and_uses_installed_fast_start() -> None:
     assert "JAP_WINDOWS_APP_PINNED_SHA=" in runner
 
 
+def test_runtime_launcher_binds_to_requirements_pinned_local_oss_site() -> None:
+    runner = _text(WSL_RUNNER)
+    assert "scripts/ensure_pinned_local_oss_runtime.sh" in runner
+    assert '"$MANAGED_WORKTREE/requirements.txt"' in runner
+    assert '"$PROJECT_ROOT/.runtime/local-oss-sites"' in runner
+    assert 'export PYTHONPATH="$LOCAL_OSS_SITE${PYTHONPATH:+:$PYTHONPATH}"' in runner
+    assert "python -c 'import extruct, trafilatura'" in runner
+    assert "pinned_local_oss_runtime_import_failed" in runner
+    assert "JAP_WINDOWS_APP_LOCAL_OSS_SITE=" in runner
+
+
 def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() -> None:
     launcher = _text(LAUNCHER)
     assert "$readinessDeadline = [DateTime]::UtcNow.AddSeconds(75)" in launcher
@@ -53,4 +64,4 @@ def test_long_lived_wsl_runtime_is_detached_from_powershell_redirected_pipes() -
 
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.15"
+    assert _text(VERSION).strip() == "1.0.19"
