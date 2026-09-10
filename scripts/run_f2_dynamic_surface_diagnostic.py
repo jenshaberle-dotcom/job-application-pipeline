@@ -1,9 +1,9 @@
 """Read-only F2 diagnostic for JavaScript-backed Employer-Origin surfaces.
 
 The diagnostic selects recent persisted-but-inactive Employer-Origin candidates,
-fetches only their authorized root and a bounded number of exact-host script
-assets, and emits URL-shaped dynamic route evidence. It never treats script text
-as source authority and performs no database writes, activation, or job ingestion.
+fetches only their authorized root, a bounded number of exact-host script assets,
+and a bounded set of exact-host route literals. It emits learning evidence only:
+no database writes, activation, proof promotion, or job ingestion occur here.
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import argparse
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import psycopg
 from psycopg.rows import dict_row
@@ -24,10 +25,16 @@ from src.search_intelligence.dynamic_surface_evidence import (
     same_host,
 )
 
-SCHEMA = "job_application_pipeline.f2_dynamic_surface_diagnostic.v1"
-USER_AGENT = "job-application-pipeline-f2-dynamic-surface/0.1 (+bounded read-only)"
+SCHEMA = "job_application_pipeline.f2_dynamic_surface_diagnostic.v2"
+USER_AGENT = "job-application-pipeline-f2-dynamic-surface/0.2 (+bounded read-only)"
 MAX_BODY_BYTES = 5_000_000
 MAX_SCRIPT_BODY_BYTES = 4_000_000
+MAX_ROUTE_BODY_BYTES = 2_000_000
+MAX_ROUTE_PROBES = 6
+_STATIC_SUFFIXES = (
+    ".css", ".gif", ".ico", ".jpeg", ".jpg", ".js", ".png", ".svg", ".webp",
+    ".woff", ".woff2", ".pdf",
+)
 
 BOUNDARY = {
     "database_reads": True,
@@ -39,7 +46,9 @@ BOUNDARY = {
     "product_write": False,
     "network_methods": ["GET"],
     "script_fetch_scope": "exact authorized root host only",
+    "route_probe_scope": "exact authorized root host only",
     "script_literals_are_learning_evidence_only": True,
+    "route_probe_results_are_learning_evidence_only": True,
 }
 
 
@@ -71,12 +80,24 @@ def _load_candidates(conn: psycopg.Connection[Any], *, limit: int) -> list[dict[
         return [dict(row) for row in cur.fetchall()]
 
 
-def _get(session: requests.Session, url: str, *, timeout: float, max_bytes: int) -> tuple[str, str, int]:
+def _get_response(
+    session: requests.Session,
+    url: str,
+    *,
+    timeout: float,
+    max_bytes: int,
+) -> tuple[requests.Response, str]:
     response = session.get(url, timeout=timeout, allow_redirects=True)
     body = response.content or b""
     if len(body) > max_bytes:
         raise RuntimeError(f"response body cap exceeded: {len(body)} > {max_bytes}")
-    return body.decode(response.encoding or "utf-8", errors="replace"), str(response.url), int(response.status_code)
+    text = body.decode(response.encoding or "utf-8", errors="replace")
+    return response, text
+
+
+def _get(session: requests.Session, url: str, *, timeout: float, max_bytes: int) -> tuple[str, str, int]:
+    response, text = _get_response(session, url, timeout=timeout, max_bytes=max_bytes)
+    return text, str(response.url), int(response.status_code)
 
 
 def _literal_json(item) -> dict[str, object]:
@@ -86,6 +107,82 @@ def _literal_json(item) -> dict[str, object]:
         "host": item.host,
         "markers": list(item.markers),
     }
+
+
+def _route_probe_priority(url: str) -> tuple[int, int, str]:
+    parsed = urlparse(url)
+    path_query = f"{parsed.path}?{parsed.query}".casefold()
+    strong = sum(marker in path_query for marker in ("serverless", "/api", "jobs", "positions", "vacanc"))
+    medium = sum(marker in path_query for marker in ("stellen", "career", "opening", "posting"))
+    return (-strong, -medium, path_query)
+
+
+def _select_route_probes(root_final: str, literals: list[Any]) -> list[str]:
+    root_host = exact_host(root_final)
+    unique: list[str] = []
+    for item in literals:
+        url = str(getattr(item, "normalized_url", "") or "")
+        if not url or exact_host(url) != root_host or url == root_final:
+            continue
+        parsed = urlparse(url)
+        path = parsed.path.casefold()
+        if path.endswith(_STATIC_SUFFIXES) or ":" in path:
+            continue
+        if url not in unique:
+            unique.append(url)
+    return sorted(unique, key=_route_probe_priority)[:MAX_ROUTE_PROBES]
+
+
+def _json_shape(text: str, content_type: str) -> dict[str, object] | None:
+    if "json" not in content_type.casefold() and not text.lstrip().startswith(("{", "[")):
+        return None
+    try:
+        payload = json.loads(text)
+    except Exception:
+        return {"parse": "failed"}
+    if isinstance(payload, dict):
+        return {"type": "object", "keys": sorted(str(key) for key in payload)[:40]}
+    if isinstance(payload, list):
+        first_keys: list[str] = []
+        if payload and isinstance(payload[0], dict):
+            first_keys = sorted(str(key) for key in payload[0])[:40]
+        return {"type": "array", "length": len(payload), "first_item_keys": first_keys}
+    return {"type": type(payload).__name__}
+
+
+def _probe_routes(
+    session: requests.Session,
+    *,
+    root_final: str,
+    literals: list[Any],
+    timeout_seconds: float,
+) -> list[dict[str, object]]:
+    probes: list[dict[str, object]] = []
+    for url in _select_route_probes(root_final, literals):
+        row: dict[str, object] = {"url": url}
+        try:
+            response, text = _get_response(
+                session,
+                url,
+                timeout=timeout_seconds,
+                max_bytes=MAX_ROUTE_BODY_BYTES,
+            )
+            content_type = str(response.headers.get("content-type") or "")[:160]
+            nested = extract_dynamic_route_literals(text=text, base_url=str(response.url), max_literals=24)
+            row.update(
+                {
+                    "status": int(response.status_code),
+                    "final_url": str(response.url),
+                    "content_type": content_type,
+                    "body_bytes": len(response.content or b""),
+                    "json_shape": _json_shape(text, content_type),
+                    "route_literals": [_literal_json(item) for item in nested],
+                }
+            )
+        except Exception as exc:
+            row["error"] = f"{type(exc).__name__}: {exc}"[:500]
+        probes.append(row)
+    return probes
 
 
 def diagnose_candidate(
@@ -99,7 +196,7 @@ def diagnose_candidate(
     session.headers.update(
         {
             "User-Agent": USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/javascript,text/javascript,*/*;q=0.7",
+            "Accept": "text/html,application/xhtml+xml,application/json,application/javascript,text/javascript,*/*;q=0.7",
         }
     )
     result: dict[str, object] = {
@@ -111,6 +208,7 @@ def diagnose_candidate(
         "root": None,
         "same_host_scripts": [],
         "cross_host_script_sources": [],
+        "route_probes": [],
         "route_hosts": [],
         "route_marker_counts": {},
     }
@@ -166,6 +264,12 @@ def diagnose_candidate(
             script_row["error"] = f"{type(exc).__name__}: {exc}"[:500]
         script_rows.append(script_row)
     result["same_host_scripts"] = script_rows
+    result["route_probes"] = _probe_routes(
+        session,
+        root_final=root_final,
+        literals=all_literals,
+        timeout_seconds=timeout_seconds,
+    )
 
     hosts = sorted({item.host for item in all_literals if item.host})
     marker_counts: dict[str, int] = {}
@@ -233,11 +337,13 @@ def run(args: argparse.Namespace) -> int:
         errors = sum(
             1 for script in scripts if isinstance(script, dict) and script.get("error")
         )
+        probes = item.get("route_probes") or []
         if isinstance(root, dict):
             routes += len(root.get("route_literals") or [])
         print(
             f"F2_DYNAMIC_SOURCE={item['company_key']}|status={status}|"
-            f"same_host_scripts={len(scripts)}|route_literals={routes}|script_errors={errors}"
+            f"same_host_scripts={len(scripts)}|route_literals={routes}|"
+            f"route_probes={len(probes)}|script_errors={errors}"
         )
     print("F2_DYNAMIC_RECURRING_HOSTS=" + json.dumps(recurring_route_hosts, sort_keys=True))
     print("F2_DYNAMIC_RECURRING_MARKERS=" + json.dumps(recurring_markers, sort_keys=True))
