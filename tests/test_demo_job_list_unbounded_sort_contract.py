@@ -23,18 +23,22 @@ def test_product_v1_read_models_have_no_arbitrary_200_row_window() -> None:
     assert "LIMIT 200" not in application_query
 
 
-def test_jobs_default_to_all_newest_first_and_are_sortable() -> None:
+def test_jobs_default_to_all_published_newest_and_expose_first_observed_sort() -> None:
     source = UI.read_text(encoding="utf-8")
 
     assert 'useState<JobFilter>("all")' in source
     assert 'useState<JobSort>("newest")' in source
-    assert 'value="newest">Newest first' in source
-    assert 'value="oldest">Oldest first' in source
+    assert 'value="newest">Published newest' in source
+    assert 'value="oldest">Published oldest' in source
+    assert 'value="observed_newest">First observed newest' in source
+    assert 'value="observed_oldest">First observed oldest' in source
     assert 'value="fit_desc">Affinity high → low' in source
     assert 'value="fit_asc">Affinity low → high' in source
     assert "compareJobs(a, b, sort)" in source
     assert 'sortHeader("published", "Published")' in source
+    assert 'sortHeader("observed", "First observed")' in source
     assert "displayDate(job.publication_date)" in source
+    assert "displayDate(job.first_jap_observed_at)" in source
 
 
 def test_operator_entrypoints_are_direct_invocation_safe() -> None:
