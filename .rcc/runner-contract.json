@@ -3,6 +3,14 @@
   "repository_id": 1230805345,
   "repository": "jenshaberle-dotcom/job-application-pipeline",
   "project_key": "jap",
+  "workload_admission": {
+    "protocol": "RCC_WARM_WORKLOAD_ADMISSION_V1",
+    "observation_mode": "RCC_OUT_OF_BAND",
+    "heartbeat_capacity_authority": false,
+    "sleeping_wakeable_policy": "ACTIVATION_REQUIRED",
+    "atomic_reservation": true,
+    "exact_runner_handoff": true
+  },
   "fallback_policy": {
     "strategy": "WARM_PREFERRED_GITHUB_HOSTED",
     "provider": "GITHUB_HOSTED_STANDARD",
