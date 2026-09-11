@@ -25,70 +25,47 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
           path = Path("scripts/apply_generic_employer_origin_activation.py")
           text = path.read_text(encoding="utf-8")
-          needle = '''        cur.execute(
-            """
-            UPDATE search_profiles
-            SET is_active = FALSE,
-                recurring_ingestion_enabled = FALSE
-            WHERE source_name <> ALL(%s)
-              AND source_name NOT LIKE %s
-            """,
-            (list(SENSOR_SOURCE_NAMES), f"{GENERIC_SOURCE_PREFIX}%"),
-        )
-
-        # A candidate that previously carried controlled-active state from a legacy
-'''
-          replacement = '''        cur.execute(
-            """
-            UPDATE search_profiles
-            SET is_active = FALSE,
-                recurring_ingestion_enabled = FALSE
-            WHERE source_name <> ALL(%s)
-              AND source_name NOT LIKE %s
-            """,
-            (list(SENSOR_SOURCE_NAMES), f"{GENERIC_SOURCE_PREFIX}%"),
-        )
-
-        # The generic execution surface is also a complete materialized projection.
-        # Retire every prior generic profile before re-enabling exactly one canonical
-        # profile per current proof-PASS source below. This removes stale aliases and
-        # duplicate active profiles without changing proof authority.
-        cur.execute(
-            """
-            UPDATE search_profiles
-            SET is_active = FALSE,
-                recurring_ingestion_enabled = FALSE
-            WHERE source_name LIKE %s
-            """,
-            (f"{GENERIC_SOURCE_PREFIX}%",),
-        )
-
-        # A candidate that previously carried controlled-active state from a legacy
-'''
-          if replacement in text:
-              print("ACTIVATION_PROFILE_HYGIENE=ALREADY_PATCHED")
-          else:
-              if text.count(needle) != 1:
-                  raise SystemExit("ACTIVATION_PROFILE_HYGIENE_NEEDLE_NOT_UNIQUE")
-              path.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
+          marker = "        # A candidate that previously carried controlled-active state from a legacy\n"
+          guard = "        # The generic execution surface is also a complete materialized projection.\n"
+          if guard not in text:
+              if text.count(marker) != 1:
+                  raise SystemExit("ACTIVATION_PROFILE_HYGIENE_MARKER_NOT_UNIQUE")
+              lines = [
+                  "        # The generic execution surface is also a complete materialized projection.",
+                  "        # Retire every prior generic profile before re-enabling exactly one canonical",
+                  "        # profile per current proof-PASS source below. This removes stale aliases and",
+                  "        # duplicate active profiles without changing proof authority.",
+                  "        cur.execute(",
+                  "            \"\"\"",
+                  "            UPDATE search_profiles",
+                  "            SET is_active = FALSE,",
+                  "                recurring_ingestion_enabled = FALSE",
+                  "            WHERE source_name LIKE %s",
+                  "            \"\"\",",
+                  "            (f\"{GENERIC_SOURCE_PREFIX}%\",),",
+                  "        )",
+                  "",
+              ]
+              text = text.replace(marker, "\n".join(lines) + "\n" + marker, 1)
+              path.write_text(text, encoding="utf-8")
               print("ACTIVATION_PROFILE_HYGIENE=PATCHED")
+          else:
+              print("ACTIVATION_PROFILE_HYGIENE=ALREADY_PATCHED")
 
           workflow = Path(".github/workflows/f2-persisted-dynamic-cohort.yml")
           wtext = workflow.read_text(encoding="utf-8")
-          marker = "# activation-profile-hygiene-v1\n"
-          if marker not in wtext:
+          bind_marker = "# activation-profile-hygiene-v1\n"
+          if bind_marker not in wtext:
               anchor = "permissions:\n  contents: read\n"
               if wtext.count(anchor) != 1:
                   raise SystemExit("F2_PERSISTED_PERMISSION_ANCHOR_NOT_UNIQUE")
-              workflow.write_text(wtext.replace(anchor, anchor + marker, 1), encoding="utf-8")
+              workflow.write_text(wtext.replace(anchor, anchor + bind_marker, 1), encoding="utf-8")
               print("F2_PERSISTED_REBIND=PATCHED")
           else:
               print("F2_PERSISTED_REBIND=ALREADY_PRESENT")
           PY
-
           python3 -m py_compile scripts/apply_generic_employer_origin_activation.py
           grep -Fq 'WHERE source_name LIKE %s' scripts/apply_generic_employer_origin_activation.py
 
