@@ -40,10 +40,11 @@ def test_activation_retires_stale_generic_profiles_before_canonical_reprojection
     retire = source.index("WHERE source_name LIKE %s")
     canonical_profile = source.index('profile_name = f"{PROFILE_PREFIX}{company_key}"')
     canonical_upsert = source.index("INSERT INTO search_profiles", canonical_profile)
+    retire_block = source[source.rfind("cur.execute(", 0, retire):canonical_profile]
 
     assert retire < canonical_profile < canonical_upsert
-    assert source.count("WHERE source_name LIKE %s") >= 2
-    assert "recurring_ingestion_enabled = FALSE" in source[:canonical_profile]
+    assert "SET is_active = FALSE" in retire_block
+    assert "recurring_ingestion_enabled = FALSE" in retire_block
 
 
 def test_product_connector_prefers_materialized_proof_source_identity() -> None:
