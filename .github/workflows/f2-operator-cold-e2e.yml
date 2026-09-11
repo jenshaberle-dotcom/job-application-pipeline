@@ -1,0 +1,378 @@
+name: F2 operator cold Employer-Origin acceptance
+
+on:
+  push:
+    branches: [agent/f2-operator-cold-e2e]
+    paths:
+      - ".github/workflows/f2-operator-cold-e2e.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f2-operator-cold-e2e
+  cancel-in-progress: false
+
+jobs:
+  cold-e2e:
+    name: Fresh company to visible real job
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 180
+    env:
+      PRODUCT_SHA: bb12e62a4fb638fdf782a0401ed54d5fe9922221
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      SCOUT_OUTPUT: /tmp/jap-f2-operator-scout.json
+      RESERVATION_OUTPUT: /tmp/jap-f2-operator-reservation.json
+      INGRESS_OUTPUT: /tmp/jap-f2-operator-ingress
+      F1_OUTPUT: /tmp/jap-f2-operator-f1
+      PRODUCT_OUTPUT: /tmp/jap-f2-operator-product.json
+
+    steps:
+      - name: Check out exact released 1.0.22 product source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PRODUCT_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact released product source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PRODUCT_SHA"
+          echo "F2_OPERATOR_PRODUCT_SHA=$PRODUCT_SHA"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity", "checkout", "checkout_repository",
+              "env_file", "env_keys", "interpreter", "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked database and optional discovery-provider environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          github_env = Path(sys.argv[2])
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          export_keys = list(required)
+          if values.get("TAVILY_API_KEY") not in (None, ""):
+              export_keys.append("TAVILY_API_KEY")
+          with github_env.open("a", encoding="utf-8") as handle:
+              for key in export_keys:
+                  value = str(values[key])
+                  if key.endswith("PASSWORD") or key.endswith("API_KEY"):
+                      print(f"::add-mask::{value}")
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          print("F2_OPERATOR_ENV=PASS")
+          print("F2_OPERATOR_TAVILY_AVAILABLE=" + str(bool(values.get("TAVILY_API_KEY"))).lower())
+          PY
+
+      - name: Prove product database authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import psycopg
+          from src.config import get_database_config
+          with psycopg.connect(**get_database_config()) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SELECT current_database(), current_user")
+                  database, user = cur.fetchone()
+          print(f"F2_OPERATOR_DATABASE_AUTH=PASS database={database} user={user}")
+          PY
+
+      - name: Provision pinned local OSS detail runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
+            "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f2-operator-local-oss-sites")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Discover and reserve one genuinely fresh company from live market sensors
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$SCOUT_OUTPUT" "$RESERVATION_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.run_e2e_slice_001_market_sensor_scout \
+            --output "$SCOUT_OUTPUT" \
+            --reservation-output "$RESERVATION_OUTPUT" \
+            --page-size-cap 25 \
+            --max-profiles-per-sensor 4 \
+            --max-terms-per-profile 4
+          test -s "$RESERVATION_OUTPUT"
+
+      - name: Resolve exact reserved company identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RESERVATION_OUTPUT" "$GITHUB_ENV" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          from src.search_intelligence.origin_seed_pool import normalize_company_key
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          observation = payload["observation"]
+          company_name = str(observation["company_name"]).strip()
+          company_key = normalize_company_key(company_name)
+          if not company_key:
+              raise SystemExit("F2_OPERATOR_RESERVED_COMPANY_KEY_EMPTY")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              handle.write(f"RESERVED_COMPANY_KEY={company_key}\n")
+              handle.write(f"RESERVED_COMPANY_NAME={company_name}\n")
+          print(f"F2_OPERATOR_RESERVED_COMPANY={company_key}|{company_name}|{observation.get('source_name')}|{observation.get('title')}")
+          PY
+
+      - name: Create only the reserved discovery candidate through canonical ingress CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$INGRESS_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.run_product_e2e_candidate_ingress \
+            --reservation-file "$RESERVATION_OUTPUT" \
+            --limit 5 \
+            --company-key "$RESERVED_COMPANY_KEY" \
+            --reviewed-by "f2-operator-cold-${GITHUB_RUN_ID}" \
+            --apply \
+            --approval-token approve_product_e2e_discovery_candidate_creation \
+            --output-dir "$INGRESS_OUTPUT"
+
+      - name: Prove reserved company is now an unresolved discovery candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RESERVED_COMPANY_KEY" <<'PY'
+          import sys
+          import psycopg
+          from psycopg.rows import dict_row
+          from src.config import get_database_config
+
+          key = sys.argv[1]
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("""
+                      SELECT id, company_key, company_name, status, candidate_url
+                      FROM employer_origin_source_candidates
+                      WHERE lower(company_key) = lower(%s)
+                      ORDER BY updated_at DESC NULLS LAST, id DESC
+                      LIMIT 1
+                  """, (key,))
+                  row = cur.fetchone()
+          if row is None:
+              raise SystemExit("F2_OPERATOR_RESERVED_CANDIDATE_MISSING")
+          if row["candidate_url"] not in (None, ""):
+              raise SystemExit("F2_OPERATOR_COLD_PATH_PRECONSUMED")
+          print(f"F2_OPERATOR_CANDIDATE=PASS id={row['id']} status={row['status']} company={row['company_name']}")
+          PY
+
+      - name: Run F1 discovery and canonical CAND-001 persistence for reserved company
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$F1_OUTPUT"
+          provider=none
+          if [[ -n "${TAVILY_API_KEY:-}" ]]; then provider=tavily; fi
+          echo "F2_OPERATOR_F1_SEARCH_PROVIDER=$provider"
+          "$RUNTIME_PYTHON" -m scripts.run_f1_origin_persistence_bridge \
+            --company-key "$RESERVED_COMPANY_KEY" \
+            --apply \
+            --approval-token approve_product_e2e_origin_url_persistence \
+            --reviewed-by "f2-operator-cold-${GITHUB_RUN_ID}" \
+            --official-domain-provider wikidata \
+            --search-provider "$provider" \
+            --search-query-limit 4 \
+            --search-max-results 5 \
+            --http-request-cap 48 \
+            --max-candidates 30 \
+            --timeout-seconds 8 \
+            --output-dir "$F1_OUTPUT"
+
+      - name: Require fresh-company F1 persistence success
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$(find "$F1_OUTPUT" -name result.json -type f | sort | tail -n1)"
+          test -n "$report"
+          cp "$report" /tmp/jap-f2-operator-f1-result.json
+          "$RUNTIME_PYTHON" - "$report" "$RESERVED_COMPANY_KEY" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          key = sys.argv[2]
+          item = next((row for row in payload.get("outcomes", []) if row.get("company_key") == key), None)
+          if item is None:
+              raise SystemExit("F2_OPERATOR_F1_OUTCOME_MISSING")
+          print(f"F2_OPERATOR_F1_RESULT={key}|decision={item.get('f1_decision')}|status={item.get('status')}|url={item.get('f1_selected_url')}")
+          if item.get("f1_decision") != "origin_url_candidate_selected":
+              raise SystemExit("F2_OPERATOR_F1_NO_SELECTION")
+          if item.get("status") not in {"persisted", "already_persisted", "validated_ready_for_apply"}:
+              raise SystemExit("F2_OPERATOR_F1_NOT_PERSISTED")
+          PY
+
+      - name: Recompute strict generic Employer-Origin proof and require reserved source admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_generic_employer_origin_product --output "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" - "$PRODUCT_OUTPUT" "$RESERVED_COMPANY_KEY" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          key = sys.argv[2]
+          proof = {str(value) for value in payload.get("proof_pass_company_keys", [])}
+          print(f"F2_OPERATOR_RESERVED_PROOF_PASS={str(key in proof).lower()}")
+          if key not in proof:
+              raise SystemExit("F2_OPERATOR_RESERVED_SOURCE_PROOF_FAILED")
+          PY
+          "$RUNTIME_PYTHON" -m scripts.qualify_generic_employer_origin_connectors --proof-json "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation --proof-json "$PRODUCT_OUTPUT"
+
+      - name: Apply exact complete proof-pass activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation \
+            --proof-json "$PRODUCT_OUTPUT" \
+            --apply
+
+      - name: Run normal recurring generic-origin ingestion and Silver
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m src.ingest_jobs --source generic_origin --log-level INFO
+          "$RUNTIME_PYTHON" -m src.run_silver_jobs
+
+      - name: Require positive Bronze Silver Gold and Control Center projection for reserved source
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RESERVED_COMPANY_KEY" <<'PY'
+          import sys
+          import psycopg
+          from psycopg.rows import dict_row
+          from scripts.run_product_v1_control_center import load_product_v1_payload
+          from src.config import get_database_config
+
+          key = sys.argv[1]
+          source = f"generic_origin:{key}"
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("""
+                      SELECT status, total_loaded, inserted_count
+                      FROM ingestion_runs
+                      WHERE source_name = %s
+                      ORDER BY started_at DESC, id DESC
+                      LIMIT 1
+                  """, (source,))
+                  run = cur.fetchone()
+                  cur.execute("SELECT count(*) AS n FROM raw_jobs WHERE source_name = %s", (source,))
+                  bronze = int(cur.fetchone()["n"])
+                  cur.execute("SELECT count(*) AS n FROM silver_jobs WHERE source_name = %s", (source,))
+                  silver = int(cur.fetchone()["n"])
+                  cur.execute("SELECT count(*) AS n FROM gold_product_v1_job_readiness WHERE source_name = %s", (source,))
+                  gold = int(cur.fetchone()["n"])
+          if run is None:
+              raise SystemExit("F2_OPERATOR_RESERVED_INGESTION_RUN_MISSING")
+          loaded = int(run["total_loaded"] or 0)
+          inserted = int(run["inserted_count"] or 0)
+          print(f"F2_OPERATOR_DELIVERY={source}|status={run['status']}|loaded={loaded}|inserted={inserted}|bronze={bronze}|silver={silver}|gold={gold}")
+          if run["status"] != "success":
+              raise SystemExit("F2_OPERATOR_RESERVED_INGESTION_NOT_SUCCESS")
+          if loaded < 1 or bronze < 1 or silver < 1 or gold < 1:
+              raise SystemExit("F2_OPERATOR_RESERVED_SOURCE_DID_NOT_REACH_POSITIVE_PRODUCT_DATA")
+
+          payload = load_product_v1_payload()
+          rows = [
+              row for row in (payload.get("job_readiness") or [])
+              if isinstance(row, dict) and str(row.get("source_name") or "") == source
+          ]
+          if not rows:
+              raise SystemExit("F2_OPERATOR_RESERVED_SOURCE_NOT_IN_CONTROL_CENTER")
+          print(f"F2_OPERATOR_CONTROL_CENTER_ROWS={len(rows)}")
+          for row in rows[:5]:
+              print(f"F2_OPERATOR_VISIBLE_JOB={row.get('silver_job_id')}|{row.get('title')}|{row.get('company_name')}|{row.get('source_url')}")
+          print("F2_OPERATOR_ACCEPTANCE_E2E=PASS")
+          PY
+
+      - name: Upload cold E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f2-operator-cold-e2e
+          path: |
+            /tmp/jap-f2-operator-scout.json
+            /tmp/jap-f2-operator-reservation.json
+            /tmp/jap-f2-operator-f1-result.json
+            /tmp/jap-f2-operator-product.json
+          if-no-files-found: warn
+          retention-days: 14
