@@ -224,7 +224,7 @@ jobs:
           "$RUNTIME_PYTHON" -m src.ingest_jobs --source generic_origin --log-level INFO
           "$RUNTIME_PYTHON" -m src.run_silver_jobs
 
-      - name: Require fresh VALUNY delivery through Bronze Silver Gold and All Jobs
+      - name: Require current VALUNY observation through Bronze Silver Gold and All Jobs
         shell: bash
         run: |
           set -euo pipefail
@@ -239,7 +239,7 @@ jobs:
           with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
               with conn.cursor() as cur:
                   cur.execute("""
-                      SELECT id, status, total_loaded, inserted_count
+                      SELECT id, status, total_loaded, inserted_count, duplicate_count
                       FROM ingestion_runs
                       WHERE source_name = %s
                       ORDER BY started_at DESC, id DESC
@@ -249,22 +249,51 @@ jobs:
                   if run is None:
                       raise SystemExit("F2_BITE_VALUNY_RUN_MISSING")
 
-                  cur.execute(
-                      "SELECT count(*) AS n FROM raw_jobs WHERE source_name = %s AND ingestion_run_id = %s",
-                      (source, run["id"]),
-                  )
-                  bronze = int(cur.fetchone()["n"])
+                  cur.execute("""
+                      SELECT DISTINCT
+                          observation.raw_job_id,
+                          observation.external_job_id,
+                          observation.source_url
+                      FROM job_observations observation
+                      WHERE observation.source_name = %s
+                        AND observation.ingestion_run_id = %s
+                        AND observation.is_seen = TRUE
+                        AND observation.raw_job_id IS NOT NULL
+                      ORDER BY observation.raw_job_id
+                  """, (source, run["id"]))
+                  observation_rows = [dict(row) for row in cur.fetchall()]
 
                   cur.execute("""
-                      SELECT s.id AS silver_job_id, s.title, s.source_url
-                      FROM silver_jobs s
-                      JOIN raw_jobs r ON r.id = s.raw_job_id
-                      WHERE s.source_name = %s
-                        AND r.ingestion_run_id = %s
-                      ORDER BY s.id
+                      SELECT DISTINCT
+                          raw.id AS raw_job_id,
+                          raw.external_job_id,
+                          raw.source_url
+                      FROM raw_jobs raw
+                      JOIN job_observations observation
+                        ON observation.raw_job_id = raw.id
+                      WHERE observation.source_name = %s
+                        AND observation.ingestion_run_id = %s
+                        AND observation.is_seen = TRUE
+                      ORDER BY raw.id
                   """, (source, run["id"]))
+                  bronze_rows = [dict(row) for row in cur.fetchall()]
+
+                  cur.execute("""
+                      SELECT DISTINCT
+                          silver.id AS silver_job_id,
+                          silver.title,
+                          silver.source_url
+                      FROM silver_jobs silver
+                      JOIN job_observations observation
+                        ON observation.raw_job_id = silver.raw_job_id
+                      WHERE silver.source_name = %s
+                        AND observation.source_name = %s
+                        AND observation.ingestion_run_id = %s
+                        AND observation.is_seen = TRUE
+                      ORDER BY silver.id
+                  """, (source, source, run["id"]))
                   silver_rows = [dict(row) for row in cur.fetchall()]
-                  fresh_silver_ids = {int(row["silver_job_id"]) for row in silver_rows}
+                  observed_silver_ids = {int(row["silver_job_id"]) for row in silver_rows}
 
                   cur.execute("""
                       SELECT silver_job_id, source_name, source_url, title, product_readiness_status
@@ -275,26 +304,32 @@ jobs:
                   gold_rows = [
                       dict(row)
                       for row in cur.fetchall()
-                      if int(row["silver_job_id"]) in fresh_silver_ids
+                      if int(row["silver_job_id"]) in observed_silver_ids
                   ]
 
           loaded = int(run["total_loaded"] or 0)
           inserted = int(run["inserted_count"] or 0)
+          duplicates = int(run["duplicate_count"] or 0)
           print(
               f"F2_BITE_VALUNY_RESULT=run_id={run['id']}|status={run['status']}|"
-              f"loaded={loaded}|inserted={inserted}|bronze={bronze}|"
+              f"loaded={loaded}|inserted={inserted}|duplicates={duplicates}|"
+              f"observations={len(observation_rows)}|bronze={len(bronze_rows)}|"
               f"silver={len(silver_rows)}|gold={len(gold_rows)}"
           )
           if run["status"] != "success":
               raise SystemExit("F2_BITE_VALUNY_RUN_NOT_SUCCESS")
           if loaded <= 0:
               raise SystemExit("F2_BITE_VALUNY_ZERO_DELIVERY")
-          if bronze <= 0:
-              raise SystemExit("F2_BITE_VALUNY_ZERO_BRONZE")
+          if len(observation_rows) <= 0:
+              raise SystemExit("F2_BITE_VALUNY_CURRENT_OBSERVATION_MISSING")
+          if len(observation_rows) != loaded:
+              raise SystemExit("F2_BITE_VALUNY_OBSERVATION_COUNT_MISMATCH")
+          if not bronze_rows:
+              raise SystemExit("F2_BITE_VALUNY_OBSERVED_BRONZE_MISSING")
           if not silver_rows:
-              raise SystemExit("F2_BITE_VALUNY_ZERO_SILVER")
+              raise SystemExit("F2_BITE_VALUNY_OBSERVED_SILVER_MISSING")
           if not gold_rows:
-              raise SystemExit("F2_BITE_VALUNY_ZERO_GOLD")
+              raise SystemExit("F2_BITE_VALUNY_OBSERVED_GOLD_MISSING")
 
           gold_ids = {int(row["silver_job_id"]) for row in gold_rows}
           control_center = load_product_v1_payload()
