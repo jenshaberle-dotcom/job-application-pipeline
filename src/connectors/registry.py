@@ -6,8 +6,8 @@ from typing import Protocol
 
 from src.connectors.base import JobSourceConnector
 from src.connectors.bundesagentur import BundesagenturConnector
-from src.connectors.generic_employer_origin_product import (
-    GenericEmployerOriginProductConnector,
+from src.connectors.generic_employer_origin_product_bite import (
+    GenericEmployerOriginProductBiteConnector,
 )
 from src.connectors.greenhouse import GreenhouseConnector
 from src.connectors.personio import PersonioConnector
@@ -169,7 +169,7 @@ def successfactors_factory(source_name: str) -> JobSourceConnector:
 
 
 def generic_origin_factory(source_name: str) -> JobSourceConnector:
-    return GenericEmployerOriginProductConnector(
+    return GenericEmployerOriginProductBiteConnector(
         company_key=source_target(source_name),
         source_name=source_name,
     )
