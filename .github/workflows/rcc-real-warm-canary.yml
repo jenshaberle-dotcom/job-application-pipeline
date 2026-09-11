@@ -30,7 +30,6 @@ jobs:
       RCC_EXPECTED_PYTHON: 3.12.14
       RCC_RESERVATION_ID: ${{ inputs.reservation_id }}
       RCC_EXPECTED_RUNNER: ${{ inputs.expected_runner }}
-      JAP_LOCAL_OSS_ROOT: ${{ runner.tool_cache }}/../jap-local-oss-sites
 
     steps:
       - name: Start measured canary and prove exact handoff
@@ -99,7 +98,7 @@ jobs:
           )
           test "${#specs[@]}" -eq 2
           digest="$(printf '%s\n' "${specs[@]}" | sha256sum | awk '{print $1}')"
-          site="$JAP_LOCAL_OSS_ROOT/$digest"
+          site="$HOME/.cache/DeepOceanInfrastructure/JobApplicationPipeline/LocalOss/$digest"
           test -d "$site"
           PYTHONPATH="$site${PYTHONPATH:+:$PYTHONPATH}" "$RCC_CANARY_PYTHON" - <<'PY'
           import extruct
