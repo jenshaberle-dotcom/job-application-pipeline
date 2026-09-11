@@ -1,0 +1,242 @@
+name: F2 one-shot dynamic detail hardening helper
+
+on:
+  push:
+    branches: [agent/f2-real-cohort]
+    paths:
+      - ".github/workflows/f2-dynamic-detail-hardening-helper.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/f2-real-cohort
+          fetch-depth: 1
+
+      - name: Patch generic dynamic detail boundary and regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          multi = Path("src/search_intelligence/multi_origin_evidence.py")
+          text = multi.read_text(encoding="utf-8")
+          needle = "    if _has_strong_query_job_identifier(url):\n        return True\n    # Common rexx/ATS-style root-level vacancy file"
+          repl = "    if _has_strong_query_job_identifier(url):\n        return True\n    # Opaque jobposting identities are concrete detail paths, but terminal apply\n    # actions are deliberately excluded from detail identity.\n    if search(r\"(?:^|/)jobposting/[a-z0-9_-]{12,}$\", path):\n        return True\n    # Common rexx/ATS-style root-level vacancy file"
+          if repl not in text:
+              if text.count(needle) != 1:
+                  raise SystemExit("JOBPOSTING_SHAPE_NEEDLE_NOT_UNIQUE")
+              multi.write_text(text.replace(needle, repl, 1), encoding="utf-8")
+
+          dyn = Path("src/connectors/employer_origin_dynamic_route.py")
+          text = dyn.read_text(encoding="utf-8")
+          text = text.replace("from urllib.parse import urlparse\n", "from urllib.parse import urlparse, urlunparse\n", 1)
+          regex_anchor = "_STRONG_DYNAMIC_DETAIL_PATHS = (\n    re.compile(r\"/(?:jobs?|positions?)/[a-z0-9_-]{2,}/(?:job|position)?/?$\", re.IGNORECASE),\n    re.compile(r\"/jobposting/[a-z0-9_-]{12,}(?:/apply)?/?$\", re.IGNORECASE),\n)\n"
+          regex_repl = regex_anchor + "_JOBPOSTING_APPLY_PATH = re.compile(\n    r\"(?P<parent>.*?/jobposting/[a-z0-9_-]{12,})/apply/?$\", re.IGNORECASE\n)\n"
+          if "_JOBPOSTING_APPLY_PATH" not in text:
+              if text.count(regex_anchor) != 1:
+                  raise SystemExit("DYNAMIC_REGEX_ANCHOR_NOT_UNIQUE")
+              text = text.replace(regex_anchor, regex_repl, 1)
+          strong_anchor = "def _strong_detail_shape(url: str) -> bool:\n    if job_detail_url_shape(url):\n        return True\n    path = urlparse(url).path\n    return any(pattern.search(path) for pattern in _STRONG_DYNAMIC_DETAIL_PATHS)\n\n\n"
+          strong_repl = strong_anchor + "def _jobposting_parent_detail(url: str) -> str | None:\n    parsed = urlparse(url)\n    match = _JOBPOSTING_APPLY_PATH.fullmatch(parsed.path or \"\")\n    if match is None:\n        return None\n    return canonical_url(\n        urlunparse(parsed._replace(path=match.group(\"parent\"), query=\"\", fragment=\"\"))\n    )\n\n\n"
+          if "def _jobposting_parent_detail" not in text:
+              if text.count(strong_anchor) != 1:
+                  raise SystemExit("DYNAMIC_PARENT_ANCHOR_NOT_UNIQUE")
+              text = text.replace(strong_anchor, strong_repl, 1)
+          old = "        if not _strong_detail_shape(url):\n            continue\n        if not (\n            allowed_host(url, allowed_hosts)\n            or _same_registered_domain(page_url, url)\n            or _trusted_job_host(url)\n        ):\n            continue\n        if url not in values:\n            values.append(url)\n        if len(values) >= max(0, limit):\n            break\n"
+          new = "        if not _strong_detail_shape(url):\n            continue\n        parent = _jobposting_parent_detail(url)\n        candidates = (parent, url) if parent else (url,)\n        for candidate in candidates:\n            if not candidate or not _public_https(candidate) or non_job_url(candidate):\n                continue\n            if not _strong_detail_shape(candidate):\n                continue\n            if not (\n                allowed_host(candidate, allowed_hosts)\n                or _same_registered_domain(page_url, candidate)\n                or _trusted_job_host(candidate)\n            ):\n                continue\n            if candidate not in values:\n                values.append(candidate)\n            if len(values) >= max(0, limit):\n                break\n        if len(values) >= max(0, limit):\n            break\n"
+          if new not in text:
+              if text.count(old) != 1:
+                  raise SystemExit("DYNAMIC_DETAIL_LOOP_NOT_UNIQUE")
+              text = text.replace(old, new, 1)
+          delegated_anchor = "def dynamic_delegated_detail_host(\n"
+          redirect_fn = '''def dynamic_redirected_detail_host(
+    *,
+    requested_detail_url: str,
+    final_url: str,
+    delegated_host: str,
+) -> str | None:
+    """Bind one exact strong HTTP redirect inside the same recruiting namespace."""
+
+    requested_host = _host(requested_detail_url)
+    final_host = _host(final_url)
+    expected = str(delegated_host or "").casefold().strip(".")
+    if not expected or requested_host != expected or not final_host:
+        return None
+    if not _public_https(final_url) or not _strong_detail_shape(final_url):
+        return None
+    if not _same_registered_domain(requested_detail_url, final_url):
+        return None
+    if not _trusted_job_host(final_url):
+        return None
+    return final_host
+
+
+'''
+          if "def dynamic_redirected_detail_host" not in text:
+              if text.count(delegated_anchor) != 1:
+                  raise SystemExit("DYNAMIC_DELEGATED_ANCHOR_NOT_UNIQUE")
+              text = text.replace(delegated_anchor, redirect_fn + delegated_anchor, 1)
+          export_anchor = '    "dynamic_delegated_detail_host",\n'
+          if '    "dynamic_redirected_detail_host",\n' not in text:
+              if text.count(export_anchor) != 1:
+                  raise SystemExit("DYNAMIC_EXPORT_ANCHOR_NOT_UNIQUE")
+              text = text.replace(export_anchor, export_anchor + '    "dynamic_redirected_detail_host",\n', 1)
+          dyn.write_text(text, encoding="utf-8")
+
+          acq = Path("src/connectors/employer_origin_acquisition_v4.py")
+          text = acq.read_text(encoding="utf-8")
+          import_old = "    dynamic_delegated_detail_host,\n    dynamic_detail_urls,\n"
+          import_new = "    dynamic_delegated_detail_host,\n    dynamic_redirected_detail_host,\n    dynamic_detail_urls,\n"
+          if import_new not in text:
+              if text.count(import_old) != 1:
+                  raise SystemExit("DYNAMIC_IMPORT_ANCHOR_NOT_UNIQUE")
+              text = text.replace(import_old, import_new, 1)
+          page_anchor = "        page = parse_page(\n            requested_url=candidate.url,\n            html=str(html),\n            final_url=str(final_url),\n            status_code=int(status_code),\n        )\n        proof = genuine_job_detail_proof(\n"
+          page_repl = "        page = parse_page(\n            requested_url=candidate.url,\n            html=str(html),\n            final_url=str(final_url),\n            status_code=int(status_code),\n        )\n        dynamic_prefix = f\"{_DYNAMIC_DELEGATED_DETAIL_SOURCE}:\"\n        if (\n            candidate.discovery_source.startswith(dynamic_prefix)\n            and not allowed_host(page.final_url, effective_allowed_hosts)\n        ):\n            rebound_host = dynamic_redirected_detail_host(\n                requested_detail_url=candidate.url,\n                final_url=page.final_url,\n                delegated_host=candidate.discovery_source.removeprefix(dynamic_prefix),\n            )\n            if rebound_host:\n                effective_allowed_hosts = tuple(\n                    dict.fromkeys([*effective_allowed_hosts, rebound_host])\n                )\n        proof = genuine_job_detail_proof(\n"
+          if "rebound_host = dynamic_redirected_detail_host" not in text:
+              if text.count(page_anchor) != 1:
+                  raise SystemExit("DYNAMIC_REDIRECT_PROOF_ANCHOR_NOT_UNIQUE")
+              text = text.replace(page_anchor, page_repl, 1)
+          acq.write_text(text, encoding="utf-8")
+
+          tests = Path("tests/test_employer_origin_acquisition_v4_dynamic_route.py")
+          text = tests.read_text(encoding="utf-8")
+          if "test_dynamic_delegated_detail_accepts_same_namespace_strong_redirect" not in text:
+              text += r'''
+
+
+def test_dynamic_delegated_detail_accepts_same_namespace_strong_redirect() -> None:
+    requested = "https://career-de-example.icims.invalid/jobs/4425/job"
+    final = "https://career-eu-example.icims.invalid/jobs/4425/job"
+    calls: list[str] = []
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == ROOT:
+            return f"<script>const detail='{requested}';</script>", ROOT, 200
+        if url == requested:
+            return job_html(), final, 200
+        raise AssertionError(url)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=ROOT,
+        allowed_hosts=(HOST,),
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert calls == [ROOT, requested]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == final
+    assert jobs[0].proof_kind == "jsonld_jobposting"
+
+
+def test_dynamic_delegated_detail_rejects_cross_namespace_redirect() -> None:
+    requested = "https://career-de-example.icims.invalid/jobs/4425/job"
+    final = "https://career-evil.other.invalid/jobs/4425/job"
+
+    def fetcher(url: str):
+        if url == ROOT:
+            return f"<script>const detail='{requested}';</script>", ROOT, 200
+        if url == requested:
+            return job_html(), final, 200
+        raise AssertionError(url)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=ROOT,
+        allowed_hosts=(HOST,),
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert jobs == []
+
+
+def test_dynamic_jobposting_apply_route_prefers_strict_parent_detail() -> None:
+    listing = f"https://{HOST}/stellenangebote"
+    apply_url = "https://karriere.example.invalid/de/jobposting/abcdef1234567890/apply"
+    detail = "https://karriere.example.invalid/de/jobposting/abcdef1234567890"
+    calls: list[str] = []
+
+    def fetcher(url: str):
+        calls.append(url)
+        if url == ROOT:
+            return f"<a href='{listing}'>Stellenangebote</a>", ROOT, 200
+        if url == listing:
+            return f"<script>const apply='{apply_url}';</script>", listing, 200
+        if url == detail:
+            return (
+                "<html><title>Platform Engineer</title><body>"
+                "Apply now. Responsibilities and requirements."
+                "</body></html>",
+                detail,
+                200,
+            )
+        raise AssertionError(url)
+
+    jobs, _ = acquire_genuine_job_pages(
+        listing_url=ROOT,
+        allowed_hosts=(HOST,),
+        known_detail_urls=(),
+        fetcher=fetcher,
+        max_followup_requests=2,
+    )
+
+    assert calls == [ROOT, listing, detail]
+    assert len(jobs) == 1
+    assert jobs[0].final_url == detail
+    assert jobs[0].proof_kind == "job_url_and_job_content"
+'''
+              tests.write_text(text, encoding="utf-8")
+
+          mt = Path("tests/test_multi_origin_evidence.py")
+          text = mt.read_text(encoding="utf-8")
+          if "test_jobposting_parent_is_detail_but_apply_action_is_not" not in text:
+              text += r'''
+
+
+def test_jobposting_parent_is_detail_but_apply_action_is_not() -> None:
+    detail = "https://karriere.example.invalid/de/jobposting/abcdef1234567890"
+    assert job_detail_url_shape(detail)
+    assert not job_detail_url_shape(detail + "/apply")
+'''
+              mt.write_text(text, encoding="utf-8")
+          PY
+
+          PYTHON="$HOME/projects/job-application-pipeline/.venv/bin/python"
+          test -x "$PYTHON"
+          "$PYTHON" -m pytest -q \
+            tests/test_employer_origin_acquisition_v4_dynamic_route.py \
+            tests/test_dynamic_surface_evidence.py \
+            tests/test_multi_origin_evidence.py
+          "$PYTHON" -m ruff check \
+            src/connectors/employer_origin_dynamic_route.py \
+            src/connectors/employer_origin_acquisition_v4.py \
+            src/search_intelligence/multi_origin_evidence.py \
+            tests/test_employer_origin_acquisition_v4_dynamic_route.py \
+            tests/test_multi_origin_evidence.py
+
+      - name: Commit qualified source hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add \
+            src/connectors/employer_origin_dynamic_route.py \
+            src/connectors/employer_origin_acquisition_v4.py \
+            src/search_intelligence/multi_origin_evidence.py \
+            tests/test_employer_origin_acquisition_v4_dynamic_route.py \
+            tests/test_multi_origin_evidence.py
+          git config user.name "jenshaberle-dotcom"
+          git config user.email "jens.haberle@gmail.com"
+          git commit -m "Harden dynamic job detail identity and redirects"
+          git push origin HEAD:agent/f2-real-cohort
