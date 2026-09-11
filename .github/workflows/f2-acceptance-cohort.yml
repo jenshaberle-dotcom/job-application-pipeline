@@ -1,0 +1,504 @@
+name: F2 bounded acceptance cohort
+
+on:
+  push:
+    branches: [agent/f2-acceptance-cohort]
+    paths:
+      - ".github/workflows/f2-acceptance-cohort.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f2-bounded-acceptance-cohort
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    name: Lifecycle-cold + discovery-cold Employer-Origin acceptance
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 180
+    env:
+      PRODUCT_SHA: bb12e62a4fb638fdf782a0401ed54d5fe9922221
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      BASELINE_JSON: /tmp/jap-f2-acceptance-baseline.json
+      FINAL_JSON: /tmp/jap-f2-acceptance-final.json
+      PRODUCT_OUTPUT: /tmp/jap-f2-acceptance-product.json
+      F1_OUTPUT: /tmp/jap-f2-acceptance-f1
+
+    steps:
+      - name: Check out exact released 1.0.22 product source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PRODUCT_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact released source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PRODUCT_SHA"
+          echo "F2_ACCEPTANCE_PRODUCT_SHA=$PRODUCT_SHA"
+          started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf 'F2_ACCEPTANCE_STARTED_AT=%s\n' "$started" >> "$GITHUB_ENV"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity", "checkout", "checkout_repository",
+              "env_file", "env_keys", "interpreter", "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          password = str(values["POSTGRES_PASSWORD"])
+          print(f"::add-mask::{password}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          print("F2_ACCEPTANCE_RUNTIME_ENV=PASS")
+          PY
+
+      - name: Provision pinned local OSS detail runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
+            "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f2-acceptance-local-oss")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Snapshot cohort before any acceptance mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$BASELINE_JSON" <<'PY'
+          import json
+          import os
+          import sys
+          import psycopg
+          from psycopg.rows import dict_row
+
+          desired = {
+              "valuny": ("valuny",),
+              "hdi": ("hdi",),
+              "triology": ("triology",),
+              "gridx": ("gridx",),
+              "teccle_group": ("teccle_group", "teccle"),
+          }
+          conn = psycopg.connect(
+              host=os.environ["POSTGRES_HOST"], port=int(os.environ["POSTGRES_PORT"]),
+              dbname=os.environ["POSTGRES_DB"], user=os.environ["POSTGRES_USER"],
+              password=os.environ["POSTGRES_PASSWORD"], row_factory=dict_row,
+          )
+          result = {}
+          with conn, conn.cursor() as cur:
+              for label, aliases in desired.items():
+                  cur.execute("""
+                      SELECT id, company_key, company_name, candidate_url, status, updated_at
+                      FROM employer_origin_source_candidates
+                      WHERE lower(company_key) = ANY(%s)
+                         OR lower(company_name) LIKE ANY(%s)
+                      ORDER BY updated_at DESC NULLS LAST, id DESC
+                      LIMIT 1
+                  """, (list(aliases), [f"%{a.replace('_', ' ')}%" for a in aliases]))
+                  candidate = cur.fetchone()
+                  key = str(candidate["company_key"]) if candidate else label
+                  source = f"generic_origin:{key}"
+                  cur.execute("""
+                      SELECT count(*) AS n
+                      FROM ingestion_runs
+                      WHERE source_name = %s AND status = 'success' AND coalesce(total_loaded, 0) > 0
+                  """, (source,))
+                  prior_positive_runs = int(cur.fetchone()["n"])
+                  cur.execute("SELECT count(*) AS n FROM raw_jobs WHERE source_name = %s", (source,))
+                  bronze = int(cur.fetchone()["n"])
+                  cur.execute("SELECT count(*) AS n FROM silver_jobs WHERE source_name = %s", (source,))
+                  silver = int(cur.fetchone()["n"])
+                  cur.execute("""
+                      SELECT count(*) AS n FROM search_profiles
+                      WHERE source_name = %s AND is_active = TRUE AND recurring_ingestion_enabled = TRUE
+                  """, (source,))
+                  active = int(cur.fetchone()["n"]) > 0
+                  result[label] = {
+                      "label": label,
+                      "candidate": dict(candidate) if candidate else None,
+                      "resolved_company_key": key,
+                      "source_name": source,
+                      "active_before": active,
+                      "positive_runs_before": prior_positive_runs,
+                      "bronze_before": bronze,
+                      "silver_before": silver,
+                      "lifecycle_cold": prior_positive_runs == 0 and bronze == 0 and silver == 0,
+                  }
+          with open(sys.argv[1], "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, default=str, ensure_ascii=False)
+              handle.write("\n")
+          for label, row in result.items():
+              c = row["candidate"] or {}
+              print(
+                  f"F2_BASELINE={label}|candidate={bool(row['candidate'])}|key={row['resolved_company_key']}|"
+                  f"status={c.get('status','-')}|url={c.get('candidate_url') or '-'}|active={row['active_before']}|"
+                  f"positive_runs={row['positive_runs_before']}|bronze={row['bronze_before']}|silver={row['silver_before']}|"
+                  f"lifecycle_cold={row['lifecycle_cold']}"
+              )
+          PY
+
+      - name: Record operator-observed gridX discovery evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_market003_external_market_observation \
+            --company-name "gridX" \
+            --title "Senior Data Engineer - Flexibility (all genders)" \
+            --observation-channel linkedin \
+            --location "Deutschland (Remote)" \
+            --remote-signal remote \
+            --relevance-signal strong \
+            --note "Operator-provided LinkedIn result screenshot observed 2026-09-11; discovery evidence only." \
+            --recorded-by "f2-acceptance-cohort-${GITHUB_RUN_ID}" \
+            --write
+
+      - name: Promote gridX through canonical generic discovery ingress if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_product_e2e_candidate_ingress \
+            --limit 5 \
+            --limit-per-seed-source 1 \
+            --manual-limit 1 \
+            --company-key gridx \
+            --include-manual-observations \
+            --apply \
+            --approval-token approve_product_e2e_discovery_candidate_creation \
+            --reviewed-by "f2-acceptance-cohort-${GITHUB_RUN_ID}" \
+            --output-dir /tmp/jap-f2-gridx-ingress
+
+      - name: Record operator-observed teccle discovery evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_market003_external_market_observation \
+            --company-name "teccle group" \
+            --title "Senior Data Engineer & Consultant (all genders) - Microsoft Fabric" \
+            --observation-channel linkedin \
+            --location "Deutschland (Remote)" \
+            --remote-signal remote \
+            --relevance-signal strong \
+            --note "Operator-provided LinkedIn result screenshot observed 2026-09-11; discovery evidence only." \
+            --recorded-by "f2-acceptance-cohort-${GITHUB_RUN_ID}" \
+            --write
+
+      - name: Promote teccle through canonical generic discovery ingress if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_product_e2e_candidate_ingress \
+            --limit 5 \
+            --limit-per-seed-source 1 \
+            --manual-limit 1 \
+            --company-key teccle_group \
+            --include-manual-observations \
+            --apply \
+            --approval-token approve_product_e2e_discovery_candidate_creation \
+            --reviewed-by "f2-acceptance-cohort-${GITHUB_RUN_ID}" \
+            --output-dir /tmp/jap-f2-teccle-ingress
+
+      - name: Resolve exact acceptance candidate keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$GITHUB_ENV" <<'PY'
+          import os
+          import sys
+          import psycopg
+          from psycopg.rows import dict_row
+
+          wanted = ("valuny", "hdi", "triology", "gridx", "teccle_group")
+          conn = psycopg.connect(
+              host=os.environ["POSTGRES_HOST"], port=int(os.environ["POSTGRES_PORT"]),
+              dbname=os.environ["POSTGRES_DB"], user=os.environ["POSTGRES_USER"],
+              password=os.environ["POSTGRES_PASSWORD"], row_factory=dict_row,
+          )
+          rows = []
+          with conn, conn.cursor() as cur:
+              for wanted_key in wanted:
+                  aliases = [wanted_key]
+                  if wanted_key == "teccle_group": aliases.append("teccle")
+                  cur.execute("""
+                      SELECT id, company_key, company_name, candidate_url, status
+                      FROM employer_origin_source_candidates
+                      WHERE lower(company_key) = ANY(%s)
+                      ORDER BY updated_at DESC NULLS LAST, id DESC
+                      LIMIT 1
+                  """, (aliases,))
+                  row = cur.fetchone()
+                  if row:
+                      rows.append(dict(row))
+          if len(rows) < 3:
+              raise SystemExit(f"F2_ACCEPTANCE_COHORT_TOO_SMALL={len(rows)}")
+          keys = [str(row["company_key"]) for row in rows]
+          with open(sys.argv[1], "a", encoding="utf-8") as handle:
+              handle.write("F2_ACCEPTANCE_KEYS=" + ",".join(keys) + "\n")
+          print(f"F2_ACCEPTANCE_CANDIDATES={len(rows)}")
+          for row in rows:
+              print(f"F2_ACCEPTANCE_CANDIDATE={row['id']}|{row['company_key']}|{row['company_name']}|status={row['status']}|url={row['candidate_url'] or '-'}")
+          PY
+
+      - name: Attempt F1 discovery and CAND-001 persistence for unresolved acceptance candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$F1_OUTPUT"
+          IFS=',' read -r -a keys <<< "$F2_ACCEPTANCE_KEYS"
+          unresolved=()
+          for key in "${keys[@]}"; do
+            has_url="$($RUNTIME_PYTHON - "$key" <<'PY'
+          import os, sys, psycopg
+          from psycopg.rows import dict_row
+          with psycopg.connect(host=os.environ['POSTGRES_HOST'], port=int(os.environ['POSTGRES_PORT']), dbname=os.environ['POSTGRES_DB'], user=os.environ['POSTGRES_USER'], password=os.environ['POSTGRES_PASSWORD'], row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SELECT coalesce(btrim(candidate_url),'') <> '' AS ok FROM employer_origin_source_candidates WHERE company_key=%s ORDER BY updated_at DESC NULLS LAST,id DESC LIMIT 1", (sys.argv[1],))
+                  row=cur.fetchone()
+          print('1' if row and row['ok'] else '0')
+          PY
+          )"
+            if [[ "$has_url" == "0" ]]; then unresolved+=(--company-key "$key"); fi
+          done
+          if [[ "${#unresolved[@]}" -eq 0 ]]; then
+            echo "F2_ACCEPTANCE_F1_UNRESOLVED=0"
+            exit 0
+          fi
+          echo "F2_ACCEPTANCE_F1_UNRESOLVED=$(( ${#unresolved[@]} / 2 ))"
+          set +e
+          "$RUNTIME_PYTHON" -m scripts.run_f1_origin_persistence_bridge \
+            "${unresolved[@]}" \
+            --apply \
+            --approval-token approve_product_e2e_origin_url_persistence \
+            --reviewed-by "f2-acceptance-cohort-${GITHUB_RUN_ID}" \
+            --official-domain-provider wikidata \
+            --search-provider none \
+            --http-request-cap 48 \
+            --max-candidates 30 \
+            --timeout-seconds 8 \
+            --output-dir "$F1_OUTPUT"
+          rc=$?
+          set -e
+          echo "F2_ACCEPTANCE_F1_BRIDGE_EXIT=$rc"
+          # Discovery-cold is useful evidence but is not allowed to mask the lifecycle-cold F2 test.
+          exit 0
+
+      - name: Recompute strict generic source proof and connector qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_generic_employer_origin_product --output "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.qualify_generic_employer_origin_connectors --proof-json "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation --proof-json "$PRODUCT_OUTPUT"
+
+      - name: Apply exact full proof-pass source projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation \
+            --proof-json "$PRODUCT_OUTPUT" \
+            --apply
+
+      - name: Run normal recurring generic-origin ingestion and Silver
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m src.ingest_jobs --source generic_origin --log-level INFO
+          "$RUNTIME_PYTHON" -m src.run_silver_jobs
+
+      - name: Measure lifecycle-cold acceptance from live DB truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$BASELINE_JSON" "$FINAL_JSON" "$F2_ACCEPTANCE_STARTED_AT" "$F2_ACCEPTANCE_KEYS" <<'PY'
+          import json
+          import os
+          import sys
+          import psycopg
+          from psycopg.rows import dict_row
+
+          baseline_path, final_path, started_at, keys_csv = sys.argv[1:]
+          baseline = json.load(open(baseline_path, encoding="utf-8"))
+          keys = [item for item in keys_csv.split(",") if item]
+          baseline_by_key = {row["resolved_company_key"]: row for row in baseline.values()}
+          conn = psycopg.connect(
+              host=os.environ["POSTGRES_HOST"], port=int(os.environ["POSTGRES_PORT"]),
+              dbname=os.environ["POSTGRES_DB"], user=os.environ["POSTGRES_USER"],
+              password=os.environ["POSTGRES_PASSWORD"], row_factory=dict_row,
+          )
+          results = []
+          with conn, conn.cursor() as cur:
+              for key in keys:
+                  source = f"generic_origin:{key}"
+                  cur.execute("""
+                      SELECT id, company_name, candidate_url, status
+                      FROM employer_origin_source_candidates
+                      WHERE company_key=%s ORDER BY updated_at DESC NULLS LAST,id DESC LIMIT 1
+                  """, (key,))
+                  candidate = cur.fetchone()
+                  cur.execute("""
+                      SELECT count(*) AS n FROM search_profiles
+                      WHERE source_name=%s AND is_active=TRUE AND recurring_ingestion_enabled=TRUE
+                  """, (source,))
+                  active = int(cur.fetchone()["n"]) > 0
+                  cur.execute("""
+                      SELECT id,status,total_loaded,inserted_count,started_at
+                      FROM ingestion_runs
+                      WHERE source_name=%s AND started_at >= %s::timestamptz
+                      ORDER BY started_at DESC,id DESC LIMIT 1
+                  """, (source, started_at))
+                  run = cur.fetchone()
+                  cur.execute("SELECT count(*) AS n FROM raw_jobs WHERE source_name=%s", (source,))
+                  bronze = int(cur.fetchone()["n"])
+                  cur.execute("SELECT count(*) AS n FROM silver_jobs WHERE source_name=%s", (source,))
+                  silver = int(cur.fetchone()["n"])
+                  cur.execute("""
+                      SELECT title, company_name, location, source_url
+                      FROM silver_jobs WHERE source_name=%s ORDER BY id DESC LIMIT 3
+                  """, (source,))
+                  samples = [dict(row) for row in cur.fetchall()]
+                  before = baseline_by_key.get(key, {
+                      "lifecycle_cold": True, "bronze_before": 0, "silver_before": 0,
+                      "positive_runs_before": 0, "active_before": False,
+                  })
+                  loaded = int(run["total_loaded"] or 0) if run else 0
+                  accepted = (
+                      bool(before.get("lifecycle_cold"))
+                      and active
+                      and run is not None
+                      and run["status"] == "success"
+                      and loaded > 0
+                      and bronze > int(before.get("bronze_before", 0))
+                      and silver > int(before.get("silver_before", 0))
+                  )
+                  row = {
+                      "company_key": key,
+                      "company_name": candidate["company_name"] if candidate else None,
+                      "candidate_url": candidate["candidate_url"] if candidate else None,
+                      "candidate_status": candidate["status"] if candidate else None,
+                      "lifecycle_cold_at_start": bool(before.get("lifecycle_cold")),
+                      "active_before": bool(before.get("active_before")),
+                      "positive_runs_before": int(before.get("positive_runs_before", 0)),
+                      "bronze_before": int(before.get("bronze_before", 0)),
+                      "silver_before": int(before.get("silver_before", 0)),
+                      "active_after": active,
+                      "current_run": dict(run) if run else None,
+                      "bronze_after": bronze,
+                      "silver_after": silver,
+                      "silver_samples": samples,
+                      "acceptance_pass": accepted,
+                  }
+                  results.append(row)
+                  print(
+                      f"F2_ACCEPTANCE_RESULT={key}|cold={row['lifecycle_cold_at_start']}|"
+                      f"active={active}|run={run['status'] if run else 'not_run'}|loaded={loaded}|"
+                      f"inserted={int(run['inserted_count'] or 0) if run else 0}|bronze={bronze}|silver={silver}|"
+                      f"pass={accepted}"
+                  )
+                  for sample in samples:
+                      print(f"F2_ACCEPTANCE_SILVER={key}|{sample['title']}|{sample['company_name']}|{sample['location']}|{sample['source_url']}")
+          accepted = [row for row in results if row["acceptance_pass"]]
+          payload = {
+              "schema": "jap.f2.bounded_acceptance_cohort.v1",
+              "product_sha": os.environ.get("PRODUCT_SHA"),
+              "started_at": started_at,
+              "gate": "lifecycle-cold source must newly become active and deliver >0 current jobs into both Bronze and Silver",
+              "accepted_company_keys": [row["company_key"] for row in accepted],
+              "results": results,
+          }
+          with open(final_path, "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, indent=2, default=str, ensure_ascii=False)
+              handle.write("\n")
+          print(f"F2_ACCEPTANCE_PASS_COUNT={len(accepted)}")
+          if not accepted:
+              raise SystemExit("F2_ACCEPTANCE_NO_LIFECYCLE_COLD_SOURCE_DELIVERED_TO_SILVER")
+          print("F2_BOUNDED_ACCEPTANCE_COHORT=PASS")
+          PY
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f2-bounded-acceptance-cohort
+          path: |
+            /tmp/jap-f2-acceptance-baseline.json
+            /tmp/jap-f2-acceptance-final.json
+            /tmp/jap-f2-acceptance-product.json
+            /tmp/jap-f2-acceptance-f1/**
+            /tmp/jap-f2-gridx-ingress/**
+            /tmp/jap-f2-teccle-ingress/**
+          if-no-files-found: warn
+          retention-days: 14
