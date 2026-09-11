@@ -6,7 +6,7 @@ Read this file from canonical `refs/heads/main` before continuing product work. 
 
 ## Live repository checkpoint — 2026-09-11
 
-Canonical `main` is `dfd8cc3e40c84ddd4bb0374708d1da0ffa2c19e0` after #861. The latest published Windows release is **JAP Control Center Desktop v1.0.22**, sourced from `bb12e62a4fb638fdf782a0401ed54d5fe9922221` / PR #859.
+Canonical `main` includes the #863 re-entry truth sync. The last product-code baseline before that docs-only sync is `dfd8cc3e40c84ddd4bb0374708d1da0ffa2c19e0` after #861. The latest published Windows release is **JAP Control Center Desktop v1.0.22**, sourced from `bb12e62a4fb638fdf782a0401ed54d5fe9922221` / PR #859.
 
 The active F2 closure is **PR #862**, still Draft and mergeable, with exact head `e301bb4ecc69e0c4261f7357f640f8c16bf62ad0`. Its Windows `VERSION` is **1.0.23**. Therefore older text that still calls 1.0.22 the next release is stale, and the downstream release labels are shifted by one patch: F2 closure targets 1.0.23; F3 starts no earlier than 1.0.24.
 
