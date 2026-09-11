@@ -1,0 +1,91 @@
+name: F2 canonicalize B-ITE integration
+
+on:
+  push:
+    branches: [agent/f2-bite-generic-provider]
+    paths:
+      - ".github/workflows/f2-bite-canonicalize.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Integrate B-ITE residual into sole generic product and repair lifecycle verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          product = Path("scripts/run_generic_employer_origin_product.py")
+          text = product.read_text(encoding="utf-8")
+          anchor = "from src.connectors.employer_origin_portal_delegation_acquisition import (\n    acquire_via_explicit_portal,\n)\n"
+          insertion = anchor + "from src.connectors.employer_origin_bite_product import prove_one_bite_source\n"
+          if "from src.connectors.employer_origin_bite_product import prove_one_bite_source" not in text:
+              if text.count(anchor) != 1:
+                  raise SystemExit("product import anchor mismatch")
+              text = text.replace(anchor, insertion, 1)
+
+          assess_anchor = "\ndef assess_candidate(\n    row: dict[str, Any],\n    args: argparse.Namespace,\n) -> ConnectorBuilderAssessment:\n"
+          residual = '''\ndef _bite_residual(\n    row: dict[str, Any],\n    args: argparse.Namespace,\n    baseline: ConnectorBuilderAssessment,\n) -> ConnectorBuilderAssessment:\n    \"\"\"Resolve only a proof-layer residual from employer-declared B-ITE evidence.\n\n    This is part of the sole generic layer product: it does not create an alternate\n    admission authority. The candidate must already have passed identity, persisted\n    origin, reachability, inventory and detail, and the unchanged strict genuine-job\n    proof remains the final source-validity gate.\n    \"\"\"\n\n    failure = baseline.first_failure\n    if failure is None or failure.layer != \"proof\":\n        return baseline\n\n    origin_layer = baseline.layers[1]\n    if origin_layer.state != LayerState.PASS:\n        return baseline\n    if str(origin_layer.evidence.get(\"source\") or \"\") != \"persisted_candidate_url\":\n        return baseline\n\n    origin_url, _ = layer_core._resolve_origin(row, args)\n    if not origin_url:\n        return baseline\n\n    proven = prove_one_bite_source(origin_url=origin_url)\n    if proven is None:\n        return baseline\n    proven_job, inventory = proven\n\n    return rewrite_residual_suffix(\n        baseline,\n        expected_first_failure=\"proof\",\n        rewrite_from_layer=\"proof\",\n        replacement_suffix=(\n            passed(\n                \"proof\",\n                \"employer-declared B-ITE tenant inventory yielded a current detail that passes unchanged strict genuine-job proof\",\n                carrier=\"employer_declared_bite_tenant\",\n                provider=\"bite\",\n                inventory_count=len(inventory.postings),\n                employer_page=_url_shape(inventory.employer_page_url),\n                public_detail=_url_shape(proven_job.job.final_url),\n                proof_kind=proven_job.job.proof_kind,\n            ),\n            passed(\n                \"recipe\",\n                \"all evidence-required generic layers passed with bounded B-ITE provider mechanics\",\n                capability=\"bite_finite_inventory_raw_detail\",\n                provider=\"bite\",\n            ),\n        ),\n    )\n\n'''
+          if "def _bite_residual(" not in text:
+              if text.count(assess_anchor) != 1:
+                  raise SystemExit("assess anchor mismatch")
+              text = text.replace(assess_anchor, residual + assess_anchor, 1)
+
+          call_anchor = "    assessment = _public_feed_residual(assessment, args)\n    return assessment\n"
+          call_replacement = "    assessment = _public_feed_residual(assessment, args)\n    assessment = _bite_residual(row, args, assessment)\n    return assessment\n"
+          if "assessment = _bite_residual(row, args, assessment)" not in text:
+              if text.count(call_anchor) != 1:
+                  raise SystemExit("residual call anchor mismatch")
+              text = text.replace(call_anchor, call_replacement, 1)
+          product.write_text(text, encoding="utf-8")
+
+          activation = Path(".github/workflows/p1-generic-origin-product-activate.yml")
+          text = activation.read_text(encoding="utf-8")
+          old = '                  latest_runs = {str(row["source_name"]): row for row in cur.fetchall()}\n'
+          new = '''                  latest_runs = {\n                      str(row[\"source_name\"]): row\n                      for row in cur.fetchall()\n                      if str(row[\"source_name\"]) in expected_sources\n                  }\n'''
+          if old not in text and new not in text:
+              raise SystemExit("activation latest-runs anchor mismatch")
+          text = text.replace(old, new, 1)
+          activation.write_text(text, encoding="utf-8")
+
+          acceptance = Path(".github/workflows/f2-bite-valuny-e2e.yml")
+          text = acceptance.read_text(encoding="utf-8")
+          text = text.replace(
+              '      - ".github/workflows/f2-bite-valuny-e2e.yml"\n',
+              '      - ".github/workflows/f2-bite-valuny-e2e.yml"\n      - "scripts/run_generic_employer_origin_product.py"\n      - "src/connectors/employer_origin_bite.py"\n      - "src/connectors/employer_origin_bite_product.py"\n      - "src/connectors/generic_employer_origin_product_bite.py"\n      - "src/connectors/registry.py"\n',
+              1,
+          )
+          text = text.replace(
+              '      - name: Recompute canonical product and apply bounded B-ITE proof residual\n        shell: bash\n        run: |\n          set -euo pipefail\n          "$RUNTIME_PYTHON" -m scripts.run_generic_employer_origin_product --output "$PRODUCT_OUTPUT"\n          "$RUNTIME_PYTHON" -m scripts.apply_bite_employer_origin_proof_overlay --proof-json "$PRODUCT_OUTPUT"\n',
+              '      - name: Recompute sole canonical product including bounded B-ITE residual\n        shell: bash\n        run: |\n          set -euo pipefail\n          "$RUNTIME_PYTHON" -m scripts.run_generic_employer_origin_product --output "$PRODUCT_OUTPUT"\n',
+              1,
+          )
+          old_proof = '''          proof = set(payload.get("proof_pass_company_keys") or [])\n          overlays = payload.get("deterministic_proof_overlays") or {}\n          rows = overlays.get("results") or []\n          valuny_rows = [row for row in rows if isinstance(row, dict) and row.get("company_key") == "valuny"]\n          print(f"F2_BITE_PROOF_PASS_COUNT={len(proof)}")\n          print(f"F2_BITE_VALUNY_OVERLAY_ROWS={len(valuny_rows)}")\n          for row in valuny_rows:\n              print(f"F2_BITE_VALUNY_OVERLAY={row}")\n          if "valuny" not in proof:\n              raise SystemExit("F2_BITE_VALUNY_NOT_PROOF_PASS")\n          if not any(row.get("status") == "proof_pass" for row in valuny_rows):\n              raise SystemExit("F2_BITE_VALUNY_OVERLAY_NOT_PROVEN")\n          print("F2_BITE_VALUNY_PROOF=PASS")\n'''
+          new_proof = '''          proof = set(payload.get("proof_pass_company_keys") or [])\n          rows = [row for row in payload.get("results", []) if isinstance(row, dict)]\n          valuny = next((row for row in rows if row.get("company_key") == "valuny"), None)\n          print(f"F2_BITE_PROOF_PASS_COUNT={len(proof)}")\n          if "valuny" not in proof or valuny is None:\n              raise SystemExit("F2_BITE_VALUNY_NOT_PROOF_PASS")\n          layers = {\n              str(layer.get("layer")): layer\n              for layer in valuny.get("layers", [])\n              if isinstance(layer, dict)\n          }\n          proof_layer = layers.get("proof") or {}\n          recipe_layer = layers.get("recipe") or {}\n          print(f"F2_BITE_VALUNY_PROOF_LAYER={proof_layer}")\n          print(f"F2_BITE_VALUNY_RECIPE_LAYER={recipe_layer}")\n          if proof_layer.get("state") != "pass" or proof_layer.get("evidence", {}).get("provider") != "bite":\n              raise SystemExit("F2_BITE_VALUNY_PROVIDER_PROOF_NOT_CANONICAL")\n          if recipe_layer.get("state") != "pass":\n              raise SystemExit("F2_BITE_VALUNY_RECIPE_NOT_READY")\n          print("F2_BITE_VALUNY_PROOF=PASS")\n'''
+          if old_proof not in text and new_proof not in text:
+              raise SystemExit("acceptance proof anchor mismatch")
+          text = text.replace(old_proof, new_proof, 1)
+          acceptance.write_text(text, encoding="utf-8")
+          PY
+
+          python3 -m py_compile scripts/run_generic_employer_origin_product.py
+          git diff --check
+          git config user.name "jap-f2-canonicalizer"
+          git config user.email "actions@users.noreply.github.com"
+          git add scripts/run_generic_employer_origin_product.py \
+                  .github/workflows/p1-generic-origin-product-activate.yml \
+                  .github/workflows/f2-bite-valuny-e2e.yml
+          git commit -m "F2: integrate B-ITE residual into canonical product truth"
+          git push origin HEAD:agent/f2-bite-generic-provider
