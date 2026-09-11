@@ -29,11 +29,11 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from __future__ import annotations
-          import requests
+          import re
           from src.connectors.employer_origin_acquisition import parse_page
           from src.connectors.employer_origin_acquisition_v4 import discover_navigation_candidates
           from src.connectors.employer_origin_bite import (
-              BITE_API_ENDPOINT, BITE_API_HOST, BITE_ASSET_HOST, BITE_JOBS_API_CLIENT,
+              BITE_API_ENDPOINT, BITE_JOBS_API_CLIENT,
               bite_inventory_payload, bite_raw_detail_url, discover_bite_binding,
               parse_bite_postings, parse_bite_runtime, prove_bite_raw_detail,
           )
@@ -44,7 +44,7 @@ jobs:
           def fetch(url):
               body, final, status = http(BiteRequest(url))
               print(f"FETCH status={status} final={final} bytes={len(body.encode('utf-8', errors='replace'))} url={url}")
-              print(f"MARKERS loader={'static.b-ite.com/jobs-api/loader-v1/api-loader-v1.min.js' in body.casefold()} binding={'data-bite-jobs-api-listing' in body.casefold()} caja={'wp-caja-blocks' in body.casefold()}")
+              print(f"MARKERS loader={'static.b-ite.com/jobs-api/loader-v1/api-loader-v1.min.js' in body.casefold()} binding={'data-bite-jobs-api-listing' in body.casefold()}")
               return body, final, status
 
           body, final, status = fetch(origin)
@@ -73,7 +73,13 @@ jobs:
           print(f"RUNTIME={'PASS' if runtime else 'NONE'}")
           if runtime is None:
               for marker in ("key", "channel", "locale", "page", "sort", "filter", binding.customer):
-                  print(f"ASSET_MARKER {marker}={marker.casefold() in asset_body.casefold()}")
+                  positions = [m.start() for m in re.finditer(re.escape(marker), asset_body, flags=re.IGNORECASE)]
+                  print(f"ASSET_MARKER {marker} count={len(positions)}")
+                  for pos in positions[:3]:
+                      start = max(0, pos - 180)
+                      end = min(len(asset_body), pos + 420)
+                      snippet = asset_body[start:end].replace("\n", " ").replace("\r", " ")
+                      print(f"ASSET_CONTEXT {marker} {snippet}")
               raise SystemExit("DIAG_STOP=no_runtime")
 
           payload = bite_inventory_payload(runtime=runtime, origin_url=binding.employer_page_url)
