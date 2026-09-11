@@ -1,0 +1,90 @@
+name: F2 operator wide fresh-company scout
+
+on:
+  push:
+    branches: [agent/f2-operator-cold-e2e]
+    paths:
+      - ".github/workflows/f2-operator-wide-scout.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  scout:
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      PRODUCT_SHA: bb12e62a4fb638fdf782a0401ed54d5fe9922221
+      SCOUT_OUTPUT: /tmp/jap-f2-wide-scout.json
+      RESERVATION_OUTPUT: /tmp/jap-f2-wide-reservation.json
+    steps:
+      - name: Check out exact released product source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PRODUCT_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Load canonical local runtime environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_python="$HOME/projects/job-application-pipeline/.venv/bin/python"
+          runtime_env="$HOME/projects/job-application-pipeline/.env"
+          test -x "$runtime_python"
+          test -f "$runtime_env"
+          "$runtime_python" - "$runtime_env" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+          values = dotenv_values(Path(sys.argv[1]))
+          required = ("POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("MISSING_POSTGRES:" + ",".join(missing))
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              handle.write(f"RUNTIME_PYTHON={sys.executable}\n")
+              for key in required:
+                  value = str(values[key])
+                  if key.endswith("PASSWORD"):
+                      print(f"::add-mask::{value}")
+                  marker = f"JAP_{secrets.token_hex(8)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Provision pinned local OSS runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f2-wide-local-oss")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Probe all active role terms at bounded page size
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$SCOUT_OUTPUT" "$RESERVATION_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.run_e2e_slice_001_market_sensor_scout \
+            --output "$SCOUT_OUTPUT" \
+            --reservation-output "$RESERVATION_OUTPUT" \
+            --page-size-cap 25 \
+            --max-profiles-per-sensor 8 \
+            --max-terms-per-profile 20
+          if [[ -s "$RESERVATION_OUTPUT" ]]; then
+            echo "F2_WIDE_FRESH_COMPANY=FOUND"
+          else
+            echo "F2_WIDE_FRESH_COMPANY=NONE"
+          fi
+
+      - name: Upload scout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f2-operator-wide-scout
+          path: |
+            /tmp/jap-f2-wide-scout.json
+            /tmp/jap-f2-wide-reservation.json
+          if-no-files-found: warn
+          retention-days: 14
