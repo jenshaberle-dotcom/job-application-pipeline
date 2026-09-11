@@ -58,6 +58,7 @@ from src.connectors.employer_origin_ats_navigation import (
 )
 from src.connectors.employer_origin_dynamic_route import (
     dynamic_delegated_detail_host,
+    dynamic_redirected_detail_host,
     dynamic_detail_urls,
     dynamic_listing_urls,
 )
@@ -596,6 +597,20 @@ def acquire_genuine_job_pages(
             final_url=str(final_url),
             status_code=int(status_code),
         )
+        dynamic_prefix = f"{_DYNAMIC_DELEGATED_DETAIL_SOURCE}:"
+        if (
+            candidate.discovery_source.startswith(dynamic_prefix)
+            and not allowed_host(page.final_url, effective_allowed_hosts)
+        ):
+            rebound_host = dynamic_redirected_detail_host(
+                requested_detail_url=candidate.url,
+                final_url=page.final_url,
+                delegated_host=candidate.discovery_source.removeprefix(dynamic_prefix),
+            )
+            if rebound_host:
+                effective_allowed_hosts = tuple(
+                    dict.fromkeys([*effective_allowed_hosts, rebound_host])
+                )
         proof = genuine_job_detail_proof(
             page,
             allowed_hosts=effective_allowed_hosts,

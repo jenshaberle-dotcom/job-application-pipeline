@@ -79,3 +79,10 @@ def test_classify_checked_url_marks_unsupported_detail_as_implementation_gap_wit
 
     assert assessment.decision == EvidenceDecision.IMPLEMENTATION_GAP
     assert assessment.confidence_score >= 0.70
+
+
+
+def test_jobposting_parent_is_detail_but_apply_action_is_not() -> None:
+    detail = "https://karriere.example.invalid/de/jobposting/abcdef1234567890"
+    assert job_detail_url_shape(detail)
+    assert not job_detail_url_shape(detail + "/apply")

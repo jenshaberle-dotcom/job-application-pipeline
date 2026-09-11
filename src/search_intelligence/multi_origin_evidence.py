@@ -208,6 +208,10 @@ def job_detail_url_shape(url: str) -> bool:
         return True
     if _has_strong_query_job_identifier(url):
         return True
+    # Opaque jobposting identities are concrete detail paths, but terminal apply
+    # actions are deliberately excluded from detail identity.
+    if search(r"(?:^|/)jobposting/[a-z0-9_-]{12,}$", path):
+        return True
     # Common rexx/ATS-style root-level vacancy file with a strong requisition
     # suffix, e.g. /Software-Engineer-mwd-de-j3471.html.
     if search(r"^/[^/]{6,}-j[0-9]{2,}\.html$", path):

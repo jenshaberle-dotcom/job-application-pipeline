@@ -9,7 +9,7 @@ job-detail proof before Product admission.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from src.connectors.employer_origin_acquisition import allowed_host, canonical_url, non_job_url
 from src.search_intelligence.connector_feasibility import (
@@ -35,6 +35,9 @@ _DYNAMIC_LISTING_MARKERS = (
 _STRONG_DYNAMIC_DETAIL_PATHS = (
     re.compile(r"/(?:jobs?|positions?)/[a-z0-9_-]{2,}/(?:job|position)?/?$", re.IGNORECASE),
     re.compile(r"/jobposting/[a-z0-9_-]{12,}(?:/apply)?/?$", re.IGNORECASE),
+)
+_JOBPOSTING_APPLY_PATH = re.compile(
+    r"(?P<parent>.*?/jobposting/[a-z0-9_-]{12,})/apply/?$", re.IGNORECASE
 )
 
 
@@ -81,6 +84,16 @@ def _strong_detail_shape(url: str) -> bool:
         return True
     path = urlparse(url).path
     return any(pattern.search(path) for pattern in _STRONG_DYNAMIC_DETAIL_PATHS)
+
+
+def _jobposting_parent_detail(url: str) -> str | None:
+    parsed = urlparse(url)
+    match = _JOBPOSTING_APPLY_PATH.fullmatch(parsed.path or "")
+    if match is None:
+        return None
+    return canonical_url(
+        urlunparse(parsed._replace(path=match.group("parent"), query="", fragment=""))
+    )
 
 
 def _listing_priority(url: str) -> tuple[int, str]:
@@ -142,17 +155,54 @@ def dynamic_detail_urls(
             continue
         if not _strong_detail_shape(url):
             continue
-        if not (
-            allowed_host(url, allowed_hosts)
-            or _same_registered_domain(page_url, url)
-            or _trusted_job_host(url)
-        ):
-            continue
-        if url not in values:
-            values.append(url)
+        parent = _jobposting_parent_detail(url)
+        candidates = (parent, url) if parent else (url,)
+        for candidate in candidates:
+            if not candidate or not _public_https(candidate) or non_job_url(candidate):
+                continue
+            if not _strong_detail_shape(candidate):
+                continue
+            if not (
+                allowed_host(candidate, allowed_hosts)
+                or _same_registered_domain(page_url, candidate)
+                or _trusted_job_host(candidate)
+            ):
+                continue
+            if candidate not in values:
+                values.append(candidate)
+            if len(values) >= max(0, limit):
+                break
         if len(values) >= max(0, limit):
             break
     return tuple(values)
+
+
+def dynamic_redirected_detail_host(
+    *,
+    requested_detail_url: str,
+    final_url: str,
+    delegated_host: str,
+) -> str | None:
+    """Bind one exact strong redirect emitted by an already-authorized detail host.
+
+    The requested host must be the exact delegated host encoded by dynamic evidence.
+    The final URL remains evidence only: it must still be a strong public job URL in
+    the same recruiting namespace, and the loaded page must independently pass the
+    unchanged genuine-job content proof.
+    """
+
+    requested_host = _host(requested_detail_url)
+    final_host = _host(final_url)
+    expected = str(delegated_host or "").casefold().strip(".")
+    if not expected or requested_host != expected or not final_host:
+        return None
+    if not _public_https(final_url) or not _strong_detail_shape(final_url):
+        return None
+    if not _same_registered_domain(requested_detail_url, final_url):
+        return None
+    if not _trusted_job_host(final_url):
+        return None
+    return final_host
 
 
 def dynamic_delegated_detail_host(
@@ -177,6 +227,7 @@ def dynamic_delegated_detail_host(
 
 __all__ = [
     "dynamic_delegated_detail_host",
+    "dynamic_redirected_detail_host",
     "dynamic_detail_urls",
     "dynamic_listing_urls",
 ]
