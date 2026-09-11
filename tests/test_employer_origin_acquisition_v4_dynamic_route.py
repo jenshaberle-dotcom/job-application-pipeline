@@ -130,12 +130,19 @@ def test_dynamic_delegated_job_host_requires_strong_route_and_strict_page_proof(
 
 def test_dynamic_untrusted_external_host_is_not_fetched() -> None:
     external = "https://apply.partner.invalid/jobs/platform-engineer-12345"
+    same_host_fallback = f"https://{HOST}/jobs/platform-engineer-12345"
     calls: list[str] = []
 
     def fetcher(url: str):
         calls.append(url)
         if url == ROOT:
             return f"<script>const detail='{external}';</script>", ROOT, 200
+        if url == same_host_fallback:
+            return (
+                "<html><title>Careers</title><body>Company overview</body></html>",
+                same_host_fallback,
+                200,
+            )
         raise AssertionError(url)
 
     jobs, _ = acquire_genuine_job_pages(
@@ -146,5 +153,6 @@ def test_dynamic_untrusted_external_host_is_not_fetched() -> None:
         max_followup_requests=2,
     )
 
-    assert calls == [ROOT]
+    assert external not in calls
+    assert calls == [ROOT, same_host_fallback]
     assert jobs == []
