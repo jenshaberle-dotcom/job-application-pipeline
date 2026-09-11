@@ -1,0 +1,64 @@
+name: F2 one-shot cohort environment hardening
+
+on:
+  push:
+    branches: [agent/f2-real-cohort]
+    paths:
+      - ".github/workflows/f2-mask-cohort-environment.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    name: Mask cohort database credential before effect run
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/f2-real-cohort
+          fetch-depth: 1
+
+      - name: Patch cohort environment export
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/f2-real-company-cohort.yml")
+          text = path.read_text(encoding="utf-8")
+          marker = 'print(f"::add-mask::{password}")'
+          if marker in text:
+              print("F2_COHORT_PASSWORD_MASK=ALREADY_PRESENT")
+              raise SystemExit(0)
+
+          old_name = "      - name: Load product database environment without shell reinterpretation\n"
+          new_name = "      - name: Load masked product database environment without shell reinterpretation\n"
+          if text.count(old_name) != 1:
+              raise SystemExit("F2_COHORT_ENV_STEP_NAME_NOT_UNIQUE")
+          text = text.replace(old_name, new_name, 1)
+
+          needle = '''          if missing:\n              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))\n\n          with github_env.open("a", encoding="utf-8") as handle:\n'''
+          replacement = '''          if missing:\n              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))\n          password = str(values["POSTGRES_PASSWORD"])\n          print(f"::add-mask::{password}")\n\n          with github_env.open("a", encoding="utf-8") as handle:\n'''
+          if text.count(needle) != 1:
+              raise SystemExit("F2_COHORT_ENV_EXPORT_BLOCK_NOT_UNIQUE")
+          path.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
+          print("F2_COHORT_PASSWORD_MASK=PATCHED")
+          PY
+
+      - name: Commit exact hardening patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add .github/workflows/f2-real-company-cohort.yml
+          if git diff --cached --quiet; then
+            echo "F2_COHORT_HARDENING_COMMIT=NOOP"
+            exit 0
+          fi
+          git config user.name "jenshaberle-dotcom"
+          git config user.email "jens.haberle@gmail.com"
+          git commit -m "Mask F2 cohort database credential"
+          git push origin HEAD:agent/f2-real-cohort
