@@ -105,6 +105,48 @@ def test_customer_asset_derives_bounded_runtime_and_payload() -> None:
     assert BITE_API_ENDPOINT == "https://jobs.b-ite.com/api/v1/postings/search"
 
 
+def test_minified_runtime_resolves_literal_aliases_and_scientific_page_size() -> None:
+    binding = _binding()
+    assert binding is not None
+    javascript = '''
+    var i,o,s;i=0,o="tenantx",s="main",function(t){
+      var i=t.options.staticServer,o=t.options.integrity;
+      return i+o;
+    }({options:{}});
+    r.createClient({key:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"});
+    r.createSearchConfig({channel:i,locale:"de",page:{offset:0,num:1e3},
+      sort:{by:"endsOn",order:"desc"},filter:{"custom.homepage":{in:[o]}}});
+    '''
+
+    runtime = parse_bite_runtime(
+        binding=binding,
+        asset_url=binding.asset_url,
+        javascript=javascript,
+    )
+
+    assert runtime is not None
+    assert runtime.channel == 0
+    assert runtime.page_num == 1000
+    assert runtime.filter_values == ("tenantx",)
+
+
+def test_minified_runtime_rejects_conflicting_literal_aliases() -> None:
+    binding = _binding()
+    assert binding is not None
+    javascript = '''
+    var i,o;i=0,o="tenantx";i=1;
+    r.createClient({key:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"});
+    r.createSearchConfig({channel:i,locale:"de",page:{offset:0,num:1e3},
+      sort:{by:"endsOn",order:"desc"},filter:{"custom.homepage":{in:[o]}}});
+    '''
+
+    assert parse_bite_runtime(
+        binding=binding,
+        asset_url=binding.asset_url,
+        javascript=javascript,
+    ) is None
+
+
 def test_runtime_rejects_asset_with_unrelated_tenant_filter() -> None:
     binding = _binding()
     assert binding is not None
