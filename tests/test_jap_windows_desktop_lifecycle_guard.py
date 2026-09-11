@@ -68,4 +68,4 @@ def test_local_deploy_proves_exact_installed_host_rejects_headless_launch() -> N
 
 
 def test_zombie_prevention_bumps_immutable_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.21"
+    assert _text(VERSION).strip() == "1.0.22"
