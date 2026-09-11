@@ -266,7 +266,11 @@ jobs:
                       ORDER BY source_name, started_at DESC, id DESC
                       """
                   )
-                  latest_runs = {str(row["source_name"]): row for row in cur.fetchall()}
+                  latest_runs = {
+                      str(row["source_name"]): row
+                      for row in cur.fetchall()
+                      if str(row["source_name"]) in expected_sources
+                  }
 
                   cur.execute(
                       """

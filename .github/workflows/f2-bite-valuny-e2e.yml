@@ -5,6 +5,11 @@ on:
     branches: [agent/f2-bite-generic-provider]
     paths:
       - ".github/workflows/f2-bite-valuny-e2e.yml"
+      - "scripts/run_generic_employer_origin_product.py"
+      - "src/connectors/employer_origin_bite.py"
+      - "src/connectors/employer_origin_bite_product.py"
+      - "src/connectors/generic_employer_origin_product_bite.py"
+      - "src/connectors/registry.py"
 
 permissions:
   contents: read
@@ -159,12 +164,11 @@ jobs:
           )
           PY
 
-      - name: Recompute canonical product and apply bounded B-ITE proof residual
+      - name: Recompute sole canonical product including bounded B-ITE residual
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" -m scripts.run_generic_employer_origin_product --output "$PRODUCT_OUTPUT"
-          "$RUNTIME_PYTHON" -m scripts.apply_bite_employer_origin_proof_overlay --proof-json "$PRODUCT_OUTPUT"
 
       - name: Require VALUNY proof PASS from canonical product payload
         shell: bash
@@ -177,17 +181,24 @@ jobs:
 
           payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
           proof = set(payload.get("proof_pass_company_keys") or [])
-          overlays = payload.get("deterministic_proof_overlays") or {}
-          rows = overlays.get("results") or []
-          valuny_rows = [row for row in rows if isinstance(row, dict) and row.get("company_key") == "valuny"]
+          rows = [row for row in payload.get("results", []) if isinstance(row, dict)]
+          valuny = next((row for row in rows if row.get("company_key") == "valuny"), None)
           print(f"F2_BITE_PROOF_PASS_COUNT={len(proof)}")
-          print(f"F2_BITE_VALUNY_OVERLAY_ROWS={len(valuny_rows)}")
-          for row in valuny_rows:
-              print(f"F2_BITE_VALUNY_OVERLAY={row}")
-          if "valuny" not in proof:
+          if "valuny" not in proof or valuny is None:
               raise SystemExit("F2_BITE_VALUNY_NOT_PROOF_PASS")
-          if not any(row.get("status") == "proof_pass" for row in valuny_rows):
-              raise SystemExit("F2_BITE_VALUNY_OVERLAY_NOT_PROVEN")
+          layers = {
+              str(layer.get("layer")): layer
+              for layer in valuny.get("layers", [])
+              if isinstance(layer, dict)
+          }
+          proof_layer = layers.get("proof") or {}
+          recipe_layer = layers.get("recipe") or {}
+          print(f"F2_BITE_VALUNY_PROOF_LAYER={proof_layer}")
+          print(f"F2_BITE_VALUNY_RECIPE_LAYER={recipe_layer}")
+          if proof_layer.get("state") != "pass" or proof_layer.get("evidence", {}).get("provider") != "bite":
+              raise SystemExit("F2_BITE_VALUNY_PROVIDER_PROOF_NOT_CANONICAL")
+          if recipe_layer.get("state") != "pass":
+              raise SystemExit("F2_BITE_VALUNY_RECIPE_NOT_READY")
           print("F2_BITE_VALUNY_PROOF=PASS")
           PY
 
