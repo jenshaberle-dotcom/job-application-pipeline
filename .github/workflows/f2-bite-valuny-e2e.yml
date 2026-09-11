@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   accept:
-    name: Canonical proof, activation, Bronze and Silver for VALUNY
+    name: Canonical proof through All Jobs for VALUNY
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 120
     env:
@@ -224,13 +224,15 @@ jobs:
           "$RUNTIME_PYTHON" -m src.ingest_jobs --source generic_origin --log-level INFO
           "$RUNTIME_PYTHON" -m src.run_silver_jobs
 
-      - name: Require real VALUNY delivery through Bronze and Silver
+      - name: Require fresh VALUNY delivery through Bronze Silver Gold and All Jobs
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" - <<'PY'
           import psycopg
           from psycopg.rows import dict_row
+
+          from scripts.run_product_v1_control_center import load_product_v1_payload
           from src.config import get_database_config
 
           source = "generic_origin:valuny"
@@ -244,18 +246,44 @@ jobs:
                       LIMIT 1
                   """, (source,))
                   run = cur.fetchone()
-                  cur.execute("SELECT count(*) AS n FROM raw_jobs WHERE source_name = %s", (source,))
-                  bronze = int(cur.fetchone()["n"])
-                  cur.execute("SELECT count(*) AS n FROM silver_jobs WHERE source_name = %s", (source,))
-                  silver = int(cur.fetchone()["n"])
+                  if run is None:
+                      raise SystemExit("F2_BITE_VALUNY_RUN_MISSING")
 
-          if run is None:
-              raise SystemExit("F2_BITE_VALUNY_RUN_MISSING")
+                  cur.execute(
+                      "SELECT count(*) AS n FROM raw_jobs WHERE source_name = %s AND ingestion_run_id = %s",
+                      (source, run["id"]),
+                  )
+                  bronze = int(cur.fetchone()["n"])
+
+                  cur.execute("""
+                      SELECT s.id AS silver_job_id, s.title, s.source_url
+                      FROM silver_jobs s
+                      JOIN raw_jobs r ON r.id = s.raw_job_id
+                      WHERE s.source_name = %s
+                        AND r.ingestion_run_id = %s
+                      ORDER BY s.id
+                  """, (source, run["id"]))
+                  silver_rows = [dict(row) for row in cur.fetchall()]
+                  fresh_silver_ids = {int(row["silver_job_id"]) for row in silver_rows}
+
+                  cur.execute("""
+                      SELECT silver_job_id, source_name, source_url, title, product_readiness_status
+                      FROM gold_product_v1_job_readiness
+                      WHERE source_name = %s
+                      ORDER BY silver_job_id
+                  """, (source,))
+                  gold_rows = [
+                      dict(row)
+                      for row in cur.fetchall()
+                      if int(row["silver_job_id"]) in fresh_silver_ids
+                  ]
+
           loaded = int(run["total_loaded"] or 0)
           inserted = int(run["inserted_count"] or 0)
           print(
               f"F2_BITE_VALUNY_RESULT=run_id={run['id']}|status={run['status']}|"
-              f"loaded={loaded}|inserted={inserted}|bronze={bronze}|silver={silver}"
+              f"loaded={loaded}|inserted={inserted}|bronze={bronze}|"
+              f"silver={len(silver_rows)}|gold={len(gold_rows)}"
           )
           if run["status"] != "success":
               raise SystemExit("F2_BITE_VALUNY_RUN_NOT_SUCCESS")
@@ -263,9 +291,40 @@ jobs:
               raise SystemExit("F2_BITE_VALUNY_ZERO_DELIVERY")
           if bronze <= 0:
               raise SystemExit("F2_BITE_VALUNY_ZERO_BRONZE")
-          if silver <= 0:
+          if not silver_rows:
               raise SystemExit("F2_BITE_VALUNY_ZERO_SILVER")
-          print("F2_BITE_VALUNY_E2E=PASS")
+          if not gold_rows:
+              raise SystemExit("F2_BITE_VALUNY_ZERO_GOLD")
+
+          gold_ids = {int(row["silver_job_id"]) for row in gold_rows}
+          control_center = load_product_v1_payload()
+          job_readiness = control_center.get("job_readiness") or []
+          all_jobs_rows = [
+              row
+              for row in job_readiness
+              if isinstance(row, dict)
+              and row.get("silver_job_id") is not None
+              and int(row["silver_job_id"]) in gold_ids
+              and str(row.get("source_name") or "") == source
+          ]
+          if not all_jobs_rows:
+              raise SystemExit("F2_BITE_VALUNY_ALL_JOBS_PROJECTION_EMPTY")
+          visible_rows = [
+              row
+              for row in all_jobs_rows
+              if str(row.get("title") or "").strip()
+              and str(row.get("source_url") or "").startswith("https://")
+          ]
+          if not visible_rows:
+              raise SystemExit("F2_BITE_VALUNY_ALL_JOBS_VISIBLE_ROW_MISSING")
+
+          first = visible_rows[0]
+          print(f"F2_BITE_VALUNY_ALL_JOBS_ROWS={len(all_jobs_rows)}")
+          print(
+              "F2_BITE_VALUNY_ALL_JOBS_SAMPLE="
+              f"{first['silver_job_id']}|{first.get('title')}|{first.get('source_url')}"
+          )
+          print("F2_BITE_VALUNY_PRODUCT_E2E=PASS")
           PY
 
       - name: Upload acceptance evidence
