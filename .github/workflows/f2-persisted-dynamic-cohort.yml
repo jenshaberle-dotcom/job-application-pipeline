@@ -1,0 +1,347 @@
+name: F2 persisted dynamic Employer-Origin cohort
+
+on:
+  push:
+    branches: [agent/f2-real-cohort]
+    paths:
+      - ".github/workflows/f2-persisted-dynamic-cohort.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f2-persisted-dynamic-cohort
+  cancel-in-progress: false
+
+jobs:
+  cohort:
+    name: Prove, activate and ingest persisted inactive Origin cohort
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 180
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      COHORT_KEYS: /tmp/jap-f2-persisted-dynamic-keys.txt
+      PRODUCT_OUTPUT: /tmp/jap-f2-persisted-dynamic-product.json
+
+    steps:
+      - name: Check out exact cohort head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "F2_PERSISTED_COHORT_SOURCE=$GITHUB_SHA"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity", "checkout", "checkout_repository",
+              "env_file", "env_keys", "interpreter", "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          github_env = Path(sys.argv[2])
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          password = str(values["POSTGRES_PASSWORD"])
+          print(f"::add-mask::{password}")
+          with github_env.open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          print("F2_PERSISTED_RUNTIME_ENV=PASS")
+          PY
+
+      - name: Prove product database authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import psycopg
+          from src.config import get_database_config
+
+          with psycopg.connect(**get_database_config()) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SELECT current_database(), current_user")
+                  database, user = cur.fetchone()
+          print(f"F2_PERSISTED_DATABASE_AUTH=PASS database={database} user={user}")
+          PY
+
+      - name: Provision pinned local OSS detail runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
+            "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f2-persisted-local-oss-sites")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Select persisted inactive cohort matching diagnostic truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$COHORT_KEYS"
+          "$RUNTIME_PYTHON" - "$COHORT_KEYS" <<'PY'
+          import os
+          import sys
+          import psycopg
+          from psycopg.rows import dict_row
+
+          out = sys.argv[1]
+          conn = psycopg.connect(
+              host=os.getenv("POSTGRES_HOST", "localhost"),
+              port=int(os.getenv("POSTGRES_PORT", "5432")),
+              dbname=os.getenv("POSTGRES_DB", "job_pipeline"),
+              user=os.getenv("POSTGRES_USER", "job_user"),
+              password=os.getenv("POSTGRES_PASSWORD", "job_password"),
+              row_factory=dict_row,
+          )
+          with conn, conn.cursor() as cur:
+              cur.execute("""
+                  WITH latest AS (
+                      SELECT DISTINCT ON (company_key)
+                          id, company_key, company_name, candidate_url, status, updated_at
+                      FROM employer_origin_source_candidates
+                      WHERE candidate_url IS NOT NULL
+                        AND btrim(candidate_url) <> ''
+                      ORDER BY company_key, updated_at DESC NULLS LAST, id DESC
+                  )
+                  SELECT id, company_key, company_name, candidate_url, status
+                  FROM latest c
+                  WHERE NOT EXISTS (
+                      SELECT 1
+                      FROM search_profiles sp
+                      WHERE sp.source_name = 'generic_origin:' || c.company_key
+                        AND sp.is_active = TRUE
+                  )
+                  ORDER BY c.updated_at DESC NULLS LAST, c.id DESC
+                  LIMIT 8
+              """)
+              rows = list(cur.fetchall())
+          if len(rows) < 3:
+              raise SystemExit(f"F2_PERSISTED_COHORT_TOO_SMALL={len(rows)}")
+          with open(out, "w", encoding="utf-8") as handle:
+              for row in rows:
+                  handle.write(str(row["company_key"]) + "\n")
+          print(f"F2_PERSISTED_COHORT_COMPANIES={len(rows)}")
+          for row in rows:
+              print(
+                  f"F2_PERSISTED_COMPANY={row['id']}|{row['company_key']}|"
+                  f"{row['company_name']}|status={row['status']}|url={row['candidate_url']}"
+              )
+          PY
+
+      - name: Recompute strict generic Employer-Origin proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_generic_employer_origin_product --output "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.qualify_generic_employer_origin_connectors --proof-json "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation --proof-json "$PRODUCT_OUTPUT"
+
+      - name: Require proof PASS inside selected cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$COHORT_KEYS" "$PRODUCT_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          keys = {line.strip() for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines() if line.strip()}
+          payload = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          proof = set(payload.get("proof_pass_company_keys") or [])
+          selected = sorted(keys & proof)
+          print(f"F2_PERSISTED_COHORT_PROOF_PASS={len(selected)}")
+          for key in selected:
+              print(f"F2_PERSISTED_PROOF_SOURCE={key}")
+          if not selected:
+              raise SystemExit("F2_PERSISTED_COHORT_NO_PROOF_PASS")
+          PY
+
+      - name: Apply exact proof-pass activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation \
+            --proof-json "$PRODUCT_OUTPUT" \
+            --apply
+
+      - name: Run recurring generic-origin ingestion and Silver
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m src.ingest_jobs --source generic_origin --log-level INFO
+          "$RUNTIME_PYTHON" -m src.run_silver_jobs
+
+      - name: Measure exact selected cohort funnel from live DB truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$COHORT_KEYS" "$PRODUCT_OUTPUT" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          import psycopg
+          from psycopg.rows import dict_row
+
+          keys = [line.strip() for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines() if line.strip()]
+          proof_payload = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          proof = set(proof_payload.get("proof_pass_company_keys") or [])
+          sources = [f"generic_origin:{key}" for key in keys]
+          conn = psycopg.connect(
+              host=os.getenv("POSTGRES_HOST", "localhost"),
+              port=int(os.getenv("POSTGRES_PORT", "5432")),
+              dbname=os.getenv("POSTGRES_DB", "job_pipeline"),
+              user=os.getenv("POSTGRES_USER", "job_user"),
+              password=os.getenv("POSTGRES_PASSWORD", "job_password"),
+              row_factory=dict_row,
+          )
+          with conn, conn.cursor() as cur:
+              cur.execute("""
+                  SELECT source_name
+                  FROM search_profiles
+                  WHERE source_name = ANY(%s)
+                    AND is_active = TRUE
+                    AND recurring_ingestion_enabled = TRUE
+              """, (sources,))
+              active = {str(row["source_name"]) for row in cur.fetchall()}
+              cur.execute("""
+                  SELECT DISTINCT ON (source_name)
+                      source_name, status, total_loaded, inserted_count
+                  FROM ingestion_runs
+                  WHERE source_name = ANY(%s)
+                  ORDER BY source_name, started_at DESC, id DESC
+              """, (sources,))
+              runs = {str(row["source_name"]): row for row in cur.fetchall()}
+              cur.execute("""
+                  SELECT source_name, count(*) AS n
+                  FROM raw_jobs
+                  WHERE source_name = ANY(%s)
+                  GROUP BY source_name
+              """, (sources,))
+              bronze = {str(row["source_name"]): int(row["n"]) for row in cur.fetchall()}
+              cur.execute("""
+                  SELECT source_name, count(*) AS n
+                  FROM silver_jobs
+                  WHERE source_name = ANY(%s)
+                  GROUP BY source_name
+              """, (sources,))
+              silver = {str(row["source_name"]): int(row["n"]) for row in cur.fetchall()}
+
+          proof_selected = {key for key in keys if key in proof}
+          successful = {name for name, row in runs.items() if row["status"] == "success"}
+          delivering = {
+              name for name, row in runs.items()
+              if row["status"] == "success" and int(row["total_loaded"] or 0) > 0
+          }
+          print(f"F2_PERSISTED_FUNNEL_COMPANIES={len(keys)}")
+          print(f"F2_PERSISTED_FUNNEL_PROOF_PASS={len(proof_selected)}")
+          print(f"F2_PERSISTED_FUNNEL_ACTIVE={len(active)}")
+          print(f"F2_PERSISTED_FUNNEL_SUCCESSFUL_RUN={len(successful)}")
+          print(f"F2_PERSISTED_FUNNEL_DELIVERING_NOW={len(delivering)}")
+          print(f"F2_PERSISTED_FUNNEL_BRONZE_SOURCES={len(bronze)}")
+          print(f"F2_PERSISTED_FUNNEL_SILVER_SOURCES={len(silver)}")
+          for key in keys:
+              source = f"generic_origin:{key}"
+              row = runs.get(source)
+              status = row["status"] if row else "not_run"
+              loaded = int(row["total_loaded"] or 0) if row else 0
+              inserted = int(row["inserted_count"] or 0) if row else 0
+              print(
+                  f"F2_PERSISTED_RESULT={key}|proof={key in proof_selected}|active={source in active}|"
+                  f"run={status}|loaded={loaded}|inserted={inserted}|"
+                  f"bronze={bronze.get(source,0)}|silver={silver.get(source,0)}"
+              )
+          if not proof_selected:
+              raise SystemExit("F2_PERSISTED_NO_PROOF_PASS")
+          if not active:
+              raise SystemExit("F2_PERSISTED_NO_ACTIVE_SOURCE")
+          if not successful:
+              raise SystemExit("F2_PERSISTED_NO_SUCCESSFUL_INGESTION")
+          print("F2_PERSISTED_DYNAMIC_COHORT=PASS")
+          PY
+
+      - name: Upload persisted cohort evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f2-persisted-dynamic-cohort
+          path: |
+            /tmp/jap-f2-persisted-dynamic-product.json
+            /tmp/jap-f2-persisted-dynamic-keys.txt
+          if-no-files-found: warn
+          retention-days: 14
