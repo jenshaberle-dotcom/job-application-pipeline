@@ -26,6 +26,7 @@ jobs:
           PYTHON="$HOME/projects/job-application-pipeline/.venv/bin/python"
           test -x "$PYTHON"
           "$PYTHON" scripts/_f2_patch_dynamic_detail.py
+          "$PYTHON" -c 'from pathlib import Path; p=Path("tests/test_employer_origin_acquisition_v4_dynamic_route.py"); t=p.read_text(encoding="utf-8"); old="Apply now. Responsibilities and requirements."; new="Apply now. Responsibilities and requirements. This role owns platform delivery, system reliability, engineering collaboration, implementation, documentation, and operational support."; assert old in t; p.write_text(t.replace(old,new,1),encoding="utf-8")'
           "$PYTHON" -m pytest -q \
             tests/test_employer_origin_acquisition_v4_dynamic_route.py \
             tests/test_dynamic_surface_evidence.py \
