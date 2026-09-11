@@ -34,6 +34,19 @@ def test_activation_uses_proof_projection_and_nonsemantic_wildcard_trigger() -> 
     assert "final_approval_gate" not in source
 
 
+def test_activation_retires_stale_generic_profiles_before_canonical_reprojection() -> None:
+    source = ACTIVATION.read_text(encoding="utf-8")
+
+    retire = source.index("WHERE source_name LIKE %s")
+    canonical_profile = source.index('profile_name = f"{PROFILE_PREFIX}{company_key}"')
+    canonical_upsert = source.index("INSERT INTO search_profiles", canonical_profile)
+    retire_block = source[source.rfind("cur.execute(", 0, retire):canonical_profile]
+
+    assert retire < canonical_profile < canonical_upsert
+    assert "SET is_active = FALSE" in retire_block
+    assert "recurring_ingestion_enabled = FALSE" in retire_block
+
+
 def test_product_connector_prefers_materialized_proof_source_identity() -> None:
     source = CONNECTOR.read_text(encoding="utf-8")
 

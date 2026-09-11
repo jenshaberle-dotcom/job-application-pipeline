@@ -282,6 +282,20 @@ def apply_activation(
             (list(SENSOR_SOURCE_NAMES), f"{GENERIC_SOURCE_PREFIX}%"),
         )
 
+        # The generic execution surface is also a complete materialized projection.
+        # Retire every prior generic profile before re-enabling exactly one canonical
+        # profile per current proof-PASS source below. This removes stale aliases and
+        # duplicate active profiles without changing proof authority.
+        cur.execute(
+            """
+            UPDATE search_profiles
+            SET is_active = FALSE,
+                recurring_ingestion_enabled = FALSE
+            WHERE source_name LIKE %s
+            """,
+            (f"{GENERIC_SOURCE_PREFIX}%",),
+        )
+
         # A candidate that previously carried controlled-active state from a legacy
         # admission path is no longer active unless the current generic proof passed.
         cur.execute(

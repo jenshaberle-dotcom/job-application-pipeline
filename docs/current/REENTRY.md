@@ -44,14 +44,13 @@ Observed PASS through 1.0.20/1.0.21:
 - Employer-Origin rows remain visible and geography-eligible;
 - exact same canonical Origin URLs can collapse across different Employer-Origin source projections.
 
-Carried residual `CR-F0-001` remains OPEN after the 1.0.21 operator test:
+Carried residual `CR-F0-001` remains OPEN:
 
-- Finanz Informatik `Data Platform Engineer (m/w/d)` still appears twice through:
-  - `https://www.f-i.de/karriere/offene-stellen/frankfurt/data-platform-engineer-m-w-d`
-  - `https://www.f-i.de/de/karriere/offene-stellen/frankfurt/data-platform-engineer-m-w-d`
+- Finanz Informatik can expose the same real vacancy through parallel Origin aliases with and without `/de/`;
 - do **not** solve this by globally stripping `/de/`, title/company fuzzy matching, or an FI-specific branch;
-- generic labelled/canonical vacancy identity exists in code but the persisted rows still do not carry sufficient shared identity evidence to collapse this historical pair;
-- carry into the 1.0.22 truth/cohort package and prove on fresh persisted evidence before closure.
+- generic labelled/canonical vacancy identity exists in code but persisted rows still do not consistently carry sufficient shared identity evidence to collapse historical aliases;
+- fresh 1.0.22 cohort evidence in run `34569520523` still emitted parallel `/de/` and non-`/de/` FI vacancy URLs for multiple current postings, confirming that the residual remains real;
+- **target closure package: F3 / 1.0.23**, because F3 already changes the vacancy-identity and lifecycle hierarchy. Close it there if the generic identity evidence is sufficient; otherwise explicitly reclassify it rather than adding an FI-specific exception.
 
 Still deferred: no hard cutoff at 42% preliminary affinity; no date/location cosmetics; no Profile Fit or ranking changes yet.
 
@@ -65,17 +64,29 @@ Normal package flow:
 
 ## Cascading residual rule
 
-A package may advance after its main product objective is operator-proven even when a **bounded, understood, non-critical residual** remains. Such a residual is carried into the next semantically suitable package instead of forcing an immediate standalone release.
+A package may advance after its main product objective is operator-proven even when a **bounded, understood, non-critical residual** remains. Such a residual is carried forward instead of forcing release-only churn or unrelated architecture work.
 
 A residual may cascade only when all are true:
 
-- it is explicitly recorded here with a stable ID, concrete evidence and intended target package;
+- it has a stable ID, origin package, concrete evidence, current risk classification and explicit open condition;
 - it does not represent a security/credential issue, destructive/data-loss risk, irreversible migration problem or external side-effect boundary violation;
 - the failure mode is visible and bounded rather than silently corrupting broad Product truth;
-- carrying it forward creates useful overlap with the next package and avoids release-only churn;
-- the next package adds a regression proof for it before claiming closure.
+- it has a **next mandatory checkpoint** and either a semantically suitable target package or an explicit campaign-end closure gate;
+- when a later package naturally touches the same architecture, that package must evaluate whether closing the residual is now cheaper/safer than carrying it again;
+- any closure must add regression evidence appropriate to the failure mode before the residual can disappear from the ledger.
 
-Residuals must not silently hop across multiple packages. If a carried residual is still open at the next package checkpoint, it must either be closed there or explicitly reclassified by operator decision.
+Residual carry discipline:
+
+1. Every package checkpoint re-lists all inherited open residuals until each is closed or explicitly reclassified.
+2. Prefer opportunistic closure when the relevant architecture is already being changed; do not create unrelated architecture churn merely to zero the residual count.
+3. A residual may skip an unrelated implementation package only if its ledger entry names the next natural touchpoint and it remains visible in re-entry authority.
+4. If no natural touchpoint occurs, the residual becomes a **mandatory campaign-end decision**: fix it, accept it as a documented product limitation, or explicitly move it to a separately authorized future campaign.
+5. Residuals must never silently age out, lose their evidence trail, or hop indefinitely without a named checkpoint.
+
+### Active residual ledger
+
+- `CR-F0-001` — FI Origin alias identity duplication. Origin: F0. Current state: OPEN and freshly reconfirmed in run `34569520523`. Next natural touchpoint: **F3 vacancy identity/lifecycle hardening (1.0.23)**. Mandatory decision no later than F3 operator checkpoint.
+- `CR-F1-001` — fresh company identity -> F1 discovery -> CAND-001 persistence -> proof/activation has not yet been product-proven end-to-end. Origin: F1. Current evidence: run `34565632246` had 11 `f1_not_found`; Windhoff was selected but CAND-001 returned `manual_review_required`, so no new candidate URL was written. F2 proves the downstream persisted-source path independently with Nortal, but does not erase this upstream F1 residual. Opportunistic closure: any later work that naturally touches company discovery/persistence. Otherwise mandatory campaign-end decision.
 
 ## F0 — Origin Learning + Review Truth Foundation — COMPLETE WITH `CR-F0-001` CARRIED
 
@@ -90,7 +101,7 @@ Delivered through releases 1.0.19 and 1.0.20:
 - source-local structured-identifier dedupe plus exact canonical Origin URL dedupe across Employer-Origin projections;
 - independent `Published` and `First JAP observed`.
 
-## F1 — Company -> Official Origin Jobspace Discovery — CAPABILITY SHIPPED, PRODUCT HANDOFF RESIDUAL CARRIED TO 1.0.22
+## F1 — Company -> Official Origin Jobspace Discovery — CAPABILITY SHIPPED, `CR-F1-001` CARRIED
 
 Purpose: given only a company identity, find the official domain, careers/job space and likely ATS/job surface generically.
 
@@ -106,27 +117,20 @@ Shipped in 1.0.21:
 
 Exact pre-release PR head `6c2808d7eee0cb9c11061582235fa4b9949e7863` passed Pipeline CI, re-entry target identity, Windows Control Center contract, generic Employer-Origin systematic search and generic Employer-Origin product proof before #855 merged to `ad96becd0e5234102eeb38b42771b703705d42f4`.
 
-### 1.0.21 operator finding
+### 1.0.21 operator finding and current carry
 
-The installed release itself is healthy, but the **F1 product handoff is incomplete**:
+The installed 1.0.21 release itself is healthy. The source-reliability and F1 persistence adapter were subsequently merged on main in #858, with CAND-001 remaining the sole candidate-url writer.
 
-- Sources still shows the pre-existing active Employer-Origin set (notably HDI, Finanz Informatik, Clarios, Hannover Rück plus pre-existing remote sources);
-- no genuinely new company discovered by F1 is visible as a newly persisted/active Origin source in the Control Center;
-- root cause: `run_origin_source_discovery_agent.py` intentionally remains read-only (`no candidate_url write`, `no source activation`, `no Bronze/Silver write`). The capability can discover a jobspace but 1.0.21 did not yet bridge strong F1 selections into the canonical candidate URL writer/proof/activation path;
-- therefore the F1 exit metric is **not yet product-proven**, even though the discovery capability and release gates are technically green.
+The remaining F1 gap is no longer a missing write bridge; it is the unproven **fresh-company end-to-end discovery/persistence outcome** recorded as `CR-F1-001`:
 
-### Source reliability defect discovered during the same operator test
+- real 12-company run `34565632246` produced 11 `f1_not_found` results;
+- Windhoff was the only F1 selection (`https://windhoff-karriere.de/`) but CAND-001 classified it `manual_review_required`;
+- therefore that run produced `persisted_or_ready=0` and `candidate_url_written=0`;
+- this is accepted as a bounded upstream residual for 1.0.22 because the downstream persisted-source path is now independently product-proven, but it remains in the residual ledger until a fresh-company path succeeds or the campaign-end decision explicitly accepts/reclassifies the limitation.
 
-The Sources tab currently conflates lifecycle inventory and operational attention:
+### Source reliability remediation already merged to main
 
-- inactive, unimplemented candidate inventory is represented as `connector_not_implemented`, causing the long tail to dominate `Needs attention`;
-- `Active` currently proves only `search_profiles.is_active`, not job delivery;
-- market sensors can visually sit beside Employer-Origin sources even though their semantics differ;
-- existing backend truth already contains latest ingestion `total_loaded`/`inserted_count` plus Bronze/Silver history but the current UI does not make the activation-vs-delivery distinction sufficiently obvious.
-
-Active remediation branch: `agent/source-reliability-truth`, based on 1.0.21 main `ad96becd0e5234102eeb38b42771b703705d42f4`.
-
-Implemented on that branch so far:
+Main `b5cca02ab23766dda43b49cfdc54b8517cfb36dc` / PR #858 provides:
 
 - Source overview schema v3 distinguishes known/unimplemented inventory from operational blockers;
 - inactive unimplemented candidates are no longer counted as `Needs attention` merely because implementation has not been selected;
@@ -135,35 +139,88 @@ Implemented on that branch so far:
 - summary truth adds Employer-Origin active, active-with-positive-latest-load and active-with-zero-latest-load counts;
 - F1 persistence adapter `scripts/run_f1_origin_persistence_bridge.py` turns a strong F1 selection into replay evidence for **CAND-001**, which independently revalidates and remains the sole `candidate_url` writer; F1 itself receives no new write authority.
 
-## F1/F2 combined 1.0.22 package — ACTIVE NEXT PACKAGE
+## F1/F2 combined 1.0.22 package — RELEASE QUALIFICATION NEXT
 
-The next release remains **1.0.22**. It intentionally combines the bounded F1 handoff/source-truth residuals with the previously planned F2 cohort instead of creating another release-only intermediate package.
+The next release remains **1.0.22**. It combines the bounded F1 carry/source-truth work with the F2 cohort and Dynamic-Origin hardening.
 
-Sole package objective:
+Package objective:
 
-`fresh company cohort -> F1 official domain/jobspace discovery -> CAND-001 persisted origin -> strict generic proof -> activation -> vocabulary -> query-proven real jobs -> structure learning -> Bronze -> parser family -> Silver -> reliable Sources/Product projection`
+`fresh/persisted company cohort -> canonical candidate truth -> strict generic proof -> activation -> vocabulary/search -> query-proven real jobs when available -> structure learning -> Bronze -> parser family -> Silver -> reliable Sources/Product projection`
+
+### F2 branch effect proof — PASS on 2026-09-11
+
+Branch evidence is non-canonical until normal merge/release, but the required source-admission E2E is now proven.
+
+Qualified Dynamic-Origin hardening:
+
+- generic Dynamic-Origin evidence is integrated into `employer_origin_acquisition_v4`; route/API evidence may create bounded candidates but never substitutes for strict genuine-job detail proof;
+- strong delegated detail redirects are rebound only within generic provider identity boundaries; unrelated redirect hosts remain rejected;
+- explicit `/jobposting/<opaque-id>/apply` evidence may derive the corresponding parent detail candidate without inventing an ID;
+- no employer-specific Nortal/TRIOLOGY/Valuny branches or allowlists were introduced;
+- malformed URL literals remain fail-closed;
+- focused hardening qualifier: **28 tests PASS + Ruff PASS**; qualified product commit `036faf8d`;
+- activation projection hygiene deactivates stale `generic_origin:*` execution profiles before re-projecting the complete proof cohort, with a contract regression preventing the prior 26-vs-24 stale-profile state.
+
+Real effect run `34569520523` on exact head `de7e48dcbb59cef375109a829c37bb1bb31ad49a` completed **SUCCESS**:
+
+- selected persisted-inactive cohort: 8 companies (`nortal`, `triology`, `valuny`, `hdi`, `the_associated_engineers`, `bjak`, `land_niedersachsen`, `trustyou`);
+- complete canonical product evaluation: 66 candidates, **25 `proof=PASS`**;
+- exactly one selected cohort member passed proof: **Nortal**;
+- activation after apply: `GENERIC_ACTIVE_PROFILES_AFTER=25` and `GENERIC_ACTIVE_SOURCE_PROJECTION_AFTER=25`;
+- selected-cohort funnel: `proof_pass=1`, `active=1`, `successful_run=1`, `delivering_now=0`, `bronze_sources=0`, `silver_sources=0`;
+- Nortal result: `proof=True|active=True|run=success|loaded=0|inserted=0|bronze=0|silver=0`;
+- the zero-load result is **not a source-validity residual**: the frozen contract explicitly permits a valid source to return zero current jobs. It remains observable as active-with-zero-latest-load in Sources rather than being misrepresented as delivery;
+- TRIOLOGY stopped at inventory evidence; Valuny stopped at final strict proof; both remain ordinary classified long-tail misses, not company-specific exceptions.
+
+This opens the branch-level source-admission Operator gate: a previously persisted inactive Dynamic-Origin company has now reached `proof=PASS -> active -> successful recurring generic-origin ingestion`. The 1.0.22 package is **not yet release authority** until the normal qualification/merge/release/deploy/operator sequence completes.
+
+### Full-suite compatibility hardening — PASS
+
+The first complete PR suite correctly exposed that Dynamic-Origin could duplicate URLs already represented by stronger static/query/anchor navigation. That changed legacy discovery provenance and could widen established request budgets even though the strict job proof itself remained unchanged. This was treated as an implementation defect, not as a reason to relax existing contracts.
+
+Qualified correction `b6e832a218b25bd9cdc7d57163986193752fd201` establishes **static-first shadowing**:
+
+- an existing strong static/query/anchor/listing candidate keeps authority and provenance for the same canonical URL;
+- Dynamic-Origin supplements only genuinely new script/API route evidence rather than displacing the established path;
+- low-signal `embedded_detail` fallback remains eligible to be superseded by stronger dynamic evidence;
+- no legacy provenance assertion or request-budget test was weakened.
+
+One-shot qualification run `34571596584` passed Ruff and the complete Python suite: **3211/3211 tests PASS**. The temporary patcher and one-shot qualifier workflow were removed after qualification. This compatibility proof is part of the 1.0.22 release-candidate evidence.
+
+### Residual disposition at the 1.0.22 checkpoint
+
+- `CR-F0-001`: still OPEN; fresh FI alias evidence reconfirms it. Carry to F3 because F3 already changes vacancy identity/lifecycle semantics.
+- `CR-F1-001`: OPEN; downstream source onboarding is now proven with Nortal, but fresh company -> F1 -> CAND-001 persistence is still not product-proven. Keep it in the ledger; close opportunistically if discovery/persistence architecture is touched again, otherwise force a campaign-end decision.
+- No new residual is created for Nortal zero delivery; zero current jobs is an explicitly valid source state.
 
 Required evidence before 1.0.22 release:
 
-- run a real 10-20 company cohort, preferring companies not already active in JAP;
-- measure `company -> F1 selected -> CAND-001 persisted -> proof=PASS -> active -> jobs observed -> Bronze -> Silver` funnel counts;
-- classify every stop rather than hide it;
-- Control Center Sources must visibly distinguish unimplemented inventory, operational attention, market sensors, active Employer-Origin with latest zero load, and active Employer-Origin with positive latest load;
-- prove at least one genuinely fresh company reaches persisted/active Employer-Origin truth or explicitly classify the blocker preventing it;
-- recheck `CR-F0-001` on fresh identity evidence; close it or explicitly reclassify at this checkpoint;
-- no provider/company allowlist proliferation and no FI-specific parser branch.
+- branch effect proof above: **PASS**;
+- static-first full-suite compatibility proof above: **PASS**;
+- Control Center source-role/activation/latest-delivery truth: already merged on main in #858, requalify with final package head;
+- final Full Suite/Ruff/React/Windows contracts on the exact release-candidate head;
+- recheck that no provider/company allowlist proliferation or FI-specific parser branch entered the package;
+- merge the exact qualified head, publish immutable 1.0.22, prove automatic local deploy, then run the interactive operator test.
 
 Operator test for 1.0.22:
 
 - inspect multiple independent Origin families and real jobs;
 - verify correct titles, employer, Origin URL, published date and locations across more than one employer;
-- verify the Sources tab accurately represents source role, activation and latest delivery evidence;
-- verify newly discovered companies, if proof-valid, are actually visible as persisted/active sources rather than only as discovery reports;
-- confirm sensor-only rows stay outside normal job review and known stale/dead rows remain excluded.
+- verify Sources accurately represents source role, activation and latest delivery evidence, including Nortal as active with zero latest load unless jobs appear later;
+- verify the newly proof-valid Nortal source is visible as persisted/active rather than only as discovery evidence;
+- confirm sensor-only rows stay outside normal job review and known stale/dead rows remain excluded;
+- confirm the residual ledger is carried unchanged into the next package authority unless an item is explicitly closed with regression evidence.
+
+Sole next action: qualify the exact 1.0.22 release-candidate head with Full Suite/Ruff/React/Windows contracts and package-specific Origin checks. If green, merge that exact head to main, publish/deploy 1.0.22 and perform the interactive operator test before entering F3.
 
 ## F3 — Bronze -> Silver -> Gold Truth/Lifecycle Hardening — target release 1.0.23
 
 Purpose: make downstream truth resistant to stale, dead and duplicate vacancies regardless of upstream family.
+
+Inherited residuals at F3 entry:
+
+- `CR-F0-001` is an explicit F3 closure target because this package already changes vacancy identity and lifecycle truth;
+- `CR-F1-001` remains visible in the ledger but does not force unrelated F3 discovery changes; only close it here if F3 work naturally touches company discovery/persistence, otherwise carry it to the next named checkpoint/campaign-end gate.
 
 Bundled scope:
 
@@ -174,7 +231,7 @@ Bundled scope:
 - regression cohort across multiple Origin families;
 - Product/CC consumes upstream truth instead of repairing it in UI code.
 
-Operator test: current jobs remain, deliberately dead/stale jobs disappear from current review, sensor-only rows stay out, known safe aliases collapse, history remains auditable.
+Operator test: current jobs remain, deliberately dead/stale jobs disappear from current review, sensor-only rows stay out, known safe aliases collapse, history remains auditable. `CR-F0-001` must be closed or explicitly reclassified at this checkpoint; all still-open inherited residuals must remain present in the ledger.
 
 ## F4 — Decision Intelligence Coverage — releases 1.0.24 and 1.0.25
 
