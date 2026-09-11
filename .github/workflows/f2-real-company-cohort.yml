@@ -94,7 +94,7 @@ jobs:
           printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
           printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
 
-      - name: Load product database environment without shell reinterpretation
+      - name: Load masked product database environment without shell reinterpretation
         shell: bash
         run: |
           set -euo pipefail
@@ -118,6 +118,8 @@ jobs:
           missing = [key for key in required if values.get(key) in (None, "")]
           if missing:
               raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          password = str(values["POSTGRES_PASSWORD"])
+          print(f"::add-mask::{password}")
 
           with github_env.open("a", encoding="utf-8") as handle:
               for key in required:
