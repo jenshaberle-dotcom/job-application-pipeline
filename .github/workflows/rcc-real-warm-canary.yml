@@ -1,0 +1,107 @@
+name: RCC real warm canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      reservation_id:
+        description: Exact RCC reservation id returned by the out-of-band admission plane
+        required: true
+        type: string
+      expected_runner:
+        description: Exact RCC-reserved runner name
+        required: true
+        default: job-pipeline-runtime-warm-01-linux
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rcc-real-warm-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Real JAP warm workload
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_EXPECTED_PROFILE_HASH: 62dda18c8360e15ae054cdb4e0420effcca26a04a7f6ac751a9332fd966001e7
+      RCC_EXPECTED_PYTHON: 3.12.14
+      RCC_RESERVATION_ID: ${{ inputs.reservation_id }}
+      RCC_EXPECTED_RUNNER: ${{ inputs.expected_runner }}
+
+    steps:
+      - name: Start measured canary and prove exact handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          started="$(date +%s%3N)"
+          printf 'RCC_CANARY_STARTED_MS=%s\n' "$started" >> "$GITHUB_ENV"
+          test -n "$RCC_RESERVATION_ID"
+          test "$RUNNER_NAME" = "$RCC_EXPECTED_RUNNER"
+          echo "RCC_EXACT_RUNNER_HANDOFF=PASS runner=$RUNNER_NAME reservation=$RCC_RESERVATION_ID"
+
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bind qualified persistent RCC Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$HOME/.cache/DeepOceanInfrastructure/RunnerToolchain/PythonEnvs/job-pipeline-runtime-linux-warm"
+          active_python_file="$root/active-python.txt"
+          active_hash_file="$root/active-profile-hash.txt"
+          test -s "$active_python_file"
+          test -s "$active_hash_file"
+          python_path="$(tr -d '\r\n' < "$active_python_file")"
+          profile_hash="$(tr -d '\r\n' < "$active_hash_file")"
+          test "$profile_hash" = "$RCC_EXPECTED_PROFILE_HASH"
+          test -x "$python_path"
+          actual_version="$($python_path -c 'import platform; print(platform.python_version())')"
+          test "$actual_version" = "$RCC_EXPECTED_PYTHON"
+          "$python_path" -m pip check
+          printf 'RCC_CANARY_PYTHON=%s\n' "$python_path" >> "$GITHUB_ENV"
+          echo "RCC_PERSISTENT_ENVIRONMENT=PASS python=$actual_version profile_hash=$profile_hash"
+          echo "RCC_SETUP_PYTHON=NONE"
+          echo "RCC_PIP_INSTALL=NONE"
+          echo "RCC_REMOTE_PIP_CACHE_RESTORE=NONE"
+
+      - name: Compile active Python paths
+        shell: bash
+        run: "$RCC_CANARY_PYTHON -m compileall -q src scripts tests"
+
+      - name: Validate migration tooling and governance contracts
+        shell: bash
+        run: "$RCC_CANARY_PYTHON scripts/validate_ci_contract.py"
+
+      - name: Run hard Ruff correctness gate
+        shell: bash
+        run: "$RCC_CANARY_PYTHON -m ruff check . --select E4,E7,E9,F --ignore E402"
+
+      - name: Run full test suite
+        shell: bash
+        run: "$RCC_CANARY_PYTHON -m pytest -q"
+
+      - name: Record measured warm-canary outcome
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ended="$(date +%s%3N)"
+          elapsed="$((ended - RCC_CANARY_STARTED_MS))"
+          {
+            echo "## RCC real JAP warm canary"
+            echo ""
+            echo "- runner: \`$RUNNER_NAME\`"
+            echo "- reservation: \`$RCC_RESERVATION_ID\`"
+            echo "- source: \`$GITHUB_SHA\`"
+            echo "- Python: \`$RCC_EXPECTED_PYTHON\`"
+            echo "- setup-python: \`NONE\`"
+            echo "- pip install: \`NONE\`"
+            echo "- remote pip cache restore: \`NONE\`"
+            echo "- measured job body: \`${elapsed} ms\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "RCC_REAL_WARM_CANARY_MEASURED_MS=$elapsed"
