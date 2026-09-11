@@ -1,0 +1,142 @@
+name: F2 VALUNY Silver state diagnostic
+
+on:
+  push:
+    branches: [agent/f2-bite-generic-provider]
+    paths:
+      - ".github/workflows/f2-valuny-silver-state-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 10
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Inspect latest observed VALUNY Bronze to Silver state read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          mapfile -t runtime < <(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          assert context.get("RepositoryId") == int(repo_id)
+          assert context.get("Repository") == repository
+          assert context.get("RunnerName") == runner
+          assert context.get("Status") == "PASS"
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )
+          runtime_python="${runtime[0]}"
+          runtime_env="${runtime[1]}"
+          "$runtime_python" - "$runtime_env" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          import psycopg
+          from dotenv import dotenv_values
+          from psycopg.rows import dict_row
+
+          for key, value in dotenv_values(Path(sys.argv[1])).items():
+              if value is not None:
+                  os.environ[key] = value
+
+          from src.config import get_database_config
+          from src.silver.relevance import (
+              get_accessibility_matches,
+              get_role_matches,
+              get_silver_decision_reason,
+              get_skill_matches,
+              is_relevant_for_silver,
+          )
+
+          source = "generic_origin:valuny"
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SET TRANSACTION READ ONLY")
+                  cur.execute("""
+                      SELECT id
+                      FROM ingestion_runs
+                      WHERE source_name = %s
+                      ORDER BY started_at DESC, id DESC
+                      LIMIT 1
+                  """, (source,))
+                  latest = cur.fetchone()
+                  if latest is None:
+                      raise SystemExit("VALUNY_RUN_MISSING")
+                  run_id = int(latest["id"])
+                  cur.execute("""
+                      SELECT DISTINCT
+                          r.id AS raw_job_id,
+                          r.external_job_id,
+                          r.source_url,
+                          r.raw_data,
+                          d.decision,
+                          d.reason,
+                          d.role_matches,
+                          d.skill_matches,
+                          d.accessibility_matches,
+                          d.decided_at,
+                          s.id AS silver_job_id,
+                          s.title AS silver_title,
+                          s.source_name AS silver_source_name
+                      FROM job_observations o
+                      JOIN raw_jobs r ON r.id = o.raw_job_id
+                      LEFT JOIN silver_processing_decisions d ON d.raw_job_id = r.id
+                      LEFT JOIN silver_jobs s ON s.raw_job_id = r.id
+                      WHERE o.source_name = %s
+                        AND o.ingestion_run_id = %s
+                        AND o.is_seen = TRUE
+                      ORDER BY r.id
+                  """, (source, run_id))
+                  rows = [dict(row) for row in cur.fetchall()]
+
+          print(f"VALUNY_DIAGNOSTIC_RUN_ID={run_id}")
+          print(f"VALUNY_DIAGNOSTIC_ROWS={len(rows)}")
+          for row in rows:
+              raw_job = {
+                  "id": row["raw_job_id"],
+                  "source_name": source,
+                  "external_job_id": row["external_job_id"],
+                  "source_url": row["source_url"],
+                  "raw_data": row["raw_data"],
+              }
+              raw_data = row["raw_data"] if isinstance(row["raw_data"], dict) else {}
+              job = raw_data.get("job", {}) if isinstance(raw_data.get("job"), dict) else {}
+              detail = raw_data.get("detail_evidence", {}) if isinstance(raw_data.get("detail_evidence"), dict) else {}
+              print("---")
+              print(f"RAW_JOB_ID={row['raw_job_id']}")
+              print(f"TITLE={job.get('title')}")
+              print(f"LOCATION={job.get('location')}")
+              print(f"LOCATIONS={json.dumps(job.get('locations'), ensure_ascii=False)}")
+              print(f"APPLICANT_LOCATIONS={json.dumps(job.get('applicant_locations'), ensure_ascii=False)}")
+              print(f"DETAIL_FIELD_PRESENCE={json.dumps(detail.get('field_presence'), sort_keys=True)}")
+              print(f"PERSISTED_DECISION={row['decision']}|reason={row['reason']}|at={row['decided_at']}")
+              print(f"PERSISTED_ROLE_MATCHES={row['role_matches']}")
+              print(f"PERSISTED_SKILL_MATCHES={row['skill_matches']}")
+              print(f"PERSISTED_ACCESSIBILITY_MATCHES={row['accessibility_matches']}")
+              print(f"CURRENT_RELEVANT={is_relevant_for_silver(raw_job)}")
+              print(f"CURRENT_REASON={get_silver_decision_reason(raw_job)}")
+              print(f"CURRENT_ROLE_MATCHES={get_role_matches(raw_job)}")
+              print(f"CURRENT_SKILL_MATCHES={get_skill_matches(raw_job)}")
+              print(f"CURRENT_ACCESSIBILITY_MATCHES={get_accessibility_matches(raw_job)}")
+              print(f"SILVER_JOB_ID={row['silver_job_id']}|source={row['silver_source_name']}|title={row['silver_title']}")
+          PY
