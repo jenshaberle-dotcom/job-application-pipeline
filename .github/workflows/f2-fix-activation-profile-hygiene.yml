@@ -48,33 +48,23 @@ jobs:
                   "        )",
                   "",
               ]
-              text = text.replace(marker, "\n".join(lines) + "\n" + marker, 1)
-              path.write_text(text, encoding="utf-8")
+              path.write_text(text.replace(marker, "\n".join(lines) + "\n" + marker, 1), encoding="utf-8")
               print("ACTIVATION_PROFILE_HYGIENE=PATCHED")
           else:
               print("ACTIVATION_PROFILE_HYGIENE=ALREADY_PATCHED")
-
-          workflow = Path(".github/workflows/f2-persisted-dynamic-cohort.yml")
-          wtext = workflow.read_text(encoding="utf-8")
-          bind_marker = "# activation-profile-hygiene-v1\n"
-          if bind_marker not in wtext:
-              anchor = "permissions:\n  contents: read\n"
-              if wtext.count(anchor) != 1:
-                  raise SystemExit("F2_PERSISTED_PERMISSION_ANCHOR_NOT_UNIQUE")
-              workflow.write_text(wtext.replace(anchor, anchor + bind_marker, 1), encoding="utf-8")
-              print("F2_PERSISTED_REBIND=PATCHED")
-          else:
-              print("F2_PERSISTED_REBIND=ALREADY_PRESENT")
           PY
           python3 -m py_compile scripts/apply_generic_employer_origin_activation.py
           grep -Fq 'WHERE source_name LIKE %s' scripts/apply_generic_employer_origin_activation.py
 
-      - name: Commit fix and self-remove
+      - name: Commit source fix
         shell: bash
         run: |
           set -euo pipefail
-          git rm .github/workflows/f2-fix-activation-profile-hygiene.yml
-          git add scripts/apply_generic_employer_origin_activation.py .github/workflows/f2-persisted-dynamic-cohort.yml
+          git add scripts/apply_generic_employer_origin_activation.py
+          if git diff --cached --quiet; then
+            echo "ACTIVATION_PROFILE_HYGIENE_COMMIT=NOOP"
+            exit 0
+          fi
           git config user.name "jenshaberle-dotcom"
           git config user.email "jens.haberle@gmail.com"
           git commit -m "Fix generic activation profile projection hygiene"
