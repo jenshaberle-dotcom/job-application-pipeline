@@ -8,11 +8,13 @@ Read this file from canonical `refs/heads/main` before continuing product work. 
 
 Canonical `main` is `dfd8cc3e40c84ddd4bb0374708d1da0ffa2c19e0` after #861. The latest published Windows release is **JAP Control Center Desktop v1.0.22**, sourced from `bb12e62a4fb638fdf782a0401ed54d5fe9922221` / PR #859.
 
-The active F2 closure is **PR #862**, still Draft and mergeable, with exact head `31fce4cf3dd64bbaa3bbdc45971d89c73ce9c2a3`. Its Windows `VERSION` is **1.0.23**. Therefore older text that still calls 1.0.22 the next release is stale, and the downstream release labels are shifted by one patch: F2 closure targets 1.0.23; F3 starts no earlier than 1.0.24.
+The active F2 closure is **PR #862**, still Draft and mergeable, with exact head `e301bb4ecc69e0c4261f7357f640f8c16bf62ad0`. Its Windows `VERSION` is **1.0.23**. Therefore older text that still calls 1.0.22 the next release is stale, and the downstream release labels are shifted by one patch: F2 closure targets 1.0.23; F3 starts no earlier than 1.0.24.
 
-On exact #862 head `31fce4cf3dd64bbaa3bbdc45971d89c73ce9c2a3`, GitHub currently records exactly five Actions runs: Pipeline CI `34605882832` PASS, P1 generic Employer-Origin product proof `34605882293` PASS, JAP Windows Control Center contract `34605882404` PASS, PR re-entry identity `34605882324` PASS, and push re-entry identity `34605876610` PASS. There is **no** `F2 B-ITE VALUNY real acceptance` run on that head. Historical/assumed run `34605882197` is not valid evidence for this head.
+The immediately preceding #862 head `31fce4cf3dd64bbaa3bbdc45971d89c73ce9c2a3` had Pipeline CI `34605882832` PASS, P1 generic Employer-Origin product proof `34605882293` PASS, JAP Windows Control Center contract `34605882404` PASS, and re-entry identity PASS, but it had **no** valid `F2 B-ITE VALUNY real acceptance` run. Historical/assumed run `34605882197` is not evidence for that head.
 
-The current branch-local `.github/workflows/f2-bite-valuny-e2e.yml` verifies exact checkout, persisted VALUNY origin state, canonical `proof=PASS`, activation, recurring generic-origin ingestion, positive VALUNY delivery, Bronze and Silver. It does **not** currently prove VALUNY Gold/Product readiness or a canonical Control Center / All Jobs projection. Those final product-boundary checks are required before F2 release/operator handoff and must not be inferred from the earlier generic P1 proof.
+Head `e301bb4ecc69e0c4261f7357f640f8c16bf62ad0` closes that acceptance-definition gap. The branch-local `.github/workflows/f2-bite-valuny-e2e.yml` now binds the product proof to the fresh VALUNY ingestion run: exact checkout -> persisted VALUNY origin -> canonical `proof=PASS` -> activation -> recurring ingestion with `loaded > 0` -> Bronze rows from that run -> Silver rows joined to those fresh Bronze rows -> matching Gold/Product-readiness rows -> matching canonical Control Center `job_readiness` rows with title and Origin URL. The Jobs UI, including `All observed`, renders this canonical `job_readiness` payload.
+
+Real exact-head acceptance run **`34632254867`** started automatically from `e301bb4ecc69e0c4261f7357f640f8c16bf62ad0`. At this checkpoint exact checkout, RCC runtime context, product DB environment, pinned local OSS runtime and persisted VALUNY origin state are PASS; the canonical product recomputation is still running. The same head also started fresh Pipeline CI, P1 product proof, Windows contract and re-entry identity checks. **No release/merge authority is inferred until the real acceptance and the required exact-head qualification checks complete successfully.**
 
 ## Product authority that does not change during the freeze
 
@@ -99,7 +101,7 @@ Residual carry discipline:
 
 - `CR-F0-001` — FI Origin alias identity duplication. Origin: F0. Current state: OPEN and freshly reconfirmed in run `34569520523`. Next natural touchpoint: **F3 vacancy identity/lifecycle hardening**. Mandatory decision no later than the F3 operator checkpoint.
 - `CR-F1-001` — fresh company identity -> F1 discovery -> CAND-001 persistence -> proof/activation has not yet been product-proven end-to-end. Origin: F1. Current evidence: run `34565632246` had 11 `f1_not_found`; Windhoff was selected but CAND-001 returned `manual_review_required`, so no new candidate URL was written. F2 proves the downstream persisted-source path independently, but does not erase this upstream F1 residual. Opportunistic closure: any later work that naturally touches company discovery/persistence. Otherwise mandatory campaign-end decision.
-- `CR-F2-001` — F2 positive-delivery/Product closure. Origin: F2. Earlier activation-verifier failures must not be conflated with genuine delivery failure. Current open condition is stronger and concrete: the final #862 head must produce a fresh real VALUNY acceptance proving canonical `proof=PASS -> active -> recurring ingestion with loaded > 0 -> Bronze > 0 -> Silver > 0 -> Gold/Product readiness > 0 -> canonical Control Center / All Jobs projection`. Exact head `31fce4cf3dd64bbaa3bbdc45971d89c73ce9c2a3` has no such acceptance run, and its current F2 workflow stops at Silver. Mandatory closure: before #862 leaves Draft / before v1.0.23 release authority.
+- `CR-F2-001` — F2 positive-delivery/Product closure. Origin: F2. Earlier activation-verifier failures must not be conflated with genuine delivery failure. Current open condition: exact final #862 head must produce a fresh real VALUNY acceptance proving canonical `proof=PASS -> active -> recurring ingestion with loaded > 0 -> fresh Bronze > 0 -> fresh Silver > 0 -> matching Gold/Product readiness > 0 -> matching canonical Control Center / Jobs All observed projection`. Head `e301bb4ecc69e0c4261f7357f640f8c16bf62ad0` contains this full gate and run `34632254867` is executing it, but no PASS is recorded at this checkpoint. Mandatory closure: before #862 leaves Draft / before v1.0.23 release authority.
 
 ## F0 — Origin Learning + Review Truth Foundation — COMPLETE WITH `CR-F0-001` CARRIED
 
@@ -177,31 +179,27 @@ Full-suite compatibility hardening also passed: static-first shadowing preserves
 
 ### PR #862 — current F2 closure boundary
 
-PR #862 carries employer-backed B-ITE evidence through the existing generic-origin product path without a VALUNY-specific vacancy parser or provider allowlist. Current head: `31fce4cf3dd64bbaa3bbdc45971d89c73ce9c2a3`; current target version: 1.0.23.
+PR #862 carries employer-backed B-ITE evidence through the existing generic-origin product path without a VALUNY-specific vacancy parser or provider allowlist. Current head: `e301bb4ecc69e0c4261f7357f640f8c16bf62ad0`; current target version: 1.0.23.
 
-Already proven on the exact head:
+The predecessor head `31fce4cf3dd64bbaa3bbdc45971d89c73ce9c2a3` already proved the unchanged implementation with Pipeline CI, P1 generic Employer-Origin product proof, Windows Control Center contract and re-entry identity. The new `e301bb4...` commit changes only the dedicated acceptance workflow so that the final product boundary is no longer inferred from historical or unrelated rows.
 
-- Pipeline CI PASS (`34605882832`);
-- P1 generic Employer-Origin product proof PASS (`34605882293`);
-- JAP Windows Control Center contract PASS (`34605882404`);
-- re-entry target identity PASS on PR and push (`34605882324`, `34605876610`).
+Exact-head qualification now in flight on `e301bb4ecc69e0c4261f7357f640f8c16bf62ad0`:
 
-Not yet proven on the exact head:
+- real F2 B-ITE VALUNY acceptance `34632254867` — started automatically from the workflow change; early runtime/state prerequisites PASS, canonical product recomputation in progress at this checkpoint;
+- fresh Pipeline CI `34632261569` — started;
+- fresh P1 generic Employer-Origin product proof `34632261239` — started;
+- fresh JAP Windows Control Center contract `34632261201` — started;
+- fresh re-entry identity checks — started.
 
-- a real VALUNY B-ITE acceptance run;
-- positive VALUNY delivery through Bronze and Silver on the final head;
-- VALUNY-specific Gold/Product readiness from those delivered rows;
-- canonical Control Center / All Jobs visibility for those VALUNY rows.
-
-The present `f2-bite-valuny-e2e.yml` is therefore **necessary but insufficient** as the final release gate because it stops at Silver. Extend the acceptance proof with the existing canonical Gold/Product-readiness and Control Center projection truth rather than adding a parallel product path.
+The acceptance is now intentionally stronger than the earlier branch gate. It requires at least one VALUNY row from the **latest exact ingestion run** to survive Bronze -> Silver -> Gold/Product readiness and appear in the canonical Control Center `job_readiness` payload with a title and `https://` Origin URL. Because the Jobs screen and its `All observed` filter render `payload.job_readiness`, this is the automated Product/UI projection gate; the installed desktop still receives its own operator test after release.
 
 ### Residual disposition at the current F2 checkpoint
 
 - `CR-F0-001`: OPEN; carry to F3 vacancy identity/lifecycle hardening.
 - `CR-F1-001`: OPEN; downstream source onboarding does not erase the missing fresh-company F1 -> CAND-001 persistence proof.
-- `CR-F2-001`: OPEN; close only with exact-head positive VALUNY delivery plus Bronze/Silver/Gold and canonical Control Center / All Jobs evidence.
+- `CR-F2-001`: OPEN while run `34632254867` and the exact-head qualification set remain unaccepted; close only after positive VALUNY delivery plus fresh Bronze/Silver/Gold and canonical Jobs projection PASS on the final #862 head.
 
-Sole next action: **extend the existing #862 VALUNY real-acceptance workflow so the same exact run proves Gold/Product readiness and canonical Control Center / All Jobs projection after positive Bronze/Silver delivery, then execute that real acceptance on the resulting exact PR head.** Do not mark #862 ready, merge it, or publish v1.0.23 until this passes. After PASS: mark #862 ready, merge the exact qualified head, wait for main CI, publish immutable v1.0.23, prove automatic local deployment, and perform the interactive operator test before entering F3.
+Sole next action: **evaluate run `34632254867` and the fresh exact-head qualification set for `e301bb4ecc69e0c4261f7357f640f8c16bf62ad0`.** If the real acceptance fails, fix only the concrete evidence/product-boundary defect and rerun on the resulting exact head. If the acceptance and required CI are green, close `CR-F2-001`, mark #862 ready, merge the exact qualified head, wait for main CI, publish immutable v1.0.23, prove automatic local deployment, and perform the interactive operator test before entering F3. Do not merge or publish before those gates pass.
 
 ## F3 — Bronze -> Silver -> Gold Truth/Lifecycle Hardening — target release 1.0.24
 
