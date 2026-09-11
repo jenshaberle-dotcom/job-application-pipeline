@@ -6,8 +6,11 @@ on:
     paths:
       - ".github/workflows/f2-dynamic-surface-diagnostic.yml"
       - "scripts/run_f2_dynamic_surface_diagnostic.py"
+      - "src/connectors/employer_origin_acquisition_v4.py"
+      - "src/connectors/employer_origin_dynamic_route.py"
       - "src/search_intelligence/dynamic_surface_evidence.py"
       - "tests/test_dynamic_surface_evidence.py"
+      - "tests/test_employer_origin_acquisition_v4_dynamic_route.py"
 
 permissions:
   contents: read
@@ -118,11 +121,13 @@ jobs:
           print("F2_DYNAMIC_RUNTIME_ENV=PASS")
           PY
 
-      - name: Run focused extractor tests
+      - name: Run focused extractor and acquisition tests
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m pytest -q tests/test_dynamic_surface_evidence.py
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_dynamic_surface_evidence.py \
+            tests/test_employer_origin_acquisition_v4_dynamic_route.py
 
       - name: Inspect persisted inactive dynamic surfaces
         shell: bash
