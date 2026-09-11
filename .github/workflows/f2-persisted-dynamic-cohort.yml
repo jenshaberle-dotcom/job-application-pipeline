@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-# activation-profile-hygiene-v1
+# dynamic-detail-hardening-v1
 
 concurrency:
   group: f2-persisted-dynamic-cohort
