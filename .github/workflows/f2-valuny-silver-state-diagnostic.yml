@@ -48,6 +48,7 @@ jobs:
           "$runtime_python" - "$runtime_env" <<'PY'
           import json
           import os
+          import re
           import sys
           from pathlib import Path
 
@@ -60,6 +61,10 @@ jobs:
                   os.environ[key] = value
 
           from src.config import get_database_config
+          from src.connectors.employer_origin_bite_product import (
+              BiteProductExecutor,
+              discover_bite_inventory,
+          )
           from src.silver.relevance import (
               get_accessibility_matches,
               get_role_matches,
@@ -83,6 +88,17 @@ jobs:
                   if latest is None:
                       raise SystemExit("VALUNY_RUN_MISSING")
                   run_id = int(latest["id"])
+                  cur.execute("""
+                      SELECT candidate_url
+                      FROM employer_origin_source_candidates
+                      WHERE company_key = 'valuny'
+                      ORDER BY updated_at DESC NULLS LAST, id DESC
+                      LIMIT 1
+                  """)
+                  candidate = cur.fetchone()
+                  if candidate is None:
+                      raise SystemExit("VALUNY_CANDIDATE_MISSING")
+                  origin_url = str(candidate["candidate_url"])
                   cur.execute("""
                       SELECT DISTINCT
                           r.id AS raw_job_id,
@@ -111,6 +127,7 @@ jobs:
 
           print(f"VALUNY_DIAGNOSTIC_RUN_ID={run_id}")
           print(f"VALUNY_DIAGNOSTIC_ROWS={len(rows)}")
+          observed_titles = set()
           for row in rows:
               raw_job = {
                   "id": row["raw_job_id"],
@@ -122,6 +139,7 @@ jobs:
               raw_data = row["raw_data"] if isinstance(row["raw_data"], dict) else {}
               job = raw_data.get("job", {}) if isinstance(raw_data.get("job"), dict) else {}
               detail = raw_data.get("detail_evidence", {}) if isinstance(raw_data.get("detail_evidence"), dict) else {}
+              observed_titles.add(str(job.get("title") or ""))
               print("---")
               print(f"RAW_JOB_ID={row['raw_job_id']}")
               print(f"TITLE={job.get('title')}")
@@ -139,4 +157,35 @@ jobs:
               print(f"CURRENT_SKILL_MATCHES={get_skill_matches(raw_job)}")
               print(f"CURRENT_ACCESSIBILITY_MATCHES={get_accessibility_matches(raw_job)}")
               print(f"SILVER_JOB_ID={row['silver_job_id']}|source={row['silver_source_name']}|title={row['silver_title']}")
+
+          inventory = discover_bite_inventory(
+              origin_url=origin_url,
+              execute=BiteProductExecutor(max_requests=8),
+          )
+          if inventory is None:
+              raise SystemExit("VALUNY_BITE_INVENTORY_MISSING")
+          print(f"VALUNY_BITE_INVENTORY_COUNT={len(inventory.postings)}")
+          interesting = re.compile(r"(loc|city|remote|workplace|address|office|site|ort|standort)", re.IGNORECASE)
+
+          def walk(value, path="$", depth=0):
+              if depth > 6:
+                  return
+              if isinstance(value, dict):
+                  for key, item in value.items():
+                      next_path = f"{path}.{key}"
+                      if interesting.search(str(key)) and isinstance(item, (str, int, float, bool, type(None))):
+                          text = str(item)
+                          print(f"BITE_FIELD={next_path}|{text[:500]}")
+                      walk(item, next_path, depth + 1)
+              elif isinstance(value, list):
+                  for index, item in enumerate(value[:20]):
+                      walk(item, f"{path}[{index}]", depth + 1)
+
+          for posting in inventory.postings:
+              if posting.title not in observed_titles:
+                  continue
+              print("--- BITE POSTING ---")
+              print(f"BITE_TITLE={posting.title}")
+              print(f"BITE_TOP_LEVEL_KEYS={sorted(posting.raw.keys())}")
+              walk(posting.raw)
           PY
