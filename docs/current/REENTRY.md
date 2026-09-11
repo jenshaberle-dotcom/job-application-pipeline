@@ -174,6 +174,19 @@ Real effect run `34569520523` on exact head `de7e48dcbb59cef375109a829c37bb1bb31
 
 This opens the branch-level source-admission Operator gate: a previously persisted inactive Dynamic-Origin company has now reached `proof=PASS -> active -> successful recurring generic-origin ingestion`. The 1.0.22 package is **not yet release authority** until the normal qualification/merge/release/deploy/operator sequence completes.
 
+### Full-suite compatibility hardening — PASS
+
+The first complete PR suite correctly exposed that Dynamic-Origin could duplicate URLs already represented by stronger static/query/anchor navigation. That changed legacy discovery provenance and could widen established request budgets even though the strict job proof itself remained unchanged. This was treated as an implementation defect, not as a reason to relax existing contracts.
+
+Qualified correction `b6e832a218b25bd9cdc7d57163986193752fd201` establishes **static-first shadowing**:
+
+- an existing strong static/query/anchor/listing candidate keeps authority and provenance for the same canonical URL;
+- Dynamic-Origin supplements only genuinely new script/API route evidence rather than displacing the established path;
+- low-signal `embedded_detail` fallback remains eligible to be superseded by stronger dynamic evidence;
+- no legacy provenance assertion or request-budget test was weakened.
+
+One-shot qualification run `34571596584` passed Ruff and the complete Python suite: **3211/3211 tests PASS**. The temporary patcher and one-shot qualifier workflow were removed after qualification. This compatibility proof is part of the 1.0.22 release-candidate evidence.
+
 ### Residual disposition at the 1.0.22 checkpoint
 
 - `CR-F0-001`: still OPEN; fresh FI alias evidence reconfirms it. Carry to F3 because F3 already changes vacancy identity/lifecycle semantics.
@@ -183,6 +196,7 @@ This opens the branch-level source-admission Operator gate: a previously persist
 Required evidence before 1.0.22 release:
 
 - branch effect proof above: **PASS**;
+- static-first full-suite compatibility proof above: **PASS**;
 - Control Center source-role/activation/latest-delivery truth: already merged on main in #858, requalify with final package head;
 - final Full Suite/Ruff/React/Windows contracts on the exact release-candidate head;
 - recheck that no provider/company allowlist proliferation or FI-specific parser branch entered the package;
