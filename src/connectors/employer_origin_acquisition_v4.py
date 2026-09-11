@@ -286,9 +286,11 @@ def _dynamic_route_candidates(
     effective_allowed_hosts: tuple[str, ...],
     fetched: set[str],
     depth: int,
+    shadowed_urls: set[str] | None = None,
 ) -> list[tuple[NavigationCandidate, int]]:
-    """Turn bounded dynamic evidence into candidates without granting job proof."""
+    """Turn bounded dynamic evidence into candidates without displacing stronger navigation."""
 
+    shadowed = {canonical_url(url) for url in (shadowed_urls or ())}
     details: list[tuple[NavigationCandidate, int]] = []
     listings: list[tuple[NavigationCandidate, int]] = []
 
@@ -298,7 +300,7 @@ def _dynamic_route_candidates(
         allowed_hosts=effective_allowed_hosts,
     ):
         clean = canonical_url(url)
-        if not clean or clean in fetched:
+        if not clean or clean in fetched or clean in shadowed:
             continue
         if allowed_host(clean, effective_allowed_hosts):
             source = _DYNAMIC_DETAIL_SOURCE
@@ -324,7 +326,7 @@ def _dynamic_route_candidates(
         allowed_hosts=effective_allowed_hosts,
     ):
         clean = canonical_url(url)
-        if not clean or clean in fetched:
+        if not clean or clean in fetched or clean in shadowed:
             continue
         listings.append(
             (
@@ -539,19 +541,24 @@ def acquire_genuine_job_pages(
     remaining = max_followup_requests
     extra_followup_grants = 0
     fetched: set[str] = {canonical_url(root.requested_url), canonical_url(root.final_url)}
+    root_discovered = discover_navigation_candidates(
+        root,
+        allowed_hosts=effective_allowed_hosts,
+        known_detail_urls=known_detail_urls,
+    )
     queue: list[tuple[NavigationCandidate, int]] = [
-        (candidate, 0)
-        for candidate in discover_navigation_candidates(
-            root,
-            allowed_hosts=effective_allowed_hosts,
-            known_detail_urls=known_detail_urls,
-        )
+        (candidate, 0) for candidate in root_discovered
     ]
     root_dynamic_items = _dynamic_route_candidates(
         root,
         effective_allowed_hosts=effective_allowed_hosts,
         fetched=fetched,
         depth=-1,
+        shadowed_urls={
+            candidate.url
+            for candidate in root_discovered
+            if candidate.discovery_source != "embedded_detail"
+        },
     )
     queue = [*root_dynamic_items, *queue]
 
@@ -649,6 +656,11 @@ def acquire_genuine_job_pages(
             effective_allowed_hosts=effective_allowed_hosts,
             fetched=fetched,
             depth=depth,
+            shadowed_urls={
+                item.url
+                for item in discovered
+                if item.discovery_source != "embedded_detail"
+            },
         )
         greenhouse_items = _greenhouse_stage_items(
             candidate,
