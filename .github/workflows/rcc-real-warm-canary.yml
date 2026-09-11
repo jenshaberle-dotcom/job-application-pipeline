@@ -30,6 +30,7 @@ jobs:
       RCC_EXPECTED_PYTHON: 3.12.14
       RCC_RESERVATION_ID: ${{ inputs.reservation_id }}
       RCC_EXPECTED_RUNNER: ${{ inputs.expected_runner }}
+      JAP_LOCAL_OSS_ROOT: ${{ runner.tool_cache }}/../jap-local-oss-sites
 
     steps:
       - name: Start measured canary and prove exact handoff
@@ -69,6 +70,47 @@ jobs:
           echo "RCC_PIP_INSTALL=NONE"
           echo "RCC_REMOTE_PIP_CACHE_RESTORE=NONE"
 
+      - name: Bind pre-provisioned persistent JAP local OSS overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t specs < <(
+            "$RCC_CANARY_PYTHON" - requirements.txt <<'PY'
+          from pathlib import Path
+          import sys
+
+          required = ("extruct", "trafilatura")
+          found = {}
+          for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+              line = raw.strip()
+              if not line or line.startswith("#"):
+                  continue
+              for name in required:
+                  if line.lower().startswith(name + "=="):
+                      if name in found:
+                          raise SystemExit(f"duplicate pinned requirement for {name}")
+                      found[name] = line
+          missing = [name for name in required if name not in found]
+          if missing:
+              raise SystemExit("missing exact pinned local OSS requirements: " + ",".join(missing))
+          for name in required:
+              print(found[name])
+          PY
+          )
+          test "${#specs[@]}" -eq 2
+          digest="$(printf '%s\n' "${specs[@]}" | sha256sum | awk '{print $1}')"
+          site="$JAP_LOCAL_OSS_ROOT/$digest"
+          test -d "$site"
+          PYTHONPATH="$site${PYTHONPATH:+:$PYTHONPATH}" "$RCC_CANARY_PYTHON" - <<'PY'
+          import extruct
+          import trafilatura
+          assert extruct is not None
+          assert trafilatura is not None
+          PY
+          printf 'PYTHONPATH=%s:%s\n' "$site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          echo "JAP_PERSISTENT_LOCAL_OSS=PASS digest=$digest site=$site"
+          echo "JAP_LOCAL_OSS_INSTALL_DURING_CANARY=NONE"
+
       - name: Compile active Python paths
         shell: bash
         run: "$RCC_CANARY_PYTHON -m compileall -q src scripts tests"
@@ -101,6 +143,7 @@ jobs:
             echo "- Python: \`$RCC_EXPECTED_PYTHON\`"
             echo "- setup-python: \`NONE\`"
             echo "- pip install: \`NONE\`"
+            echo "- local OSS install during canary: \`NONE\`"
             echo "- remote pip cache restore: \`NONE\`"
             echo "- measured job body: \`${elapsed} ms\`"
           } >> "$GITHUB_STEP_SUMMARY"
