@@ -13,6 +13,7 @@ Callers must still pass a concrete detail through the unchanged
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 import json
 import re
 from urllib.parse import urlparse
@@ -42,12 +43,17 @@ _BINDING_RE = re.compile(
     flags=re.IGNORECASE,
 )
 _KEY_RE = re.compile(r"(?:['\"]?key['\"]?)\s*:\s*['\"]([0-9a-fA-F]{32,128})['\"]")
-_CHANNEL_RE = re.compile(r"(?:['\"]?channel['\"]?)\s*:\s*(\d{1,6})")
+_JS_IDENTIFIER = r"[A-Za-z_$][A-Za-z0-9_$]{0,80}"
+_JS_NUMBER = r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?"
+_CHANNEL_RE = re.compile(
+    rf"(?:['\"]?channel['\"]?)\s*:\s*(?P<value>{_JS_NUMBER}|{_JS_IDENTIFIER})",
+    flags=re.IGNORECASE,
+)
 _LOCALE_RE = re.compile(r"(?:['\"]?locale['\"]?)\s*:\s*['\"]([A-Za-z0-9_-]{2,16})['\"]")
 _PAGE_RE = re.compile(
-    r"(?:['\"]?page['\"]?)\s*:\s*\{[^{}]{0,500}?"
-    r"(?:['\"]?offset['\"]?)\s*:\s*(\d{1,8})[^{}]{0,300}?"
-    r"(?:['\"]?num['\"]?)\s*:\s*(\d{1,8})[^{}]{0,300}?\}",
+    rf"(?:['\"]?page['\"]?)\s*:\s*\{{[^{{}}]{{0,500}}?"
+    rf"(?:['\"]?offset['\"]?)\s*:\s*(?P<offset>{_JS_NUMBER})[^{{}}]{{0,300}}?"
+    rf"(?:['\"]?num['\"]?)\s*:\s*(?P<num>{_JS_NUMBER})[^{{}}]{{0,300}}?\}}",
     flags=re.IGNORECASE | re.DOTALL,
 )
 _SORT_RE = re.compile(
@@ -62,7 +68,9 @@ _FILTER_RE = re.compile(
     r"['\"]?in['\"]?\s*:\s*\[([^\]]{1,1000})\]",
     flags=re.IGNORECASE | re.DOTALL,
 )
-_QUOTED_VALUE_RE = re.compile(r"['\"]([^'\"]{1,128})['\"]")
+_JS_IDENTIFIER_RE = re.compile(rf"^{_JS_IDENTIFIER}$")
+_JS_NUMBER_RE = re.compile(rf"^{_JS_NUMBER}$", flags=re.IGNORECASE)
+_JS_STRING_RE = re.compile(r"^(['\"])([^'\"]{1,128})\1$")
 _TOKEN_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9+#.]{2,}")
 
 
@@ -114,6 +122,82 @@ def _https_url(value: object, *, host: str | None = None) -> str | None:
     return value
 
 
+def _integer_js_number(value: str) -> int | None:
+    if _JS_NUMBER_RE.fullmatch(value.strip()) is None:
+        return None
+    try:
+        number = Decimal(value.strip())
+    except InvalidOperation:
+        return None
+    integral = number.to_integral_value()
+    if number != integral:
+        return None
+    try:
+        return int(integral)
+    except (OverflowError, ValueError):
+        return None
+
+
+def _scalar_assignments(prefix: str, identifier: str) -> tuple[str, ...]:
+    """Return bounded literal assignments for one minified local alias.
+
+    B-ITE tenant assets commonly hoist immutable scalars (for example ``i=0``
+    and ``o="tenant"``) and reference those aliases from ``createSearchConfig``.
+    We do not execute JavaScript: only literal string/number assignments that
+    occur before the config object are eligible.  Conflicting literal values
+    fail closed at the caller.
+    """
+
+    if _JS_IDENTIFIER_RE.fullmatch(identifier) is None or len(prefix) > 2_000_000:
+        return ()
+    assignment_re = re.compile(
+        rf"(?<![A-Za-z0-9_$.]){re.escape(identifier)}\s*=\s*"
+        rf"(?P<value>['\"][^'\"]{{1,128}}['\"]|{_JS_NUMBER})(?=\s*[,;])",
+        flags=re.IGNORECASE,
+    )
+    return tuple(dict.fromkeys(match.group("value") for match in assignment_re.finditer(prefix)))
+
+
+def _resolve_number_token(token: str, *, prefix: str) -> int | None:
+    direct = _integer_js_number(token)
+    if direct is not None:
+        return direct
+    assignments = _scalar_assignments(prefix, token.strip())
+    if len(assignments) != 1:
+        return None
+    return _integer_js_number(assignments[0])
+
+
+def _resolve_string_token(token: str, *, prefix: str) -> str | None:
+    token = token.strip()
+    direct = _JS_STRING_RE.fullmatch(token)
+    if direct is not None:
+        return direct.group(2).strip() or None
+    if _JS_IDENTIFIER_RE.fullmatch(token) is None:
+        return None
+    assignments = _scalar_assignments(prefix, token)
+    if len(assignments) != 1:
+        return None
+    match = _JS_STRING_RE.fullmatch(assignments[0])
+    if match is None:
+        return None
+    return match.group(2).strip() or None
+
+
+def _resolve_filter_values(raw_values: str, *, prefix: str) -> tuple[str, ...] | None:
+    parts = tuple(part.strip() for part in raw_values.split(","))
+    if not parts or any(not part for part in parts) or len(parts) > 64:
+        return None
+    resolved: list[str] = []
+    for part in parts:
+        value = _resolve_string_token(part, prefix=prefix)
+        if value is None or len(value) > 128:
+            return None
+        resolved.append(value)
+    values = tuple(dict.fromkeys(resolved))
+    return values or None
+
+
 def discover_bite_binding(*, page_url: str, html: str) -> BiteBinding | None:
     """Return one exact employer-declared B-ITE tenant binding, otherwise fail closed."""
 
@@ -153,16 +237,16 @@ def parse_bite_runtime(*, binding: BiteBinding, asset_url: str, javascript: str)
         return None
 
     assert key_match and channel_match and locale_match and page_match and sort_match and filter_match
-    page_offset = int(page_match.group(1))
-    page_num = int(page_match.group(2))
-    channel = int(channel_match.group(1))
-    if page_offset < 0 or not 1 <= page_num <= BITE_MAX_PAGE_SIZE or channel < 0:
+    # Minified provider assets may hoist channel/filter values into local scalar
+    # aliases.  Only literal assignments preceding the proven config are resolved.
+    prefix = javascript[: key_match.start()]
+    page_offset = _integer_js_number(page_match.group("offset"))
+    page_num = _integer_js_number(page_match.group("num"))
+    channel = _resolve_number_token(channel_match.group("value"), prefix=prefix)
+    filter_values = _resolve_filter_values(filter_match.group(2), prefix=prefix)
+    if page_offset is None or page_num is None or channel is None or filter_values is None:
         return None
-
-    filter_values = tuple(
-        dict.fromkeys(value.strip() for value in _QUOTED_VALUE_RE.findall(filter_match.group(2)) if value.strip())
-    )
-    if not filter_values:
+    if page_offset < 0 or not 1 <= page_num <= BITE_MAX_PAGE_SIZE or channel < 0:
         return None
 
     # Employer ownership of the tenant asset was established by the binding.  The
