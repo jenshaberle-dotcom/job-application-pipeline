@@ -1,0 +1,237 @@
+name: RCC Step 1 WSL fleet inventory readonly
+
+on:
+  push:
+    branches:
+      - agent/rcc-step1-wsl-inventory-001a
+    paths:
+      - .github/workflows/rcc-step1-wsl-fleet-inventory-readonly.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    name: Read-only WSL physical runner inventory
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 10
+    steps:
+      - name: Inspect all bounded Linux runner roots
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/rcc-step1-wsl-fleet-inventory.json"
+          python3 - "$OUT" <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          out_path = Path(sys.argv[1])
+          home = Path.home()
+          scan_roots = [Path('/home'), Path('/opt'), Path('/srv')]
+          max_depth = 7
+          prune = {
+              '_work', '.git', 'node_modules', '.venv', 'venv', '__pycache__',
+              '.npm', '.nuget', '.cargo', '.rustup', 'site-packages',
+              'proc', 'sys', 'dev', 'snap'
+          }
+
+          def run(args, timeout=10):
+              try:
+                  p = subprocess.run(args, text=True, capture_output=True, timeout=timeout)
+                  return {
+                      'exit_code': p.returncode,
+                      'stdout': (p.stdout or '').strip().splitlines()[:300],
+                      'stderr': (p.stderr or '').strip().splitlines()[:80],
+                  }
+              except FileNotFoundError:
+                  return {'exit_code': None, 'stdout': [], 'stderr': ['MISSING']}
+              except Exception as exc:
+                  return {'exit_code': -1, 'stdout': [], 'stderr': [str(exc)]}
+
+          runner_files = []
+          payload_roots = set()
+          scan_errors = []
+          for root in scan_roots:
+              if not root.exists():
+                  continue
+              try:
+                  for current, dirs, files in os.walk(root, topdown=True, followlinks=False):
+                      cur = Path(current)
+                      try:
+                          depth = len(cur.relative_to(root).parts)
+                      except Exception:
+                          depth = 999
+                      dirs[:] = [d for d in dirs if d not in prune and depth < max_depth]
+                      if '.runner' in files:
+                          runner_files.append(cur / '.runner')
+                      if (cur / 'bin' / 'Runner.Listener').exists() or (cur / 'run.sh').exists() or (cur / 'runsvc.sh').exists():
+                          payload_roots.add(str(cur))
+              except Exception as exc:
+                  scan_errors.append({'root': str(root), 'error': str(exc)})
+
+          registrations = []
+          for file in sorted(set(runner_files)):
+              row = {'file': str(file), 'runner_root': str(file.parent)}
+              try:
+                  data = json.loads(file.read_text(encoding='utf-8'))
+                  work_folder = data.get('workFolder', '_work')
+                  row.update({
+                      'agent_id': data.get('agentId'),
+                      'agent_name': data.get('agentName'),
+                      'pool_id': data.get('poolId'),
+                      'pool_name': data.get('poolName'),
+                      'github_url': data.get('gitHubUrl'),
+                      'server_url': data.get('serverUrl'),
+                      'work_folder': work_folder,
+                      'service_marker': (file.parent / '.service').exists(),
+                      'credentials_present': (file.parent / '.credentials').exists() or (file.parent / '.credentials_rsaparams').exists(),
+                      'work_root_exists': (file.parent / work_folder).exists(),
+                      'listener_binary_present': (file.parent / 'bin' / 'Runner.Listener').exists(),
+                      'run_script_present': (file.parent / 'run.sh').exists(),
+                      'runsvc_script_present': (file.parent / 'runsvc.sh').exists(),
+                  })
+              except Exception as exc:
+                  row['parse_error'] = str(exc)
+              registrations.append(row)
+
+          registered_roots = {r['runner_root'] for r in registrations}
+          payload_without_registration = sorted(r for r in payload_roots if r not in registered_roots)
+
+          units_all = run(['systemctl', 'list-units', '--type=service', '--all', '--no-legend', '--no-pager'])
+          unit_files_all = run(['systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager'])
+          runner_units = [x for x in units_all['stdout'] if 'actions.runner' in x.lower()]
+          runner_unit_files = [x for x in unit_files_all['stdout'] if 'actions.runner' in x.lower()]
+
+          unit_paths = []
+          for base in [Path('/etc/systemd/system'), Path('/lib/systemd/system'), home / '.config/systemd/user']:
+              if not base.exists():
+                  continue
+              try:
+                  for p in sorted(base.glob('actions.runner*.service')):
+                      try:
+                          unit_paths.append({'path': str(p), 'content': p.read_text(errors='replace').splitlines()[:120]})
+                      except Exception as exc:
+                          unit_paths.append({'path': str(p), 'read_error': str(exc)})
+              except Exception as exc:
+                  scan_errors.append({'root': str(base), 'error': str(exc)})
+
+          ps = run(['ps', '-eo', 'pid=,ppid=,user=,cmd='])
+          listener_processes = [
+              line.strip() for line in ps['stdout']
+              if 'Runner.Listener' in line or 'Runner.Worker' in line or 'runsvc.sh' in line
+          ]
+
+          tools = {}
+          for name, args in [
+              ('python3', ['--version']), ('python', ['--version']),
+              ('node', ['--version']), ('npm', ['--version']),
+              ('dotnet', ['--list-sdks']), ('docker', ['--version']),
+              ('gh', ['--version']), ('pwsh', ['--version']), ('jq', ['--version'])
+          ]:
+              tools[name] = run([name] + args, timeout=8)
+
+          cache_paths = []
+          for p in [
+              home / '.cache/pip', home / '.npm', home / '.nuget/packages',
+              home / '.ped-kaggle-tools',
+              home / '.cache/DeepOceanInfrastructure/RunnerToolchain',
+              home / '.local/share/DeepOceanInfrastructure/RunnerToolchain'
+          ]:
+              cache_paths.append({
+                  'path': str(p),
+                  'exists': p.exists(),
+                  'children': sorted(x.name for x in p.iterdir())[:100] if p.exists() and p.is_dir() else [],
+              })
+
+          special_binaries = []
+          for base in [
+              home / '.ped-kaggle-tools',
+              home / '.cache/DeepOceanInfrastructure/RunnerToolchain',
+              home / '.local/share/DeepOceanInfrastructure/RunnerToolchain'
+          ]:
+              if not base.exists():
+                  continue
+              try:
+                  for p in base.rglob('*'):
+                      if not p.is_file():
+                          continue
+                      n = p.name.lower()
+                      if 'godot' in n or n.startswith('kaggle'):
+                          special_binaries.append(str(p))
+                          if len(special_binaries) >= 200:
+                              break
+              except Exception as exc:
+                  scan_errors.append({'root': str(base), 'error': str(exc)})
+
+          by_repo = {}
+          for r in registrations:
+              repo = r.get('github_url') or r.get('server_url') or 'UNKNOWN'
+              by_repo.setdefault(repo, []).append(r.get('agent_name') or r.get('runner_root'))
+
+          result = {
+              'schema_version': 1,
+              'generated_at_utc': datetime.now(timezone.utc).isoformat(),
+              'authority': {
+                  'purpose': 'RCC Shared Pool Step 1 real Linux physical runner inventory',
+                  'mode': 'READ_ONLY',
+                  'runner_lifecycle_mutation': 'NONE',
+                  'service_lifecycle_mutation': 'NONE',
+                  'cleanup': 'NONE',
+              },
+              'execution': {
+                  'runner_name': os.environ.get('RUNNER_NAME'),
+                  'runner_os': os.environ.get('RUNNER_OS'),
+                  'runner_arch': os.environ.get('RUNNER_ARCH'),
+                  'runner_temp': os.environ.get('RUNNER_TEMP'),
+                  'runner_workspace': os.environ.get('RUNNER_WORKSPACE'),
+                  'user': run(['id', '-un'])['stdout'],
+                  'hostname': run(['hostname'])['stdout'],
+                  'uname': run(['uname', '-a'])['stdout'],
+                  'home': str(home),
+              },
+              'scan_contract': {'roots': [str(x) for x in scan_roots], 'max_depth': max_depth},
+              'runner_registration_count': len(registrations),
+              'registrations': registrations,
+              'repository_registration_map': by_repo,
+              'payload_root_count': len(payload_roots),
+              'payload_roots': sorted(payload_roots),
+              'payload_without_registration_count': len(payload_without_registration),
+              'payload_without_registration': payload_without_registration,
+              'systemd_runner_unit_count': len(runner_units),
+              'systemd_runner_units': runner_units,
+              'systemd_runner_unit_file_count': len(runner_unit_files),
+              'systemd_runner_unit_files': runner_unit_files,
+              'systemd_unit_paths': unit_paths,
+              'listener_process_count': len(listener_processes),
+              'listener_processes': listener_processes,
+              'tools': tools,
+              'cache_paths': cache_paths,
+              'special_binaries': sorted(set(special_binaries)),
+              'scan_errors': scan_errors,
+          }
+          out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+          print(f"WSL_RUNNER_REGISTRATION_COUNT={len(registrations)}")
+          print(f"WSL_PAYLOAD_ROOT_COUNT={len(payload_roots)}")
+          print(f"WSL_PAYLOAD_WITHOUT_REGISTRATION_COUNT={len(payload_without_registration)}")
+          print(f"WSL_SYSTEMD_RUNNER_UNIT_COUNT={len(runner_units)}")
+          print(f"WSL_SYSTEMD_RUNNER_UNIT_FILE_COUNT={len(runner_unit_files)}")
+          print(f"WSL_LISTENER_PROCESS_COUNT={len(listener_processes)}")
+          print('WSL_RUNNER_NAMES=' + ','.join(sorted(str(r.get('agent_name')) for r in registrations if r.get('agent_name'))))
+          print('WSL_REPOSITORY_MAP=' + json.dumps(by_repo, separators=(',', ':')))
+          PY
+          echo '=== RCC WSL INVENTORY JSON ==='
+          cat "$OUT"
+
+      - name: Upload WSL inventory evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rcc-step1-wsl-fleet-inventory
+          path: ${{ runner.temp }}/rcc-step1-wsl-fleet-inventory.json
+          if-no-files-found: error
+          retention-days: 7
