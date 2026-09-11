@@ -161,6 +161,27 @@ Operator test for 1.0.22:
 - verify newly discovered companies, if proof-valid, are actually visible as persisted/active sources rather than only as discovery reports;
 - confirm sensor-only rows stay outside normal job review and known stale/dead rows remain excluded.
 
+### F1/F2 branch checkpoint — 2026-09-11
+
+This checkpoint records non-canonical branch evidence only. Canonical `main` remains `b5cca02ab23766dda43b49cfdc54b8517cfb36dc`; active work is on `agent/f2-real-cohort` and does not become release/product authority until the normal merge/release path completes.
+
+Implemented and qualified on the branch:
+
+- generic Dynamic-Origin evidence is now integrated into `employer_origin_acquisition_v4`; route/API evidence may create bounded candidates but never substitutes for the unchanged strict genuine-job detail proof;
+- strong delegated dynamic detail hosts are derived generically from page evidence; no employer-specific Nortal/TRIOLOGY/Valuny branch or allowlist was introduced;
+- malformed URL literals such as invalid ports are discarded safely;
+- database credentials used by F2 workflows are masked before export to `GITHUB_ENV`;
+- dynamic diagnostic run `34565496515` PASS: focused extractor/acquisition regressions PASS and 8 persisted-but-inactive sources were inspected, including Nortal, TRIOLOGY and Valuny.
+
+Real cohort evidence is deliberately split by lifecycle boundary rather than conflated:
+
+- fresh F1 12-company run `34565632246` stopped before source proof: 11 companies were `f1_not_found`; Windhoff was the sole F1 selection (`https://windhoff-karriere.de/`) but CAND-001 classified it `manual_review_required`; therefore `persisted_or_ready=0`, `candidate_url_written=0`, and proof/activation/ingestion did not run. This is the current explicit F1 persistence blocker classification, not a hidden success;
+- persisted-inactive Dynamic-Origin effect run `34565820444` is executing on exact head `c403cea89ad69cd6cc45316c0dcf45dec4f03f55`. It reuses the canonical complete generic product proof before activation because activation treats the proof cohort as the complete active-source projection; a narrowed proof cohort would be unsafe.
+
+Operator gate remains **CLOSED** while run `34565820444` is incomplete. The gate opens only when at least one selected fresh/persisted Dynamic-Origin company is proven through `proof=PASS -> active -> successful generic-origin ingestion`; positive Bronze/Silver/job delivery is stronger evidence but zero current jobs remains a valid source state under the frozen source-vs-job admission contract.
+
+Sole next action: evaluate run `34565820444`. If the gate is reached, carry its exact source/funnel evidence into the 1.0.22 release qualification and operator test. Otherwise classify the exact proof/activation/ingestion stop and continue the generic Dynamic-Origin bridge without company-specific exceptions.
+
 ## F3 — Bronze -> Silver -> Gold Truth/Lifecycle Hardening — target release 1.0.23
 
 Purpose: make downstream truth resistant to stale, dead and duplicate vacancies regardless of upstream family.
