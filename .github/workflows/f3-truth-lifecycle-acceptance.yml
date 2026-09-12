@@ -1,0 +1,146 @@
+name: F3 truth/lifecycle acceptance
+
+on:
+  push:
+    branches: [agent/f3-truth-lifecycle-hardening]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f3-truth-lifecycle-acceptance
+  cancel-in-progress: true
+
+jobs:
+  accept:
+    name: Prove persisted F3 Product truth
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 35
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+
+    steps:
+      - name: Check out exact acceptance head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          echo "F3_EXACT_HEAD=${GITHUB_SHA}"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Provision pinned local OSS detail runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
+            "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f3-truth-local-oss-sites")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          PYTHONPATH="$local_oss_site:${PYTHONPATH:-}" "$RUNTIME_PYTHON" -c 'import extruct, trafilatura'
+          echo "F3_PINNED_LOCAL_OSS=PASS"
+
+      - name: Require migration history tracked and immutable
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status
+          "$RUNTIME_PYTHON" - <<'PY'
+          from scripts.apply_db_migrations import (
+              checksum_mismatches,
+              connect,
+              discover_migration_files,
+              load_tracked_migrations,
+              pending_migrations,
+          )
+
+          expected = "109_create_canonical_vacancy_identity_truth.sql"
+          migrations = discover_migration_files()
+          with connect() as conn:
+              tracked = load_tracked_migrations(conn)
+          if checksum_mismatches(migrations, tracked):
+              raise SystemExit("F3_TRACKED_MIGRATION_CHECKSUM_DRIFT")
+          if expected not in tracked:
+              raise SystemExit("F3_MIGRATION_109_NOT_TRACKED")
+          pending = [item.migration_key for item in pending_migrations(migrations, tracked)]
+          if pending:
+              raise SystemExit(f"F3_UNEXPECTED_PENDING_MIGRATIONS:{pending}")
+          print("F3_MIGRATION_HISTORY=PASS")
+          PY
+
+      - name: Prove persisted F3 truth and Product boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/accept_f3_truth_lifecycle.py
