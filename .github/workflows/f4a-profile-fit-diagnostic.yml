@@ -1,4 +1,4 @@
-name: F4A profile-fit diagnostic
+name: F4A profile-fit real acceptance
 
 on:
   push:
@@ -8,12 +8,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: f4a-profile-fit-diagnostic
+  group: f4a-profile-fit-real-acceptance
   cancel-in-progress: true
 
 jobs:
-  diagnostic:
-    name: Read-only real Product coverage inventory
+  acceptance:
+    name: Prove real Product Profile Fit coverage
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 20
     env:
@@ -22,7 +22,7 @@ jobs:
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
 
     steps:
-      - name: Check out exact diagnostic head
+      - name: Check out exact acceptance head
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          echo "F4A_DIAGNOSTIC_HEAD=${GITHUB_SHA}"
+          echo "F4A_ACCEPTANCE_HEAD=${GITHUB_SHA}"
 
       - name: Resolve verified RCC runtime context
         shell: bash
@@ -100,8 +100,14 @@ jobs:
                   handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
           PY
 
-      - name: Run redacted read-only F4A diagnostic
+      - name: Run redacted read-only F4A inventory
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" scripts/run_f4a_profile_fit_diagnostic.py
+
+      - name: Prove complete current-job Profile Fit partition through Product payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/accept_f4a_profile_fit_coverage.py
