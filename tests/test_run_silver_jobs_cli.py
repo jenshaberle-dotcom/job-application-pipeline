@@ -127,3 +127,32 @@ def test_repository_preserves_source_only_selection() -> None:
     assert "r.source_name = %s" in cursor.sql
     assert "r.ingestion_run_id = %s" not in cursor.sql
     assert cursor.params == ("computacenter:discovery", 3)
+
+
+def test_repository_reconsiders_only_changed_newer_missing_accessibility_evidence() -> None:
+    repository, cursor = build_recording_repository()
+
+    repository.load_unprocessed_raw_jobs(limit=5, source_patterns=["generic_origin:%"])
+
+    assert "d.reason = 'missing_accessibility_signal'" in cursor.sql
+    assert "observation.observed_at > d.decided_at" in cursor.sql
+    assert "d.normalized_evidence_hash <> observation.normalized_evidence_hash" in cursor.sql
+    assert "d.evidence_contract_version <> observation.evidence_contract_version" in cursor.sql
+    assert "observation.normalized_evidence -> 'raw_evidence'" in cursor.sql
+    assert "d.decision = 'skipped'" in cursor.sql
+
+
+def test_decision_evidence_is_forwarded_only_as_a_complete_pair() -> None:
+    assert run_silver_jobs._decision_evidence(
+        {
+            "_silver_evidence_hash": "a" * 64,
+            "_silver_evidence_contract_version": "recurring_observation_evidence_v1",
+        }
+    ) == {
+        "normalized_evidence_hash": "a" * 64,
+        "evidence_contract_version": "recurring_observation_evidence_v1",
+    }
+    assert run_silver_jobs._decision_evidence({}) == {
+        "normalized_evidence_hash": None,
+        "evidence_contract_version": None,
+    }

@@ -29,6 +29,7 @@ from src.connectors.employer_origin_ats_navigation import (
 from src.connectors.employer_origin_portal_delegation_acquisition import (
     acquire_via_explicit_portal,
 )
+from src.connectors.employer_origin_bite_product import prove_one_bite_source
 from src.connectors.employer_origin_provider_public_feed import (
     SUPPORTED_PUBLIC_FEED_PROVIDERS,
     acquire_from_authorized_provider_host,
@@ -543,6 +544,63 @@ def _public_feed_residual(
     )
 
 
+def _bite_residual(
+    row: dict[str, Any],
+    args: argparse.Namespace,
+    baseline: ConnectorBuilderAssessment,
+) -> ConnectorBuilderAssessment:
+    """Resolve only a proof-layer residual from employer-declared B-ITE evidence.
+
+    This is part of the sole generic layer product: it does not create an alternate
+    admission authority. The candidate must already have passed identity, persisted
+    origin, reachability, inventory and detail, and the unchanged strict genuine-job
+    proof remains the final source-validity gate.
+    """
+
+    failure = baseline.first_failure
+    if failure is None or failure.layer != "proof":
+        return baseline
+
+    origin_layer = baseline.layers[1]
+    if origin_layer.state != LayerState.PASS:
+        return baseline
+    if str(origin_layer.evidence.get("source") or "") != "persisted_candidate_url":
+        return baseline
+
+    origin_url, _ = layer_core._resolve_origin(row, args)
+    if not origin_url:
+        return baseline
+
+    proven = prove_one_bite_source(origin_url=origin_url)
+    if proven is None:
+        return baseline
+    proven_job, inventory = proven
+
+    return rewrite_residual_suffix(
+        baseline,
+        expected_first_failure="proof",
+        rewrite_from_layer="proof",
+        replacement_suffix=(
+            passed(
+                "proof",
+                "employer-declared B-ITE tenant inventory yielded a current detail that passes unchanged strict genuine-job proof",
+                carrier="employer_declared_bite_tenant",
+                provider="bite",
+                inventory_count=len(inventory.postings),
+                employer_page=_url_shape(inventory.employer_page_url),
+                public_detail=_url_shape(proven_job.job.final_url),
+                proof_kind=proven_job.job.proof_kind,
+            ),
+            passed(
+                "recipe",
+                "all evidence-required generic layers passed with bounded B-ITE provider mechanics",
+                capability="bite_finite_inventory_raw_detail",
+                provider="bite",
+            ),
+        ),
+    )
+
+
 def assess_candidate(
     row: dict[str, Any],
     args: argparse.Namespace,
@@ -551,6 +609,7 @@ def assess_candidate(
     assessment = _workday_residual(row, args, assessment)
     assessment = _portal_residual(row, args, assessment)
     assessment = _public_feed_residual(assessment, args)
+    assessment = _bite_residual(row, args, assessment)
     return assessment
 
 

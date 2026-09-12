@@ -1,0 +1,109 @@
+name: F2 B-ITE VALUNY focused diagnostic
+
+on:
+  push:
+    branches: [agent/f2-bite-generic-provider]
+    paths:
+      - ".github/workflows/f2-bite-valuny-diagnostic.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f2-bite-valuny-focused-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Diagnose live employer-backed B-ITE chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+          import re
+          from src.connectors.employer_origin_acquisition import parse_page
+          from src.connectors.employer_origin_acquisition_v4 import discover_navigation_candidates
+          from src.connectors.employer_origin_bite import (
+              BITE_API_ENDPOINT, BITE_JOBS_API_CLIENT,
+              bite_inventory_payload, bite_raw_detail_url, discover_bite_binding,
+              parse_bite_postings, parse_bite_runtime, prove_bite_raw_detail,
+          )
+          from src.connectors.employer_origin_bite_product import BiteRequest, BiteProductExecutor
+
+          origin = "https://www.valuny.de/karriere"
+          http = BiteProductExecutor(max_requests=20, timeout_seconds=20)
+          def fetch(url):
+              body, final, status = http(BiteRequest(url))
+              print(f"FETCH status={status} final={final} bytes={len(body.encode('utf-8', errors='replace'))} url={url}")
+              print(f"MARKERS loader={'static.b-ite.com/jobs-api/loader-v1/api-loader-v1.min.js' in body.casefold()} binding={'data-bite-jobs-api-listing' in body.casefold()}")
+              return body, final, status
+
+          body, final, status = fetch(origin)
+          root = parse_page(requested_url=origin, html=body, final_url=final, status_code=status)
+          binding = discover_bite_binding(page_url=final, html=body)
+          print(f"ROOT_BINDING={binding}")
+          nav = discover_navigation_candidates(root, allowed_hosts=((root.final_url.split('/')[2]).casefold(),))
+          for item in nav:
+              print(f"NAV kind={item.kind} url={item.url}")
+          if binding is None:
+              for item in nav[:12]:
+                  if item.kind != "listing":
+                      continue
+                  b2, f2, s2 = fetch(item.url)
+                  candidate = discover_bite_binding(page_url=f2, html=b2)
+                  print(f"FOLLOWUP_BINDING url={item.url} value={candidate}")
+                  if candidate is not None:
+                      binding = candidate
+                      break
+          if binding is None:
+              raise SystemExit("DIAG_STOP=no_binding")
+
+          asset_body, asset_final, asset_status = http(BiteRequest(binding.asset_url))
+          print(f"ASSET status={asset_status} final={asset_final} bytes={len(asset_body)} customer={binding.customer} asset={binding.asset_name}")
+          runtime = parse_bite_runtime(binding=binding, asset_url=asset_final, javascript=asset_body)
+          print(f"RUNTIME={'PASS' if runtime else 'NONE'}")
+          if runtime is None:
+              for marker in ("key", "channel", "locale", "page", "sort", "filter", binding.customer):
+                  positions = [m.start() for m in re.finditer(re.escape(marker), asset_body, flags=re.IGNORECASE)]
+                  print(f"ASSET_MARKER {marker} count={len(positions)}")
+                  for pos in positions[:3]:
+                      start = max(0, pos - 180)
+                      end = min(len(asset_body), pos + 420)
+                      snippet = asset_body[start:end].replace("\n", " ").replace("\r", " ")
+                      print(f"ASSET_CONTEXT {marker} {snippet}")
+              raise SystemExit("DIAG_STOP=no_runtime")
+
+          payload = bite_inventory_payload(runtime=runtime, origin_url=binding.employer_page_url)
+          inv_body, inv_final, inv_status = http(BiteRequest(
+              BITE_API_ENDPOINT, "POST", payload,
+              (("Accept", "application/json"), ("Content-Type", "application/json;charset=utf-8"), ("Bite-JobsApi-Client", BITE_JOBS_API_CLIENT)),
+          ))
+          print(f"INVENTORY status={inv_status} final={inv_final} bytes={len(inv_body)} page_num={runtime.page_num}")
+          postings = parse_bite_postings(inv_body, page_num=runtime.page_num)
+          print(f"POSTINGS={'NONE' if postings is None else len(postings)}")
+          if postings is None:
+              print(f"INVENTORY_PREFIX={inv_body[:800]!r}")
+              raise SystemExit("DIAG_STOP=inventory_parse")
+          for posting in postings[:5]:
+              print(f"POSTING id={posting.posting_id} title={posting.title!r} url={posting.url} apply={posting.apply_url}")
+          if not postings:
+              raise SystemExit("DIAG_STOP=zero_postings")
+
+          for posting in postings[:3]:
+              raw_url = bite_raw_detail_url(posting.url)
+              print(f"RAW_REQUEST={raw_url}")
+              raw_body, raw_final, raw_status = http(BiteRequest(raw_url))
+              print(f"RAW status={raw_status} final={raw_final} bytes={len(raw_body)} prefix={raw_body[:180]!r}")
+              proof = prove_bite_raw_detail(posting=posting, raw_url=raw_url, raw_body=raw_body, response_url=raw_final, status_code=raw_status)
+              print(f"RAW_PROOF id={posting.posting_id} pass={proof is not None} kind={getattr(proof, 'proof_kind', None)}")
+          print("F2_BITE_FOCUSED_DIAGNOSTIC=PASS")
+          PY

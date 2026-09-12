@@ -1,0 +1,381 @@
+name: F2 B-ITE VALUNY real acceptance
+
+on:
+  push:
+    branches: [agent/f2-bite-generic-provider]
+    paths:
+      - ".github/workflows/f2-bite-valuny-e2e.yml"
+      - "scripts/run_generic_employer_origin_product.py"
+      - "src/connectors/employer_origin_bite.py"
+      - "src/connectors/employer_origin_bite_product.py"
+      - "src/connectors/generic_employer_origin_product_bite.py"
+      - "src/connectors/registry.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f2-bite-valuny-real-acceptance
+  cancel-in-progress: true
+
+jobs:
+  accept:
+    name: Canonical proof through All Jobs for VALUNY
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 120
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      PRODUCT_OUTPUT: /tmp/jap-f2-bite-valuny-product.json
+
+    steps:
+      - name: Check out exact acceptance head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "F2_BITE_ACCEPTANCE_SOURCE=$GITHUB_SHA"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity", "checkout", "checkout_repository",
+              "env_file", "env_keys", "interpreter", "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          github_env = Path(sys.argv[2])
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          password = str(values["POSTGRES_PASSWORD"])
+          print(f"::add-mask::{password}")
+          with github_env.open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          print("F2_BITE_RUNTIME_ENV=PASS")
+          PY
+
+      - name: Provision pinned local OSS detail runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
+            "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f2-bite-local-oss-sites")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Require persisted VALUNY origin state
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import psycopg
+          from psycopg.rows import dict_row
+          from src.config import get_database_config
+
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("""
+                      SELECT id, company_key, company_name, candidate_url, status
+                      FROM employer_origin_source_candidates
+                      WHERE company_key = 'valuny'
+                      ORDER BY updated_at DESC NULLS LAST, id DESC
+                      LIMIT 1
+                  """)
+                  row = cur.fetchone()
+          if row is None or not str(row.get("candidate_url") or "").startswith("https://"):
+              raise SystemExit("F2_BITE_VALUNY_PERSISTED_ORIGIN_MISSING")
+          print(
+              f"F2_BITE_VALUNY_CANDIDATE={row['id']}|{row['company_key']}|"
+              f"status={row['status']}|url={row['candidate_url']}"
+          )
+          PY
+
+      - name: Recompute sole canonical product including bounded B-ITE residual
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_generic_employer_origin_product --output "$PRODUCT_OUTPUT"
+
+      - name: Require VALUNY proof PASS from canonical product payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$PRODUCT_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          proof = set(payload.get("proof_pass_company_keys") or [])
+          rows = [row for row in payload.get("results", []) if isinstance(row, dict)]
+          valuny = next((row for row in rows if row.get("company_key") == "valuny"), None)
+          print(f"F2_BITE_PROOF_PASS_COUNT={len(proof)}")
+          if "valuny" not in proof or valuny is None:
+              raise SystemExit("F2_BITE_VALUNY_NOT_PROOF_PASS")
+          layers = {
+              str(layer.get("layer")): layer
+              for layer in valuny.get("layers", [])
+              if isinstance(layer, dict)
+          }
+          proof_layer = layers.get("proof") or {}
+          recipe_layer = layers.get("recipe") or {}
+          print(f"F2_BITE_VALUNY_PROOF_LAYER={proof_layer}")
+          print(f"F2_BITE_VALUNY_RECIPE_LAYER={recipe_layer}")
+          if proof_layer.get("state") != "pass" or proof_layer.get("evidence", {}).get("provider") != "bite":
+              raise SystemExit("F2_BITE_VALUNY_PROVIDER_PROOF_NOT_CANONICAL")
+          if recipe_layer.get("state") != "pass":
+              raise SystemExit("F2_BITE_VALUNY_RECIPE_NOT_READY")
+          print("F2_BITE_VALUNY_PROOF=PASS")
+          PY
+
+      - name: Qualify through sole generic product registry and exact activation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.qualify_generic_employer_origin_connectors --proof-json "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation --proof-json "$PRODUCT_OUTPUT"
+
+      - name: Apply exact proof-pass activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_generic_employer_origin_activation \
+            --proof-json "$PRODUCT_OUTPUT" \
+            --apply
+
+      - name: Run normal recurring generic-origin ingestion and Silver
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m src.ingest_jobs --source generic_origin --log-level INFO
+          "$RUNTIME_PYTHON" -m src.run_silver_jobs
+
+      - name: Require current VALUNY observation through Bronze Silver Gold and All Jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from scripts.run_product_v1_control_center import load_product_v1_payload
+          from src.config import get_database_config
+
+          source = "generic_origin:valuny"
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("""
+                      SELECT id, status, total_loaded, inserted_count, duplicate_count
+                      FROM ingestion_runs
+                      WHERE source_name = %s
+                      ORDER BY started_at DESC, id DESC
+                      LIMIT 1
+                  """, (source,))
+                  run = cur.fetchone()
+                  if run is None:
+                      raise SystemExit("F2_BITE_VALUNY_RUN_MISSING")
+
+                  cur.execute("""
+                      SELECT DISTINCT
+                          observation.raw_job_id,
+                          observation.external_job_id,
+                          observation.source_url
+                      FROM job_observations observation
+                      WHERE observation.source_name = %s
+                        AND observation.ingestion_run_id = %s
+                        AND observation.is_seen = TRUE
+                        AND observation.raw_job_id IS NOT NULL
+                      ORDER BY observation.raw_job_id
+                  """, (source, run["id"]))
+                  observation_rows = [dict(row) for row in cur.fetchall()]
+
+                  cur.execute("""
+                      SELECT DISTINCT
+                          raw.id AS raw_job_id,
+                          raw.external_job_id,
+                          raw.source_url
+                      FROM raw_jobs raw
+                      JOIN job_observations observation
+                        ON observation.raw_job_id = raw.id
+                      WHERE observation.source_name = %s
+                        AND observation.ingestion_run_id = %s
+                        AND observation.is_seen = TRUE
+                      ORDER BY raw.id
+                  """, (source, run["id"]))
+                  bronze_rows = [dict(row) for row in cur.fetchall()]
+
+                  cur.execute("""
+                      SELECT DISTINCT
+                          silver.id AS silver_job_id,
+                          silver.title,
+                          silver.source_url
+                      FROM silver_jobs silver
+                      JOIN job_observations observation
+                        ON observation.raw_job_id = silver.raw_job_id
+                      WHERE silver.source_name = %s
+                        AND observation.source_name = %s
+                        AND observation.ingestion_run_id = %s
+                        AND observation.is_seen = TRUE
+                      ORDER BY silver.id
+                  """, (source, source, run["id"]))
+                  silver_rows = [dict(row) for row in cur.fetchall()]
+                  observed_silver_ids = {int(row["silver_job_id"]) for row in silver_rows}
+
+                  cur.execute("""
+                      SELECT silver_job_id, source_name, source_url, title, product_readiness_status
+                      FROM gold_product_v1_job_readiness
+                      WHERE source_name = %s
+                      ORDER BY silver_job_id
+                  """, (source,))
+                  gold_rows = [
+                      dict(row)
+                      for row in cur.fetchall()
+                      if int(row["silver_job_id"]) in observed_silver_ids
+                  ]
+
+          loaded = int(run["total_loaded"] or 0)
+          inserted = int(run["inserted_count"] or 0)
+          duplicates = int(run["duplicate_count"] or 0)
+          print(
+              f"F2_BITE_VALUNY_RESULT=run_id={run['id']}|status={run['status']}|"
+              f"loaded={loaded}|inserted={inserted}|duplicates={duplicates}|"
+              f"observations={len(observation_rows)}|bronze={len(bronze_rows)}|"
+              f"silver={len(silver_rows)}|gold={len(gold_rows)}"
+          )
+          if run["status"] != "success":
+              raise SystemExit("F2_BITE_VALUNY_RUN_NOT_SUCCESS")
+          if loaded <= 0:
+              raise SystemExit("F2_BITE_VALUNY_ZERO_DELIVERY")
+          if len(observation_rows) <= 0:
+              raise SystemExit("F2_BITE_VALUNY_CURRENT_OBSERVATION_MISSING")
+          if len(observation_rows) != loaded:
+              raise SystemExit("F2_BITE_VALUNY_OBSERVATION_COUNT_MISMATCH")
+          if not bronze_rows:
+              raise SystemExit("F2_BITE_VALUNY_OBSERVED_BRONZE_MISSING")
+          if not silver_rows:
+              raise SystemExit("F2_BITE_VALUNY_OBSERVED_SILVER_MISSING")
+          if not gold_rows:
+              raise SystemExit("F2_BITE_VALUNY_OBSERVED_GOLD_MISSING")
+
+          gold_ids = {int(row["silver_job_id"]) for row in gold_rows}
+          control_center = load_product_v1_payload()
+          job_readiness = control_center.get("job_readiness") or []
+          all_jobs_rows = [
+              row
+              for row in job_readiness
+              if isinstance(row, dict)
+              and row.get("silver_job_id") is not None
+              and int(row["silver_job_id"]) in gold_ids
+              and str(row.get("source_name") or "") == source
+          ]
+          if not all_jobs_rows:
+              raise SystemExit("F2_BITE_VALUNY_ALL_JOBS_PROJECTION_EMPTY")
+
+          def review_url(row):
+              return str(
+                  row.get("source_url")
+                  or row.get("discovery_source_url")
+                  or ""
+              ).strip()
+
+          visible_rows = [
+              row
+              for row in all_jobs_rows
+              if str(row.get("title") or "").strip()
+              and review_url(row).startswith("https://")
+          ]
+          if not visible_rows:
+              raise SystemExit("F2_BITE_VALUNY_ALL_JOBS_VISIBLE_ROW_MISSING")
+
+          first = visible_rows[0]
+          first_review_url = review_url(first)
+          print(f"F2_BITE_VALUNY_ALL_JOBS_ROWS={len(all_jobs_rows)}")
+          print(
+              "F2_BITE_VALUNY_ALL_JOBS_SAMPLE="
+              f"{first['silver_job_id']}|{first.get('title')}|{first_review_url}"
+          )
+          print("F2_BITE_VALUNY_PRODUCT_E2E=PASS")
+          PY
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f2-bite-valuny-real-acceptance
+          path: /tmp/jap-f2-bite-valuny-product.json
+          if-no-files-found: warn
+          retention-days: 14

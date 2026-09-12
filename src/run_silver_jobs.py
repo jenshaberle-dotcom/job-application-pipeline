@@ -70,6 +70,19 @@ def resolve_source_patterns(source_filter: str | None) -> list[str]:
     return [source_filter]
 
 
+def _decision_evidence(raw_job: dict) -> dict[str, str | None]:
+    evidence_hash = raw_job.get("_silver_evidence_hash")
+    contract_version = raw_job.get("_silver_evidence_contract_version")
+    return {
+        "normalized_evidence_hash": (
+            str(evidence_hash) if evidence_hash is not None else None
+        ),
+        "evidence_contract_version": (
+            str(contract_version) if contract_version is not None else None
+        ),
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     repository = SilverJobRepository()
@@ -91,6 +104,7 @@ def main(argv: list[str] | None = None) -> None:
         role_matches = get_role_matches(raw_job)
         skill_matches = get_skill_matches(raw_job)
         accessibility_matches = get_accessibility_matches(raw_job)
+        decision_evidence = _decision_evidence(raw_job)
 
         if not is_relevant_for_silver(raw_job):
             repository.record_processing_decision(
@@ -100,6 +114,7 @@ def main(argv: list[str] | None = None) -> None:
                 role_matches=role_matches,
                 skill_matches=skill_matches,
                 accessibility_matches=accessibility_matches,
+                **decision_evidence,
             )
             skipped_count += 1
 
@@ -125,6 +140,7 @@ def main(argv: list[str] | None = None) -> None:
             role_matches=role_matches,
             skill_matches=skill_matches,
             accessibility_matches=accessibility_matches,
+            **decision_evidence,
         )
         transformed_count += 1
 
