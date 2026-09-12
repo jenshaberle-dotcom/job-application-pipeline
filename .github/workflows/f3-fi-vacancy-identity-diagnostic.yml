@@ -98,7 +98,10 @@ jobs:
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" - <<'PY'
+          import hashlib
           import json
+          from urllib.parse import urlsplit
+
           import psycopg
           from psycopg.rows import dict_row
           from src.config import get_database_config
@@ -111,6 +114,7 @@ jobs:
                           WITH latest AS (
                               SELECT DISTINCT ON (o.raw_job_id)
                                   o.raw_job_id,
+                                  o.ingestion_run_id,
                                   o.observed_at,
                                   o.source_url AS observation_url,
                                   o.normalized_evidence
@@ -128,8 +132,10 @@ jobs:
                               s.title,
                               s.company_name,
                               lifecycle.lifecycle_status,
+                              latest.ingestion_run_id,
                               latest.observed_at,
                               latest.observation_url,
+                              latest.normalized_evidence,
                               latest.normalized_evidence #>> '{raw_evidence,job,metadata,structured_identifier}' AS structured_identifier,
                               latest.normalized_evidence #>> '{raw_evidence,job,metadata,identifier_evidence_kind}' AS identifier_evidence_kind,
                               latest.normalized_evidence #>> '{raw_evidence,job,metadata,canonical_origin_url}' AS canonical_origin_url
@@ -147,21 +153,124 @@ jobs:
           if not rows:
               raise SystemExit("F3_FI_IDENTITY_ROWS_MISSING")
           print(f"F3_FI_IDENTITY_ROWS={len(rows)}")
-          for row in rows:
-              print("F3_FI_IDENTITY_ROW=" + json.dumps(row, default=str, ensure_ascii=False, sort_keys=True))
+
+          def host(value):
+              parsed = urlsplit(str(value or "").strip())
+              if parsed.scheme.casefold() not in {"http", "https"} or not parsed.hostname:
+                  return ""
+              result = parsed.hostname.casefold().strip(".")
+              return result[4:] if result.startswith("www.") else result
+
+          def norm_text(value):
+              return " ".join(str(value or "").split()).strip()
+
+          def semantic_fingerprint(row):
+              evidence = row.get("normalized_evidence")
+              if not isinstance(evidence, dict):
+                  return None
+              raw = evidence.get("raw_evidence")
+              if not isinstance(raw, dict):
+                  return None
+              job = raw.get("job")
+              if not isinstance(job, dict):
+                  return None
+              metadata = job.get("metadata") if isinstance(job.get("metadata"), dict) else {}
+              payload = {
+                  "title": norm_text(job.get("title")),
+                  "company_name": norm_text(job.get("company_name")),
+                  "description": norm_text(job.get("description")),
+                  "location": norm_text(job.get("location")),
+                  "locations": job.get("locations"),
+                  "applicant_locations": job.get("applicant_locations"),
+                  "skills": job.get("skills"),
+                  "workplace_type": norm_text(metadata.get("workplace_type")),
+                  "employment_types": metadata.get("employment_types"),
+                  "date_posted": norm_text(metadata.get("date_posted")),
+                  "valid_through": norm_text(metadata.get("valid_through")),
+              }
+              # A semantic equivalence is admissible only with actual detail content.
+              if not payload["title"] or not payload["description"]:
+                  return None
+              encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+              return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+          def locale_neutral_path(value):
+              parsed = urlsplit(str(value or "").strip())
+              parts = [part for part in parsed.path.split("/") if part]
+              if parts and parts[0].casefold() in {"de", "en", "fr", "es", "it", "nl", "pl"}:
+                  parts = parts[1:]
+              return "/" + "/".join(parts)
 
           by_identifier = {}
           for row in rows:
               identifier = str(row.get("structured_identifier") or "").strip().casefold()
               kind = str(row.get("identifier_evidence_kind") or "").strip().casefold()
               if identifier and kind in {"schema_org", "explicit_label"}:
-                  by_identifier.setdefault(identifier, []).append(row)
-          alias_groups = [
+                  key = (host(row.get("canonical_origin_url") or row.get("source_url")), identifier)
+                  if key[0]:
+                      by_identifier.setdefault(key, []).append(row)
+          strong_groups = [
               group for group in by_identifier.values()
               if len({str(item.get("source_url") or "") for item in group}) > 1
           ]
-          print(f"F3_FI_STRONG_IDENTIFIER_ALIAS_GROUPS={len(alias_groups)}")
-          for group in alias_groups:
-              print("F3_FI_ALIAS_GROUP=" + json.dumps(group, default=str, ensure_ascii=False, sort_keys=True))
+          print(f"F3_FI_STRONG_IDENTIFIER_ALIAS_GROUPS={len(strong_groups)}")
+          for group in strong_groups:
+              sample = [
+                  {
+                      "silver_job_id": item["silver_job_id"],
+                      "title": item["title"],
+                      "source_url": item["source_url"],
+                      "identifier": item["structured_identifier"],
+                      "kind": item["identifier_evidence_kind"],
+                      "lifecycle": item["lifecycle_status"],
+                  }
+                  for item in group
+              ]
+              print("F3_FI_STRONG_ALIAS_GROUP=" + json.dumps(sample, ensure_ascii=False, sort_keys=True))
+
+          bounded = {}
+          for row in rows:
+              if row.get("lifecycle_status") != "active_confirmed":
+                  continue
+              if not str(row.get("source_name") or "").startswith("generic_origin:"):
+                  continue
+              fingerprint = semantic_fingerprint(row)
+              origin_host = host(row.get("canonical_origin_url") or row.get("source_url"))
+              run_id = row.get("ingestion_run_id")
+              if fingerprint and origin_host and run_id is not None:
+                  bounded.setdefault((row["source_name"], origin_host, run_id, fingerprint), []).append(row)
+
+          bounded_groups = []
+          for group in bounded.values():
+              urls = {str(item.get("source_url") or "") for item in group}
+              if len(urls) < 2:
+                  continue
+              identifiers = {
+                  str(item.get("structured_identifier") or "").strip().casefold()
+                  for item in group
+                  if str(item.get("structured_identifier") or "").strip()
+              }
+              if len(identifiers) > 1:
+                  continue
+              paths = {locale_neutral_path(item.get("source_url")) for item in group}
+              if len(paths) != 1:
+                  continue
+              bounded_groups.append(group)
+
+          print(f"F3_FI_BOUNDED_ALIAS_GROUPS={len(bounded_groups)}")
+          for group in bounded_groups:
+              sample = [
+                  {
+                      "silver_job_id": item["silver_job_id"],
+                      "title": item["title"],
+                      "source_url": item["source_url"],
+                      "identifier": item["structured_identifier"],
+                      "kind": item["identifier_evidence_kind"],
+                      "ingestion_run_id": item["ingestion_run_id"],
+                      "lifecycle": item["lifecycle_status"],
+                  }
+                  for item in group
+              ]
+              print("F3_FI_BOUNDED_ALIAS_GROUP=" + json.dumps(sample, ensure_ascii=False, sort_keys=True))
           print("F3_FI_IDENTITY_DIAGNOSTIC=PASS")
           PY
