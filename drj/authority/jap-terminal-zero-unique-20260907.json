@@ -1,0 +1,15 @@
+{
+  "schema_version": "drj.portfolio_terminal_zero_unique_authority.v1",
+  "repository": "jenshaberle-dotcom/job-application-pipeline",
+  "repository_id": 1230805345,
+  "authority_head_sha": "3243ffb907c498cd23f077d09dcf0b0d8f35d87b",
+  "effect_authorized": true,
+  "authority_reference": "github-issue-comment:jenshaberle-dotcom/Data-Retention-Janitor#76:5571694173",
+  "issued_at": "2026-09-07T13:56:00Z",
+  "expires_at": "2026-09-07T14:11:00Z",
+  "max_effects": 2,
+  "targets": [
+    {"branch":"agent/477-readonly-silver-preflight","expected_sha":"7a720d0f45a27a0973c1e90f5522e7d7fd7bcd8d","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"},
+    {"branch":"agent/479-exact-vacancy-health-probe","expected_sha":"18bd13b3a88b6074c085dcee070db798adc5c30a","terminal_disposition":"SAFE_TO_RETIRE","terminal_record_ref":"github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json"}
+  ]
+}

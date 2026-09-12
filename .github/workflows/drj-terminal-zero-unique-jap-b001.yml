@@ -1,0 +1,130 @@
+name: DRJ Terminal ZERO_UNIQUE JAP Batch 001
+
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - .github/workflows/drj-terminal-zero-unique-jap-b001.yml
+
+concurrency:
+  group: drj-terminal-zero-unique-jap-b001
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  apply:
+    if: >-
+      github.event.pull_request.head.ref == 'drj/76-readonly-branch-observer-v1' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.user.login == 'jenshaberle-dotcom'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Exact idempotent DRJ terminal batch preflight and effect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          from datetime import UTC, datetime
+          import json, os, time
+          from pathlib import Path
+          from urllib.error import HTTPError
+          from urllib.parse import quote, urlencode
+          from urllib.request import Request, urlopen
+
+          REPOSITORY='jenshaberle-dotcom/job-application-pipeline'
+          REPOSITORY_ID=1230805345
+          EXPECTED_MAIN='a0c341fb6d5e31869d0f33e5e27a391a23a443e9'
+          AUTHORITY_REFERENCE='github-issue-comment:jenshaberle-dotcom/Data-Retention-Janitor#76:5573396094'
+          ISSUED_AT=datetime.fromisoformat('2026-09-07T16:25:00+00:00')
+          EXPIRES_AT=datetime.fromisoformat('2026-09-07T16:40:00+00:00')
+          TERMINAL_RECORD='github:jenshaberle-dotcom/Data-Retention-Janitor/docs/status/current/portfolio-disposition/JAP-ZERO-UNIQUE-BATCH-001.json'
+          TARGETS=[
+            ('agent/393-s7n-dynamic-jobboard-recognition','08d84d617875230e36c5dec67afd816ceb4a4962'),
+            ('agent/395-candidate-origin-url-replacement','ae073cea54d89e526f8ebd89e467a9b62c6e1831'),
+            ('agent/398-s7n-query-detail-recognition','4c2bd37129ea9a88f34ba75f53b18c0f243bd655'),
+            ('agent/415-controlled-activation-cap','317dd1629d6f1cdac9e7e26b09e369ab072406c6'),
+            ('agent/424-computacenter-detail-boundary','0728f24114bef46c6d71bfd3d203e50a1432b8a0'),
+            ('agent/428-invalid-bronze-quarantine','b8fd305c4711b975e3168f48b3ebdf882297af50'),
+            ('agent/430-typed-employer-origin-silver','a7e57c837596d4405f03f79d5555fa3d7e98505e'),
+            ('agent/432-generic-country-truth','d9b9b58847800187f45ae1715ee31fafeacbce61'),
+            ('agent/435-acquisition-evidence-boundary','d260323b86e9094a2d6be257fd382431d4cc352b'),
+            ('agent/435b-url-slug-evidence-boundary','f2426e9f060ae47cc96e4463b17081d4b29f53e8'),
+            ('agent/448-exact-cand001-target','0bb49e9785b8329d8e95f6a32dc5ead391b35c14'),
+            ('agent/454-upstream-gate-truth','c927ff4450f3a6b7f769a5deeaa6688e7d44f8ac'),
+            ('agent/458-job-invite-detail-shape','66ee69f227b4a0278569441fcc582b1a3c0c2dc8'),
+            ('agent/461-same-host-search-seed','9021e12d9ec8068165efefc3bcf8b64c97e6ae45'),
+            ('agent/464-reviewed-detail-pass-apply','2e027d7130d594b6a2c1cc05cf1be09c047ddd4e'),
+            ('agent/468-job-lifecycle-health','62a650ff3cb2856c245a33e34a8102d0181dffdc'),
+            ('agent/471-authoritative-origin-health','80624748ce67528079966927c269470f9a249e33'),
+            ('agent/475-ingestion-run-bound-silver','7b5e481d82dd5194e2a4dfd374d2acf99a261bfa'),
+            ('agent/477-readonly-silver-preflight','7a720d0f45a27a0973c1e90f5522e7d7fd7bcd8d'),
+            ('agent/479-exact-vacancy-health-probe','18bd13b3a88b6074c085dcee070db798adc5c30a'),
+          ]
+          if os.environ.get('GITHUB_REPOSITORY')!=REPOSITORY: raise SystemExit('repository transport mismatch')
+          now=datetime.now(UTC)
+          if not (ISSUED_AT<=now<=EXPIRES_AT): raise SystemExit(f'OWNER authority expired/not-yet-valid: {now.isoformat()}')
+          if len(TARGETS)>20 or len({b for b,_ in TARGETS})!=len(TARGETS): raise SystemExit('invalid bounded exact target set')
+          token=os.environ['GH_TOKEN']; root=f'https://api.github.com/repos/{REPOSITORY}'
+          out=Path('/tmp/drj-jap-b001-effect.json')
+          receipt={'schema_version':'drj.ephemeral_target_repo_effect_receipt.v1','repository':REPOSITORY,'repository_id':REPOSITORY_ID,'authority_reference':AUTHORITY_REFERENCE,'terminal_record_ref':TERMINAL_RECORD,'expected_main':EXPECTED_MAIN,'targets':[{'branch':b,'expected_sha':s} for b,s in TARGETS],'preflight':[],'effects':[],'already_absent':[],'state':'STARTED'}
+          def persist(): out.write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          def api(method,path,allow_404=False):
+            req=Request(root+path,method=method,headers={'Accept':'application/vnd.github+json','Authorization':f'Bearer {token}','X-GitHub-Api-Version':'2022-11-28','User-Agent':'drj-terminal-zero-unique-jap-b001'})
+            try:
+              with urlopen(req,timeout=30) as r:
+                raw=r.read(); return json.loads(raw) if raw else None
+            except HTTPError as exc:
+              if allow_404 and exc.code==404: return None
+              raise RuntimeError(f'GitHub API {method} {path} failed: {exc.code} {exc.read().decode("utf-8",errors="replace")}') from exc
+          def main_sha(): return str((api('GET','/git/ref/heads/main').get('object') or {}).get('sha') or '')
+          def observe(branch,expected_sha):
+            if main_sha()!=EXPECTED_MAIN: raise RuntimeError('canonical JAP main moved')
+            ref=api('GET',f'/git/ref/heads/{quote(branch,safe="/")}',allow_404=True)
+            if ref is None: return {'branch':branch,'expected_sha':expected_sha,'state':'ALREADY_ABSENT'}
+            observed=str((ref.get('object') or {}).get('sha') or '')
+            if observed!=expected_sha: raise RuntimeError(f'target SHA drift: {branch} expected={expected_sha} observed={observed}')
+            if bool(api('GET',f'/branches/{quote(branch,safe="")}').get('protected',False)): raise RuntimeError(f'GitHub protection blocks {branch}')
+            owner=REPOSITORY.split('/',1)[0]
+            h=urlencode({'state':'open','head':f'{owner}:{branch}','per_page':'1'}); b=urlencode({'state':'open','base':branch,'per_page':'1'})
+            if api('GET',f'/pulls?{h}') or api('GET',f'/pulls?{b}'): raise RuntimeError(f'live open PR protects {branch}')
+            cmp=api('GET',f'/compare/main...{quote(branch,safe="")}'); ahead=int(cmp['ahead_by']); behind=int(cmp['behind_by'])
+            if ahead!=0: raise RuntimeError(f'DIVERGENT target rejected: {branch} ahead_by={ahead}')
+            return {'branch':branch,'sha':observed,'ahead_by':ahead,'behind_by':behind,'state':'PRESENT_SAFE'}
+          try:
+            repo=api('GET','')
+            if int(repo['id'])!=REPOSITORY_ID or str(repo['default_branch'])!='main': raise RuntimeError('repository identity/default mismatch')
+            if main_sha()!=EXPECTED_MAIN: raise RuntimeError('canonical JAP main does not match authority')
+            pre=[observe(b,s) for b,s in TARGETS]; receipt['preflight']=pre
+            present=[x for x in pre if x['state']=='PRESENT_SAFE']; receipt['already_absent']=[x['branch'] for x in pre if x['state']=='ALREADY_ABSENT']; receipt['state']='PREFLIGHT_PASS'; persist()
+            by_branch=dict(TARGETS)
+            for item in present:
+              branch=item['branch']; fresh=observe(branch,by_branch[branch])
+              if fresh['state']=='ALREADY_ABSENT': receipt['already_absent'].append(branch); persist(); continue
+              api('DELETE',f'/git/refs/heads/{quote(branch,safe="/")}')
+              absent=False
+              for attempt in range(6):
+                if api('GET',f'/git/ref/heads/{quote(branch,safe="/")}',allow_404=True) is None: absent=True; break
+                if attempt<5: time.sleep(min(0.5*(attempt+1),1.0))
+              receipt['effects'].append({**fresh,'delete_requests':1,'post_effect_absent':absent}); persist()
+              if not absent: raise RuntimeError(f'post-effect absence not observed for {branch}')
+            receipt['state']='RECONCILED_PASS'; receipt['effects_reconciled_pass']=len(receipt['effects']); receipt['desired_state_reconciled']=len(set(receipt['already_absent']))+len(receipt['effects']); receipt['completed_at']=datetime.now(UTC).isoformat(); persist()
+            Path(os.environ['GITHUB_STEP_SUMMARY']).write_text(f"# DRJ JAP ZERO_UNIQUE batch 001\n\nEffects: **{len(receipt['effects'])}**; already absent: **{len(set(receipt['already_absent']))}**; desired-state reconciled: **{receipt['desired_state_reconciled']}/20**\n",encoding='utf-8')
+          except Exception as exc:
+            receipt['state']='FAILED_CLOSED'; receipt['error']=str(exc); receipt['completed_at']=datetime.now(UTC).isoformat(); persist(); raise
+          PY
+      - name: Preserve DRJ effect receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drj-jap-zero-unique-b001-${{ github.run_id }}
+          path: /tmp/drj-jap-b001-effect.json
+          if-no-files-found: warn
+          retention-days: 90
