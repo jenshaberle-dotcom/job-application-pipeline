@@ -21,15 +21,38 @@ def test_install_wrapper_supports_noninteractive_no_start_mode() -> None:
     assert "unknown_argument" in text
 
 
-def test_local_deploy_is_bound_to_the_existing_jap_warm_runner() -> None:
+def test_local_deploy_requires_rcc_reservation_before_self_hosted_execution() -> None:
     workflow = _text(LOCAL_DEPLOY_WORKFLOW)
     assert "runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]" in workflow
     assert 'workflows: ["JAP Windows Desktop Host release"]' in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
     assert 'cron: "17 * * * *"' in workflow
     assert "pull_request:" not in workflow
     assert "cancel-in-progress: false" in workflow
+    assert "if: github.event_name == 'workflow_dispatch'" in workflow
+    assert "reservation_id:" in workflow
+    assert "expected_runner:" in workflow
+    assert "source_sha:" in workflow
+    assert "RCC_RESERVATION_ID: ${{ inputs.reservation_id }}" in workflow
+    assert "RCC_EXPECTED_RUNNER: ${{ inputs.expected_runner }}" in workflow
+    assert "RCC_SOURCE_SHA: ${{ inputs.source_sha }}" in workflow
+    assert "RCC_EXACT_RUNNER_HANDOFF=PASS" in workflow
+    assert "RCC_EXACT_SOURCE_HANDOFF=PASS" in workflow
+    assert "RCC_RESERVATION_RELEASE_REQUIRED=TRUE" in workflow
     assert "Apply-JAP-Control-Center-Update.ps1" in workflow
+
+
+def test_local_deploy_proves_handoff_and_source_before_first_local_effect() -> None:
+    workflow = _text(LOCAL_DEPLOY_WORKFLOW)
+    handoff = workflow.index("Prove RCC reservation and exact runner handoff before effects")
+    checkout = workflow.index("Check out exact reserved source")
+    source = workflow.index("Prove exact reserved source before local effects")
+    reaper = workflow.index("Reap exact stale Session-0 JAP desktop host")
+    stage = workflow.index("Prove local Windows interop and stage update fail-closed")
+    assert handoff < checkout < source < reaper < stage
+    assert 'if [[ "$RUNNER_NAME" != "$RCC_EXPECTED_RUNNER" ]]' in workflow
+    assert 'ref: ${{ inputs.source_sha }}' in workflow
+    assert 'test "$actual_source" = "$RCC_SOURCE_SHA"' in workflow
+    assert "always() && steps.handoff.outputs.verified == 'true'" in workflow
 
 
 def test_local_runner_stages_latest_direct_update_and_auto_applies_when_closed() -> None:
