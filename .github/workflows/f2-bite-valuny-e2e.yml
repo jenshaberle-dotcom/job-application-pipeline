@@ -344,20 +344,29 @@ jobs:
           ]
           if not all_jobs_rows:
               raise SystemExit("F2_BITE_VALUNY_ALL_JOBS_PROJECTION_EMPTY")
+
+          def review_url(row):
+              return str(
+                  row.get("source_url")
+                  or row.get("discovery_source_url")
+                  or ""
+              ).strip()
+
           visible_rows = [
               row
               for row in all_jobs_rows
               if str(row.get("title") or "").strip()
-              and str(row.get("source_url") or "").startswith("https://")
+              and review_url(row).startswith("https://")
           ]
           if not visible_rows:
               raise SystemExit("F2_BITE_VALUNY_ALL_JOBS_VISIBLE_ROW_MISSING")
 
           first = visible_rows[0]
+          first_review_url = review_url(first)
           print(f"F2_BITE_VALUNY_ALL_JOBS_ROWS={len(all_jobs_rows)}")
           print(
               "F2_BITE_VALUNY_ALL_JOBS_SAMPLE="
-              f"{first['silver_job_id']}|{first.get('title')}|{first.get('source_url')}"
+              f"{first['silver_job_id']}|{first.get('title')}|{first_review_url}"
           )
           print("F2_BITE_VALUNY_PRODUCT_E2E=PASS")
           PY
