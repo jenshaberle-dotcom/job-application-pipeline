@@ -1,0 +1,167 @@
+name: F3 FI vacancy identity diagnostic
+
+on:
+  push:
+    branches: [agent/f3-truth-lifecycle-hardening]
+    paths:
+      - ".github/workflows/f3-fi-vacancy-identity-diagnostic.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f3-fi-vacancy-identity-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    name: Read-only FI identity evidence
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+
+    steps:
+      - name: Check out exact diagnostic head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Inspect persisted FI identity evidence read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import json
+          import psycopg
+          from psycopg.rows import dict_row
+          from src.config import get_database_config
+
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.transaction():
+                  with conn.cursor() as cur:
+                      cur.execute("SET TRANSACTION READ ONLY")
+                      cur.execute("""
+                          WITH latest AS (
+                              SELECT DISTINCT ON (o.raw_job_id)
+                                  o.raw_job_id,
+                                  o.observed_at,
+                                  o.source_url AS observation_url,
+                                  o.normalized_evidence
+                              FROM job_observations o
+                              WHERE o.raw_job_id IS NOT NULL
+                                AND o.is_seen = TRUE
+                              ORDER BY o.raw_job_id, o.observed_at DESC, o.id DESC
+                          )
+                          SELECT
+                              s.id AS silver_job_id,
+                              s.raw_job_id,
+                              s.source_name,
+                              s.external_job_id,
+                              s.source_url,
+                              s.title,
+                              s.company_name,
+                              lifecycle.lifecycle_status,
+                              latest.observed_at,
+                              latest.observation_url,
+                              latest.normalized_evidence #>> '{raw_evidence,job,metadata,structured_identifier}' AS structured_identifier,
+                              latest.normalized_evidence #>> '{raw_evidence,job,metadata,identifier_evidence_kind}' AS identifier_evidence_kind,
+                              latest.normalized_evidence #>> '{raw_evidence,job,metadata,canonical_origin_url}' AS canonical_origin_url
+                          FROM silver_jobs s
+                          LEFT JOIN latest ON latest.raw_job_id = s.raw_job_id
+                          LEFT JOIN gold_job_lifecycle_health lifecycle
+                            ON lifecycle.silver_job_id = s.id
+                          WHERE lower(coalesce(s.company_name, '')) LIKE '%finanz informatik%'
+                             OR lower(s.source_name) LIKE '%finanz_informatik%'
+                          ORDER BY s.title NULLS LAST, s.id
+                      """)
+                      rows = [dict(row) for row in cur.fetchall()]
+              conn.rollback()
+
+          if not rows:
+              raise SystemExit("F3_FI_IDENTITY_ROWS_MISSING")
+          print(f"F3_FI_IDENTITY_ROWS={len(rows)}")
+          for row in rows:
+              print("F3_FI_IDENTITY_ROW=" + json.dumps(row, default=str, ensure_ascii=False, sort_keys=True))
+
+          by_identifier = {}
+          for row in rows:
+              identifier = str(row.get("structured_identifier") or "").strip().casefold()
+              kind = str(row.get("identifier_evidence_kind") or "").strip().casefold()
+              if identifier and kind in {"schema_org", "explicit_label"}:
+                  by_identifier.setdefault(identifier, []).append(row)
+          alias_groups = [
+              group for group in by_identifier.values()
+              if len({str(item.get("source_url") or "") for item in group}) > 1
+          ]
+          print(f"F3_FI_STRONG_IDENTIFIER_ALIAS_GROUPS={len(alias_groups)}")
+          for group in alias_groups:
+              print("F3_FI_ALIAS_GROUP=" + json.dumps(group, default=str, ensure_ascii=False, sort_keys=True))
+          print("F3_FI_IDENTITY_DIAGNOSTIC=PASS")
+          PY
