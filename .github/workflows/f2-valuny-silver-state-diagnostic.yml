@@ -97,8 +97,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
-          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py \
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
             --apply-exact "$MIGRATION_KEY" \
             --require-sole-pending \
             --applied-by f2-bite-silver-evidence-qualification
