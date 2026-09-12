@@ -71,15 +71,11 @@ jobs:
           echo "RCC_PIP_INSTALL=NONE"
           echo "RCC_REMOTE_PIP_CACHE_RESTORE=NONE"
 
-      - name: Set up hosted Python
+      - name: Set up hosted Python without remote pip cache
         if: needs.route.outputs.route == 'github-hosted'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
 
       - name: Select hosted Python command
         if: needs.route.outputs.route == 'github-hosted'
@@ -91,8 +87,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$CI_PYTHON" -m pip install --upgrade pip
-          "$CI_PYTHON" -m pip install -r requirements-dev.txt
+          "$CI_PYTHON" -m pip install --disable-pip-version-check --upgrade pip
+          "$CI_PYTHON" -m pip install --disable-pip-version-check -r requirements-dev.txt
 
       - name: Verify installed dependency consistency
         shell: bash
