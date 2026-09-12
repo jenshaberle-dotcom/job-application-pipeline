@@ -6,24 +6,29 @@ Read this file from canonical `refs/heads/main` before continuing product work. 
 
 ## Live repository checkpoint — 2026-09-12
 
-Canonical base before F3 is `main@fb06e1191ae044d0c0547e9136c7860b097bdf5b`, merged through PR #862.
+F3 is **COMPLETE and installed-operator accepted**.
 
-Published/installed product truth before F3:
+Canonical shipped F3 source:
 
-- JAP Control Center Desktop **v1.0.23** is published from `fb06e1191ae044d0c0547e9136c7860b097bdf5b`;
-- automatic post-release local deploy run `34688050141` completed PASS;
-- installed operator acceptance PASS: VALUNY jobs are visible in `All jobs`, `Open original` reaches the real VALUNY Origin posting, and Sources reports VALUNY `ACTIVE · LAST RUN 2 JOBS`;
-- therefore `CR-F2-001` is CLOSED and F3 entry is authorized.
+- PR **#864 — F3: harden Bronze→Silver→Gold truth and lifecycle** merged as `main@2d9526e207d9bab357825c16d180409208d04b29`;
+- JAP Control Center Desktop **v1.0.24** was automatically published from that exact merge source by release run `34712647817`;
+- release tag: `jap-winapp-desktop-v1.0.24`;
+- desktop ZIP SHA-256: `e8ae59ac0a0e899be827560f94f40246522ffa55cb09ca3cda4fdc00df31298c`;
+- automatic post-release local deploy run `34712723974` completed PASS;
+- deploy result: `JAP_LOCAL_DEPLOY=AUTO_APPLY_PASS`;
+- installed `current.json`: `desktop_host_version=1.0.24`, `pinned_sha=2d9526e207d9bab357825c16d180409208d04b29`;
+- installed update result: `status=success`;
+- headless desktop rejection proof: PASS;
+- post-merge Pipeline CI including Full Suite, Ruff, React and governance contracts: PASS;
+- installed operator acceptance: **PASS**.
 
-Active F3 work:
+Operator-confirmed F3 outcome:
 
-- branch: `agent/f3-truth-lifecycle-hardening`;
-- Draft PR: **#864 — F3: harden Bronze→Silver→Gold truth and lifecycle**;
-- target desktop release: **1.0.24**;
-- migration `109_create_canonical_vacancy_identity_truth.sql` is already applied on the Product DB, tracked and immutable;
-- active package authority: `docs/planning/active/f3_truth_lifecycle_hardening.md`.
+- known Finanz Informatik locale/Origin aliases no longer appear as duplicate vacancies in `All jobs`;
+- the installed v1.0.24 product is accepted;
+- therefore `CR-F0-001` is fully CLOSED and F4 entry is authorized.
 
-No F4 work begins before F3 exact-head qualification, merge, automatic v1.0.24 release/deploy and installed operator acceptance.
+The next product package is **F4A — Profile Fit coverage**, target desktop release **1.0.25**. Do not begin F4B until F4A completes its own exact-head qualification, release/deploy and installed operator acceptance.
 
 ## Product authority that does not change during the campaign
 
@@ -62,13 +67,11 @@ Every package checkpoint re-lists inherited residuals. A residual never ages out
 
 ## Active residual ledger
 
-### `CR-F0-001` — FI Origin alias identity duplication — CLOSED technically in F3
+### `CR-F0-001` — FI Origin alias identity duplication — CLOSED
 
-Origin: F0.
+Origin: F0. Closed by F3 upstream canonical vacancy identity plus exact-head and installed operator evidence.
 
-Historical symptom: the same Finanz Informatik vacancy appeared through parallel employer-Origin aliases with and without a leading `/de/` path segment.
-
-F3 closure does **not** globally strip `/de/` and contains no FI-specific production rule. Migration 109 creates provider-neutral `gold_vacancy_identity` and retains every Bronze/Silver member while selecting one Gold representative through this hierarchy:
+Migration `109_create_canonical_vacancy_identity_truth.sql` created provider-neutral `gold_vacancy_identity` without deleting or rewriting historical Bronze/Silver members. Representative selection authority remains:
 
 1. same Origin host + strong labelled/schema vacancy identifier;
 2. exact page-declared canonical Origin URL;
@@ -76,16 +79,19 @@ F3 closure does **not** globally strip `/de/` and contains no FI-specific produc
 4. exact observed Origin URL;
 5. isolated Silver identity.
 
-Real persisted proof run `34711951430` on exact head `3bbdba2bf7f0ca8e729a772132030ce13be77eeb` PASS:
+No FI-specific production rule, global `/de/` stripping, fuzzy title/company identity, Levenshtein or Soundex authority exists.
 
-- `58` FI identity members retained;
-- `5` actual duplicate groups collapsed;
-- `2` strong-ID groups: `E362/B` and `420/B`;
-- `3` bounded same-run detail-equivalence groups;
-- exactly one representative per group;
-- `19` FI rows visible in current Product review with no remaining known locale-alias duplicate.
+Final real F3 acceptance on exact package head proved:
 
-The durable final F3 acceptance additionally requires presentation-layer duplicate repair to be exactly zero. `CR-F0-001` therefore remains CLOSED subject only to the normal final F3 exact-head regression/operator checkpoint; it is not carried as an open residual.
+- migration history checksum-clean with zero pending migrations;
+- five FI duplicate groups canonically collapsed while all members remain auditable;
+- strong identifier and bounded generic detail-equivalence paths both represented;
+- lifecycle leakage into current Product review: zero;
+- sensor/non-current leakage into normal review: zero;
+- multi-location representation retained as one vacancy;
+- presentation-layer duplicate repair: exactly zero.
+
+Installed v1.0.24 operator acceptance then confirmed the known FI aliases are not duplicated in `All jobs`. `CR-F0-001` is fully CLOSED and is not carried into F4.
 
 ### `CR-F1-001` — fresh company -> F1 discovery -> CAND-001 persistence -> proof/activation — OPEN / carried
 
@@ -95,23 +101,23 @@ The downstream persisted-source path is independently proven, but a fresh compan
 
 Last explicit failing evidence remains run `34565632246`: 11 `f1_not_found`; Windhoff was selected but CAND-001 returned `manual_review_required`, so no candidate URL was written.
 
-F3 does not naturally alter company discovery/persistence. Do not distort F3 to close this residual. It remains visible for the next natural discovery/persistence touchpoint and becomes a mandatory campaign-end decision if no such touchpoint occurs.
+F3 does not alter company discovery/persistence. Do not distort F4A merely to close this residual. Close it only at a natural discovery/persistence touchpoint or make an explicit campaign-end decision.
 
 ### `CR-F2-001` — positive delivery/Product closure — CLOSED
 
-Origin: F2.
+Origin: F2. Closed through exact-head VALUNY Product acceptance, merge/release v1.0.23, automatic local deployment and installed operator acceptance. It is not carried further.
 
-Closed through exact-head VALUNY Product acceptance, merge/release v1.0.23, automatic local deployment and installed operator acceptance. Do not carry it into F3/F4.
+## Completed packages
 
-## F0 — Origin Learning + Review Truth Foundation — COMPLETE
+### F0 — Origin Learning + Review Truth Foundation — COMPLETE
 
-Delivered through 1.0.19/1.0.20. Current review excludes stale/dead and sensor-only rows; Origin rows retain independent `Published` and `First JAP observed`; safe exact identity dedupe is supported. Former residual `CR-F0-001` is closed by F3 upstream canonical identity.
+Delivered through 1.0.19/1.0.20. Current review excludes stale/dead and sensor-only rows; Origin rows retain independent `Published` and `First JAP observed`; safe exact identity dedupe is supported. Former residual `CR-F0-001` is now closed by F3 upstream canonical identity plus installed operator proof.
 
-## F1 — Company -> Official Origin Jobspace Discovery — CAPABILITY SHIPPED / `CR-F1-001` CARRIED
+### F1 — Company -> Official Origin Jobspace Discovery — CAPABILITY SHIPPED / `CR-F1-001` CARRIED
 
-Shipped in 1.0.21 plus later persistence/reliability bridge work. Discovery remains generic, evidence-driven and fail-soft. CAND-001 remains the sole candidate URL writer. The only inherited open F1 residual is the missing fresh-company real E2E described above.
+Shipped in 1.0.21 plus later persistence/reliability bridge work. Discovery remains generic, evidence-driven and fail-soft. CAND-001 remains the sole candidate URL writer. The inherited open F1 residual is the missing fresh-company real E2E described above.
 
-## F2 — Dynamic-Origin + B-ITE Product Closure — COMPLETE
+### F2 — Dynamic-Origin + B-ITE Product Closure — COMPLETE
 
 1.0.22 established Dynamic-Origin source admission. PR #862 / v1.0.23 closed positive B-ITE delivery through the canonical path without VALUNY-specific parsing or provider allowlisting.
 
@@ -119,13 +125,11 @@ Proven real chain:
 
 `proof=PASS -> active -> recurring B-ITE ingestion -> current observations -> Bronze -> Silver -> Gold/Product -> Control Center All jobs -> real Origin navigation`
 
-Installed operator acceptance is complete; `CR-F2-001` is closed.
+### F3 — Bronze -> Silver -> Gold Truth/Lifecycle Hardening — COMPLETE / v1.0.24 OPERATOR ACCEPTED
 
-## F3 — Bronze -> Silver -> Gold Truth/Lifecycle Hardening — ACTIVE, target 1.0.24
+Purpose achieved: downstream vacancy truth is resistant to stale, dead and safely identifiable duplicate vacancies regardless of upstream source family.
 
-Purpose: make downstream vacancy truth resistant to stale, dead and duplicate vacancies regardless of upstream family.
-
-Implemented F3 boundary:
+Durable F3 boundary:
 
 - migration 109 adds `gold_vacancy_identity` without rewriting historical Bronze/Silver rows;
 - `gold_current_job_opportunities` and `gold_product_v1_job_readiness` consume one canonical representative upstream;
@@ -134,40 +138,31 @@ Implemented F3 boundary:
 - bounded same-run detail equivalence exists only for generic Origin rows with exact structured-detail agreement, distinct observed URLs, compatible strong-ID evidence and the same locale-neutral path;
 - no fuzzy title/company identity exists;
 - lifecycle remains driven by `gold_job_lifecycle_health` and explicit/current authoritative observations;
-- presentation may remain defensive but final acceptance requires it to suppress zero further duplicates.
+- presentation may remain defensive but final F3 acceptance proved it suppresses zero further duplicates.
 
-Real pre-cleanup Product acceptance `34711951430` proved:
+Final package qualification, merge, automatic v1.0.24 release, automatic local installation and interactive operator acceptance all completed successfully. F3 is closed.
 
-- migration history: 109 tracked, checksum-clean, zero pending;
-- FI: `58` members -> `5` canonical duplicate groups -> `19` current visible jobs;
-- lifecycle audit: `431` stale, `5` inactive, `16` source families;
-- current-view lifecycle leakage: `0`;
-- at least `1` real multi-location Silver job exists;
-- Product review rows: `65` at that observation point;
-- sensor/non-current Product review leakage: `0`;
-- marker: `F3_CANONICAL_VACANCY_IDENTITY_ACCEPTANCE=PASS`.
+## F4 — Decision Intelligence Coverage
 
-The durable acceptance is `.github/workflows/f3-truth-lifecycle-acceptance.yml` plus `scripts/accept_f3_truth_lifecycle.py`. It runs on every push to the F3 branch so the final head, not an earlier implementation head, owns release authority.
+### F4A — Profile Fit coverage — NEXT, target 1.0.25
 
-F3 installed operator acceptance after v1.0.24:
+Goal: every current review job gets evidence-backed Candidate<->Job Profile Fit or explicit `insufficient_evidence`; preliminary role affinity remains separate.
 
-- About reports v1.0.24 / expected source revision;
-- current Employer-Origin vacancies remain visible;
-- known FI alias pairs no longer duplicate in `All jobs`;
-- stale/inactive rows are absent from current review while audit/history remains available;
-- market-sensor-only rows remain outside normal review;
-- multi-location stays one vacancy;
-- previously accepted VALUNY F2 path still works.
+Required coverage:
 
-Sole next action: **finish final exact-head F3 qualification on PR #864.** Require durable F3 truth/lifecycle acceptance, Pipeline CI including Full Suite/Ruff/React, Windows Control Center contract and re-entry identity PASS on the same final head. If green, mark #864 ready, merge exact qualified head, require automatic v1.0.24 release and post-release local deployment, then stop for installed operator acceptance. Do not enter F4 before that PASS.
+- normalize job requirements from current authoritative vacancy evidence;
+- use only approved Candidate Facts for candidate-side truth;
+- cover geography/work model/commute, seniority, skills/capabilities and hard requirements;
+- expose factor-level explanations and evidence coverage;
+- distinguish missing evidence from negative evidence;
+- retain deterministic/fail-closed authority where evidence is insufficient;
+- preserve current lifecycle/identity truth from F3.
 
-## F4 — Decision Intelligence Coverage — targets 1.0.25 and 1.0.26
+F4A operator acceptance must reconcile current review rows against fit-complete vs `insufficient_evidence` outcomes and prove there are no silently unclassified current jobs.
 
-### F4A — Profile Fit coverage — 1.0.25
+Sole next action: **start F4A from canonical main using the frozen campaign flow.** First inventory existing fit/role-affinity logic and Product/UI surfaces against the F4A contract, then implement only demonstrated gaps. Do not start F4B ranking work until F4A is independently shipped and operator accepted.
 
-Every current review job gets evidence-backed Candidate<->Job Profile Fit or explicit `insufficient_evidence`; preliminary role affinity remains separate. Normalize requirements, approved Candidate Facts, geography/work model/commute, seniority, skills/capabilities and hard requirements with factor-level explanations and coverage metrics.
-
-### F4B — Ranking coverage — 1.0.26
+### F4B — Ranking coverage — target 1.0.26
 
 Only fit-complete, lifecycle-current and hard-gate-qualified jobs become rankable. Every exclusion exposes a reason. Deterministic ranking remains authority. Operator acceptance reconciles `current -> fit complete -> rankable -> Top 5`.
 
