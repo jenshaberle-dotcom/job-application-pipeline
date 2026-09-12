@@ -5,6 +5,11 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Mapping, Sequence
 
+from src.search_intelligence.product_v1_profile_fit_coverage import (
+    INSUFFICIENT_EVIDENCE,
+    PROFILE_FIT_COMPLETE,
+    enrich_profile_fit_coverage,
+)
 from src.search_intelligence.product_v1_review_fit import enrich_review_fit
 from src.search_intelligence.source_connector_overview import (
     empty_source_connector_overview,
@@ -35,9 +40,16 @@ def json_safe(value: Any) -> Any:
     return value
 
 
-def _display_job(row: Mapping[str, Any]) -> dict[str, Any]:
-    """Add a non-authoritative display fit without mutating Product ranking truth."""
-    enriched = enrich_review_fit(row)
+def _display_job(
+    row: Mapping[str, Any],
+    *,
+    profile_fit_preference_tags: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Add F4A coverage and the independent non-authoritative review preview."""
+    enriched = enrich_profile_fit_coverage(
+        row, candidate_preference_tags=profile_fit_preference_tags
+    )
+    enriched = enrich_review_fit(enriched)
     product_score = row.get("overall_quality_score")
     enriched["product_overall_quality_score"] = product_score
     # Compatibility for the current Control Center: its generic Fit column reads
@@ -59,6 +71,7 @@ def build_product_v1_payload(
     hard_filter_policy: Mapping[str, Any] | None = None,
     source_connector_overview: Mapping[str, Any] | None = None,
     observed_opportunities: Sequence[Mapping[str, Any]] = (),
+    profile_fit_preference_tags: Sequence[str] = (),
 ) -> dict[str, Any]:
     policy = dict(ranking_policy or {})
     policy_status = str(policy.get("status") or "operator_decision_required")
@@ -172,11 +185,41 @@ def build_product_v1_payload(
         and policy_status == "approved"
         and (hard_filter_policy is None or hard_policy_status == "approved")
     )
-    safe_top_jobs = list(top_jobs) if lifecycle_contract_ready else []
+    safe_top_jobs = (
+        [
+            _display_job(job, profile_fit_preference_tags=profile_fit_preference_tags)
+            for job in top_jobs
+        ]
+        if lifecycle_contract_ready
+        else []
+    )
     safe_application_readiness = (
         list(application_readiness) if lifecycle_contract_ready else []
     )
-    display_job_readiness = [_display_job(job) for job in job_readiness]
+    display_job_readiness = [
+        _display_job(job, profile_fit_preference_tags=profile_fit_preference_tags)
+        for job in job_readiness
+    ]
+    current_profile_fit_rows = [
+        job
+        for job in display_job_readiness
+        if _value(job, "lifecycle_status") == "active_confirmed"
+    ]
+    profile_fit_complete_count = sum(
+        1
+        for job in current_profile_fit_rows
+        if _value(job, "profile_fit_coverage_status") == PROFILE_FIT_COMPLETE
+    )
+    profile_fit_insufficient_evidence_count = sum(
+        1
+        for job in current_profile_fit_rows
+        if _value(job, "profile_fit_coverage_status") == INSUFFICIENT_EVIDENCE
+    )
+    profile_fit_unclassified_count = (
+        len(current_profile_fit_rows)
+        - profile_fit_complete_count
+        - profile_fit_insufficient_evidence_count
+    )
     payload = {
         "schema_version": "pipeline.product_v1.control_center.v1",
         "product": {
@@ -223,6 +266,11 @@ def build_product_v1_payload(
             "verified_market_opportunity_count": verified_market_opportunity_count,
             "pending_market_opportunity_count": pending_market_opportunity_count,
             "current_active_job_count": lifecycle_counts["active_confirmed"],
+            "profile_fit_complete_count": profile_fit_complete_count,
+            "profile_fit_insufficient_evidence_count": (
+                profile_fit_insufficient_evidence_count
+            ),
+            "profile_fit_unclassified_count": profile_fit_unclassified_count,
             "stale_job_count": lifecycle_counts["stale_needs_refresh"],
             "inactive_confirmed_job_count": lifecycle_counts[
                 "inactive_confirmed"
@@ -264,6 +312,8 @@ def build_product_v1_payload(
             "historical_job_presence_is_not_current_activity": True,
             "current_compensation_is_local_runtime_context_only": True,
             "review_fit_preview_is_not_ranking_authority": True,
+            "profile_fit_coverage_is_not_ranking_authority": True,
+            "profile_fit_missing_evidence_is_not_negative_fit": True,
         },
     }
     return json_safe(payload)
