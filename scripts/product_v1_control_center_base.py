@@ -18,7 +18,6 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
-from src.connectors.registry import build_default_connector_registry
 from src.search_intelligence.product_v1 import (
     OperatorDecisionRequired,
     ProductJob,
@@ -390,6 +389,10 @@ def _connector_artifact_exists(candidate: dict[str, object]) -> bool:
 def _load_source_connector_overview(
     conn: psycopg.Connection[object],
 ) -> dict[str, object]:
+    # Keep connector implementation dependencies out of the core Product
+    # payload import path. The Sources panel opts into them explicitly.
+    from src.connectors.registry import build_default_connector_registry
+
     return build_source_connector_overview(
         registry=build_default_connector_registry(),
         candidates=_load_source_candidates(conn),
@@ -413,11 +416,17 @@ def load_source_connector_overview_payload() -> dict[str, object]:
         return _load_source_connector_overview(conn)
 
 
-def load_product_v1_payload() -> dict[str, object]:
+def load_product_v1_payload(
+    *, include_source_connector_overview: bool = True
+) -> dict[str, object]:
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
     ) as conn:
-        source_connector_overview = _load_source_connector_overview(conn)
+        source_connector_overview = (
+            _load_source_connector_overview(conn)
+            if include_source_connector_overview
+            else {}
+        )
         required_relations = {
             "search_term_cycle_state",
             "product_v1_ranking_policy",

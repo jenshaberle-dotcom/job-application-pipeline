@@ -46,7 +46,9 @@ def _contains_private_key(value: object) -> bool:
 
 
 def main() -> int:
-    payload = load_product_v1_payload()
+    # F4A validates the same canonical Product payload builder while
+    # excluding the unrelated Sources-panel connector inventory.
+    payload = load_product_v1_payload(include_source_connector_overview=False)
     jobs = payload.get("job_readiness")
     summary = payload.get("summary")
     boundaries = payload.get("boundaries")
