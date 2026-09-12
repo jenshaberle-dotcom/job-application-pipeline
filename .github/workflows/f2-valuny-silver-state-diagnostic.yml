@@ -1,4 +1,4 @@
-name: F2 VALUNY Silver state diagnostic
+name: F2 Silver evidence-basis migration qualification
 
 on:
   push:
@@ -10,182 +10,142 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
+  qualify:
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 10
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      MIGRATION_KEY: 108_add_silver_processing_evidence_basis.sql
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out exact migration head
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Inspect latest observed VALUNY Bronze to Silver state read-only
+      - name: Resolve verified RCC runtime context
         shell: bash
         run: |
           set -euo pipefail
           context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
-          mapfile -t runtime < <(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
           import json
           import sys
+          from pathlib import PurePosixPath
+
           path, repo_id, repository, runner = sys.argv[1:]
           with open(path, encoding="utf-8") as handle:
               context = json.load(handle)
-          assert context.get("RepositoryId") == int(repo_id)
-          assert context.get("Repository") == repository
-          assert context.get("RunnerName") == runner
-          assert context.get("Status") == "PASS"
-          print(context["Interpreter"])
-          print(context["EnvFile"])
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS":
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
           PY
-          )
-          runtime_python="${runtime[0]}"
-          runtime_env="${runtime[1]}"
-          "$runtime_python" - "$runtime_env" <<'PY'
-          import json
-          import os
-          import re
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
           import sys
           from pathlib import Path
-
-          import psycopg
           from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          github_env = Path(sys.argv[2])
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with github_env.open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Require sole pending migration and apply exact 108
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py \
+            --apply-exact "$MIGRATION_KEY" \
+            --require-sole-pending \
+            --applied-by f2-bite-silver-evidence-qualification
+
+      - name: Verify migration state and columns read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$MIGRATION_KEY" <<'PY'
+          import sys
+          import psycopg
           from psycopg.rows import dict_row
-
-          for key, value in dotenv_values(Path(sys.argv[1])).items():
-              if value is not None:
-                  os.environ[key] = value
-
           from src.config import get_database_config
-          from src.connectors.employer_origin_bite_product import (
-              BiteProductExecutor,
-              discover_bite_inventory,
-          )
-          from src.silver.relevance import (
-              get_accessibility_matches,
-              get_role_matches,
-              get_silver_decision_reason,
-              get_skill_matches,
-              is_relevant_for_silver,
-          )
 
-          source = "generic_origin:valuny"
+          migration_key = sys.argv[1]
           with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
               with conn.cursor() as cur:
                   cur.execute("SET TRANSACTION READ ONLY")
-                  cur.execute("""
-                      SELECT id
-                      FROM ingestion_runs
-                      WHERE source_name = %s
-                      ORDER BY started_at DESC, id DESC
-                      LIMIT 1
-                  """, (source,))
-                  latest = cur.fetchone()
-                  if latest is None:
-                      raise SystemExit("VALUNY_RUN_MISSING")
-                  run_id = int(latest["id"])
-                  cur.execute("""
-                      SELECT candidate_url
-                      FROM employer_origin_source_candidates
-                      WHERE company_key = 'valuny'
-                      ORDER BY updated_at DESC NULLS LAST, id DESC
-                      LIMIT 1
-                  """)
-                  candidate = cur.fetchone()
-                  if candidate is None:
-                      raise SystemExit("VALUNY_CANDIDATE_MISSING")
-                  origin_url = str(candidate["candidate_url"])
-                  cur.execute("""
-                      SELECT DISTINCT
-                          r.id AS raw_job_id,
-                          r.external_job_id,
-                          r.source_url,
-                          r.raw_data,
-                          d.decision,
-                          d.reason,
-                          d.role_matches,
-                          d.skill_matches,
-                          d.accessibility_matches,
-                          d.decided_at,
-                          s.id AS silver_job_id,
-                          s.title AS silver_title,
-                          s.source_name AS silver_source_name
-                      FROM job_observations o
-                      JOIN raw_jobs r ON r.id = o.raw_job_id
-                      LEFT JOIN silver_processing_decisions d ON d.raw_job_id = r.id
-                      LEFT JOIN silver_jobs s ON s.raw_job_id = r.id
-                      WHERE o.source_name = %s
-                        AND o.ingestion_run_id = %s
-                        AND o.is_seen = TRUE
-                      ORDER BY r.id
-                  """, (source, run_id))
-                  rows = [dict(row) for row in cur.fetchall()]
-
-          print(f"VALUNY_DIAGNOSTIC_RUN_ID={run_id}")
-          print(f"VALUNY_DIAGNOSTIC_ROWS={len(rows)}")
-          observed_titles = set()
-          for row in rows:
-              raw_job = {
-                  "id": row["raw_job_id"],
-                  "source_name": source,
-                  "external_job_id": row["external_job_id"],
-                  "source_url": row["source_url"],
-                  "raw_data": row["raw_data"],
-              }
-              raw_data = row["raw_data"] if isinstance(row["raw_data"], dict) else {}
-              job = raw_data.get("job", {}) if isinstance(raw_data.get("job"), dict) else {}
-              detail = raw_data.get("detail_evidence", {}) if isinstance(raw_data.get("detail_evidence"), dict) else {}
-              observed_titles.add(str(job.get("title") or ""))
-              print("---")
-              print(f"RAW_JOB_ID={row['raw_job_id']}")
-              print(f"TITLE={job.get('title')}")
-              print(f"LOCATION={job.get('location')}")
-              print(f"LOCATIONS={json.dumps(job.get('locations'), ensure_ascii=False)}")
-              print(f"APPLICANT_LOCATIONS={json.dumps(job.get('applicant_locations'), ensure_ascii=False)}")
-              print(f"DETAIL_FIELD_PRESENCE={json.dumps(detail.get('field_presence'), sort_keys=True)}")
-              print(f"PERSISTED_DECISION={row['decision']}|reason={row['reason']}|at={row['decided_at']}")
-              print(f"PERSISTED_ROLE_MATCHES={row['role_matches']}")
-              print(f"PERSISTED_SKILL_MATCHES={row['skill_matches']}")
-              print(f"PERSISTED_ACCESSIBILITY_MATCHES={row['accessibility_matches']}")
-              print(f"CURRENT_RELEVANT={is_relevant_for_silver(raw_job)}")
-              print(f"CURRENT_REASON={get_silver_decision_reason(raw_job)}")
-              print(f"CURRENT_ROLE_MATCHES={get_role_matches(raw_job)}")
-              print(f"CURRENT_SKILL_MATCHES={get_skill_matches(raw_job)}")
-              print(f"CURRENT_ACCESSIBILITY_MATCHES={get_accessibility_matches(raw_job)}")
-              print(f"SILVER_JOB_ID={row['silver_job_id']}|source={row['silver_source_name']}|title={row['silver_title']}")
-
-          inventory = discover_bite_inventory(
-              origin_url=origin_url,
-              execute=BiteProductExecutor(max_requests=8),
+                  cur.execute(
+                      """
+                      SELECT execution_status, execution_mode
+                      FROM schema_migrations
+                      WHERE migration_key = %s
+                      """,
+                      (migration_key,),
+                  )
+                  migration = cur.fetchone()
+                  cur.execute(
+                      """
+                      SELECT column_name
+                      FROM information_schema.columns
+                      WHERE table_schema = 'public'
+                        AND table_name = 'silver_processing_decisions'
+                        AND column_name IN (
+                            'normalized_evidence_hash',
+                            'evidence_contract_version'
+                        )
+                      ORDER BY column_name
+                      """
+                  )
+                  columns = [row["column_name"] for row in cur.fetchall()]
+          if migration is None or migration["execution_status"] != "success":
+              raise SystemExit("F2_SILVER_EVIDENCE_MIGRATION_NOT_TRACKED_SUCCESS")
+          if columns != ["evidence_contract_version", "normalized_evidence_hash"]:
+              raise SystemExit(f"F2_SILVER_EVIDENCE_COLUMNS_MISSING:{columns}")
+          print(
+              "F2_SILVER_EVIDENCE_MIGRATION=PASS|"
+              f"mode={migration['execution_mode']}|columns={','.join(columns)}"
           )
-          if inventory is None:
-              raise SystemExit("VALUNY_BITE_INVENTORY_MISSING")
-          print(f"VALUNY_BITE_INVENTORY_COUNT={len(inventory.postings)}")
-          interesting = re.compile(r"(loc|city|remote|workplace|address|office|site|ort|standort)", re.IGNORECASE)
-
-          def walk(value, path="$", depth=0):
-              if depth > 6:
-                  return
-              if isinstance(value, dict):
-                  for key, item in value.items():
-                      next_path = f"{path}.{key}"
-                      if interesting.search(str(key)) and isinstance(item, (str, int, float, bool, type(None))):
-                          text = str(item)
-                          print(f"BITE_FIELD={next_path}|{text[:500]}")
-                      walk(item, next_path, depth + 1)
-              elif isinstance(value, list):
-                  for index, item in enumerate(value[:20]):
-                      walk(item, f"{path}[{index}]", depth + 1)
-
-          for posting in inventory.postings:
-              if posting.title not in observed_titles:
-                  continue
-              print("--- BITE POSTING ---")
-              print(f"BITE_TITLE={posting.title}")
-              print(f"BITE_TOP_LEVEL_KEYS={sorted(posting.raw.keys())}")
-              walk(posting.raw)
           PY
