@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: f2-bite-valuny-real-acceptance
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   accept:
