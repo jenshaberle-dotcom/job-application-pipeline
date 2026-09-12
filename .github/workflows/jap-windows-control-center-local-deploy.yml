@@ -21,6 +21,20 @@ on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      reservation_id:
+        description: Exact RCC warm-slot reservation id
+        required: true
+        type: string
+      expected_runner:
+        description: Exact physical runner reserved by RCC
+        required: true
+        default: job-pipeline-runtime-warm-01-linux
+        type: string
+      source_sha:
+        description: Exact JAP source SHA bound to the reserved deploy workload
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -31,19 +45,48 @@ concurrency:
 
 jobs:
   deploy:
-    name: Stage or bootstrap JAP Control Center update on local workstation
-    if: >-
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
+    name: Stage or bootstrap JAP Control Center update on reserved local workstation
+    # Schedule, push and release completion remain request/intent signals only until the
+    # central RCC broker can mint a reservation and dispatch this workflow. They must not
+    # queue directly against a self-hosted label. Only an RCC-reservation-backed dispatch
+    # is admitted to the physical workstation.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 15
+    env:
+      RCC_RESERVATION_ID: ${{ inputs.reservation_id }}
+      RCC_EXPECTED_RUNNER: ${{ inputs.expected_runner }}
+      RCC_SOURCE_SHA: ${{ inputs.source_sha }}
 
     steps:
-      - name: Check out exact release source
+      - name: Prove RCC reservation and exact runner handoff before effects
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RCC_RESERVATION_ID"
+          test -n "$RCC_EXPECTED_RUNNER"
+          [[ "$RCC_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$RUNNER_NAME" != "$RCC_EXPECTED_RUNNER" ]]; then
+            echo "RCC_EXACT_RUNNER_HANDOFF=FAIL expected=$RCC_EXPECTED_RUNNER actual=$RUNNER_NAME" >&2
+            exit 1
+          fi
+          echo "verified=true" >> "$GITHUB_OUTPUT"
+          echo "RCC_EXACT_RUNNER_HANDOFF=PASS runner=$RUNNER_NAME reservation=$RCC_RESERVATION_ID"
+
+      - name: Check out exact reserved source
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.source_sha }}
           fetch-depth: 0
+
+      - name: Prove exact reserved source before local effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_source="$(git rev-parse HEAD)"
+          test "$actual_source" = "$RCC_SOURCE_SHA"
+          echo "RCC_EXACT_SOURCE_HANDOFF=PASS source=$actual_source reservation=$RCC_RESERVATION_ID"
 
       - name: Reap exact stale Session-0 JAP desktop host
         shell: bash
@@ -60,6 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "JAP_LOCAL_DEPLOY_RUNNER=$RUNNER_NAME"
+          echo "JAP_LOCAL_DEPLOY_RESERVATION=$RCC_RESERVATION_ID"
           echo "JAP_LOCAL_DEPLOY_SOURCE=$(git rev-parse HEAD)"
           bash scripts/deploy_jap_windows_control_center_local.sh
 
@@ -78,7 +122,7 @@ jobs:
             -ExpectedVersion "$expected_version"
 
       - name: Capture bounded installed startup diagnostics
-        if: always()
+        if: always() && steps.handoff.outputs.verified == 'true'
         shell: bash
         run: |
           set -uo pipefail
@@ -129,3 +173,19 @@ jobs:
 
           echo "=== app-info ==="
           timeout 5s curl -fsS http://127.0.0.1:8780/app-info.json 2>&1 || echo "APP_INFO_UNAVAILABLE"
+
+      - name: Record reservation completion boundary
+        if: always() && steps.handoff.outputs.verified == 'true'
+        shell: bash
+        run: |
+          set -u
+          echo "RCC_RESERVATION_RELEASE_REQUIRED=TRUE reservation=$RCC_RESERVATION_ID runner=$RCC_EXPECTED_RUNNER"
+          {
+            echo "## RCC-reserved local deploy"
+            echo ""
+            echo "- reservation: \`$RCC_RESERVATION_ID\`"
+            echo "- reserved runner: \`$RCC_EXPECTED_RUNNER\`"
+            echo "- source: \`$RCC_SOURCE_SHA\`"
+            echo "- automatic unreserved queueing: \`DISABLED\`"
+            echo "- reservation release: \`RCC control plane required\`"
+          } >> "$GITHUB_STEP_SUMMARY"
