@@ -74,14 +74,59 @@ class SilverJobRepository:
                         r.source_name,
                         r.external_job_id,
                         r.source_url,
-                        r.raw_data
+                        CASE
+                            WHEN d.id IS NOT NULL
+                            THEN observation.normalized_evidence -> 'raw_evidence'
+                            ELSE r.raw_data
+                        END AS raw_data,
+                        CASE
+                            WHEN d.id IS NOT NULL
+                            THEN observation.normalized_evidence_hash
+                            ELSE NULL
+                        END AS _silver_evidence_hash,
+                        CASE
+                            WHEN d.id IS NOT NULL
+                            THEN observation.evidence_contract_version
+                            ELSE NULL
+                        END AS _silver_evidence_contract_version
                     FROM raw_jobs r
                     LEFT JOIN silver_jobs s
                         ON s.raw_job_id = r.id
                     LEFT JOIN silver_processing_decisions d
                         ON d.raw_job_id = r.id
+                    LEFT JOIN LATERAL (
+                        SELECT
+                            observation_row.id,
+                            observation_row.observed_at,
+                            observation_row.normalized_evidence,
+                            observation_row.normalized_evidence_hash,
+                            observation_row.evidence_contract_version
+                        FROM job_observations observation_row
+                        WHERE observation_row.raw_job_id = r.id
+                          AND observation_row.source_name = r.source_name
+                          AND observation_row.is_seen = TRUE
+                          AND observation_row.normalized_evidence IS NOT NULL
+                          AND observation_row.normalized_evidence_hash IS NOT NULL
+                          AND observation_row.evidence_contract_version IS NOT NULL
+                        ORDER BY observation_row.observed_at DESC, observation_row.id DESC
+                        LIMIT 1
+                    ) observation ON TRUE
                     WHERE s.id IS NULL
-                      AND d.id IS NULL
+                      AND (
+                          d.id IS NULL
+                          OR (
+                              d.decision = 'skipped'
+                              AND d.reason = 'missing_accessibility_signal'
+                              AND observation.id IS NOT NULL
+                              AND observation.observed_at > d.decided_at
+                              AND (
+                                  d.normalized_evidence_hash IS NULL
+                                  OR d.evidence_contract_version IS NULL
+                                  OR d.normalized_evidence_hash <> observation.normalized_evidence_hash
+                                  OR d.evidence_contract_version <> observation.evidence_contract_version
+                              )
+                          )
+                      )
                       {filter_sql}
                     ORDER BY r.id
                     LIMIT %s;
@@ -248,7 +293,14 @@ class SilverJobRepository:
         role_matches: list[str] | None = None,
         skill_matches: list[str] | None = None,
         accessibility_matches: list[str] | None = None,
+        normalized_evidence_hash: str | None = None,
+        evidence_contract_version: str | None = None,
     ) -> None:
+        if (normalized_evidence_hash is None) != (evidence_contract_version is None):
+            raise ValueError(
+                "normalized_evidence_hash and evidence_contract_version must be provided together"
+            )
+
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -259,7 +311,9 @@ class SilverJobRepository:
                         reason,
                         role_matches,
                         skill_matches,
-                        accessibility_matches
+                        accessibility_matches,
+                        normalized_evidence_hash,
+                        evidence_contract_version
                     )
                     VALUES (
                         %s,
@@ -267,7 +321,9 @@ class SilverJobRepository:
                         %s,
                         %s::jsonb,
                         %s::jsonb,
-                        %s::jsonb
+                        %s::jsonb,
+                        %s,
+                        %s
                     )
                     ON CONFLICT (raw_job_id)
                     DO UPDATE SET
@@ -276,6 +332,8 @@ class SilverJobRepository:
                         role_matches = EXCLUDED.role_matches,
                         skill_matches = EXCLUDED.skill_matches,
                         accessibility_matches = EXCLUDED.accessibility_matches,
+                        normalized_evidence_hash = EXCLUDED.normalized_evidence_hash,
+                        evidence_contract_version = EXCLUDED.evidence_contract_version,
                         decided_at = NOW();
                     """,
                     (
@@ -285,6 +343,8 @@ class SilverJobRepository:
                         json.dumps(role_matches or []),
                         json.dumps(skill_matches or []),
                         json.dumps(accessibility_matches or []),
+                        normalized_evidence_hash,
+                        evidence_contract_version,
                     ),
                 )
 
