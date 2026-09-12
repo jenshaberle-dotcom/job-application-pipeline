@@ -1,0 +1,315 @@
+name: F3 canonical vacancy identity acceptance
+
+on:
+  push:
+    branches: [agent/f3-truth-lifecycle-hardening]
+    paths:
+      - "db/migrations/109_create_canonical_vacancy_identity_truth.sql"
+      - "tests/test_f3_canonical_vacancy_identity_migration.py"
+      - ".github/workflows/f3-vacancy-identity-acceptance.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f3-canonical-vacancy-identity-acceptance
+  cancel-in-progress: true
+
+jobs:
+  accept:
+    name: Apply 109 and prove canonical Product truth
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 35
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      MIGRATION_KEY: 109_create_canonical_vacancy_identity_truth.sql
+
+    steps:
+      - name: Check out exact acceptance head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          echo "F3_EXACT_HEAD=${GITHUB_SHA}"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Require migration 109 as exact sole pending migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status
+          "$RUNTIME_PYTHON" - <<'PY'
+          from scripts.apply_db_migrations import (
+              connect,
+              discover_migration_files,
+              load_tracked_migrations,
+              pending_migrations,
+          )
+
+          expected = "109_create_canonical_vacancy_identity_truth.sql"
+          migrations = discover_migration_files()
+          with connect() as conn:
+              tracked = load_tracked_migrations(conn)
+          pending = [item.migration_key for item in pending_migrations(migrations, tracked)]
+          if pending not in ([expected], []):
+              raise SystemExit(f"F3_UNEXPECTED_PENDING_MIGRATIONS:{pending}")
+          print(f"F3_MIGRATION_PENDING={pending}")
+          PY
+
+      - name: Apply exact migration 109
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
+            --apply-exact "$MIGRATION_KEY" \
+            --require-sole-pending \
+            --applied-by f3-canonical-vacancy-identity-acceptance
+
+      - name: Prove canonical identity and lifecycle truth on persisted Product state
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import json
+          from collections import Counter, defaultdict
+          from urllib.parse import urlsplit
+
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from scripts.product_v1_control_center_base import load_product_v1_payload
+          from scripts.product_v1_job_presentation_runtime import enrich_product_payload_for_operator
+          from src.config import get_database_config
+
+          def locale_neutral_path(value):
+              parsed = urlsplit(str(value or "").strip())
+              parts = [part for part in parsed.path.split("/") if part]
+              if parts and parts[0].casefold() in {"de", "en", "fr", "es", "it", "nl", "pl"}:
+                  parts = parts[1:]
+              return "/" + "/".join(parts)
+
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.transaction():
+                  with conn.cursor() as cur:
+                      cur.execute("SET TRANSACTION READ ONLY")
+                      cur.execute("""
+                          SELECT
+                              identity.silver_job_id,
+                              identity.source_name,
+                              identity.source_url,
+                              identity.lifecycle_status,
+                              identity.strong_identifier,
+                              identity.identifier_evidence_kind,
+                              identity.identity_kind,
+                              identity.canonical_vacancy_key,
+                              identity.identity_group_size,
+                              identity.is_representative,
+                              silver.title,
+                              silver.company_name
+                          FROM gold_vacancy_identity identity
+                          JOIN silver_jobs silver ON silver.id = identity.silver_job_id
+                          WHERE lower(coalesce(silver.company_name, '')) LIKE '%finanz informatik%'
+                             OR lower(identity.source_name) LIKE '%finanz_informatik%'
+                          ORDER BY identity.canonical_vacancy_key, identity.silver_job_id
+                      """)
+                      fi_rows = [dict(row) for row in cur.fetchall()]
+
+                      cur.execute("""
+                          SELECT count(*)::integer AS count
+                          FROM gold_current_job_opportunities current_job
+                          JOIN gold_job_lifecycle_health lifecycle
+                            ON lifecycle.silver_job_id = current_job.id
+                          WHERE lifecycle.lifecycle_status <> 'active_confirmed'
+                      """)
+                      noncurrent_in_current = int(cur.fetchone()["count"])
+
+                      cur.execute("""
+                          SELECT
+                              count(*) FILTER (
+                                  WHERE lifecycle_status = 'stale_needs_refresh'
+                              )::integer AS stale_count,
+                              count(*) FILTER (
+                                  WHERE lifecycle_status = 'inactive_confirmed'
+                              )::integer AS inactive_count,
+                              count(DISTINCT source_name)::integer AS source_families
+                          FROM gold_job_lifecycle_health
+                      """)
+                      lifecycle_counts = dict(cur.fetchone())
+
+                      cur.execute("""
+                          SELECT count(*)::integer AS multi_location_jobs
+                          FROM (
+                              SELECT silver_job_id
+                              FROM silver_job_locations
+                              GROUP BY silver_job_id
+                              HAVING count(*) > 1
+                          ) locations
+                      """)
+                      multi_location_jobs = int(cur.fetchone()["multi_location_jobs"])
+              conn.rollback()
+
+          if not fi_rows:
+              raise SystemExit("F3_FI_IDENTITY_ROWS_MISSING")
+
+          grouped = defaultdict(list)
+          for row in fi_rows:
+              grouped[str(row["canonical_vacancy_key"])].append(row)
+
+          duplicate_groups = [rows for rows in grouped.values() if len(rows) > 1]
+          strong_groups = [
+              rows for rows in duplicate_groups
+              if rows[0]["identity_kind"] == "strong_origin_identifier"
+          ]
+          bounded_groups = [
+              rows for rows in duplicate_groups
+              if rows[0]["identity_kind"] == "bounded_same_run_detail_equivalence"
+          ]
+          if len(strong_groups) < 2:
+              raise SystemExit(f"F3_FI_STRONG_GROUPS_TOO_LOW:{len(strong_groups)}")
+          if len(bounded_groups) < 3:
+              raise SystemExit(f"F3_FI_BOUNDED_GROUPS_TOO_LOW:{len(bounded_groups)}")
+
+          for rows in duplicate_groups:
+              representatives = sum(bool(row["is_representative"]) for row in rows)
+              if representatives != 1:
+                  raise SystemExit(
+                      f"F3_IDENTITY_REPRESENTATIVE_COUNT:{rows[0]['canonical_vacancy_key']}:{representatives}"
+                  )
+              if any(int(row["identity_group_size"]) != len(rows) for row in rows):
+                  raise SystemExit("F3_IDENTITY_GROUP_SIZE_DRIFT")
+
+          strong_ids = {
+              str(row.get("strong_identifier") or "").casefold()
+              for rows in strong_groups
+              for row in rows
+          }
+          if not {"e362/b", "420/b"}.issubset(strong_ids):
+              raise SystemExit(f"F3_EXPECTED_STRONG_IDS_MISSING:{sorted(strong_ids)}")
+
+          if noncurrent_in_current != 0:
+              raise SystemExit(f"F3_CURRENT_VIEW_LIFECYCLE_LEAK:{noncurrent_in_current}")
+          if int(lifecycle_counts["stale_count"] or 0) <= 0:
+              raise SystemExit("F3_STALE_AUDIT_COHORT_MISSING")
+          if int(lifecycle_counts["source_families"] or 0) < 2:
+              raise SystemExit("F3_MULTI_FAMILY_LIFECYCLE_COHORT_MISSING")
+          if multi_location_jobs <= 0:
+              raise SystemExit("F3_MULTI_LOCATION_AUDIT_COHORT_MISSING")
+
+          payload = enrich_product_payload_for_operator(load_product_v1_payload())
+          jobs = [row for row in payload.get("job_readiness", []) if isinstance(row, dict)]
+          sensor_prefixes = {
+              "bundesagentur_fuer_arbeit", "stepstone", "gute_jobs", "gute-jobs",
+              "indeed", "linkedin",
+          }
+          sensor_rows = [
+              row for row in jobs
+              if str(row.get("source_name") or "").split(":", 1)[0].casefold()
+              in sensor_prefixes
+          ]
+          if sensor_rows:
+              raise SystemExit(f"F3_SENSOR_REVIEW_LEAK:{len(sensor_rows)}")
+          noncurrent_rows = [
+              row for row in jobs
+              if str(row.get("lifecycle_status") or "").replace("_", " ").casefold()
+              != "active confirmed"
+          ]
+          if noncurrent_rows:
+              raise SystemExit(f"F3_NONCURRENT_REVIEW_LEAK:{len(noncurrent_rows)}")
+
+          visible_fi = [
+              row for row in jobs
+              if "finanz informatik" in str(row.get("company_name") or "").casefold()
+          ]
+          neutral_counts = Counter(
+              (str(row.get("source_name") or ""), locale_neutral_path(row.get("source_url")))
+              for row in visible_fi
+              if row.get("source_url")
+          )
+          residual_aliases = [key for key, count in neutral_counts.items() if count > 1]
+          if residual_aliases:
+              raise SystemExit(f"F3_FI_VISIBLE_ALIAS_RESIDUAL:{residual_aliases}")
+
+          print(f"F3_FI_IDENTITY_MEMBERS={len(fi_rows)}")
+          print(f"F3_FI_DUPLICATE_GROUPS={len(duplicate_groups)}")
+          print(f"F3_FI_STRONG_GROUPS={len(strong_groups)}")
+          print(f"F3_FI_BOUNDED_GROUPS={len(bounded_groups)}")
+          print(f"F3_LIFECYCLE_STALE_AUDIT={lifecycle_counts['stale_count']}")
+          print(f"F3_LIFECYCLE_INACTIVE_AUDIT={lifecycle_counts['inactive_count']}")
+          print(f"F3_LIFECYCLE_SOURCE_FAMILIES={lifecycle_counts['source_families']}")
+          print(f"F3_MULTI_LOCATION_JOBS={multi_location_jobs}")
+          print(f"F3_PRODUCT_REVIEW_JOBS={len(jobs)}")
+          print(f"F3_PRODUCT_VISIBLE_FI={len(visible_fi)}")
+          for rows in duplicate_groups:
+              print("F3_CANONICAL_GROUP=" + json.dumps(rows, default=str, ensure_ascii=False, sort_keys=True))
+          print("F3_CANONICAL_VACANCY_IDENTITY_ACCEPTANCE=PASS")
+          PY
