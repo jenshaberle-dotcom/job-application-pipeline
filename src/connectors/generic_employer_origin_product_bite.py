@@ -8,10 +8,12 @@ prove target jobs remains fail-closed and does not fall through to weaker logic.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import logging
+from typing import Any
 
 from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
-from src.connectors.employer_origin_bite import filter_bite_postings
+from src.connectors.employer_origin_bite import BitePosting, filter_bite_postings
 from src.connectors.employer_origin_bite_product import acquire_bite_query_proven_jobs
 from src.connectors.generic_employer_origin_product import (
     NEUTRAL_TRIGGER_TERM,
@@ -25,6 +27,87 @@ from src.connectors.generic_job_detail_evidence import extract_generic_job_detai
 from src.ingestion.generic_origin_bronze_admission import filter_generic_origin_bronze_records
 
 LOGGER = logging.getLogger(__name__)
+
+_BITE_REMOTE_TRUE = frozenset({"1", "ja", "yes", "true"})
+_BITE_REMOTE_FALSE = frozenset({"0", "nein", "no", "false"})
+
+
+def _clean_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split()).strip(" ,;|")
+    return text or None
+
+
+def _bite_remote_value(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().casefold()
+    if normalized in _BITE_REMOTE_TRUE:
+        return True
+    if normalized in _BITE_REMOTE_FALSE:
+        return False
+    return None
+
+
+def project_bite_accessibility_evidence(
+    evidence: dict[str, Any],
+    posting: BitePosting,
+) -> dict[str, Any]:
+    """Add explicit B-ITE inventory accessibility fields to generic detail evidence.
+
+    The employer-authorized B-ITE inventory already carries structured location and
+    remote fields.  Preserve those source-declared values in the existing generic
+    evidence schema instead of inferring accessibility from free text or adding an
+    employer-specific parser.
+    """
+
+    projected = deepcopy(evidence)
+    raw = posting.raw if isinstance(posting.raw, dict) else {}
+    address = raw.get("address")
+    address = address if isinstance(address, dict) else {}
+    custom = raw.get("custom")
+    custom = custom if isinstance(custom, dict) else {}
+
+    locations = [
+        text
+        for value in projected.get("locations", [])
+        if (text := _clean_text(value)) is not None
+    ]
+    for value in (address.get("city"), custom.get("ort")):
+        text = _clean_text(value)
+        if text and text.casefold() not in {item.casefold() for item in locations}:
+            locations.append(text)
+
+    remote = _bite_remote_value(custom.get("remote"))
+    if remote is None:
+        existing_remote = projected.get("remote")
+        remote = existing_remote if isinstance(existing_remote, bool) else None
+
+    projected["locations"] = locations
+    projected["remote"] = remote
+
+    methods = [
+        str(value)
+        for value in projected.get("methods", [])
+        if isinstance(value, str) and value.strip()
+    ]
+    if locations or remote is not None:
+        if "bite_inventory_structured_accessibility" not in methods:
+            methods.append("bite_inventory_structured_accessibility")
+    projected["methods"] = methods
+
+    field_presence = projected.get("field_presence")
+    field_presence = dict(field_presence) if isinstance(field_presence, dict) else {}
+    field_presence["locations"] = bool(
+        locations or projected.get("structured_locations")
+    )
+    field_presence["remote"] = remote is not None
+    projected["field_presence"] = field_presence
+
+    return projected
 
 
 def _matching_term(posting, target_terms: list[str]) -> str:
@@ -73,7 +156,7 @@ class GenericEmployerOriginProductBiteConnector(GenericEmployerOriginProductConn
                 url=item.job.final_url,
                 page_title=item.job.title,
             )
-            evidence = dict(evidence)
+            evidence = project_bite_accessibility_evidence(evidence, item.posting)
             evidence["status_code"] = item.job.status_code
             evidence["provider_family"] = "bite"
             evidence["finite_inventory_query_semantics"] = True
@@ -102,4 +185,7 @@ class GenericEmployerOriginProductBiteConnector(GenericEmployerOriginProductConn
         return admitted, source.candidate_url
 
 
-__all__ = ["GenericEmployerOriginProductBiteConnector"]
+__all__ = [
+    "GenericEmployerOriginProductBiteConnector",
+    "project_bite_accessibility_evidence",
+]
