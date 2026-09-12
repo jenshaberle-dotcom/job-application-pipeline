@@ -6,10 +6,16 @@ capability-tag values, provenance references and reviewer identities remain priv
 from __future__ import annotations
 
 from collections import Counter
-from datetime import date
+from pathlib import Path
+import sys
 
 import psycopg
 from psycopg.rows import dict_row
+
+if not __package__:  # direct ``python scripts/...`` execution
+    root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
 
 from src.config import get_database_config
 from src.search_intelligence.product_v1_contenders import classify_geography
