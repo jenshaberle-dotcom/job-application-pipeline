@@ -29,6 +29,9 @@ jobs:
     needs: route
     runs-on: ${{ fromJSON(needs.route.outputs.runs_on_json) }}
     timeout-minutes: 30
+    env:
+      RCC_EXPECTED_PROFILE_HASH: 62dda18c8360e15ae054cdb4e0420effcca26a04a7f6ac751a9332fd966001e7
+      RCC_EXPECTED_PYTHON: 3.12.14
 
     steps:
       - name: Show selected execution surface
@@ -45,25 +48,55 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Bind qualified persistent RCC Python
+        if: needs.route.outputs.route == 'warm'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$HOME/.cache/DeepOceanInfrastructure/RunnerToolchain/PythonEnvs/job-pipeline-runtime-linux-warm"
+          active_python_file="$root/active-python.txt"
+          active_hash_file="$root/active-profile-hash.txt"
+          test -s "$active_python_file"
+          test -s "$active_hash_file"
+          python_path="$(tr -d '\r\n' < "$active_python_file")"
+          profile_hash="$(tr -d '\r\n' < "$active_hash_file")"
+          test "$profile_hash" = "$RCC_EXPECTED_PROFILE_HASH"
+          test -x "$python_path"
+          actual_version="$($python_path -c 'import platform; print(platform.python_version())')"
+          test "$actual_version" = "$RCC_EXPECTED_PYTHON"
+          "$python_path" -m pip check
+          printf 'CI_PYTHON=%s\n' "$python_path" >> "$GITHUB_ENV"
+          echo "RCC_WARM_PYTHON_BINDING=PASS python=$actual_version profile_hash=$profile_hash"
+          echo "RCC_SETUP_PYTHON=NONE"
+          echo "RCC_PIP_INSTALL=NONE"
+          echo "RCC_REMOTE_PIP_CACHE_RESTORE=NONE"
+
+      - name: Set up hosted Python without remote pip cache
+        if: needs.route.outputs.route == 'github-hosted'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
 
-      - name: Install runtime and development dependencies
+      - name: Select hosted Python command
+        if: needs.route.outputs.route == 'github-hosted'
+        shell: bash
+        run: echo 'CI_PYTHON=python' >> "$GITHUB_ENV"
+
+      - name: Install runtime and development dependencies on hosted runner
+        if: needs.route.outputs.route == 'github-hosted'
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
+          set -euo pipefail
+          "$CI_PYTHON" -m pip install --disable-pip-version-check --upgrade pip
+          "$CI_PYTHON" -m pip install --disable-pip-version-check -r requirements-dev.txt
 
       - name: Verify installed dependency consistency
-        run: python -m pip check
+        shell: bash
+        run: '"$CI_PYTHON" -m pip check'
 
       - name: Compile active Python paths
-        run: python -m compileall -q src scripts tests
+        shell: bash
+        run: '"$CI_PYTHON" -m compileall -q src scripts tests'
 
       - name: Parse active Windows PowerShell scripts
         shell: pwsh
@@ -91,10 +124,12 @@ jobs:
           }
 
       - name: Validate migration, tooling, and governance contracts
-        run: python scripts/validate_ci_contract.py
+        shell: bash
+        run: '"$CI_PYTHON" scripts/validate_ci_contract.py'
 
       - name: Run hard Ruff correctness gate
-        run: python -m ruff check . --select E4,E7,E9,F --ignore E402
+        shell: bash
+        run: '"$CI_PYTHON" -m ruff check . --select E4,E7,E9,F --ignore E402'
 
       - name: Prevent E402 baseline growth
         shell: bash
@@ -114,21 +149,21 @@ jobs:
           }
           trap cleanup_e402 EXIT
 
-          python -m ruff check . \
+          "$CI_PYTHON" -m ruff check . \
             --select E402 \
             --output-format json \
             --exit-zero > "$head_json"
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git worktree add --detach "$base_worktree" "origin/${{ github.base_ref }}"
-            python -m ruff check "$base_worktree" \
+            "$CI_PYTHON" -m ruff check "$base_worktree" \
               --config "$base_worktree/pyproject.toml" \
               --select E402 \
               --output-format json \
               --exit-zero > "$base_json"
           fi
 
-          python - "$head_json" "$base_json" <<'PY'
+          "$CI_PYTHON" - "$head_json" "$base_json" <<'PY'
           import json
           import os
           from pathlib import Path
@@ -156,7 +191,8 @@ jobs:
           PY
 
       - name: Run full test suite
-        run: python -m pytest -q
+        shell: bash
+        run: '"$CI_PYTHON" -m pytest -q'
 
   frontend:
     name: React Control Center build
