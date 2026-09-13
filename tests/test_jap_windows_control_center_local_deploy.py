@@ -77,6 +77,13 @@ def test_deploy_must_prove_exact_release_installed_not_merely_deferred() -> None
     assert "JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS" in workflow
 
 
+def test_installed_release_probe_stays_inside_yaml_run_block() -> None:
+    workflow = _text(LOCAL_DEPLOY_WORKFLOW)
+    assert "mapfile -t installed < <(python3 -c" in workflow
+    assert "python3 - \"$current_json\" <<'PY'" not in workflow
+    assert "\nimport json\n" not in workflow
+
+
 def test_local_runner_can_receive_release_root_from_current_control_plane() -> None:
     script = _text(LOCAL_DEPLOY)
     assert 'CONTROL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"' in script
