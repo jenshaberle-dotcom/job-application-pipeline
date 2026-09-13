@@ -5,12 +5,15 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "control-center" / "src"
 
 
-def test_job_review_distinguishes_preliminary_affinity_from_authoritative_fit() -> None:
+def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile_fit() -> None:
     source = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
     assert "Role affinity · preliminary" in source
     assert "Detail check required" in source
-    assert "authoritative profile fit" in source
+    assert "authoritative Product score" in source
+    assert "Profile Fit coverage" in source
+    assert "Profile Fit decision" in source
+    assert "authoritative profile fit" not in source
     assert "Affinity" in source
 
 

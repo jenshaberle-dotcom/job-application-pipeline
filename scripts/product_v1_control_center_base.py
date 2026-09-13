@@ -18,7 +18,6 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
-from src.connectors.registry import build_default_connector_registry
 from src.search_intelligence.product_v1 import (
     OperatorDecisionRequired,
     ProductJob,
@@ -68,6 +67,35 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     if isinstance(value, (list, tuple)):
         return tuple(str(item) for item in value)
     return ()
+
+
+def _load_profile_fit_preference_tags(
+    conn: psycopg.Connection[object],
+) -> tuple[str, ...]:
+    if not _relation_exists(conn, "candidate_fact_profiles") or not _relation_exists(
+        conn, "candidate_facts"
+    ):
+        return ()
+    rows = _fetch_all(
+        conn,
+        """
+        SELECT DISTINCT lower(btrim(tag.value)) AS tag
+        FROM candidate_fact_profiles profile
+        JOIN candidate_facts fact
+          ON fact.profile_key = profile.profile_key
+        CROSS JOIN LATERAL jsonb_array_elements_text(fact.capability_tags) tag(value)
+        WHERE profile.profile_key = 'default'
+          AND profile.status = 'approved'
+          AND fact.approval_status = 'approved'
+          AND fact.evidence_class = 'operator_preference'
+          AND fact.category IN ('preference', 'boundary')
+          AND (fact.valid_from IS NULL OR fact.valid_from <= current_date)
+          AND (fact.valid_until IS NULL OR fact.valid_until >= current_date)
+          AND lower(btrim(tag.value)) LIKE 'profile-fit.%'
+        ORDER BY tag
+        """,
+    )
+    return tuple(str(row["tag"]) for row in rows if row.get("tag"))
 
 
 def _build_top_jobs(
@@ -361,6 +389,10 @@ def _connector_artifact_exists(candidate: dict[str, object]) -> bool:
 def _load_source_connector_overview(
     conn: psycopg.Connection[object],
 ) -> dict[str, object]:
+    # Keep connector implementation dependencies out of the core Product
+    # payload import path. The Sources panel opts into them explicitly.
+    from src.connectors.registry import build_default_connector_registry
+
     return build_source_connector_overview(
         registry=build_default_connector_registry(),
         candidates=_load_source_candidates(conn),
@@ -384,11 +416,17 @@ def load_source_connector_overview_payload() -> dict[str, object]:
         return _load_source_connector_overview(conn)
 
 
-def load_product_v1_payload() -> dict[str, object]:
+def load_product_v1_payload(
+    *, include_source_connector_overview: bool = True
+) -> dict[str, object]:
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
     ) as conn:
-        source_connector_overview = _load_source_connector_overview(conn)
+        source_connector_overview = (
+            _load_source_connector_overview(conn)
+            if include_source_connector_overview
+            else {}
+        )
         required_relations = {
             "search_term_cycle_state",
             "product_v1_ranking_policy",
@@ -439,8 +477,59 @@ def load_product_v1_payload() -> dict[str, object]:
         job_readiness = _fetch_all(
             conn,
             """
-            SELECT *
-            FROM gold_product_v1_job_readiness
+            SELECT
+                readiness.*,
+                capability_review.decision
+                    AS profile_fit_capability_review_decision,
+                CASE
+                    WHEN candidate_profile.status = 'approved'
+                     AND assessment.silver_job_id IS NOT NULL
+                     AND capability_review.status = 'active'
+                     AND capability_review.candidate_profile_sha256
+                         = candidate_profile.payload_sha256
+                     AND capability_review.assessment_updated_at
+                         = assessment.updated_at
+                     AND capability_review.assessment_detail_sha256
+                         = coalesce(
+                             assessment.ranking_factors
+                                 ->> 'detail_description_sha256',
+                             ''
+                         )
+                     AND assessment.capability_fit_status
+                         = capability_review.decision
+                     AND jsonb_array_length(
+                         capability_review.referenced_fact_keys
+                     ) > 0
+                     AND NOT EXISTS (
+                         SELECT 1
+                         FROM jsonb_array_elements_text(
+                             capability_review.referenced_fact_keys
+                         ) wanted(fact_key)
+                         LEFT JOIN candidate_facts fact
+                           ON fact.profile_key = 'default'
+                          AND fact.fact_key = wanted.fact_key
+                          AND fact.approval_status = 'approved'
+                          AND fact.evidence_class IN (
+                              'professional_employment',
+                              'formal_education',
+                              'portfolio_implementation',
+                              'training_certification'
+                          )
+                          AND (fact.valid_from IS NULL OR fact.valid_from <= current_date)
+                          AND (fact.valid_until IS NULL OR fact.valid_until >= current_date)
+                         WHERE fact.fact_key IS NULL
+                     )
+                    THEN TRUE
+                    ELSE FALSE
+                END AS profile_fit_capability_review_exact
+            FROM gold_product_v1_job_readiness readiness
+            LEFT JOIN job_product_assessments assessment
+              ON assessment.silver_job_id = readiness.silver_job_id
+            LEFT JOIN candidate_fact_profiles candidate_profile
+              ON candidate_profile.profile_key = 'default'
+            LEFT JOIN product_v1_capability_fit_reviews capability_review
+              ON capability_review.silver_job_id = readiness.silver_job_id
+             AND capability_review.status = 'active'
             ORDER BY
                 CASE product_readiness_status
                     WHEN 'rankable' THEN 0
@@ -454,6 +543,7 @@ def load_product_v1_payload() -> dict[str, object]:
                 silver_job_id
             """,
         )
+        profile_fit_preference_tags = _load_profile_fit_preference_tags(conn)
         ranking_policy = _fetch_one(
             conn,
             """
@@ -507,6 +597,7 @@ def load_product_v1_payload() -> dict[str, object]:
         migration_ready=True,
         hard_filter_policy=hard_filter_policy,
         source_connector_overview=source_connector_overview,
+        profile_fit_preference_tags=profile_fit_preference_tags,
     )
 
 

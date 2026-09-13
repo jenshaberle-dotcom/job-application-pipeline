@@ -76,4 +76,4 @@ def test_operator_surface_drops_preview_button_but_keeps_internal_preview_runtim
 
 
 def test_bugfix_round_bumps_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.24"
+    assert _text(VERSION).strip() == "1.0.25"
