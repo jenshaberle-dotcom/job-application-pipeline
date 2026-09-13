@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONTROL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="${JAP_DEPLOY_SOURCE_ROOT:-$CONTROL_ROOT}"
 EXPECTED_REPOSITORY_ID="1230805345"
 EXPECTED_REPOSITORY="jenshaberle-dotcom/job-application-pipeline"
 EXPECTED_RUNNER="job-pipeline-runtime-linux"
@@ -148,8 +149,6 @@ if [[ "${installed[2]}" == "$SOURCE_SHA" && "${installed[3]}" == "$DESKTOP_VERSI
   exit 0
 fi
 
-# One-time bridge from pre-GUI-update installations. After this succeeds the
-# local runner uses the normal immutable staging/apply contract.
 if [[ "${installed[6]}" != "$UPDATE_MODE" || "${installed[7]}" != "$COMPATIBILITY_LINE" ]]; then
   if ((HOST_RUNNING)); then
     deferred "bootstrap_requires_closed_app:${installed[3]}:${DESKTOP_VERSION}"
@@ -181,10 +180,6 @@ PY
   exit 0
 fi
 
-# GUI-update capable installations always receive a staged immutable release.
-# If the desktop is closed, the same checksum-verified staged manifest may be
-# applied immediately by the local runner. A running desktop is never killed by
-# this workflow; it keeps the existing in-app consent path.
 STAGE_BASE="$INSTALL_ROOT/updates"
 STAGE_ROOT="$STAGE_BASE/$SOURCE_SHA"
 STAGE_TMP="$STAGE_BASE/.staging.$SOURCE_SHA.$$"
@@ -236,16 +231,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-(
-    output,
-    target_sha,
-    version,
-    tag,
-    source_root,
-    archive,
-    checksum,
-    sha256,
-) = sys.argv[1:]
+(output, target_sha, version, tag, source_root, archive, checksum, sha256) = sys.argv[1:]
 value = {
     "schema": "job_application_pipeline.windows_pending_update.v1",
     "target_main_sha": target_sha,
