@@ -46,9 +46,6 @@ concurrency:
 jobs:
   deploy:
     name: Stage or bootstrap JAP Control Center update on local workstation
-    # Keep the proven current local-runner path alive until the RCC broker is actually
-    # cut over. RCC-reservation-backed dispatch remains the stricter preferred path when
-    # available; release completion, push and schedule retain the compatibility path.
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
@@ -118,29 +115,41 @@ jobs:
         run: |
           set -euo pipefail
           echo "JAP_LOCAL_DEPLOY_ADMISSION=LEGACY_COMPAT event=$GITHUB_EVENT_NAME runner=$RUNNER_NAME"
-          echo "JAP_LOCAL_DEPLOY_RRC_CUTOVER_PENDING=TRUE"
+          echo "JAP_LOCAL_DEPLOY_RCC_CUTOVER_PENDING=TRUE"
 
-      - name: Check out exact released source
+      - name: Check out current deploy control plane
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: control-plane
+          fetch-depth: 1
+
+      - name: Check out exact released product source
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.source.outputs.sha }}
+          path: released-source
           fetch-depth: 0
 
-      - name: Prove exact released source before local effects
+      - name: Prove control-plane and released-source identities before local effects
         shell: bash
         env:
+          EXPECTED_CONTROL_SHA: ${{ github.sha }}
           EXPECTED_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
-          actual_source="$(git rev-parse HEAD)"
-          test "$actual_source" = "$EXPECTED_SOURCE_SHA"
-          echo "JAP_EXACT_RELEASE_SOURCE_HANDOFF=PASS source=$actual_source authority=${{ steps.source.outputs.authority }}"
+          control_sha="$(git -C control-plane rev-parse HEAD)"
+          release_sha="$(git -C released-source rev-parse HEAD)"
+          test "$control_sha" = "$EXPECTED_CONTROL_SHA"
+          test "$release_sha" = "$EXPECTED_SOURCE_SHA"
+          echo "JAP_DEPLOY_CONTROL_PLANE=PASS source=$control_sha"
+          echo "JAP_EXACT_RELEASE_SOURCE_HANDOFF=PASS source=$release_sha authority=${{ steps.source.outputs.authority }}"
 
       - name: Reap exact stale Session-0 JAP desktop host
         shell: bash
         run: |
           set -euo pipefail
-          reaper="$(wslpath -w "$PWD/scripts/reap_jap_headless_desktop.ps1")"
+          reaper="$(wslpath -w "$PWD/released-source/scripts/reap_jap_headless_desktop.ps1")"
           powershell.exe \
             -NoProfile \
             -ExecutionPolicy Bypass \
@@ -148,19 +157,45 @@ jobs:
 
       - name: Prove local Windows interop and stage update fail-closed
         shell: bash
+        env:
+          JAP_DEPLOY_SOURCE_ROOT: ${{ github.workspace }}/released-source
         run: |
           set -euo pipefail
           echo "JAP_LOCAL_DEPLOY_RUNNER=$RUNNER_NAME"
-          echo "JAP_LOCAL_DEPLOY_SOURCE=$(git rev-parse HEAD)"
-          bash scripts/deploy_jap_windows_control_center_local.sh
+          echo "JAP_LOCAL_DEPLOY_SOURCE=$(git -C released-source rev-parse HEAD)"
+          bash control-plane/scripts/deploy_jap_windows_control_center_local.sh
+
+      - name: Require exact released version to be installed
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          expected_version="$(tr -d '\r\n' < released-source/windows/JAP.ControlCenter.Desktop/VERSION)"
+          win_localappdata="$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r' | tail -n 1)"
+          current_json="$(wslpath -u "$win_localappdata")/JAP-Control-Center/current.json"
+          mapfile -t installed < <(
+            python3 - "$current_json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig"))
+print(data.get("pinned_sha", ""))
+print(data.get("desktop_host_version", ""))
+PY
+          )
+          test "${installed[0]}" = "$EXPECTED_SOURCE_SHA"
+          test "${installed[1]}" = "$expected_version"
+          echo "JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS version=${installed[1]} source=${installed[0]}"
 
       - name: Prove installed desktop rejects headless runner launch
         shell: bash
         run: |
           set -euo pipefail
-          proof="$(wslpath -w "$PWD/scripts/prove_jap_headless_desktop_rejection.ps1")"
-          expected_sha="$(git rev-parse HEAD)"
-          expected_version="$(tr -d '\r\n' < windows/JAP.ControlCenter.Desktop/VERSION)"
+          proof="$(wslpath -w "$PWD/released-source/scripts/prove_jap_headless_desktop_rejection.ps1")"
+          expected_sha="$(git -C released-source rev-parse HEAD)"
+          expected_version="$(tr -d '\r\n' < released-source/windows/JAP.ControlCenter.Desktop/VERSION)"
           powershell.exe \
             -NoProfile \
             -ExecutionPolicy Bypass \
@@ -173,51 +208,27 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-
           win_localappdata="$(timeout 10s cmd.exe /d /c 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
           if [[ -z "$win_localappdata" ]]; then
             echo "JAP_STARTUP_DIAG=UNAVAILABLE reason=localappdata_resolution_failed"
             exit 0
           fi
-
           install_root="$(wslpath -u "$win_localappdata")/JAP-Control-Center"
           echo "JAP_STARTUP_DIAG_INSTALL_ROOT=$install_root"
-
-          for relative in \
-            current.json \
-            state/pending-update.json \
-            state/update-result.json \
-            state/runtime.json; do
+          for relative in current.json state/pending-update.json state/update-result.json state/runtime.json; do
             path="$install_root/$relative"
             echo "=== $relative ==="
-            if [[ -f "$path" ]]; then
-              sed -n '1,160p' "$path"
-            else
-              echo "MISSING"
-            fi
+            if [[ -f "$path" ]]; then sed -n '1,160p' "$path"; else echo "MISSING"; fi
           done
-
-          for relative in \
-            logs/desktop-host-startup.log \
-            logs/desktop-host-update.log \
-            logs/desktop-host-lifecycle.log \
-            logs/runtime.stdout.log \
-            logs/runtime.stderr.log; do
+          for relative in logs/desktop-host-startup.log logs/desktop-host-update.log logs/desktop-host-lifecycle.log logs/runtime.stdout.log logs/runtime.stderr.log; do
             path="$install_root/$relative"
             echo "=== tail:$relative ==="
-            if [[ -f "$path" ]]; then
-              tail -n 120 "$path"
-            else
-              echo "MISSING"
-            fi
+            if [[ -f "$path" ]]; then tail -n 120 "$path"; else echo "MISSING"; fi
           done
-
           echo "=== runtime-processes ==="
           ps -ef | grep -E 'run_product_v1_live_demo|run_jap_windows_control_center|python.*8780' | grep -v grep || true
-
           echo "=== port-8780 ==="
           ss -ltnp 2>/dev/null | grep ':8780' || echo "NO_LISTENER"
-
           echo "=== app-info ==="
           timeout 5s curl -fsS http://127.0.0.1:8780/app-info.json 2>&1 || echo "APP_INFO_UNAVAILABLE"
 
