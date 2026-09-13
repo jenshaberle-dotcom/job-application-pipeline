@@ -21,38 +21,51 @@ def test_install_wrapper_supports_noninteractive_no_start_mode() -> None:
     assert "unknown_argument" in text
 
 
-def test_local_deploy_requires_rcc_reservation_before_self_hosted_execution() -> None:
+def test_local_deploy_preserves_automatic_compatibility_path_until_rcc_cutover() -> None:
     workflow = _text(LOCAL_DEPLOY_WORKFLOW)
     assert "runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]" in workflow
     assert 'workflows: ["JAP Windows Desktop Host release"]' in workflow
     assert 'cron: "17 * * * *"' in workflow
     assert "pull_request:" not in workflow
     assert "cancel-in-progress: false" in workflow
-    assert "if: github.event_name == 'workflow_dispatch'" in workflow
+    assert "github.event_name != 'workflow_run'" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "Resolve exact released deploy source" in workflow
+    assert "getLatestRelease" in workflow
+    assert "release_workflow_run" in workflow
+    assert "latest_published_release" in workflow
+    assert "JAP_LOCAL_DEPLOY_ADMISSION=LEGACY_COMPAT" in workflow
+    assert "Record transitional local-runner admission" in workflow
+    assert "Apply-JAP-Control-Center-Update.ps1" in workflow
+
+
+def test_reserved_dispatch_keeps_exact_rcc_handoff_contract() -> None:
+    workflow = _text(LOCAL_DEPLOY_WORKFLOW)
     assert "reservation_id:" in workflow
     assert "expected_runner:" in workflow
     assert "source_sha:" in workflow
+    assert "if: github.event_name == 'workflow_dispatch'" in workflow
     assert "RCC_RESERVATION_ID: ${{ inputs.reservation_id }}" in workflow
     assert "RCC_EXPECTED_RUNNER: ${{ inputs.expected_runner }}" in workflow
     assert "RCC_SOURCE_SHA: ${{ inputs.source_sha }}" in workflow
     assert "RCC_EXACT_RUNNER_HANDOFF=PASS" in workflow
-    assert "RCC_EXACT_SOURCE_HANDOFF=PASS" in workflow
+    assert 'if [[ "$RUNNER_NAME" != "$RCC_EXPECTED_RUNNER" ]]' in workflow
     assert "RCC_RESERVATION_RELEASE_REQUIRED=TRUE" in workflow
-    assert "Apply-JAP-Control-Center-Update.ps1" in workflow
 
 
-def test_local_deploy_proves_handoff_and_source_before_first_local_effect() -> None:
+def test_local_deploy_resolves_and_proves_release_source_before_first_local_effect() -> None:
     workflow = _text(LOCAL_DEPLOY_WORKFLOW)
+    resolve = workflow.index("Resolve exact released deploy source")
     handoff = workflow.index("Prove RCC reservation and exact runner handoff before effects")
-    checkout = workflow.index("Check out exact reserved source")
-    source = workflow.index("Prove exact reserved source before local effects")
+    checkout = workflow.index("Check out exact released source")
+    source = workflow.index("Prove exact released source before local effects")
     reaper = workflow.index("Reap exact stale Session-0 JAP desktop host")
     stage = workflow.index("Prove local Windows interop and stage update fail-closed")
-    assert handoff < checkout < source < reaper < stage
-    assert 'if [[ "$RUNNER_NAME" != "$RCC_EXPECTED_RUNNER" ]]' in workflow
-    assert 'ref: ${{ inputs.source_sha }}' in workflow
-    assert 'test "$actual_source" = "$RCC_SOURCE_SHA"' in workflow
-    assert "always() && steps.handoff.outputs.verified == 'true'" in workflow
+    assert resolve < handoff < checkout < source < reaper < stage
+    assert 'ref: ${{ steps.source.outputs.sha }}' in workflow
+    assert 'test "$actual_source" = "$EXPECTED_SOURCE_SHA"' in workflow
+    assert "JAP_EXACT_RELEASE_SOURCE_HANDOFF=PASS" in workflow
+    assert "if: always()" in workflow
 
 
 def test_local_runner_stages_latest_direct_update_and_auto_applies_when_closed() -> None:
@@ -73,10 +86,12 @@ def test_local_runner_stages_latest_direct_update_and_auto_applies_when_closed()
     assert '-HostPid 0' in script
 
 
-def test_local_runner_requires_release_tag_to_point_at_exact_source() -> None:
+def test_local_runner_requires_exact_release_and_ancestor_of_current_main() -> None:
     script = _text(LOCAL_DEPLOY)
     assert 'git ls-remote "$READ_ONLY_FETCH_URL" refs/heads/main' in script
-    assert 'source_not_current_main' in script
+    assert 'git -C "$ROOT" merge-base --is-ancestor "$SOURCE_SHA" "$FETCHED_MAIN"' in script
+    assert 'release_source_not_ancestor_of_main' in script
+    assert 'JAP_LOCAL_DEPLOY_MAIN_AHEAD=TRUE' in script
     assert 'git ls-remote "$READ_ONLY_FETCH_URL" "refs/tags/${DESKTOP_TAG}"' in script
     assert 'release_not_for_source' in script
     assert 'desktop_release_asset_unavailable' in script

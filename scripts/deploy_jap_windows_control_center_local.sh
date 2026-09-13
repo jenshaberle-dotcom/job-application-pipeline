@@ -40,7 +40,13 @@ ORIGIN="$(git -C "$ROOT" remote get-url origin)"
 REMOTE_MAIN="$(git ls-remote "$READ_ONLY_FETCH_URL" refs/heads/main | awk 'NR==1 {print $1}')"
 [[ "$REMOTE_MAIN" =~ ^[0-9a-f]{40}$ ]] || blocked "main_resolution_failed"
 if [[ "$REMOTE_MAIN" != "$SOURCE_SHA" ]]; then
-  deferred "source_not_current_main:${SOURCE_SHA}:${REMOTE_MAIN}"
+  git -C "$ROOT" fetch --quiet --no-tags "$READ_ONLY_FETCH_URL" refs/heads/main || blocked "main_fetch_failed"
+  FETCHED_MAIN="$(git -C "$ROOT" rev-parse FETCH_HEAD)"
+  [[ "$FETCHED_MAIN" == "$REMOTE_MAIN" ]] || blocked "main_fetch_identity_mismatch:${FETCHED_MAIN}:${REMOTE_MAIN}"
+  if ! git -C "$ROOT" merge-base --is-ancestor "$SOURCE_SHA" "$FETCHED_MAIN"; then
+    blocked "release_source_not_ancestor_of_main:${SOURCE_SHA}:${REMOTE_MAIN}"
+  fi
+  printf 'JAP_LOCAL_DEPLOY_MAIN_AHEAD=TRUE release_source=%s current_main=%s\n' "$SOURCE_SHA" "$REMOTE_MAIN"
 fi
 
 DESKTOP_VERSION="$(tr -d '\r\n' < "$ROOT/windows/JAP.ControlCenter.Desktop/VERSION")"
