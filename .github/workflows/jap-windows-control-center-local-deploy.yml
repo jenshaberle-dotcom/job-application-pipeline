@@ -174,17 +174,7 @@ jobs:
           expected_version="$(tr -d '\r\n' < released-source/windows/JAP.ControlCenter.Desktop/VERSION)"
           win_localappdata="$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r' | tail -n 1)"
           current_json="$(wslpath -u "$win_localappdata")/JAP-Control-Center/current.json"
-          mapfile -t installed < <(
-            python3 - "$current_json" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig"))
-print(data.get("pinned_sha", ""))
-print(data.get("desktop_host_version", ""))
-PY
-          )
+          mapfile -t installed < <(python3 -c 'import json,sys; from pathlib import Path; data=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")); print(data.get("pinned_sha", "")); print(data.get("desktop_host_version", ""))' "$current_json")
           test "${installed[0]}" = "$EXPECTED_SOURCE_SHA"
           test "${installed[1]}" = "$expected_version"
           echo "JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS version=${installed[1]} source=${installed[0]}"
