@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from scripts.run_f4a_r2_current_requirement_origin_diagnostic import (
+    _unavailable_origin_proposal,
+)
 from scripts.run_f4a_r2_requirement_reconcile import build_operator_requirement_lines
 from src.search_intelligence.product_v1_contenders import classify_geography
 
@@ -74,6 +77,73 @@ def test_operator_requirement_lines_render_conflicts_as_unknown() -> None:
     assert verified == []
     assert any(line.startswith("Conflict: Work model") for line in unknown)
     assert any(line.startswith("Unknown: Required languages") for line in unknown)
+
+
+def test_unavailable_origin_clears_stale_requirement_assertions() -> None:
+    row = {
+        "current_silver_job_id": 491,
+        "silver_job_id": 491,
+        "source_name": "retired_origin:example",
+        "source_url": "https://jobs.example.test/old-detail",
+        "title": "Senior Data Engineer",
+        "assessment_updated_at": "2026-09-14T08:00:00+00:00",
+        "origin_validation_status": "validated",
+        "activity_status": "active",
+        "hard_filter_status": "passed",
+        "profile_direction_score": 4,
+        "data_focus_score": 5,
+        "reliability_focus_score": 4,
+        "evidence_quality_score": 4,
+        "overall_quality_score": 4.3,
+        "work_model": "hybrid",
+        "commute_minutes": None,
+        "public_transport_quality": "unknown",
+        "ranking_factors": {"requirement_evidence": {"stale": True}},
+        "explanations": ["stale assertion"],
+        "uncertainties": [],
+        "policy_key": "default",
+        "policy_version": "old-policy",
+        "assessed_by": "old",
+        "employment_type": "permanent",
+        "employment_evidence_status": "explicit",
+        "required_languages": ["de", "en"],
+        "language_evidence_status": "explicit",
+        "weekly_hours_min": 40.0,
+        "weekly_hours_max": 40.0,
+        "weekly_hours_evidence_status": "explicit",
+        "salary_min_gross_eur": None,
+        "salary_max_gross_eur": None,
+        "salary_evidence_status": "unknown",
+        "title_seniority": "senior",
+        "requirements_seniority": "senior",
+        "capability_fit_status": "passed",
+        "seniority_evidence_status": "explicit",
+    }
+
+    proposal = _unavailable_origin_proposal(
+        row,
+        source_authority="operator_review_scope_current_origin",
+        ranking_policy_version="ranking-v2",
+        hard_filter_policy_version="job-evidence-v3",
+        reason="preview detail returned HTTP 404",
+    )
+
+    next_payload = proposal["next_payload"]
+    assert proposal["origin_detail_unavailable"] is True
+    assert proposal["mode"] == "update"
+    assert next_payload["employment_type"] == "unknown"
+    assert next_payload["required_languages"] == []
+    assert next_payload["weekly_hours_min"] is None
+    assert next_payload["weekly_hours_max"] is None
+    assert next_payload["work_model"] == "unknown"
+    assert next_payload["requirements_seniority"] == "unknown"
+    assert next_payload["capability_fit_status"] == "unknown"
+    assert next_payload["hard_filter_status"] == "unknown"
+    assert next_payload["overall_quality_score"] is None
+    assert next_payload["explanations"] == []
+    assert any("current Origin detail unavailable" in line for line in next_payload["uncertainties"])
+    assert "requirement_evidence" not in next_payload["ranking_factors"]
+    assert next_payload["ranking_factors"]["f4a_r2_requirement_evidence"]["status"] == "origin_detail_unavailable"
 
 
 def test_composite_orlando_us_location_is_outside_germany() -> None:
