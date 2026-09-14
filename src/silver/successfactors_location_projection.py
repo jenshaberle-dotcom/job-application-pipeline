@@ -5,6 +5,10 @@ import json
 import re
 from typing import Any, Mapping, Protocol
 
+from src.silver.requirement_evidence_projection import (
+    synchronize_silver_requirement_evidence,
+)
+
 
 AUTOMATIC_EVIDENCE_SOURCE = "successfactors_detail_location_field"
 _BLOCKED_CITY_VALUES = {
@@ -369,7 +373,7 @@ def write_silver_job_with_successfactors_locations(
     silver_job: Mapping[str, Any],
     raw_job: Mapping[str, Any],
 ) -> int:
-    """Atomically write one Silver job and its explicit SuccessFactors locations."""
+    """Atomically write Silver, SuccessFactors locations and requirement evidence."""
 
     projection = build_successfactors_location_projection(
         raw_job,
@@ -384,6 +388,11 @@ def write_silver_job_with_successfactors_locations(
                 cur,
                 silver_job_id=silver_job_id,
                 projection=projection,
+            )
+            synchronize_silver_requirement_evidence(
+                cur,
+                silver_job_id=silver_job_id,
+                raw_job=raw_job,
             )
         conn.commit()
         return silver_job_id
