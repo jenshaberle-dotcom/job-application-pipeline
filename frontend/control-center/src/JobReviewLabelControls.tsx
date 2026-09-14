@@ -47,6 +47,8 @@ type JobRequirementTruth = {
   source_employment_types?: string[];
   employment_scope?: string;
   employment_scope_status?: string;
+  structured_work_hours?: string | null;
+  structured_work_hours_status?: string;
   required_languages?: string[];
   language_evidence_status?: string;
   posting_language?: string;
@@ -57,6 +59,9 @@ type JobRequirementTruth = {
   work_model_resolution?: string;
   requirements_seniority?: string;
   seniority_evidence_status?: string;
+  experience_requirement?: string | null;
+  experience_months?: number | null;
+  experience_requirement_status?: string;
   title_seniority_signal?: string;
   title_seniority_basis?: string;
   job_skills?: string[];
@@ -123,6 +128,13 @@ const fitLabel = (value: string | undefined) => {
   const status = normalized(value);
   if (status === "passed") return "match";
   if (status === "failed") return "conflict";
+  return "fit evidence missing";
+};
+
+const fitDecisionLabel = (value: string | undefined | null) => {
+  const status = normalized(value);
+  if (status === "passed") return "fit confirmed";
+  if (status === "failed") return "fit conflict";
   return "fit evidence missing";
 };
 
@@ -234,7 +246,9 @@ export default function JobReviewLabelControls({
 
   const scope = scopeLabel(job?.employment_scope);
   const contract = known(job?.employment_type) ? humanize(job?.employment_type) : null;
-  const hours = hoursLabel(job?.weekly_hours_min, job?.weekly_hours_max);
+  const numericHours = hoursLabel(job?.weekly_hours_min, job?.weekly_hours_max);
+  const structuredHours = job?.structured_work_hours || null;
+  const hours = numericHours || structuredHours;
   const employmentParts = [scope, contract, hours].filter(Boolean);
   const employmentPrimary = employmentParts.join(" · ") || "Not stated by employer";
   const employmentSecondary = !contract && scope
@@ -260,12 +274,19 @@ export default function JobReviewLabelControls({
   const titleLevel = known(job?.title_seniority_signal)
     ? humanize(job?.title_seniority_signal)
     : null;
+  const experienceMonths = typeof job?.experience_months === "number" ? job.experience_months : null;
+  const experienceText = job?.experience_requirement || null;
+  const experienceLabel = experienceMonths != null
+    ? `${experienceMonths / 12 === Math.floor(experienceMonths / 12) ? `${experienceMonths / 12} years` : `${experienceMonths} months`} experience`
+    : experienceText;
   const levelPrimary = requirementLevel
     ? `${requirementLevel} requirement`
-    : titleLevel
-      ? `${titleLevel} title signal`
-      : "No explicit level requirement detected";
-  const levelSecondary = !requirementLevel && titleLevel
+    : experienceLabel
+      ? experienceLabel
+      : titleLevel
+        ? `${titleLevel} title signal`
+        : "No explicit level or experience requirement detected";
+  const levelSecondary = !requirementLevel && !experienceLabel && titleLevel
     ? "Title signal only; not promoted to a hard requirement"
     : null;
 
@@ -318,7 +339,7 @@ export default function JobReviewLabelControls({
         <header>
           <div><span className="eyebrow">Origin truth + Candidate fit</span><h3>Job requirements & fit</h3></div>
           <div className="r4-fit-summary">
-            <em className={`r4-fit-state ${fitTone(job?.profile_fit_decision || undefined)}`}>{humanize(job?.profile_fit_decision || "fit evidence missing")}</em>
+            <em className={`r4-fit-state ${fitTone(job?.profile_fit_decision || undefined)}`}>{fitDecisionLabel(job?.profile_fit_decision)}</em>
           </div>
         </header>
         {job ? <>
@@ -346,7 +367,7 @@ export default function JobReviewLabelControls({
             secondary={[employmentSecondary, languagePrimary, languageSecondary].filter(Boolean).join(" · ")}
             fit={factors.hard_requirements?.status}
           />
-          <p className="r4-authority-note">Posting language, workload and title-level signals are operator context only. Explicit employer requirements and Candidate Fit remain separate authorities.</p>
+          <p className="r4-authority-note">Posting language, workload, structured experience and title-level signals are operator context only unless the employer explicitly states a requirement. Candidate Fit remains a separate authority.</p>
         </> : <p className="review-requirement-warning">{requirementsError || "Loading persisted job evidence…"}</p>}
       </section>
 
