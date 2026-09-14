@@ -284,6 +284,38 @@ def _remote_from_job_location_type(value: object) -> bool | None:
     return False
 
 
+def _experience_context(value: object) -> tuple[str, float | None]:
+    """Preserve Schema.org experienceRequirements as text and/or exact months."""
+
+    if isinstance(value, list):
+        texts: list[str] = []
+        months: list[float] = []
+        for item in value:
+            text, amount = _experience_context(item)
+            if text and text not in texts:
+                texts.append(text)
+            if amount is not None:
+                months.append(amount)
+        unique_months = sorted(set(months))
+        return " ".join(texts), unique_months[0] if len(unique_months) == 1 else None
+    if isinstance(value, dict):
+        props = _properties(value)
+        months_raw = _first_scalar(props.get("monthsOfExperience"))
+        months: float | None = None
+        if months_raw:
+            try:
+                parsed = float(months_raw.replace(",", "."))
+            except ValueError:
+                parsed = -1
+            if 0 <= parsed <= 1_200:
+                months = parsed
+        text = _first_scalar(value, limit=MAX_REQUIREMENT_TEXT_CHARS)
+        if not text and months is not None:
+            text = f"{months:g} months experience"
+        return text, months
+    return _first_scalar(value, limit=MAX_REQUIREMENT_TEXT_CHARS), None
+
+
 def _candidate_score(value: dict[str, Any]) -> int:
     score = 0
     if _first_scalar(_schema_value(value, "title")):
@@ -334,13 +366,35 @@ def _structured_requirement_text(posting: dict[str, Any]) -> str:
     """Keep bounded requirement-bearing schema text without persisting raw HTML."""
 
     parts: list[str] = []
-    # Put explicit requirement properties before the broad description so a long
-    # marketing/role intro cannot truncate the most useful fit evidence.
-    for key in ("qualifications", "experienceRequirements", "educationRequirements"):
-        raw = _first_scalar(_schema_value(posting, key), limit=50_000)
-        text = _html_to_text(raw, limit=MAX_REQUIREMENT_TEXT_CHARS)
-        if text and text not in parts:
-            parts.append(text)
+    qualifications = _first_scalar(
+        _schema_value(posting, "qualifications"), limit=50_000
+    )
+    qualifications_text = _html_to_text(
+        qualifications, limit=MAX_REQUIREMENT_TEXT_CHARS
+    )
+    if qualifications_text:
+        parts.append(qualifications_text)
+
+    experience_text, _ = _experience_context(
+        _schema_value(posting, "experienceRequirements")
+    )
+    experience_text = _html_to_text(
+        experience_text, limit=MAX_REQUIREMENT_TEXT_CHARS
+    )
+    if experience_text and experience_text not in parts:
+        parts.append(experience_text)
+
+    education = _first_scalar(
+        _schema_value(posting, "educationRequirements"), limit=50_000
+    )
+    education_text = _html_to_text(education, limit=MAX_REQUIREMENT_TEXT_CHARS)
+    if education_text and education_text not in parts:
+        parts.append(education_text)
+
+    work_hours = _first_scalar(_schema_value(posting, "workHours"))
+    if work_hours:
+        parts.append(f"Work hours: {work_hours}")
+
     skills = _string_list(_schema_value(posting, "skills"), limit=MAX_SKILLS_CHARS)
     if skills:
         parts.append("Skills: " + "; ".join(skills))
@@ -378,6 +432,9 @@ def extract_generic_job_detail_evidence(
     applicant_locations: list[str] = []
     remote: bool | None = None
     employment_types: list[str] = []
+    work_hours = ""
+    experience_requirement = ""
+    experience_months: float | None = None
     skills: list[str] = []
     date_posted = ""
     valid_through = ""
@@ -403,6 +460,10 @@ def extract_generic_job_detail_evidence(
             _schema_value(posting, "jobLocationType")
         )
         employment_types = _string_list(_schema_value(posting, "employmentType"))
+        work_hours = _first_scalar(_schema_value(posting, "workHours"))
+        experience_requirement, experience_months = _experience_context(
+            _schema_value(posting, "experienceRequirements")
+        )
         skills = _string_list(
             _schema_value(posting, "skills"),
             limit=MAX_SKILLS_CHARS,
@@ -469,6 +530,8 @@ def extract_generic_job_detail_evidence(
         "locations": bool(locations or structured_locations),
         "remote": remote is not None,
         "employment_types": bool(employment_types),
+        "work_hours": bool(work_hours),
+        "experience_requirement": bool(experience_requirement or experience_months is not None),
         "skills": bool(skills),
         "date_posted": bool(date_posted),
         "valid_through": bool(valid_through),
@@ -503,6 +566,9 @@ def extract_generic_job_detail_evidence(
         "applicant_locations": applicant_locations,
         "remote": remote,
         "employment_types": employment_types,
+        "work_hours": work_hours or None,
+        "experience_requirement": experience_requirement or None,
+        "experience_months": experience_months,
         "skills": skills,
         "date_posted": date_posted or None,
         "valid_through": valid_through or None,
@@ -583,6 +649,17 @@ def project_detail_evidence_into_raw_data(
     employment_types = _string_list(evidence.get("employment_types"))
     if employment_types:
         metadata["employment_types"] = employment_types
+    work_hours = _bounded(evidence.get("work_hours"))
+    if work_hours:
+        metadata["work_hours"] = work_hours
+    experience_requirement = _bounded(
+        evidence.get("experience_requirement"), MAX_REQUIREMENT_TEXT_CHARS
+    )
+    if experience_requirement:
+        metadata["experience_requirement"] = experience_requirement
+    experience_months = evidence.get("experience_months")
+    if isinstance(experience_months, (int, float)):
+        metadata["experience_months"] = float(experience_months)
     for source_key, target_key in (
         ("date_posted", "date_posted"),
         ("valid_through", "valid_through"),
