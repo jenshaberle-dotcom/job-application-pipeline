@@ -18,6 +18,7 @@ on:
       - "tests/test_f4a_r3_silver_requirement_backfill.py"
       - "tests/test_successfactors_silver_location_projection.py"
       - "tests/test_f4a_r3_operator_metadata_projection.py"
+      - ".github/workflows/f4a-r3-bronze2e-apply.yml"
       - ".github/workflows/f4a-r3-silver-requirement-backfill-plan.yml"
   workflow_dispatch:
 
