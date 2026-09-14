@@ -4,6 +4,8 @@ on:
   push:
     branches: [agent/f4a-r2-operator-visible-requirements]
     paths:
+      - "VERSION"
+      - "windows/JAP.ControlCenter.Desktop/VERSION"
       - "scripts/run_f4a_r2_current_requirement_plan.py"
       - "scripts/run_f4a_r2_current_requirement_origin_diagnostic.py"
       - "scripts/run_f4a_r2_requirement_reconcile.py"
@@ -191,6 +193,9 @@ jobs:
               for item in report["blocked"]:
                   print("F4A_R2_BLOCKED=" + json.dumps(item, ensure_ascii=False, sort_keys=True))
               raise SystemExit("F4A_R2_CURRENT_REQUIREMENT_PREFLIGHT_BLOCKED")
+          if report["would_change_count"] != 0:
+              raise SystemExit("F4A_R2_POST_APPLY_NOT_CONVERGED")
+          print("F4A_R2_POST_APPLY_CONVERGED=PASS")
           print("F4A_R2_CURRENT_REQUIREMENT_PREFLIGHT=PASS")
           PY
 
