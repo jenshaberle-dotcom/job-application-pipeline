@@ -1,12 +1,13 @@
 """Read-only F4A-Q audit of real job requirement evidence.
 
-The audit samples the current canonical Product cohort by reusable source family,
-fetches each exact persisted vacancy URL through the existing bounded public-HTTPS
-reader, and compares three truths:
+The audit samples the current canonical Product cohort by reusable source family
+and source name, fetches each exact persisted vacancy URL through the existing
+bounded public-HTTPS reader, and compares three truths:
 
 1. persisted Product V1 assessment metadata;
 2. the current flat-text assessment extractor replayed on fresh Origin evidence;
-3. the existing context-aware deterministic Detail Semantics extractor.
+3. the existing context-aware deterministic Detail Semantics extractor, including
+   in-memory schema.org JobPosting JSON-LD when present.
 
 Current Product membership is the only cohort authority used here; this diagnostic
 does not activate or admit any source. It never writes Product/database state,
@@ -34,13 +35,14 @@ if not __package__:  # direct ``python scripts/...`` execution
 from src.config import get_database_config
 from src.search_intelligence.detail_semantics_deterministic import (
     deterministic_detail_semantics,
+    extract_job_postings,
 )
 from src.search_intelligence.product_v1_assessment_evidence import (
     extract_product_v1_assessment_evidence,
 )
 from src.search_intelligence.product_v1_downstream_preview import (
     DownstreamPreviewStop,
-    fetch_public_https_detail_text,
+    fetch_public_https_detail_document,
 )
 
 
@@ -119,42 +121,55 @@ def _sample_rows(
     max_per_family: int,
     max_jobs: int,
 ) -> list[dict[str, object]]:
-    by_family: dict[str, list[dict[str, object]]] = defaultdict(list)
+    by_family_and_source: dict[str, dict[str, list[dict[str, object]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     for raw in rows:
         row = dict(raw)
-        by_family[_source_family(row.get("source_name"))].append(row)
+        family = _source_family(row.get("source_name"))
+        source_name = str(row.get("source_name") or "unknown")
+        by_family_and_source[family][source_name].append(row)
 
     selected: list[dict[str, object]] = []
-    # Round-robin by family avoids a large generic-origin family crowding out
-    # smaller reusable ATS/source families.
-    families = sorted(by_family)
-    for index in range(max_per_family):
-        for family in families:
-            candidates = by_family[family]
-            if index >= len(candidates):
-                continue
-            selected.append(candidates[index])
-            if len(selected) >= max_jobs:
-                return selected
+    for family in sorted(by_family_and_source):
+        family_selected = 0
+        sources = by_family_and_source[family]
+        source_names = sorted(sources)
+        index = 0
+        while family_selected < max_per_family:
+            added = False
+            for source_name in source_names:
+                candidates = sources[source_name]
+                if index >= len(candidates):
+                    continue
+                selected.append(candidates[index])
+                family_selected += 1
+                added = True
+                if len(selected) >= max_jobs or family_selected >= max_per_family:
+                    return selected if len(selected) >= max_jobs else selected
+            if not added:
+                break
+            index += 1
     return selected
 
 
 def _audit_row(row: Mapping[str, object]) -> dict[str, object]:
     source_url = str(row.get("source_url") or "").strip()
-    final_url, page_title, detail_text = fetch_public_https_detail_text(source_url)
+    document = fetch_public_https_detail_document(source_url)
     current = extract_product_v1_assessment_evidence(
-        description=detail_text,
-        title=str(row.get("title") or page_title or ""),
-        source_url=final_url,
+        description=document.text,
+        title=str(row.get("title") or document.title or ""),
+        source_url=document.final_url,
     )
     semantics, references = deterministic_detail_semantics(
-        html="",
-        text=detail_text,
-        page_title=page_title,
-        detail_url=final_url,
+        html=document.html,
+        text=document.text,
+        page_title=document.title,
+        detail_url=document.final_url,
         target_location=str(row.get("city") or ""),
         requested_fields=REQUESTED_SEMANTIC_FIELDS,
     )
+    job_postings = extract_job_postings(document.html)
     semantic_seniority = _canonical_seniority(semantics.get("seniority"))
     skills = semantics.get("skills")
     skill_values = list(skills) if isinstance(skills, tuple) else []
@@ -177,15 +192,11 @@ def _audit_row(row: Mapping[str, object]) -> dict[str, object]:
         "title_seniority": current.title_seniority,
         "requirements_seniority": current.requirements_seniority,
     }
-    changed = sorted(
-        key for key in persisted if persisted.get(key) != replay.get(key)
-    )
+    changed = sorted(key for key in persisted if persisted.get(key) != replay.get(key))
+
     opportunities: list[str] = []
-    if (
-        str(row.get("requirements_seniority") or "unknown") == "unknown"
-        and semantic_seniority != "unknown"
-    ):
-        opportunities.append("seniority_context_signal")
+    # Detail Semantics seniority may be title-derived. It is therefore diagnostic
+    # for title seniority only and must never be promoted to requirements seniority.
     if (
         str(row.get("title_seniority") or "unknown") == "unknown"
         and semantic_seniority != "unknown"
@@ -196,6 +207,17 @@ def _audit_row(row: Mapping[str, object]) -> dict[str, object]:
     if semantics.get("remote") and str(row.get("work_model") or "unknown") == "unknown":
         opportunities.append("remote_context_signal")
 
+    missing_requirement_fields = [
+        field
+        for field, value in (
+            ("requirements_seniority", row.get("requirements_seniority")),
+            ("work_model", row.get("work_model")),
+            ("required_languages", row.get("required_languages")),
+            ("weekly_hours", row.get("weekly_hours_min")),
+        )
+        if value in (None, "unknown", [], ())
+    ]
+
     return {
         "silver_job_id": int(row.get("silver_job_id") or 0),
         "source_name": row.get("source_name"),
@@ -203,17 +225,21 @@ def _audit_row(row: Mapping[str, object]) -> dict[str, object]:
         "company_name": row.get("company_name"),
         "title": row.get("title"),
         "source_url": source_url,
-        "final_url": final_url,
+        "final_url": document.final_url,
         "persisted": persisted,
         "fresh_flat_replay": replay,
         "persisted_vs_fresh_changed_fields": changed,
-        "semantic_seniority": semantic_seniority,
+        "jsonld_jobposting_count": len(job_postings),
+        "title_or_context_seniority_signal": semantic_seniority,
+        "requirements_seniority_from_title_forbidden": True,
         "semantic_skill_count": len(skill_values),
         "semantic_skills": skill_values,
         "semantic_remote_signal": semantics.get("remote"),
         "semantic_reference_count": len(references),
         "hardening_opportunities": opportunities,
+        "missing_requirement_fields": missing_requirement_fields,
         "candidate_fact_content_emitted": False,
+        "raw_html_persisted": False,
     }
 
 
@@ -223,12 +249,9 @@ def build_report(
     max_per_family: int,
     max_jobs: int,
 ) -> dict[str, object]:
-    sample = _sample_rows(
-        rows,
-        max_per_family=max_per_family,
-        max_jobs=max_jobs,
-    )
+    sample = _sample_rows(rows, max_per_family=max_per_family, max_jobs=max_jobs)
     family_population = Counter(_source_family(row.get("source_name")) for row in rows)
+    source_population = Counter(str(row.get("source_name") or "unknown") for row in rows)
 
     audited: list[dict[str, object]] = []
     blocked: list[dict[str, object]] = []
@@ -251,21 +274,31 @@ def build_report(
         for item in row.get("hardening_opportunities", [])
         if isinstance(item, str)
     )
+    gap_counts = Counter(
+        item
+        for row in audited
+        for item in row.get("missing_requirement_fields", [])
+        if isinstance(item, str)
+    )
     changed_counts = Counter(
         field
         for row in audited
         for field in row.get("persisted_vs_fresh_changed_fields", [])
         if isinstance(field, str)
     )
+    jsonld_jobs = sum(1 for row in audited if int(row.get("jsonld_jobposting_count") or 0) > 0)
     return {
-        "schema": "job_application_pipeline.f4a_requirement_evidence_audit.v1",
+        "schema": "job_application_pipeline.f4a_requirement_evidence_audit.v2",
         "mode": "read_only",
         "current_assessed_jobs": len(rows),
         "source_family_population": dict(sorted(family_population.items())),
+        "source_name_population": dict(sorted(source_population.items())),
         "sample_requested": len(sample),
         "audited_jobs": len(audited),
         "blocked_jobs": len(blocked),
+        "jsonld_jobposting_jobs": jsonld_jobs,
         "opportunity_counts": dict(sorted(opportunity_counts.items())),
+        "missing_requirement_field_counts": dict(sorted(gap_counts.items())),
         "fresh_replay_changed_field_counts": dict(sorted(changed_counts.items())),
         "jobs": audited,
         "blocked": blocked,
@@ -278,6 +311,7 @@ def build_report(
             "provider_or_llm_requests": 0,
             "candidate_fact_reads": False,
             "candidate_fact_content_emitted": False,
+            "requirements_seniority_from_title": False,
             "ranking_or_top5_mutation": False,
             "application_or_submission_mutation": False,
             "raw_html_persisted": False,
@@ -292,20 +326,14 @@ def _print_report(report: Mapping[str, object]) -> None:
         "sample_requested",
         "audited_jobs",
         "blocked_jobs",
+        "jsonld_jobposting_jobs",
     ):
         print(f"{key.upper()}={report.get(key)}")
-    print(
-        "SOURCE_FAMILY_POPULATION="
-        + json.dumps(report.get("source_family_population", {}), sort_keys=True)
-    )
-    print(
-        "OPPORTUNITY_COUNTS="
-        + json.dumps(report.get("opportunity_counts", {}), sort_keys=True)
-    )
-    print(
-        "FRESH_REPLAY_CHANGED_FIELD_COUNTS="
-        + json.dumps(report.get("fresh_replay_changed_field_counts", {}), sort_keys=True)
-    )
+    print("SOURCE_FAMILY_POPULATION=" + json.dumps(report.get("source_family_population", {}), sort_keys=True))
+    print("SOURCE_NAME_POPULATION=" + json.dumps(report.get("source_name_population", {}), sort_keys=True))
+    print("OPPORTUNITY_COUNTS=" + json.dumps(report.get("opportunity_counts", {}), sort_keys=True))
+    print("MISSING_REQUIREMENT_FIELD_COUNTS=" + json.dumps(report.get("missing_requirement_field_counts", {}), sort_keys=True))
+    print("FRESH_REPLAY_CHANGED_FIELD_COUNTS=" + json.dumps(report.get("fresh_replay_changed_field_counts", {}), sort_keys=True))
     for row in report.get("jobs", []):
         if not isinstance(row, Mapping):
             continue
@@ -319,11 +347,13 @@ def _print_report(report: Mapping[str, object]) -> None:
                     "title": row.get("title"),
                     "persisted": row.get("persisted"),
                     "fresh_flat_replay": row.get("fresh_flat_replay"),
-                    "semantic_seniority": row.get("semantic_seniority"),
+                    "jsonld_jobposting_count": row.get("jsonld_jobposting_count"),
+                    "title_or_context_seniority_signal": row.get("title_or_context_seniority_signal"),
                     "semantic_skill_count": row.get("semantic_skill_count"),
                     "semantic_skills": row.get("semantic_skills"),
                     "semantic_remote_signal": row.get("semantic_remote_signal"),
                     "hardening_opportunities": row.get("hardening_opportunities"),
+                    "missing_requirement_fields": row.get("missing_requirement_fields"),
                 },
                 ensure_ascii=False,
                 sort_keys=True,
@@ -334,23 +364,21 @@ def _print_report(report: Mapping[str, object]) -> None:
     print("DATABASE_WRITES=0")
     print("PROVIDER_REQUESTS=0")
     print("CANDIDATE_FACT_CONTENT_EMITTED=0")
+    print("REQUIREMENTS_SENIORITY_FROM_TITLE=0")
+    print("RAW_HTML_PERSISTED=0")
     print("F4A_REQUIREMENT_EVIDENCE_AUDIT=PASS")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--max-per-family", type=int, default=3)
+    parser.add_argument("--max-per-family", type=int, default=24)
     parser.add_argument("--max-jobs", type=int, default=24)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
     if args.max_per_family < 1 or args.max_jobs < 1:
         raise SystemExit("audit sample limits must be positive")
 
-    report = build_report(
-        _read_rows(),
-        max_per_family=args.max_per_family,
-        max_jobs=args.max_jobs,
-    )
+    report = build_report(_read_rows(), max_per_family=args.max_per_family, max_jobs=args.max_jobs)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(
