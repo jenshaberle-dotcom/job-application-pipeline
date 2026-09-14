@@ -22,20 +22,43 @@ export type JobReviewLabelState = {
   training_eligible: boolean;
 };
 
+type ProfileFitFactor = { status?: string; reason?: string };
+
 type JobRequirementTruth = {
   silver_job_id: number;
+  title?: string | null;
+  city?: string | null;
+  country?: string | null;
+  work_model?: string | null;
+  commute_minutes?: number | null;
+  product_readiness_status?: string | null;
+  overall_quality_score?: number | null;
+  product_overall_quality_score?: number | null;
+  profile_direction_score?: number | null;
+  data_focus_score?: number | null;
+  reliability_focus_score?: number | null;
+  evidence_quality_score?: number | null;
+  profile_fit_coverage_status?: string | null;
+  profile_fit_decision?: string | null;
+  profile_fit_factors?: Record<string, ProfileFitFactor>;
   requirement_evidence_status?: string;
   employment_type?: string;
   employment_evidence_status?: string;
+  source_employment_types?: string[];
+  employment_scope?: string;
+  employment_scope_status?: string;
   required_languages?: string[];
   language_evidence_status?: string;
+  posting_language?: string;
+  posting_language_basis?: string;
   weekly_hours_min?: number | null;
   weekly_hours_max?: number | null;
   weekly_hours_evidence_status?: string;
-  work_model?: string;
   work_model_resolution?: string;
   requirements_seniority?: string;
   seniority_evidence_status?: string;
+  title_seniority_signal?: string;
+  title_seniority_basis?: string;
   job_skills?: string[];
   requirement_conflicted_fields?: string[];
   requirement_unresolved_fields?: string[];
@@ -62,41 +85,81 @@ const choices: Array<{ value: JobReviewLabelValue; label: string; icon: string }
 const friendly = (value: JobReviewLabelValue | undefined) =>
   choices.find((choice) => choice.value === value)?.label || "Not reviewed";
 
+const normalized = (value: string | undefined | null) => (value || "").trim().toLowerCase();
 const humanize = (value: string | undefined | null) =>
-  (value || "unknown").replaceAll("_", " ");
+  (value || "not available").replaceAll("_", " ");
+const known = (value: string | undefined | null) => {
+  const text = normalized(value);
+  return Boolean(text && text !== "unknown" && text !== "source_absent");
+};
+
+const scopeLabel = (value: string | undefined) => {
+  if (value === "full_time") return "Full-time";
+  if (value === "part_time") return "Part-time";
+  if (value === "full_or_part_time") return "Full-time or part-time";
+  return null;
+};
 
 const hoursLabel = (
   minimum: number | null | undefined,
   maximum: number | null | undefined,
 ) => {
-  if (minimum == null && maximum == null) return "unknown";
+  if (minimum == null && maximum == null) return null;
   if (minimum != null && maximum != null && minimum === maximum) return `${minimum} h/week`;
   return `${minimum ?? "?"}–${maximum ?? "?"} h/week`;
 };
 
-const languageLabel = (values: string[] | undefined) =>
-  values?.length ? values.map((value) => value.toUpperCase()).join(", ") : "unknown";
+const languageName = (value: string | undefined) => {
+  if (value === "de") return "German";
+  if (value === "en") return "English";
+  if (value === "mixed") return "German / English";
+  return null;
+};
 
-function RequirementFact({
+const explicitLanguages = (values: string[] | undefined) =>
+  values?.length ? values.map((value) => value.toUpperCase()).join(", ") : null;
+
+const fitLabel = (value: string | undefined) => {
+  const status = normalized(value);
+  if (status === "passed") return "match";
+  if (status === "failed") return "conflict";
+  return "fit evidence missing";
+};
+
+const fitTone = (value: string | undefined) => {
+  const status = normalized(value);
+  if (status === "passed") return "good";
+  if (status === "failed") return "bad";
+  return "warn";
+};
+
+function EvidenceRow({
   label,
-  value,
-  status,
+  primary,
+  secondary,
+  fit,
 }: {
   label: string;
-  value: string;
-  status?: string;
+  primary: string;
+  secondary?: string | null;
+  fit?: string;
 }) {
-  const normalized = (status || "unknown").toLowerCase();
-  const tone = normalized.includes("observed") || normalized.includes("contextual")
-    ? "observed"
-    : normalized.includes("conflict")
-      ? "conflict"
-      : "unknown";
   return (
-    <div className={`review-requirement-fact ${tone}`}>
+    <div className="r4-evidence-row">
       <span>{label}</span>
-      <b>{value}</b>
-      <small>{humanize(status)}</small>
+      <div><b>{primary}</b>{secondary && <small>{secondary}</small>}</div>
+      <em className={`r4-fit-state ${fitTone(fit)}`}>{fitLabel(fit)}</em>
+    </div>
+  );
+}
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const bounded = Math.max(0, Math.min(100, value));
+  return (
+    <div>
+      <span>{label}</span>
+      <i><b style={{ width: `${bounded}%` }} /></i>
+      <strong>{Math.round(value)}%</strong>
     </div>
   );
 }
@@ -109,22 +172,22 @@ export default function JobReviewLabelControls({
 }: Props) {
   const [submitting, setSubmitting] = useState<JobReviewLabelValue | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [requirements, setRequirements] = useState<JobRequirementTruth | null>(null);
+  const [job, setJob] = useState<JobRequirementTruth | null>(null);
   const [requirementsError, setRequirementsError] = useState<string | null>(null);
 
   useEffect(() => {
     setSubmitting(null);
     setMessage(null);
-    setRequirements(null);
+    setJob(null);
     setRequirementsError(null);
     let cancelled = false;
     readProductTruth<ProductRequirementPayload>()
       .then((payload) => {
         if (cancelled) return;
         const jobs = [...(payload.job_readiness || []), ...(payload.top_jobs || [])];
-        const match = jobs.find((job) => job.silver_job_id === silverJobId) || null;
-        setRequirements(match);
-        if (!match) setRequirementsError("Requirement metadata is not present in Product truth for this job.");
+        const match = jobs.find((item) => item.silver_job_id === silverJobId) || null;
+        setJob(match);
+        if (!match) setRequirementsError("Job evidence is not present in Product truth.");
       })
       .catch((reason: unknown) => {
         if (!cancelled) setRequirementsError(String(reason));
@@ -163,11 +226,63 @@ export default function JobReviewLabelControls({
     }
   };
 
-  const conflicts = requirements?.requirement_conflicted_fields || [];
-  const skills = requirements?.job_skills || [];
+  const factors = job?.profile_fit_factors || {};
+  const location = [job?.city, job?.country].filter(Boolean).join(" · ") || "Location not stated";
+  const workModel = known(job?.work_model) ? humanize(job?.work_model) : null;
+  const commute = job?.commute_minutes == null ? null : `${job.commute_minutes} min commute`;
+  const locationDetail = [workModel, commute].filter(Boolean).join(" · ") || "Work model not stated";
+
+  const scope = scopeLabel(job?.employment_scope);
+  const contract = known(job?.employment_type) ? humanize(job?.employment_type) : null;
+  const hours = hoursLabel(job?.weekly_hours_min, job?.weekly_hours_max);
+  const employmentParts = [scope, contract, hours].filter(Boolean);
+  const employmentPrimary = employmentParts.join(" · ") || "Not stated by employer";
+  const employmentSecondary = !contract && scope
+    ? "Contract duration not stated"
+    : !hours && scope
+      ? "Weekly hours not stated"
+      : null;
+
+  const explicit = explicitLanguages(job?.required_languages);
+  const posting = languageName(job?.posting_language);
+  const languagePrimary = explicit
+    ? `${explicit} explicitly required`
+    : posting
+      ? `${posting} posting`
+      : "No explicit language requirement detected";
+  const languageSecondary = !explicit && posting
+    ? "Posting language is context, not an explicit employer requirement"
+    : null;
+
+  const requirementLevel = known(job?.requirements_seniority)
+    ? humanize(job?.requirements_seniority)
+    : null;
+  const titleLevel = known(job?.title_seniority_signal)
+    ? humanize(job?.title_seniority_signal)
+    : null;
+  const levelPrimary = requirementLevel
+    ? `${requirementLevel} requirement`
+    : titleLevel
+      ? `${titleLevel} title signal`
+      : "No explicit level requirement detected";
+  const levelSecondary = !requirementLevel && titleLevel
+    ? "Title signal only; not promoted to a hard requirement"
+    : null;
+
+  const skills = job?.job_skills || [];
+  const skillsPrimary = skills.length ? skills.join(", ") : "No explicit skills list detected";
+
+  const scoreCandidates: Array<[string, number | null | undefined]> = [
+    [job?.product_readiness_status === "rankable" ? "Overall" : "Role affinity", job?.overall_quality_score],
+    ["Profile direction", job?.profile_direction_score],
+    ["Data focus", job?.data_focus_score],
+    ["Reliability", job?.reliability_focus_score],
+    ["Evidence quality", job?.evidence_quality_score],
+  ];
+  const scores = scoreCandidates.filter((item): item is [string, number] => typeof item[1] === "number");
 
   return (
-    <>
+    <div className="r4-review-stack">
       <section className="review-label-panel" aria-labelledby={`review-label-title-${silverJobId}`}>
         <header>
           <div>
@@ -178,9 +293,7 @@ export default function JobReviewLabelControls({
             {friendly(currentLabel?.label)}
           </span>
         </header>
-        <p>
-          One click records append-only review evidence. It does not change ranking, Top 5 or application state.
-        </p>
+        <p>One click records append-only review evidence. It does not change ranking, Top 5 or application state.</p>
         <div className="review-label-actions" role="group" aria-label="Job review relevance">
           {choices.map((choice) => (
             <button
@@ -196,78 +309,52 @@ export default function JobReviewLabelControls({
             </button>
           ))}
         </div>
-        {!captureAvailable && (
-          <p className="review-label-message warn" role="status">
-            Label capture is unavailable until the append-only DB contract is migrated locally.
-          </p>
-        )}
-        {currentLabel && (
-          <small className="review-label-meta">
-            Event #{currentLabel.label_event_id} · {currentLabel.training_eligible ? "training-eligible later" : "evidence only"} · {currentLabel.selection_reason.replaceAll("_", " ")}
-          </small>
-        )}
+        {!captureAvailable && <p className="review-label-message warn" role="status">Label capture is unavailable until the append-only DB contract is migrated locally.</p>}
+        {currentLabel && <small className="review-label-meta">Event #{currentLabel.label_event_id} · {currentLabel.training_eligible ? "training-eligible later" : "evidence only"} · {currentLabel.selection_reason.replaceAll("_", " ")}</small>}
         {message && <p className="review-label-message" role="status">{message}</p>}
       </section>
 
-      <section className="review-requirement-panel" aria-label="Job requirements from employer origin">
+      <section className="r4-requirement-fit" aria-label="Consolidated job requirements and fit">
         <header>
-          <div>
-            <span className="eyebrow">Job requirements · Origin truth</span>
-            <h3>Vacancy metadata</h3>
+          <div><span className="eyebrow">Origin truth + Candidate fit</span><h3>Job requirements & fit</h3></div>
+          <div className="r4-fit-summary">
+            <em className={`r4-fit-state ${fitTone(job?.profile_fit_decision || undefined)}`}>{humanize(job?.profile_fit_decision || "fit evidence missing")}</em>
           </div>
-          <span className={`review-requirement-state ${requirements?.requirement_evidence_status || "not_yet_assessed"}`}>
-            {humanize(requirements?.requirement_evidence_status || "not_yet_assessed")}
-          </span>
         </header>
-        {requirements ? (
-          <>
-            <div className="review-requirement-grid">
-              <RequirementFact
-                label="Employment type"
-                value={humanize(requirements.employment_type)}
-                status={requirements.employment_evidence_status}
-              />
-              <RequirementFact
-                label="Required languages"
-                value={languageLabel(requirements.required_languages)}
-                status={requirements.language_evidence_status}
-              />
-              <RequirementFact
-                label="Weekly hours"
-                value={hoursLabel(requirements.weekly_hours_min, requirements.weekly_hours_max)}
-                status={requirements.weekly_hours_evidence_status}
-              />
-              <RequirementFact
-                label="Work model"
-                value={humanize(requirements.work_model)}
-                status={conflicts.includes("work_model") ? "conflict_unknown" : requirements.work_model_resolution}
-              />
-              <RequirementFact
-                label="Requirement seniority"
-                value={humanize(requirements.requirements_seniority)}
-                status={requirements.seniority_evidence_status}
-              />
-              <RequirementFact
-                label="Job skills"
-                value={skills.length ? skills.join(", ") : "unknown"}
-                status={skills.length ? "observed" : "unknown"}
-              />
-            </div>
-            {conflicts.length > 0 && (
-              <p className="review-requirement-warning">
-                Conflicting Origin evidence kept unknown: {conflicts.join(", ")}.
-              </p>
-            )}
-            <p className="review-requirement-boundary">
-              Job-side evidence only. Candidate capability fit and Profile Fit remain separate authorities.
-            </p>
-          </>
-        ) : (
-          <p className="review-requirement-warning">
-            {requirementsError || "Loading persisted requirement evidence…"}
-          </p>
-        )}
+        {job ? <>
+          <EvidenceRow
+            label="Location & work model"
+            primary={location}
+            secondary={locationDetail}
+            fit={factors.geography_work_model_commute?.status}
+          />
+          <EvidenceRow
+            label="Skills & capabilities"
+            primary={skillsPrimary}
+            secondary={skills.length ? "Employer-origin job skills" : "No skill value invented"}
+            fit={factors.skills_capabilities?.status}
+          />
+          <EvidenceRow
+            label="Level & experience"
+            primary={levelPrimary}
+            secondary={levelSecondary}
+            fit={factors.seniority?.status}
+          />
+          <EvidenceRow
+            label="Employment & language"
+            primary={employmentPrimary}
+            secondary={[employmentSecondary, languagePrimary, languageSecondary].filter(Boolean).join(" · ")}
+            fit={factors.hard_requirements?.status}
+          />
+          <p className="r4-authority-note">Posting language, workload and title-level signals are operator context only. Explicit employer requirements and Candidate Fit remain separate authorities.</p>
+        </> : <p className="review-requirement-warning">{requirementsError || "Loading persisted job evidence…"}</p>}
       </section>
-    </>
+
+      {scores.length > 0 && <section className="ow-score-card r4-score-card">
+        <h3>{job?.product_readiness_status === "rankable" ? "Product score" : "Review signals"}</h3>
+        {scores.map(([name, value]) => <ScoreBar key={name} label={name} value={value} />)}
+        {job?.product_readiness_status !== "rankable" && <p className="ow-score-note">Review signals are orientation only until Profile Fit and hard requirements are evidence-backed.</p>}
+      </section>}
+    </div>
   );
 }
