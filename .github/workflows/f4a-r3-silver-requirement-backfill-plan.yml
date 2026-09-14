@@ -5,7 +5,7 @@ on:
     branches:
       - agent/f4a-r3-operator-metadata-projection
     paths:
-      - "db/migrations/109_create_silver_job_requirement_evidence.sql"
+      - "db/migrations/110_create_silver_job_requirement_evidence.sql"
       - "src/connectors/generic_job_detail_evidence.py"
       - "src/silver/requirement_evidence_projection.py"
       - "src/silver/origin_location_projection.py"
