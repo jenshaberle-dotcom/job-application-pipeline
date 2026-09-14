@@ -18,15 +18,11 @@ The core Product payload is loaded with source-connector overview disabled. That
 keeps this evidence diagnostic independent of optional connector implementation
 dependencies; the Sources panel is irrelevant to review-scope selection.
 
-For source migrations, the diagnostic also reports exact title+company matches
-already present in Silver under another source projection. This is evidence only:
-it does not merge vacancies, rewrite URLs, alter lifecycle state, or grant Product
-authority. It exists to distinguish a genuinely dead vacancy from a stale source
-projection after an Employer-Origin migration.
-
-The shim is intentionally diagnostic-only. A later persistence/apply path must
-bind job-side evidence to this same operator-review cohort without using the
-read-only projection to create source activation or Product authority.
+For source migrations, the diagnostic reports exact title+company matches already
+present in Silver under another source projection and the DB-backed state of the
+corresponding canonical ``generic_origin:<company>`` source. These are evidence
+only: no vacancy identity, URL, lifecycle state, source activation, or Product
+authority is mutated.
 """
 
 from __future__ import annotations
@@ -176,8 +172,85 @@ def _print_exact_relocation_candidates(conn: psycopg.Connection[Any]) -> None:
     print(f"F4A_R2_EXACT_RELOCATION_CANDIDATES={candidate_count}")
 
 
+def _print_generic_source_state(conn: psycopg.Connection[Any]) -> None:
+    """Expose whether canonical generic FI admission has ever reached ingestion."""
+
+    source_name = "generic_origin:finanz_informatik"
+    state: dict[str, object] = {"source_name": source_name}
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT to_regclass('public.generic_employer_origin_active_sources') AS relation
+            """
+        )
+        relation = cur.fetchone()
+        active_relation = relation is not None and relation["relation"] is not None
+        state["active_source_table_present"] = active_relation
+        if active_relation:
+            cur.execute(
+                """
+                SELECT company_key, origin_url, proof_state, authority, activated_at, updated_at
+                FROM generic_employer_origin_active_sources
+                WHERE source_name = %s
+                """,
+                (source_name,),
+            )
+            active = cur.fetchone()
+            state["active_source"] = dict(active) if active is not None else None
+
+        cur.execute(
+            """
+            SELECT id, profile_name, is_active, search_location, search_radius_km
+            FROM search_profiles
+            WHERE source_name = %s
+            ORDER BY id
+            """,
+            (source_name,),
+        )
+        state["profiles"] = [dict(row) for row in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT id, search_profile_id, status, started_at, finished_at,
+                   total_loaded, inserted_count, duplicate_count, error_message
+            FROM ingestion_runs
+            WHERE source_name = %s
+            ORDER BY started_at DESC, id DESC
+            LIMIT 5
+            """,
+            (source_name,),
+        )
+        state["recent_ingestion_runs"] = [dict(row) for row in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT count(*)::integer AS raw_count
+            FROM raw_jobs
+            WHERE source_name = %s
+            """,
+            (source_name,),
+        )
+        state["raw_count"] = int(cur.fetchone()["raw_count"])
+
+        cur.execute(
+            """
+            SELECT count(*)::integer AS silver_count
+            FROM silver_jobs
+            WHERE source_name = %s
+            """,
+            (source_name,),
+        )
+        state["silver_count"] = int(cur.fetchone()["silver_count"])
+
+    print(
+        "F4A_R2_GENERIC_FI_STATE="
+        + json.dumps(state, default=str, ensure_ascii=False, sort_keys=True)
+    )
+
+
 def main() -> int:
     with psycopg.connect(**plan.get_database_config(), row_factory=plan.dict_row) as conn:
+        _print_generic_source_state(conn)
         _print_exact_relocation_candidates(conn)
         conn.rollback()
     plan._load_current_rows = _operator_review_rows
