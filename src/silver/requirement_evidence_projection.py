@@ -6,9 +6,9 @@ requirement-evidence payload. It never reads Candidate Facts and grants no fit,
 ranking, Top-5 or application authority.
 
 Structured connector evidence wins only when it is semantically equivalent to the
-requested field. Bounded description evidence reuses the same generic F4A
-composition used by Product so weak shell signals, partial-mobile wording and
-structured/text conflicts remain fail-closed across the Bronze2E path.
+requested field. Bounded requirement text reuses the same generic F4A composition
+used by Product so weak shell signals, partial-mobile wording and structured/text
+conflicts remain fail-closed across the Bronze2E path.
 """
 
 from __future__ import annotations
@@ -124,9 +124,19 @@ def build_silver_requirement_evidence(
         or detail.get("canonical_origin_url")
     )
     title = _text(job.get("title") or raw_job.get("title"))
-    description = detail.get("description_excerpt") or job.get("description")
+    requirement_text = (
+        detail.get("requirement_text_excerpt")
+        or job.get("requirement_text")
+        or detail.get("description_excerpt")
+        or job.get("description")
+    )
+    requirement_text_source = _text(
+        detail.get("requirement_text_source")
+        or metadata.get("requirement_text_source")
+        or detail.get("description_source")
+    ) or None
     composed = _composed_evidence(
-        description=description,
+        description=requirement_text,
         title=title,
         source_url=source_url,
     )
@@ -145,7 +155,7 @@ def build_silver_requirement_evidence(
     elif bounded_skills:
         job_skills = bounded_skills
         skills_status = "observed_bounded_text"
-        skills_source = "bronze_description_excerpt"
+        skills_source = "bronze_requirement_text"
     else:
         job_skills = []
         skills_status = "source_absent_or_unresolved"
@@ -170,7 +180,7 @@ def build_silver_requirement_evidence(
         conflicts.add("work_model")
         work_model = "unknown"
         work_model_status = "conflict"
-        work_model_source = "bronze_structured+bronze_description_excerpt"
+        work_model_source = "bronze_structured+bronze_requirement_text"
     elif structured_work_model != "unknown":
         work_model = structured_work_model
         work_model_status = "observed_structured"
@@ -178,7 +188,7 @@ def build_silver_requirement_evidence(
     elif bounded_work_model != "unknown":
         work_model = bounded_work_model
         work_model_status = "observed_bounded_text"
-        work_model_source = "bronze_description_excerpt"
+        work_model_source = "bronze_requirement_text"
     else:
         work_model = "unknown"
         work_model_status = "source_absent_or_unresolved"
@@ -268,6 +278,7 @@ def build_silver_requirement_evidence(
         "methods": methods,
         "source_url": source_url or None,
         "description_source": detail.get("description_source"),
+        "requirement_text_source": requirement_text_source,
         "structured_jobposting_found": detail.get("structured_jobposting_found") is True,
         "fields": fields,
         "conflicted_fields": sorted(conflicts),
