@@ -74,16 +74,6 @@ def _missing_status(
     *,
     structured_signal: bool = False,
 ) -> str:
-    """Classify missing job metadata without hiding parser gaps behind unknown.
-
-    A reachable generic detail parse that produced either a bounded vacancy text
-    surface or an explicit structured signal has actually inspected the relevant
-    Origin surface. If no supported value survives that inspection, the bounded
-    truth is ``source_absent``. When the generic detail contract itself is missing
-    or no structured/text surface was obtained, the absence is an ``extractor_gap``.
-    This distinction is intentionally conservative and never invents a value.
-    """
-
     if _text(detail.get("parser_family")) == "origin_unavailable":
         return "origin_unavailable"
     if detail.get("schema") != GENERIC_DETAIL_EVIDENCE_SCHEMA:
@@ -151,8 +141,6 @@ def _semantic_reference_payloads(
 def build_silver_requirement_evidence(
     raw_job: Mapping[str, Any],
 ) -> dict[str, object]:
-    """Build one bounded Silver requirement payload from canonical Bronze evidence."""
-
     raw_data = _mapping(raw_job.get("raw_data"))
     job = _mapping(raw_data.get("job"))
     metadata = _mapping(job.get("metadata"))
@@ -205,6 +193,16 @@ def build_silver_requirement_evidence(
         metadata.get("employment_types")
     )
     employment_scope = normalize_employment_scope(structured_employment)
+    structured_work_hours = _text(detail.get("work_hours") or metadata.get("work_hours")) or None
+    experience_requirement = _text(
+        detail.get("experience_requirement") or metadata.get("experience_requirement")
+    ) or None
+    experience_months_raw = detail.get("experience_months", metadata.get("experience_months"))
+    experience_months = (
+        float(experience_months_raw)
+        if isinstance(experience_months_raw, (int, float))
+        else None
+    )
 
     remote = detail.get("remote")
     workplace_type = _text(metadata.get("workplace_type")).casefold()
@@ -257,9 +255,7 @@ def build_silver_requirement_evidence(
     title_seniority = assessment.title_seniority if assessment is not None else "unknown"
     posting_language = infer_posting_language(requirement_text)
 
-    language_status = (
-        "observed_bounded_text" if languages else _missing_status(detail)
-    )
+    language_status = "observed_bounded_text" if languages else _missing_status(detail)
     weekly_status = (
         "observed_bounded_text"
         if weekly_min is not None or weekly_max is not None
@@ -300,11 +296,7 @@ def build_silver_requirement_evidence(
         ),
         "requirements_seniority": _field(
             "conflict" if "requirements_seniority" in conflicts else seniority_status,
-            value=(
-                "unknown"
-                if "requirements_seniority" in conflicts
-                else requirements_seniority
-            ),
+            value=("unknown" if "requirements_seniority" in conflicts else requirements_seniority),
             evidence=_reference_payloads(composed, "requirements_seniority"),
         ),
         "job_skills": _field(
@@ -338,10 +330,18 @@ def build_silver_requirement_evidence(
             "employment_scope_status": (
                 "observed_structured"
                 if employment_scope != "unknown"
-                else _missing_status(
-                    detail,
-                    structured_signal=bool(structured_employment),
-                )
+                else _missing_status(detail, structured_signal=bool(structured_employment))
+            ),
+            "structured_work_hours": structured_work_hours,
+            "structured_work_hours_status": (
+                "observed_structured" if structured_work_hours else _missing_status(detail)
+            ),
+            "experience_requirement": experience_requirement,
+            "experience_months": experience_months,
+            "experience_requirement_status": (
+                "observed_structured"
+                if experience_requirement or experience_months is not None
+                else _missing_status(detail)
             ),
             "posting_language": posting_language,
             "posting_language_basis": (
@@ -385,8 +385,6 @@ def synchronize_silver_requirement_evidence(
     silver_job_id: int,
     raw_job: Mapping[str, Any],
 ) -> None:
-    """Upsert one Silver-side evidence row inside the caller's Silver transaction."""
-
     payload = build_silver_requirement_evidence(raw_job)
     evidence_hash = requirement_evidence_hash(payload)
     parser_family = _text(payload.get("parser_family")) or "unclassified"
@@ -398,13 +396,8 @@ def synchronize_silver_requirement_evidence(
     cur.execute(
         """
         INSERT INTO silver_job_requirement_evidence (
-            silver_job_id,
-            raw_job_id,
-            evidence_schema,
-            source_evidence_schema,
-            parser_family,
-            evidence_hash,
-            evidence_payload
+            silver_job_id, raw_job_id, evidence_schema, source_evidence_schema,
+            parser_family, evidence_hash, evidence_payload
         )
         VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
         ON CONFLICT (silver_job_id)
