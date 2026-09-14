@@ -73,6 +73,20 @@ ASSESSMENT_COLUMNS = (
     "seniority_evidence_status",
 )
 
+_VOLATILE_EVIDENCE_KEYS = frozenset(
+    {
+        "description_sha256",
+        "span_start",
+        "span_end",
+    }
+)
+_ORDER_INSENSITIVE_EVIDENCE_LISTS = frozenset(
+    {
+        "references",
+        "semantic_references",
+    }
+)
+
 
 class RequirementEvidenceRefreshStop(RuntimeError):
     """Fail closed when the bounded F4A refresh contract is not satisfied."""
@@ -103,6 +117,43 @@ def _canonical_json(value: object) -> str:
 
 def _fingerprint(value: object) -> str:
     return sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _stable_requirement_evidence_payload(
+    value: object,
+    *,
+    parent_key: str | None = None,
+) -> object:
+    """Drop representation-only detail drift while preserving semantic evidence.
+
+    Origin pages may move visible text around or make non-semantic markup changes.
+    Those changes legitimately alter the description digest and visible-text span
+    offsets, but they must not manufacture a new Product assessment revision when
+    the source URL, evidence text, canonical values, conflicts and resolved
+    assessment semantics are unchanged.
+    """
+
+    if isinstance(value, Mapping):
+        result: dict[str, object] = {}
+        for raw_key, item in value.items():
+            key = str(raw_key)
+            if key in _VOLATILE_EVIDENCE_KEYS:
+                continue
+            result[key] = _stable_requirement_evidence_payload(item, parent_key=key)
+        return result
+    if isinstance(value, (list, tuple)):
+        items = [
+            _stable_requirement_evidence_payload(item, parent_key=parent_key)
+            for item in value
+        ]
+        if parent_key in _ORDER_INSENSITIVE_EVIDENCE_LISTS:
+            return sorted(items, key=_canonical_json)
+        return items
+    return _json_safe(value)
+
+
+def _stable_requirement_evidence_fingerprint(value: object) -> str:
+    return _fingerprint(_stable_requirement_evidence_payload(value))
 
 
 def _same_origin(left: str, right: str) -> bool:
@@ -182,15 +233,33 @@ def _build_next_payload(
     current = _assessment_payload(row)
     ranking_factors = row.get("ranking_factors")
     _require(isinstance(ranking_factors, Mapping), "assessment ranking_factors are missing")
+
+    fresh_evidence = evidence.canonical_payload()
+    stored_evidence = ranking_factors.get("requirement_evidence")
+    stable_semantics_unchanged = (
+        isinstance(stored_evidence, Mapping)
+        and _stable_requirement_evidence_fingerprint(stored_evidence)
+        == _stable_requirement_evidence_fingerprint(fresh_evidence)
+    )
+
     refreshed_factors = dict(ranking_factors)
     refreshed_factors.update(
         {
             "source_evidence_only": True,
-            "detail_description_sha256": evidence.assessment.description_sha256,
-            "reference_count": len(evidence.assessment.references)
-            + len(evidence.semantic_references),
+            "detail_description_sha256": (
+                ranking_factors.get("detail_description_sha256")
+                if stable_semantics_unchanged
+                else evidence.assessment.description_sha256
+            ),
+            "reference_count": (
+                ranking_factors.get("reference_count")
+                if stable_semantics_unchanged
+                else len(evidence.assessment.references) + len(evidence.semantic_references)
+            ),
             "conflicted_fields": list(evidence.conflicted_fields),
-            "requirement_evidence": evidence.canonical_payload(),
+            "requirement_evidence": (
+                stored_evidence if stable_semantics_unchanged else fresh_evidence
+            ),
             "f4a_requirement_evidence_refresh": {
                 "schema": REPORT_SCHEMA,
                 "final_url": final_url,
@@ -209,7 +278,11 @@ def _build_next_payload(
             "overall_quality_score": None,
             "work_model": patch["work_model"],
             "ranking_factors": refreshed_factors,
-            "explanations": _explanations(evidence),
+            "explanations": (
+                current.get("explanations")
+                if stable_semantics_unchanged
+                else _explanations(evidence)
+            ),
             "uncertainties": _uncertainties(evidence),
             "assessed_by": ASSESSED_BY,
             "employment_type": patch["employment_type"],
@@ -292,7 +365,8 @@ def _build_proposal(row: Mapping[str, object]) -> dict[str, object]:
         for column in ASSESSMENT_COLUMNS
         if _json_safe(previous_payload.get(column)) != _json_safe(next_payload.get(column))
     ]
-    evidence_fingerprint = _fingerprint(evidence.canonical_payload())
+    evidence_payload = evidence.canonical_payload()
+    evidence_fingerprint = _stable_requirement_evidence_fingerprint(evidence_payload)
     return {
         "silver_job_id": silver_job_id,
         "source_name": row.get("source_name"),
@@ -313,7 +387,7 @@ def _build_proposal(row: Mapping[str, object]) -> dict[str, object]:
         "changed_fields": changed_fields,
         "previous_payload": previous_payload,
         "next_payload": next_payload,
-        "source_evidence": evidence.canonical_payload(),
+        "source_evidence": evidence_payload,
         "would_change": bool(changed_fields),
     }
 
