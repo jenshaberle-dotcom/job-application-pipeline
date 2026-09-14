@@ -2,7 +2,9 @@ name: F4A-R2 current requirement reconcile preflight
 
 on:
   push:
-    branches: [agent/f4a-r2-operator-visible-requirements]
+    branches:
+      - agent/f4a-r2-operator-visible-requirements
+      - agent/f4a-r3-operator-metadata-projection
     paths:
       - "VERSION"
       - "windows/JAP.ControlCenter.Desktop/VERSION"
@@ -17,7 +19,9 @@ on:
       - "src/search_intelligence/product_v1_downstream_preview.py"
       - "src/search_intelligence/product_v1_contenders.py"
       - "tests/test_f4a_r2_operator_requirement_reconcile.py"
+      - "tests/test_f4a_r3_operator_metadata_projection.py"
       - "tests/test_f4a_requirement_evidence_refresh.py"
+      - "tests/test_product_v1_requirement_evidence.py"
       - "tests/test_product_v1_contender_preselection.py"
       - "tests/test_product_v1_detail_document.py"
       - ".github/workflows/f4a-r2-requirement-reconcile-plan.yml"
@@ -125,7 +129,9 @@ jobs:
           set -euo pipefail
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f4a_r2_operator_requirement_reconcile.py \
+            tests/test_f4a_r3_operator_metadata_projection.py \
             tests/test_f4a_requirement_evidence_refresh.py \
+            tests/test_product_v1_requirement_evidence.py \
             tests/test_product_v1_contender_preselection.py \
             tests/test_product_v1_detail_document.py
 
@@ -194,6 +200,14 @@ jobs:
                   print("F4A_R2_BLOCKED=" + json.dumps(item, ensure_ascii=False, sort_keys=True))
               raise SystemExit("F4A_R2_CURRENT_REQUIREMENT_PREFLIGHT_BLOCKED")
           if report["would_change_count"] != 0:
+              for proposal in report["proposals"]:
+                  if proposal.get("would_change"):
+                      print("F4A_R3_WOULD_CHANGE=" + json.dumps({
+                          "silver_job_id": proposal.get("silver_job_id"),
+                          "source_name": proposal.get("source_name"),
+                          "title": proposal.get("title"),
+                          "changed_fields": proposal.get("changed_fields"),
+                      }, ensure_ascii=False, sort_keys=True))
               raise SystemExit("F4A_R2_POST_APPLY_NOT_CONVERGED")
           print("F4A_R2_POST_APPLY_CONVERGED=PASS")
           print("F4A_R2_CURRENT_REQUIREMENT_PREFLIGHT=PASS")
