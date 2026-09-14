@@ -112,6 +112,62 @@ def _requirement_projection(row: Mapping[str, object]) -> dict[str, object]:
     }
 
 
+def _latest_observation_query(
+    *, include_silver_requirement_sidecar: bool
+) -> str:
+    """Build the read query without resolving migration-110 relations prematurely."""
+
+    sidecar_select = (
+        "silver_requirement.evidence_payload AS silver_requirement_evidence"
+        if include_silver_requirement_sidecar
+        else "NULL::jsonb AS silver_requirement_evidence"
+    )
+    sidecar_join = (
+        """
+                    LEFT JOIN silver_job_requirement_evidence silver_requirement
+                      ON silver_requirement.silver_job_id = silver.id"""
+        if include_silver_requirement_sidecar
+        else ""
+    )
+    return f"""
+                    SELECT
+                        silver.id AS silver_job_id,
+                        latest.normalized_evidence,
+                        first_seen.first_jap_observed_at,
+                        assessment.employment_type,
+                        assessment.employment_evidence_status,
+                        assessment.required_languages,
+                        assessment.language_evidence_status,
+                        assessment.weekly_hours_min,
+                        assessment.weekly_hours_max,
+                        assessment.weekly_hours_evidence_status,
+                        assessment.requirements_seniority,
+                        assessment.seniority_evidence_status,
+                        assessment.ranking_factors -> 'requirement_evidence'
+                            AS requirement_evidence,
+                        {sidecar_select}
+                    FROM silver_jobs silver
+                    LEFT JOIN job_product_assessments assessment
+                      ON assessment.silver_job_id = silver.id
+                    {sidecar_join}
+                    LEFT JOIN LATERAL (
+                        SELECT observation.normalized_evidence
+                        FROM job_observations observation
+                        WHERE observation.raw_job_id = silver.raw_job_id
+                        ORDER BY observation.observed_at DESC, observation.id DESC
+                        LIMIT 1
+                    ) latest ON TRUE
+                    LEFT JOIN LATERAL (
+                        SELECT min(observation.observed_at) AS first_jap_observed_at
+                        FROM job_observations observation
+                        WHERE observation.raw_job_id = silver.raw_job_id
+                          AND observation.is_seen = TRUE
+                    ) first_seen ON TRUE
+                    WHERE silver.id = ANY(%s)
+                    ORDER BY silver.id
+                    """
+
+
 def load_latest_observation_evidence(
     silver_job_ids: list[int],
 ) -> dict[int, object]:
@@ -133,45 +189,16 @@ def load_latest_observation_evidence(
             with conn.cursor() as cur:
                 cur.execute("SET TRANSACTION READ ONLY")
                 cur.execute(
-                    """
-                    SELECT
-                        silver.id AS silver_job_id,
-                        latest.normalized_evidence,
-                        first_seen.first_jap_observed_at,
-                        assessment.employment_type,
-                        assessment.employment_evidence_status,
-                        assessment.required_languages,
-                        assessment.language_evidence_status,
-                        assessment.weekly_hours_min,
-                        assessment.weekly_hours_max,
-                        assessment.weekly_hours_evidence_status,
-                        assessment.requirements_seniority,
-                        assessment.seniority_evidence_status,
-                        assessment.ranking_factors -> 'requirement_evidence'
-                            AS requirement_evidence,
-                        silver_requirement.evidence_payload
-                            AS silver_requirement_evidence
-                    FROM silver_jobs silver
-                    LEFT JOIN job_product_assessments assessment
-                      ON assessment.silver_job_id = silver.id
-                    LEFT JOIN silver_job_requirement_evidence silver_requirement
-                      ON silver_requirement.silver_job_id = silver.id
-                    LEFT JOIN LATERAL (
-                        SELECT observation.normalized_evidence
-                        FROM job_observations observation
-                        WHERE observation.raw_job_id = silver.raw_job_id
-                        ORDER BY observation.observed_at DESC, observation.id DESC
-                        LIMIT 1
-                    ) latest ON TRUE
-                    LEFT JOIN LATERAL (
-                        SELECT min(observation.observed_at) AS first_jap_observed_at
-                        FROM job_observations observation
-                        WHERE observation.raw_job_id = silver.raw_job_id
-                          AND observation.is_seen = TRUE
-                    ) first_seen ON TRUE
-                    WHERE silver.id = ANY(%s)
-                    ORDER BY silver.id
-                    """,
+                    "SELECT to_regclass('public.silver_job_requirement_evidence') AS relation"
+                )
+                relation = cur.fetchone()
+                include_sidecar = (
+                    relation is not None and relation.get("relation") is not None
+                )
+                cur.execute(
+                    _latest_observation_query(
+                        include_silver_requirement_sidecar=include_sidecar
+                    ),
                     (silver_job_ids,),
                 )
                 rows = tuple(cur.fetchall())

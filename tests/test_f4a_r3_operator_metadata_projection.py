@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.product_v1_job_presentation_runtime import enrich_product_payload_for_operator
+from scripts.product_v1_job_presentation_runtime import (
+    _latest_observation_query,
+    enrich_product_payload_for_operator,
+)
 from scripts.product_v1_silver_requirement_projection import (
     project_silver_requirement_evidence,
 )
@@ -78,6 +81,26 @@ def test_silver_requirement_sidecar_fails_closed_on_authority_drift() -> None:
     payload["authority"]["ranking_authority"] = True
 
     assert project_silver_requirement_evidence(payload) is None
+
+
+def test_pre_migration_loader_does_not_resolve_optional_sidecar_relation() -> None:
+    without_sidecar = _latest_observation_query(
+        include_silver_requirement_sidecar=False
+    )
+    with_sidecar = _latest_observation_query(
+        include_silver_requirement_sidecar=True
+    )
+
+    assert "NULL::jsonb AS silver_requirement_evidence" in without_sidecar
+    assert "silver_job_requirement_evidence" not in without_sidecar
+    assert "assessment.ranking_factors -> 'requirement_evidence'" in without_sidecar
+
+    assert "LEFT JOIN silver_job_requirement_evidence" in with_sidecar
+    assert (
+        "silver_requirement.evidence_payload AS silver_requirement_evidence"
+        in with_sidecar
+    )
+    assert "assessment.ranking_factors -> 'requirement_evidence'" in with_sidecar
 
 
 def test_persisted_requirement_evidence_is_projected_without_fit_authority() -> None:
