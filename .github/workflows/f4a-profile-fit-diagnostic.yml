@@ -2,7 +2,8 @@ name: F4A profile-fit real acceptance
 
 on:
   push:
-    branches: [agent/f4a-profile-fit-coverage-v2]
+    branches: [agent/f4a-operator-feedback-freeze-extension]
+  workflow_dispatch:
 
 permissions:
   contents: read
