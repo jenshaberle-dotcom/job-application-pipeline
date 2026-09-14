@@ -19,6 +19,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
+from src.search_intelligence.detail_semantics_deterministic import extract_job_postings
 from src.search_intelligence.product_v1_assessment_evidence import (
     extract_product_v1_assessment_evidence,
 )
@@ -112,6 +113,54 @@ def _public_ip(address: str) -> bool:
     )
 
 
+def _structured_text_values(value: object) -> list[str]:
+    if isinstance(value, str):
+        fragment = _TextExtractor()
+        fragment.feed(value)
+        text = fragment.text.strip()
+        return [text] if text else []
+    if isinstance(value, list):
+        result: list[str] = []
+        for item in value:
+            result.extend(_structured_text_values(item))
+        return result
+    return []
+
+
+def _jobposting_text_fallback(html: str) -> tuple[str, str]:
+    """Project authoritative JobPosting strings when the rendered body is empty.
+
+    Some job pages are client-rendered and expose no useful visible HTML body to a
+    bounded HTTP reader while still publishing same-page schema.org JobPosting
+    JSON-LD. In that case only, use a small allowlist of job-side structured fields
+    as deterministic text input. Raw JSON-LD/HTML is still never persisted.
+    """
+
+    postings = extract_job_postings(html)
+    if not postings:
+        return "", ""
+
+    text_parts: list[str] = []
+    title = ""
+    for posting in postings:
+        titles = _structured_text_values(posting.get("title"))
+        if titles and not title:
+            title = titles[0]
+        for key in (
+            "title",
+            "description",
+            "skills",
+            "qualifications",
+            "responsibilities",
+            "jobLocationType",
+            "employmentType",
+        ):
+            for value in _structured_text_values(posting.get(key)):
+                if value and value not in text_parts:
+                    text_parts.append(value)
+    return title, " ".join(text_parts).strip()
+
+
 def validate_public_https_url(
     url: str,
     *,
@@ -203,11 +252,16 @@ def fetch_public_https_detail_document(
         extractor = _TextExtractor()
         extractor.feed(html)
         detail_text = extractor.text.strip()
+        title = extractor.title.strip()
+        if not detail_text:
+            structured_title, detail_text = _jobposting_text_fallback(html)
+            if not title:
+                title = structured_title
         if not detail_text:
             raise DownstreamPreviewStop("preview detail text is empty")
         return PublicDetailDocument(
             final_url=current_url,
-            title=extractor.title.strip(),
+            title=title,
             text=detail_text,
             html=html,
         )

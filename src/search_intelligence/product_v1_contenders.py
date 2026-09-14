@@ -143,9 +143,34 @@ def is_germany_country(value: object) -> bool:
     return normalize_text(value) in {"de", "deu", "deutschland", "germany"}
 
 
+def _structured_country_signal(row: dict) -> str:
+    """Return explicit country truth, including bounded composite-location tails.
+
+    Some source families persist a structured location string in ``city`` while
+    leaving the legacy ``country`` column empty, for example
+    ``Orlando | FL | 32801 | US``. A final two/three-letter token is accepted as
+    a country code only when at least three pipe-separated components exist. This
+    avoids treating ordinary ``City | State`` values such as ``Orlando | FL`` as
+    country evidence.
+    """
+
+    explicit = normalize_text(row.get("country"))
+    if explicit:
+        return explicit
+
+    raw_city = str(row.get("city") or "").strip()
+    parts = [part.strip() for part in raw_city.split("|") if part.strip()]
+    if len(parts) < 3:
+        return ""
+    tail = parts[-1]
+    if not re.fullmatch(r"[A-Za-z]{2,3}", tail):
+        return ""
+    return normalize_text(tail)
+
+
 def classify_geography(row: dict) -> GeographySignal:
     city = normalize_text(row.get("city"))
-    country = normalize_text(row.get("country"))
+    country = _structured_country_signal(row)
     work_model = normalize_text(row.get("work_model"))
     commute = row.get("commute_minutes")
 
