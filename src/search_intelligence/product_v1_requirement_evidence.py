@@ -19,7 +19,7 @@ Important authority rules:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from src.search_intelligence.detail_semantics_deterministic import (
     SemanticEvidenceReference,
