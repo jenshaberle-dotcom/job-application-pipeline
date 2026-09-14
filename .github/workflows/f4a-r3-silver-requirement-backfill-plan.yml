@@ -11,14 +11,15 @@ on:
       - "src/silver/origin_location_projection.py"
       - "src/silver/successfactors_location_projection.py"
       - "scripts/run_f4a_r3_silver_requirement_backfill.py"
+      - "scripts/run_f4a_r3_bronze2e_requirement_audit.py"
       - "scripts/product_v1_silver_requirement_projection.py"
       - "scripts/product_v1_job_presentation_runtime.py"
       - "tests/test_generic_job_detail_evidence.py"
       - "tests/test_silver_requirement_evidence_projection.py"
       - "tests/test_f4a_r3_silver_requirement_backfill.py"
+      - "tests/test_f4a_r3_bronze2e_requirement_audit.py"
       - "tests/test_successfactors_silver_location_projection.py"
       - "tests/test_f4a_r3_operator_metadata_projection.py"
-      - ".github/workflows/f4a-r3-bronze2e-apply.yml"
       - ".github/workflows/f4a-r3-silver-requirement-backfill-plan.yml"
   workflow_dispatch:
 
@@ -31,7 +32,7 @@ concurrency:
 
 jobs:
   preflight:
-    name: Plan current-cohort Bronze2E requirement slice
+    name: Plan and coverage-gate current-cohort Bronze2E requirement slice
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
@@ -46,17 +47,11 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Verify exact checkout
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          echo "F4A_R3_BRONZE2E_HEAD=${GITHUB_SHA}"
-
       - name: Resolve verified RCC runtime context
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
           test -f "$context_file"
           context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
@@ -75,10 +70,9 @@ jobs:
               raise SystemExit("RUNTIME_RUNNER_MISMATCH")
           if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
               raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
-          checkout = context.get("CheckoutRoot")
-          interpreter = context.get("Interpreter")
-          env_file = context.get("EnvFile")
-          root = PurePosixPath(checkout)
+          root = PurePosixPath(context["CheckoutRoot"])
+          interpreter = context["Interpreter"]
+          env_file = context["EnvFile"]
           if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
               raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
           print(interpreter)
@@ -136,6 +130,7 @@ jobs:
             tests/test_generic_job_detail_evidence.py \
             tests/test_silver_requirement_evidence_projection.py \
             tests/test_f4a_r3_silver_requirement_backfill.py \
+            tests/test_f4a_r3_bronze2e_requirement_audit.py \
             tests/test_successfactors_silver_location_projection.py \
             tests/test_f4a_r3_operator_metadata_projection.py
           "$RUNTIME_PYTHON" -m ruff check \
@@ -144,11 +139,13 @@ jobs:
             src/silver/origin_location_projection.py \
             src/silver/successfactors_location_projection.py \
             scripts/run_f4a_r3_silver_requirement_backfill.py \
+            scripts/run_f4a_r3_bronze2e_requirement_audit.py \
             scripts/product_v1_silver_requirement_projection.py \
             scripts/product_v1_job_presentation_runtime.py \
             tests/test_generic_job_detail_evidence.py \
             tests/test_silver_requirement_evidence_projection.py \
             tests/test_f4a_r3_silver_requirement_backfill.py \
+            tests/test_f4a_r3_bronze2e_requirement_audit.py \
             tests/test_successfactors_silver_location_projection.py \
             tests/test_f4a_r3_operator_metadata_projection.py
 
@@ -158,7 +155,7 @@ jobs:
           set -euo pipefail
           "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
 
-      - name: Run real current-cohort exact-Origin Bronze2E plan
+      - name: Run real current-cohort exact-Origin Bronze2E coverage plan
         shell: bash
         run: |
           set -euo pipefail
@@ -167,23 +164,87 @@ jobs:
           "$RUNTIME_PYTHON" - "$output" <<'PY'
           import json
           import sys
+          from collections import Counter, defaultdict
 
           with open(sys.argv[1], encoding="utf-8") as handle:
               report = json.load(handle)
+
+          allowed = {
+              "observed_structured", "observed_bounded_text", "source_absent",
+              "extractor_gap", "conflict", "origin_unavailable",
+          }
+          reachable = []
+          covered = []
+          legacy_rows = []
+          invalid_rows = []
+          gap_families = defaultdict(Counter)
+
+          for proposal in report.get("proposals", []):
+              payload = proposal.get("payload") or {}
+              fields = payload.get("fields") or {}
+              statuses = {
+                  field: str((value or {}).get("status") or "missing")
+                  for field, value in fields.items()
+              }
+              legacy = [
+                  field for field, status in statuses.items()
+                  if status == "source_absent_or_unresolved"
+              ]
+              invalid = [
+                  field for field, status in statuses.items()
+                  if status not in allowed and status != "source_absent_or_unresolved"
+              ]
+              if legacy:
+                  legacy_rows.append(proposal.get("silver_job_id"))
+              if invalid:
+                  invalid_rows.append(proposal.get("silver_job_id"))
+              if proposal.get("origin_unavailable"):
+                  continue
+              reachable.append(proposal)
+              gaps = [
+                  field for field, status in statuses.items()
+                  if status == "extractor_gap"
+              ]
+              if not gaps:
+                  covered.append(proposal)
+              else:
+                  family = str(proposal.get("source_name") or "").split(":", 1)[0] or "unknown"
+                  for field in gaps:
+                      gap_families[family][field] += 1
+
+          ratio = len(covered) / len(reachable) if reachable else 0.0
+          gap_family_counts = {
+              family: dict(sorted(counts.items()))
+              for family, counts in sorted(gap_families.items())
+          }
           print(f"F4A_R3_SILVER_PLAN_CANDIDATES={report['candidate_count']}")
           print(f"F4A_R3_SILVER_PLAN_PROPOSALS={report['proposal_count']}")
           print(f"F4A_R3_SILVER_PLAN_BLOCKED={report['blocked_count']}")
           print(f"F4A_R3_SILVER_PLAN_UNAVAILABLE={report['origin_unavailable_count']}")
-          print(f"F4A_R3_SILVER_PLAN_REACHABLE={report['reachable_count']}")
-          print(f"F4A_R3_SILVER_PLAN_OBSERVED_RATIO={report['reachable_with_any_observed_requirement_ratio']:.4f}")
+          print(f"F4A_R3_SILVER_PLAN_REACHABLE={len(reachable)}")
+          print(f"F4A_R3_SILVER_PLAN_COVERED={len(covered)}")
+          print(f"F4A_R3_SILVER_PLAN_COVERAGE_RATIO={ratio:.4f}")
           print(f"F4A_R3_SILVER_PLAN_WOULD_CHANGE={report['would_change_count']}")
+          print(f"F4A_R3_SILVER_PLAN_LEGACY_ROWS={len(legacy_rows)}")
+          print(f"F4A_R3_SILVER_PLAN_INVALID_ROWS={len(invalid_rows)}")
+          print("F4A_R3_SILVER_PLAN_EXTRACTOR_GAP_FAMILIES=" + json.dumps(gap_family_counts, sort_keys=True))
           print("F4A_R3_SILVER_PLAN_PARSER_FAMILIES=" + json.dumps(report["parser_family_counts"], sort_keys=True))
           print("F4A_R3_SILVER_PLAN_FIELD_STATUSES=" + json.dumps(report["field_status_counts"], sort_keys=True))
           if report["candidate_count"] <= 0:
               raise SystemExit("F4A_R3_SILVER_PLAN_EMPTY_COHORT")
+          if report["proposal_count"] != report["candidate_count"]:
+              raise SystemExit("F4A_R3_SILVER_PLAN_INCOMPLETE")
           if report["blocked_count"] != 0:
               raise SystemExit("F4A_R3_SILVER_PLAN_BLOCKED")
+          if not reachable:
+              raise SystemExit("F4A_R3_SILVER_PLAN_NO_REACHABLE_ORIGINS")
+          if legacy_rows:
+              raise SystemExit("F4A_R3_SILVER_PLAN_LEGACY_AMBIGUOUS_STATUS")
+          if invalid_rows:
+              raise SystemExit("F4A_R3_SILVER_PLAN_INVALID_STATUS")
+          if ratio < 0.80:
+              raise SystemExit("F4A_R3_SILVER_PLAN_COVERAGE_BELOW_80_PERCENT")
           if any(report["boundaries"].values()):
               raise SystemExit("F4A_R3_SILVER_PLAN_BOUNDARY_VIOLATION")
-          print("F4A_R3_BRONZE2E_PREFLIGHT=PASS")
+          print("F4A_R3_BRONZE2E_COVERAGE_PREFLIGHT=PASS")
           PY
