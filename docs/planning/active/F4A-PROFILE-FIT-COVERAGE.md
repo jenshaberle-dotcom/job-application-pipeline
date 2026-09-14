@@ -77,6 +77,19 @@ Observed product gap:
 
 This is not deferred as unrelated scope. The original F4A contract explicitly requires normalized job requirements from current authoritative vacancy evidence. The corrective work therefore remains inside F4A and blocks F4B.
 
+## Initial repository root-cause findings
+The repository already makes the likely quality loss visible; this is not only a UI problem.
+
+Current Product assessment evidence is built from a normalized flat detail string. The downstream detail fetcher suppresses `<script>` content and joins visible HTML text into one space-separated string before F4A assessment extraction. The assessment extractor then applies source-neutral whole-document regexes for employment type, language, work model, weekly hours and requirements seniority. This preserves fail-closed behavior, but discards document structure and authoritative JSON-LD/schema fields before the assessment layer can use them.
+
+The repository already contains stronger reusable deterministic semantics in `src/search_intelligence/detail_semantics_deterministic.py`: it can parse same-page `JobPosting` JSON-LD, prefers structured evidence and title/label context, extracts structured skills, and explicitly avoids employer-specific branches. F4A-Q should therefore reuse/extend that generic evidence capability rather than create another employer-by-employer parser.
+
+The working hypothesis to prove against the real cohort is:
+
+`authoritative detail HTML/structured payload -> reusable structured/contextual semantics -> F4A assessment evidence -> bounded flat-text fallback -> explicit unknown`
+
+Do not promote that hypothesis to Product authority until the real-source audit confirms which fields and source families are trustworthy.
+
 ## F4A-Q — Job Requirement Evidence Quality Hardening
 The corrective slice must improve job-side evidence quality without employer-specific production exceptions.
 
