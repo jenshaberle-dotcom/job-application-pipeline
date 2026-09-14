@@ -31,6 +31,7 @@ from src.search_intelligence.product_v1_ranking_evidence import (
 MAX_REDIRECTS = 3
 MAX_RESPONSE_BYTES = 2_000_000
 FETCH_TIMEOUT_SECONDS = 15.0
+MAX_TRANSPORT_ATTEMPTS = 3
 USER_AGENT = "DeepOceanProductV1EvidencePreview/1.0"
 
 
@@ -197,26 +198,42 @@ def fetch_public_https_detail_document(
     max_redirects: int = MAX_REDIRECTS,
     max_response_bytes: int = MAX_RESPONSE_BYTES,
     timeout_seconds: float = FETCH_TIMEOUT_SECONDS,
+    transport_attempts: int = MAX_TRANSPORT_ATTEMPTS,
 ) -> PublicDetailDocument:
-    """Fetch one bounded detail document while keeping raw HTML in memory only."""
+    """Fetch one bounded detail document while keeping raw HTML in memory only.
+
+    Only request-transport exceptions are retried. HTTP status, redirect, origin,
+    content-type, response-size and evidence failures remain single-attempt,
+    fail-closed decisions.
+    """
+
+    if transport_attempts < 1:
+        raise ValueError("transport_attempts must be at least 1")
 
     client = session or requests.Session()
     current_url = validate_public_https_url(url, resolver=resolver)
     for redirect_index in range(max_redirects + 1):
-        try:
-            response = client.get(
-                current_url,
-                headers={"User-Agent": USER_AGENT, "Accept": "text/html,text/plain;q=0.9"},
-                timeout=timeout_seconds,
-                allow_redirects=False,
-                stream=True,
-            )
-        except requests.RequestException as exc:
-            raise DownstreamPreviewStop("preview detail fetch failed") from exc
+        response = None
+        last_transport_error: requests.RequestException | None = None
+        for _transport_attempt in range(transport_attempts):
+            try:
+                response = client.get(
+                    current_url,
+                    headers={"User-Agent": USER_AGENT, "Accept": "text/html,text/plain;q=0.9"},
+                    timeout=timeout_seconds,
+                    allow_redirects=False,
+                    stream=True,
+                )
+                break
+            except requests.RequestException as exc:
+                last_transport_error = exc
+        if response is None:
+            raise DownstreamPreviewStop("preview detail fetch failed") from last_transport_error
 
         if response.status_code in {301, 302, 303, 307, 308}:
             location = response.headers.get("Location")
             if not location or redirect_index >= max_redirects:
+                response.close()
                 raise DownstreamPreviewStop("preview redirect boundary exceeded")
             current_url = validate_public_https_url(
                 urljoin(current_url, location),
@@ -225,14 +242,17 @@ def fetch_public_https_detail_document(
             response.close()
             continue
         if response.status_code != 200:
+            status_code = response.status_code
+            response.close()
             raise DownstreamPreviewStop(
-                f"preview detail returned HTTP {response.status_code}"
+                f"preview detail returned HTTP {status_code}"
             )
 
         content_type = str(response.headers.get("Content-Type") or "").casefold()
         if content_type and not (
             content_type.startswith("text/html") or content_type.startswith("text/plain")
         ):
+            response.close()
             raise DownstreamPreviewStop("preview source is not HTML/text")
 
         chunks: list[bytes] = []
@@ -277,6 +297,7 @@ def fetch_public_https_detail_text(
     max_redirects: int = MAX_REDIRECTS,
     max_response_bytes: int = MAX_RESPONSE_BYTES,
     timeout_seconds: float = FETCH_TIMEOUT_SECONDS,
+    transport_attempts: int = MAX_TRANSPORT_ATTEMPTS,
 ) -> tuple[str, str, str]:
     """Backward-compatible text-only projection of a bounded detail document."""
 
@@ -287,6 +308,7 @@ def fetch_public_https_detail_text(
         max_redirects=max_redirects,
         max_response_bytes=max_response_bytes,
         timeout_seconds=timeout_seconds,
+        transport_attempts=transport_attempts,
     )
     return document.final_url, document.title, document.text
 
