@@ -121,12 +121,91 @@ jobs:
             tests/test_f4a_requirement_evidence_refresh.py \
             tests/test_product_v1_contender_preselection.py
 
-      - name: Build full current reconciliation plan
+      - name: Inspect independent Product policy versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import psycopg
+          from psycopg.rows import dict_row
+          from src.config import get_database_config
+
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      """
+                      SELECT ranking.status AS ranking_status,
+                             ranking.policy_version AS ranking_version,
+                             ranking.minimum_quality_score AS ranking_cutoff,
+                             hard_filter.status AS hard_filter_status,
+                             hard_filter.policy_version AS hard_filter_version
+                      FROM product_v1_ranking_policy ranking
+                      CROSS JOIN product_v1_hard_filter_policy hard_filter
+                      WHERE ranking.policy_key = 'default'
+                        AND hard_filter.policy_key = 'default'
+                      """
+                  )
+                  row = cur.fetchone()
+              conn.rollback()
+          if row is None:
+              raise SystemExit("F4A_R2_PRODUCT_POLICIES_MISSING")
+          print(f"F4A_R2_RANKING_POLICY_STATUS={row['ranking_status']}")
+          print(f"F4A_R2_RANKING_POLICY_VERSION={row['ranking_version']}")
+          print(f"F4A_R2_RANKING_CUTOFF={row['ranking_cutoff']}")
+          print(f"F4A_R2_HARD_FILTER_POLICY_STATUS={row['hard_filter_status']}")
+          print(f"F4A_R2_HARD_FILTER_POLICY_VERSION={row['hard_filter_version']}")
+          PY
+
+      - name: Build full current reconciliation plan under job-evidence policy authority
         shell: bash
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/f4a_r2_requirement_reconcile.json"
-          "$RUNTIME_PYTHON" -m scripts.run_f4a_r2_requirement_reconcile --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          import scripts.run_f4a_r2_requirement_reconcile as reconcile
+
+          def load_job_evidence_policy_version(conn):
+              with conn.cursor() as cur:
+                  cur.execute(
+                      """
+                      SELECT ranking.status AS ranking_status,
+                             ranking.policy_version AS ranking_version,
+                             hard_filter.status AS hard_filter_status,
+                             hard_filter.policy_version AS hard_filter_version
+                      FROM product_v1_ranking_policy ranking
+                      CROSS JOIN product_v1_hard_filter_policy hard_filter
+                      WHERE ranking.policy_key = 'default'
+                        AND hard_filter.policy_key = 'default'
+                      """
+                  )
+                  row = cur.fetchone()
+              reconcile._require(row is not None, "approved Product V1 policies missing")
+              reconcile._require(
+                  str(row["ranking_status"] or "") == "approved",
+                  "ranking policy is not approved",
+              )
+              reconcile._require(
+                  str(row["hard_filter_status"] or "") == "approved",
+                  "hard-filter policy is not approved",
+              )
+              ranking_version = str(row["ranking_version"] or "").strip()
+              hard_filter_version = str(row["hard_filter_version"] or "").strip()
+              reconcile._require(bool(ranking_version), "ranking policy version missing")
+              reconcile._require(bool(hard_filter_version), "hard-filter policy version missing")
+              print(f"F4A_R2_POLICY_BINDING=job_evidence:{hard_filter_version}|ranking_independent:{ranking_version}")
+              return hard_filter_version
+
+          reconcile._load_policy_version = load_job_evidence_policy_version
+          sys.argv = [
+              "run_f4a_r2_requirement_reconcile",
+              "--output",
+              sys.argv[1],
+          ]
+          raise SystemExit(reconcile.main())
+          PY
           "$RUNTIME_PYTHON" - "$output" <<'PY'
           import json
           import sys
