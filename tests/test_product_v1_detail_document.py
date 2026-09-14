@@ -64,6 +64,27 @@ def _html() -> str:
     """
 
 
+def _jsonld_only_html() -> str:
+    return """
+    <html>
+      <head>
+        <script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "JobPosting",
+            "title": "Director Data and Analytics",
+            "description": "<p>Permanent position. Fluent English required.</p><p>Lead Python and SQL analytics.</p>",
+            "skills": "Python, SQL",
+            "jobLocationType": "TELECOMMUTE",
+            "employmentType": "FULL_TIME"
+          }
+        </script>
+      </head>
+      <body><script>window.renderJob()</script></body>
+    </html>
+    """
+
+
 def test_detail_document_keeps_jsonld_in_memory_while_visible_text_stays_clean() -> None:
     session = _Session(_html())
 
@@ -98,4 +119,23 @@ def test_existing_text_fetch_contract_remains_unchanged() -> None:
     assert title == "Senior Data Engineer"
     assert "Remote work is available" in text
     assert "application/ld+json" not in text
+    assert session.responses[0].closed is True
+
+
+def test_jsonld_jobposting_can_supply_bounded_text_when_rendered_body_is_empty() -> None:
+    session = _Session(_jsonld_only_html())
+
+    document = fetch_public_https_detail_document(
+        "https://jobs.example.com/42",
+        session=session,
+        resolver=_resolver,
+    )
+
+    assert document.title == "Director Data and Analytics"
+    assert "Permanent position. Fluent English required." in document.text
+    assert "Lead Python and SQL analytics." in document.text
+    assert "Python, SQL" in document.text
+    assert "TELECOMMUTE" in document.text
+    assert "FULL_TIME" in document.text
+    assert "window.renderJob" not in document.text
     assert session.responses[0].closed is True
