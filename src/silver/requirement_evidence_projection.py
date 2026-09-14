@@ -53,6 +53,42 @@ def _field(status: str, **values: object) -> dict[str, object]:
     return {"status": status, **values}
 
 
+def _has_bounded_requirement_surface(detail: Mapping[str, Any]) -> bool:
+    return any(
+        _text(detail.get(key))
+        for key in (
+            "requirement_text_excerpt",
+            "requirement_text_source",
+            "description_excerpt",
+            "description_source",
+        )
+    )
+
+
+def _missing_status(
+    detail: Mapping[str, Any],
+    *,
+    structured_signal: bool = False,
+) -> str:
+    """Classify missing job metadata without hiding parser gaps behind unknown.
+
+    A reachable generic detail parse that produced either a bounded vacancy text
+    surface or an explicit structured signal has actually inspected the relevant
+    Origin surface. If no supported value survives that inspection, the bounded
+    truth is ``source_absent``. When the generic detail contract itself is missing
+    or no structured/text surface was obtained, the absence is an ``extractor_gap``.
+    This distinction is intentionally conservative and never invents a value.
+    """
+
+    if _text(detail.get("parser_family")) == "origin_unavailable":
+        return "origin_unavailable"
+    if detail.get("schema") != GENERIC_DETAIL_EVIDENCE_SCHEMA:
+        return "extractor_gap"
+    if structured_signal or _has_bounded_requirement_surface(detail):
+        return "source_absent"
+    return "extractor_gap"
+
+
 def _composed_evidence(
     *,
     description: object,
@@ -158,7 +194,7 @@ def build_silver_requirement_evidence(
         skills_source = "bronze_requirement_text"
     else:
         job_skills = []
-        skills_status = "source_absent_or_unresolved"
+        skills_status = _missing_status(detail)
         skills_source = None
 
     structured_employment = _string_list(detail.get("employment_types")) or _string_list(
@@ -191,7 +227,10 @@ def build_silver_requirement_evidence(
         work_model_source = "bronze_requirement_text"
     else:
         work_model = "unknown"
-        work_model_status = "source_absent_or_unresolved"
+        work_model_status = _missing_status(
+            detail,
+            structured_signal=remote is not None or bool(workplace_type),
+        )
         work_model_source = None
 
     if assessment is not None and assessment.employment_type != "unknown":
@@ -199,13 +238,30 @@ def build_silver_requirement_evidence(
         employment_status = "observed_bounded_text"
     else:
         employment_type = "unknown"
-        employment_status = "source_absent_or_unresolved"
+        employment_status = _missing_status(
+            detail,
+            structured_signal=bool(structured_employment),
+        )
 
     languages = list(assessment.required_languages) if assessment is not None else []
     weekly_min = assessment.weekly_hours_min if assessment is not None else None
     weekly_max = assessment.weekly_hours_max if assessment is not None else None
     requirements_seniority = (
         assessment.requirements_seniority if assessment is not None else "unknown"
+    )
+
+    language_status = (
+        "observed_bounded_text" if languages else _missing_status(detail)
+    )
+    weekly_status = (
+        "observed_bounded_text"
+        if weekly_min is not None or weekly_max is not None
+        else _missing_status(detail)
+    )
+    seniority_status = (
+        "observed_bounded_text"
+        if requirements_seniority != "unknown"
+        else _missing_status(detail)
     )
 
     fields: dict[str, object] = {
@@ -216,18 +272,12 @@ def build_silver_requirement_evidence(
             evidence=_reference_payloads(composed, "employment_type"),
         ),
         "required_languages": _field(
-            "observed_bounded_text" if languages else "source_absent_or_unresolved",
+            language_status,
             values=languages,
             evidence=_reference_payloads(composed, "required_languages"),
         ),
         "weekly_hours": _field(
-            (
-                "conflict"
-                if "weekly_hours" in conflicts
-                else "observed_bounded_text"
-                if weekly_min is not None or weekly_max is not None
-                else "source_absent_or_unresolved"
-            ),
+            "conflict" if "weekly_hours" in conflicts else weekly_status,
             minimum=None if "weekly_hours" in conflicts else weekly_min,
             maximum=None if "weekly_hours" in conflicts else weekly_max,
             evidence=_reference_payloads(composed, "weekly_hours"),
@@ -242,13 +292,7 @@ def build_silver_requirement_evidence(
             ),
         ),
         "requirements_seniority": _field(
-            (
-                "conflict"
-                if "requirements_seniority" in conflicts
-                else "observed_bounded_text"
-                if requirements_seniority != "unknown"
-                else "source_absent_or_unresolved"
-            ),
+            "conflict" if "requirements_seniority" in conflicts else seniority_status,
             value=(
                 "unknown"
                 if "requirements_seniority" in conflicts
@@ -268,7 +312,8 @@ def build_silver_requirement_evidence(
         name
         for name, value in fields.items()
         if isinstance(value, Mapping)
-        and str(value.get("status") or "") in {"source_absent_or_unresolved", "conflict"}
+        and str(value.get("status") or "")
+        in {"source_absent", "extractor_gap", "conflict", "origin_unavailable"}
     ]
 
     return {

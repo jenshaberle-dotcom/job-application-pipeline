@@ -31,6 +31,11 @@ def _raw_job(**overrides: object) -> dict[str, object]:
                 "38 Stunden pro Woche. Python und Kubernetes."
             ),
             "description_source": "json-ld",
+            "requirement_text_excerpt": (
+                "Sehr gute Deutschkenntnisse auf C1-Niveau. "
+                "38 Stunden pro Woche. Python und Kubernetes."
+            ),
+            "requirement_text_source": "json-ld",
             "employment_types": ["FULL_TIME"],
             "skills": ["Python", "Kubernetes"],
             "remote": True,
@@ -67,13 +72,13 @@ def test_projection_carries_structured_and_bounded_bronze_truth() -> None:
     assert fields["weekly_hours"]["maximum"] == 38.0
 
 
-def test_projection_does_not_promote_structured_full_time_to_permanent_contract() -> None:
+def test_projection_classifies_semantically_unsupported_structured_employment_as_source_absent() -> None:
     payload = build_silver_requirement_evidence(_raw_job())
     employment = payload["fields"]["employment_type"]
 
     assert employment["value"] == "unknown"
     assert employment["source_employment_types"] == ["FULL_TIME"]
-    assert employment["status"] == "source_absent_or_unresolved"
+    assert employment["status"] == "source_absent"
 
 
 def test_projection_rejects_weak_trainee_shell_text_for_non_trainee_title() -> None:
@@ -81,11 +86,14 @@ def test_projection_rejects_weak_trainee_shell_text_for_non_trainee_title() -> N
     raw["raw_data"]["detail_evidence"]["description_excerpt"] = (
         "Traineeprogramm. Sehr gute Deutschkenntnisse auf C1-Niveau."
     )
+    raw["raw_data"]["detail_evidence"]["requirement_text_excerpt"] = (
+        "Traineeprogramm. Sehr gute Deutschkenntnisse auf C1-Niveau."
+    )
     payload = build_silver_requirement_evidence(raw)
 
     employment = payload["fields"]["employment_type"]
     assert employment["value"] == "unknown"
-    assert employment["status"] == "source_absent_or_unresolved"
+    assert employment["status"] == "source_absent"
 
 
 def test_projection_maps_explicit_partial_mobile_work_to_hybrid() -> None:
@@ -93,6 +101,9 @@ def test_projection_maps_explicit_partial_mobile_work_to_hybrid() -> None:
     raw["raw_data"]["job"]["metadata"].pop("workplace_type")
     raw["raw_data"]["detail_evidence"]["remote"] = None
     raw["raw_data"]["detail_evidence"]["description_excerpt"] = (
+        "Anteilige mobile Arbeit möglich. Python und Kubernetes."
+    )
+    raw["raw_data"]["detail_evidence"]["requirement_text_excerpt"] = (
         "Anteilige mobile Arbeit möglich. Python und Kubernetes."
     )
     payload = build_silver_requirement_evidence(raw)
@@ -105,6 +116,9 @@ def test_projection_maps_explicit_partial_mobile_work_to_hybrid() -> None:
 def test_projection_fails_closed_on_structured_vs_text_work_model_conflict() -> None:
     raw = _raw_job()
     raw["raw_data"]["detail_evidence"]["description_excerpt"] = (
+        "Die Tätigkeit ist on-site und wird vor Ort ausgeübt."
+    )
+    raw["raw_data"]["detail_evidence"]["requirement_text_excerpt"] = (
         "Die Tätigkeit ist on-site und wird vor Ort ausgeübt."
     )
     payload = build_silver_requirement_evidence(raw)
@@ -126,6 +140,53 @@ def test_projection_uses_bounded_text_skill_fallback_when_structured_skills_abse
     assert skills["values"] == ["Python", "Kubernetes"]
 
 
+def test_reachable_generic_surface_classifies_unstated_fields_as_source_absent() -> None:
+    raw = _raw_job()
+    raw["raw_data"]["job"].pop("skills")
+    raw["raw_data"]["job"]["metadata"] = {}
+    raw["raw_data"]["detail_evidence"].update(
+        {
+            "skills": [],
+            "remote": None,
+            "employment_types": [],
+            "description_excerpt": "Wir suchen Verstärkung für unser Data-Team.",
+            "description_source": "trafilatura",
+            "requirement_text_excerpt": "Wir suchen Verstärkung für unser Data-Team.",
+            "requirement_text_source": "trafilatura",
+        }
+    )
+    payload = build_silver_requirement_evidence(raw)
+
+    assert {
+        field["status"] for field in payload["fields"].values()
+    } == {"source_absent"}
+
+
+def test_reachable_page_without_generic_requirement_surface_is_extractor_gap() -> None:
+    raw = _raw_job()
+    raw["raw_data"]["job"].pop("skills")
+    raw["raw_data"]["job"]["metadata"] = {}
+    raw["raw_data"]["detail_evidence"] = {
+        "schema": "generic_job_detail_evidence_v1",
+        "methods": [],
+        "parser_family": "generic_dom_text",
+        "structured_jobposting_found": False,
+        "description_excerpt": None,
+        "description_source": None,
+        "requirement_text_excerpt": None,
+        "requirement_text_source": None,
+        "employment_types": [],
+        "skills": [],
+        "remote": None,
+        "raw_html_persisted": False,
+    }
+    payload = build_silver_requirement_evidence(raw)
+
+    assert {
+        field["status"] for field in payload["fields"].values()
+    } == {"extractor_gap"}
+
+
 def test_projection_is_deterministic_and_authority_free() -> None:
     first = build_silver_requirement_evidence(_raw_job())
     second = build_silver_requirement_evidence(_raw_job())
@@ -142,7 +203,7 @@ def test_projection_is_deterministic_and_authority_free() -> None:
     }
 
 
-def test_missing_bronze_detail_is_explicit_not_assumed() -> None:
+def test_missing_bronze_detail_is_explicit_extractor_gap() -> None:
     payload = build_silver_requirement_evidence(
         {
             "id": 315,
@@ -154,7 +215,7 @@ def test_missing_bronze_detail_is_explicit_not_assumed() -> None:
 
     assert payload["parser_family"] == "unclassified"
     for field in payload["fields"].values():
-        assert field["status"] == "source_absent_or_unresolved"
+        assert field["status"] == "extractor_gap"
 
 
 def test_migration_is_schema_only_bounded_sidecar() -> None:
