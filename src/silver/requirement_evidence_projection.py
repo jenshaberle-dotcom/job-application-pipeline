@@ -21,6 +21,10 @@ from src.search_intelligence.product_v1_requirement_evidence import (
     ProductV1RequirementEvidence,
     extract_product_v1_requirement_evidence,
 )
+from src.silver.operator_requirement_semantics import (
+    infer_posting_language,
+    normalize_employment_scope,
+)
 
 
 SILVER_REQUIREMENT_EVIDENCE_SCHEMA = "silver_job_requirement_evidence.v1"
@@ -200,6 +204,7 @@ def build_silver_requirement_evidence(
     structured_employment = _string_list(detail.get("employment_types")) or _string_list(
         metadata.get("employment_types")
     )
+    employment_scope = normalize_employment_scope(structured_employment)
 
     remote = detail.get("remote")
     workplace_type = _text(metadata.get("workplace_type")).casefold()
@@ -249,6 +254,8 @@ def build_silver_requirement_evidence(
     requirements_seniority = (
         assessment.requirements_seniority if assessment is not None else "unknown"
     )
+    title_seniority = assessment.title_seniority if assessment is not None else "unknown"
+    posting_language = infer_posting_language(requirement_text)
 
     language_status = (
         "observed_bounded_text" if languages else _missing_status(detail)
@@ -326,6 +333,27 @@ def build_silver_requirement_evidence(
         "requirement_text_source": requirement_text_source,
         "structured_jobposting_found": detail.get("structured_jobposting_found") is True,
         "fields": fields,
+        "display_context": {
+            "employment_scope": employment_scope,
+            "employment_scope_status": (
+                "observed_structured"
+                if employment_scope != "unknown"
+                else _missing_status(
+                    detail,
+                    structured_signal=bool(structured_employment),
+                )
+            ),
+            "posting_language": posting_language,
+            "posting_language_basis": (
+                "bounded_vacancy_text" if posting_language != "unknown" else "unknown"
+            ),
+            "title_seniority_signal": title_seniority,
+            "title_seniority_basis": (
+                "job_title" if title_seniority != "unknown" else "unknown"
+            ),
+            "hard_filter_authority": False,
+            "capability_fit_authority": False,
+        },
         "conflicted_fields": sorted(conflicts),
         "unresolved_fields": sorted(unresolved_fields),
         "raw_html_persisted": False,
