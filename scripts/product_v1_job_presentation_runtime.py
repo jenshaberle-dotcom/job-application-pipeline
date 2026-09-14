@@ -66,10 +66,49 @@ def _silver_job_ids(payload: Mapping[str, object]) -> list[int]:
     return sorted(result)
 
 
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [str(item) for item in value if str(item).strip()]
+
+
+def _requirement_projection(row: Mapping[str, object]) -> dict[str, object]:
+    raw_requirement = row.get("requirement_evidence")
+    requirement = dict(raw_requirement) if isinstance(raw_requirement, Mapping) else {}
+    raw_skills = requirement.get("job_skills")
+    conflicts = _string_list(requirement.get("conflicted_fields"))
+    unresolved = _string_list(requirement.get("unresolved_fields"))
+    return {
+        "requirement_evidence_status": "assessed" if requirement else "not_yet_assessed",
+        "employment_type": str(row.get("employment_type") or "unknown"),
+        "employment_evidence_status": str(
+            row.get("employment_evidence_status") or "unknown"
+        ),
+        "required_languages": _string_list(row.get("required_languages")),
+        "language_evidence_status": str(row.get("language_evidence_status") or "unknown"),
+        "weekly_hours_min": row.get("weekly_hours_min"),
+        "weekly_hours_max": row.get("weekly_hours_max"),
+        "weekly_hours_evidence_status": str(
+            row.get("weekly_hours_evidence_status") or "unknown"
+        ),
+        "requirements_seniority": str(row.get("requirements_seniority") or "unknown"),
+        "seniority_evidence_status": str(row.get("seniority_evidence_status") or "unknown"),
+        "job_skills": _string_list(raw_skills),
+        "work_model_resolution": str(requirement.get("work_model_resolution") or "unknown"),
+        "requirement_conflicted_fields": conflicts,
+        "requirement_unresolved_fields": unresolved,
+    }
+
+
 def load_latest_observation_evidence(
     silver_job_ids: list[int],
 ) -> dict[int, object]:
-    """Load latest normalized evidence plus the first persisted JAP sighting."""
+    """Load latest observation plus persisted job-side requirement evidence.
+
+    This is a read-only presentation projection. Requirement fields are copied from
+    the already persisted assessment and its bounded ``requirement_evidence`` JSON;
+    no Candidate Facts, fit decision, ranking or application authority is created.
+    """
 
     if not silver_job_ids:
         return {}
@@ -85,8 +124,21 @@ def load_latest_observation_evidence(
                     SELECT
                         silver.id AS silver_job_id,
                         latest.normalized_evidence,
-                        first_seen.first_jap_observed_at
+                        first_seen.first_jap_observed_at,
+                        assessment.employment_type,
+                        assessment.employment_evidence_status,
+                        assessment.required_languages,
+                        assessment.language_evidence_status,
+                        assessment.weekly_hours_min,
+                        assessment.weekly_hours_max,
+                        assessment.weekly_hours_evidence_status,
+                        assessment.requirements_seniority,
+                        assessment.seniority_evidence_status,
+                        assessment.ranking_factors -> 'requirement_evidence'
+                            AS requirement_evidence
                     FROM silver_jobs silver
+                    LEFT JOIN job_product_assessments assessment
+                      ON assessment.silver_job_id = silver.id
                     LEFT JOIN LATERAL (
                         SELECT observation.normalized_evidence
                         FROM job_observations observation
@@ -111,6 +163,7 @@ def load_latest_observation_evidence(
         int(row["silver_job_id"]): {
             "normalized_evidence": row.get("normalized_evidence"),
             "first_jap_observed_at": row.get("first_jap_observed_at"),
+            "job_requirement_evidence": _requirement_projection(row),
         }
         for row in rows
         if row.get("silver_job_id") is not None
@@ -134,14 +187,24 @@ def is_employer_origin_review_source(row: Mapping[str, object]) -> bool:
     return any(source_name.startswith(prefix) for prefix in EMPLOYER_ORIGIN_SOURCE_PREFIXES)
 
 
-def _observation_parts(value: object) -> tuple[object, object]:
-    """Accept both the new wrapper and the legacy direct-evidence test shape."""
+def _observation_parts(
+    value: object,
+) -> tuple[object, object, Mapping[str, object]]:
+    """Accept the new wrapper and the legacy direct-evidence test shape."""
 
     if isinstance(value, Mapping) and (
-        "normalized_evidence" in value or "first_jap_observed_at" in value
+        "normalized_evidence" in value
+        or "first_jap_observed_at" in value
+        or "job_requirement_evidence" in value
     ):
-        return value.get("normalized_evidence"), value.get("first_jap_observed_at")
-    return value, None
+        raw_requirement = value.get("job_requirement_evidence")
+        requirement = raw_requirement if isinstance(raw_requirement, Mapping) else {}
+        return (
+            value.get("normalized_evidence"),
+            value.get("first_jap_observed_at"),
+            requirement,
+        )
+    return value, None, {}
 
 
 def _identity_metadata(normalized_evidence: object) -> dict[str, str | None]:
@@ -210,9 +273,6 @@ def _origin_identity_keys(row: Mapping[str, object]) -> tuple[tuple[str, str, st
     )
     if observed_url:
         keys.append(("exact_origin_url", "origin_url", observed_url))
-        # Canonical and observed URLs are aliases for this exact row; use the same
-        # namespace key shape so another row's observed URL can intersect a
-        # declared canonical URL.
         keys.append(("exact_origin_url", "canonical_origin_url", observed_url))
 
     if identifier and evidence_kind in CROSS_PROJECTION_IDENTIFIER_EVIDENCE_KINDS:
@@ -247,7 +307,7 @@ def _decorate_collection(
         except (TypeError, ValueError):
             silver_job_id = None
         evidence = evidence_by_job.get(silver_job_id) if silver_job_id is not None else None
-        normalized_evidence, first_observed = _observation_parts(evidence)
+        normalized_evidence, first_observed, requirement_evidence = _observation_parts(evidence)
         projected = decorate_job_for_operator(
             item,
             normalized_observation_evidence=normalized_evidence,
@@ -259,6 +319,7 @@ def _decorate_collection(
             "identifier_evidence_kind"
         ]
         projected["origin_canonical_url"] = identity["canonical_origin_url"]
+        projected.update(requirement_evidence)
         decorated.append(projected)
     return decorated
 
@@ -285,9 +346,6 @@ def _deduplicate_origin_rows(
                 position_by_key[key] = position
             continue
 
-        # More than one prior position would mean the new row bridges two formerly
-        # independent exact identities. Fail open for review instead of suppressing
-        # a potentially real vacancy.
         if len(prior_positions) != 1:
             position = len(unique)
             unique.append(row)
@@ -297,8 +355,6 @@ def _deduplicate_origin_rows(
 
         previous_position = next(iter(prior_positions))
         previous = unique[previous_position]
-        # For one multi-location vacancy, prefer the representative that remains
-        # eligible for the current profile. Otherwise preserve upstream Product order.
         if previous.get("profile_geography_eligible") is False and row.get("profile_geography_eligible") is not False:
             duplicates.append(previous)
             unique[previous_position] = row
@@ -382,6 +438,8 @@ def enrich_product_payload_for_operator(
         {
             "job_presentation_enrichment_is_not_ranking_authority": True,
             "job_presentation_enrichment_is_not_application_authority": True,
+            "persisted_requirement_presentation_is_job_source_evidence_only": True,
+            "persisted_requirement_presentation_is_not_capability_fit_authority": True,
             "qualitative_schedule_never_infers_numeric_hours": True,
             "review_geography_does_not_rewrite_product_truth": True,
             "out_of_profile_jobs_remain_auditable": True,
