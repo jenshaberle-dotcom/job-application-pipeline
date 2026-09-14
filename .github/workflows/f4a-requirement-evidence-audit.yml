@@ -7,6 +7,7 @@ on:
       - "scripts/run_f4a_requirement_evidence_audit.py"
       - "src/search_intelligence/product_v1_assessment_evidence.py"
       - "src/search_intelligence/detail_semantics_deterministic.py"
+      - "src/search_intelligence/product_v1_downstream_preview.py"
       - ".github/workflows/f4a-requirement-evidence-audit.yml"
 
 permissions:
@@ -105,10 +106,10 @@ jobs:
                   handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
           PY
 
-      - name: Audit representative current Origin evidence
+      - name: Audit full current assessed cohort
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" scripts/run_f4a_requirement_evidence_audit.py \
-            --max-per-family 3 \
+            --max-per-family 24 \
             --max-jobs 24
