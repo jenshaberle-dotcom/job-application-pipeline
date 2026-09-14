@@ -1,4 +1,4 @@
-# Exact-head requalification marker for the R4 v1.0.29 operator release.
+# Exact-head requalification retry after transient exact-Origin blockers on R4 v1.0.29.
 from src.silver.operator_requirement_semantics import (
     infer_posting_language,
     normalize_employment_scope,
