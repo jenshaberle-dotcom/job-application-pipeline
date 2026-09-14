@@ -1,10 +1,11 @@
 # F4A — Profile Fit Coverage
 
-Status: QUALIFICATION
+Status: OPERATOR ACCEPTANCE FAILED / CORRECTIVE HARDENING REQUIRED
 
-Base: canonical `main@f7ae7ec873d04fbbef4d61a7aa4257c23c00387b`
-Target desktop release: `1.0.25`
-PR: `#868`
+Original shipped package: PR `#868`
+Immutable desktop release: `1.0.25`
+Released product SHA: `948864965e282f6de4f95d1808d6c40e654b7bd6`
+Corrective target desktop release: `1.0.26`
 
 ## Goal
 Every lifecycle-current canonical review job must expose either:
@@ -28,7 +29,7 @@ F4A does not create a new ranking score. `profile_fit_complete` means the fit de
 Capability truth is accepted only from an active Candidate Fact capability review bound to the current approved profile hash, current assessment timestamp, current detail-evidence hash and currently approved referenced Candidate Facts. Geography/work-model/commute candidate policy may come only from approved, current `operator_preference` Candidate Facts using the bounded `profile-fit.*` tag vocabulary. Raw Candidate Fact statements, provenance references and preference-tag values do not leave the private Candidate Fact boundary.
 
 ## Product projection
-The existing Product payload now exposes, per current job:
+The Product payload exposes, per current job:
 
 - `profile_fit_coverage_status`;
 - `profile_fit_decision`;
@@ -36,12 +37,12 @@ The existing Product payload now exposes, per current job:
 - explicit missing and failed factor names;
 - no ranking, Top-5 or application authority.
 
-The Control Center renders the F4A coverage/decision separately from both the preliminary Role Affinity preview and the existing Product score/gate. F4B ranking remains untouched.
+The Control Center renders the F4A coverage/decision separately from both the preliminary Role Affinity preview and the existing Product score/gate. F4B ranking remains untouched until F4A is operator accepted.
 
-## Real Product evidence
-Exact-head real Product acceptance run `34719248796` on `9c7e9c5d8c00152f4c8e329608b3947036caf6e3` completed successfully on the RCC-backed Product database.
+## Shipped v1.0.25 evidence
+The original exact-head Product acceptance run `34719248796` proved the fail-closed projection contract before release.
 
-Observed current truth:
+Observed truth at that proof point:
 
 - current canonical jobs: `72`;
 - assessment rows: `17`;
@@ -53,8 +54,6 @@ Observed current truth:
 - current Profile Fit partition: `0 profile_fit_complete`, `72 insufficient_evidence`, `0 unclassified`;
 - decisions: `72 unknown`, `0 failed`, `0 passed`.
 
-The all-`insufficient_evidence` result is therefore the correct fail-closed outcome for the current Product database: no approved Candidate preference/boundary truth exists for geography/work-model/commute, so F4A must not invent a positive or negative Candidate↔Job fit. The acceptance also proves zero Candidate statements, provenance references or raw preference tags emitted and zero ranking/Top-5/application authority created.
-
 Missing-factor counts in that proof:
 
 - geography/work-model/commute: `72`;
@@ -62,18 +61,58 @@ Missing-factor counts in that proof:
 - seniority: `65`;
 - skills/capabilities: `65`.
 
+The all-`insufficient_evidence` result was correct for the available Candidate-side truth and proved that missing evidence was not silently turned into negative fit. It did not prove that the upstream job-requirement extraction was semantically useful enough for an operator.
+
+Release/deploy evidence is also complete: v1.0.25 was published from immutable source `948864965e282f6de4f95d1808d6c40e654b7bd6` and automatic local deploy run `34779970878` installed exactly that release successfully.
+
+## Installed operator finding — 2026-09-14
+The installed v1.0.25 UI and contract behave technically as intended, but F4A is **not operator accepted**.
+
+Observed product gap:
+
+- factor labels and status mechanics are present;
+- the underlying job metadata for seniority, skills/capabilities and related hard requirements is not yet semantically reliable/useful enough across real vacancy sources;
+- therefore the current Profile Fit surface can be technically correct while still being poor decision support;
+- the low `rankable` count must be treated as an observation, not a target. Correct evidence quality may increase, decrease or leave that count unchanged.
+
+This is not deferred as unrelated scope. The original F4A contract explicitly requires normalized job requirements from current authoritative vacancy evidence. The corrective work therefore remains inside F4A and blocks F4B.
+
+## F4A-Q — Job Requirement Evidence Quality Hardening
+The corrective slice must improve job-side evidence quality without employer-specific production exceptions.
+
+Evidence understanding is layered, source-neutral and evidence-preserving:
+
+1. prefer authoritative structured vacancy metadata when present (for example exact ATS/schema fields with provenance);
+2. preserve semantic section/context information from the authoritative vacancy detail instead of flattening the whole page into one undifferentiated string;
+3. use bounded deterministic phrase extraction only as fallback where the field meaning is unambiguous;
+4. treat conflicting, context-poor or unsupported evidence as `unknown` rather than forcing a canonical value;
+5. retain exact evidence references/provenance for every asserted field so an operator can inspect why a value exists.
+
+Source-family understanding is allowed where it represents a reusable document/ATS contract. Employer-specific exceptions, company allowlists and UI-only repairs are not authority.
+
+The existing detail-refresh path must continue to invalidate stale downstream human/capability/ranking decisions when authoritative vacancy evidence changes, and the corrected extraction must replay through the same Bronze/Silver/Gold/Product path.
+
+## Corrective acceptance
+F4A is accepted only after all of the following hold on the final exact package head:
+
+- a representative real-source cohort covers the source families actually present in the current Product review set;
+- extracted seniority, work model, employment type, languages, weekly hours and other F4A-relevant requirement evidence are inspected against their authoritative Origin evidence;
+- every asserted canonical field is provenance-backed; ambiguous/conflicting cases remain explicit `unknown`;
+- known false confident metadata in the acceptance cohort is zero at sign-off;
+- current review rows still reconcile completely into `profile_fit_complete | insufficient_evidence` with zero silently unclassified jobs;
+- Candidate Fact privacy and authority boundaries remain unchanged;
+- ranking/Top-5/application authority remains unchanged;
+- exact-head Full Suite, Ruff, React, Windows contracts and real Product proof pass;
+- immutable automatic `1.0.26` release and automatic local deploy pass;
+- installed operator acceptance explicitly passes.
+
 ## Boundaries
 - preserve F3 lifecycle and canonical-vacancy identity truth;
-- do not start F4B ranking work;
-- do not introduce employer-specific fit logic;
+- do not start F4B ranking work before F4A-Q is accepted;
+- do not introduce employer-specific fit logic or employer-specific metadata truth exceptions;
+- do not optimize for a larger rankable count;
 - do not silently classify a current review job when required evidence is absent;
 - keep `CR-F1-001` visible unless this package naturally touches and closes the fresh-company persistence path.
 
-## Acceptance
-A real Product coverage proof must reconcile all current review rows into exactly one of:
-
-`profile_fit_complete | insufficient_evidence`
-
-with zero silently unclassified current jobs, factor-level explanations, and explicit evidence coverage. Exact-head Full Suite, Ruff, React, Windows contracts, automatic v1.0.25 release/deploy, and installed operator acceptance are required before F4B.
-
-The real Product acceptance requirement is satisfied for the implementation above. Final package acceptance remains conditional on exact-final-head CI/contracts, merge, immutable automatic `1.0.25` release, automatic local deploy, and installed operator acceptance.
+## Sole next action
+Inventory the current Product review cohort by source family and compare existing extracted requirement fields against authoritative vacancy evidence. Use that evidence audit to implement the smallest generic/section-aware extraction hardening required for semantic correctness, then rerun the full F4A acceptance chain for target `1.0.26`.
