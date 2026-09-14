@@ -100,7 +100,7 @@ jobs:
                   handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
           PY
 
-      - name: Verify exact controlled legacy profile and reviewed authority
+      - name: Verify historical profile, current target, and reviewed authority
         shell: bash
         run: |
           set -euo pipefail
@@ -111,7 +111,6 @@ jobs:
 
           from src.config import get_database_config
           from src.connectors.personio import PersonioConnector
-          from src.ingestion.repository import JobIngestionRepository
           from src.search_intelligence.personio_legacy_authority_bindings import (
               reviewed_personio_authority_binding,
           )
@@ -130,34 +129,25 @@ jobs:
           if not connector.capabilities.supports_full_fetch:
               raise SystemExit("PERSONIO_FULL_FETCH_CAPABILITY_MISSING")
 
-          repository = JobIngestionRepository()
-          profiles = {
-              profile.profile_name: profile
-              for profile in repository.load_active_search_profiles()
-          }
-          profile = profiles.get(expected_profile)
-          if profile is None:
-              raise SystemExit("EXPECTED_CONTROLLED_PROFILE_NOT_ACTIVE")
-          if profile.source_name != expected_source:
-              raise SystemExit("CONTROLLED_PROFILE_SOURCE_DRIFT")
-          terms = repository.load_active_search_terms(expected_profile)
-          if not terms:
-              raise SystemExit("CONTROLLED_PROFILE_HAS_NO_ACTIVE_TERMS")
-
           with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
               with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT id, profile_name, source_name, is_active, recurring_ingestion_enabled "
+                      "FROM search_profiles WHERE profile_name = %s",
+                      (expected_profile,),
+                  )
+                  profile = cur.fetchone()
                   cur.execute(
                       "SELECT id, source_name, lifecycle_status FROM gold_current_job_opportunities WHERE id = %s",
                       (job_id,),
                   )
                   current = cur.fetchone()
-                  cur.execute(
-                      "SELECT recurring_ingestion_enabled FROM search_profiles WHERE profile_name = %s",
-                      (expected_profile,),
-                  )
-                  profile_state = cur.fetchone()
               conn.rollback()
 
+          if profile is None:
+              raise SystemExit("HISTORICAL_PROFILE_MISSING")
+          if profile["source_name"] != expected_source:
+              raise SystemExit("HISTORICAL_PROFILE_SOURCE_DRIFT")
           if current is None:
               print("F4A_STALE_TARGET_ALREADY_NOT_CURRENT=1")
           else:
@@ -167,16 +157,14 @@ jobs:
                   raise SystemExit("TARGET_NOT_ACTIVE_CONFIRMED")
               print("F4A_STALE_TARGET_CURRENT=1")
 
-          if profile_state is None:
-              raise SystemExit("CONTROLLED_PROFILE_STATE_MISSING")
           print(f"F4A_REVIEWED_BINDING={binding.evidence_contract}")
-          print(f"F4A_CONTROLLED_PROFILE_RECURRING={int(bool(profile_state['recurring_ingestion_enabled']))}")
-          print(f"F4A_CONTROLLED_PROFILE={expected_profile}")
+          print(f"F4A_PROFILE_ACTIVE_BEFORE={int(bool(profile['is_active']))}")
+          print(f"F4A_PROFILE_RECURRING_BEFORE={int(bool(profile['recurring_ingestion_enabled']))}")
           print("F4A_SOURCE_ACTIVATION_CHANGED=0")
           print("F4A_RECURRING_ELIGIBILITY_CHANGED=0")
           PY
 
-      - name: Run bounded one-shot Personio inventory with existing health authority
+      - name: Fetch and reconcile reviewed Personio inventory without reactivation
         shell: bash
         run: |
           set -euo pipefail
@@ -184,9 +172,17 @@ jobs:
           import os
           import uuid
 
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from src.config import get_database_config
+          from src.connectors.base import SearchProfile, SearchTerm
           from src.connectors.personio import PersonioConnector
+          from src.ingestion.complete_inventory_lifecycle import (
+              reconcile_verified_complete_inventory_health,
+              verified_complete_inventory_authority,
+          )
           from src.ingestion.repository import JobIngestionRepository
-          from src.ingestion.runner import JobIngestionRunner
           from src.job_lifecycle_health import JobLifecycleHealthRepository
           from src.search_intelligence.personio_legacy_authority_bindings import (
               reviewed_personio_authority_binding,
@@ -198,38 +194,99 @@ jobs:
 
           binding = reviewed_personio_authority_binding(target_key)
           if binding is None:
-              raise SystemExit("REVIEWED_PERSONIO_AUTHORITY_BINDING_MISSING_BEFORE_EXECUTE")
+              raise SystemExit("REVIEWED_PERSONIO_AUTHORITY_BINDING_MISSING_BEFORE_FETCH")
           connector = PersonioConnector(target_key=target_key)
           if connector.source_name != expected_source:
-              raise SystemExit("PERSONIO_CONNECTOR_SOURCE_DRIFT_BEFORE_EXECUTE")
-          if not connector.capabilities.supports_full_fetch:
-              raise SystemExit("PERSONIO_FULL_FETCH_CAPABILITY_MISSING_BEFORE_EXECUTE")
+              raise SystemExit("PERSONIO_CONNECTOR_SOURCE_DRIFT_BEFORE_FETCH")
 
-          repository = JobIngestionRepository()
-          profiles = {
-              profile.profile_name: profile
-              for profile in repository.load_active_search_profiles()
-          }
-          profile = profiles.get(expected_profile)
-          if profile is None or profile.source_name != expected_source:
-              raise SystemExit("CONTROLLED_PROFILE_DRIFT_BEFORE_EXECUTE")
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT id, profile_name, source_name, search_location, search_radius_km, "
+                      "offer_type, page_size, is_active, recurring_ingestion_enabled "
+                      "FROM search_profiles WHERE profile_name = %s",
+                      (expected_profile,),
+                  )
+                  row = cur.fetchone()
+              conn.rollback()
+          if row is None:
+              raise SystemExit("HISTORICAL_PROFILE_MISSING_BEFORE_FETCH")
+          if row["source_name"] != expected_source:
+              raise SystemExit("HISTORICAL_PROFILE_SOURCE_DRIFT_BEFORE_FETCH")
+
+          profile = SearchProfile(
+              id=int(row["id"]),
+              profile_name=str(row["profile_name"]),
+              source_name=str(row["source_name"]),
+              search_location=row["search_location"],
+              search_radius_km=row["search_radius_km"],
+              offer_type=row["offer_type"],
+              page_size=int(row["page_size"]),
+          )
+
+          records, requested_url = connector.fetch_jobs(
+              profile,
+              SearchTerm(search_term="*", id=None),
+          )
+          authority = verified_complete_inventory_authority(
+              source_name=expected_source,
+              records=records,
+          )
+          if authority is None:
+              raise SystemExit("CURRENT_PERSONIO_INVENTORY_AUTHORITY_NOT_PROVEN")
+          if authority.target_key != target_key:
+              raise SystemExit("CURRENT_PERSONIO_AUTHORITY_TARGET_DRIFT")
 
           execution_id = str(uuid.uuid4())
           os.environ["PGAPPNAME"] = f"job-pipeline-ingest:{execution_id}"
-          print(f"F4A_ONE_SHOT_EXECUTION_ID={execution_id}")
-
-          runner = JobIngestionRunner(
-              repository=repository,
-              connector=connector,
-              health_repository=JobLifecycleHealthRepository(),
+          repository = JobIngestionRepository()
+          run_id = repository.create_ingestion_run(
+              source_name=expected_source,
+              search_profile_id=profile.id,
+              search_term_id=None,
+              search_term=None,
+              requested_url=requested_url,
           )
-          runner.run(profile_name=expected_profile)
-          print("F4A_CONTROLLED_ONE_SHOT_INVENTORY=PASS")
+          try:
+              summary = reconcile_verified_complete_inventory_health(
+                  health_repository=JobLifecycleHealthRepository(),
+                  source_name=expected_source,
+                  observed_records=records,
+                  ingestion_run_id=run_id,
+              )
+              if summary is None:
+                  raise RuntimeError("VERIFIED_COMPLETE_INVENTORY_RECONCILIATION_RETURNED_NONE")
+              repository.finish_ingestion_run(
+                  ingestion_run_id=run_id,
+                  total_loaded=len(records),
+                  inserted_count=0,
+                  duplicate_count=0,
+              )
+          except Exception as exc:
+              repository.fail_ingestion_run(
+                  ingestion_run_id=run_id,
+                  error_message=str(exc),
+                  error_type=type(exc).__name__,
+                  error_stage="f4a_lifecycle_revalidation",
+              )
+              raise
+
+          print(f"F4A_ONE_SHOT_EXECUTION_ID={execution_id}")
+          print(f"F4A_ONE_SHOT_INGESTION_RUN_ID={run_id}")
+          print(f"F4A_CURRENT_PERSONIO_POSITION_COUNT={authority.position_count}")
+          print(f"F4A_CURRENT_PERSONIO_EVIDENCE_FINGERPRINT={authority.evidence_fingerprint}")
+          print(f"F4A_HEALTH_TARGET_COUNT={summary.target_count}")
+          print(f"F4A_HEALTH_OBSERVED_COUNT={summary.observed_target_count}")
+          print(f"F4A_HEALTH_MISSING_COUNT={summary.missing_target_count}")
+          print(f"F4A_HEALTH_NOT_SEEN_WRITES={summary.not_seen_write_count}")
+          print("F4A_CONTROLLED_LIFECYCLE_REVALIDATION=PASS")
+          print("F4A_RAW_JOB_WRITES=0")
+          print("F4A_SILVER_WRITES=0")
           print("F4A_SOURCE_ACTIVATION_CHANGED=0")
           print("F4A_RECURRING_ELIGIBILITY_CHANGED=0")
           PY
 
-      - name: Verify complete-inventory lifecycle outcome
+      - name: Verify lifecycle outcome and unchanged source controls
         shell: bash
         run: |
           set -euo pipefail
@@ -264,7 +321,7 @@ jobs:
                   )
                   observation = cur.fetchone()
                   cur.execute(
-                      "SELECT recurring_ingestion_enabled FROM search_profiles WHERE profile_name = %s",
+                      "SELECT is_active, recurring_ingestion_enabled FROM search_profiles WHERE profile_name = %s",
                       (expected_profile,),
                   )
                   profile_state = cur.fetchone()
@@ -289,8 +346,9 @@ jobs:
           if observation["observed_by"] != "recurring_ingestion_verified_complete_inventory":
               raise SystemExit("POST_RECONCILE_OBSERVER_MISMATCH")
           if profile_state is None:
-              raise SystemExit("CONTROLLED_PROFILE_STATE_MISSING_AFTER_EXECUTE")
-          print(f"F4A_CONTROLLED_PROFILE_RECURRING_AFTER={int(bool(profile_state['recurring_ingestion_enabled']))}")
+              raise SystemExit("HISTORICAL_PROFILE_STATE_MISSING_AFTER_REVALIDATION")
+          print(f"F4A_PROFILE_ACTIVE_AFTER={int(bool(profile_state['is_active']))}")
+          print(f"F4A_PROFILE_RECURRING_AFTER={int(bool(profile_state['recurring_ingestion_enabled']))}")
           print("F4A_STALE_COMPLETE_INVENTORY_RECONCILIATION=PASS")
           PY
 
