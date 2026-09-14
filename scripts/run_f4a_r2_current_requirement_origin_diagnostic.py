@@ -92,6 +92,70 @@ def _current_product_sources(conn: psycopg.Connection[Any]) -> dict[str, str]:
     }
 
 
+def _stabilize_representation_only_requirement_drift(
+    proposal: Mapping[str, object],
+) -> dict[str, object]:
+    """Ignore fetch-layout churn when persisted job-side semantics are unchanged.
+
+    Public Origin pages can move text spans or alter non-semantic markup between
+    two fetches. F4A-R2 must not manufacture an endless assessment revision loop
+    from those representation-only changes. We reuse the canonical stable
+    requirement-evidence fingerprint from the guarded refresh path and preserve
+    the already persisted exact evidence representation when its semantics match.
+    Any semantic difference, any non-ranking field change, or any structural
+    F4A-R2 marker change remains a real proposal and therefore stays fail-closed.
+    """
+
+    result = dict(proposal)
+    if result.get("mode") != "update" or result.get("changed_fields") != [
+        "ranking_factors"
+    ]:
+        return result
+
+    previous_payload = result.get("previous_payload")
+    next_payload = result.get("next_payload")
+    if not isinstance(previous_payload, Mapping) or not isinstance(next_payload, Mapping):
+        return result
+    previous_factors = previous_payload.get("ranking_factors")
+    next_factors = next_payload.get("ranking_factors")
+    if not isinstance(previous_factors, Mapping) or not isinstance(next_factors, Mapping):
+        return result
+    stored_evidence = previous_factors.get("requirement_evidence")
+    fresh_evidence = next_factors.get("requirement_evidence")
+    if not isinstance(stored_evidence, Mapping) or not isinstance(fresh_evidence, Mapping):
+        return result
+    if (
+        plan.refresh._stable_requirement_evidence_fingerprint(stored_evidence)
+        != plan.refresh._stable_requirement_evidence_fingerprint(fresh_evidence)
+    ):
+        return result
+
+    stabilized_factors = dict(next_factors)
+    for key in (
+        "detail_description_sha256",
+        "reference_count",
+        "requirement_evidence",
+    ):
+        if key in previous_factors:
+            stabilized_factors[key] = previous_factors[key]
+        else:
+            stabilized_factors.pop(key, None)
+
+    stabilized_payload = dict(next_payload)
+    stabilized_payload["ranking_factors"] = stabilized_factors
+    changed_fields = [
+        column
+        for column in plan.refresh.ASSESSMENT_COLUMNS
+        if plan._json_safe(previous_payload.get(column))
+        != plan._json_safe(stabilized_payload.get(column))
+    ]
+    result["next_payload"] = stabilized_payload
+    result["changed_fields"] = changed_fields
+    result["would_change"] = bool(changed_fields)
+    result["representation_only_requirement_evidence_drift_ignored"] = not changed_fields
+    return result
+
+
 def _unavailable_origin_proposal(
     row: Mapping[str, object],
     *,
@@ -209,12 +273,13 @@ def _proposal_with_explicit_unavailable(
     hard_filter_policy_version: str,
 ) -> dict[str, object]:
     try:
-        return _CANONICAL_PROPOSAL(
+        canonical = _CANONICAL_PROPOSAL(
             row,
             source_authority=source_authority,
             ranking_policy_version=ranking_policy_version,
             hard_filter_policy_version=hard_filter_policy_version,
         )
+        return _stabilize_representation_only_requirement_drift(canonical)
     except DownstreamPreviewStop as exc:
         reason = str(exc)
         if reason != "preview detail returned HTTP 404":
@@ -309,11 +374,20 @@ def _print_generic_source_state(conn: psycopg.Connection[Any]) -> None:
             (source_name,),
         )
         state["recent_ingestion_runs"] = [dict(row) for row in cur.fetchall()]
-        cur.execute("SELECT count(*)::integer AS raw_count FROM raw_jobs WHERE source_name = %s", (source_name,))
+        cur.execute(
+            "SELECT count(*)::integer AS raw_count FROM raw_jobs WHERE source_name = %s",
+            (source_name,),
+        )
         state["raw_count"] = int(cur.fetchone()["raw_count"])
-        cur.execute("SELECT count(*)::integer AS silver_count FROM silver_jobs WHERE source_name = %s", (source_name,))
+        cur.execute(
+            "SELECT count(*)::integer AS silver_count FROM silver_jobs WHERE source_name = %s",
+            (source_name,),
+        )
         state["silver_count"] = int(cur.fetchone()["silver_count"])
-    print("F4A_R2_GENERIC_FI_STATE=" + json.dumps(state, default=str, ensure_ascii=False, sort_keys=True))
+    print(
+        "F4A_R2_GENERIC_FI_STATE="
+        + json.dumps(state, default=str, ensure_ascii=False, sort_keys=True)
+    )
 
 
 def main() -> int:
