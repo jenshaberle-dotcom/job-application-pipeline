@@ -5,9 +5,10 @@ provider-free Bronze/observation evidence and emits a bounded, source-neutral
 requirement-evidence payload. It never reads Candidate Facts and grants no fit,
 ranking, Top-5 or application authority.
 
-Structured connector evidence wins when it is semantically equivalent to the
-requested field. Bounded description evidence is used only for deterministic
-fields that the generic connector does not currently expose structurally.
+Structured connector evidence wins only when it is semantically equivalent to the
+requested field. Bounded description evidence reuses the same generic F4A
+composition used by Product so weak shell signals, partial-mobile wording and
+structured/text conflicts remain fail-closed across the Bronze2E path.
 """
 
 from __future__ import annotations
@@ -16,9 +17,9 @@ from hashlib import sha256
 import json
 from typing import Any, Mapping
 
-from src.search_intelligence.product_v1_assessment_evidence import (
-    ProductV1AssessmentEvidence,
-    extract_product_v1_assessment_evidence,
+from src.search_intelligence.product_v1_requirement_evidence import (
+    ProductV1RequirementEvidence,
+    extract_product_v1_requirement_evidence,
 )
 
 
@@ -52,18 +53,22 @@ def _field(status: str, **values: object) -> dict[str, object]:
     return {"status": status, **values}
 
 
-def _flat_assessment(
+def _composed_evidence(
     *,
     description: object,
     title: object,
     source_url: str,
-) -> ProductV1AssessmentEvidence | None:
-    if not _text(description) or not _text(title) or not _text(source_url):
+) -> ProductV1RequirementEvidence | None:
+    description_text = _text(description)
+    title_text = _text(title)
+    if not description_text or not title_text or not _text(source_url):
         return None
     try:
-        return extract_product_v1_assessment_evidence(
-            description=description,
-            title=title,
+        return extract_product_v1_requirement_evidence(
+            html="",
+            text=description_text,
+            title=title_text,
+            page_title=title_text,
             source_url=source_url,
         )
     except ValueError:
@@ -71,14 +76,34 @@ def _flat_assessment(
 
 
 def _reference_payloads(
-    assessment: ProductV1AssessmentEvidence | None,
+    evidence: ProductV1RequirementEvidence | None,
     field_name: str,
 ) -> list[dict[str, object]]:
-    if assessment is None:
+    if evidence is None:
         return []
     return [
         reference.canonical_payload()
-        for reference in assessment.references
+        for reference in evidence.assessment.references
+        if reference.field == field_name
+    ]
+
+
+def _semantic_reference_payloads(
+    evidence: ProductV1RequirementEvidence | None,
+    field_name: str,
+) -> list[dict[str, object]]:
+    if evidence is None:
+        return []
+    return [
+        {
+            "field": reference.field,
+            "source_url": reference.source_url,
+            "evidence": reference.evidence,
+            "value": reference.value,
+            "span_start": reference.span_start,
+            "span_end": reference.span_end,
+        }
+        for reference in evidence.semantic_references
         if reference.field == field_name
     ]
 
@@ -100,29 +125,58 @@ def build_silver_requirement_evidence(
     )
     title = _text(job.get("title") or raw_job.get("title"))
     description = detail.get("description_excerpt") or job.get("description")
-    assessment = _flat_assessment(
+    composed = _composed_evidence(
         description=description,
         title=title,
         source_url=source_url,
     )
+    assessment = composed.assessment if composed is not None else None
 
     parser_family = _text(detail.get("parser_family")) or "unclassified"
     methods = _string_list(detail.get("methods"))
     source_evidence_schema = _text(detail.get("schema")) or None
 
     structured_skills = _string_list(detail.get("skills")) or _string_list(job.get("skills"))
+    bounded_skills = list(composed.job_skills) if composed is not None else []
+    if structured_skills:
+        job_skills = structured_skills
+        skills_status = "observed_structured"
+        skills_source = "bronze_structured"
+    elif bounded_skills:
+        job_skills = bounded_skills
+        skills_status = "observed_bounded_text"
+        skills_source = "bronze_description_excerpt"
+    else:
+        job_skills = []
+        skills_status = "source_absent_or_unresolved"
+        skills_source = None
+
     structured_employment = _string_list(detail.get("employment_types")) or _string_list(
         metadata.get("employment_types")
     )
 
     remote = detail.get("remote")
     workplace_type = _text(metadata.get("workplace_type")).casefold()
-    if remote is True or workplace_type == "remote":
-        work_model = "remote"
+    structured_work_model = (
+        "remote" if remote is True or workplace_type == "remote" else "unknown"
+    )
+    bounded_work_model = composed.work_model if composed is not None else "unknown"
+    conflicts = set(composed.conflicted_fields if composed is not None else ())
+    if (
+        structured_work_model != "unknown"
+        and bounded_work_model != "unknown"
+        and structured_work_model != bounded_work_model
+    ):
+        conflicts.add("work_model")
+        work_model = "unknown"
+        work_model_status = "conflict"
+        work_model_source = "bronze_structured+bronze_description_excerpt"
+    elif structured_work_model != "unknown":
+        work_model = structured_work_model
         work_model_status = "observed_structured"
         work_model_source = "bronze_structured"
-    elif assessment is not None and assessment.work_model != "unknown":
-        work_model = assessment.work_model
+    elif bounded_work_model != "unknown":
+        work_model = bounded_work_model
         work_model_status = "observed_bounded_text"
         work_model_source = "bronze_description_excerpt"
     else:
@@ -144,18 +198,17 @@ def build_silver_requirement_evidence(
         assessment.requirements_seniority if assessment is not None else "unknown"
     )
 
-    conflicts = set(assessment.conflicted_fields if assessment is not None else ())
     fields: dict[str, object] = {
         "employment_type": _field(
             "conflict" if "employment_type" in conflicts else employment_status,
             value=("unknown" if "employment_type" in conflicts else employment_type),
             source_employment_types=structured_employment,
-            evidence=_reference_payloads(assessment, "employment_type"),
+            evidence=_reference_payloads(composed, "employment_type"),
         ),
         "required_languages": _field(
             "observed_bounded_text" if languages else "source_absent_or_unresolved",
             values=languages,
-            evidence=_reference_payloads(assessment, "required_languages"),
+            evidence=_reference_payloads(composed, "required_languages"),
         ),
         "weekly_hours": _field(
             (
@@ -167,13 +220,16 @@ def build_silver_requirement_evidence(
             ),
             minimum=None if "weekly_hours" in conflicts else weekly_min,
             maximum=None if "weekly_hours" in conflicts else weekly_max,
-            evidence=_reference_payloads(assessment, "weekly_hours"),
+            evidence=_reference_payloads(composed, "weekly_hours"),
         ),
         "work_model": _field(
-            "conflict" if "work_model" in conflicts else work_model_status,
-            value="unknown" if "work_model" in conflicts else work_model,
+            work_model_status,
+            value=work_model,
             evidence_source=work_model_source,
-            evidence=_reference_payloads(assessment, "work_model"),
+            evidence=(
+                _reference_payloads(composed, "work_model")
+                + _semantic_reference_payloads(composed, "remote")
+            ),
         ),
         "requirements_seniority": _field(
             (
@@ -188,12 +244,13 @@ def build_silver_requirement_evidence(
                 if "requirements_seniority" in conflicts
                 else requirements_seniority
             ),
-            evidence=_reference_payloads(assessment, "requirements_seniority"),
+            evidence=_reference_payloads(composed, "requirements_seniority"),
         ),
         "job_skills": _field(
-            "observed_structured" if structured_skills else "source_absent_or_unresolved",
-            values=structured_skills,
-            evidence_source="bronze_structured" if structured_skills else None,
+            skills_status,
+            values=job_skills,
+            evidence_source=skills_source,
+            evidence=_semantic_reference_payloads(composed, "skills"),
         ),
     }
 
