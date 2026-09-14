@@ -3,10 +3,81 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.product_v1_job_presentation_runtime import enrich_product_payload_for_operator
+from scripts.product_v1_silver_requirement_projection import (
+    project_silver_requirement_evidence,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "control-center" / "src"
+
+
+def _silver_requirement_payload() -> dict[str, object]:
+    return {
+        "schema": "silver_job_requirement_evidence.v1",
+        "parser_family": "schema_org_json_ld",
+        "fields": {
+            "employment_type": {
+                "status": "source_absent_or_unresolved",
+                "value": "unknown",
+            },
+            "required_languages": {
+                "status": "observed_bounded_text",
+                "values": ["de", "en"],
+            },
+            "weekly_hours": {
+                "status": "observed_bounded_text",
+                "minimum": 38.0,
+                "maximum": 38.0,
+            },
+            "work_model": {
+                "status": "observed_bounded_text",
+                "value": "hybrid",
+            },
+            "requirements_seniority": {
+                "status": "source_absent_or_unresolved",
+                "value": "unknown",
+            },
+            "job_skills": {
+                "status": "observed_structured",
+                "values": ["Python", "Kubernetes"],
+            },
+        },
+        "conflicted_fields": [],
+        "unresolved_fields": ["employment_type", "requirements_seniority"],
+        "raw_html_persisted": False,
+        "authority": {
+            "job_source_evidence_only": True,
+            "candidate_fact_authority": False,
+            "capability_fit_authority": False,
+            "hard_filter_authority": False,
+            "ranking_authority": False,
+            "top5_authority": False,
+            "application_authority": False,
+        },
+    }
+
+
+def test_silver_requirement_sidecar_flattens_without_fit_authority() -> None:
+    projected = project_silver_requirement_evidence(_silver_requirement_payload())
+
+    assert projected is not None
+    assert projected["requirement_evidence_source"] == "silver_job_requirement_evidence"
+    assert projected["employment_type"] == "unknown"
+    assert projected["required_languages"] == ["de", "en"]
+    assert projected["weekly_hours_min"] == 38.0
+    assert projected["weekly_hours_max"] == 38.0
+    assert projected["work_model"] == "hybrid"
+    assert projected["work_model_resolution"] == "observed_bounded_text"
+    assert projected["requirements_seniority"] == "unknown"
+    assert projected["job_skills"] == ["Python", "Kubernetes"]
+
+
+def test_silver_requirement_sidecar_fails_closed_on_authority_drift() -> None:
+    payload = _silver_requirement_payload()
+    payload["authority"]["ranking_authority"] = True
+
+    assert project_silver_requirement_evidence(payload) is None
 
 
 def test_persisted_requirement_evidence_is_projected_without_fit_authority() -> None:
@@ -27,17 +98,19 @@ def test_persisted_requirement_evidence_is_projected_without_fit_authority() -> 
             "first_jap_observed_at": "2026-09-10T08:15:00+00:00",
             "job_requirement_evidence": {
                 "requirement_evidence_status": "assessed",
+                "requirement_evidence_source": "silver_job_requirement_evidence",
                 "employment_type": "unknown",
-                "employment_evidence_status": "unknown",
+                "employment_evidence_status": "source_absent_or_unresolved",
                 "required_languages": ["de"],
-                "language_evidence_status": "observed",
+                "language_evidence_status": "observed_bounded_text",
                 "weekly_hours_min": 38.0,
                 "weekly_hours_max": 38.0,
-                "weekly_hours_evidence_status": "observed",
+                "weekly_hours_evidence_status": "observed_bounded_text",
                 "requirements_seniority": "unknown",
-                "seniority_evidence_status": "unknown",
+                "seniority_evidence_status": "source_absent_or_unresolved",
                 "job_skills": ["Python", "Kubernetes"],
-                "work_model_resolution": "contextual_fill",
+                "work_model": "hybrid",
+                "work_model_resolution": "observed_bounded_text",
                 "requirement_conflicted_fields": [],
                 "requirement_unresolved_fields": ["employment_type", "requirements_seniority"],
             },
@@ -56,10 +129,12 @@ def test_persisted_requirement_evidence_is_projected_without_fit_authority() -> 
     assert projected["weekly_hours_max"] == 38.0
     assert projected["job_skills"] == ["Python", "Kubernetes"]
     assert projected["work_model"] == "hybrid"
-    assert projected["work_model_resolution"] == "contextual_fill"
+    assert projected["work_model_resolution"] == "observed_bounded_text"
     assert projected["requirements_seniority"] == "unknown"
-    assert result["boundaries"]["persisted_requirement_presentation_is_job_source_evidence_only"] is True
-    assert result["boundaries"]["persisted_requirement_presentation_is_not_capability_fit_authority"] is True
+    assert projected["requirement_evidence_source"] == "silver_job_requirement_evidence"
+    assert result["boundaries"]["silver_requirement_sidecar_is_primary_job_source_evidence"] is True
+    assert result["boundaries"]["silver_requirement_sidecar_is_not_candidate_fact_authority"] is True
+    assert result["boundaries"]["silver_requirement_sidecar_is_not_capability_fit_authority"] is True
 
 
 def test_normal_review_surface_renders_dedicated_requirement_metadata() -> None:
