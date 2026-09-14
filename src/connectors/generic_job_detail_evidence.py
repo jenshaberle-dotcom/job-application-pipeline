@@ -9,8 +9,8 @@ local open-source parsers only:
   evidence is absent.
 
 No source HTML is returned or persisted by this module. The caller receives only
-normalized fields and a bounded text excerpt suitable for downstream evidence,
-structure learning and relevance processing before Bronze.
+normalized fields and bounded text evidence suitable for downstream structure,
+requirement and relevance processing before Bronze.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from src.search_intelligence.origin_vacancy_identity import (
 EVIDENCE_SCHEMA = "generic_job_detail_evidence_v1"
 MAX_SCALAR_CHARS = 1_000
 MAX_DESCRIPTION_CHARS = 4_000
+MAX_REQUIREMENT_TEXT_CHARS = 20_000
 MAX_SKILLS_CHARS = 2_000
 MAX_LOCATION_CHARS = 500
 MAX_IDENTITY_TEXT_CHARS = 20_000
@@ -329,6 +330,27 @@ def _structured_job_posting(html: str, url: str) -> tuple[str | None, dict[str, 
     return syntax, mapping
 
 
+def _structured_requirement_text(posting: dict[str, Any]) -> str:
+    """Keep bounded requirement-bearing schema text without persisting raw HTML."""
+
+    parts: list[str] = []
+    # Put explicit requirement properties before the broad description so a long
+    # marketing/role intro cannot truncate the most useful fit evidence.
+    for key in ("qualifications", "experienceRequirements", "educationRequirements"):
+        raw = _first_scalar(_schema_value(posting, key), limit=50_000)
+        text = _html_to_text(raw, limit=MAX_REQUIREMENT_TEXT_CHARS)
+        if text and text not in parts:
+            parts.append(text)
+    skills = _string_list(_schema_value(posting, "skills"), limit=MAX_SKILLS_CHARS)
+    if skills:
+        parts.append("Skills: " + "; ".join(skills))
+    description = _first_scalar(_schema_value(posting, "description"), limit=50_000)
+    description_text = _html_to_text(description, limit=MAX_REQUIREMENT_TEXT_CHARS)
+    if description_text and description_text not in parts:
+        parts.append(description_text)
+    return _bounded(" ".join(parts), MAX_REQUIREMENT_TEXT_CHARS)
+
+
 def extract_generic_job_detail_evidence(
     *,
     html: str,
@@ -350,6 +372,7 @@ def extract_generic_job_detail_evidence(
     title = ""
     company_name = ""
     description = ""
+    requirement_text = ""
     locations: list[str] = []
     structured_locations: list[dict[str, str]] = []
     applicant_locations: list[str] = []
@@ -369,6 +392,7 @@ def extract_generic_job_detail_evidence(
             _first_scalar(_schema_value(posting, "description"), limit=50_000),
             limit=MAX_DESCRIPTION_CHARS,
         )
+        requirement_text = _structured_requirement_text(posting)
         raw_job_location = _schema_value(posting, "jobLocation")
         locations = _location_strings(raw_job_location)
         structured_locations = _structured_location_records(raw_job_location)
@@ -399,7 +423,9 @@ def extract_generic_job_detail_evidence(
             methods.append("explicit_label:vacancy_identifier")
 
     description_source = syntax if description else None
-    if not description:
+    requirement_text_source = syntax if requirement_text else None
+    extracted_text: str | None = None
+    if not description or not requirement_text:
         try:
             extracted_text = extract_main_text(
                 html,
@@ -414,10 +440,17 @@ def extract_generic_job_detail_evidence(
             )
         except Exception:
             extracted_text = None
+    if not description:
         description = _bounded(extracted_text, MAX_DESCRIPTION_CHARS)
         if description:
             methods.append("trafilatura:main_text")
             description_source = "trafilatura"
+    if not requirement_text:
+        requirement_text = _bounded(extracted_text, MAX_REQUIREMENT_TEXT_CHARS)
+        if requirement_text:
+            if "trafilatura:main_text" not in methods:
+                methods.append("trafilatura:main_text")
+            requirement_text_source = "trafilatura"
 
     if not title:
         title = _bounded(page_title)
@@ -432,6 +465,7 @@ def extract_generic_job_detail_evidence(
         "title": bool(title),
         "company_name": bool(company_name),
         "description": bool(description),
+        "requirement_text": bool(requirement_text),
         "locations": bool(locations or structured_locations),
         "remote": remote is not None,
         "employment_types": bool(employment_types),
@@ -462,6 +496,8 @@ def extract_generic_job_detail_evidence(
         "company_name": company_name or None,
         "description_excerpt": description or None,
         "description_source": description_source,
+        "requirement_text_excerpt": requirement_text or None,
+        "requirement_text_source": requirement_text_source,
         "locations": locations,
         "structured_locations": structured_locations,
         "applicant_locations": applicant_locations,
@@ -512,6 +548,11 @@ def project_detail_evidence_into_raw_data(
     description = _bounded(evidence.get("description_excerpt"), MAX_DESCRIPTION_CHARS)
     if description:
         job["description"] = description
+    requirement_text = _bounded(
+        evidence.get("requirement_text_excerpt"), MAX_REQUIREMENT_TEXT_CHARS
+    )
+    if requirement_text:
+        job["requirement_text"] = requirement_text
 
     locations = _string_list(evidence.get("locations"), limit=MAX_LOCATION_CHARS)
     structured_locations = evidence.get("structured_locations")
@@ -551,6 +592,7 @@ def project_detail_evidence_into_raw_data(
         ("canonical_origin_url", "canonical_origin_url"),
         ("parser_family", "parser_family"),
         ("vacancy_identity_kind", "vacancy_identity_kind"),
+        ("requirement_text_source", "requirement_text_source"),
     ):
         value = _bounded(evidence.get(source_key))
         if value:
@@ -568,6 +610,7 @@ def project_detail_evidence_into_raw_data(
 __all__ = [
     "EVIDENCE_SCHEMA",
     "GENERIC_LOCATION_EVIDENCE_SOURCE",
+    "MAX_REQUIREMENT_TEXT_CHARS",
     "extract_generic_job_detail_evidence",
     "project_detail_evidence_into_raw_data",
 ]
