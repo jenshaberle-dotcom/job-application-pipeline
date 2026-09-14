@@ -25,6 +25,7 @@ jobs:
       SILVER_JOB_ID: "440"
       EXPECTED_SOURCE_NAME: "personio:eraneos"
       EXPECTED_PROFILE_NAME: "personio_eraneos_data_engineer_remote"
+      EXPECTED_TARGET_KEY: "eraneos"
 
     steps:
       - name: Check out exact head
@@ -99,7 +100,7 @@ jobs:
                   handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
           PY
 
-      - name: Verify exact controlled profile and current target
+      - name: Verify exact controlled legacy profile and reviewed authority
         shell: bash
         run: |
           set -euo pipefail
@@ -109,13 +110,25 @@ jobs:
           from psycopg.rows import dict_row
 
           from src.config import get_database_config
-          from src.connectors.registry import SourceRole
-          from src.ingest_jobs import profile_source_role
+          from src.connectors.personio import PersonioConnector
           from src.ingestion.repository import JobIngestionRepository
+          from src.search_intelligence.personio_legacy_authority_bindings import (
+              reviewed_personio_authority_binding,
+          )
 
           job_id = int(os.environ["SILVER_JOB_ID"])
           expected_source = os.environ["EXPECTED_SOURCE_NAME"]
           expected_profile = os.environ["EXPECTED_PROFILE_NAME"]
+          target_key = os.environ["EXPECTED_TARGET_KEY"]
+
+          binding = reviewed_personio_authority_binding(target_key)
+          if binding is None:
+              raise SystemExit("REVIEWED_PERSONIO_AUTHORITY_BINDING_MISSING")
+          connector = PersonioConnector(target_key=target_key)
+          if connector.source_name != expected_source:
+              raise SystemExit("PERSONIO_CONNECTOR_SOURCE_DRIFT")
+          if not connector.capabilities.supports_full_fetch:
+              raise SystemExit("PERSONIO_FULL_FETCH_CAPABILITY_MISSING")
 
           repository = JobIngestionRepository()
           profiles = {
@@ -127,8 +140,6 @@ jobs:
               raise SystemExit("EXPECTED_CONTROLLED_PROFILE_NOT_ACTIVE")
           if profile.source_name != expected_source:
               raise SystemExit("CONTROLLED_PROFILE_SOURCE_DRIFT")
-          if profile_source_role(profile) != SourceRole.EMPLOYER_ORIGIN:
-              raise SystemExit("CONTROLLED_PROFILE_NOT_EMPLOYER_ORIGIN")
           terms = repository.load_active_search_terms(expected_profile)
           if not terms:
               raise SystemExit("CONTROLLED_PROFILE_HAS_NO_ACTIVE_TERMS")
@@ -158,49 +169,61 @@ jobs:
 
           if profile_state is None:
               raise SystemExit("CONTROLLED_PROFILE_STATE_MISSING")
+          print(f"F4A_REVIEWED_BINDING={binding.evidence_contract}")
           print(f"F4A_CONTROLLED_PROFILE_RECURRING={int(bool(profile_state['recurring_ingestion_enabled']))}")
           print(f"F4A_CONTROLLED_PROFILE={expected_profile}")
           print("F4A_SOURCE_ACTIVATION_CHANGED=0")
           print("F4A_RECURRING_ELIGIBILITY_CHANGED=0")
           PY
 
-      - name: Run bounded one-shot inventory with existing health authority
+      - name: Run bounded one-shot Personio inventory with existing health authority
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" - <<'PY'
           import os
+          import uuid
 
-          from src.connectors.registry import SourceRole
-          from src.ingest_jobs import (
-              configure_ingestion_execution_application_name,
-              profile_source_role,
-              run_profile,
-          )
+          from src.connectors.personio import PersonioConnector
           from src.ingestion.repository import JobIngestionRepository
+          from src.ingestion.runner import JobIngestionRunner
+          from src.job_lifecycle_health import JobLifecycleHealthRepository
+          from src.search_intelligence.personio_legacy_authority_bindings import (
+              reviewed_personio_authority_binding,
+          )
 
           expected_source = os.environ["EXPECTED_SOURCE_NAME"]
           expected_profile = os.environ["EXPECTED_PROFILE_NAME"]
+          target_key = os.environ["EXPECTED_TARGET_KEY"]
+
+          binding = reviewed_personio_authority_binding(target_key)
+          if binding is None:
+              raise SystemExit("REVIEWED_PERSONIO_AUTHORITY_BINDING_MISSING_BEFORE_EXECUTE")
+          connector = PersonioConnector(target_key=target_key)
+          if connector.source_name != expected_source:
+              raise SystemExit("PERSONIO_CONNECTOR_SOURCE_DRIFT_BEFORE_EXECUTE")
+          if not connector.capabilities.supports_full_fetch:
+              raise SystemExit("PERSONIO_FULL_FETCH_CAPABILITY_MISSING_BEFORE_EXECUTE")
+
           repository = JobIngestionRepository()
           profiles = {
               profile.profile_name: profile
               for profile in repository.load_active_search_profiles()
           }
           profile = profiles.get(expected_profile)
-          if profile is None:
-              raise SystemExit("CONTROLLED_PROFILE_DISAPPEARED")
-          if profile.source_name != expected_source:
-              raise SystemExit("CONTROLLED_PROFILE_SOURCE_DRIFT_BEFORE_EXECUTE")
-          if profile_source_role(profile) != SourceRole.EMPLOYER_ORIGIN:
-              raise SystemExit("CONTROLLED_PROFILE_ROLE_DRIFT_BEFORE_EXECUTE")
+          if profile is None or profile.source_name != expected_source:
+              raise SystemExit("CONTROLLED_PROFILE_DRIFT_BEFORE_EXECUTE")
 
-          execution_id = configure_ingestion_execution_application_name()
+          execution_id = str(uuid.uuid4())
+          os.environ["PGAPPNAME"] = f"job-pipeline-ingest:{execution_id}"
           print(f"F4A_ONE_SHOT_EXECUTION_ID={execution_id}")
-          run_profile(
+
+          runner = JobIngestionRunner(
               repository=repository,
-              profile=profile,
-              recurring_health_enabled=True,
+              connector=connector,
+              health_repository=JobLifecycleHealthRepository(),
           )
+          runner.run(profile_name=expected_profile)
           print("F4A_CONTROLLED_ONE_SHOT_INVENTORY=PASS")
           print("F4A_SOURCE_ACTIVATION_CHANGED=0")
           print("F4A_RECURRING_ELIGIBILITY_CHANGED=0")
