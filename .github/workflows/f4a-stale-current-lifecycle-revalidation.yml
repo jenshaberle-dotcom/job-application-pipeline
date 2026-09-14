@@ -1,0 +1,386 @@
+name: F4A stale current lifecycle revalidation
+
+on:
+  push:
+    branches: [agent/f4a-operator-feedback-freeze-extension]
+    paths:
+      - ".github/workflows/f4a-stale-current-lifecycle-revalidation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4a-stale-current-lifecycle-revalidation
+  cancel-in-progress: false
+
+jobs:
+  revalidate:
+    name: Reconcile blocked current vacancy through controlled inventory
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 15
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      SILVER_JOB_ID: "440"
+      EXPECTED_SOURCE_NAME: "personio:eraneos"
+      EXPECTED_PROFILE_NAME: "personio_eraneos_data_engineer_remote"
+      EXPECTED_TARGET_KEY: "eraneos"
+
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked Product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Verify historical profile, current target, and reviewed authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import os
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from src.config import get_database_config
+          from src.connectors.personio import PersonioConnector
+          from src.search_intelligence.personio_legacy_authority_bindings import (
+              reviewed_personio_authority_binding,
+          )
+
+          job_id = int(os.environ["SILVER_JOB_ID"])
+          expected_source = os.environ["EXPECTED_SOURCE_NAME"]
+          expected_profile = os.environ["EXPECTED_PROFILE_NAME"]
+          target_key = os.environ["EXPECTED_TARGET_KEY"]
+
+          binding = reviewed_personio_authority_binding(target_key)
+          if binding is None:
+              raise SystemExit("REVIEWED_PERSONIO_AUTHORITY_BINDING_MISSING")
+          connector = PersonioConnector(target_key=target_key)
+          if connector.source_name != expected_source:
+              raise SystemExit("PERSONIO_CONNECTOR_SOURCE_DRIFT")
+          if not connector.capabilities.supports_full_fetch:
+              raise SystemExit("PERSONIO_FULL_FETCH_CAPABILITY_MISSING")
+
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT id, profile_name, source_name, is_active, recurring_ingestion_enabled "
+                      "FROM search_profiles WHERE profile_name = %s",
+                      (expected_profile,),
+                  )
+                  profile = cur.fetchone()
+                  cur.execute(
+                      "SELECT id, source_name, lifecycle_status FROM gold_current_job_opportunities WHERE id = %s",
+                      (job_id,),
+                  )
+                  current = cur.fetchone()
+              conn.rollback()
+
+          if profile is None:
+              raise SystemExit("HISTORICAL_PROFILE_MISSING")
+          if profile["source_name"] != expected_source:
+              raise SystemExit("HISTORICAL_PROFILE_SOURCE_DRIFT")
+          if current is None:
+              print("F4A_STALE_TARGET_ALREADY_NOT_CURRENT=1")
+          else:
+              if current["source_name"] != expected_source:
+                  raise SystemExit("TARGET_SOURCE_NAME_DRIFT")
+              if current["lifecycle_status"] != "active_confirmed":
+                  raise SystemExit("TARGET_NOT_ACTIVE_CONFIRMED")
+              print("F4A_STALE_TARGET_CURRENT=1")
+
+          print(f"F4A_REVIEWED_BINDING={binding.evidence_contract}")
+          print(f"F4A_PROFILE_ACTIVE_BEFORE={int(bool(profile['is_active']))}")
+          print(f"F4A_PROFILE_RECURRING_BEFORE={int(bool(profile['recurring_ingestion_enabled']))}")
+          print("F4A_SOURCE_ACTIVATION_CHANGED=0")
+          print("F4A_RECURRING_ELIGIBILITY_CHANGED=0")
+          PY
+
+      - name: Fetch and reconcile reviewed Personio inventory without reactivation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import os
+          import uuid
+
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from src.config import get_database_config
+          from src.connectors.base import SearchProfile, SearchTerm
+          from src.connectors.personio import PersonioConnector
+          from src.ingestion.complete_inventory_lifecycle import (
+              reconcile_verified_complete_inventory_health,
+              verified_complete_inventory_authority,
+          )
+          from src.ingestion.repository import JobIngestionRepository
+          from src.job_lifecycle_health import JobLifecycleHealthRepository
+          from src.search_intelligence.personio_legacy_authority_bindings import (
+              reviewed_personio_authority_binding,
+          )
+
+          expected_source = os.environ["EXPECTED_SOURCE_NAME"]
+          expected_profile = os.environ["EXPECTED_PROFILE_NAME"]
+          target_key = os.environ["EXPECTED_TARGET_KEY"]
+
+          binding = reviewed_personio_authority_binding(target_key)
+          if binding is None:
+              raise SystemExit("REVIEWED_PERSONIO_AUTHORITY_BINDING_MISSING_BEFORE_FETCH")
+          connector = PersonioConnector(target_key=target_key)
+          if connector.source_name != expected_source:
+              raise SystemExit("PERSONIO_CONNECTOR_SOURCE_DRIFT_BEFORE_FETCH")
+
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT id, profile_name, source_name, search_location, search_radius_km, "
+                      "offer_type, page_size, is_active, recurring_ingestion_enabled "
+                      "FROM search_profiles WHERE profile_name = %s",
+                      (expected_profile,),
+                  )
+                  row = cur.fetchone()
+              conn.rollback()
+          if row is None:
+              raise SystemExit("HISTORICAL_PROFILE_MISSING_BEFORE_FETCH")
+          if row["source_name"] != expected_source:
+              raise SystemExit("HISTORICAL_PROFILE_SOURCE_DRIFT_BEFORE_FETCH")
+
+          profile = SearchProfile(
+              id=int(row["id"]),
+              profile_name=str(row["profile_name"]),
+              source_name=str(row["source_name"]),
+              search_location=row["search_location"],
+              search_radius_km=row["search_radius_km"],
+              offer_type=row["offer_type"],
+              page_size=int(row["page_size"]),
+          )
+
+          records, requested_url = connector.fetch_jobs(
+              profile,
+              SearchTerm(search_term="*", id=None),
+          )
+          authority = verified_complete_inventory_authority(
+              source_name=expected_source,
+              records=records,
+          )
+          if authority is None:
+              raise SystemExit("CURRENT_PERSONIO_INVENTORY_AUTHORITY_NOT_PROVEN")
+          if authority.target_key != target_key:
+              raise SystemExit("CURRENT_PERSONIO_AUTHORITY_TARGET_DRIFT")
+
+          execution_id = str(uuid.uuid4())
+          os.environ["PGAPPNAME"] = f"job-pipeline-ingest:{execution_id}"
+          repository = JobIngestionRepository()
+          run_id = repository.create_ingestion_run(
+              source_name=expected_source,
+              search_profile_id=profile.id,
+              search_term_id=None,
+              search_term=None,
+              requested_url=requested_url,
+          )
+          try:
+              summary = reconcile_verified_complete_inventory_health(
+                  health_repository=JobLifecycleHealthRepository(),
+                  source_name=expected_source,
+                  observed_records=records,
+                  ingestion_run_id=run_id,
+              )
+              if summary is None:
+                  raise RuntimeError("VERIFIED_COMPLETE_INVENTORY_RECONCILIATION_RETURNED_NONE")
+              repository.finish_ingestion_run(
+                  ingestion_run_id=run_id,
+                  total_loaded=len(records),
+                  inserted_count=0,
+                  duplicate_count=0,
+              )
+          except Exception as exc:
+              repository.fail_ingestion_run(
+                  ingestion_run_id=run_id,
+                  error_message=str(exc),
+                  error_type=type(exc).__name__,
+                  error_stage="f4a_lifecycle_revalidation",
+              )
+              raise
+
+          print(f"F4A_ONE_SHOT_EXECUTION_ID={execution_id}")
+          print(f"F4A_ONE_SHOT_INGESTION_RUN_ID={run_id}")
+          print(f"F4A_CURRENT_PERSONIO_POSITION_COUNT={authority.position_count}")
+          print(f"F4A_CURRENT_PERSONIO_EVIDENCE_FINGERPRINT={authority.evidence_fingerprint}")
+          print(f"F4A_HEALTH_TARGET_COUNT={summary.target_count}")
+          print(f"F4A_HEALTH_OBSERVED_COUNT={summary.observed_target_count}")
+          print(f"F4A_HEALTH_MISSING_COUNT={summary.missing_target_count}")
+          print(f"F4A_HEALTH_NOT_SEEN_WRITES={summary.not_seen_write_count}")
+          print("F4A_CONTROLLED_LIFECYCLE_REVALIDATION=PASS")
+          print("F4A_RAW_JOB_WRITES=0")
+          print("F4A_SILVER_WRITES=0")
+          print("F4A_SOURCE_ACTIVATION_CHANGED=0")
+          print("F4A_RECURRING_ELIGIBILITY_CHANGED=0")
+          PY
+
+      - name: Verify lifecycle outcome and unchanged source controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import os
+          import psycopg
+          from psycopg.rows import dict_row
+          from src.config import get_database_config
+
+          job_id = int(os.environ["SILVER_JOB_ID"])
+          expected_source = os.environ["EXPECTED_SOURCE_NAME"]
+          expected_profile = os.environ["EXPECTED_PROFILE_NAME"]
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT lifecycle_status, latest_health_outcome, latest_health_coverage, lifecycle_evidence_reason "
+                      "FROM gold_job_lifecycle_health WHERE silver_job_id = %s",
+                      (job_id,),
+                  )
+                  health = cur.fetchone()
+                  cur.execute(
+                      "SELECT 1 FROM gold_current_job_opportunities WHERE id = %s",
+                      (job_id,),
+                  )
+                  current = cur.fetchone()
+                  cur.execute(
+                      "SELECT outcome, coverage, evidence_reason, observed_by "
+                      "FROM job_health_observations WHERE source_name = %s "
+                      "AND raw_job_id = (SELECT raw_job_id FROM silver_jobs WHERE id = %s) "
+                      "ORDER BY observed_at DESC, id DESC LIMIT 1",
+                      (expected_source, job_id),
+                  )
+                  observation = cur.fetchone()
+                  cur.execute(
+                      "SELECT is_active, recurring_ingestion_enabled FROM search_profiles WHERE profile_name = %s",
+                      (expected_profile,),
+                  )
+                  profile_state = cur.fetchone()
+              conn.rollback()
+
+          if health is None:
+              raise SystemExit("POST_RECONCILE_HEALTH_MISSING")
+          if health["lifecycle_status"] != "inactive_confirmed":
+              raise SystemExit(f"POST_RECONCILE_NOT_INACTIVE:{health['lifecycle_status']}")
+          if health["latest_health_outcome"] != "not_seen":
+              raise SystemExit("POST_RECONCILE_OUTCOME_NOT_NOT_SEEN")
+          if health["latest_health_coverage"] != "complete_inventory":
+              raise SystemExit("POST_RECONCILE_COVERAGE_NOT_COMPLETE_INVENTORY")
+          if health["lifecycle_evidence_reason"] != "authoritative_verified_ats_complete_inventory_absence":
+              raise SystemExit("POST_RECONCILE_REASON_MISMATCH")
+          if current is not None:
+              raise SystemExit("INACTIVE_JOB_REMAINS_CURRENT_PRODUCT_MEMBER")
+          if observation is None:
+              raise SystemExit("POST_RECONCILE_OBSERVATION_MISSING")
+          if observation["outcome"] != "not_seen" or observation["coverage"] != "complete_inventory":
+              raise SystemExit("POST_RECONCILE_OBSERVATION_MISMATCH")
+          if observation["observed_by"] != "recurring_ingestion_verified_complete_inventory":
+              raise SystemExit("POST_RECONCILE_OBSERVER_MISMATCH")
+          if profile_state is None:
+              raise SystemExit("HISTORICAL_PROFILE_STATE_MISSING_AFTER_REVALIDATION")
+          print(f"F4A_PROFILE_ACTIVE_AFTER={int(bool(profile_state['is_active']))}")
+          print(f"F4A_PROFILE_RECURRING_AFTER={int(bool(profile_state['recurring_ingestion_enabled']))}")
+          print("F4A_STALE_COMPLETE_INVENTORY_RECONCILIATION=PASS")
+          PY
+
+      - name: Re-audit current F4A requirement evidence cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/run_f4a_requirement_evidence_audit.py \
+            --max-per-family 24 \
+            --max-jobs 24
+
+      - name: Rebuild corrective refresh preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_requirement_evidence_refresh.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_Q_REFRESH_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_Q_REFRESH_PROPOSALS={report['proposal_count']}")
+          print(f"F4A_Q_REFRESH_BLOCKED={report['blocked_count']}")
+          print(f"F4A_Q_REFRESH_WOULD_CHANGE={report['would_change_count']}")
+          print(f"F4A_Q_REFRESH_JOBS_WITH_SKILLS={report['jobs_with_skills']}")
+          print("F4A_Q_REFRESH_WORK_MODEL_RESOLUTIONS=" + json.dumps(report['work_model_resolutions'], sort_keys=True))
+          if report["blocked_count"]:
+              raise SystemExit("F4A_Q_REFRESH_PREFLIGHT_BLOCKED")
+          if report["proposal_count"] != report["candidate_count"]:
+              raise SystemExit("F4A_Q_REFRESH_PREFLIGHT_INCOMPLETE")
+          print("F4A_Q_REFRESH_PREFLIGHT=PASS")
+          PY

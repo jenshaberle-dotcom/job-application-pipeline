@@ -9,6 +9,7 @@ or Top-5 authority, or persists raw HTML.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from hashlib import sha256
 from html.parser import HTMLParser
 import ipaddress
@@ -34,6 +35,22 @@ USER_AGENT = "DeepOceanProductV1EvidencePreview/1.0"
 
 class DownstreamPreviewStop(RuntimeError):
     """Fail closed when preview source/evidence boundaries are not satisfied."""
+
+
+@dataclass(frozen=True)
+class PublicDetailDocument:
+    """One bounded public detail response held in memory only.
+
+    ``html`` exists so deterministic structured evidence (for example schema.org
+    JobPosting JSON-LD) can be inspected without changing persistence boundaries.
+    Callers must not persist it; durable Product evidence remains normalized and
+    provenance-bound rather than a copy of the raw page.
+    """
+
+    final_url: str
+    title: str
+    text: str
+    html: str
 
 
 class _TextExtractor(HTMLParser):
@@ -123,7 +140,7 @@ def validate_public_https_url(
     return parsed.geturl()
 
 
-def fetch_public_https_detail_text(
+def fetch_public_https_detail_document(
     url: str,
     *,
     session: requests.Session | None = None,
@@ -131,8 +148,8 @@ def fetch_public_https_detail_text(
     max_redirects: int = MAX_REDIRECTS,
     max_response_bytes: int = MAX_RESPONSE_BYTES,
     timeout_seconds: float = FETCH_TIMEOUT_SECONDS,
-) -> tuple[str, str, str]:
-    """Fetch bounded detail HTML without persisting it; return final URL/title/text."""
+) -> PublicDetailDocument:
+    """Fetch one bounded detail document while keeping raw HTML in memory only."""
 
     client = session or requests.Session()
     current_url = validate_public_https_url(url, resolver=resolver)
@@ -188,9 +205,36 @@ def fetch_public_https_detail_text(
         detail_text = extractor.text.strip()
         if not detail_text:
             raise DownstreamPreviewStop("preview detail text is empty")
-        return current_url, extractor.title.strip(), detail_text
+        return PublicDetailDocument(
+            final_url=current_url,
+            title=extractor.title.strip(),
+            text=detail_text,
+            html=html,
+        )
 
     raise DownstreamPreviewStop("preview redirect boundary exceeded")
+
+
+def fetch_public_https_detail_text(
+    url: str,
+    *,
+    session: requests.Session | None = None,
+    resolver: Resolver = socket.getaddrinfo,
+    max_redirects: int = MAX_REDIRECTS,
+    max_response_bytes: int = MAX_RESPONSE_BYTES,
+    timeout_seconds: float = FETCH_TIMEOUT_SECONDS,
+) -> tuple[str, str, str]:
+    """Backward-compatible text-only projection of a bounded detail document."""
+
+    document = fetch_public_https_detail_document(
+        url,
+        session=session,
+        resolver=resolver,
+        max_redirects=max_redirects,
+        max_response_bytes=max_response_bytes,
+        timeout_seconds=timeout_seconds,
+    )
+    return document.final_url, document.title, document.text
 
 
 _STORED_ASSESSMENT_FIELDS = (
@@ -327,7 +371,9 @@ def build_product_v1_downstream_preview(
 
 __all__ = [
     "DownstreamPreviewStop",
+    "PublicDetailDocument",
     "build_product_v1_downstream_preview",
+    "fetch_public_https_detail_document",
     "fetch_public_https_detail_text",
     "validate_public_https_url",
 ]

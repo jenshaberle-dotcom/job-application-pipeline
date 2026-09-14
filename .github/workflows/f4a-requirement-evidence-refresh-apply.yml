@@ -1,0 +1,258 @@
+name: F4A requirement evidence refresh apply
+
+on:
+  push:
+    branches: [agent/f4a-operator-feedback-freeze-extension]
+    paths:
+      - ".github/workflows/f4a-requirement-evidence-refresh-apply.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4a-requirement-evidence-refresh-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply qualified F4A requirement evidence refresh
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 20
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      EXPECTED_COHORT_SIZE: "16"
+
+    steps:
+      - name: Check out exact apply head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          echo "F4A_Q_APPLY_HEAD=${GITHUB_SHA}"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked Product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Re-prove exact bounded preflight before apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_requirement_evidence_refresh_preapply.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh --output "$output"
+          "$RUNTIME_PYTHON" - "$output" "$EXPECTED_COHORT_SIZE" <<'PY'
+          import json
+          import sys
+
+          path, expected = sys.argv[1], int(sys.argv[2])
+          with open(path, encoding="utf-8") as handle:
+              report = json.load(handle)
+          if report["candidate_count"] != expected:
+              raise SystemExit(f"F4A_Q_PREAPPLY_COHORT_DRIFT:{report['candidate_count']}")
+          if report["proposal_count"] != expected:
+              raise SystemExit(f"F4A_Q_PREAPPLY_PROPOSAL_DRIFT:{report['proposal_count']}")
+          if report["blocked_count"] != 0:
+              raise SystemExit("F4A_Q_PREAPPLY_BLOCKED")
+          if report["boundaries"]["candidate_fact_reads"] is not False:
+              raise SystemExit("F4A_Q_PREAPPLY_CANDIDATE_FACT_BOUNDARY_DRIFT")
+          if report["boundaries"]["requirements_seniority_from_title"] is not False:
+              raise SystemExit("F4A_Q_PREAPPLY_SENIORITY_AUTHORITY_DRIFT")
+          if report["boundaries"]["provider_or_llm_requests"] != 0:
+              raise SystemExit("F4A_Q_PREAPPLY_PROVIDER_BOUNDARY_DRIFT")
+          print(f"F4A_Q_PREAPPLY_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_Q_PREAPPLY_WOULD_CHANGE={report['would_change_count']}")
+          print("F4A_Q_PREAPPLY=PASS")
+          PY
+
+      - name: Apply atomic revision-audited refresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_requirement_evidence_refresh_apply.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh \
+            --apply \
+            --approval-token F4A-REQUIREMENT-EVIDENCE-REFRESH-001 \
+            --applied-by f4a-q-operator-gate \
+            --output "$output"
+          "$RUNTIME_PYTHON" - "$output" "$EXPECTED_COHORT_SIZE" <<'PY'
+          import json
+          import sys
+
+          path, expected = sys.argv[1], int(sys.argv[2])
+          with open(path, encoding="utf-8") as handle:
+              report = json.load(handle)
+          if report["mode"] != "apply":
+              raise SystemExit("F4A_Q_APPLY_MODE_MISMATCH")
+          if report["candidate_count"] != expected or report["proposal_count"] != expected:
+              raise SystemExit("F4A_Q_APPLY_COHORT_DRIFT")
+          if report["blocked_count"] != 0:
+              raise SystemExit("F4A_Q_APPLY_BLOCKED")
+          result = report.get("apply_result") or {}
+          updated = int(result.get("updated") or 0)
+          already = int(result.get("already_current") or 0)
+          if updated + already not in (0, expected):
+              raise SystemExit(f"F4A_Q_APPLY_PARTIAL:{updated}+{already}")
+          print(f"F4A_Q_APPLY_UPDATED={updated}")
+          print(f"F4A_Q_APPLY_ALREADY_CURRENT={already}")
+          print("F4A_Q_APPLY=PASS")
+          PY
+
+      - name: Verify persisted assessment and revision boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$EXPECTED_COHORT_SIZE" <<'PY'
+          import sys
+          import psycopg
+          from psycopg.rows import dict_row
+          from src.config import get_database_config
+
+          expected = int(sys.argv[1])
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT COUNT(*) AS n FROM gold_current_job_opportunities current_job "
+                      "JOIN job_product_assessments a ON a.silver_job_id = current_job.id "
+                      "WHERE a.origin_validation_status = 'validated' AND a.activity_status = 'active'"
+                  )
+                  cohort = int(cur.fetchone()["n"])
+                  cur.execute(
+                      "SELECT COUNT(*) AS n FROM gold_current_job_opportunities current_job "
+                      "JOIN job_product_assessments a ON a.silver_job_id = current_job.id "
+                      "WHERE a.origin_validation_status = 'validated' AND a.activity_status = 'active' "
+                      "AND a.assessed_by = 'deterministic_f4a_requirement_evidence_v1' "
+                      "AND a.capability_fit_status = 'unknown' "
+                      "AND a.hard_filter_status = 'unknown' "
+                      "AND a.profile_direction_score IS NULL "
+                      "AND a.data_focus_score IS NULL "
+                      "AND a.reliability_focus_score IS NULL "
+                      "AND a.evidence_quality_score IS NULL "
+                      "AND a.overall_quality_score IS NULL "
+                      "AND a.ranking_updated_at IS NULL"
+                  )
+                  invalidated = int(cur.fetchone()["n"])
+                  cur.execute(
+                      "SELECT COUNT(*) AS n FROM job_product_assessment_revisions r "
+                      "JOIN gold_current_job_opportunities current_job ON current_job.id = r.silver_job_id "
+                      "WHERE r.revision_key LIKE 'F4A-REQUIREMENT-EVIDENCE-REFRESH-001:%'"
+                  )
+                  revisions = int(cur.fetchone()["n"])
+                  cur.execute(
+                      "SELECT COUNT(*) AS n FROM gold_current_job_opportunities current_job "
+                      "JOIN job_product_assessments a ON a.silver_job_id = current_job.id "
+                      "WHERE a.origin_validation_status = 'validated' AND a.activity_status = 'active' "
+                      "AND COALESCE((a.ranking_factors->>'source_evidence_only')::boolean, false) = true "
+                      "AND a.ranking_factors ? 'requirement_evidence'"
+                  )
+                  evidence_bound = int(cur.fetchone()["n"])
+              conn.rollback()
+
+          if cohort != expected:
+              raise SystemExit(f"F4A_Q_POSTAPPLY_COHORT_DRIFT:{cohort}")
+          if invalidated != expected:
+              raise SystemExit(f"F4A_Q_POSTAPPLY_STALE_INVALIDATION_INCOMPLETE:{invalidated}")
+          if revisions < expected:
+              raise SystemExit(f"F4A_Q_POSTAPPLY_REVISION_COUNT_TOO_LOW:{revisions}")
+          if evidence_bound != expected:
+              raise SystemExit(f"F4A_Q_POSTAPPLY_EVIDENCE_BINDING_INCOMPLETE:{evidence_bound}")
+          print(f"F4A_Q_POSTAPPLY_COHORT={cohort}")
+          print(f"F4A_Q_POSTAPPLY_INVALIDATED={invalidated}")
+          print(f"F4A_Q_POSTAPPLY_REVISIONS={revisions}")
+          print(f"F4A_Q_POSTAPPLY_EVIDENCE_BOUND={evidence_bound}")
+          print("F4A_Q_POSTAPPLY_PERSISTENCE=PASS")
+          PY
+
+      - name: Re-audit refreshed current cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/run_f4a_requirement_evidence_audit.py \
+            --max-per-family 24 \
+            --max-jobs 24
+
+      - name: Prove refresh idempotence
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_requirement_evidence_refresh_postapply_plan.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh --output "$output"
+          "$RUNTIME_PYTHON" - "$output" "$EXPECTED_COHORT_SIZE" <<'PY'
+          import json
+          import sys
+
+          path, expected = sys.argv[1], int(sys.argv[2])
+          with open(path, encoding="utf-8") as handle:
+              report = json.load(handle)
+          if report["candidate_count"] != expected or report["proposal_count"] != expected:
+              raise SystemExit("F4A_Q_POSTAPPLY_COHORT_DRIFT")
+          if report["blocked_count"] != 0:
+              raise SystemExit("F4A_Q_POSTAPPLY_BLOCKED")
+          if report["would_change_count"] != 0:
+              raise SystemExit(f"F4A_Q_POSTAPPLY_NOT_IDEMPOTENT:{report['would_change_count']}")
+          print("F4A_Q_POSTAPPLY_IDEMPOTENT=PASS")
+          PY

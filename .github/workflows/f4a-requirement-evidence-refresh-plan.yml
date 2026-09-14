@@ -1,20 +1,27 @@
-name: F4A profile-fit real acceptance
+name: F4A requirement evidence refresh preflight
 
 on:
   push:
     branches: [agent/f4a-operator-feedback-freeze-extension]
+    paths:
+      - "scripts/run_f4a_requirement_evidence_refresh.py"
+      - "src/search_intelligence/product_v1_requirement_evidence.py"
+      - "src/search_intelligence/product_v1_assessment_evidence.py"
+      - "src/search_intelligence/detail_semantics_deterministic.py"
+      - "src/search_intelligence/product_v1_downstream_preview.py"
+      - ".github/workflows/f4a-requirement-evidence-refresh-plan.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: f4a-profile-fit-real-acceptance
+  group: f4a-requirement-evidence-refresh-preflight
   cancel-in-progress: true
 
 jobs:
-  acceptance:
-    name: Prove real Product Profile Fit coverage
+  preflight:
+    name: Preflight real Product requirement refresh
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 20
     env:
@@ -23,7 +30,7 @@ jobs:
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
 
     steps:
-      - name: Check out exact acceptance head
+      - name: Check out exact preflight head
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -34,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          echo "F4A_ACCEPTANCE_HEAD=${GITHUB_SHA}"
+          echo "F4A_Q_REFRESH_PREFLIGHT_HEAD=${GITHUB_SHA}"
 
       - name: Resolve verified RCC runtime context
         shell: bash
@@ -101,14 +108,27 @@ jobs:
                   handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
           PY
 
-      - name: Run redacted read-only F4A inventory
+      - name: Build real corrective refresh plan
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" scripts/run_f4a_profile_fit_diagnostic.py
+          output="$RUNNER_TEMP/f4a_requirement_evidence_refresh.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
 
-      - name: Prove complete current-job Profile Fit partition through Product payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          "$RUNTIME_PYTHON" scripts/accept_f4a_profile_fit_coverage.py
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_Q_REFRESH_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_Q_REFRESH_PROPOSALS={report['proposal_count']}")
+          print(f"F4A_Q_REFRESH_BLOCKED={report['blocked_count']}")
+          print(f"F4A_Q_REFRESH_WOULD_CHANGE={report['would_change_count']}")
+          print(f"F4A_Q_REFRESH_JOBS_WITH_SKILLS={report['jobs_with_skills']}")
+          print("F4A_Q_REFRESH_WORK_MODEL_RESOLUTIONS=" + json.dumps(report['work_model_resolutions'], sort_keys=True))
+          if report["blocked_count"]:
+              raise SystemExit("F4A_Q_REFRESH_PREFLIGHT_BLOCKED")
+          if report["proposal_count"] != report["candidate_count"]:
+              raise SystemExit("F4A_Q_REFRESH_PREFLIGHT_INCOMPLETE")
+          print("F4A_Q_REFRESH_PREFLIGHT=PASS")
+          PY
