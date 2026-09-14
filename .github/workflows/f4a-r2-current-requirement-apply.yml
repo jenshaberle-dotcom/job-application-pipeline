@@ -136,6 +136,14 @@ jobs:
               raise SystemExit("F4A_R2_PRE_APPLY_COHORT_MISMATCH")
           print(f"F4A_R2_PRE_APPLY_CANDIDATES={report['candidate_count']}")
           print(f"F4A_R2_PRE_APPLY_WOULD_CHANGE={report['would_change_count']}")
+          for proposal in report["proposals"]:
+              if proposal.get("would_change"):
+                  print("F4A_R2_PRE_APPLY_CHANGE=" + json.dumps({
+                      "silver_job_id": proposal.get("silver_job_id"),
+                      "source_name": proposal.get("source_name"),
+                      "title": proposal.get("title"),
+                      "changed_fields": proposal.get("changed_fields"),
+                  }, ensure_ascii=False, sort_keys=True))
           print("F4A_R2_PRE_APPLY=PASS")
           PY
 
@@ -159,4 +167,35 @@ jobs:
           if report["verification"]["persisted"] != report["candidate_count"]:
               raise SystemExit("F4A_R2_APPLY_PERSISTENCE_MISMATCH")
           print("F4A_R2_APPLY_WORKFLOW=PASS")
+          PY
+
+      - name: Verify post-apply convergence
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_r2_post_apply_plan.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r2_current_requirement_origin_diagnostic \
+            --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          if report["blocked_count"] != 0:
+              raise SystemExit("F4A_R2_POST_APPLY_BLOCKED")
+          if report["candidate_count"] != report["proposal_count"]:
+              raise SystemExit("F4A_R2_POST_APPLY_COHORT_MISMATCH")
+          print(f"F4A_R2_POST_APPLY_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_R2_POST_APPLY_WOULD_CHANGE={report['would_change_count']}")
+          for proposal in report["proposals"]:
+              if proposal.get("would_change"):
+                  print("F4A_R2_POST_APPLY_CHANGE=" + json.dumps({
+                      "silver_job_id": proposal.get("silver_job_id"),
+                      "source_name": proposal.get("source_name"),
+                      "title": proposal.get("title"),
+                      "changed_fields": proposal.get("changed_fields"),
+                  }, ensure_ascii=False, sort_keys=True))
+          if report["would_change_count"] != 0:
+              raise SystemExit("F4A_R2_POST_APPLY_NOT_CONVERGED")
+          print("F4A_R2_POST_APPLY_CONVERGED=PASS")
           PY
