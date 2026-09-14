@@ -1,13 +1,9 @@
 """Guarded F4A-Q refresh from current structured/contextual Origin evidence.
 
-The runner is read/plan-only by default. Apply is explicit-token gated, atomic,
-revision-audited and bounded to existing lifecycle-current, origin-validated
-Product V1 assessment rows. It never reads Candidate Facts and never creates
-capability-fit, ranking, Top-5 or application authority.
-
-A successful refresh deliberately invalidates stale downstream decisions by
-resetting capability fit, hard-filter state and ranking scores. Existing review
-rows remain as history and become stale through the changed assessment timestamp.
+Plan mode is read-only. Apply is explicit-token gated, revision-audited and
+bounded to lifecycle-current, origin-validated Product V1 assessment rows.
+Candidate Facts are never read. The refresh adds only job-side evidence and
+invalidates stale capability-fit/ranking state instead of manufacturing it.
 """
 
 from __future__ import annotations
@@ -26,7 +22,6 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from scripts.run_product_v1_assessment_materialization import ASSESSMENT_COLUMNS
 from src.config import get_database_config
 from src.search_intelligence.product_v1_downstream_preview import (
     DownstreamPreviewStop,
@@ -42,11 +37,45 @@ REPORT_SCHEMA = "job_application_pipeline.f4a_requirement_evidence_refresh.v1"
 APPROVAL_TOKEN = "F4A-REQUIREMENT-EVIDENCE-REFRESH-001"
 REVISION_PREFIX = "F4A-REQUIREMENT-EVIDENCE-REFRESH-001"
 ASSESSED_BY = "deterministic_f4a_requirement_evidence_v1"
-REVISION_TABLE = "job_product_assessment_revisions"
+
+ASSESSMENT_COLUMNS = (
+    "silver_job_id",
+    "origin_validation_status",
+    "activity_status",
+    "hard_filter_status",
+    "profile_direction_score",
+    "data_focus_score",
+    "reliability_focus_score",
+    "evidence_quality_score",
+    "overall_quality_score",
+    "work_model",
+    "commute_minutes",
+    "public_transport_quality",
+    "ranking_factors",
+    "explanations",
+    "uncertainties",
+    "policy_key",
+    "policy_version",
+    "assessed_by",
+    "employment_type",
+    "employment_evidence_status",
+    "required_languages",
+    "language_evidence_status",
+    "weekly_hours_min",
+    "weekly_hours_max",
+    "weekly_hours_evidence_status",
+    "salary_min_gross_eur",
+    "salary_max_gross_eur",
+    "salary_evidence_status",
+    "title_seniority",
+    "requirements_seniority",
+    "capability_fit_status",
+    "seniority_evidence_status",
+)
 
 
 class RequirementEvidenceRefreshStop(RuntimeError):
-    """Fail closed when the bounded Product refresh contract is not satisfied."""
+    """Fail closed when the bounded F4A refresh contract is not satisfied."""
 
 
 def _require(condition: bool, message: str) -> None:
@@ -68,10 +97,7 @@ def _json_safe(value: Any) -> Any:
 
 def _canonical_json(value: object) -> str:
     return json.dumps(
-        _json_safe(value),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
+        _json_safe(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
 
 
@@ -80,14 +106,14 @@ def _fingerprint(value: object) -> str:
 
 
 def _same_origin(left: str, right: str) -> bool:
-    left_url = urlparse(left)
-    right_url = urlparse(right)
+    first = urlparse(left)
+    second = urlparse(right)
     return (
-        left_url.scheme.casefold() == right_url.scheme.casefold() == "https"
-        and bool(left_url.hostname)
-        and bool(right_url.hostname)
-        and left_url.hostname.casefold() == right_url.hostname.casefold()
-        and (left_url.port or 443) == (right_url.port or 443)
+        first.scheme.casefold() == second.scheme.casefold() == "https"
+        and bool(first.hostname)
+        and bool(second.hostname)
+        and first.hostname.casefold() == second.hostname.casefold()
+        and (first.port or 443) == (second.port or 443)
     )
 
 
@@ -95,7 +121,7 @@ def _assessment_payload(row: Mapping[str, object]) -> dict[str, object]:
     return {column: _json_safe(row.get(column)) for column in ASSESSMENT_COLUMNS}
 
 
-def _flat_explanations(evidence: ProductV1RequirementEvidence) -> list[dict[str, object]]:
+def _explanations(evidence: ProductV1RequirementEvidence) -> list[dict[str, object]]:
     result = [
         {
             "factor": reference.field,
@@ -161,9 +187,8 @@ def _build_next_payload(
         {
             "source_evidence_only": True,
             "detail_description_sha256": evidence.assessment.description_sha256,
-            "reference_count": (
-                len(evidence.assessment.references) + len(evidence.semantic_references)
-            ),
+            "reference_count": len(evidence.assessment.references)
+            + len(evidence.semantic_references),
             "conflicted_fields": list(evidence.conflicted_fields),
             "requirement_evidence": evidence.canonical_payload(),
             "f4a_requirement_evidence_refresh": {
@@ -184,7 +209,7 @@ def _build_next_payload(
             "overall_quality_score": None,
             "work_model": patch["work_model"],
             "ranking_factors": refreshed_factors,
-            "explanations": _flat_explanations(evidence),
+            "explanations": _explanations(evidence),
             "uncertainties": _uncertainties(evidence),
             "assessed_by": ASSESSED_BY,
             "employment_type": patch["employment_type"],
@@ -203,11 +228,8 @@ def _build_next_payload(
     return next_payload
 
 
-def _load_rows(
-    conn: psycopg.Connection[Any], *, for_update: bool = False
-) -> list[dict[str, object]]:
-    lock_clause = "FOR UPDATE OF assessment" if for_update else ""
-    assessment_select = ",\n            ".join(
+def _load_rows(conn: psycopg.Connection[Any]) -> list[dict[str, object]]:
+    assessment_select = ",\n                ".join(
         f"assessment.{column} AS {column}" for column in ASSESSMENT_COLUMNS
     )
     with conn.cursor() as cur:
@@ -229,7 +251,6 @@ def _load_rows(
             WHERE assessment.origin_validation_status = 'validated'
               AND assessment.activity_status = 'active'
             ORDER BY current_job.source_name, current_job.id
-            {lock_clause}
             """
         )
         return [dict(row) for row in cur.fetchall()]
@@ -242,11 +263,17 @@ def _build_proposal(row: Mapping[str, object]) -> dict[str, object]:
         silver_job_id == int(row.get("current_silver_job_id") or 0),
         "current Product membership does not match assessment binding",
     )
-    _require(str(row.get("lifecycle_status") or "") == "active_confirmed", "job is not lifecycle-current")
+    _require(
+        str(row.get("lifecycle_status") or "") == "active_confirmed",
+        "job is not lifecycle-current",
+    )
     source_url = str(row.get("source_url") or "").strip()
     _require(bool(source_url), "source URL is missing")
     document = fetch_public_https_detail_document(source_url)
-    _require(_same_origin(source_url, document.final_url), "detail fetch redirected outside authorized origin")
+    _require(
+        _same_origin(source_url, document.final_url),
+        "detail fetch redirected outside authorized origin",
+    )
     title = str(row.get("title") or document.title or "").strip()
     _require(bool(title), "job title is missing")
 
@@ -260,13 +287,12 @@ def _build_proposal(row: Mapping[str, object]) -> dict[str, object]:
     )
     previous_payload = _assessment_payload(row)
     next_payload = _build_next_payload(row, evidence=evidence, final_url=document.final_url)
-    changed_fields = tuple(
+    changed_fields = [
         column
         for column in ASSESSMENT_COLUMNS
         if _json_safe(previous_payload.get(column)) != _json_safe(next_payload.get(column))
-    )
+    ]
     evidence_fingerprint = _fingerprint(evidence.canonical_payload())
-    revision_key = f"{REVISION_PREFIX}:{evidence_fingerprint[:24]}"
     return {
         "silver_job_id": silver_job_id,
         "source_name": row.get("source_name"),
@@ -274,7 +300,7 @@ def _build_proposal(row: Mapping[str, object]) -> dict[str, object]:
         "source_url": source_url,
         "final_url": document.final_url,
         "assessment_updated_at": _json_safe(row.get("assessment_updated_at")),
-        "revision_key": revision_key,
+        "revision_key": f"{REVISION_PREFIX}:{evidence_fingerprint[:24]}",
         "evidence_fingerprint": evidence_fingerprint,
         "work_model_before": previous_payload.get("work_model"),
         "work_model_after": next_payload.get("work_model"),
@@ -284,7 +310,7 @@ def _build_proposal(row: Mapping[str, object]) -> dict[str, object]:
         "jsonld_jobposting_count": evidence.jsonld_jobposting_count,
         "requirements_seniority": next_payload.get("requirements_seniority"),
         "requirements_seniority_from_title": False,
-        "changed_fields": list(changed_fields),
+        "changed_fields": changed_fields,
         "previous_payload": previous_payload,
         "next_payload": next_payload,
         "source_evidence": evidence.canonical_payload(),
@@ -308,7 +334,7 @@ def build_plan(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
                 }
             )
 
-    fills = Counter(
+    resolutions = Counter(
         str(item.get("work_model_resolution") or "unknown") for item in proposals
     )
     return {
@@ -317,12 +343,12 @@ def build_plan(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
         "candidate_count": len(rows),
         "proposal_count": len(proposals),
         "blocked_count": len(blocked),
-        "would_change_count": sum(1 for item in proposals if item["would_change"]),
+        "would_change_count": sum(bool(item["would_change"]) for item in proposals),
         "jsonld_jobposting_count": sum(
-            1 for item in proposals if int(item["jsonld_jobposting_count"]) > 0
+            int(item["jsonld_jobposting_count"]) > 0 for item in proposals
         ),
-        "jobs_with_skills": sum(1 for item in proposals if int(item["job_skill_count"]) > 0),
-        "work_model_resolutions": dict(sorted(fills.items())),
+        "jobs_with_skills": sum(int(item["job_skill_count"]) > 0 for item in proposals),
+        "work_model_resolutions": dict(sorted(resolutions.items())),
         "proposals": proposals,
         "blocked": blocked,
         "boundaries": {
@@ -339,12 +365,28 @@ def build_plan(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
     }
 
 
+def _lock_assessment(
+    conn: psycopg.Connection[Any], silver_job_id: int
+) -> dict[str, object]:
+    select_columns = ", ".join(ASSESSMENT_COLUMNS)
+    with conn.cursor() as cur:
+        cur.execute(
+            f"SELECT {select_columns}, updated_at AS assessment_updated_at "
+            "FROM job_product_assessments WHERE silver_job_id = %s FOR UPDATE",
+            (silver_job_id,),
+        )
+        row = cur.fetchone()
+    _require(row is not None, f"assessment disappeared before Apply: {silver_job_id}")
+    return dict(row)
+
+
 def _revision_exists(
     conn: psycopg.Connection[Any], *, silver_job_id: int, revision_key: str
 ) -> bool:
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT 1 FROM job_product_assessment_revisions WHERE silver_job_id = %s AND revision_key = %s",
+            "SELECT 1 FROM job_product_assessment_revisions "
+            "WHERE silver_job_id = %s AND revision_key = %s",
             (silver_job_id, revision_key),
         )
         return cur.fetchone() is not None
@@ -429,70 +471,47 @@ def _update_assessment(
         _require(cur.rowcount == 1, "assessment refresh did not update exactly one row")
 
 
-def apply_plan(
-    *, plan: Mapping[str, object], applied_by: str
-) -> dict[str, object]:
+def apply_plan(plan: Mapping[str, object], *, applied_by: str) -> dict[str, int]:
     _require(int(plan.get("blocked_count") or 0) == 0, "blocked cohort rows forbid Apply")
-    raw_proposals = plan.get("proposals")
-    _require(isinstance(raw_proposals, list), "plan proposals are missing")
-    expected = {
-        int(item["silver_job_id"]): item
-        for item in raw_proposals
-        if isinstance(item, Mapping) and item.get("would_change") is True
-    }
-    if not expected:
+    proposals = plan.get("proposals")
+    _require(isinstance(proposals, list), "plan proposals are missing")
+    changing = [
+        item for item in proposals if isinstance(item, Mapping) and item.get("would_change") is True
+    ]
+    if not changing:
         return {"updated": 0, "already_current": 0}
 
+    updated = 0
+    already_current = 0
     conn = psycopg.connect(**get_database_config(), row_factory=dict_row)
     try:
         with conn.transaction():
             with conn.cursor() as cur:
-                for relation in (REVISION_TABLE, "job_product_assessments"):
-                    cur.execute("SELECT to_regclass(%s) AS relation", (f"public.{relation}",))
-                    relation_row = cur.fetchone()
-                    _require(
-                        relation_row is not None and relation_row["relation"] is not None,
-                        f"missing relation: {relation}",
-                    )
-                cur.execute(
-                    "SELECT pg_advisory_xact_lock(hashtext(%s))",
-                    (REVISION_PREFIX,),
-                )
+                cur.execute("SELECT to_regclass('public.job_product_assessment_revisions') AS relation")
+                row = cur.fetchone()
+                _require(row is not None and row["relation"] is not None, "revision table missing")
+                cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (REVISION_PREFIX,))
 
-            current_rows = _load_rows(conn, for_update=True)
-            current_by_id = {int(row["silver_job_id"]): row for row in current_rows}
-            _require(
-                set(expected).issubset(current_by_id),
-                "current assessed cohort changed before Apply",
-            )
-
-            updated = 0
-            already_current = 0
-            for silver_job_id, expected_proposal in expected.items():
-                rebuilt = _build_proposal(current_by_id[silver_job_id])
+            for proposal in changing:
+                silver_job_id = int(proposal["silver_job_id"])
+                current = _lock_assessment(conn, silver_job_id)
                 _require(
-                    rebuilt["evidence_fingerprint"] == expected_proposal["evidence_fingerprint"],
-                    f"requirement evidence changed before Apply: {silver_job_id}",
+                    _json_safe(current.get("assessment_updated_at"))
+                    == proposal.get("assessment_updated_at"),
+                    f"assessment changed before Apply: {silver_job_id}",
                 )
-                _require(
-                    _json_safe(rebuilt["next_payload"])
-                    == _json_safe(expected_proposal["next_payload"]),
-                    f"assessment payload changed before Apply: {silver_job_id}",
-                )
-                revision_key = str(rebuilt["revision_key"])
+                revision_key = str(proposal["revision_key"])
                 if _revision_exists(
-                    conn,
-                    silver_job_id=silver_job_id,
-                    revision_key=revision_key,
+                    conn, silver_job_id=silver_job_id, revision_key=revision_key
                 ):
                     already_current += 1
                     continue
-                _insert_revision(conn, proposal=rebuilt, applied_by=applied_by)
-                _update_assessment(conn, proposal=rebuilt)
+                _insert_revision(conn, proposal=proposal, applied_by=applied_by)
+                _update_assessment(conn, proposal=proposal)
                 updated += 1
-        return {"updated": updated, "already_current": already_current}
     finally:
         conn.close()
+    return {"updated": updated, "already_current": already_current}
 
 
 def _print_report(report: Mapping[str, object]) -> None:
@@ -541,7 +560,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = build_plan(rows)
     result = {"updated": 0, "already_current": 0}
     if args.apply:
-        result = apply_plan(plan=report, applied_by=args.applied_by.strip())
+        result = apply_plan(report, applied_by=args.applied_by.strip())
         report = dict(report)
         report["mode"] = "apply"
         report["apply_result"] = result
