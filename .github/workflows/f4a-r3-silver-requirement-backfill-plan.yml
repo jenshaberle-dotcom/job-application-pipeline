@@ -11,10 +11,13 @@ on:
       - "src/silver/origin_location_projection.py"
       - "src/silver/successfactors_location_projection.py"
       - "scripts/run_f4a_r3_silver_requirement_backfill.py"
+      - "scripts/product_v1_silver_requirement_projection.py"
+      - "scripts/product_v1_job_presentation_runtime.py"
       - "tests/test_generic_job_detail_evidence.py"
       - "tests/test_silver_requirement_evidence_projection.py"
       - "tests/test_f4a_r3_silver_requirement_backfill.py"
       - "tests/test_successfactors_silver_location_projection.py"
+      - "tests/test_f4a_r3_operator_metadata_projection.py"
       - ".github/workflows/f4a-r3-silver-requirement-backfill-plan.yml"
   workflow_dispatch:
 
@@ -27,7 +30,7 @@ concurrency:
 
 jobs:
   preflight:
-    name: Plan current-cohort Silver requirement backfill
+    name: Plan current-cohort Bronze2E requirement slice
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
@@ -47,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          echo "F4A_R3_SILVER_BACKFILL_HEAD=${GITHUB_SHA}"
+          echo "F4A_R3_BRONZE2E_HEAD=${GITHUB_SHA}"
 
       - name: Resolve verified RCC runtime context
         shell: bash
@@ -124,7 +127,7 @@ jobs:
           printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
           PYTHONPATH="$local_oss_site:${PYTHONPATH:-}" "$RUNTIME_PYTHON" -c 'import extruct, trafilatura'
 
-      - name: Run focused Bronze2E writer and backfill contracts
+      - name: Run focused Bronze2E contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -132,17 +135,21 @@ jobs:
             tests/test_generic_job_detail_evidence.py \
             tests/test_silver_requirement_evidence_projection.py \
             tests/test_f4a_r3_silver_requirement_backfill.py \
-            tests/test_successfactors_silver_location_projection.py
+            tests/test_successfactors_silver_location_projection.py \
+            tests/test_f4a_r3_operator_metadata_projection.py
           "$RUNTIME_PYTHON" -m ruff check \
             src/connectors/generic_job_detail_evidence.py \
             src/silver/requirement_evidence_projection.py \
             src/silver/origin_location_projection.py \
             src/silver/successfactors_location_projection.py \
             scripts/run_f4a_r3_silver_requirement_backfill.py \
+            scripts/product_v1_silver_requirement_projection.py \
+            scripts/product_v1_job_presentation_runtime.py \
             tests/test_generic_job_detail_evidence.py \
             tests/test_silver_requirement_evidence_projection.py \
             tests/test_f4a_r3_silver_requirement_backfill.py \
-            tests/test_successfactors_silver_location_projection.py
+            tests/test_successfactors_silver_location_projection.py \
+            tests/test_f4a_r3_operator_metadata_projection.py
 
       - name: Show migration status without writes
         shell: bash
@@ -150,7 +157,7 @@ jobs:
           set -euo pipefail
           "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
 
-      - name: Run real current-cohort exact-Origin backfill plan
+      - name: Run real current-cohort exact-Origin Bronze2E plan
         shell: bash
         run: |
           set -euo pipefail
@@ -177,5 +184,5 @@ jobs:
               raise SystemExit("F4A_R3_SILVER_PLAN_BLOCKED")
           if any(report["boundaries"].values()):
               raise SystemExit("F4A_R3_SILVER_PLAN_BOUNDARY_VIOLATION")
-          print("F4A_R3_SILVER_REQUIREMENT_PREFLIGHT=PASS")
+          print("F4A_R3_BRONZE2E_PREFLIGHT=PASS")
           PY
