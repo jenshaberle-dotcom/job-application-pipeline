@@ -1,8 +1,8 @@
 authority=F4A-R3-SILVER-REQUIREMENT-BACKFILL-001
-qualified_preflight_head=52290abe93420d2bb9566da74f715d4a3083495d
-qualified_preflight_run=34849791227
-qualified_pipeline_ci_run=34849801585
-qualified_windows_contract_run=34849800026
+qualified_preflight_head=a5e2e1a93ad40e4a18fd439141b46779f1a971a2
+qualified_preflight_run=34882010663
+qualified_pipeline_ci_run=34882014399
+qualified_windows_contract_run=34882014001
 mutation=refresh-current-cohort-silver-sidecar-only
 operator_surface=product_v1_all_jobs
 frozen_scopes=F4B,F4C,F5
