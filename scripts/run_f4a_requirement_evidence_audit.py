@@ -145,8 +145,10 @@ def _sample_rows(
                 selected.append(candidates[index])
                 family_selected += 1
                 added = True
-                if len(selected) >= max_jobs or family_selected >= max_per_family:
-                    return selected if len(selected) >= max_jobs else selected
+                if len(selected) >= max_jobs:
+                    return selected
+                if family_selected >= max_per_family:
+                    break
             if not added:
                 break
             index += 1
