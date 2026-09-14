@@ -1,9 +1,9 @@
 """Read-only runtime enrichment for Product V1 operator job presentation.
 
 This layer has no ranking or application authority. It binds Product V1 rows to
-persisted observation evidence to improve display semantics and defines the normal
-operator review scope as current employer-origin vacancies only. Historical Product
-memory and market-sensor rows remain separately auditable.
+persisted observation evidence and, when available, the canonical Silver Bronze2E
+requirement sidecar. Historical Product memory and market-sensor rows remain
+separately auditable.
 """
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ from urllib.parse import urlsplit, urlunsplit
 import psycopg
 from psycopg.rows import dict_row
 
+from scripts.product_v1_silver_requirement_projection import (
+    project_silver_requirement_evidence,
+)
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from src.search_intelligence.origin_vacancy_identity import (
     exact_origin_vacancy_identity,
@@ -73,6 +76,12 @@ def _string_list(value: object) -> list[str]:
 
 
 def _requirement_projection(row: Mapping[str, object]) -> dict[str, object]:
+    silver_projection = project_silver_requirement_evidence(
+        row.get("silver_requirement_evidence")
+    )
+    if silver_projection is not None:
+        return silver_projection
+
     raw_requirement = row.get("requirement_evidence")
     requirement = dict(raw_requirement) if isinstance(raw_requirement, Mapping) else {}
     raw_skills = requirement.get("job_skills")
@@ -80,6 +89,9 @@ def _requirement_projection(row: Mapping[str, object]) -> dict[str, object]:
     unresolved = _string_list(requirement.get("unresolved_fields"))
     return {
         "requirement_evidence_status": "assessed" if requirement else "not_yet_assessed",
+        "requirement_evidence_source": (
+            "legacy_product_assessment" if requirement else "none"
+        ),
         "employment_type": str(row.get("employment_type") or "unknown"),
         "employment_evidence_status": str(
             row.get("employment_evidence_status") or "unknown"
@@ -103,11 +115,12 @@ def _requirement_projection(row: Mapping[str, object]) -> dict[str, object]:
 def load_latest_observation_evidence(
     silver_job_ids: list[int],
 ) -> dict[int, object]:
-    """Load latest observation plus persisted job-side requirement evidence.
+    """Load observation evidence plus the primary Silver requirement sidecar.
 
-    This is a read-only presentation projection. Requirement fields are copied from
-    the already persisted assessment and its bounded ``requirement_evidence`` JSON;
-    no Candidate Facts, fit decision, ranking or application authority is created.
+    The Silver sidecar is preferred for operator presentation. Legacy Product
+    ``requirement_evidence`` remains a bounded fallback for pre-migration rows only.
+    Neither path creates Candidate Facts, fit decisions, ranking or application
+    authority.
     """
 
     if not silver_job_ids:
@@ -135,10 +148,14 @@ def load_latest_observation_evidence(
                         assessment.requirements_seniority,
                         assessment.seniority_evidence_status,
                         assessment.ranking_factors -> 'requirement_evidence'
-                            AS requirement_evidence
+                            AS requirement_evidence,
+                        silver_requirement.evidence_payload
+                            AS silver_requirement_evidence
                     FROM silver_jobs silver
                     LEFT JOIN job_product_assessments assessment
                       ON assessment.silver_job_id = silver.id
+                    LEFT JOIN silver_job_requirement_evidence silver_requirement
+                      ON silver_requirement.silver_job_id = silver.id
                     LEFT JOIN LATERAL (
                         SELECT observation.normalized_evidence
                         FROM job_observations observation
@@ -372,11 +389,11 @@ def enrich_product_payload_for_operator(
 ) -> dict[str, object]:
     """Build current Employer-Origin review truth without mutating Product authority.
 
-    Normal `job_readiness` contains only lifecycle-current employer-origin vacancies
-    that are geography-review eligible. Sensor-derived Product memory and historical
-    origin jobs remain separately auditable. Exact safe duplicate identities are
-    collapsed only for presentation. Top-5 membership is never filtered or rewritten
-    here.
+    Normal ``job_readiness`` contains only lifecycle-current employer-origin
+    vacancies that are geography-review eligible. Sensor-derived Product memory and
+    historical origin jobs remain separately auditable. Exact safe duplicate
+    identities are collapsed only for presentation. Top-5 membership is never
+    filtered or rewritten here.
     """
 
     result = dict(payload)
@@ -438,6 +455,9 @@ def enrich_product_payload_for_operator(
         {
             "job_presentation_enrichment_is_not_ranking_authority": True,
             "job_presentation_enrichment_is_not_application_authority": True,
+            "silver_requirement_sidecar_is_primary_job_source_evidence": True,
+            "silver_requirement_sidecar_is_not_candidate_fact_authority": True,
+            "silver_requirement_sidecar_is_not_capability_fit_authority": True,
             "persisted_requirement_presentation_is_job_source_evidence_only": True,
             "persisted_requirement_presentation_is_not_capability_fit_authority": True,
             "qualitative_schedule_never_infers_numeric_hours": True,
