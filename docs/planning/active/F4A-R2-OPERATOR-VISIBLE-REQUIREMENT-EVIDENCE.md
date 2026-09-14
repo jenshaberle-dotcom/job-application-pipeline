@@ -31,9 +31,17 @@ The current operator surface exposes (2) but not enough of (1). F4A-R2 closes th
 
 ## Orlando finding
 
-The Hannover Re `Financial Analyst` row with `Orlando | FL | 32801 | US` is **not a location-extraction false positive**. The Origin URL itself is Orlando-scoped and current external evidence identifies the vacancy as an Orlando, Florida role. The defect signal is instead **review/search-scope relevance** if the operator's approved geography excludes Orlando.
+The Hannover Re `Financial Analyst` row with `Orlando | FL | 32801 | US` is **not a location-extraction false positive**. The Origin URL itself is Orlando-scoped and current external evidence identifies the vacancy as an Orlando, Florida role. The defect is **review/search-scope relevance**, not the displayed Origin location.
 
-Do not "repair" Orlando into Hannover. Preserve the correct Origin location. Geographic exclusion must come from approved candidate/search-scope policy and remain independently auditable.
+The installed `34%` preliminary affinity is also diagnostic evidence of the current bug. `build_review_fit_preview()` gives a role with no canonical target-role title signal a base `30`, adds `+2` for `commute_or_geography_review_required`, and adds `+2` for `active_confirmed`. `classify_geography()` excludes a row as `outside_germany` only when the structured `country` field is populated as non-German; a compound location carried in the `city` field can therefore fall through to the review-required-but-eligible bucket. `30 + 2 + 2 = 34` matches the installed Orlando row exactly.
+
+Corrective rule:
+
+- do not "repair" Orlando into Hannover;
+- preserve the exact Origin location;
+- make compound/structured country evidence available to the geography classifier before review-affinity eligibility is assigned;
+- outside-Germany evidence must produce an explicit geography exclusion / zero review affinity rather than the permissive review-required fallback;
+- approved candidate/search-scope policy remains the authority for narrower geography decisions inside Germany.
 
 ## Corrective scope
 
@@ -47,7 +55,7 @@ F4A-R2 must:
 - expose bounded evidence/provenance suitable for operator comparison without leaking private Candidate Facts;
 - keep Candidate<->Job Profile Fit separate and fail-closed;
 - keep ranking, Top 5 and application authority unchanged;
-- classify geographic false positives using approved geography/search-scope authority rather than rewriting correct Origin locations.
+- classify geographic false positives using structured Origin geography plus approved geography/search-scope authority rather than rewriting correct Origin locations.
 
 ## Acceptance
 
@@ -58,7 +66,7 @@ Before the next operator gate:
 - supported fields show evidence-backed values; unsupported/conflicting fields remain visibly unknown;
 - known false confident job-side metadata in the acceptance cohort is zero;
 - Profile Fit may remain `insufficient_evidence` where candidate-side authority is absent, but the UI explicitly explains that this does not mean the job-side requirements are unknown;
-- Orlando remains Orlando; if it is outside approved target geography, the product exposes a geographic mismatch/exclusion instead of corrupting the Origin location;
+- the Orlando Hannover Re case remains Orlando and is excluded from the bounded Germany review-affinity lane rather than receiving the current `34%` permissive fallback;
 - exact-head Full Suite, Ruff, React, Windows contracts, real current-cohort proof, immutable release/deploy and installed operator acceptance all pass.
 
 ## Freeze sequence
@@ -69,4 +77,4 @@ Because v1.0.26 is already immutable and rejected, the next corrective package i
 
 ## Sole next action
 
-First make structured/contextual requirement evidence durable in initial materialization and project persisted job-side facts into the normal Product payload/UI. Then run a real full-current-cohort materialization preflight to identify the remaining blocked source/lifecycle cases before any DB write. F4B remains blocked.
+First make structured/contextual requirement evidence durable in initial materialization and project persisted job-side facts into the normal Product payload/UI. In parallel, close the generic compound-location geography fallthrough proven by the Orlando case. Then run a real full-current-cohort materialization preflight to identify the remaining blocked source/lifecycle cases before any DB write. F4B remains blocked.
