@@ -1,0 +1,169 @@
+name: F4A-R3 Bronze2E requirement audit
+
+on:
+  push:
+    branches:
+      - agent/f4a-r3-operator-metadata-projection
+    paths:
+      - "db/migrations/110_create_silver_job_requirement_evidence.sql"
+      - "src/silver/requirement_evidence_projection.py"
+      - "scripts/run_f4a_r3_bronze2e_requirement_audit.py"
+      - "scripts/product_v1_silver_requirement_projection.py"
+      - "scripts/product_v1_job_presentation_runtime.py"
+      - "tests/test_silver_requirement_evidence_projection.py"
+      - "tests/test_f4a_r3_bronze2e_requirement_audit.py"
+      - "tests/test_f4a_r3_operator_metadata_projection.py"
+      - ".github/workflows/f4a-r3-bronze2e-requirement-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4a-r3-bronze2e-requirement-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit Bronze to persisted Silver to Product requirement evidence
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 20
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+
+    steps:
+      - name: Check out exact audit head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          root = PurePosixPath(context["CheckoutRoot"])
+          interpreter = context["Interpreter"]
+          env_file = context["EnvFile"]
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked Product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Run focused persisted-Silver contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_silver_requirement_evidence_projection.py \
+            tests/test_f4a_r3_bronze2e_requirement_audit.py \
+            tests/test_f4a_r3_operator_metadata_projection.py
+          "$RUNTIME_PYTHON" -m ruff check \
+            src/silver/requirement_evidence_projection.py \
+            scripts/run_f4a_r3_bronze2e_requirement_audit.py \
+            scripts/product_v1_silver_requirement_projection.py \
+            scripts/product_v1_job_presentation_runtime.py \
+            tests/test_silver_requirement_evidence_projection.py \
+            tests/test_f4a_r3_bronze2e_requirement_audit.py \
+            tests/test_f4a_r3_operator_metadata_projection.py
+
+      - name: Run persisted Bronze to Silver to operator coverage gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_r3_bronze2e_requirement_audit.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_bronze2e_requirement_audit --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_R3_BRONZE2E_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_R3_BRONZE2E_OPERATOR_CANDIDATES={report['operator_candidate_count']}")
+          print(f"F4A_R3_BRONZE2E_REACHABLE={report['reachable_count']}")
+          print(f"F4A_R3_BRONZE2E_COVERAGE_RATIO={report['reachable_without_extractor_gap_ratio']:.4f}")
+          print(f"F4A_R3_BRONZE2E_GAP_ROWS={report['rows_with_extractor_gap']}")
+          print(f"F4A_R3_BRONZE2E_LEGACY_ROWS={report['rows_with_legacy_ambiguous_status']}")
+          print(f"F4A_R3_BRONZE2E_PROJECTION_LOSS_ROWS={report['rows_with_silver_to_operator_projection_loss']}")
+          print(f"F4A_R3_BRONZE2E_VIOLATING_ROWS={report['violating_row_count']}")
+          print("F4A_R3_BRONZE2E_GAP_FAMILIES=" + json.dumps(report["extractor_gap_source_family_counts"], sort_keys=True))
+          if report["candidate_count"] <= 0:
+              raise SystemExit("F4A_R3_BRONZE2E_EMPTY_COHORT")
+          if report["candidate_count"] != report["operator_candidate_count"]:
+              raise SystemExit("F4A_R3_BRONZE2E_OPERATOR_SCOPE_MISMATCH")
+          if report["rows_with_legacy_ambiguous_status"] != 0:
+              raise SystemExit("F4A_R3_BRONZE2E_LEGACY_AMBIGUOUS_STATUS")
+          if report["rows_with_silver_to_operator_projection_loss"] != 0:
+              raise SystemExit("F4A_R3_BRONZE2E_SILVER_TO_OPERATOR_LOSS")
+          if report["violating_row_count"] != 0:
+              raise SystemExit("F4A_R3_BRONZE2E_VIOLATIONS_PRESENT")
+          if report["reachable_without_extractor_gap_ratio"] < 0.80:
+              raise SystemExit("F4A_R3_BRONZE2E_COVERAGE_BELOW_80_PERCENT")
+          if not report["coverage_gate_pass"]:
+              raise SystemExit("F4A_R3_BRONZE2E_COVERAGE_GATE_NOT_PASS")
+          if any(report["boundaries"].values()):
+              raise SystemExit("F4A_R3_BRONZE2E_BOUNDARY_VIOLATION")
+          print("F4A_R3_BRONZE2E_REAL_AUDIT=PASS")
+          PY
+
+      - name: Verify migration 110 has no remaining debt
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status

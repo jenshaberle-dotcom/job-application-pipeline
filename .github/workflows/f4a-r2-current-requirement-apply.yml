@@ -2,7 +2,9 @@ name: F4A-R2 current requirement apply
 
 on:
   push:
-    branches: [agent/f4a-r2-operator-visible-requirements]
+    branches:
+      - agent/f4a-r2-operator-visible-requirements
+      - agent/f4a-r3-operator-metadata-projection
     paths:
       - ".github/workflows/f4a-r2-current-requirement-apply.yml"
       - "scripts/apply_f4a_r2_current_requirement_evidence.py"
@@ -110,13 +112,19 @@ jobs:
           set -euo pipefail
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f4a_r2_operator_requirement_reconcile.py \
+            tests/test_f4a_r3_operator_metadata_projection.py \
             tests/test_f4a_requirement_evidence_refresh.py \
+            tests/test_product_v1_requirement_evidence.py \
             tests/test_product_v1_detail_document.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/apply_f4a_r2_current_requirement_evidence.py \
             scripts/run_f4a_r2_current_requirement_origin_diagnostic.py \
             scripts/run_f4a_r2_current_requirement_plan.py \
-            tests/test_f4a_r2_operator_requirement_reconcile.py
+            src/search_intelligence/product_v1_requirement_evidence.py \
+            scripts/product_v1_job_presentation_runtime.py \
+            tests/test_f4a_r2_operator_requirement_reconcile.py \
+            tests/test_f4a_r3_operator_metadata_projection.py \
+            tests/test_product_v1_requirement_evidence.py
 
       - name: Re-prove full current operator cohort read-only
         shell: bash

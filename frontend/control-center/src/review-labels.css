@@ -8,14 +8,16 @@
   background: linear-gradient(180deg, rgba(71, 217, 255, 0.055), rgba(8, 23, 35, 0.5));
 }
 
-.review-label-panel header {
+.review-label-panel header,
+.review-requirement-panel header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.review-label-panel h3 {
+.review-label-panel h3,
+.review-requirement-panel h3 {
   margin: 3px 0 0;
   font-size: 16px;
 }
@@ -126,8 +128,92 @@
   color: var(--amber) !important;
 }
 
+.review-requirement-panel {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(4, 17, 28, 0.58);
+}
+
+.review-requirement-state {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(82, 226, 177, 0.4);
+  border-radius: 999px;
+  color: var(--green);
+  background: rgba(82, 226, 177, 0.08);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.review-requirement-state.not_yet_assessed {
+  border-color: rgba(255, 202, 92, 0.4);
+  color: var(--amber);
+  background: rgba(255, 202, 92, 0.08);
+}
+
+.review-requirement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.review-requirement-fact {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(2, 10, 19, 0.34);
+}
+
+.review-requirement-fact span,
+.review-requirement-fact small {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.review-requirement-fact b {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 10px;
+}
+
+.review-requirement-fact.observed {
+  border-color: rgba(82, 226, 177, 0.26);
+}
+
+.review-requirement-fact.conflict {
+  border-color: rgba(255, 202, 92, 0.38);
+}
+
+.review-requirement-fact.unknown b {
+  color: var(--muted);
+}
+
+.review-requirement-warning,
+.review-requirement-boundary {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.review-requirement-warning {
+  color: var(--amber);
+}
+
+.review-requirement-boundary {
+  color: var(--muted);
+}
+
 @media (max-width: 760px) {
-  .review-label-actions {
+  .review-label-actions,
+  .review-requirement-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -79,3 +79,33 @@ def test_semantic_seniority_never_becomes_requirements_seniority() -> None:
     assert patch["title_seniority"] == "senior"
     assert patch["requirements_seniority"] == "unknown"
     assert patch["seniority_evidence_status"] == "unknown"
+
+
+def test_unrelated_trainee_navigation_token_does_not_classify_non_trainee_job() -> None:
+    evidence = extract_product_v1_requirement_evidence(
+        html="<html><body><nav>Traineeprogramm</nav><h1>Data Platform Engineer</h1></body></html>",
+        text="Traineeprogramm Data Platform Engineer Sehr gute Deutschkenntnisse 38 Stunden / Woche",
+        title="Data Platform Engineer (m/w/d)",
+        page_title="Data Platform Engineer (m/w/d)",
+        source_url="https://example.com/jobs/data-platform-engineer",
+    )
+
+    assert evidence.assessment.employment_type == "unknown"
+    assert evidence.assessment_patch()["employment_evidence_status"] == "unknown"
+    assert "employment_type" in evidence.unresolved_fields
+
+
+def test_partial_mobile_work_is_conservatively_projected_as_hybrid() -> None:
+    evidence = extract_product_v1_requirement_evidence(
+        html="<html><body><h1>Data Platform Engineer</h1></body></html>",
+        text="38 Stunden / Woche. Anteilige mobile Arbeit möglich.",
+        title="Data Platform Engineer (m/w/d)",
+        page_title="Data Platform Engineer (m/w/d)",
+        source_url="https://example.com/jobs/data-platform-engineer",
+    )
+
+    assert evidence.assessment.work_model == "unknown"
+    assert evidence.semantic_work_model == "hybrid"
+    assert evidence.work_model == "hybrid"
+    assert evidence.work_model_resolution == "contextual_fill"
+    assert "work_model" not in evidence.unresolved_fields

@@ -4,6 +4,9 @@ from dataclasses import dataclass
 import json
 from typing import Any, Mapping, Protocol
 
+from src.silver.requirement_evidence_projection import (
+    synchronize_silver_requirement_evidence,
+)
 from src.silver.successfactors_location_projection import (
     write_silver_job_with_successfactors_locations,
 )
@@ -287,7 +290,7 @@ def write_silver_job_with_origin_locations(
     silver_job: Mapping[str, Any],
     raw_job: Mapping[str, Any],
 ) -> int:
-    """Atomically write Silver plus structured location evidence for origin families."""
+    """Atomically write Silver, locations and bounded requirement evidence."""
 
     source_name = _text(raw_job.get("source_name"))
     if source_name.startswith("successfactors:"):
@@ -309,6 +312,11 @@ def write_silver_job_with_origin_locations(
                 cur,
                 silver_job_id=silver_job_id,
                 projection=projection,
+            )
+            synchronize_silver_requirement_evidence(
+                cur,
+                silver_job_id=silver_job_id,
+                raw_job=raw_job,
             )
         conn.commit()
         return silver_job_id
