@@ -21,8 +21,9 @@ def _silver_requirement_payload() -> dict[str, object]:
         "parser_family": "schema_org_json_ld",
         "fields": {
             "employment_type": {
-                "status": "source_absent_or_unresolved",
+                "status": "source_absent",
                 "value": "unknown",
+                "source_employment_types": ["FULL_TIME"],
             },
             "required_languages": {
                 "status": "observed_bounded_text",
@@ -38,13 +39,23 @@ def _silver_requirement_payload() -> dict[str, object]:
                 "value": "hybrid",
             },
             "requirements_seniority": {
-                "status": "source_absent_or_unresolved",
+                "status": "source_absent",
                 "value": "unknown",
             },
             "job_skills": {
                 "status": "observed_structured",
                 "values": ["Python", "Kubernetes"],
             },
+        },
+        "display_context": {
+            "employment_scope": "full_time",
+            "employment_scope_status": "observed_structured",
+            "posting_language": "de",
+            "posting_language_basis": "bounded_vacancy_text",
+            "title_seniority_signal": "senior",
+            "title_seniority_basis": "job_title",
+            "hard_filter_authority": False,
+            "capability_fit_authority": False,
         },
         "conflicted_fields": [],
         "unresolved_fields": ["employment_type", "requirements_seniority"],
@@ -67,12 +78,17 @@ def test_silver_requirement_sidecar_flattens_without_fit_authority() -> None:
     assert projected is not None
     assert projected["requirement_evidence_source"] == "silver_job_requirement_evidence"
     assert projected["employment_type"] == "unknown"
+    assert projected["source_employment_types"] == ["FULL_TIME"]
+    assert projected["employment_scope"] == "full_time"
+    assert projected["employment_scope_status"] == "observed_structured"
     assert projected["required_languages"] == ["de", "en"]
+    assert projected["posting_language"] == "de"
     assert projected["weekly_hours_min"] == 38.0
     assert projected["weekly_hours_max"] == 38.0
     assert projected["work_model"] == "hybrid"
     assert projected["work_model_resolution"] == "observed_bounded_text"
     assert projected["requirements_seniority"] == "unknown"
+    assert projected["title_seniority_signal"] == "senior"
     assert projected["job_skills"] == ["Python", "Kubernetes"]
 
 
@@ -123,14 +139,21 @@ def test_persisted_requirement_evidence_is_projected_without_fit_authority() -> 
                 "requirement_evidence_status": "assessed",
                 "requirement_evidence_source": "silver_job_requirement_evidence",
                 "employment_type": "unknown",
-                "employment_evidence_status": "source_absent_or_unresolved",
+                "employment_evidence_status": "source_absent",
+                "source_employment_types": ["FULL_TIME"],
+                "employment_scope": "full_time",
+                "employment_scope_status": "observed_structured",
                 "required_languages": ["de"],
                 "language_evidence_status": "observed_bounded_text",
+                "posting_language": "de",
+                "posting_language_basis": "bounded_vacancy_text",
                 "weekly_hours_min": 38.0,
                 "weekly_hours_max": 38.0,
                 "weekly_hours_evidence_status": "observed_bounded_text",
                 "requirements_seniority": "unknown",
-                "seniority_evidence_status": "source_absent_or_unresolved",
+                "seniority_evidence_status": "source_absent",
+                "title_seniority_signal": "unknown",
+                "title_seniority_basis": "unknown",
                 "job_skills": ["Python", "Kubernetes"],
                 "work_model": "hybrid",
                 "work_model_resolution": "observed_bounded_text",
@@ -147,7 +170,9 @@ def test_persisted_requirement_evidence_is_projected_without_fit_authority() -> 
 
     projected = result["job_readiness"][0]
     assert projected["employment_type"] == "unknown"
+    assert projected["employment_scope"] == "full_time"
     assert projected["required_languages"] == ["de"]
+    assert projected["posting_language"] == "de"
     assert projected["weekly_hours_min"] == 38.0
     assert projected["weekly_hours_max"] == 38.0
     assert projected["job_skills"] == ["Python", "Kubernetes"]
@@ -160,19 +185,25 @@ def test_persisted_requirement_evidence_is_projected_without_fit_authority() -> 
     assert result["boundaries"]["silver_requirement_sidecar_is_not_capability_fit_authority"] is True
 
 
-def test_normal_review_surface_renders_dedicated_requirement_metadata() -> None:
+def test_normal_review_surface_consolidates_origin_truth_and_profile_fit() -> None:
     source = (FRONTEND / "JobReviewLabelControls.tsx").read_text(encoding="utf-8")
+    css = (FRONTEND / "review-labels.css").read_text(encoding="utf-8")
 
+    assert "Job requirements & fit" in source
     for label in (
-        "Job requirements · Origin truth",
-        "Employment type",
-        "Required languages",
-        "Weekly hours",
-        "Work model",
-        "Requirement seniority",
-        "Job skills",
+        "Location & work model",
+        "Skills & capabilities",
+        "Level & experience",
+        "Employment & language",
     ):
         assert label in source
-    assert "Candidate capability fit and Profile Fit remain separate authorities" in source
-    assert "requirement_conflicted_fields" in source
-    assert "readProductTruth<ProductRequirementPayload>()" in source
+
+    assert "Vacancy metadata" not in source
+    assert "Requirement seniority" not in source
+    assert "Job skills" not in source
+    assert "posting language" in source.lower()
+    assert "employment_scope" in source
+    assert "title_seniority_signal" in source
+    assert "r4-score-card" in source
+    assert "width: `${bounded}%`" in source
+    assert ".r4-review-stack + .ow-facts" in css
