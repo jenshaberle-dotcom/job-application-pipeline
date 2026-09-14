@@ -8,11 +8,15 @@ that scope; neither operation grants ranking or application authority.
 
 This diagnostic deliberately does *not* treat source activation/admission as a
 second gate for reading public job-side requirement evidence. A row first has to
-be in the canonical Product current projection and then survive the exact same
-operator presentation projection used by ``/api/v1/product-v1``. The diagnostic
-still fetches only the exact persisted HTTPS detail URL, rejects cross-origin
-redirects, never reads Candidate Facts, never writes the database, and grants no
-ranking, Top-5, capability-fit or application authority.
+be in canonical Product truth and then survive the exact same presentation
+projection used for normal operator review. The diagnostic still fetches only the
+exact persisted HTTPS detail URL, rejects cross-origin redirects, never reads
+Candidate Facts, never writes the database, and grants no ranking, Top-5,
+capability-fit or application authority.
+
+The core Product payload is loaded with source-connector overview disabled. That
+keeps this evidence diagnostic independent of optional connector implementation
+dependencies; the Sources panel is irrelevant to review-scope selection.
 
 The shim is intentionally diagnostic-only. A later persistence/apply path must
 bind job-side evidence to this same operator-review cohort without using the
@@ -25,11 +29,11 @@ from typing import Any, Mapping
 
 import psycopg
 
+from scripts import product_v1_control_center_base as control_center_base
 from scripts import run_f4a_r2_current_requirement_plan as plan
 from scripts.product_v1_job_presentation_runtime import (
     enrich_product_payload_for_operator,
 )
-from scripts.run_product_v1_control_center import load_product_v1_payload
 
 
 CURRENT_PRODUCT_AUTHORITY = "operator_review_scope_current_origin"
@@ -54,11 +58,19 @@ def _review_scope_ids(payload: Mapping[str, object]) -> set[int]:
     return result
 
 
+def _operator_review_payload() -> dict[str, object]:
+    """Load normal review truth without constructing the connector registry."""
+
+    core = control_center_base.load_product_v1_payload(
+        include_source_connector_overview=False
+    )
+    return enrich_product_payload_for_operator(core)
+
+
 def _operator_review_rows(conn: psycopg.Connection[Any]) -> list[dict[str, object]]:
     """Return assessment rows for exactly the normal Control Center review scope."""
 
-    operator_payload = enrich_product_payload_for_operator(load_product_v1_payload())
-    review_ids = _review_scope_ids(operator_payload)
+    review_ids = _review_scope_ids(_operator_review_payload())
     if not review_ids:
         return []
     return [
