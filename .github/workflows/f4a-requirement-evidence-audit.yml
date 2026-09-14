@@ -121,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/f4a_requirement_evidence_refresh.json"
-          "$RUNTIME_PYTHON" scripts/run_f4a_requirement_evidence_refresh.py --output "$output"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh --output "$output"
           "$RUNTIME_PYTHON" - "$output" <<'PY'
           import json
           import sys
