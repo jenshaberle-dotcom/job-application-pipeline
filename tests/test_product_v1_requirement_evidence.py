@@ -19,7 +19,7 @@ def _html(*, skills: str = "Python, SQL", location_type: str = "TELECOMMUTE") ->
     </script></head><body>
     <h1>Senior Data Engineer</h1>
     <section>Requirements: Python and SQL.</section>
-    <section>We support Remote work.</section>
+    <section>TELECOMMUTE</section>
     </body></html>
     """
 
@@ -27,12 +27,14 @@ def _html(*, skills: str = "Python, SQL", location_type: str = "TELECOMMUTE") ->
 def test_structured_skills_and_contextual_remote_fill_are_job_evidence_only() -> None:
     evidence = extract_product_v1_requirement_evidence(
         html=_html(),
-        text="Senior Data Engineer Requirements: Python and SQL. We support Remote work.",
+        text="Requirements: Python and SQL. TELECOMMUTE",
         title="Senior Data Engineer",
         page_title="Senior Data Engineer",
         source_url="https://example.com/jobs/1",
     )
 
+    assert evidence.assessment.work_model == "unknown"
+    assert evidence.semantic_work_model == "remote"
     assert evidence.work_model == "remote"
     assert evidence.work_model_resolution == "contextual_fill"
     assert evidence.job_skills == ("Python", "SQL")
@@ -50,10 +52,7 @@ def test_structured_skills_and_contextual_remote_fill_are_job_evidence_only() ->
 def test_contradictory_flat_and_contextual_work_model_fails_closed() -> None:
     evidence = extract_product_v1_requirement_evidence(
         html=_html(),
-        text=(
-            "Senior Data Engineer. This is an onsite role. "
-            "Requirements: Python and SQL. Remote work is also mentioned."
-        ),
+        text="This is an onsite role. Requirements: Python and SQL. TELECOMMUTE",
         title="Senior Data Engineer",
         page_title="Senior Data Engineer",
         source_url="https://example.com/jobs/2",
@@ -70,7 +69,7 @@ def test_contradictory_flat_and_contextual_work_model_fails_closed() -> None:
 def test_semantic_seniority_never_becomes_requirements_seniority() -> None:
     evidence = extract_product_v1_requirement_evidence(
         html=_html(skills="Python"),
-        text="Senior Data Engineer. Requirements: Python. Remote work.",
+        text="Requirements: Python. TELECOMMUTE",
         title="Senior Data Engineer",
         page_title="Senior Data Engineer",
         source_url="https://example.com/jobs/3",
