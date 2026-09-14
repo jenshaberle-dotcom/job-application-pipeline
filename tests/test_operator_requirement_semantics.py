@@ -1,4 +1,4 @@
-# Exact-head requalification retry after transient exact-Origin blockers on R4 v1.0.29.
+# Exact-head qualification marker after enabling the R4 guarded Silver refresh.
 from src.silver.operator_requirement_semantics import (
     infer_posting_language,
     normalize_employment_scope,
