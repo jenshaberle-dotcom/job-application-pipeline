@@ -59,6 +59,12 @@ def project_silver_requirement_evidence(
     skills = _mapping(fields.get("job_skills"))
     display_context = _mapping(payload.get("display_context"))
     source_employment_types = _string_list(employment.get("source_employment_types"))
+    inferred_scope = normalize_employment_scope(source_employment_types)
+    employment_scope = str(display_context.get("employment_scope") or inferred_scope)
+    employment_scope_status = str(
+        display_context.get("employment_scope_status")
+        or ("observed_structured" if inferred_scope != "unknown" else "source_absent")
+    )
 
     parser_family = str(payload.get("parser_family") or "unclassified")
     return {
@@ -72,20 +78,16 @@ def project_silver_requirement_evidence(
             employment.get("status") or "source_absent_or_unresolved"
         ),
         "source_employment_types": source_employment_types,
-        "employment_scope": str(
-            display_context.get("employment_scope")
-            or normalize_employment_scope(source_employment_types)
-        ),
-        "employment_scope_status": str(
-            display_context.get("employment_scope_status")
-            or ("observed_structured" if normalize_employment_scope(source_employment_types) != "unknown" else "source_absent")
-        ),
+        "employment_scope": employment_scope,
+        "employment_scope_status": employment_scope_status,
         "required_languages": _string_list(languages.get("values")),
         "language_evidence_status": str(
             languages.get("status") or "source_absent_or_unresolved"
         ),
         "posting_language": str(display_context.get("posting_language") or "unknown"),
-        "posting_language_basis": str(display_context.get("posting_language_basis") or "unknown"),
+        "posting_language_basis": str(
+            display_context.get("posting_language_basis") or "unknown"
+        ),
         "weekly_hours_min": weekly.get("minimum"),
         "weekly_hours_max": weekly.get("maximum"),
         "weekly_hours_evidence_status": str(
@@ -99,8 +101,12 @@ def project_silver_requirement_evidence(
         "seniority_evidence_status": str(
             seniority.get("status") or "source_absent_or_unresolved"
         ),
-        "title_seniority_signal": str(display_context.get("title_seniority_signal") or "unknown"),
-        "title_seniority_basis": str(display_context.get("title_seniority_basis") or "unknown"),
+        "title_seniority_signal": str(
+            display_context.get("title_seniority_signal") or "unknown"
+        ),
+        "title_seniority_basis": str(
+            display_context.get("title_seniority_basis") or "unknown"
+        ),
         "job_skills": _string_list(skills.get("values")),
         "requirement_conflicted_fields": _string_list(payload.get("conflicted_fields")),
         "requirement_unresolved_fields": _string_list(payload.get("unresolved_fields")),
