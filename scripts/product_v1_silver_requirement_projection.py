@@ -80,6 +80,10 @@ def project_silver_requirement_evidence(
         "source_employment_types": source_employment_types,
         "employment_scope": employment_scope,
         "employment_scope_status": employment_scope_status,
+        "structured_work_hours": display_context.get("structured_work_hours"),
+        "structured_work_hours_status": str(
+            display_context.get("structured_work_hours_status") or "source_absent"
+        ),
         "required_languages": _string_list(languages.get("values")),
         "language_evidence_status": str(
             languages.get("status") or "source_absent_or_unresolved"
@@ -100,6 +104,11 @@ def project_silver_requirement_evidence(
         "requirements_seniority": str(seniority.get("value") or "unknown"),
         "seniority_evidence_status": str(
             seniority.get("status") or "source_absent_or_unresolved"
+        ),
+        "experience_requirement": display_context.get("experience_requirement"),
+        "experience_months": display_context.get("experience_months"),
+        "experience_requirement_status": str(
+            display_context.get("experience_requirement_status") or "source_absent"
         ),
         "title_seniority_signal": str(
             display_context.get("title_seniority_signal") or "unknown"
