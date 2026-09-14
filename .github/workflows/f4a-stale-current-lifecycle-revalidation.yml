@@ -15,9 +15,9 @@ concurrency:
 
 jobs:
   revalidate:
-    name: Revalidate exact blocked current vacancy
+    name: Reconcile blocked current vacancy through verified inventory
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
@@ -98,102 +98,55 @@ jobs:
                   handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
           PY
 
-      - name: Dry-run exact lifecycle revalidation
+      - name: Verify current target and recurring source authority
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" - <<'PY'
-          import json
           import os
           import psycopg
           from psycopg.rows import dict_row
-
           from src.config import get_database_config
-          from src.job_lifecycle_health import JobLifecycleHealthRepository, build_health_probe_manifest
 
           job_id = int(os.environ["SILVER_JOB_ID"])
           expected_source = os.environ["EXPECTED_SOURCE_NAME"]
           with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
               with conn.cursor() as cur:
                   cur.execute(
-                      "SELECT id, source_name, source_url, lifecycle_status "
-                      "FROM gold_current_job_opportunities WHERE id = %s",
+                      "SELECT id, source_name, lifecycle_status FROM gold_current_job_opportunities WHERE id = %s",
                       (job_id,),
                   )
-                  row = cur.fetchone()
+                  current = cur.fetchone()
+                  cur.execute(
+                      "SELECT profile_name, source_name, recurring_ingestion_enabled "
+                      "FROM search_profiles WHERE is_active = TRUE AND source_name = %s",
+                      (expected_source,),
+                  )
+                  profiles = cur.fetchall()
               conn.rollback()
-          if row is None:
-              raise SystemExit("TARGET_NOT_CURRENT_PRODUCT_MEMBER")
-          if row["source_name"] != expected_source:
-              raise SystemExit("TARGET_SOURCE_NAME_DRIFT")
-          if row["lifecycle_status"] != "active_confirmed":
-              raise SystemExit("TARGET_NOT_ACTIVE_CONFIRMED")
 
-          repository = JobLifecycleHealthRepository()
-          target = repository.load_target(job_id)
-          manifest = build_health_probe_manifest(
-              silver_job_id=job_id,
-              expected_source_name=expected_source,
-              expected_source_url=target.source_url,
-              apply=False,
-              approval_token=None,
-              observed_by=None,
-              repository=repository,
-          )
-          classification = manifest["classification"]
-          print("F4A_STALE_DRY_RUN=" + json.dumps(manifest, default=str, sort_keys=True))
-          if classification["outcome"] != "unverifiable":
-              raise SystemExit("UNEXPECTED_LIFECYCLE_OUTCOME")
-          if classification["coverage"] != "exact_detail":
-              raise SystemExit("UNEXPECTED_LIFECYCLE_COVERAGE")
-          if classification["evidence_reason"] != "http_404_requires_source_specific_closure_validation":
-              raise SystemExit("UNEXPECTED_LIFECYCLE_EVIDENCE_REASON")
-          if manifest["write"]["applied"]:
-              raise SystemExit("DRY_RUN_WROTE_DATABASE")
-          print("F4A_STALE_CURRENT_DRY_RUN=PASS")
+          if current is None:
+              print("F4A_STALE_TARGET_ALREADY_NOT_CURRENT=1")
+          else:
+              if current["source_name"] != expected_source:
+                  raise SystemExit("TARGET_SOURCE_NAME_DRIFT")
+              if current["lifecycle_status"] != "active_confirmed":
+                  raise SystemExit("TARGET_NOT_ACTIVE_CONFIRMED")
+              print("F4A_STALE_TARGET_CURRENT=1")
+
+          recurring = [row for row in profiles if row["recurring_ingestion_enabled"]]
+          if len(recurring) != 1:
+              raise SystemExit(f"EXPECTED_ONE_RECURRING_SOURCE_PROFILE:{len(recurring)}")
+          print(f"F4A_STALE_RECURRING_PROFILE={recurring[0]['profile_name']}")
           PY
 
-      - name: Append guarded lifecycle observation
+      - name: Reconcile through canonical recurring ingestion path
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" - <<'PY'
-          import json
-          import os
+          "$RUNTIME_PYTHON" -m src.ingest_jobs --source "$EXPECTED_SOURCE_NAME" --log-level INFO
 
-          from src.job_lifecycle_health import (
-              APPROVAL_TOKEN,
-              JobLifecycleHealthRepository,
-              build_health_probe_manifest,
-          )
-
-          job_id = int(os.environ["SILVER_JOB_ID"])
-          expected_source = os.environ["EXPECTED_SOURCE_NAME"]
-          repository = JobLifecycleHealthRepository()
-          target = repository.load_target(job_id)
-          manifest = build_health_probe_manifest(
-              silver_job_id=job_id,
-              expected_source_name=expected_source,
-              expected_source_url=target.source_url,
-              apply=True,
-              approval_token=APPROVAL_TOKEN,
-              observed_by="f4a-q-stale-current-revalidation",
-              repository=repository,
-          )
-          classification = manifest["classification"]
-          print("F4A_STALE_APPLY=" + json.dumps(manifest, default=str, sort_keys=True))
-          if not manifest["write"]["applied"]:
-              raise SystemExit("HEALTH_OBSERVATION_NOT_APPLIED")
-          if classification["outcome"] != "unverifiable":
-              raise SystemExit("APPLY_OUTCOME_CHANGED")
-          if classification["coverage"] != "exact_detail":
-              raise SystemExit("APPLY_COVERAGE_CHANGED")
-          if classification["evidence_reason"] != "http_404_requires_source_specific_closure_validation":
-              raise SystemExit("APPLY_EVIDENCE_CHANGED")
-          print("F4A_STALE_CURRENT_APPLY=PASS")
-          PY
-
-      - name: Verify Product membership changed fail-closed
+      - name: Verify complete-inventory lifecycle outcome
         shell: bash
         run: |
           set -euo pipefail
@@ -204,10 +157,12 @@ jobs:
           from src.config import get_database_config
 
           job_id = int(os.environ["SILVER_JOB_ID"])
+          expected_source = os.environ["EXPECTED_SOURCE_NAME"]
           with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
               with conn.cursor() as cur:
                   cur.execute(
-                      "SELECT lifecycle_status FROM gold_job_lifecycle_health WHERE silver_job_id = %s",
+                      "SELECT lifecycle_status, latest_health_outcome, latest_health_coverage, lifecycle_evidence_reason "
+                      "FROM gold_job_lifecycle_health WHERE silver_job_id = %s",
                       (job_id,),
                   )
                   health = cur.fetchone()
@@ -216,10 +171,66 @@ jobs:
                       (job_id,),
                   )
                   current = cur.fetchone()
+                  cur.execute(
+                      "SELECT outcome, coverage, evidence_reason, observed_by "
+                      "FROM job_health_observations WHERE source_name = %s "
+                      "AND raw_job_id = (SELECT raw_job_id FROM silver_jobs WHERE id = %s) "
+                      "ORDER BY observed_at DESC, id DESC LIMIT 1",
+                      (expected_source, job_id),
+                  )
+                  observation = cur.fetchone()
               conn.rollback()
-          if health is None or health["lifecycle_status"] != "unverifiable":
-              raise SystemExit("POST_APPLY_LIFECYCLE_NOT_UNVERIFIABLE")
+
+          if health is None:
+              raise SystemExit("POST_RECONCILE_HEALTH_MISSING")
+          if health["lifecycle_status"] != "inactive_confirmed":
+              raise SystemExit(f"POST_RECONCILE_NOT_INACTIVE:{health['lifecycle_status']}")
+          if health["latest_health_outcome"] != "not_seen":
+              raise SystemExit("POST_RECONCILE_OUTCOME_NOT_NOT_SEEN")
+          if health["latest_health_coverage"] != "complete_inventory":
+              raise SystemExit("POST_RECONCILE_COVERAGE_NOT_COMPLETE_INVENTORY")
+          if health["lifecycle_evidence_reason"] != "authoritative_verified_ats_complete_inventory_absence":
+              raise SystemExit("POST_RECONCILE_REASON_MISMATCH")
           if current is not None:
-              raise SystemExit("UNVERIFIABLE_JOB_REMAINS_CURRENT_PRODUCT_MEMBER")
-          print("F4A_STALE_CURRENT_POST_APPLY=PASS")
+              raise SystemExit("INACTIVE_JOB_REMAINS_CURRENT_PRODUCT_MEMBER")
+          if observation is None:
+              raise SystemExit("POST_RECONCILE_OBSERVATION_MISSING")
+          if observation["outcome"] != "not_seen" or observation["coverage"] != "complete_inventory":
+              raise SystemExit("POST_RECONCILE_OBSERVATION_MISMATCH")
+          if observation["observed_by"] != "recurring_ingestion_verified_complete_inventory":
+              raise SystemExit("POST_RECONCILE_OBSERVER_MISMATCH")
+          print("F4A_STALE_COMPLETE_INVENTORY_RECONCILIATION=PASS")
+          PY
+
+      - name: Re-audit current F4A requirement evidence cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/run_f4a_requirement_evidence_audit.py \
+            --max-per-family 24 \
+            --max-jobs 24
+
+      - name: Rebuild corrective refresh preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_requirement_evidence_refresh.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_Q_REFRESH_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_Q_REFRESH_PROPOSALS={report['proposal_count']}")
+          print(f"F4A_Q_REFRESH_BLOCKED={report['blocked_count']}")
+          print(f"F4A_Q_REFRESH_WOULD_CHANGE={report['would_change_count']}")
+          print(f"F4A_Q_REFRESH_JOBS_WITH_SKILLS={report['jobs_with_skills']}")
+          print("F4A_Q_REFRESH_WORK_MODEL_RESOLUTIONS=" + json.dumps(report['work_model_resolutions'], sort_keys=True))
+          if report["blocked_count"]:
+              raise SystemExit("F4A_Q_REFRESH_PREFLIGHT_BLOCKED")
+          if report["proposal_count"] != report["candidate_count"]:
+              raise SystemExit("F4A_Q_REFRESH_PREFLIGHT_INCOMPLETE")
+          print("F4A_Q_REFRESH_PREFLIGHT=PASS")
           PY
