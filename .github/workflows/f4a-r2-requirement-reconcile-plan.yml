@@ -1,0 +1,149 @@
+name: F4A-R2 current requirement reconcile preflight
+
+on:
+  push:
+    branches: [agent/f4a-r2-operator-visible-requirements]
+    paths:
+      - "scripts/run_f4a_r2_requirement_reconcile.py"
+      - "scripts/run_f4a_requirement_evidence_refresh.py"
+      - "scripts/run_product_v1_assessment_materialization.py"
+      - "src/search_intelligence/product_v1_requirement_evidence.py"
+      - "src/search_intelligence/product_v1_assessment_evidence.py"
+      - "src/search_intelligence/detail_semantics_deterministic.py"
+      - "src/search_intelligence/product_v1_downstream_preview.py"
+      - "src/search_intelligence/product_v1_contenders.py"
+      - "tests/test_f4a_r2_operator_requirement_reconcile.py"
+      - ".github/workflows/f4a-r2-requirement-reconcile-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4a-r2-current-requirement-reconcile-preflight
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Preflight full current F4A-R2 requirement cohort
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+
+    steps:
+      - name: Check out exact preflight head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          echo "F4A_R2_RECONCILE_HEAD=${GITHUB_SHA}"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked Product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Run focused F4A-R2 tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_f4a_r2_operator_requirement_reconcile.py \
+            tests/test_f4a_requirement_evidence_refresh.py \
+            tests/test_product_v1_contender_preselection.py
+
+      - name: Build full current reconciliation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_r2_requirement_reconcile.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r2_requirement_reconcile --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          for key in (
+              "candidate_count", "existing_candidate_count", "missing_candidate_count",
+              "proposal_count", "blocked_count", "would_change_count", "insert_count",
+              "update_count", "jobs_with_skills", "jsonld_jobposting_count",
+          ):
+              print(f"F4A_R2_{key.upper()}={report[key]}")
+          if report["proposal_count"] + report["blocked_count"] != report["candidate_count"]:
+              raise SystemExit("F4A_R2_COHORT_RECONCILIATION_MISMATCH")
+          if report["blocked_count"]:
+              for item in report["blocked"]:
+                  print("F4A_R2_BLOCKED=" + json.dumps(item, ensure_ascii=False, sort_keys=True))
+              raise SystemExit("F4A_R2_RECONCILE_PREFLIGHT_BLOCKED")
+          print("F4A_R2_RECONCILE_PREFLIGHT=PASS")
+          PY
