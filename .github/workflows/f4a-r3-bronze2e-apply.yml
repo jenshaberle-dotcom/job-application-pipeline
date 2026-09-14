@@ -1,0 +1,281 @@
+name: F4A-R3 Bronze2E guarded apply
+
+on:
+  push:
+    branches:
+      - agent/f4a-r3-operator-metadata-projection
+    paths:
+      - ".github/triggers/f4a-r3-bronze2e-apply.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4a-r3-bronze2e-guarded-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply migration and exact-Origin Silver requirement evidence
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 40
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      MIGRATION_KEY: 110_create_silver_job_requirement_evidence.sql
+      APPROVAL_TOKEN: F4A-R3-SILVER-REQUIREMENT-BACKFILL-001
+
+    steps:
+      - name: Check out exact authorized head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          echo "F4A_R3_BRONZE2E_APPLY_HEAD=${GITHUB_SHA}"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked Product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Resolve pinned local OSS detail runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
+            "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4a-r3-local-oss-sites")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          PYTHONPATH="$local_oss_site:${PYTHONPATH:-}" "$RUNTIME_PYTHON" -c 'import extruct, trafilatura'
+
+      - name: Requalify focused Bronze2E contracts before mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_generic_job_detail_evidence.py \
+            tests/test_silver_requirement_evidence_projection.py \
+            tests/test_f4a_r3_silver_requirement_backfill.py \
+            tests/test_successfactors_silver_location_projection.py \
+            tests/test_f4a_r3_operator_metadata_projection.py
+          "$RUNTIME_PYTHON" -m ruff check \
+            src/connectors/generic_job_detail_evidence.py \
+            src/silver/requirement_evidence_projection.py \
+            scripts/run_f4a_r3_silver_requirement_backfill.py \
+            scripts/product_v1_silver_requirement_projection.py \
+            scripts/product_v1_job_presentation_runtime.py
+
+      - name: Prove migration 110 is the sole pending migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          from scripts.apply_db_migrations import (
+              checksum_mismatches,
+              connect,
+              discover_migration_files,
+              load_tracked_migrations,
+              pending_migrations,
+          )
+
+          migrations = discover_migration_files()
+          with connect() as conn:
+              tracked = load_tracked_migrations(conn)
+          mismatches = checksum_mismatches(migrations, tracked)
+          pending = [item.migration_key for item in pending_migrations(migrations, tracked)]
+          print("F4A_R3_MIGRATION_CHECKSUM_MISMATCHES=" + str(len(mismatches)))
+          print("F4A_R3_PENDING_MIGRATIONS=" + ",".join(pending))
+          if mismatches:
+              raise SystemExit("F4A_R3_MIGRATION_CHECKSUM_DRIFT")
+          if pending != ["110_create_silver_job_requirement_evidence.sql"]:
+              raise SystemExit("F4A_R3_MIGRATION_NOT_SOLE_PENDING")
+          PY
+
+      - name: Rebuild exact-Origin plan immediately before apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_r3_pre_apply_plan.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_silver_requirement_backfill --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_R3_PRE_APPLY_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_R3_PRE_APPLY_BLOCKED={report['blocked_count']}")
+          print(f"F4A_R3_PRE_APPLY_REACHABLE={report['reachable_count']}")
+          print(f"F4A_R3_PRE_APPLY_UNAVAILABLE={report['origin_unavailable_count']}")
+          print(f"F4A_R3_PRE_APPLY_OBSERVED_RATIO={report['reachable_with_any_observed_requirement_ratio']:.4f}")
+          if report["candidate_count"] <= 0:
+              raise SystemExit("F4A_R3_PRE_APPLY_EMPTY_COHORT")
+          if report["proposal_count"] != report["candidate_count"] or report["blocked_count"] != 0:
+              raise SystemExit("F4A_R3_PRE_APPLY_NOT_COMPLETE")
+          if any(report["boundaries"].values()):
+              raise SystemExit("F4A_R3_PRE_APPLY_BOUNDARY_VIOLATION")
+          PY
+
+      - name: Apply exact schema migration 110
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py \
+            --apply-exact "$MIGRATION_KEY" \
+            --require-sole-pending \
+            --applied-by f4a-r3-bronze2e-guarded-apply
+
+      - name: Apply exact current-cohort Silver requirement evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_r3_apply.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_silver_requirement_backfill \
+            --apply \
+            --approval-token "$APPROVAL_TOKEN" \
+            --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_R3_APPLIED={report.get('applied_count', 0)}")
+          if report.get("mode") != "apply":
+              raise SystemExit("F4A_R3_APPLY_MODE_MISMATCH")
+          if report["blocked_count"] != 0:
+              raise SystemExit("F4A_R3_APPLY_BLOCKED")
+          if int(report.get("applied_count") or 0) != int(report["proposal_count"]):
+              raise SystemExit("F4A_R3_APPLY_COUNT_MISMATCH")
+          PY
+
+      - name: Verify durable Silver sidecar and Product operator projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from scripts.product_v1_job_presentation_runtime import (
+              enrich_product_payload_for_operator,
+          )
+          from scripts.run_product_v1_demo_control_center import load_product_v1_payload
+          from src.config import get_database_config
+
+          core = load_product_v1_payload(include_source_connector_overview=False)
+          payload = enrich_product_payload_for_operator(core)
+          jobs = [row for row in payload.get("job_readiness", []) if isinstance(row, dict)]
+          if not jobs:
+              raise SystemExit("F4A_R3_PRODUCT_SMOKE_EMPTY_REVIEW_SCOPE")
+          non_silver = [
+              int(row["silver_job_id"])
+              for row in jobs
+              if row.get("requirement_evidence_source") != "silver_job_requirement_evidence"
+          ]
+          print(f"F4A_R3_PRODUCT_REVIEW_JOBS={len(jobs)}")
+          print(f"F4A_R3_PRODUCT_NON_SILVER_REQUIREMENT_ROWS={len(non_silver)}")
+          if non_silver:
+              raise SystemExit("F4A_R3_PRODUCT_NOT_CONSUMING_SILVER_SIDECAR")
+
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      """
+                      SELECT
+                          count(*) AS row_count,
+                          count(*) FILTER (
+                              WHERE COALESCE((evidence_payload ->> 'raw_html_persisted')::boolean, FALSE)
+                          ) AS raw_html_rows,
+                          count(*) FILTER (
+                              WHERE evidence_payload -> 'authority' ->> 'job_source_evidence_only' = 'true'
+                          ) AS source_only_rows
+                      FROM silver_job_requirement_evidence
+                      """
+                  )
+                  row = cur.fetchone()
+          print(f"F4A_R3_SILVER_SIDECAR_ROWS={row['row_count']}")
+          print(f"F4A_R3_SILVER_RAW_HTML_ROWS={row['raw_html_rows']}")
+          if int(row["row_count"]) < len(jobs):
+              raise SystemExit("F4A_R3_SILVER_SIDECAR_INCOMPLETE")
+          if int(row["raw_html_rows"]) != 0:
+              raise SystemExit("F4A_R3_RAW_HTML_PERSISTED")
+          if int(row["source_only_rows"]) != int(row["row_count"]):
+              raise SystemExit("F4A_R3_SIDECAR_AUTHORITY_DRIFT")
+          if payload.get("boundaries", {}).get(
+              "silver_requirement_sidecar_is_not_capability_fit_authority"
+          ) is not True:
+              raise SystemExit("F4A_R3_PRODUCT_AUTHORITY_BOUNDARY_MISSING")
+          print("F4A_R3_BRONZE2E_DURABLE_PRODUCT_SMOKE=PASS")
+          PY
+
+      - name: Verify no migration debt remains
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
