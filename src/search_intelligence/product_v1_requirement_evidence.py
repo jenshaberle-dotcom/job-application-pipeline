@@ -46,6 +46,7 @@ def _canonical_work_model(value: object) -> str:
         marker in text
         for marker in (
             "remote",
+            "telecommute",
             "homeoffice",
             "home office",
             "mobiles arbeiten",
