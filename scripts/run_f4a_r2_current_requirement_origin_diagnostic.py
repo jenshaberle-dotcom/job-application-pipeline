@@ -18,6 +18,12 @@ The core Product payload is loaded with source-connector overview disabled. That
 keeps this evidence diagnostic independent of optional connector implementation
 dependencies; the Sources panel is irrelevant to review-scope selection.
 
+For source migrations, the diagnostic also reports exact title+company matches
+already present in Silver under another source projection. This is evidence only:
+it does not merge vacancies, rewrite URLs, alter lifecycle state, or grant Product
+authority. It exists to distinguish a genuinely dead vacancy from a stale source
+projection after an Employer-Origin migration.
+
 The shim is intentionally diagnostic-only. A later persistence/apply path must
 bind job-side evidence to this same operator-review cohort without using the
 read-only projection to create source activation or Product authority.
@@ -25,6 +31,7 @@ read-only projection to create source activation or Product authority.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Mapping
 
 import psycopg
@@ -91,7 +98,88 @@ def _current_product_sources(conn: psycopg.Connection[Any]) -> dict[str, str]:
     }
 
 
+def _print_exact_relocation_candidates(conn: psycopg.Connection[Any]) -> None:
+    """Report exact cross-source title+company matches without creating identity."""
+
+    rows = _operator_review_rows(conn)
+    legacy = [
+        row
+        for row in rows
+        if not str(row.get("source_name") or "").startswith("generic_origin:")
+    ]
+    if not legacy:
+        print("F4A_R2_EXACT_RELOCATION_CANDIDATES=0")
+        return
+
+    candidate_count = 0
+    with conn.cursor() as cur:
+        for row in legacy:
+            title = str(row.get("title") or "").strip()
+            company = str(row.get("company_name") or "").strip()
+            if not title or not company:
+                continue
+            cur.execute(
+                """
+                SELECT
+                    silver.id AS silver_job_id,
+                    silver.source_name,
+                    silver.source_url,
+                    silver.title,
+                    silver.company_name,
+                    lifecycle.lifecycle_status,
+                    identity.is_representative,
+                    identity.canonical_vacancy_key
+                FROM silver_jobs silver
+                LEFT JOIN gold_job_lifecycle_health lifecycle
+                  ON lifecycle.silver_job_id = silver.id
+                LEFT JOIN gold_vacancy_identity identity
+                  ON identity.silver_job_id = silver.id
+                WHERE silver.id <> %s
+                  AND lower(btrim(silver.title)) = lower(btrim(%s))
+                  AND lower(btrim(coalesce(silver.company_name, '')))
+                      = lower(btrim(%s))
+                  AND silver.source_name LIKE 'generic_origin:%%'
+                ORDER BY
+                    CASE lifecycle.lifecycle_status
+                        WHEN 'active_confirmed' THEN 0
+                        WHEN 'unverifiable' THEN 1
+                        WHEN 'stale_needs_refresh' THEN 2
+                        WHEN 'inactive_confirmed' THEN 3
+                        ELSE 4
+                    END,
+                    silver.id DESC
+                """,
+                (
+                    int(row.get("current_silver_job_id") or 0),
+                    title,
+                    company,
+                ),
+            )
+            for candidate in cur.fetchall():
+                candidate_count += 1
+                print(
+                    "F4A_R2_EXACT_RELOCATION_CANDIDATE="
+                    + json.dumps(
+                        {
+                            "from_silver_job_id": int(
+                                row.get("current_silver_job_id") or 0
+                            ),
+                            "from_source_name": row.get("source_name"),
+                            "from_source_url": row.get("source_url"),
+                            "candidate": dict(candidate),
+                        },
+                        default=str,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                )
+    print(f"F4A_R2_EXACT_RELOCATION_CANDIDATES={candidate_count}")
+
+
 def main() -> int:
+    with psycopg.connect(**plan.get_database_config(), row_factory=plan.dict_row) as conn:
+        _print_exact_relocation_candidates(conn)
+        conn.rollback()
     plan._load_current_rows = _operator_review_rows
     plan._load_authorized_sources = _current_product_sources
     return plan.main()
