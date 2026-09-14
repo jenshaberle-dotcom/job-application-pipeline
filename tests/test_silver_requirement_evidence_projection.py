@@ -76,6 +76,56 @@ def test_projection_does_not_promote_structured_full_time_to_permanent_contract(
     assert employment["status"] == "source_absent_or_unresolved"
 
 
+def test_projection_rejects_weak_trainee_shell_text_for_non_trainee_title() -> None:
+    raw = _raw_job()
+    raw["raw_data"]["detail_evidence"]["description_excerpt"] = (
+        "Traineeprogramm. Sehr gute Deutschkenntnisse auf C1-Niveau."
+    )
+    payload = build_silver_requirement_evidence(raw)
+
+    employment = payload["fields"]["employment_type"]
+    assert employment["value"] == "unknown"
+    assert employment["status"] == "source_absent_or_unresolved"
+
+
+def test_projection_maps_explicit_partial_mobile_work_to_hybrid() -> None:
+    raw = _raw_job()
+    raw["raw_data"]["job"]["metadata"].pop("workplace_type")
+    raw["raw_data"]["detail_evidence"]["remote"] = None
+    raw["raw_data"]["detail_evidence"]["description_excerpt"] = (
+        "Anteilige mobile Arbeit möglich. Python und Kubernetes."
+    )
+    payload = build_silver_requirement_evidence(raw)
+
+    work_model = payload["fields"]["work_model"]
+    assert work_model["value"] == "hybrid"
+    assert work_model["status"] == "observed_bounded_text"
+
+
+def test_projection_fails_closed_on_structured_vs_text_work_model_conflict() -> None:
+    raw = _raw_job()
+    raw["raw_data"]["detail_evidence"]["description_excerpt"] = (
+        "Die Tätigkeit ist on-site und wird vor Ort ausgeübt."
+    )
+    payload = build_silver_requirement_evidence(raw)
+
+    work_model = payload["fields"]["work_model"]
+    assert work_model["value"] == "unknown"
+    assert work_model["status"] == "conflict"
+    assert "work_model" in payload["conflicted_fields"]
+
+
+def test_projection_uses_bounded_text_skill_fallback_when_structured_skills_absent() -> None:
+    raw = _raw_job()
+    raw["raw_data"]["job"].pop("skills")
+    raw["raw_data"]["detail_evidence"]["skills"] = []
+    payload = build_silver_requirement_evidence(raw)
+
+    skills = payload["fields"]["job_skills"]
+    assert skills["status"] == "observed_bounded_text"
+    assert skills["values"] == ["Python", "Kubernetes"]
+
+
 def test_projection_is_deterministic_and_authority_free() -> None:
     first = build_silver_requirement_evidence(_raw_job())
     second = build_silver_requirement_evidence(_raw_job())
