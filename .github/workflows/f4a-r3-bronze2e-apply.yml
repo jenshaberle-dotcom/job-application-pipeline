@@ -222,13 +222,15 @@ jobs:
           import psycopg
           from psycopg.rows import dict_row
 
+          from scripts import product_v1_control_center_base
           from scripts.product_v1_job_presentation_runtime import (
               enrich_product_payload_for_operator,
           )
-          from scripts.run_product_v1_demo_control_center import load_product_v1_payload
           from src.config import get_database_config
 
-          core = load_product_v1_payload(include_source_connector_overview=False)
+          core = product_v1_control_center_base.load_product_v1_payload(
+              include_source_connector_overview=False
+          )
           payload = enrich_product_payload_for_operator(core)
           jobs = [row for row in payload.get("job_readiness", []) if isinstance(row, dict)]
           if not jobs:
@@ -245,6 +247,7 @@ jobs:
 
           with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
               with conn.cursor() as cur:
+                  cur.execute("SET TRANSACTION READ ONLY")
                   cur.execute(
                       """
                       SELECT
@@ -259,6 +262,7 @@ jobs:
                       """
                   )
                   row = cur.fetchone()
+              conn.rollback()
           print(f"F4A_R3_SILVER_SIDECAR_ROWS={row['row_count']}")
           print(f"F4A_R3_SILVER_RAW_HTML_ROWS={row['raw_html_rows']}")
           if int(row["row_count"]) < len(jobs):
