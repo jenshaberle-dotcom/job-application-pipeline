@@ -1,3 +1,4 @@
+# Exact-head requalification marker for the F4A-R3 coverage/operator gates.
 from copy import deepcopy
 
 from scripts.product_v1_silver_requirement_projection import (
