@@ -7,7 +7,7 @@ from src.silver.requirement_evidence_projection import (
 )
 
 
-MIGRATION = Path("db/migrations/108_create_silver_job_requirement_evidence.sql")
+MIGRATION = Path("db/migrations/109_create_silver_job_requirement_evidence.sql")
 
 
 def _raw_job(**overrides: object) -> dict[str, object]:
