@@ -5,6 +5,8 @@ on:
     branches: [agent/f4a-operator-feedback-freeze-extension]
     paths:
       - "scripts/run_f4a_requirement_evidence_audit.py"
+      - "scripts/run_f4a_requirement_evidence_refresh.py"
+      - "src/search_intelligence/product_v1_requirement_evidence.py"
       - "src/search_intelligence/product_v1_assessment_evidence.py"
       - "src/search_intelligence/detail_semantics_deterministic.py"
       - "src/search_intelligence/product_v1_downstream_preview.py"
@@ -113,3 +115,28 @@ jobs:
           "$RUNTIME_PYTHON" scripts/run_f4a_requirement_evidence_audit.py \
             --max-per-family 24 \
             --max-jobs 24
+
+      - name: Preflight bounded corrective refresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_requirement_evidence_refresh.json"
+          "$RUNTIME_PYTHON" scripts/run_f4a_requirement_evidence_refresh.py --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_Q_REFRESH_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_Q_REFRESH_PROPOSALS={report['proposal_count']}")
+          print(f"F4A_Q_REFRESH_BLOCKED={report['blocked_count']}")
+          print(f"F4A_Q_REFRESH_WOULD_CHANGE={report['would_change_count']}")
+          print(f"F4A_Q_REFRESH_JOBS_WITH_SKILLS={report['jobs_with_skills']}")
+          print("F4A_Q_REFRESH_WORK_MODEL_RESOLUTIONS=" + json.dumps(report['work_model_resolutions'], sort_keys=True))
+          if report["blocked_count"]:
+              raise SystemExit("F4A_Q_REFRESH_PREFLIGHT_BLOCKED")
+          if report["proposal_count"] != report["candidate_count"]:
+              raise SystemExit("F4A_Q_REFRESH_PREFLIGHT_INCOMPLETE")
+          print("F4A_Q_REFRESH_PREFLIGHT=PASS")
+          PY
