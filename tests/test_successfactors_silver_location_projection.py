@@ -83,9 +83,15 @@ def make_silver_job() -> dict:
 
 
 class RecordingCursor:
-    def __init__(self, *, fail_on_location_insert: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        fail_on_location_insert: bool = False,
+        fail_on_requirement_insert: bool = False,
+    ) -> None:
         self.calls: list[tuple[str, object]] = []
         self.fail_on_location_insert = fail_on_location_insert
+        self.fail_on_requirement_insert = fail_on_requirement_insert
 
     def __enter__(self) -> "RecordingCursor":
         return self
@@ -100,15 +106,25 @@ class RecordingCursor:
             "INSERT INTO silver_job_locations"
         ):
             raise RuntimeError("synthetic location insert failure")
+        if self.fail_on_requirement_insert and normalized.startswith(
+            "INSERT INTO silver_job_requirement_evidence"
+        ):
+            raise RuntimeError("synthetic requirement insert failure")
 
     def fetchone(self) -> dict[str, int]:
         return {"id": 8801}
 
 
 class RecordingConnection:
-    def __init__(self, *, fail_on_location_insert: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        fail_on_location_insert: bool = False,
+        fail_on_requirement_insert: bool = False,
+    ) -> None:
         self.cursor_instance = RecordingCursor(
-            fail_on_location_insert=fail_on_location_insert
+            fail_on_location_insert=fail_on_location_insert,
+            fail_on_requirement_insert=fail_on_requirement_insert,
         )
         self.commit_count = 0
         self.rollback_count = 0
@@ -211,7 +227,7 @@ def test_malformed_or_duplicate_authoritative_locations_fail_closed() -> None:
         )
 
 
-def test_atomic_writer_upserts_silver_and_three_locations_in_one_commit() -> None:
+def test_atomic_writer_upserts_silver_locations_and_requirement_evidence_in_one_commit() -> None:
     connection = RecordingConnection()
     repository = RecordingRepository(connection)
 
@@ -245,8 +261,16 @@ def test_atomic_writer_upserts_silver_and_three_locations_in_one_commit() -> Non
     assert all("ON CONFLICT" in call[0] for call in location_inserts)
     assert all("IS DISTINCT FROM" in call[0] for call in location_inserts)
 
+    requirement_inserts = [
+        call
+        for call in calls
+        if call[0].startswith("INSERT INTO silver_job_requirement_evidence")
+    ]
+    assert len(requirement_inserts) == 1
+    assert requirement_inserts[0][1][0:2] == (8801, 27001)
 
-def test_legacy_record_writes_silver_without_touching_location_rows() -> None:
+
+def test_legacy_record_still_writes_requirement_sidecar_without_touching_location_rows() -> None:
     connection = RecordingConnection()
     repository = RecordingRepository(connection)
 
@@ -256,14 +280,14 @@ def test_legacy_record_writes_silver_without_touching_location_rows() -> None:
         raw_job=make_raw_job(include_locations=False),
     )
 
-    assert len(connection.cursor_instance.calls) == 1
-    assert connection.cursor_instance.calls[0][0].startswith(
-        "INSERT INTO silver_jobs"
-    )
+    calls = connection.cursor_instance.calls
+    assert len(calls) == 2
+    assert calls[0][0].startswith("INSERT INTO silver_jobs")
+    assert calls[1][0].startswith("INSERT INTO silver_job_requirement_evidence")
     assert connection.commit_count == 1
 
 
-def test_explicit_empty_list_removes_only_automatic_location_rows() -> None:
+def test_explicit_empty_list_removes_only_automatic_location_rows_and_keeps_sidecar() -> None:
     connection = RecordingConnection()
     repository = RecordingRepository(connection)
 
@@ -274,12 +298,13 @@ def test_explicit_empty_list_removes_only_automatic_location_rows() -> None:
     )
 
     calls = connection.cursor_instance.calls
-    assert len(calls) == 3
+    assert len(calls) == 4
     assert "UPDATE silver_job_locations" in calls[1][0]
     assert calls[1][1] == (8801, AUTOMATIC_EVIDENCE_SOURCE)
     assert calls[2][0].startswith("DELETE FROM silver_job_locations")
     assert calls[2][1][0:2] == (8801, AUTOMATIC_EVIDENCE_SOURCE)
     assert calls[2][1][2] == "[]"
+    assert calls[3][0].startswith("INSERT INTO silver_job_requirement_evidence")
 
 
 def test_location_failure_rolls_back_silver_write_and_closes_connection() -> None:
@@ -296,6 +321,26 @@ def test_location_failure_rolls_back_silver_write_and_closes_connection() -> Non
     assert connection.commit_count == 0
     assert connection.rollback_count == 1
     assert connection.close_count == 1
+
+
+def test_requirement_failure_rolls_back_silver_and_location_writes() -> None:
+    connection = RecordingConnection(fail_on_requirement_insert=True)
+    repository = RecordingRepository(connection)
+
+    with pytest.raises(RuntimeError, match="synthetic requirement insert failure"):
+        write_silver_job_with_successfactors_locations(
+            repository,
+            silver_job=make_silver_job(),
+            raw_job=make_raw_job(),
+        )
+
+    assert connection.commit_count == 0
+    assert connection.rollback_count == 1
+    assert connection.close_count == 1
+    assert any(
+        call[0].startswith("INSERT INTO silver_job_locations")
+        for call in connection.cursor_instance.calls
+    )
 
 
 def test_standard_silver_runner_uses_atomic_writer(monkeypatch, capsys) -> None:
