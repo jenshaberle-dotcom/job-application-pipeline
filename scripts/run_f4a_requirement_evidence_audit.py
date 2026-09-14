@@ -1,16 +1,17 @@
 """Read-only F4A-Q audit of real job requirement evidence.
 
-The audit samples the current canonical employer-origin Product cohort by reusable
-source family, fetches the exact already-authorized vacancy detail through the
-existing bounded public-HTTPS reader, and compares three truths:
+The audit samples the current canonical Product cohort by reusable source family,
+fetches each exact persisted vacancy URL through the existing bounded public-HTTPS
+reader, and compares three truths:
 
 1. persisted Product V1 assessment metadata;
 2. the current flat-text assessment extractor replayed on fresh Origin evidence;
 3. the existing context-aware deterministic Detail Semantics extractor.
 
-It is diagnostic only. It never writes Product/database state, never calls a
-provider/LLM, never changes ranking/Top-5/application authority, and never emits
-Candidate Facts or private candidate evidence.
+Current Product membership is the only cohort authority used here; this diagnostic
+does not activate or admit any source. It never writes Product/database state,
+calls a provider/LLM, changes ranking/Top-5/application authority, or emits
+Candidate Facts/private candidate evidence.
 """
 
 from __future__ import annotations
@@ -30,11 +31,7 @@ if not __package__:  # direct ``python scripts/...`` execution
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
 
-from scripts.run_product_v1_assessment_materialization import (
-    authorized_recurring_employer_origin_sources,
-)
 from src.config import get_database_config
-from src.ingestion.repository import JobIngestionRepository
 from src.search_intelligence.detail_semantics_deterministic import (
     deterministic_detail_semantics,
 )
@@ -119,17 +116,13 @@ def _read_rows() -> list[dict[str, object]]:
 def _sample_rows(
     rows: Sequence[Mapping[str, object]],
     *,
-    authorized_sources: set[str],
     max_per_family: int,
     max_jobs: int,
 ) -> list[dict[str, object]]:
     by_family: dict[str, list[dict[str, object]]] = defaultdict(list)
     for raw in rows:
         row = dict(raw)
-        source_name = str(row.get("source_name") or "")
-        if source_name not in authorized_sources:
-            continue
-        by_family[_source_family(source_name)].append(row)
+        by_family[_source_family(row.get("source_name"))].append(row)
 
     selected: list[dict[str, object]] = []
     # Round-robin by family avoids a large generic-origin family crowding out
@@ -230,20 +223,12 @@ def build_report(
     max_per_family: int,
     max_jobs: int,
 ) -> dict[str, object]:
-    authorized_sources = authorized_recurring_employer_origin_sources(
-        JobIngestionRepository()
-    )
     sample = _sample_rows(
         rows,
-        authorized_sources=authorized_sources,
         max_per_family=max_per_family,
         max_jobs=max_jobs,
     )
-    family_population = Counter(
-        _source_family(row.get("source_name"))
-        for row in rows
-        if str(row.get("source_name") or "") in authorized_sources
-    )
+    family_population = Counter(_source_family(row.get("source_name")) for row in rows)
 
     audited: list[dict[str, object]] = []
     blocked: list[dict[str, object]] = []
@@ -276,7 +261,6 @@ def build_report(
         "schema": "job_application_pipeline.f4a_requirement_evidence_audit.v1",
         "mode": "read_only",
         "current_assessed_jobs": len(rows),
-        "authorized_assessed_jobs": sum(family_population.values()),
         "source_family_population": dict(sorted(family_population.items())),
         "sample_requested": len(sample),
         "audited_jobs": len(audited),
@@ -286,6 +270,8 @@ def build_report(
         "jobs": audited,
         "blocked": blocked,
         "boundaries": {
+            "cohort_authority": "current_canonical_product_assessment_membership",
+            "source_activation_or_admission": False,
             "database_reads": True,
             "database_writes": False,
             "network_reads": len(sample),
@@ -303,7 +289,6 @@ def _print_report(report: Mapping[str, object]) -> None:
     print("=== F4A-Q REQUIREMENT EVIDENCE AUDIT ===")
     for key in (
         "current_assessed_jobs",
-        "authorized_assessed_jobs",
         "sample_requested",
         "audited_jobs",
         "blocked_jobs",
