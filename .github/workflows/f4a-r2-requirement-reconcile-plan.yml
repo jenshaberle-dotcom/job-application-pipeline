@@ -167,7 +167,7 @@ jobs:
           set -euo pipefail
           output="$RUNNER_TEMP/f4a_r2_current_requirement_plan.json"
           set +e
-          "$RUNTIME_PYTHON" scripts/run_f4a_r2_current_requirement_plan.py --output "$output"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r2_current_requirement_plan --output "$output"
           plan_status=$?
           set -e
 
