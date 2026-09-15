@@ -66,6 +66,33 @@ SKILL_TERMS = (
     "machine learning",
     "generative ai",
     "genai",
+    # R7 cross-source additions proven as unambiguous exact terms inside bounded
+    # requirement evidence. Ambiguous tokens such as Go, R, IP, Control, Release,
+    # Science, Excel, React and SAFe intentionally remain outside this global
+    # case-insensitive lexical fallback.
+    "bpmn 2.0",
+    "java",
+    "javascript",
+    "typescript",
+    "spring boot",
+    "cobol",
+    "dora",
+    "powerpoint",
+    "scrum",
+    "sap",
+    "datenbanken",
+    "datenmodellierung",
+    "uat",
+    "ifrs",
+    "iot",
+    "ci/cd",
+    "modbus tcp",
+    "mqtt",
+    "tcp/ip",
+    "lan",
+    "wlan",
+    "dns",
+    "dhcp",
 )
 REMOTE_TERMS = (
     "remote",
