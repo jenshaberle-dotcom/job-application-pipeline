@@ -12,11 +12,13 @@ on:
       - "scripts/external_observers/dreamjobs_skill_classifier_observer.py"
       - "scripts/run_f4a_r7_skill_reliability_audit.py"
       - "scripts/build_f4a_r7_skill_annotation_seed.py"
+      - "scripts/build_f4a_r7_skill_annotation_queue.py"
       - "tests/test_detail_semantics_deterministic.py"
       - "tests/test_requirement_section_evidence.py"
       - "tests/test_external_observer_contract.py"
       - "tests/test_f4a_r7_skill_reliability_audit.py"
       - "tests/test_f4a_r7_skill_annotation_seed.py"
+      - "tests/test_f4a_r7_skill_annotation_queue.py"
       - "docs/planning/active/F4A-R7-SKILL-EVIDENCE-RELIABILITY.md"
       - ".github/workflows/f4a-r7-skill-reliability-audit.yml"
   workflow_dispatch:
@@ -130,6 +132,7 @@ jobs:
             tests/test_external_observer_contract.py \
             tests/test_f4a_r7_skill_reliability_audit.py \
             tests/test_f4a_r7_skill_annotation_seed.py \
+            tests/test_f4a_r7_skill_annotation_queue.py \
             tests/test_generic_job_detail_evidence.py \
             tests/test_silver_requirement_evidence_projection.py
           "$RUNTIME_PYTHON" -m ruff check \
@@ -140,11 +143,13 @@ jobs:
             scripts/external_observers/dreamjobs_skill_classifier_observer.py \
             scripts/run_f4a_r7_skill_reliability_audit.py \
             scripts/build_f4a_r7_skill_annotation_seed.py \
+            scripts/build_f4a_r7_skill_annotation_queue.py \
             tests/test_detail_semantics_deterministic.py \
             tests/test_requirement_section_evidence.py \
             tests/test_external_observer_contract.py \
             tests/test_f4a_r7_skill_reliability_audit.py \
-            tests/test_f4a_r7_skill_annotation_seed.py
+            tests/test_f4a_r7_skill_annotation_seed.py \
+            tests/test_f4a_r7_skill_annotation_queue.py
 
       - name: Prove database migration state remains read-only and converged
         shell: bash
@@ -296,6 +301,27 @@ jobs:
           print("F4A_R7_LEARNED_SHADOW_COMPARISON=PASS")
           PY
 
+      - name: Build annotation-ready learned Shadow seed
+        if: steps.learned_compare.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.build_f4a_r7_skill_annotation_seed \
+            "$RUNNER_TEMP/f4a_r7_skill_reliability_learned_shadow.json" \
+            --output "$RUNNER_TEMP/f4a_r7_skill_annotation_seed_learned_shadow.json"
+
+      - name: Build source-held-out manual annotation queue
+        if: steps.learned_compare.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.build_f4a_r7_skill_annotation_queue \
+            "$RUNNER_TEMP/f4a_r7_skill_annotation_seed_shadow.json" \
+            "$RUNNER_TEMP/f4a_r7_skill_annotation_seed_learned_shadow.json" \
+            --limit 400 \
+            --context-tokens 20 \
+            --output "$RUNNER_TEMP/f4a_r7_skill_annotation_queue.json"
+
       - name: Preserve short-lived R7 research evidence
         if: steps.learned_compare.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -307,5 +333,7 @@ jobs:
             ${{ runner.temp }}/f4a_r7_skill_reliability_shadow.json
             ${{ runner.temp }}/f4a_r7_skill_annotation_seed_shadow.json
             ${{ runner.temp }}/f4a_r7_skill_reliability_learned_shadow.json
+            ${{ runner.temp }}/f4a_r7_skill_annotation_seed_learned_shadow.json
+            ${{ runner.temp }}/f4a_r7_skill_annotation_queue.json
           if-no-files-found: error
           retention-days: 1
