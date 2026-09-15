@@ -72,8 +72,8 @@ def test_optional_observer_is_discovery_only_and_must_point_to_exact_source_span
             del text
             return (
                 ObservedFact(
-                    field="weekly_hours",
-                    value={"minimum": 32.0, "maximum": 32.0},
+                    field="shadow_context",
+                    value="present",
                     evidence="32 hours per week",
                     basis="external_shadow",
                 ),
@@ -90,5 +90,8 @@ def test_optional_observer_is_discovery_only_and_must_point_to_exact_source_span
         optional_observers=(ShadowObserver(),),
     )
 
-    assert any(fact.basis == "external_shadow" for fact in facts)
+    assert any(
+        fact.field == "shadow_context" and fact.basis == "external_shadow"
+        for fact in facts
+    )
     assert all(fact.evidence != "invented salary" for fact in facts)
