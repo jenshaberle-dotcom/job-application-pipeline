@@ -5,8 +5,9 @@ It projects public job-detail HTML into a bounded normalized evidence record usi
 local open-source parsers only:
 
 * ``extruct`` for schema.org JSON-LD / Microdata;
-* ``trafilatura`` for a bounded main-text fallback when structured description
-  evidence is absent.
+* ``trafilatura`` for bounded main-text evidence;
+* a bounded visible-text projection so structured JobPosting data does not hide
+  employer-visible requirement/benefit facts outside the structured description.
 
 No source HTML is returned or persisted by this module. The caller receives only
 normalized fields and bounded text evidence suitable for downstream structure,
@@ -483,34 +484,33 @@ def extract_generic_job_detail_evidence(
             identifier_label = labelled_identifier.label
             methods.append("explicit_label:vacancy_identifier")
 
+    try:
+        extracted_text = extract_main_text(
+            html,
+            url=url,
+            output_format="txt",
+            include_comments=False,
+            include_tables=True,
+            include_links=False,
+            include_images=False,
+            favor_precision=True,
+            deduplicate=True,
+        )
+    except Exception:
+        extracted_text = None
+    main_text_excerpt = _bounded(extracted_text, MAX_REQUIREMENT_TEXT_CHARS)
+    if main_text_excerpt:
+        methods.append("trafilatura:main_text")
+
     description_source = syntax if description else None
     requirement_text_source = syntax if requirement_text else None
-    extracted_text: str | None = None
-    if not description or not requirement_text:
-        try:
-            extracted_text = extract_main_text(
-                html,
-                url=url,
-                output_format="txt",
-                include_comments=False,
-                include_tables=True,
-                include_links=False,
-                include_images=False,
-                favor_precision=True,
-                deduplicate=True,
-            )
-        except Exception:
-            extracted_text = None
     if not description:
-        description = _bounded(extracted_text, MAX_DESCRIPTION_CHARS)
+        description = _bounded(main_text_excerpt, MAX_DESCRIPTION_CHARS)
         if description:
-            methods.append("trafilatura:main_text")
             description_source = "trafilatura"
     if not requirement_text:
-        requirement_text = _bounded(extracted_text, MAX_REQUIREMENT_TEXT_CHARS)
+        requirement_text = main_text_excerpt
         if requirement_text:
-            if "trafilatura:main_text" not in methods:
-                methods.append("trafilatura:main_text")
             requirement_text_source = "trafilatura"
 
     if not title:
@@ -527,6 +527,8 @@ def extract_generic_job_detail_evidence(
         "company_name": bool(company_name),
         "description": bool(description),
         "requirement_text": bool(requirement_text),
+        "main_text": bool(main_text_excerpt),
+        "visible_text": bool(visible_identity_text),
         "locations": bool(locations or structured_locations),
         "remote": remote is not None,
         "employment_types": bool(employment_types),
@@ -561,6 +563,8 @@ def extract_generic_job_detail_evidence(
         "description_source": description_source,
         "requirement_text_excerpt": requirement_text or None,
         "requirement_text_source": requirement_text_source,
+        "main_text_excerpt": main_text_excerpt or None,
+        "visible_text_excerpt": visible_identity_text or None,
         "locations": locations,
         "structured_locations": structured_locations,
         "applicant_locations": applicant_locations,
