@@ -290,3 +290,17 @@ jobs:
               raise SystemExit("F4A_R7_LEARNED_SHADOW_BOUNDARY_VIOLATION")
           print("F4A_R7_LEARNED_SHADOW_COMPARISON=PASS")
           PY
+
+      - name: Preserve short-lived R7 research evidence
+        if: steps.learned_compare.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4a-r7-skill-evidence-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/f4a_r7_skill_reliability_baseline.json
+            ${{ runner.temp }}/f4a_r7_skill_annotation_seed_baseline.json
+            ${{ runner.temp }}/f4a_r7_skill_reliability_shadow.json
+            ${{ runner.temp }}/f4a_r7_skill_annotation_seed_shadow.json
+            ${{ runner.temp }}/f4a_r7_skill_reliability_learned_shadow.json
+          if-no-files-found: error
+          retention-days: 1
