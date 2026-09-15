@@ -1,131 +1,92 @@
 # F4A — Profile Fit Coverage
 
-Status: OPERATOR ACCEPTANCE FAILED / CORRECTIVE HARDENING REQUIRED
+Status: OPERATOR ACCEPTED / COMPLETE
 
 Original shipped package: PR `#868`
-Immutable desktop release: `1.0.25`
-Released product SHA: `948864965e282f6de4f95d1808d6c40e654b7bd6`
-Corrective target desktop release: `1.0.26`
+Final corrective closure: F4A-R8
+Immutable accepted desktop release: `1.0.32`
+Accepted Product source: `ec2e411ad5240f38e3cc38ee7f76dbac369a8388`
 
 ## Goal
+
 Every lifecycle-current canonical review job must expose either:
 
-- an evidence-backed Candidate↔Job Profile Fit result; or
+- an evidence-backed Candidate<->Job Profile Fit result; or
 - explicit `insufficient_evidence`.
 
 Preliminary role affinity remains a separate non-authoritative operator-orientation signal.
 
 ## Required factors
+
 - geography / work model / commute;
 - seniority;
 - skills / capabilities;
 - hard requirements.
 
 ## Authority
+
 Candidate-side truth comes only from approved Candidate Facts. Job-side truth comes only from current authoritative vacancy evidence. Missing evidence is not negative evidence.
 
-F4A does not create a new ranking score. `profile_fit_complete` means the fit decision is conclusive from evidence: either every required factor is evidence-backed and passes, or at least one required factor has conclusive negative evidence. `insufficient_evidence` always carries an `unknown` decision and must never be interpreted as negative fit.
+F4A does not create a ranking score. `profile_fit_complete` means the fit decision is conclusive from evidence: either every required factor is evidence-backed and passes, or at least one required factor has conclusive negative evidence. `insufficient_evidence` carries an `unknown` decision and must never be interpreted as negative fit.
 
-Capability truth is accepted only from an active Candidate Fact capability review bound to the current approved profile hash, current assessment timestamp, current detail-evidence hash and currently approved referenced Candidate Facts. Geography/work-model/commute candidate policy may come only from approved, current `operator_preference` Candidate Facts using the bounded `profile-fit.*` tag vocabulary. Raw Candidate Fact statements, provenance references and preference-tag values do not leave the private Candidate Fact boundary.
+The Product projection keeps Profile Fit separate from preliminary Role Affinity and from the existing Product ranking score. F4B owns the later decision on whether and how Fit may become ranking authority.
 
-## Product projection
-The Product payload exposes, per current job:
+## Historical v1.0.25 rejection
 
-- `profile_fit_coverage_status`;
-- `profile_fit_decision`;
-- factor status and generic reason for geography/work-model/commute, skills/capabilities, seniority and hard requirements;
-- explicit missing and failed factor names;
-- no ranking, Top-5 or application authority.
+The first installed F4A surface correctly failed closed but exposed insufficiently useful job-side metadata across real sources. That operator rejection triggered the corrective evidence-quality hardening rather than a UI-only patch.
 
-The Control Center renders the F4A coverage/decision separately from both the preliminary Role Affinity preview and the existing Product score/gate. F4B ranking remains untouched until F4A is operator accepted.
+The corrective direction remained generic and source-neutral:
 
-## Shipped v1.0.25 evidence
-The original exact-head Product acceptance run `34719248796` proved the fail-closed projection contract before release.
+`authoritative detail evidence -> structured/contextual semantics -> bounded deterministic fallback -> explicit unknown`
 
-Observed truth at that proof point:
+Employer-specific production truth exceptions remained forbidden.
 
-- current canonical jobs: `72`;
-- assessment rows: `17`;
-- approved Candidate Facts: `7`, all capability-class evidence;
-- approved preference facts: `0`;
-- approved boundary facts: `0`;
-- exact-current capability reviews: `7`;
-- hard filter: `6 passed`, `66 unknown`;
-- current Profile Fit partition: `0 profile_fit_complete`, `72 insufficient_evidence`, `0 unclassified`;
-- decisions: `72 unknown`, `0 failed`, `0 passed`.
+## Final F4A-R8 closure
 
-Missing-factor counts in that proof:
+The final guarded operator-acceptance path requalified the current cohort through:
 
-- geography/work-model/commute: `72`;
-- hard requirements: `66`;
-- seniority: `65`;
-- skills/capabilities: `65`.
+`Employer Origin -> Bronze evidence -> Silver requirement sidecar -> Product V1 -> Control Center`
 
-The all-`insufficient_evidence` result was correct for the available Candidate-side truth and proved that missing evidence was not silently turned into negative fit. It did not prove that the upstream job-requirement extraction was semantically useful enough for an operator.
+Final evidence established:
 
-Release/deploy evidence is also complete: v1.0.25 was published from immutable source `948864965e282f6de4f95d1808d6c40e654b7bd6` and automatic local deploy run `34779970878` installed exactly that release successfully.
+- `70` current proposals accounted for;
+- `41` Silver requirement sidecars needed refresh before the guarded Apply;
+- post-Apply convergence reached `would_change_count = 0`;
+- all reachable Product rows projected without extractor gap;
+- coverage gate passed;
+- zero legacy ambiguity;
+- zero Silver -> Product/Control-Center projection loss;
+- zero acceptance violations.
 
-## Installed operator finding — 2026-09-14
-The installed v1.0.25 UI and contract behave technically as intended, but F4A is **not operator accepted**.
+The exact accepted state was released as desktop `1.0.32` from `main@ec2e411ad5240f38e3cc38ee7f76dbac369a8388`. Release-triggered local deploy run `34970391624`, attempt `2`, completed successfully and proved the installed immutable identity plus bounded headless startup/rejection behavior.
 
-Observed product gap:
+## Installed operator acceptance — 2026-09-15
 
-- factor labels and status mechanics are present;
-- the underlying job metadata for seniority, skills/capabilities and related hard requirements is not yet semantically reliable/useful enough across real vacancy sources;
-- therefore the current Profile Fit surface can be technically correct while still being poor decision support;
-- the low `rankable` count must be treated as an observation, not a target. Correct evidence quality may increase, decrease or leave that count unchanged.
+The operator accepted F4A on the installed `1.0.32` surface.
 
-This is not deferred as unrelated scope. The original F4A contract explicitly requires normalized job requirements from current authoritative vacancy evidence. The corrective work therefore remains inside F4A and blocks F4B.
+Observed acceptance outcome:
 
-## Initial repository root-cause findings
-The repository already makes the likely quality loss visible; this is not only a UI problem.
+- requirement presentation is materially more coherent and useful;
+- uncertainty/conflict remains visible instead of being silently converted into positive fit;
+- the slice is directionally correct both semantically and visually;
+- remaining imperfections do not justify extending F4A while larger frozen-campaign gaps remain.
 
-Current Product assessment evidence is built from a normalized flat detail string. The downstream detail fetcher suppresses `<script>` content and joins visible HTML text into one space-separated string before F4A assessment extraction. The assessment extractor then applies source-neutral whole-document regexes for employment type, language, work model, weekly hours and requirements seniority. This preserves fail-closed behavior, but discards document structure and authoritative JSON-LD/schema fields before the assessment layer can use them.
+Two residuals are deliberately carried:
 
-The repository already contains stronger reusable deterministic semantics in `src/search_intelligence/detail_semantics_deterministic.py`: it can parse same-page `JobPosting` JSON-LD, prefers structured evidence and title/label context, extracts structured skills, and explicitly avoids employer-specific branches. F4A-Q should therefore reuse/extend that generic evidence capability rather than create another employer-by-employer parser.
+- `#883`: About/version discoverability is missing; non-blocking UX debt for a later natural UI checkpoint.
+- `#884`: Hannover Re exposes a visible Profile Fit conflict; use it as F4B calibration evidence. It does not reopen F4A unless investigation proves a confident false requirement assertion rather than a truthful fit conflict/unknown.
 
-The working hypothesis to prove against the real cohort is:
+## Acceptance result
 
-`authoritative detail HTML/structured payload -> reusable structured/contextual semantics -> F4A assessment evidence -> bounded flat-text fallback -> explicit unknown`
+F4A is complete. F4B is unblocked.
 
-Do not promote that hypothesis to Product authority until the real-source audit confirms which fields and source families are trustworthy.
+The next package must not optimize for a larger rankable count or a filled Top 5. It must reconcile and improve decision quality while preserving the F4A truth boundary.
 
-## F4A-Q — Job Requirement Evidence Quality Hardening
-The corrective slice must improve job-side evidence quality without employer-specific production exceptions.
+## Boundaries retained after closure
 
-Evidence understanding is layered, source-neutral and evidence-preserving:
-
-1. prefer authoritative structured vacancy metadata when present (for example exact ATS/schema fields with provenance);
-2. preserve semantic section/context information from the authoritative vacancy detail instead of flattening the whole page into one undifferentiated string;
-3. use bounded deterministic phrase extraction only as fallback where the field meaning is unambiguous;
-4. treat conflicting, context-poor or unsupported evidence as `unknown` rather than forcing a canonical value;
-5. retain exact evidence references/provenance for every asserted field so an operator can inspect why a value exists.
-
-Source-family understanding is allowed where it represents a reusable document/ATS contract. Employer-specific exceptions, company allowlists and UI-only repairs are not authority.
-
-The existing detail-refresh path must continue to invalidate stale downstream human/capability/ranking decisions when authoritative vacancy evidence changes, and the corrected extraction must replay through the same Bronze/Silver/Gold/Product path.
-
-## Corrective acceptance
-F4A is accepted only after all of the following hold on the final exact package head:
-
-- a representative real-source cohort covers the source families actually present in the current Product review set;
-- extracted seniority, work model, employment type, languages, weekly hours and other F4A-relevant requirement evidence are inspected against their authoritative Origin evidence;
-- every asserted canonical field is provenance-backed; ambiguous/conflicting cases remain explicit `unknown`;
-- known false confident metadata in the acceptance cohort is zero at sign-off;
-- current review rows still reconcile completely into `profile_fit_complete | insufficient_evidence` with zero silently unclassified jobs;
-- Candidate Fact privacy and authority boundaries remain unchanged;
-- ranking/Top-5/application authority remains unchanged;
-- exact-head Full Suite, Ruff, React, Windows contracts and real Product proof pass;
-- immutable automatic `1.0.26` release and automatic local deploy pass;
-- installed operator acceptance explicitly passes.
-
-## Boundaries
 - preserve F3 lifecycle and canonical-vacancy identity truth;
-- do not start F4B ranking work before F4A-Q is accepted;
-- do not introduce employer-specific fit logic or employer-specific metadata truth exceptions;
-- do not optimize for a larger rankable count;
-- do not silently classify a current review job when required evidence is absent;
-- keep `CR-F1-001` visible unless this package naturally touches and closes the fresh-company persistence path.
-
-## Sole next action
-Inventory the current Product review cohort by source family and compare existing extracted requirement fields against authoritative vacancy evidence. Use that evidence audit to implement the smallest generic/section-aware extraction hardening required for semantic correctness, then rerun the full F4A acceptance chain for target `1.0.26`.
+- no employer-specific fit logic or metadata truth exceptions;
+- no silent classification when required evidence is absent;
+- Candidate Fact privacy and exact-current review binding remain unchanged;
+- Profile Fit does not gain ranking authority merely because F4A is accepted;
+- future ranking authority changes belong to F4B and require an explicit Product Decision.

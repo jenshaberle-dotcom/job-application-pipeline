@@ -80,6 +80,7 @@ This register prevents product behavior from being guessed by DON, implementatio
 | `PD-056` | approved | The UI shows rank, overall score, component scores, reasons and uncertainties together rather than a score without explanation. Approved 2026-08-02. |
 | `PD-057` | open_operator_decision | Define deterministic versus LLM-assisted ranking boundaries. |
 | `PD-058` | open_operator_decision | Define how ranking changes between cycles are explained. |
+| `PD-059` | proposed | F4B target: separate Affinity/desirability (`Will ich diesen Job?`) from evidence-backed Candidate<->Job Fit (`Passt dieser Job zu mir?`) and derive an explainable combined decision score only after currentness, Origin authority, hard gates and evidence sufficiency are satisfied. Top 5 becomes a derived `at_most_no_fill` projection over qualifying combined decisions. Missing Fit evidence must not receive a fabricated midpoint; a hard Fit conflict cannot be averaged away by high Affinity. Initial read-only calibration may compare a Fit-dominant arithmetic candidate such as 60% Fit + 40% Affinity with a stronger low-component-penalty alternative. `PD-052` remains the approved production ranking authority until F4B calibration evidence is reviewed and a replacement decision is explicitly approved. Proposed 2026-09-15. |
 
 ## G. Queue composition and lifecycle
 
