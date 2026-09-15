@@ -16,6 +16,7 @@ on:
       - "scripts/run_f4a_requirement_evidence_refresh.py"
       - ".github/workflows/f4a-r8-operator-preflight.yml"
       - ".github/workflows/f4a-r8-operator-apply.yml"
+      - "docs/planning/active/F4A-R8-OPERATOR-ACCEPTANCE.md"
   workflow_dispatch:
 
 permissions:
