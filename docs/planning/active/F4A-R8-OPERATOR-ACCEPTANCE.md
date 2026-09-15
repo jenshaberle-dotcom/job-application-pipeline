@@ -15,14 +15,15 @@ R8 adds no new requirement semantics. It only orchestrates already-proven JAP sc
 ## Sequence
 
 1. Read-only exact-Origin/Silver refresh plan.
-2. Read-only persisted Silver -> Product -> Control Center audit.
-3. Read-only Product requirement refresh preflight.
-4. Full CI and repository re-entry on the exact R8 head.
-5. Only if all gates pass and the Silver plan reports changes: one single-purpose trigger commit authorizes `refresh-current-cohort-silver-sidecar-only`.
-6. Guarded apply re-runs all focused contracts and the exact-Origin plan before mutation.
-7. After the Silver sidecar refresh, the plan must converge to `would_change_count = 0`.
-8. The persisted Silver -> Product -> Control Center audit must pass with zero projection loss, zero legacy ambiguity, zero violations, and the existing coverage gate.
-9. Only then prepare the installed desktop/operator acceptance.
+2. Read-only persisted Silver -> Product -> Control Center audit using the actual Product V1 presentation runtime.
+3. Full CI and repository re-entry on the exact R8 head.
+4. Only if all gates pass and the Silver plan reports changes: one single-purpose trigger commit authorizes `refresh-current-cohort-silver-sidecar-only`.
+5. Guarded apply re-runs all focused contracts and the exact-Origin plan before mutation.
+6. After the Silver sidecar refresh, the plan must converge to `would_change_count = 0`.
+7. The persisted Silver -> Product -> Control Center audit must pass with zero projection loss, zero legacy ambiguity, zero violations, and the existing coverage gate.
+8. Only then prepare the installed desktop/operator acceptance.
+
+The older Product-assessment refresh is deliberately not part of R8. Product V1 now prefers the persisted Silver requirement sidecar and the Bronze2E audit verifies the exact read-only Product/Control-Center projection. R8 therefore does not duplicate requirement truth into a second Product mutation path.
 
 ## Boundaries
 
