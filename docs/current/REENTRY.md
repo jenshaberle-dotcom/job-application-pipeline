@@ -8,13 +8,13 @@ Read this file from canonical `refs/heads/main` before continuing Product work. 
 
 Canonical accepted Product checkpoint:
 
-`main@ec2e411ad5240f38e3cc38ee7f76dbac369a8388`
+`main@35224c9b8351a3a260ba5d5e51236d61bb7ed8f5`
 
-Immutable installed desktop release:
+That main commit closed F4A and froze the F4B Fit + Affinity target. The immutable installed desktop release remains:
 
 `jap-winapp-desktop-v1.0.32`
 
-Release `1.0.32` is bound to exactly that Product source SHA. Local deploy run `34970391624`, attempt `2`, completed successfully and proved the installed released identity plus bounded headless startup/rejection behavior.
+Release `1.0.32` is bound to Product source SHA `ec2e411ad5240f38e3cc38ee7f76dbac369a8388`. Local deploy run `34970391624`, attempt `2`, completed successfully and proved the installed released identity plus bounded headless startup/rejection behavior.
 
 The first deploy attempt stopped fail-closed in a transient WSL/Git handoff after successful release staging. The single retry traversed the same guarded path successfully. No Product or installer patch was justified by that transient failure.
 
@@ -85,34 +85,114 @@ Exact-head discipline remains mandatory:
 - release/deploy automation is part of the Product contract, not an operator workaround;
 - an installed operator rejection keeps the package open even when CI, release and deploy are green.
 
-## F4B — active package: Fit + Affinity decision quality
+## F4B — ACTIVE PACKAGE / CODEX HANDOFF
 
-F4B remains the next freeze package, but its design center is clarified by operator decision `#885`:
+Active branch:
 
-- **Affinity / desirability answers:** `Will ich diesen Job?`
-- **Candidate<->Job Fit answers:** `Passt dieser Job zu mir?`
-- **Combined decision score answers:** `Wie gut ist dieser Job insgesamt fuer mich?`
-- **Top 5 is only a derived presentation projection** over qualifying combined decisions; it is not an independent truth model and must never be quota-filled.
+`agent/f4b-fit-affinity-reconciliation`
 
-Current production ranking authority is still the approved Product V1 policy in `PD-052` until a replacement is explicitly approved. F4B must not silently replace it.
+Active Draft PR:
 
-The F4B target is therefore staged:
+`#887 — F4B: reconcile Fit + Affinity before ranking mutation`
 
-1. produce a read-only current-cohort reconciliation of lifecycle/currentness, Origin authority, Affinity, Profile Fit coverage/decision/factors, hard gates, existing readiness/rankability, current Top-5 membership and first exact exclusion reason;
-2. derive a numeric Fit score only where evidence is sufficient; missing required Fit evidence remains unknown rather than being assigned an artificial midpoint;
-3. compare explainable Fit-dominant combined-score candidates read-only, including at minimum a weighted arithmetic candidate such as `60% Fit + 40% Affinity` and a stronger low-component-penalty alternative;
-4. explicitly account for issue `#884` in that reconciliation;
-5. only after operator review may a new Product Decision supersede `PD-052` and grant combined-score ranking authority.
+Implementation head before this re-entry refresh:
 
-The existing approved contracts remain hard boundaries during this calibration:
+`e2c51cc7be3f7fe553a92da9671075871223f112`
+
+Do not treat that SHA as finally qualified. This re-entry update itself advances the branch head, and every further branch change invalidates earlier exact-head qualification authority.
+
+### F4B truth established so far
+
+The first provider-free/read-only current-cohort reconciliation proved that Combined Score is not yet the primary blocker.
+
+Real Product evidence on `36b391b4dd611dca7271e90c1c6f78d71adb73d2`, workflow run `34975583253`, passed and showed:
+
+- `70` current Product jobs;
+- `70/70` origin-validated and active;
+- `0` hard-filter passed;
+- `2` Fit failed;
+- `68` Fit unknown;
+- `0` current PD-052 Affinity-authoritative rows;
+- `0` Combined-calibration-eligible rows;
+- `70/70` jobs already have the canonical Silver requirement sidecar;
+- Silver sidecar currently exposes useful bounded evidence for `49` jobs with skills, `21` with language values, `20` with numeric weekly hours, `2` with seniority values and `1` with a canonical employment value;
+- exact current Candidate Capability review is missing for `70/70`;
+- Candidate Geography/Work-Model preference evidence is missing for `70/70`.
+
+This exposed the central F4B wiring defect: the Control Center already consumes the newer `silver_job_requirement_evidence`, while authoritative hard-filter evaluation still depends on older `job_product_assessments` evidence fields. Therefore UI and decision authority can disagree even when the Silver sidecar already contains stronger current job-source evidence.
+
+Issue `#884` / Hannover Re is not an employer-specific parser defect. The Working-Student / 20h vacancy is a truthful negative hard-/fit-conflict and must remain excluded rather than being special-cased.
+
+### Candidate fix now in PR #887
+
+Migration `111_bridge_silver_requirement_evidence_into_hard_filter.sql` and its guarded Apply workflow are present on the active branch but **have not been applied to the Product DB**.
+
+Intended authority contract of migration 111:
+
+- Silver sidecar is job-source evidence only, never Candidate Fact or capability-fit authority;
+- only conflict-free `observed_bounded_text` evidence may become authoritative hard-filter source evidence;
+- `source_absent`, `origin_unavailable` and conflicted fields remain unknown/fail-closed;
+- when a current Silver sidecar exists, stale legacy assessment evidence must not silently outrank it;
+- Candidate Capability remains a separate authority gate;
+- active manual hard-filter reviews are bound to the current Silver evidence hash;
+- a later Silver evidence-hash change must automatically supersede the old review;
+- PD-052 ranking policy, Top-5 state and application/submission authority remain untouched.
+
+The prepared single-purpose workflow is:
+
+`.github/workflows/f4b-hard-filter-silver-bridge-apply.yml`
+
+It must not be triggered until the exact parent head is fully qualified.
+
+### Current qualification state
+
+For implementation head `e2c51cc7be3f7fe553a92da9671075871223f112`:
+
+- Re-Entry run `34976464799`: **SUCCESS**;
+- Pipeline CI run `34976465329`: **FAILURE**;
+- React Control Center build: **SUCCESS**;
+- migration/tooling/governance contract validation: **SUCCESS** and recognizes `111` migrations;
+- hard Ruff correctness gate: **SUCCESS**;
+- Full Suite: **3346 passed, 1 failed**.
+
+The sole CI failure is:
+
+`tests/test_f4b_hard_filter_silver_bridge.py::test_bridge_does_not_change_top5_or_ranking_policy`
+
+The failure is currently a brittle test implementation, not evidence of a migration-contract violation. The test executes:
+
+`source.casefold().split("CREATE OR REPLACE VIEW", 1)[1]`
+
+and raises `IndexError` because that exact literal split is not present after case-folding / does not match the migration text. Do not weaken migration 111, ranking boundaries or authority semantics merely to make this test green.
+
+### Sole next action for Codex
+
+Fix **only the faulty F4B bridge test contract** so it verifies the intended no-ranking/no-Top5/no-application boundary without depending on that invalid literal split. Keep migration 111 and Product authority semantics unchanged unless the corrected test uncovers a real contract defect.
+
+Then, on the new exact branch head:
+
+1. run focused F4B bridge/reconciliation tests and Ruff;
+2. require full Pipeline CI green;
+3. require Re-Entry green;
+4. require the provider-free/read-only real F4B reconciliation green;
+5. only after all of those are green may a new single-purpose trigger commit apply migration 111 to the Product DB;
+6. after Apply, require migration convergence and rerun the real F4B reconciliation before granting any further F4B authority.
+
+Do **not** trigger migration 111 before that qualification. Do **not** mutate PD-052, Top-5, Candidate Facts, capability-fit authority, application state or submission/send state while fixing this CI blocker.
+
+After migration 111 is safely applied and re-proven, continue F4B in this order:
+
+`Silver -> hard-filter authority convergence -> current Candidate-Fact capability review -> geography/work-model preference authority -> read-only Fit/Affinity/Combined calibration -> operator decision whether a new Product Decision may supersede PD-052`
+
+Top 5 remains a derived presentation projection only and must never be quota-filled.
+
+The existing approved contracts remain hard boundaries:
 
 - `PD-050`: Top 5 means at most five; no quota fill;
 - `PD-051`: minimum overall quality remains `70/100` until separately changed;
 - `PD-053`: hard-filter failures cannot enter authoritative ranking; unknown required hard-filter evidence remains review-required;
 - `PD-054`: missing required evidence blocks authoritative ranking;
 - `PD-055/056`: score components, reasons, uncertainty and missing information remain operator-visible.
-
-**Sole next action:** continue F4B with the provider-free/read-only current-cohort reconciliation defined in `docs/planning/active/F4B-FIT-AFFINITY-COMBINED-SCORE.md`. Do not mutate ranking authority or optimize for a Top-5 count before that evidence exists.
 
 ## F4C — Source Health + Operator Surface Consolidation
 

@@ -1,0 +1,164 @@
+name: F4B Fit + Affinity read-only reconciliation
+
+on:
+  push:
+    branches: [agent/f4b-fit-affinity-reconciliation]
+    paths:
+      - "scripts/run_f4b_fit_affinity_reconciliation.py"
+      - "tests/test_f4b_fit_affinity_reconciliation.py"
+      - "tests/test_f4b_hard_filter_silver_bridge.py"
+      - "db/migrations/111_bridge_silver_requirement_evidence_into_hard_filter.sql"
+      - ".github/workflows/f4b-fit-affinity-reconciliation.yml"
+      - ".github/workflows/f4b-hard-filter-silver-bridge-apply.yml"
+      - "docs/planning/active/F4B-FIT-AFFINITY-COMBINED-SCORE.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4b-fit-affinity-reconciliation
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    name: Reconcile current Product cohort without authority mutation
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 25
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+
+    steps:
+      - name: Check out exact F4B head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Bind verified RCC runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json, sys
+          from pathlib import PurePosixPath
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id) or context.get("Repository") != repository or context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_IDENTITY_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          root = PurePosixPath(context["CheckoutRoot"])
+          if root not in PurePosixPath(context["Interpreter"]).parents or root not in PurePosixPath(context["EnvFile"]).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          echo "RUNTIME_PYTHON=${values[0]}" >> "$GITHUB_ENV"
+          echo "RUNTIME_ENV_FILE=${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked Product DB environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets, sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+          values = dotenv_values(Path(sys.argv[1]))
+          required = ("POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Resolve pinned local OSS runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4b-local-oss-sites")"
+          test -d "$site"
+          echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Qualify F4B reconciliation and bridge contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_f4b_fit_affinity_reconciliation.py \
+            tests/test_f4b_hard_filter_silver_bridge.py \
+            tests/test_product_v1_hard_filter_operator_review.py
+          "$RUNTIME_PYTHON" -m ruff check \
+            scripts/run_f4b_fit_affinity_reconciliation.py \
+            tests/test_f4b_fit_affinity_reconciliation.py \
+            tests/test_f4b_hard_filter_silver_bridge.py
+
+      - name: Inspect migration frontier without applying
+        run: '"$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status'
+
+      - name: Run read-only current-cohort reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4b_fit_affinity_reconciliation.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4b_fit_affinity_reconciliation --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          summary = report["summary"]
+          boundaries = report["boundaries"]
+          print("F4B_CURRENT=" + str(summary["current_job_count"]))
+          print("F4B_HARD_FILTER_PASSED=" + str(summary["hard_filter_passed_count"]))
+          print("F4B_FIT_FULL_COVERAGE=" + str(summary["fit_full_factor_coverage_count"]))
+          print("F4B_FIT_PASSED=" + str(summary["fit_passed_count"]))
+          print("F4B_FIT_FAILED=" + str(summary["fit_failed_count"]))
+          print("F4B_FIT_UNKNOWN=" + str(summary["fit_unknown_count"]))
+          print("F4B_PD052_AFFINITY=" + str(summary["pd052_affinity_authority_count"]))
+          print("F4B_COMBINED_ELIGIBLE=" + str(summary["combined_calibration_eligible_count"]))
+          print("F4B_SIDECAR_PRIMARY=" + str(summary["silver_sidecar_primary_count"]))
+          print("F4B_CAPABILITY_REVIEW_MISSING=" + str(summary["candidate_capability_review_missing_count"]))
+          print("F4B_GEOGRAPHY_PREFERENCE_MISSING=" + str(summary["candidate_geography_preference_missing_count"]))
+          print("F4B_POPULATION_BLOCKER=" + str(summary["population_blocker"]))
+          if summary["current_job_count"] <= 0:
+              raise SystemExit("F4B_EMPTY_CURRENT_COHORT")
+          if summary["silver_sidecar_primary_count"] != summary["current_job_count"]:
+              raise SystemExit("F4B_SILVER_SIDECAR_COVERAGE_GAP")
+          if boundaries.get("database_writes") is not False:
+              raise SystemExit("F4B_DATABASE_WRITE_BOUNDARY_VIOLATION")
+          if boundaries.get("provider_requests") != 0 or boundaries.get("network_requests") != 0:
+              raise SystemExit("F4B_EXTERNAL_CALL_BOUNDARY_VIOLATION")
+          if boundaries.get("pd052_production_authority_unchanged") is not True:
+              raise SystemExit("F4B_PD052_AUTHORITY_BOUNDARY_MISSING")
+          if any(boundaries.get(key) is not False for key in (
+              "ranking_authority_created",
+              "top5_authority_created",
+              "application_authority_created",
+              "employer_specific_production_exception_created",
+          )):
+              raise SystemExit("F4B_AUTHORITY_BOUNDARY_VIOLATION")
+          print("F4B_READ_ONLY_BOUNDARIES=PASS")
+          PY
+
+      - name: Preserve short-lived F4B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4b-fit-affinity-reconciliation-${{ github.sha }}
+          path: ${{ runner.temp }}/f4b_fit_affinity_reconciliation.json
+          if-no-files-found: error
+          retention-days: 2

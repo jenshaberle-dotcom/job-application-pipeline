@@ -1,0 +1,158 @@
+name: F4B guarded Silver hard-filter authority bridge
+
+on:
+  push:
+    branches:
+      - agent/f4b-fit-affinity-reconciliation
+    paths:
+      - ".github/triggers/f4b-hard-filter-silver-bridge.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4b-hard-filter-silver-bridge-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply migration 111 and prove F4B hard-filter bridge
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      APPROVAL_TOKEN: F4B-HARD-FILTER-SILVER-BRIDGE-001
+      TRIGGER_FILE: .github/triggers/f4b-hard-filter-silver-bridge.trigger
+      MIGRATION_KEY: 111_bridge_silver_requirement_evidence_into_hard_filter.sql
+
+    steps:
+      - name: Check out exact authorized trigger head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify single-purpose authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          parent="$(git rev-parse HEAD^)"
+          mapfile -t changed < <(git diff --name-only "$parent" HEAD)
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = "$TRIGGER_FILE"
+          test "$(sed -n 's/^authority=//p' "$TRIGGER_FILE")" = "$APPROVAL_TOKEN"
+          test "$(sed -n 's/^qualified_head=//p' "$TRIGGER_FILE")" = "$parent"
+          test -n "$(sed -n 's/^qualified_reconciliation_run=//p' "$TRIGGER_FILE")"
+          test -n "$(sed -n 's/^qualified_pipeline_ci_run=//p' "$TRIGGER_FILE")"
+          test -n "$(sed -n 's/^qualified_reentry_run=//p' "$TRIGGER_FILE")"
+          test "$(sed -n 's/^mutation=//p' "$TRIGGER_FILE")" = "apply-sole-migration-111-hard-filter-silver-bridge"
+          echo "F4B_HARD_FILTER_BRIDGE_AUTHORITY=PASS"
+
+      - name: Bind runtime and Product DB
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          mapfile -t ctx < <(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json, sys
+          from pathlib import PurePosixPath
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id) or context.get("Repository") != repository or context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_IDENTITY_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          root = PurePosixPath(context["CheckoutRoot"])
+          if root not in PurePosixPath(context["Interpreter"]).parents or root not in PurePosixPath(context["EnvFile"]).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )
+          test "${#ctx[@]}" -eq 2
+          echo "RUNTIME_PYTHON=${ctx[0]}" >> "$GITHUB_ENV"
+          echo "RUNTIME_ENV_FILE=${ctx[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked DB environment and OSS runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          echo "::add-mask::$POSTGRES_PASSWORD"
+          site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4b-bridge-local-oss-sites")"
+          test -d "$site"
+          echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          for key in POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
+            value="${!key:-}"
+            test -n "$value"
+            marker="JAP_ENV_$(python3 -c 'import secrets; print(secrets.token_hex(12))')"
+            printf '%s<<%s\n%s\n%s\n' "$key" "$marker" "$value" "$marker" >> "$GITHUB_ENV"
+          done
+
+      - name: Apply sole reviewed migration 111
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py \
+            --apply-exact "$MIGRATION_KEY" \
+            --require-sole-pending \
+            --applied-by f4b-hard-filter-silver-bridge
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
+
+      - name: Prove post-bridge Product truth read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4b_post_bridge_reconciliation.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4b_fit_affinity_reconciliation --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          summary = report["summary"]
+          rows = report["rows"]
+          if not rows or summary["current_job_count"] != len(rows):
+              raise SystemExit("F4B_POST_BRIDGE_SCOPE_INVALID")
+          if summary["silver_sidecar_primary_count"] != summary["current_job_count"]:
+              raise SystemExit("F4B_POST_BRIDGE_SIDECAR_COVERAGE_GAP")
+          missing_binding = [
+              row["silver_job_id"]
+              for row in rows
+              if (row.get("hard_filter_reasons") or {}).get("requirement_evidence_source")
+              != "silver_job_requirement_evidence"
+              or not (row.get("hard_filter_reasons") or {}).get("requirement_evidence_hash")
+          ]
+          if missing_binding:
+              raise SystemExit("F4B_POST_BRIDGE_AUTHORITY_BINDING_GAP:" + ",".join(map(str, missing_binding[:10])))
+          highlight = report["issue_884_highlight"]["rows"]
+          if not highlight:
+              raise SystemExit("F4B_POST_BRIDGE_HANNOVER_RE_EVIDENCE_MISSING")
+          if not any(row["diagnostic_classification"] == "truthful_conclusive_negative_candidate" for row in highlight):
+              raise SystemExit("F4B_POST_BRIDGE_HANNOVER_RE_NEGATIVE_NOT_PRESERVED")
+          boundaries = report["boundaries"]
+          if boundaries["ranking_authority_created"] or boundaries["top5_authority_created"] or boundaries["application_authority_created"]:
+              raise SystemExit("F4B_POST_BRIDGE_AUTHORITY_LEAK")
+          print(f"F4B_POST_BRIDGE_CURRENT={summary['current_job_count']}")
+          print(f"F4B_POST_BRIDGE_HARD_FILTER_PASSED={summary['hard_filter_passed_count']}")
+          print(f"F4B_POST_BRIDGE_FIT_PASSED={summary['fit_passed_count']}")
+          print(f"F4B_POST_BRIDGE_FIT_FAILED={summary['fit_failed_count']}")
+          print(f"F4B_POST_BRIDGE_FIT_UNKNOWN={summary['fit_unknown_count']}")
+          print(f"F4B_POST_BRIDGE_POPULATION_BLOCKER={summary['population_blocker']}")
+          print("F4B_HARD_FILTER_SILVER_BRIDGE=PASS")
+          PY
+
+      - name: Preserve post-bridge evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4b-hard-filter-silver-bridge-${{ github.sha }}
+          path: ${{ runner.temp }}/f4b_post_bridge_reconciliation.json
+          if-no-files-found: error
+          retention-days: 2
