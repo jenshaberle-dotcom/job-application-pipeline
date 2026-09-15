@@ -1,4 +1,4 @@
-# Exact-head requalification marker after the guarded-refresh contract.
+# Exact-head requalification marker after the R4 enriched-evidence contract.
 from copy import deepcopy
 
 from scripts.product_v1_silver_requirement_projection import (
@@ -23,12 +23,21 @@ def _raw_job(*, with_detail: bool = True) -> dict[str, object]:
         raw_data["detail_evidence"] = {
             "schema": "generic_job_detail_evidence_v1",
             "parser_family": "schema_org_json_ld",
-            "methods": ["extruct:json-ld"],
+            "methods": ["extruct:json-ld", "trafilatura:main_text"],
             "structured_jobposting_found": True,
             "skills": ["Python", "SQL"],
-            "remote": True,
+            "remote": None,
+            "employment_types": ["FULL_TIME"],
             "description_excerpt": "Sehr gute Deutschkenntnisse auf C1-Niveau.",
             "description_source": "json-ld",
+            "requirement_text_excerpt": "Sehr gute Deutschkenntnisse auf C1-Niveau.",
+            "requirement_text_source": "json-ld",
+            "visible_text_excerpt": (
+                "Data Engineer. Sehr gute Deutschkenntnisse auf C1-Niveau. "
+                "38 Stunden / Woche. Anteilige mobile Arbeit möglich. "
+                "ab 59.417 € / Jahr. Haustarifvertrag. "
+                "2-3 Jahre fachbezogene Berufserfahrung."
+            ),
         }
     return {
         "id": 20,
@@ -78,6 +87,8 @@ def test_audit_accepts_explicit_persisted_silver_operator_projection() -> None:
     assert report["rows_with_legacy_ambiguous_status"] == 0
     assert report["rows_with_silver_to_operator_projection_loss"] == 0
     assert report["violating_row_count"] == 0
+    assert report["context_observed_counts"]["compensation"] == 1
+    assert report["context_observed_counts"]["experience"] == 1
     assert report["coverage_gate_pass"] is True
 
 
@@ -103,6 +114,21 @@ def test_audit_rejects_silver_to_operator_projection_loss() -> None:
 
     assert report["rows_with_silver_to_operator_projection_loss"] == 1
     assert report["violating_row_count"] == 1
+    assert report["coverage_gate_pass"] is False
+
+
+def test_audit_rejects_enriched_context_projection_loss() -> None:
+    sidecar = build_silver_requirement_evidence(_raw_job())
+    operator = _operator_from_sidecar(sidecar)
+    operator["compensation_amount"] = 1.0
+    operator["experience_max_months"] = 999.0
+
+    report = build_report([_row(sidecar)], operator_rows={10: operator})
+
+    assert report["rows_with_silver_to_operator_projection_loss"] == 1
+    mismatches = report["projection_loss_rows"][0]["operator_projection_mismatches"]
+    assert "context:compensation" in mismatches
+    assert "context:experience" in mismatches
     assert report["coverage_gate_pass"] is False
 
 
