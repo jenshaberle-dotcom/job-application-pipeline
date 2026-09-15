@@ -6,7 +6,10 @@ on:
     paths:
       - "scripts/run_f4b_fit_affinity_reconciliation.py"
       - "tests/test_f4b_fit_affinity_reconciliation.py"
+      - "tests/test_f4b_hard_filter_silver_bridge.py"
+      - "db/migrations/111_bridge_silver_requirement_evidence_into_hard_filter.sql"
       - ".github/workflows/f4b-fit-affinity-reconciliation.yml"
+      - ".github/workflows/f4b-hard-filter-silver-bridge-apply.yml"
       - "docs/planning/active/F4B-FIT-AFFINITY-COMBINED-SCORE.md"
   workflow_dispatch:
 
@@ -92,16 +95,20 @@ jobs:
           test -d "$site"
           echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
 
-      - name: Qualify F4B reconciliation contract
+      - name: Qualify F4B reconciliation and bridge contracts
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m pytest -q tests/test_f4b_fit_affinity_reconciliation.py
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_f4b_fit_affinity_reconciliation.py \
+            tests/test_f4b_hard_filter_silver_bridge.py \
+            tests/test_product_v1_hard_filter_operator_review.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/run_f4b_fit_affinity_reconciliation.py \
-            tests/test_f4b_fit_affinity_reconciliation.py
+            tests/test_f4b_fit_affinity_reconciliation.py \
+            tests/test_f4b_hard_filter_silver_bridge.py
 
-      - name: Prove migration state converged
+      - name: Inspect migration frontier without applying
         run: '"$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status'
 
       - name: Run read-only current-cohort reconciliation
@@ -124,9 +131,14 @@ jobs:
           print("F4B_FIT_UNKNOWN=" + str(summary["fit_unknown_count"]))
           print("F4B_PD052_AFFINITY=" + str(summary["pd052_affinity_authority_count"]))
           print("F4B_COMBINED_ELIGIBLE=" + str(summary["combined_calibration_eligible_count"]))
+          print("F4B_SIDECAR_PRIMARY=" + str(summary["silver_sidecar_primary_count"]))
+          print("F4B_CAPABILITY_REVIEW_MISSING=" + str(summary["candidate_capability_review_missing_count"]))
+          print("F4B_GEOGRAPHY_PREFERENCE_MISSING=" + str(summary["candidate_geography_preference_missing_count"]))
           print("F4B_POPULATION_BLOCKER=" + str(summary["population_blocker"]))
           if summary["current_job_count"] <= 0:
               raise SystemExit("F4B_EMPTY_CURRENT_COHORT")
+          if summary["silver_sidecar_primary_count"] != summary["current_job_count"]:
+              raise SystemExit("F4B_SILVER_SIDECAR_COVERAGE_GAP")
           if boundaries.get("database_writes") is not False:
               raise SystemExit("F4B_DATABASE_WRITE_BOUNDARY_VIOLATION")
           if boundaries.get("provider_requests") != 0 or boundaries.get("network_requests") != 0:
