@@ -256,3 +256,43 @@ def test_projection_enriches_existing_raw_shape_without_source_special_case() ->
     assert projected["job"]["metadata"]["structure_field_presence"]["locations"] is True
     assert projected["detail_evidence"]["raw_html_persisted"] is False
     assert raw_data["job"]["title"] == "Old page title"
+
+
+def test_structured_jobposting_does_not_hide_visible_requirement_and_benefit_facts() -> None:
+    posting = {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Business Analyst",
+        "description": "<p>Unterstützung der Endkunden in fachlichen Fragen.</p>",
+    }
+    html = (
+        '<html><head><script type="application/ld+json">'
+        + json.dumps(posting, ensure_ascii=False)
+        + "</script></head><body>"
+        "<h1>Business Analyst</h1>"
+        "<div>Haustarifvertrag</div>"
+        "<div>38 Stunden / Woche</div>"
+        "<div>Anteilige mobile Arbeit möglich</div>"
+        "<div>ab 59.417 € / Jahr</div>"
+        "<div>mindestens 2-3 Jahre fachbezogene Berufserfahrung</div>"
+        "</body></html>"
+    )
+
+    evidence = extract_generic_job_detail_evidence(
+        html=html,
+        url="https://jobs.example.com/job/business-analyst",
+    )
+
+    assert evidence["structured_jobposting_found"] is True
+    assert evidence["requirement_text_source"] == "json-ld"
+    assert evidence["field_presence"]["visible_text"] is True
+    assert evidence["visible_text_excerpt"]
+    for phrase in (
+        "Haustarifvertrag",
+        "38 Stunden / Woche",
+        "Anteilige mobile Arbeit möglich",
+        "59.417 € / Jahr",
+        "2-3 Jahre fachbezogene Berufserfahrung",
+    ):
+        assert phrase in evidence["visible_text_excerpt"]
+    assert evidence["raw_html_persisted"] is False

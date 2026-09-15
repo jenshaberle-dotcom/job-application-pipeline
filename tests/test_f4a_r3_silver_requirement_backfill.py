@@ -1,4 +1,71 @@
+import requests
+import pytest
+
 from scripts import run_f4a_r3_silver_requirement_backfill as backfill
+
+
+class _FetchResponse:
+    def __init__(self, status_code: int = 200) -> None:
+        self.status_code = status_code
+        self.headers = {"Content-Type": "text/html; charset=utf-8"}
+        self.encoding = "utf-8"
+        self.closed = False
+
+    def iter_content(self, *, chunk_size: int):
+        assert chunk_size > 0
+        yield b"<html><body>Data engineer vacancy with Python.</body></html>"
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _TransportSession:
+    def __init__(self, *, failures: int = 0, status_code: int = 200) -> None:
+        self.failures = failures
+        self.status_code = status_code
+        self.calls = 0
+        self.responses: list[_FetchResponse] = []
+
+    def get(self, _url: str, **_kwargs):
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise requests.ConnectionError("transient transport failure")
+        response = _FetchResponse(self.status_code)
+        self.responses.append(response)
+        return response
+
+
+def _public_resolver(_host: str, port: int, *, type: int):
+    return [(2, type, 6, "", ("93.184.216.34", port))]
+
+
+def test_exact_origin_fetch_retries_transport_failure_bounded() -> None:
+    session = _TransportSession(failures=2)
+
+    document = backfill.fetch_public_https_detail_document(
+        "https://jobs.example.test/42",
+        session=session,
+        resolver=_public_resolver,
+    )
+
+    assert session.calls == 3
+    assert document.final_url == "https://jobs.example.test/42"
+    assert "Data engineer vacancy" in document.text
+    assert session.responses[0].closed is True
+
+
+def test_exact_origin_fetch_does_not_retry_http_status_failure() -> None:
+    session = _TransportSession(status_code=503)
+
+    with pytest.raises(backfill.DownstreamPreviewStop, match="HTTP 503"):
+        backfill.fetch_public_https_detail_document(
+            "https://jobs.example.test/42",
+            session=session,
+            resolver=_public_resolver,
+        )
+
+    assert session.calls == 1
+    assert session.responses[0].closed is True
 
 
 def test_origin_unavailable_payload_is_explicit_and_authority_free() -> None:

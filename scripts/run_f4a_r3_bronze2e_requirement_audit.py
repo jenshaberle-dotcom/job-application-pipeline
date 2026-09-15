@@ -1,4 +1,4 @@
-"""Audit F4A-R3 requirement evidence from Bronze through persisted Silver to operator truth.
+"""Audit F4A requirement evidence from Bronze through persisted Silver to operator truth.
 
 This audit is read-only and provider-free. It binds the lifecycle-current operator
 review cohort to the strongest persisted Bronze/observation evidence, the durable
@@ -28,7 +28,7 @@ from src.silver.requirement_evidence_projection import (
 )
 
 
-SCHEMA = "job_application_pipeline.f4a_r3_bronze2e_requirement_audit.v2"
+SCHEMA = "job_application_pipeline.f4a_r4_bronze2e_requirement_audit.v3"
 MIN_REACHABLE_COVERAGE_RATIO = 0.80
 TARGET_FIELDS = (
     "employment_type",
@@ -37,6 +37,15 @@ TARGET_FIELDS = (
     "work_model",
     "requirements_seniority",
     "job_skills",
+)
+CONTEXT_DIMENSIONS = (
+    "employment_scope",
+    "structured_work_hours",
+    "posting_language",
+    "experience",
+    "compensation",
+    "collective_agreement",
+    "title_seniority",
 )
 _OBSERVED_STATUSES = frozenset({"observed_structured", "observed_bounded_text"})
 _EXPLICIT_MISSING_STATUSES = frozenset(
@@ -210,8 +219,101 @@ def _operator_matches_silver(
     return True
 
 
+def _context_signature(payload: Mapping[str, Any]) -> dict[str, tuple[object, ...]]:
+    context = _mapping(payload.get("display_context"))
+    compensation = _mapping(context.get("compensation"))
+    return {
+        "employment_scope": (
+            str(context.get("employment_scope") or "unknown"),
+            str(context.get("employment_scope_status") or "source_absent"),
+        ),
+        "structured_work_hours": (
+            context.get("structured_work_hours"),
+            str(context.get("structured_work_hours_status") or "source_absent"),
+        ),
+        "posting_language": (
+            str(context.get("posting_language") or "unknown"),
+            str(context.get("posting_language_basis") or "unknown"),
+        ),
+        "experience": (
+            context.get("experience_requirement"),
+            context.get("experience_months"),
+            context.get("experience_min_months"),
+            context.get("experience_max_months"),
+            str(context.get("experience_requirement_status") or "source_absent"),
+        ),
+        "compensation": (
+            compensation.get("amount"),
+            compensation.get("currency"),
+            compensation.get("period"),
+            compensation.get("qualifier"),
+            str(context.get("compensation_status") or "source_absent"),
+        ),
+        "collective_agreement": (
+            context.get("collective_agreement") is True,
+            str(context.get("collective_agreement_status") or "source_absent"),
+        ),
+        "title_seniority": (
+            str(context.get("title_seniority_signal") or "unknown"),
+            str(context.get("title_seniority_basis") or "unknown"),
+        ),
+    }
+
+
+def _operator_context_signature(row: Mapping[str, Any]) -> dict[str, tuple[object, ...]]:
+    return {
+        "employment_scope": (
+            str(row.get("employment_scope") or "unknown"),
+            str(row.get("employment_scope_status") or "source_absent"),
+        ),
+        "structured_work_hours": (
+            row.get("structured_work_hours"),
+            str(row.get("structured_work_hours_status") or "source_absent"),
+        ),
+        "posting_language": (
+            str(row.get("posting_language") or "unknown"),
+            str(row.get("posting_language_basis") or "unknown"),
+        ),
+        "experience": (
+            row.get("experience_requirement"),
+            row.get("experience_months"),
+            row.get("experience_min_months"),
+            row.get("experience_max_months"),
+            str(row.get("experience_requirement_status") or "source_absent"),
+        ),
+        "compensation": (
+            row.get("compensation_amount"),
+            row.get("compensation_currency"),
+            row.get("compensation_period"),
+            row.get("compensation_qualifier"),
+            str(row.get("compensation_status") or "source_absent"),
+        ),
+        "collective_agreement": (
+            row.get("collective_agreement") is True,
+            str(row.get("collective_agreement_status") or "source_absent"),
+        ),
+        "title_seniority": (
+            str(row.get("title_seniority_signal") or "unknown"),
+            str(row.get("title_seniority_basis") or "unknown"),
+        ),
+    }
+
+
+def _context_projection_mismatches(
+    silver_payload: Mapping[str, Any], operator_row: Mapping[str, Any]
+) -> list[str]:
+    silver = _context_signature(silver_payload)
+    operator = _operator_context_signature(operator_row)
+    return [
+        f"context:{dimension}"
+        for dimension in CONTEXT_DIMENSIONS
+        if silver[dimension] != operator[dimension]
+    ]
+
+
 def _authority_safe(payload: Mapping[str, Any]) -> bool:
     authority = _mapping(payload.get("authority"))
+    context = _mapping(payload.get("display_context"))
     return (
         authority.get("job_source_evidence_only") is True
         and authority.get("candidate_fact_authority") is False
@@ -220,6 +322,7 @@ def _authority_safe(payload: Mapping[str, Any]) -> bool:
         and authority.get("ranking_authority") is False
         and authority.get("top5_authority") is False
         and authority.get("application_authority") is False
+        and context.get("observer_authority") in (None, False)
         and payload.get("raw_html_persisted") is False
     )
 
@@ -236,6 +339,7 @@ def build_report(
     family_gap_counts: dict[str, Counter[str]] = defaultdict(Counter)
     parser_families: Counter[str] = Counter()
     bronze_sources: Counter[str] = Counter()
+    context_observed_counts: Counter[str] = Counter()
     row_reports: list[dict[str, object]] = []
 
     for row in rows:
@@ -319,6 +423,9 @@ def build_report(
                 for field in TARGET_FIELDS
                 if not _operator_matches_silver(persisted, operator, field)
             ]
+            projection_mismatches.extend(
+                _context_projection_mismatches(persisted, operator)
+            )
             if projection_mismatches:
                 violations.append("silver_to_operator_projection_loss")
 
@@ -327,12 +434,22 @@ def build_report(
             _field_status(bronze_projection, field) == statuses[field]
             and _field_value(bronze_projection, field) == _field_value(persisted, field)
             for field in TARGET_FIELDS
-        )
+        ) and _context_signature(bronze_projection) == _context_signature(persisted)
 
         for field, status in statuses.items():
             field_counts[field][status] += 1
             if status == "extractor_gap":
                 family_gap_counts[family][field] += 1
+
+        context_signature = _context_signature(persisted)
+        for dimension, values in context_signature.items():
+            status = str(values[-1] or "")
+            if status.startswith("observed_") or (
+                dimension == "posting_language" and values[0] != "unknown"
+            ) or (
+                dimension == "title_seniority" and values[0] != "unknown"
+            ):
+                context_observed_counts[dimension] += 1
 
         row_reports.append(
             {
@@ -346,6 +463,7 @@ def build_report(
                 "parser_family": parser_family,
                 "bronze_status": bronze_statuses,
                 "silver_status": statuses,
+                "silver_context": context_signature,
                 "legacy_ambiguous_fields": legacy_fields,
                 "invalid_status_fields": invalid_fields,
                 "extractor_gap_fields": gap_fields,
@@ -392,6 +510,7 @@ def build_report(
         "field_status_counts": {
             field: dict(sorted(counts.items())) for field, counts in field_counts.items()
         },
+        "context_observed_counts": dict(sorted(context_observed_counts.items())),
         "extractor_gap_source_family_counts": {
             family: dict(sorted(counts.items()))
             for family, counts in sorted(family_gap_counts.items())
@@ -435,29 +554,33 @@ def main(argv: list[str] | None = None) -> int:
         conn.rollback()
 
     report = build_report(rows, operator_rows=operator_by_id)
-    print(f"F4A_R3_BRONZE2E_CANDIDATE_COUNT={report['candidate_count']}")
-    print(f"F4A_R3_BRONZE2E_OPERATOR_COUNT={report['operator_candidate_count']}")
-    print(f"F4A_R3_BRONZE2E_REACHABLE={report['reachable_count']}")
+    print(f"F4A_R4_BRONZE2E_CANDIDATE_COUNT={report['candidate_count']}")
+    print(f"F4A_R4_BRONZE2E_OPERATOR_COUNT={report['operator_candidate_count']}")
+    print(f"F4A_R4_BRONZE2E_REACHABLE={report['reachable_count']}")
     print(
-        "F4A_R3_BRONZE2E_COVERAGE_RATIO="
+        "F4A_R4_BRONZE2E_COVERAGE_RATIO="
         f"{report['reachable_without_extractor_gap_ratio']:.4f}"
     )
-    print(f"F4A_R3_BRONZE2E_EXTRACTOR_GAP_ROWS={report['rows_with_extractor_gap']}")
+    print(f"F4A_R4_BRONZE2E_EXTRACTOR_GAP_ROWS={report['rows_with_extractor_gap']}")
     print(
-        "F4A_R3_BRONZE2E_LEGACY_AMBIGUOUS_ROWS="
+        "F4A_R4_BRONZE2E_LEGACY_AMBIGUOUS_ROWS="
         + str(report["rows_with_legacy_ambiguous_status"])
     )
     print(
-        "F4A_R3_BRONZE2E_PROJECTION_LOSS_ROWS="
+        "F4A_R4_BRONZE2E_PROJECTION_LOSS_ROWS="
         + str(report["rows_with_silver_to_operator_projection_loss"])
     )
-    print(f"F4A_R3_BRONZE2E_VIOLATING_ROWS={report['violating_row_count']}")
+    print(f"F4A_R4_BRONZE2E_VIOLATING_ROWS={report['violating_row_count']}")
     print(
-        "F4A_R3_BRONZE2E_GAP_FAMILIES="
+        "F4A_R4_BRONZE2E_CONTEXT_OBSERVED="
+        + json.dumps(report["context_observed_counts"], sort_keys=True)
+    )
+    print(
+        "F4A_R4_BRONZE2E_GAP_FAMILIES="
         + json.dumps(report["extractor_gap_source_family_counts"], sort_keys=True)
     )
     print(
-        "F4A_R3_BRONZE2E_COVERAGE_GATE="
+        "F4A_R4_BRONZE2E_COVERAGE_GATE="
         + ("PASS" if report["coverage_gate_pass"] else "FAIL")
     )
 

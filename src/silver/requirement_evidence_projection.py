@@ -1,14 +1,15 @@
 """Project bounded Bronze vacancy evidence into durable Silver requirement truth.
 
-This module is the F4A-R3 Bronze2E bridge. It consumes only already persisted,
+This module is the F4A Bronze2E bridge. It consumes only already persisted,
 provider-free Bronze/observation evidence and emits a bounded, source-neutral
 requirement-evidence payload. It never reads Candidate Facts and grants no fit,
 ranking, Top-5 or application authority.
 
 Structured connector evidence wins only when it is semantically equivalent to the
-requested field. Bounded requirement text reuses the same generic F4A composition
-used by Product so weak shell signals, partial-mobile wording and structured/text
-conflicts remain fail-closed across the Bronze2E path.
+requested field. Bounded requirement text and supplemental visible employer text
+are independently preserved so structured JobPosting data cannot hide facts that
+are visibly present elsewhere on the vacancy page. Optional evidence observers may
+discover spans, but only JAP-owned deterministic verification can promote them.
 """
 
 from __future__ import annotations
@@ -20,6 +21,13 @@ from typing import Any, Mapping
 from src.search_intelligence.product_v1_requirement_evidence import (
     ProductV1RequirementEvidence,
     extract_product_v1_requirement_evidence,
+)
+from src.silver.operator_requirement_semantics import (
+    ObservedFact,
+    collect_observed_facts,
+    infer_posting_language,
+    normalize_employment_scope,
+    observed_facts_by_field,
 )
 
 
@@ -53,6 +61,10 @@ def _field(status: str, **values: object) -> dict[str, object]:
     return {"status": status, **values}
 
 
+def _fact_payloads(facts: tuple[ObservedFact, ...]) -> list[dict[str, object]]:
+    return [fact.canonical_payload() for fact in facts]
+
+
 def _has_bounded_requirement_surface(detail: Mapping[str, Any]) -> bool:
     return any(
         _text(detail.get(key))
@@ -61,6 +73,8 @@ def _has_bounded_requirement_surface(detail: Mapping[str, Any]) -> bool:
             "requirement_text_source",
             "description_excerpt",
             "description_source",
+            "main_text_excerpt",
+            "visible_text_excerpt",
         )
     )
 
@@ -70,16 +84,6 @@ def _missing_status(
     *,
     structured_signal: bool = False,
 ) -> str:
-    """Classify missing job metadata without hiding parser gaps behind unknown.
-
-    A reachable generic detail parse that produced either a bounded vacancy text
-    surface or an explicit structured signal has actually inspected the relevant
-    Origin surface. If no supported value survives that inspection, the bounded
-    truth is ``source_absent``. When the generic detail contract itself is missing
-    or no structured/text surface was obtained, the absence is an ``extractor_gap``.
-    This distinction is intentionally conservative and never invents a value.
-    """
-
     if _text(detail.get("parser_family")) == "origin_unavailable":
         return "origin_unavailable"
     if detail.get("schema") != GENERIC_DETAIL_EVIDENCE_SCHEMA:
@@ -144,11 +148,37 @@ def _semantic_reference_payloads(
     ]
 
 
+def _single_fact_mapping(
+    facts: tuple[ObservedFact, ...],
+) -> tuple[Mapping[str, Any] | None, bool]:
+    mappings = [fact.value for fact in facts if isinstance(fact.value, Mapping)]
+    unique = {json.dumps(dict(value), sort_keys=True, default=str) for value in mappings}
+    if not unique:
+        return None, False
+    if len(unique) != 1:
+        return None, True
+    target = next(iter(unique))
+    for value in mappings:
+        if json.dumps(dict(value), sort_keys=True, default=str) == target:
+            return value, False
+    return None, False
+
+
+def _single_fact_scalar(
+    facts: tuple[ObservedFact, ...],
+) -> tuple[object | None, bool]:
+    values = [fact.value for fact in facts if not isinstance(fact.value, Mapping)]
+    unique = {repr(value) for value in values}
+    if not unique:
+        return None, False
+    if len(unique) != 1:
+        return None, True
+    return values[0], False
+
+
 def build_silver_requirement_evidence(
     raw_job: Mapping[str, Any],
 ) -> dict[str, object]:
-    """Build one bounded Silver requirement payload from canonical Bronze evidence."""
-
     raw_data = _mapping(raw_job.get("raw_data"))
     job = _mapping(raw_data.get("job"))
     metadata = _mapping(job.get("metadata"))
@@ -166,6 +196,11 @@ def build_silver_requirement_evidence(
         or detail.get("description_excerpt")
         or job.get("description")
     )
+    supplemental_text = (
+        detail.get("visible_text_excerpt")
+        or detail.get("main_text_excerpt")
+        or requirement_text
+    )
     requirement_text_source = _text(
         detail.get("requirement_text_source")
         or metadata.get("requirement_text_source")
@@ -176,7 +211,21 @@ def build_silver_requirement_evidence(
         title=title,
         source_url=source_url,
     )
+    supplemental_composed = (
+        _composed_evidence(
+            description=supplemental_text,
+            title=title,
+            source_url=source_url,
+        )
+        if _text(supplemental_text) and _text(supplemental_text) != _text(requirement_text)
+        else None
+    )
     assessment = composed.assessment if composed is not None else None
+    supplemental_assessment = (
+        supplemental_composed.assessment if supplemental_composed is not None else None
+    )
+    observed_facts = collect_observed_facts(supplemental_text)
+    facts_by_field = observed_facts_by_field(observed_facts)
 
     parser_family = _text(detail.get("parser_family")) or "unclassified"
     methods = _string_list(detail.get("methods"))
@@ -200,6 +249,43 @@ def build_silver_requirement_evidence(
     structured_employment = _string_list(detail.get("employment_types")) or _string_list(
         metadata.get("employment_types")
     )
+    employment_scope = normalize_employment_scope(structured_employment)
+    structured_work_hours = _text(detail.get("work_hours") or metadata.get("work_hours")) or None
+
+    experience_requirement = _text(
+        detail.get("experience_requirement") or metadata.get("experience_requirement")
+    ) or None
+    experience_months_raw = detail.get("experience_months", metadata.get("experience_months"))
+    experience_months = (
+        float(experience_months_raw)
+        if isinstance(experience_months_raw, (int, float))
+        else None
+    )
+    experience_min_months = experience_months
+    experience_max_months = experience_months
+    experience_status = (
+        "observed_structured"
+        if experience_requirement or experience_months is not None
+        else _missing_status(detail)
+    )
+    experience_observer_facts = tuple(facts_by_field.get("experience", ()))
+    if experience_months is None and not experience_requirement:
+        experience_observed, experience_conflict = _single_fact_mapping(
+            experience_observer_facts
+        )
+        if experience_conflict:
+            experience_status = "conflict"
+        elif experience_observed is not None:
+            minimum = experience_observed.get("minimum_months")
+            maximum = experience_observed.get("maximum_months")
+            if isinstance(minimum, (int, float)) and isinstance(maximum, (int, float)):
+                experience_min_months = float(minimum)
+                experience_max_months = float(maximum)
+                experience_months = (
+                    float(minimum) if float(minimum) == float(maximum) else None
+                )
+                experience_requirement = experience_observer_facts[0].evidence
+                experience_status = "observed_bounded_text"
 
     remote = detail.get("remote")
     workplace_type = _text(metadata.get("workplace_type")).casefold()
@@ -207,7 +293,18 @@ def build_silver_requirement_evidence(
         "remote" if remote is True or workplace_type == "remote" else "unknown"
     )
     bounded_work_model = composed.work_model if composed is not None else "unknown"
+    observer_work_model, observer_work_model_conflict = _single_fact_scalar(
+        tuple(facts_by_field.get("work_model", ()))
+    )
+    if bounded_work_model == "unknown" and isinstance(observer_work_model, str):
+        bounded_work_model = observer_work_model
+        bounded_work_model_source = "bronze_visible_text_observer"
+    else:
+        bounded_work_model_source = "bronze_requirement_text"
+
     conflicts = set(composed.conflicted_fields if composed is not None else ())
+    if observer_work_model_conflict:
+        conflicts.add("work_model")
     if (
         structured_work_model != "unknown"
         and bounded_work_model != "unknown"
@@ -216,7 +313,11 @@ def build_silver_requirement_evidence(
         conflicts.add("work_model")
         work_model = "unknown"
         work_model_status = "conflict"
-        work_model_source = "bronze_structured+bronze_requirement_text"
+        work_model_source = "bronze_structured+bronze_bounded_text"
+    elif "work_model" in conflicts:
+        work_model = "unknown"
+        work_model_status = "conflict"
+        work_model_source = "bronze_bounded_text"
     elif structured_work_model != "unknown":
         work_model = structured_work_model
         work_model_status = "observed_structured"
@@ -224,7 +325,7 @@ def build_silver_requirement_evidence(
     elif bounded_work_model != "unknown":
         work_model = bounded_work_model
         work_model_status = "observed_bounded_text"
-        work_model_source = "bronze_requirement_text"
+        work_model_source = bounded_work_model_source
     else:
         work_model = "unknown"
         work_model_status = _missing_status(
@@ -243,16 +344,42 @@ def build_silver_requirement_evidence(
             structured_signal=bool(structured_employment),
         )
 
-    languages = list(assessment.required_languages) if assessment is not None else []
+    if assessment is not None and assessment.required_languages:
+        languages = list(assessment.required_languages)
+        language_evidence = _reference_payloads(composed, "required_languages")
+    elif supplemental_assessment is not None and supplemental_assessment.required_languages:
+        languages = list(supplemental_assessment.required_languages)
+        language_evidence = _reference_payloads(
+            supplemental_composed, "required_languages"
+        )
+    else:
+        languages = []
+        language_evidence = []
+
     weekly_min = assessment.weekly_hours_min if assessment is not None else None
     weekly_max = assessment.weekly_hours_max if assessment is not None else None
+    weekly_evidence = _reference_payloads(composed, "weekly_hours")
+    weekly_observer_facts = tuple(facts_by_field.get("weekly_hours", ()))
+    observer_weekly, observer_weekly_conflict = _single_fact_mapping(
+        weekly_observer_facts
+    )
+    if weekly_min is None and weekly_max is None and observer_weekly is not None:
+        minimum = observer_weekly.get("minimum")
+        maximum = observer_weekly.get("maximum")
+        if isinstance(minimum, (int, float)) and isinstance(maximum, (int, float)):
+            weekly_min = float(minimum)
+            weekly_max = float(maximum)
+            weekly_evidence = _fact_payloads(weekly_observer_facts)
+    if observer_weekly_conflict:
+        conflicts.add("weekly_hours")
+
     requirements_seniority = (
         assessment.requirements_seniority if assessment is not None else "unknown"
     )
+    title_seniority = assessment.title_seniority if assessment is not None else "unknown"
+    posting_language = infer_posting_language(supplemental_text)
 
-    language_status = (
-        "observed_bounded_text" if languages else _missing_status(detail)
-    )
+    language_status = "observed_bounded_text" if languages else _missing_status(detail)
     weekly_status = (
         "observed_bounded_text"
         if weekly_min is not None or weekly_max is not None
@@ -261,6 +388,27 @@ def build_silver_requirement_evidence(
     seniority_status = (
         "observed_bounded_text"
         if requirements_seniority != "unknown"
+        else _missing_status(detail)
+    )
+
+    compensation_facts = tuple(facts_by_field.get("compensation", ()))
+    compensation, compensation_conflict = _single_fact_mapping(compensation_facts)
+    if compensation_conflict:
+        compensation_status = "conflict"
+        compensation = None
+    elif compensation is not None:
+        compensation_status = "observed_bounded_text"
+    else:
+        compensation_status = _missing_status(detail)
+
+    collective_facts = tuple(facts_by_field.get("collective_agreement_context", ()))
+    collective_value, collective_conflict = _single_fact_scalar(collective_facts)
+    collective_agreement = collective_value is True and not collective_conflict
+    collective_status = (
+        "conflict"
+        if collective_conflict
+        else "observed_bounded_text"
+        if collective_agreement
         else _missing_status(detail)
     )
 
@@ -274,13 +422,13 @@ def build_silver_requirement_evidence(
         "required_languages": _field(
             language_status,
             values=languages,
-            evidence=_reference_payloads(composed, "required_languages"),
+            evidence=language_evidence,
         ),
         "weekly_hours": _field(
             "conflict" if "weekly_hours" in conflicts else weekly_status,
             minimum=None if "weekly_hours" in conflicts else weekly_min,
             maximum=None if "weekly_hours" in conflicts else weekly_max,
-            evidence=_reference_payloads(composed, "weekly_hours"),
+            evidence=weekly_evidence,
         ),
         "work_model": _field(
             work_model_status,
@@ -289,15 +437,12 @@ def build_silver_requirement_evidence(
             evidence=(
                 _reference_payloads(composed, "work_model")
                 + _semantic_reference_payloads(composed, "remote")
+                + _fact_payloads(tuple(facts_by_field.get("work_model", ())))
             ),
         ),
         "requirements_seniority": _field(
             "conflict" if "requirements_seniority" in conflicts else seniority_status,
-            value=(
-                "unknown"
-                if "requirements_seniority" in conflicts
-                else requirements_seniority
-            ),
+            value=("unknown" if "requirements_seniority" in conflicts else requirements_seniority),
             evidence=_reference_payloads(composed, "requirements_seniority"),
         ),
         "job_skills": _field(
@@ -326,6 +471,42 @@ def build_silver_requirement_evidence(
         "requirement_text_source": requirement_text_source,
         "structured_jobposting_found": detail.get("structured_jobposting_found") is True,
         "fields": fields,
+        "display_context": {
+            "employment_scope": employment_scope,
+            "employment_scope_status": (
+                "observed_structured"
+                if employment_scope != "unknown"
+                else _missing_status(detail, structured_signal=bool(structured_employment))
+            ),
+            "structured_work_hours": structured_work_hours,
+            "structured_work_hours_status": (
+                "observed_structured" if structured_work_hours else _missing_status(detail)
+            ),
+            "experience_requirement": experience_requirement,
+            "experience_months": experience_months,
+            "experience_min_months": experience_min_months,
+            "experience_max_months": experience_max_months,
+            "experience_requirement_status": experience_status,
+            "experience_evidence": _fact_payloads(experience_observer_facts),
+            "compensation": dict(compensation) if compensation is not None else None,
+            "compensation_status": compensation_status,
+            "compensation_evidence": _fact_payloads(compensation_facts),
+            "collective_agreement": collective_agreement,
+            "collective_agreement_status": collective_status,
+            "collective_agreement_evidence": _fact_payloads(collective_facts),
+            "posting_language": posting_language,
+            "posting_language_basis": (
+                "bounded_visible_vacancy_text" if posting_language != "unknown" else "unknown"
+            ),
+            "title_seniority_signal": title_seniority,
+            "title_seniority_basis": (
+                "job_title" if title_seniority != "unknown" else "unknown"
+            ),
+            "observer_facts": _fact_payloads(observed_facts),
+            "observer_authority": False,
+            "hard_filter_authority": False,
+            "capability_fit_authority": False,
+        },
         "conflicted_fields": sorted(conflicts),
         "unresolved_fields": sorted(unresolved_fields),
         "raw_html_persisted": False,
@@ -357,8 +538,6 @@ def synchronize_silver_requirement_evidence(
     silver_job_id: int,
     raw_job: Mapping[str, Any],
 ) -> None:
-    """Upsert one Silver-side evidence row inside the caller's Silver transaction."""
-
     payload = build_silver_requirement_evidence(raw_job)
     evidence_hash = requirement_evidence_hash(payload)
     parser_family = _text(payload.get("parser_family")) or "unclassified"
@@ -370,13 +549,8 @@ def synchronize_silver_requirement_evidence(
     cur.execute(
         """
         INSERT INTO silver_job_requirement_evidence (
-            silver_job_id,
-            raw_job_id,
-            evidence_schema,
-            source_evidence_schema,
-            parser_family,
-            evidence_hash,
-            evidence_payload
+            silver_job_id, raw_job_id, evidence_schema, source_evidence_schema,
+            parser_family, evidence_hash, evidence_payload
         )
         VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
         ON CONFLICT (silver_job_id)

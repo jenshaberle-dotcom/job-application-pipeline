@@ -27,13 +27,15 @@ def _raw_job(**overrides: object) -> dict[str, object]:
             "parser_family": "schema_org_json_ld",
             "structured_jobposting_found": True,
             "description_excerpt": (
-                "Sehr gute Deutschkenntnisse auf C1-Niveau. "
-                "38 Stunden pro Woche. Python und Kubernetes."
+                "Wir suchen Verstärkung für unser Team. Du arbeitest mit Python und "
+                "Kubernetes. Sehr gute Deutschkenntnisse auf C1-Niveau. "
+                "38 Stunden pro Woche. Deine Erfahrung und Kenntnisse sind wichtig."
             ),
             "description_source": "json-ld",
             "requirement_text_excerpt": (
-                "Sehr gute Deutschkenntnisse auf C1-Niveau. "
-                "38 Stunden pro Woche. Python und Kubernetes."
+                "Wir suchen Verstärkung für unser Team. Du arbeitest mit Python und "
+                "Kubernetes. Sehr gute Deutschkenntnisse auf C1-Niveau. "
+                "38 Stunden pro Woche. Deine Erfahrung und Kenntnisse sind wichtig."
             ),
             "requirement_text_source": "json-ld",
             "employment_types": ["FULL_TIME"],
@@ -71,6 +73,14 @@ def test_projection_carries_structured_and_bounded_bronze_truth() -> None:
     assert fields["weekly_hours"]["minimum"] == 38.0
     assert fields["weekly_hours"]["maximum"] == 38.0
 
+    display = payload["display_context"]
+    assert display["employment_scope"] == "full_time"
+    assert display["employment_scope_status"] == "observed_structured"
+    assert display["posting_language"] == "de"
+    assert display["posting_language_basis"] == "bounded_visible_vacancy_text"
+    assert display["hard_filter_authority"] is False
+    assert display["observer_authority"] is False
+
 
 def test_projection_classifies_semantically_unsupported_structured_employment_as_source_absent() -> None:
     payload = build_silver_requirement_evidence(_raw_job())
@@ -79,6 +89,33 @@ def test_projection_classifies_semantically_unsupported_structured_employment_as
     assert employment["value"] == "unknown"
     assert employment["source_employment_types"] == ["FULL_TIME"]
     assert employment["status"] == "source_absent"
+    assert payload["display_context"]["employment_scope"] == "full_time"
+
+
+def test_title_seniority_is_display_context_not_requirement_authority() -> None:
+    raw = _raw_job()
+    raw["raw_data"]["job"]["title"] = "Senior Data Platform Engineer"
+    payload = build_silver_requirement_evidence(raw)
+
+    assert payload["fields"]["requirements_seniority"]["value"] == "unknown"
+    assert payload["display_context"]["title_seniority_signal"] == "senior"
+    assert payload["display_context"]["title_seniority_basis"] == "job_title"
+    assert payload["display_context"]["hard_filter_authority"] is False
+
+
+def test_posting_language_does_not_fabricate_explicit_language_requirement() -> None:
+    raw = _raw_job()
+    text = (
+        "We are looking for an engineer for our team. You will work with Python and "
+        "machine learning and take responsibility for our platform. Your experience "
+        "and skills are important for this role and our application process."
+    )
+    raw["raw_data"]["detail_evidence"]["description_excerpt"] = text
+    raw["raw_data"]["detail_evidence"]["requirement_text_excerpt"] = text
+    payload = build_silver_requirement_evidence(raw)
+
+    assert payload["fields"]["required_languages"]["values"] == []
+    assert payload["display_context"]["posting_language"] == "en"
 
 
 def test_projection_rejects_weak_trainee_shell_text_for_non_trainee_title() -> None:
@@ -140,6 +177,43 @@ def test_projection_uses_bounded_text_skill_fallback_when_structured_skills_abse
     assert skills["values"] == ["Python", "Kubernetes"]
 
 
+def test_visible_origin_evidence_fills_hours_experience_compensation_and_mobile_context() -> None:
+    raw = _raw_job()
+    raw["raw_data"]["job"]["metadata"].pop("workplace_type")
+    raw["raw_data"]["detail_evidence"]["remote"] = None
+    raw["raw_data"]["detail_evidence"]["requirement_text_excerpt"] = (
+        "Unterstützung der Endkunden in fachlichen Fragen."
+    )
+    raw["raw_data"]["detail_evidence"]["visible_text_excerpt"] = (
+        "Business Analyst. Haustarifvertrag. 38 Stunden / Woche. "
+        "Anteilige mobile Arbeit möglich. ab 59.417 € / Jahr. "
+        "Abgeschlossenes Studium sowie mindestens 2-3 Jahre fachbezogene Berufserfahrung."
+    )
+
+    payload = build_silver_requirement_evidence(raw)
+
+    weekly = payload["fields"]["weekly_hours"]
+    assert weekly["status"] == "observed_bounded_text"
+    assert weekly["minimum"] == 38.0
+    assert weekly["maximum"] == 38.0
+    assert payload["fields"]["work_model"]["value"] == "hybrid"
+
+    display = payload["display_context"]
+    assert display["experience_min_months"] == 24.0
+    assert display["experience_max_months"] == 36.0
+    assert display["experience_requirement_status"] == "observed_bounded_text"
+    assert display["compensation"] == {
+        "amount": 59417.0,
+        "currency": "EUR",
+        "period": "year",
+        "qualifier": "minimum",
+    }
+    assert display["compensation_status"] == "observed_bounded_text"
+    assert display["collective_agreement"] is True
+    assert display["collective_agreement_status"] == "observed_bounded_text"
+    assert display["observer_authority"] is False
+
+
 def test_reachable_generic_surface_classifies_unstated_fields_as_source_absent() -> None:
     raw = _raw_job()
     raw["raw_data"]["job"].pop("skills")
@@ -175,6 +249,8 @@ def test_reachable_page_without_generic_requirement_surface_is_extractor_gap() -
         "description_source": None,
         "requirement_text_excerpt": None,
         "requirement_text_source": None,
+        "main_text_excerpt": None,
+        "visible_text_excerpt": None,
         "employment_types": [],
         "skills": [],
         "remote": None,

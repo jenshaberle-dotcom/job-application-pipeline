@@ -9,7 +9,8 @@
 }
 
 .review-label-panel header,
-.review-requirement-panel header {
+.review-requirement-panel header,
+.r4-requirement-fit header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -17,7 +18,8 @@
 }
 
 .review-label-panel h3,
-.review-requirement-panel h3 {
+.review-requirement-panel h3,
+.r4-requirement-fit h3 {
   margin: 3px 0 0;
   font-size: 16px;
 }
@@ -211,9 +213,135 @@
   color: var(--muted);
 }
 
+.r4-review-stack {
+  display: grid;
+  gap: 0;
+}
+
+.r4-requirement-fit {
+  display: grid;
+  gap: 0;
+  margin: 14px 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: rgba(4, 17, 28, 0.58);
+}
+
+.r4-requirement-fit header {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  background: rgba(71, 217, 255, 0.035);
+}
+
+.r4-fit-summary {
+  display: flex;
+  align-items: center;
+}
+
+.r4-evidence-row {
+  display: grid;
+  grid-template-columns: 122px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.r4-evidence-row > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.r4-evidence-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.r4-evidence-row b {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.r4-evidence-row small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.r4-fit-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.r4-fit-state.good {
+  border-color: rgba(82, 226, 177, 0.4);
+  background: rgba(82, 226, 177, 0.08);
+  color: var(--green);
+}
+
+.r4-fit-state.bad {
+  border-color: rgba(255, 114, 124, 0.4);
+  background: rgba(255, 114, 124, 0.08);
+  color: var(--danger);
+}
+
+.r4-fit-state.warn {
+  border-color: rgba(255, 202, 92, 0.4);
+  background: rgba(255, 202, 92, 0.08);
+  color: var(--amber);
+}
+
+.r4-authority-note {
+  margin: 0;
+  padding: 9px 14px;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.r4-score-card {
+  margin: 0 0 14px;
+}
+
+/* R4 replaces the two older duplicate detail surfaces in OperatorWorkspace. */
+.r4-review-stack + .ow-facts,
+.r4-review-stack + .ow-facts + .ow-score-card {
+  display: none;
+}
+
+/* Location/work-model/commute is now consolidated above; retain lifecycle/date facts. */
+.r4-review-stack + .ow-facts + .ow-score-card + .ow-facts > div:nth-child(3),
+.r4-review-stack + .ow-facts + .ow-score-card + .ow-facts > div:nth-child(4) {
+  display: none;
+}
+
 @media (max-width: 760px) {
   .review-label-actions,
   .review-requirement-grid {
     grid-template-columns: 1fr;
+  }
+
+  .r4-evidence-row {
+    grid-template-columns: 1fr;
+  }
+
+  .r4-fit-state {
+    justify-self: start;
   }
 }
