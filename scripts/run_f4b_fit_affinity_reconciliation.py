@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Mapping
 
 from scripts.product_v1_control_center_base import load_product_v1_payload
+from scripts.product_v1_job_presentation_runtime import enrich_product_payload_for_operator
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +38,10 @@ def _number(value: object) -> float | None:
         if math.isfinite(number) and 0.0 <= number <= 100.0:
             return number
     return None
+
+
+def _identity_token(value: object) -> str:
+    return "".join(character for character in str(value or "").casefold() if character.isalnum())
 
 
 def _factor_snapshot(job: Mapping[str, object]) -> dict[str, dict[str, str]]:
@@ -102,6 +107,58 @@ def _affinity(job: Mapping[str, object]) -> dict[str, object]:
             "evidence_quality": _number(job.get("evidence_quality_score")),
         },
         "ranking_authority": pd052 is not None,
+    }
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [str(item) for item in value if str(item).strip()]
+
+
+def _sidecar_requirement_snapshot(job: Mapping[str, object]) -> dict[str, object]:
+    source = str(job.get("requirement_evidence_source") or "none")
+    employment_type = str(job.get("employment_type") or "unknown")
+    languages = _string_list(job.get("required_languages"))
+    weekly_min = job.get("weekly_hours_min")
+    weekly_max = job.get("weekly_hours_max")
+    seniority = str(job.get("requirements_seniority") or "unknown")
+    job_skills = _string_list(job.get("job_skills"))
+    work_model = str(job.get("work_model") or "unknown")
+    capability_reason = str(
+        _factor_snapshot(job)["skills_capabilities"].get("reason") or ""
+    )
+    geography_reason = str(
+        _factor_snapshot(job)["geography_work_model_commute"].get("reason") or ""
+    )
+    return {
+        "source": source,
+        "is_primary_silver_sidecar": source == "silver_job_requirement_evidence",
+        "employment_type": employment_type,
+        "employment_evidence_status": str(job.get("employment_evidence_status") or "unknown"),
+        "employment_value_present": employment_type not in {"", "unknown", "none"},
+        "required_languages": languages,
+        "language_evidence_status": str(job.get("language_evidence_status") or "unknown"),
+        "language_values_present": bool(languages),
+        "weekly_hours_min": weekly_min,
+        "weekly_hours_max": weekly_max,
+        "weekly_hours_evidence_status": str(job.get("weekly_hours_evidence_status") or "unknown"),
+        "weekly_hours_numeric_present": isinstance(weekly_min, (int, float))
+        or isinstance(weekly_max, (int, float)),
+        "requirements_seniority": seniority,
+        "seniority_evidence_status": str(job.get("seniority_evidence_status") or "unknown"),
+        "seniority_value_present": seniority not in {"", "unknown", "none"},
+        "job_skills": job_skills,
+        "job_skills_present": bool(job_skills),
+        "work_model": work_model,
+        "work_model_present": work_model not in {"", "unknown", "none"},
+        "conflicted_fields": _string_list(job.get("requirement_conflicted_fields")),
+        "unresolved_fields": _string_list(job.get("requirement_unresolved_fields")),
+        "capability_review_missing": capability_reason
+        == "exact_current_candidate_fact_capability_review_missing",
+        "geography_preference_missing": geography_reason
+        == "approved_candidate_geography_preference_missing_or_ambiguous",
+        "hard_filter_authority": False,
     }
 
 
@@ -211,6 +268,7 @@ def reconcile_payload(
     for job in current:
         fit = _fit_diagnostic(job)
         affinity = _affinity(job)
+        sidecar = _sidecar_requirement_snapshot(job)
         exclusion, exclusion_kind = _first_exclusion(job, fit=fit, affinity=affinity)
         if exclusion:
             exclusion_counts[exclusion] += 1
@@ -254,6 +312,7 @@ def reconcile_payload(
                 "current_top5_member": silver_job_id in top_ids,
                 "affinity": affinity,
                 "fit": fit,
+                "sidecar_requirement_evidence": sidecar,
                 "combined_calibration": combined,
                 "first_exclusion_reason": exclusion,
                 "exclusion_kind": exclusion_kind,
@@ -286,7 +345,7 @@ def reconcile_payload(
     else:
         population_blocker = "none_read_only_reconciliation_ready"
 
-    highlight = highlight_company.casefold().strip()
+    highlight = _identity_token(highlight_company)
     highlighted_rows = [
         {
             "silver_job_id": row["silver_job_id"],
@@ -310,11 +369,31 @@ def reconcile_payload(
             ),
         }
         for row in rows
-        if highlight and highlight in str(row["company_name"]).casefold()
+        if highlight and highlight in _identity_token(row["company_name"])
     ]
 
+    sidecar_rows = [
+        row for row in rows if row["sidecar_requirement_evidence"]["is_primary_silver_sidecar"]
+    ]
+    employment_statuses = Counter(
+        str(row["sidecar_requirement_evidence"]["employment_evidence_status"])
+        for row in sidecar_rows
+    )
+    language_statuses = Counter(
+        str(row["sidecar_requirement_evidence"]["language_evidence_status"])
+        for row in sidecar_rows
+    )
+    weekly_statuses = Counter(
+        str(row["sidecar_requirement_evidence"]["weekly_hours_evidence_status"])
+        for row in sidecar_rows
+    )
+    seniority_statuses = Counter(
+        str(row["sidecar_requirement_evidence"]["seniority_evidence_status"])
+        for row in sidecar_rows
+    )
+
     return {
-        "schema": "job_application_pipeline.f4b_fit_affinity_reconciliation.v1",
+        "schema": "job_application_pipeline.f4b_fit_affinity_reconciliation.v2",
         "summary": {
             "observed_product_job_count": len(raw_jobs),
             "current_job_count": len(rows),
@@ -338,6 +417,43 @@ def reconcile_payload(
             "exclusion_counts": dict(sorted(exclusion_counts.items())),
             "evidence_gap_counts": dict(sorted(evidence_gap_counts.items())),
             "valid_exclusion_counts": dict(sorted(valid_exclusion_counts.items())),
+            "silver_sidecar_primary_count": len(sidecar_rows),
+            "silver_sidecar_employment_value_count": sum(
+                bool(row["sidecar_requirement_evidence"]["employment_value_present"])
+                for row in sidecar_rows
+            ),
+            "silver_sidecar_language_values_count": sum(
+                bool(row["sidecar_requirement_evidence"]["language_values_present"])
+                for row in sidecar_rows
+            ),
+            "silver_sidecar_weekly_hours_numeric_count": sum(
+                bool(row["sidecar_requirement_evidence"]["weekly_hours_numeric_present"])
+                for row in sidecar_rows
+            ),
+            "silver_sidecar_seniority_value_count": sum(
+                bool(row["sidecar_requirement_evidence"]["seniority_value_present"])
+                for row in sidecar_rows
+            ),
+            "silver_sidecar_job_skills_count": sum(
+                bool(row["sidecar_requirement_evidence"]["job_skills_present"])
+                for row in sidecar_rows
+            ),
+            "silver_sidecar_work_model_count": sum(
+                bool(row["sidecar_requirement_evidence"]["work_model_present"])
+                for row in sidecar_rows
+            ),
+            "silver_sidecar_employment_statuses": dict(sorted(employment_statuses.items())),
+            "silver_sidecar_language_statuses": dict(sorted(language_statuses.items())),
+            "silver_sidecar_weekly_hours_statuses": dict(sorted(weekly_statuses.items())),
+            "silver_sidecar_seniority_statuses": dict(sorted(seniority_statuses.items())),
+            "candidate_capability_review_missing_count": sum(
+                bool(row["sidecar_requirement_evidence"]["capability_review_missing"])
+                for row in rows
+            ),
+            "candidate_geography_preference_missing_count": sum(
+                bool(row["sidecar_requirement_evidence"]["geography_preference_missing"])
+                for row in rows
+            ),
         },
         "issue_884_highlight": {
             "company_query": highlight_company,
@@ -350,6 +466,8 @@ def reconcile_payload(
             "database_writes": False,
             "provider_requests": 0,
             "network_requests": 0,
+            "operator_presentation_sidecar_read_only": True,
+            "sidecar_diagnostic_creates_no_hard_filter_authority": True,
             "fit_numeric_score_is_diagnostic_only": True,
             "combined_scores_are_calibration_only": True,
             "pd052_production_authority_unchanged": True,
@@ -370,7 +488,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    payload = load_product_v1_payload(include_source_connector_overview=False)
+    base_payload = load_product_v1_payload(include_source_connector_overview=False)
+    payload = enrich_product_payload_for_operator(base_payload)
     report = reconcile_payload(payload, highlight_company=args.highlight_company)
     summary = report["summary"]
     if int(summary["current_job_count"]) <= 0:
@@ -393,6 +512,14 @@ def main() -> int:
         "pd052_affinity_authority_count",
         "combined_calibration_eligible_count",
         "current_top5_count",
+        "silver_sidecar_primary_count",
+        "silver_sidecar_employment_value_count",
+        "silver_sidecar_language_values_count",
+        "silver_sidecar_weekly_hours_numeric_count",
+        "silver_sidecar_seniority_value_count",
+        "silver_sidecar_job_skills_count",
+        "candidate_capability_review_missing_count",
+        "candidate_geography_preference_missing_count",
     ):
         print(f"{key.upper()}={summary[key]}")
     print(f"POPULATION_BLOCKER={summary['population_blocker']}")

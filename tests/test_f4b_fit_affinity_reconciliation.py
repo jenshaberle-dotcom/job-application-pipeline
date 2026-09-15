@@ -32,6 +32,20 @@ def _job(job_id: int, **overrides: object) -> dict[str, object]:
         "reliability_focus_score": 78.0,
         "data_focus_score": 81.0,
         "evidence_quality_score": 79.0,
+        "requirement_evidence_source": "silver_job_requirement_evidence",
+        "employment_type": "permanent",
+        "employment_evidence_status": "observed_structured",
+        "required_languages": ["de", "en"],
+        "language_evidence_status": "observed_contextual",
+        "weekly_hours_min": 38,
+        "weekly_hours_max": 38,
+        "weekly_hours_evidence_status": "observed_contextual",
+        "requirements_seniority": "mid",
+        "seniority_evidence_status": "observed_contextual",
+        "job_skills": ["Python", "SQL"],
+        "work_model": "hybrid",
+        "requirement_conflicted_fields": [],
+        "requirement_unresolved_fields": [],
         "profile_fit_coverage_status": "profile_fit_complete",
         "profile_fit_decision": "passed",
         "profile_fit_factors": {
@@ -85,6 +99,30 @@ def test_read_only_combined_candidates_use_only_pd052_and_complete_fit() -> None
     assert row["first_exclusion_reason"] is None
     assert report["boundaries"]["ranking_authority_created"] is False
     assert report["boundaries"]["pd052_production_authority_unchanged"] is True
+
+
+def test_sidecar_diagnostic_reports_source_evidence_without_creating_authority() -> None:
+    report = reconcile_payload(_payload(_job(1)))
+    row = report["rows"][0]
+    sidecar = row["sidecar_requirement_evidence"]
+    summary = report["summary"]
+
+    assert sidecar["is_primary_silver_sidecar"] is True
+    assert sidecar["employment_value_present"] is True
+    assert sidecar["language_values_present"] is True
+    assert sidecar["weekly_hours_numeric_present"] is True
+    assert sidecar["seniority_value_present"] is True
+    assert sidecar["job_skills_present"] is True
+    assert sidecar["work_model_present"] is True
+    assert sidecar["hard_filter_authority"] is False
+    assert summary["silver_sidecar_primary_count"] == 1
+    assert summary["silver_sidecar_employment_value_count"] == 1
+    assert summary["silver_sidecar_language_values_count"] == 1
+    assert summary["silver_sidecar_weekly_hours_numeric_count"] == 1
+    assert summary["silver_sidecar_seniority_value_count"] == 1
+    assert summary["silver_sidecar_job_skills_count"] == 1
+    assert summary["silver_sidecar_work_model_count"] == 1
+    assert report["boundaries"]["sidecar_diagnostic_creates_no_hard_filter_authority"] is True
 
 
 def test_unknown_fit_factor_never_receives_midpoint_or_combined_score() -> None:
@@ -182,7 +220,7 @@ def test_multiple_positive_rows_expose_binary_fit_granularity_blocker() -> None:
     )
 
 
-def test_issue_884_highlight_is_diagnostic_only_and_classifies_hard_conflict() -> None:
+def test_issue_884_highlight_is_diagnostic_only_and_normalizes_company_spacing() -> None:
     factors = dict(_job(599)["profile_fit_factors"])
     factors["hard_requirements"] = {
         "status": "failed",
@@ -192,7 +230,7 @@ def test_issue_884_highlight_is_diagnostic_only_and_classifies_hard_conflict() -
         _payload(
             _job(
                 599,
-                company_name="Hannover Re",
+                company_name="hannoverre",
                 title="Working Student Taxation and Tax Reporting Economics",
                 hard_filter_status="failed",
                 profile_fit_decision="failed",
