@@ -55,10 +55,11 @@ def test_affinity_candidate_does_not_require_fit_or_hard_filter_state() -> None:
     )
     assert item["legacy_affinity_proxy_score"] > 0
     assert item["components"]["profile_direction_score"] > 0
+    assert item["revision_binding"] == "exact_persisted_revision"
     assert item["authority"] == "read_only_affinity_calibration_only"
 
 
-def test_reconciliation_keeps_changed_revision_out_of_affinity_candidates() -> None:
+def test_reconciliation_retains_changed_same_origin_revision_as_read_only_candidate() -> None:
     persisted = "Machine learning SQL."
     changed = "Machine learning SQL and a materially changed detail page."
 
@@ -66,9 +67,24 @@ def test_reconciliation_keeps_changed_revision_out_of_affinity_candidates() -> N
         return "https://example.com/jobs/1", "Machine Learning Engineer", changed
 
     result = reconcile_rows(rows=[_row(persisted)], policy=_policy(), fetch_detail=fetch_detail)
+    assert result["affinity_candidate_count"] == 1
+    assert result["unavailable_count"] == 0
+    item = result["candidates"][0]
+    assert item["revision_binding"] == "unpersisted_current_revision"
+    assert item["current_detail_sha256"] != item["persisted_detail_sha256"]
+    assert result["revision_binding_counts"] == {"unpersisted_current_revision": 1}
+
+
+def test_reconciliation_still_rejects_cross_origin_redirect() -> None:
+    detail = "Machine learning SQL."
+
+    def fetch_detail(_url: str):
+        return "https://attacker.example/jobs/1", "Machine Learning Engineer", detail
+
+    result = reconcile_rows(rows=[_row(detail)], policy=_policy(), fetch_detail=fetch_detail)
     assert result["affinity_candidate_count"] == 0
     assert result["unavailable_count"] == 1
-    assert result["unavailable"][0]["reason"] == "CURRENT_DETAIL_REVISION_CHANGED"
+    assert result["unavailable"][0]["reason"] == "DETAIL_REDIRECT_OUTSIDE_AUTHORIZED_ORIGIN"
 
 
 def test_canonical_pd052_weights_are_detected_without_approving_runtime_threshold() -> None:
