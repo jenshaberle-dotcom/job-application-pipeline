@@ -6,6 +6,7 @@ on:
     paths:
       - scripts/run_f4b_cohort_reconciliation.py
       - tests/test_f4b_cohort_reconciliation.py
+      - docs/planning/active/F4B-CURRENT-COHORT-BASELINE.md
       - .github/workflows/f4b-readonly-cohort.yml
   workflow_dispatch:
 
