@@ -61,7 +61,16 @@ type JobRequirementTruth = {
   seniority_evidence_status?: string;
   experience_requirement?: string | null;
   experience_months?: number | null;
+  experience_min_months?: number | null;
+  experience_max_months?: number | null;
   experience_requirement_status?: string;
+  compensation_amount?: number | null;
+  compensation_currency?: string | null;
+  compensation_period?: string | null;
+  compensation_qualifier?: string | null;
+  compensation_status?: string;
+  collective_agreement?: boolean;
+  collective_agreement_status?: string;
   title_seniority_signal?: string;
   title_seniority_basis?: string;
   job_skills?: string[];
@@ -114,6 +123,17 @@ const hoursLabel = (
   return `${minimum ?? "?"}–${maximum ?? "?"} h/week`;
 };
 
+const monthsLabel = (
+  minimum: number | null | undefined,
+  maximum: number | null | undefined,
+) => {
+  if (minimum == null && maximum == null) return null;
+  const render = (months: number) => months % 12 === 0 ? `${months / 12} years` : `${months} months`;
+  if (minimum != null && maximum != null && minimum === maximum) return `${render(minimum)} experience`;
+  if (minimum != null && maximum != null) return `${render(minimum)}–${render(maximum)} experience`;
+  return `${render(minimum ?? maximum!)} experience`;
+};
+
 const languageName = (value: string | undefined) => {
   if (value === "de") return "German";
   if (value === "en") return "English";
@@ -123,6 +143,28 @@ const languageName = (value: string | undefined) => {
 
 const explicitLanguages = (values: string[] | undefined) =>
   values?.length ? values.map((value) => value.toUpperCase()).join(", ") : null;
+
+const compensationLabel = (
+  amount: number | null | undefined,
+  currency: string | null | undefined,
+  period: string | null | undefined,
+  qualifier: string | null | undefined,
+) => {
+  if (typeof amount !== "number" || !currency) return null;
+  let formatted: string;
+  try {
+    formatted = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    formatted = `${amount.toLocaleString()} ${currency}`;
+  }
+  const prefix = qualifier === "minimum" ? "from " : "";
+  const suffix = period === "year" ? "/year" : period === "month" ? "/month" : "";
+  return `${prefix}${formatted}${suffix}`;
+};
 
 const fitLabel = (value: string | undefined) => {
   const status = normalized(value);
@@ -250,12 +292,10 @@ export default function JobReviewLabelControls({
   const structuredHours = job?.structured_work_hours || null;
   const hours = numericHours || structuredHours;
   const employmentParts = [scope, contract, hours].filter(Boolean);
-  const employmentPrimary = employmentParts.join(" · ") || "Not stated by employer";
-  const employmentSecondary = !contract && scope
-    ? "Contract duration not stated"
-    : !hours && scope
-      ? "Weekly hours not stated"
-      : null;
+  const employmentPrimary = employmentParts.join(" · ") || "Employment details not stated";
+  const employmentNotes: string[] = [];
+  if (scope && !contract) employmentNotes.push("Contract duration not stated");
+  if (scope && !hours) employmentNotes.push("Weekly hours not stated");
 
   const explicit = explicitLanguages(job?.required_languages);
   const posting = languageName(job?.posting_language);
@@ -268,17 +308,29 @@ export default function JobReviewLabelControls({
     ? "Posting language is context, not an explicit employer requirement"
     : null;
 
+  const compensation = compensationLabel(
+    job?.compensation_amount,
+    job?.compensation_currency,
+    job?.compensation_period,
+    job?.compensation_qualifier,
+  );
+  if (compensation) employmentNotes.push(`Compensation ${compensation}`);
+  if (job?.collective_agreement) employmentNotes.push("Collective agreement stated");
+  employmentNotes.push(languagePrimary);
+  if (languageSecondary) employmentNotes.push(languageSecondary);
+
   const requirementLevel = known(job?.requirements_seniority)
     ? humanize(job?.requirements_seniority)
     : null;
   const titleLevel = known(job?.title_seniority_signal)
     ? humanize(job?.title_seniority_signal)
     : null;
+  const normalizedExperience = monthsLabel(job?.experience_min_months, job?.experience_max_months);
   const experienceMonths = typeof job?.experience_months === "number" ? job.experience_months : null;
   const experienceText = job?.experience_requirement || null;
-  const experienceLabel = experienceMonths != null
+  const experienceLabel = normalizedExperience || (experienceMonths != null
     ? `${experienceMonths / 12 === Math.floor(experienceMonths / 12) ? `${experienceMonths / 12} years` : `${experienceMonths} months`} experience`
-    : experienceText;
+    : experienceText);
   const levelPrimary = requirementLevel
     ? `${requirementLevel} requirement`
     : experienceLabel
@@ -364,10 +416,10 @@ export default function JobReviewLabelControls({
           <EvidenceRow
             label="Employment & language"
             primary={employmentPrimary}
-            secondary={[employmentSecondary, languagePrimary, languageSecondary].filter(Boolean).join(" · ")}
+            secondary={employmentNotes.join(" · ")}
             fit={factors.hard_requirements?.status}
           />
-          <p className="r4-authority-note">Posting language, workload, structured experience and title-level signals are operator context only unless the employer explicitly states a requirement. Candidate Fit remains a separate authority.</p>
+          <p className="r4-authority-note">Posting language, workload, compensation, collective-agreement context, experience and title-level signals are operator context unless the employer explicitly states a requirement. Candidate Fit remains a separate authority.</p>
         </> : <p className="review-requirement-warning">{requirementsError || "Loading persisted job evidence…"}</p>}
       </section>
 
