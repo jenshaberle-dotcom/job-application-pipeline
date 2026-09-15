@@ -1,0 +1,176 @@
+name: F4A-R8 guarded operator acceptance refresh v2
+
+on:
+  push:
+    branches:
+      - agent/f4a-r8-operator-acceptance
+    paths:
+      - ".github/triggers/f4a-r8-operator-apply-v2.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4a-r8-operator-apply-v2
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Refresh Silver and prove operator convergence
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 45
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      APPROVAL_TOKEN: F4A-R3-SILVER-REQUIREMENT-BACKFILL-001
+      TRIGGER_FILE: .github/triggers/f4a-r8-operator-apply-v2.trigger
+
+    steps:
+      - name: Check out exact authorized head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify single-purpose authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          parent="$(git rev-parse HEAD^)"
+          mapfile -t changed < <(git diff --name-only "$parent" HEAD)
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = "$TRIGGER_FILE"
+          test "$(sed -n 's/^authority=//p' "$TRIGGER_FILE")" = "$APPROVAL_TOKEN"
+          test "$(sed -n 's/^qualified_head=//p' "$TRIGGER_FILE")" = "$parent"
+          test -n "$(sed -n 's/^qualified_preflight_run=//p' "$TRIGGER_FILE")"
+          test -n "$(sed -n 's/^qualified_pipeline_ci_run=//p' "$TRIGGER_FILE")"
+          test -n "$(sed -n 's/^qualified_reentry_run=//p' "$TRIGGER_FILE")"
+          test "$(sed -n 's/^mutation=//p' "$TRIGGER_FILE")" = "refresh-current-cohort-silver-sidecar-only"
+          echo "F4A_R8_V2_AUTHORITY=PASS"
+
+      - name: Refresh and prove convergence
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          mapfile -t ctx < <(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json, sys
+          from pathlib import PurePosixPath
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id) or context.get("Repository") != repository or context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_IDENTITY_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          root = PurePosixPath(context["CheckoutRoot"])
+          if root not in PurePosixPath(context["Interpreter"]).parents or root not in PurePosixPath(context["EnvFile"]).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )
+          test "${#ctx[@]}" -eq 2
+          RUNTIME_PYTHON="${ctx[0]}"
+          RUNTIME_ENV_FILE="${ctx[1]}"
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4a-r8-v2-local-oss-sites")"
+          test -d "$local_oss_site"
+          export PYTHONPATH="$local_oss_site:${PYTHONPATH:-}"
+
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
+
+          pre="$RUNNER_TEMP/f4a_r8_v2_pre.json"
+          apply="$RUNNER_TEMP/f4a_r8_v2_apply.json"
+          post="$RUNNER_TEMP/f4a_r8_v2_post.json"
+          audit="$RUNNER_TEMP/f4a_r8_v2_audit.json"
+
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_silver_requirement_backfill --output "$pre"
+          "$RUNTIME_PYTHON" - "$pre" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          reachable = []
+          covered = []
+          allowed = {"observed_structured", "observed_bounded_text", "source_absent", "extractor_gap", "conflict", "origin_unavailable"}
+          for proposal in report.get("proposals", []):
+              statuses = [str((value or {}).get("status") or "missing") for value in ((proposal.get("payload") or {}).get("fields") or {}).values()]
+              if any(status not in allowed for status in statuses):
+                  raise SystemExit("F4A_R8_V2_PRE_STATUS_FAIL")
+              if proposal.get("origin_unavailable"):
+                  continue
+              reachable.append(proposal)
+              if "extractor_gap" not in statuses:
+                  covered.append(proposal)
+          ratio = len(covered) / len(reachable) if reachable else 0.0
+          print(f"F4A_R8_V2_PRE_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_R8_V2_PRE_REACHABLE={len(reachable)}")
+          print(f"F4A_R8_V2_PRE_WOULD_CHANGE={report['would_change_count']}")
+          print(f"F4A_R8_V2_PRE_COVERAGE={ratio:.4f}")
+          if report["candidate_count"] <= 0 or report["proposal_count"] != report["candidate_count"] or report["blocked_count"] != 0:
+              raise SystemExit("F4A_R8_V2_PRE_NOT_COMPLETE")
+          if not reachable or ratio < 0.80 or any(report["boundaries"].values()):
+              raise SystemExit("F4A_R8_V2_PRE_GATE_FAIL")
+          PY
+
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_silver_requirement_backfill \
+            --apply --approval-token "$APPROVAL_TOKEN" --output "$apply"
+          "$RUNTIME_PYTHON" - "$apply" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_R8_V2_APPLIED={report.get('applied_count', 0)}")
+          if report.get("mode") != "apply" or report["blocked_count"] != 0:
+              raise SystemExit("F4A_R8_V2_APPLY_FAIL")
+          if int(report.get("applied_count") or 0) != int(report["proposal_count"]):
+              raise SystemExit("F4A_R8_V2_APPLY_COUNT_MISMATCH")
+          PY
+
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_silver_requirement_backfill --output "$post"
+          "$RUNTIME_PYTHON" - "$post" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_R8_V2_POST_WOULD_CHANGE={report['would_change_count']}")
+          if report["blocked_count"] != 0 or report["would_change_count"] != 0 or any(report["boundaries"].values()):
+              raise SystemExit("F4A_R8_V2_NOT_CONVERGED")
+          PY
+
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_bronze2e_requirement_audit --output "$audit"
+          "$RUNTIME_PYTHON" - "$audit" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print(f"F4A_R8_V2_OPERATOR_CANDIDATES={report['candidate_count']}")
+          print(f"F4A_R8_V2_OPERATOR_COVERAGE={report['reachable_without_extractor_gap_ratio']:.4f}")
+          print(f"F4A_R8_V2_OPERATOR_LEGACY={report['rows_with_legacy_ambiguous_status']}")
+          print(f"F4A_R8_V2_OPERATOR_PROJECTION_LOSS={report['rows_with_silver_to_operator_projection_loss']}")
+          print(f"F4A_R8_V2_OPERATOR_VIOLATIONS={report['violating_row_count']}")
+          if report["candidate_count"] != report["operator_candidate_count"]:
+              raise SystemExit("F4A_R8_V2_OPERATOR_SCOPE_MISMATCH")
+          if report["rows_with_legacy_ambiguous_status"] != 0 or report["rows_with_silver_to_operator_projection_loss"] != 0:
+              raise SystemExit("F4A_R8_V2_OPERATOR_PROJECTION_FAIL")
+          if report["violating_row_count"] != 0 or not report["coverage_gate_pass"] or any(report["boundaries"].values()):
+              raise SystemExit("F4A_R8_V2_OPERATOR_GATE_FAIL")
+          print("F4A_R8_V2_OPERATOR_GATE=PASS")
+          PY
+
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
+
+      - name: Preserve short-lived evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4a-r8-operator-apply-v2-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/f4a_r8_v2_pre.json
+            ${{ runner.temp }}/f4a_r8_v2_apply.json
+            ${{ runner.temp }}/f4a_r8_v2_post.json
+            ${{ runner.temp }}/f4a_r8_v2_audit.json
+          if-no-files-found: error
+          retention-days: 1

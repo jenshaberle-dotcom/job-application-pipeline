@@ -1,0 +1,6 @@
+authority=F4A-R8-SILVER-REQUIREMENT-REFRESH-001
+qualified_preflight_head=7d6f36c6b0b4f991b6da32f1d12d20d86b9c9bc9
+qualified_preflight_run=34966415199
+qualified_pipeline_ci_run=34966420993
+qualified_reentry_run=34966420372
+mutation=refresh-current-cohort-silver-sidecar-only
