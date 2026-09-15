@@ -5,7 +5,9 @@ on:
     branches: [agent/f4b-readonly-cohort]
     paths:
       - scripts/run_f4b_cohort_reconciliation.py
+      - scripts/run_f4b_operator_gate_packet.py
       - tests/test_f4b_cohort_reconciliation.py
+      - tests/test_f4b_operator_gate_packet.py
       - docs/planning/active/F4B-CURRENT-COHORT-BASELINE.md
       - .github/workflows/f4b-readonly-cohort.yml
   workflow_dispatch:
@@ -80,8 +82,14 @@ jobs:
           site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4b-local-oss-sites")"
           test -d "$site"
           echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          "$RUNTIME_PYTHON" -m pytest -q tests/test_f4b_cohort_reconciliation.py
-          "$RUNTIME_PYTHON" -m ruff check scripts/run_f4b_cohort_reconciliation.py tests/test_f4b_cohort_reconciliation.py
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_f4b_cohort_reconciliation.py \
+            tests/test_f4b_operator_gate_packet.py
+          "$RUNTIME_PYTHON" -m ruff check \
+            scripts/run_f4b_cohort_reconciliation.py \
+            scripts/run_f4b_operator_gate_packet.py \
+            tests/test_f4b_cohort_reconciliation.py \
+            tests/test_f4b_operator_gate_packet.py
       - name: Reconcile exact current Product state
         shell: bash
         run: |
@@ -89,10 +97,19 @@ jobs:
           "$RUNTIME_PYTHON" -m scripts.run_f4b_cohort_reconciliation \
             --source-sha "$GITHUB_SHA" \
             --output "$RUNNER_TEMP/f4b_current_cohort.json"
+      - name: Build privacy-bounded operator decision packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_f4b_operator_gate_packet \
+            --source-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/f4b_operator_gate_packet.json"
       - name: Preserve bounded read-only evidence
         uses: actions/upload-artifact@v4
         with:
           name: f4b-readonly-cohort-${{ github.sha }}
-          path: ${{ runner.temp }}/f4b_current_cohort.json
+          path: |
+            ${{ runner.temp }}/f4b_current_cohort.json
+            ${{ runner.temp }}/f4b_operator_gate_packet.json
           if-no-files-found: error
           retention-days: 1
