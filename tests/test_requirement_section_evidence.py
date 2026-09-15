@@ -91,6 +91,31 @@ def test_hannover_re_style_equipped_with_section_stops_before_offer() -> None:
     assert "flexible working" not in evidence.text
 
 
+def test_long_pseudo_heading_benefit_block_stops_requirement_capture() -> None:
+    html = """
+    <html><body>
+      <p>What you bring:</p>
+      <ul>
+        <li>Experience with Python, SQL and CI/CD.</li>
+        <li>Knowledge of distributed systems and data modelling.</li>
+      </ul>
+      <p>You can look forward to flexible working, e-learning opportunities, fitness
+         training sessions, employee events, international collaboration and many
+         further benefits across our worldwide locations and partner network.</p>
+      <p>More employer boilerplate that must never become requirement evidence.</p>
+    </body></html>
+    """
+
+    evidence = extract_requirement_section_evidence(html)
+
+    assert len(evidence.sections) == 1
+    assert "Python, SQL and CI/CD" in evidence.text
+    assert "distributed systems" in evidence.text
+    assert "e-learning" not in evidence.text
+    assert "fitness" not in evidence.text.casefold()
+    assert "boilerplate" not in evidence.text
+
+
 def test_personio_style_profile_heading_can_be_pseudo_heading_paragraph() -> None:
     html = """
     <html><body>
