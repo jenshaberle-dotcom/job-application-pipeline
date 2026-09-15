@@ -64,6 +64,33 @@ def test_english_requirement_section_stops_before_benefits() -> None:
     assert "Cookies" not in evidence.text
 
 
+def test_hannover_re_style_equipped_with_section_stops_before_offer() -> None:
+    html = """
+    <html><body>
+      <h2>Your responsibilities</h2>
+      <p>Analyse reinsurance portfolios and support international stakeholders.</p>
+      <h2>You come equipped with</h2>
+      <ul>
+        <li>A degree in mathematics, statistics or a comparable discipline</li>
+        <li>Experience with Python, SQL and actuarial modelling</li>
+        <li>Strong analytical and communication skills</li>
+      </ul>
+      <h2>You can look forward to</h2>
+      <p>International teams, flexible working and employee benefits.</p>
+    </body></html>
+    """
+
+    evidence = extract_requirement_section_evidence(html)
+
+    assert len(evidence.sections) == 1
+    assert evidence.sections[0].heading == "You come equipped with"
+    assert "mathematics" in evidence.text
+    assert "Python, SQL" in evidence.text
+    assert "actuarial modelling" in evidence.text
+    assert "Analyse reinsurance portfolios" not in evidence.text
+    assert "flexible working" not in evidence.text
+
+
 def test_personio_style_profile_heading_can_be_pseudo_heading_paragraph() -> None:
     html = """
     <html><body>
