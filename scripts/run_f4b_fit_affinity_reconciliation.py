@@ -13,7 +13,7 @@ from collections import Counter
 import json
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Mapping
 
 from scripts.product_v1_control_center_base import load_product_v1_payload
 
