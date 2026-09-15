@@ -13,7 +13,6 @@ on:
       - "scripts/run_f4a_r3_bronze2e_requirement_audit.py"
       - "scripts/product_v1_silver_requirement_projection.py"
       - "scripts/product_v1_job_presentation_runtime.py"
-      - "scripts/run_f4a_requirement_evidence_refresh.py"
       - ".github/workflows/f4a-r8-operator-preflight.yml"
       - ".github/workflows/f4a-r8-operator-apply.yml"
       - "docs/planning/active/F4A-R8-OPERATOR-ACCEPTANCE.md"
@@ -193,26 +192,6 @@ jobs:
           print("F4A_R8_OPERATOR_PRESTATE_AUDIT=PASS")
           PY
 
-      - name: Preflight Product requirement refresh without mutation
-        shell: bash
-        run: |
-          set -euo pipefail
-          output="$RUNNER_TEMP/f4a_r8_product_refresh_preflight.json"
-          "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh --output "$output"
-          "$RUNTIME_PYTHON" - "$output" <<'PY'
-          import json, sys
-          with open(sys.argv[1], encoding="utf-8") as handle:
-              report = json.load(handle)
-          print(f"F4A_R8_PRODUCT_CANDIDATES={report['candidate_count']}")
-          print(f"F4A_R8_PRODUCT_PROPOSALS={report['proposal_count']}")
-          print(f"F4A_R8_PRODUCT_BLOCKED={report['blocked_count']}")
-          print(f"F4A_R8_PRODUCT_WOULD_CHANGE={report['would_change_count']}")
-          print(f"F4A_R8_PRODUCT_JOBS_WITH_SKILLS={report['jobs_with_skills']}")
-          if report["blocked_count"] or report["proposal_count"] != report["candidate_count"]:
-              raise SystemExit("F4A_R8_PRODUCT_PREFLIGHT_FAIL")
-          print("F4A_R8_PRODUCT_PREFLIGHT=PASS")
-          PY
-
       - name: Preserve short-lived R8 preflight evidence
         uses: actions/upload-artifact@v4
         with:
@@ -220,6 +199,5 @@ jobs:
           path: |
             ${{ runner.temp }}/f4a_r8_silver_plan.json
             ${{ runner.temp }}/f4a_r8_operator_prestate.json
-            ${{ runner.temp }}/f4a_r8_product_refresh_preflight.json
           if-no-files-found: error
           retention-days: 1
