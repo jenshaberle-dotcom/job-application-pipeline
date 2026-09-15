@@ -8,6 +8,7 @@ on:
       - "src/search_intelligence/requirement_section_evidence.py"
       - "src/silver/external_observer_contract.py"
       - "scripts/external_observers/dreamjobs_skill_extractor_observer.py"
+      - "scripts/external_observers/dreamjobs_skill_classifier_observer.py"
       - "scripts/run_f4a_r7_skill_reliability_audit.py"
       - "scripts/build_f4a_r7_skill_annotation_seed.py"
       - "tests/test_requirement_section_evidence.py"
@@ -132,6 +133,7 @@ jobs:
             src/search_intelligence/requirement_section_evidence.py \
             src/silver/external_observer_contract.py \
             scripts/external_observers/dreamjobs_skill_extractor_observer.py \
+            scripts/external_observers/dreamjobs_skill_classifier_observer.py \
             scripts/run_f4a_r7_skill_reliability_audit.py \
             scripts/build_f4a_r7_skill_annotation_seed.py \
             tests/test_requirement_section_evidence.py \
@@ -251,3 +253,40 @@ jobs:
           "$RUNTIME_PYTHON" -m scripts.build_f4a_r7_skill_annotation_seed \
             "$RUNNER_TEMP/f4a_r7_skill_reliability_shadow.json" \
             --output "$RUNNER_TEMP/f4a_r7_skill_annotation_seed_shadow.json"
+
+      - name: Prepare isolated optional learned context observer
+        id: learned_setup
+        if: steps.shadow_setup.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$OBSERVER_PYTHON" -c 'from skill_extractor import SkillExtractor; SkillExtractor(quantized=True); print("F4A_R7_LEARNED_MODEL_READY=PASS")'
+
+      - name: Run learned context observer in Shadow only
+        id: learned_compare
+        if: steps.learned_setup.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_r7_skill_reliability_learned_shadow.json"
+          observer_command="$OBSERVER_PYTHON scripts/external_observers/dreamjobs_skill_classifier_observer.py"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r7_skill_reliability_audit \
+            --output "$output" \
+            --observer-name dreamjobs_skill_extractor_classifier_0.2.0 \
+            --observer-command "$observer_command"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print("F4A_R7_LEARNED_SHADOW_BY_SOURCE=" + json.dumps(report["by_source_name"], ensure_ascii=False, sort_keys=True))
+          print(f"F4A_R7_LEARNED_SHADOW_INCREMENTAL_JOBS={report['external_incremental_job_count']}")
+          print(f"F4A_R7_LEARNED_SHADOW_INCREMENTAL_SKILLS={report['external_incremental_skill_count']}")
+          print(f"F4A_R7_LEARNED_SHADOW_OBSERVER_ERRORS={report['external_observer_error_count']}")
+          if any(report["boundaries"].values()):
+              raise SystemExit("F4A_R7_LEARNED_SHADOW_BOUNDARY_VIOLATION")
+          print("F4A_R7_LEARNED_SHADOW_COMPARISON=PASS")
+          PY
