@@ -1,0 +1,222 @@
+name: F4A-R7 skill evidence reliability audit
+
+on:
+  push:
+    branches:
+      - agent/f4a-r7-skill-evidence-reliability
+    paths:
+      - "src/silver/external_observer_contract.py"
+      - "scripts/external_observers/dreamjobs_skill_extractor_observer.py"
+      - "scripts/run_f4a_r7_skill_reliability_audit.py"
+      - "tests/test_external_observer_contract.py"
+      - "tests/test_f4a_r7_skill_reliability_audit.py"
+      - "docs/planning/active/F4A-R7-SKILL-EVIDENCE-RELIABILITY.md"
+      - ".github/workflows/f4a-r7-skill-reliability-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4a-r7-skill-reliability-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit real current-cohort skill recall without writes
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 45
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+
+    steps:
+      - name: Check out exact R7 head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          root = PurePosixPath(context["CheckoutRoot"])
+          interpreter = context["Interpreter"]
+          env_file = context["EnvFile"]
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked Product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Resolve pinned local OSS detail runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
+            "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4a-r7-local-oss-sites")"
+          test -d "$local_oss_site"
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          PYTHONPATH="$local_oss_site:${PYTHONPATH:-}" "$RUNTIME_PYTHON" -c 'import extruct, trafilatura'
+
+      - name: Qualify R7 read-only contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_external_observer_contract.py \
+            tests/test_f4a_r7_skill_reliability_audit.py \
+            tests/test_generic_job_detail_evidence.py \
+            tests/test_silver_requirement_evidence_projection.py
+          "$RUNTIME_PYTHON" -m ruff check \
+            src/silver/external_observer_contract.py \
+            scripts/external_observers/dreamjobs_skill_extractor_observer.py \
+            scripts/run_f4a_r7_skill_reliability_audit.py \
+            tests/test_external_observer_contract.py \
+            tests/test_f4a_r7_skill_reliability_audit.py
+
+      - name: Prove database migration state remains read-only and converged
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
+
+      - name: Run deterministic real-cohort skill reliability baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_r7_skill_reliability_baseline.json"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r7_skill_reliability_audit --output "$output"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print("F4A_R7_BASELINE_BY_SOURCE=" + json.dumps(report["by_source_name"], ensure_ascii=False, sort_keys=True))
+          print("F4A_R7_BASELINE_BY_HOST=" + json.dumps(report["by_source_host"], ensure_ascii=False, sort_keys=True))
+          risky = [
+              {
+                  "silver_job_id": row["silver_job_id"],
+                  "source_name": row["source_name"],
+                  "source_host": row["source_host"],
+                  "title": row["title"],
+              }
+              for row in report["rows"]
+              if row["skill_recall_risk"]
+          ]
+          print("F4A_R7_BASELINE_RECALL_RISK_ROWS=" + json.dumps(risky, ensure_ascii=False, sort_keys=True))
+          if report["candidate_count"] <= 0:
+              raise SystemExit("F4A_R7_EMPTY_COHORT")
+          if report["blocked_count"] != 0:
+              raise SystemExit("F4A_R7_BLOCKED_ORIGINS")
+          if any(report["boundaries"].values()):
+              raise SystemExit("F4A_R7_BOUNDARY_VIOLATION")
+          print("F4A_R7_DETERMINISTIC_BASELINE=PASS")
+          PY
+
+      - name: Prepare isolated optional gazetteer observer
+        id: shadow_setup
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          observer_venv="$RUNNER_TEMP/f4a-r7-skill-observer-venv"
+          "$RUNTIME_PYTHON" -m venv "$observer_venv"
+          "$observer_venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir 'skill-extractor==0.2.0'
+          "$observer_venv/bin/python" -c 'import skill_extractor; print(skill_extractor.__version__)'
+          printf 'OBSERVER_PYTHON=%s\n' "$observer_venv/bin/python" >> "$GITHUB_ENV"
+
+      - name: Run isolated external shadow skill observer comparison
+        if: steps.shadow_setup.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/f4a_r7_skill_reliability_shadow.json"
+          observer_command="$OBSERVER_PYTHON scripts/external_observers/dreamjobs_skill_extractor_observer.py"
+          "$RUNTIME_PYTHON" -m scripts.run_f4a_r7_skill_reliability_audit \
+            --output "$output" \
+            --observer-name dreamjobs_skill_extractor_gazetteer_0.2.0 \
+            --observer-command "$observer_command"
+          "$RUNTIME_PYTHON" - "$output" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          print("F4A_R7_SHADOW_BY_SOURCE=" + json.dumps(report["by_source_name"], ensure_ascii=False, sort_keys=True))
+          incremental = [
+              {
+                  "silver_job_id": row["silver_job_id"],
+                  "source_name": row["source_name"],
+                  "source_host": row["source_host"],
+                  "title": row["title"],
+                  "current_skills": row["skills"],
+                  "incremental_spans": row["external_incremental_skill_spans"],
+              }
+              for row in report["rows"]
+              if row["external_incremental_skill_count"]
+          ]
+          print("F4A_R7_SHADOW_INCREMENTAL_ROWS=" + json.dumps(incremental, ensure_ascii=False, sort_keys=True))
+          print(f"F4A_R7_SHADOW_INCREMENTAL_JOBS={report['external_incremental_job_count']}")
+          print(f"F4A_R7_SHADOW_INCREMENTAL_SKILLS={report['external_incremental_skill_count']}")
+          print(f"F4A_R7_SHADOW_OBSERVER_ERRORS={report['external_observer_error_count']}")
+          if any(report["boundaries"].values()):
+              raise SystemExit("F4A_R7_SHADOW_BOUNDARY_VIOLATION")
+          print("F4A_R7_EXTERNAL_SHADOW_COMPARISON=PASS")
+          PY
