@@ -5,11 +5,13 @@ this job?", but its historic persistence runner gates calculation behind passed
 Capability Fit and hard filters. F4B needs the components before those gates so
 Affinity and Candidate<->Job Fit can be calibrated independently.
 
-This runner fetches exact current Employer-Origin detail text, requires the detail
-fingerprint to match the persisted current assessment revision, derives the
-existing deterministic four component scores, and calculates a legacy Affinity
-proxy using the current approved PD-052 weights. It performs no DB writes and
-creates no ranking, Top-5, Fit, hard-filter, or application authority.
+This runner fetches exact current Employer-Origin detail text and derives the
+existing deterministic four component scores without mutating Product state. A
+fetched detail revision matching the persisted assessment fingerprint is marked
+``exact_persisted_revision``. A newer same-Origin detail revision is retained for
+read-only calibration as ``unpersisted_current_revision`` and may never become
+ranking/Fit authority merely through this runner. Unreachable or redirected
+Origin evidence remains unavailable.
 """
 from __future__ import annotations
 
@@ -86,6 +88,20 @@ def _canonical_weights_match(policy: RankingPolicy) -> bool:
     ) and set(policy.weights) == set(CANONICAL_PD052_WEIGHTS)
 
 
+def _revision_binding(
+    *, row: Mapping[str, object], current_detail_sha256: str
+) -> tuple[str, str | None]:
+    ranking_factors = row.get("ranking_factors")
+    if not isinstance(ranking_factors, Mapping):
+        return "current_origin_without_persisted_fingerprint", None
+    expected = str(ranking_factors.get("detail_description_sha256") or "").strip()
+    if len(expected) != 64:
+        return "current_origin_without_persisted_fingerprint", None
+    if current_detail_sha256 == expected:
+        return "exact_persisted_revision", expected
+    return "unpersisted_current_revision", expected
+
+
 def build_affinity_candidate(
     *,
     row: Mapping[str, object],
@@ -103,20 +119,16 @@ def build_affinity_candidate(
         raise AffinityReconciliationStop("JOB_NOT_ACTIVE")
     if not _same_origin(source_url, final_url):
         raise AffinityReconciliationStop("DETAIL_REDIRECT_OUTSIDE_AUTHORIZED_ORIGIN")
-    ranking_factors = row.get("ranking_factors")
-    if not isinstance(ranking_factors, Mapping):
-        raise AffinityReconciliationStop("ASSESSMENT_RANKING_FACTORS_MISSING")
-    expected_detail_sha = str(ranking_factors.get("detail_description_sha256") or "").strip()
-    if len(expected_detail_sha) != 64:
-        raise AffinityReconciliationStop("ASSESSMENT_DETAIL_FINGERPRINT_MISSING")
 
     assessment = extract_product_v1_assessment_evidence(
         description=detail_text,
         title=title,
         source_url=final_url,
     )
-    if assessment.description_sha256 != expected_detail_sha:
-        raise AffinityReconciliationStop("CURRENT_DETAIL_REVISION_CHANGED")
+    revision_binding, persisted_detail_sha = _revision_binding(
+        row=row,
+        current_detail_sha256=assessment.description_sha256,
+    )
     evidence = build_product_v1_ranking_evidence(
         title=title,
         description=detail_text,
@@ -132,12 +144,16 @@ def build_affinity_candidate(
         "title": title,
         "source_name": str(row.get("source_name") or ""),
         "source_url": source_url,
+        "final_url": final_url,
         "legacy_affinity_proxy_score": float(score),
         "components": components,
         "uncertainties": list(evidence.uncertainties),
         "signal_count": len(evidence.references),
         "signal_names": sorted({reference.signal for reference in evidence.references}),
         "rubric_version": RUBRIC_VERSION,
+        "revision_binding": revision_binding,
+        "current_detail_sha256": assessment.description_sha256,
+        "persisted_detail_sha256": persisted_detail_sha,
         "authority": "read_only_affinity_calibration_only",
     }
 
@@ -176,11 +192,13 @@ def reconcile_rows(
         key=lambda item: (-float(item["legacy_affinity_proxy_score"]), int(item["silver_job_id"]))
     )
     reasons = Counter(item["reason"] for item in unavailable)
+    bindings = Counter(item["revision_binding"] for item in candidates)
     return {
         "current_job_count": len(rows),
         "affinity_candidate_count": len(candidates),
         "unavailable_count": len(unavailable),
         "unavailable_reasons": dict(sorted(reasons.items())),
+        "revision_binding_counts": dict(sorted(bindings.items())),
         "top_affinity_candidates": candidates[:15],
         "candidates": candidates,
         "unavailable": unavailable,
@@ -233,7 +251,7 @@ def main() -> int:
     rows, policy = _load()
     reconciliation = reconcile_rows(rows=rows, policy=policy)
     payload = {
-        "schema": "jap.f4b.affinity_reconciliation.v1",
+        "schema": "jap.f4b.affinity_reconciliation.v2",
         "source_sha": args.source_sha,
         "authority": "read_only_affinity_calibration_no_ranking_mutation",
         "policy": {
@@ -248,6 +266,8 @@ def main() -> int:
             "database_writes": False,
             "provider_calls": 0,
             "candidate_fact_reads": 0,
+            "current_origin_revision_may_be_unpersisted": True,
+            "unpersisted_revision_grants_product_authority": False,
             "fit_authority_changed": False,
             "hard_filter_authority_changed": False,
             "ranking_authority_changed": False,
@@ -266,6 +286,7 @@ def main() -> int:
                 "current_job_count": payload["current_job_count"],
                 "affinity_candidate_count": payload["affinity_candidate_count"],
                 "unavailable_count": payload["unavailable_count"],
+                "revision_binding_counts": payload["revision_binding_counts"],
                 "weights_match_canonical_pd052": payload["policy"]["weights_match_canonical_pd052"],
             },
             sort_keys=True,
