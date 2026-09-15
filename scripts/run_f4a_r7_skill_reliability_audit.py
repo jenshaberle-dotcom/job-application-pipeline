@@ -197,6 +197,7 @@ def _build_row(
         "requirement_section_count": len(requirement_sections.sections),
         "requirement_section_chars": len(requirement_sections.text),
         "requirement_section_truncated": requirement_sections.truncated,
+        "requirement_section_text": requirement_sections.text,
         "structured_skill_count": len(structured_skills),
         "skill_status": skill_status,
         "skill_count": len(skills),
