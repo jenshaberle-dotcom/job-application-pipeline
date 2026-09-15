@@ -1,0 +1,43 @@
+{
+  "schema": "job_application_pipeline.demo_strict_proven_detail_delta.v1",
+  "observed_at": "2026-09-03",
+  "purpose": "Preserve a fresh Employer-Origin recheck for the sole remaining strict-proven source without current substantive job-detail evidence. Detail proof remains independent of profile relevance and grants no Product V1 ranking, activation, application, or submission authority.",
+  "continues": "docs/archive/demo-evidence/demo_strict_proven_detail_delta_20260903_0200.json",
+  "strict_proven_sources_total": 36,
+  "delta": [
+    {
+      "company_key": "trustyou",
+      "previous_state": "no_current_openings_observed",
+      "current_state": "no_current_openings_observed",
+      "detail_proven": false,
+      "historical_carrier_pattern": "lever_inventory_detail",
+      "current_observed_detail_surface_pattern": "employer_owned_careers_surface_empty_current_openings",
+      "official_origin_evidence": "https://www.trustyou.com/careers/",
+      "current_observation": "Fresh Employer-Origin retrieval on 2026-09-03 shows TrustYou's official Careers page, its 'Current openings' heading, and no concrete vacancy beneath that heading. The currently rendered official page also exposes no visible Lever link, so the historically proven Lever carrier is retained as historical connector evidence only and is not promoted to current source-authority evidence.",
+      "company_remote_policy": "100% remote environment, with occasional local team meetings",
+      "profile_relevance": "not_classifiable_without_current_job",
+      "hannover_or_remote_germany_scope": "company_remote_policy_positive_but_no_current_job_to_classify",
+      "authority_note": "An empty official current-openings surface is not concrete detail proof, is not a connector failure, and creates no negative lifecycle authority. No third-party vacancy or historical carrier route is substituted for a current Employer-Origin job detail.",
+      "generic_fix_preserved": "Keep historical carrier identity distinct from current detail-surface authority. If the current employer-owned careers surface no longer exposes or delegates to the historically observed carrier, retain that carrier as connector-history evidence only until a fresh employer-origin delegation or concrete official detail establishes current authority."
+    }
+  ],
+  "post_delta_summary": {
+    "sources_with_current_detail_proof": 35,
+    "sources_without_current_detail_proof": 1,
+    "remaining_without_current_detail_proof": ["trustyou"],
+    "interpretation": "No concrete current TrustYou vacancy can be truthfully detail-proven in this pass. The useful delta is an authority-boundary correction: historical Lever provenance remains preserved, while the current observed official detail surface is an empty employer-owned Current openings section."
+  },
+  "boundaries": {
+    "profile_relevance_required_for_detail_proof": false,
+    "third_party_listing_as_detail_authority": false,
+    "historical_carrier_as_current_authority_without_fresh_delegation": false,
+    "provider_recognition_as_authority": false,
+    "source_activation": false,
+    "database_write": false,
+    "bronze_silver_gold_write": false,
+    "ranking_or_top5_authority": false,
+    "application_authority": false,
+    "submission_action": false,
+    "negative_lifecycle_authority_created": false
+  }
+}
