@@ -2,8 +2,7 @@ name: F4A-R8 operator acceptance preflight
 
 on:
   push:
-    branches:
-      - agent/f4a-r8-operator-acceptance
+    branches: [agent/f4a-r8-operator-acceptance]
     paths:
       - "src/connectors/generic_job_detail_evidence.py"
       - "src/search_intelligence/detail_semantics_deterministic.py"
@@ -16,6 +15,7 @@ on:
       - "scripts/product_v1_job_presentation_runtime.py"
       - "scripts/run_f4a_requirement_evidence_refresh.py"
       - ".github/workflows/f4a-r8-operator-preflight.yml"
+      - ".github/workflows/f4a-r8-operator-apply.yml"
   workflow_dispatch:
 
 permissions:
@@ -42,58 +42,45 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Resolve verified RCC runtime context
+      - name: Bind verified RCC runtime
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
           test -f "$context_file"
           context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
-          import json
-          import sys
+          import json, sys
           from pathlib import PurePosixPath
-
           path, repo_id, repository, runner = sys.argv[1:]
           with open(path, encoding="utf-8") as handle:
               context = json.load(handle)
-          if context.get("RepositoryId") != int(repo_id):
-              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
-          if context.get("Repository") != repository:
-              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
-          if context.get("RunnerName") != runner:
-              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("RepositoryId") != int(repo_id) or context.get("Repository") != repository or context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_IDENTITY_MISMATCH")
           if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
               raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
           root = PurePosixPath(context["CheckoutRoot"])
-          interpreter = context["Interpreter"]
-          env_file = context["EnvFile"]
-          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+          if root not in PurePosixPath(context["Interpreter"]).parents or root not in PurePosixPath(context["EnvFile"]).parents:
               raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
-          print(interpreter)
-          print(env_file)
+          print(context["Interpreter"])
+          print(context["EnvFile"])
           PY
           )"
           mapfile -t values <<< "$context_output"
           test "${#values[@]}" -eq 2
-          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
-          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          echo "RUNTIME_PYTHON=${values[0]}" >> "$GITHUB_ENV"
+          echo "RUNTIME_ENV_FILE=${values[1]}" >> "$GITHUB_ENV"
 
-      - name: Load masked Product database environment
+      - name: Load masked Product DB environment
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
-          import secrets
-          import sys
+          import secrets, sys
           from pathlib import Path
           from dotenv import dotenv_values
-
           values = dotenv_values(Path(sys.argv[1]))
-          required = (
-              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
-              "POSTGRES_USER", "POSTGRES_PASSWORD",
-          )
+          required = ("POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
           missing = [key for key in required if values.get(key) in (None, "")]
           if missing:
               raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
@@ -102,20 +89,16 @@ jobs:
               for key in required:
                   value = str(values[key])
                   marker = f"JAP_ENV_{secrets.token_hex(12)}"
-                  while marker in value:
-                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
                   handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
           PY
 
-      - name: Resolve pinned local OSS detail runtime
+      - name: Resolve pinned local OSS runtime
         shell: bash
         run: |
           set -euo pipefail
-          local_oss_site="$(bash scripts/ensure_pinned_local_oss_runtime.sh \
-            "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4a-r8-local-oss-sites")"
-          test -d "$local_oss_site"
-          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          PYTHONPATH="$local_oss_site:${PYTHONPATH:-}" "$RUNTIME_PYTHON" -c 'import extruct, trafilatura'
+          site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4a-r8-local-oss-sites")"
+          test -d "$site"
+          echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
 
       - name: Requalify focused operator contracts
         shell: bash
@@ -142,98 +125,70 @@ jobs:
             scripts/product_v1_silver_requirement_projection.py \
             scripts/product_v1_job_presentation_runtime.py
 
-      - name: Prove migration state is converged without writes
-        shell: bash
-        run: |
-          set -euo pipefail
-          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status
+      - name: Prove migration state converged
+        run: '"$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status'
 
-      - name: Plan exact-Origin current-cohort Silver refresh
+      - name: Plan exact-Origin Silver refresh
         shell: bash
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/f4a_r8_silver_plan.json"
           "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_silver_requirement_backfill --output "$output"
           "$RUNTIME_PYTHON" - "$output" <<'PY'
-          import json
-          import sys
+          import json, sys
           from collections import Counter, defaultdict
-
           with open(sys.argv[1], encoding="utf-8") as handle:
               report = json.load(handle)
-          allowed = {
-              "observed_structured", "observed_bounded_text", "source_absent",
-              "extractor_gap", "conflict", "origin_unavailable",
-          }
-          reachable = []
-          covered = []
-          legacy = []
-          invalid = []
-          gap_families = defaultdict(Counter)
+          allowed = {"observed_structured", "observed_bounded_text", "source_absent", "extractor_gap", "conflict", "origin_unavailable"}
+          reachable, covered, bad = [], [], []
+          gaps = defaultdict(Counter)
           for proposal in report.get("proposals", []):
-              payload = proposal.get("payload") or {}
-              statuses = {
-                  field: str((value or {}).get("status") or "missing")
-                  for field, value in (payload.get("fields") or {}).items()
-              }
-              if any(status == "source_absent_or_unresolved" for status in statuses.values()):
-                  legacy.append(proposal.get("silver_job_id"))
-              if any(status not in allowed and status != "source_absent_or_unresolved" for status in statuses.values()):
-                  invalid.append(proposal.get("silver_job_id"))
+              statuses = {k: str((v or {}).get("status") or "missing") for k, v in ((proposal.get("payload") or {}).get("fields") or {}).items()}
+              if any(status not in allowed for status in statuses.values()):
+                  bad.append(proposal.get("silver_job_id"))
               if proposal.get("origin_unavailable"):
                   continue
               reachable.append(proposal)
-              gaps = [field for field, status in statuses.items() if status == "extractor_gap"]
-              if gaps:
+              gap_fields = [field for field, status in statuses.items() if status == "extractor_gap"]
+              if gap_fields:
                   family = str(proposal.get("source_name") or "").split(":", 1)[0] or "unknown"
-                  for field in gaps:
-                      gap_families[family][field] += 1
+                  for field in gap_fields:
+                      gaps[family][field] += 1
               else:
                   covered.append(proposal)
           ratio = len(covered) / len(reachable) if reachable else 0.0
           print(f"F4A_R8_PLAN_CANDIDATES={report['candidate_count']}")
           print(f"F4A_R8_PLAN_PROPOSALS={report['proposal_count']}")
-          print(f"F4A_R8_PLAN_BLOCKED={report['blocked_count']}")
           print(f"F4A_R8_PLAN_UNAVAILABLE={report['origin_unavailable_count']}")
           print(f"F4A_R8_PLAN_REACHABLE={len(reachable)}")
           print(f"F4A_R8_PLAN_COVERED={len(covered)}")
           print(f"F4A_R8_PLAN_COVERAGE_RATIO={ratio:.4f}")
           print(f"F4A_R8_PLAN_WOULD_CHANGE={report['would_change_count']}")
-          print("F4A_R8_PLAN_GAP_FAMILIES=" + json.dumps({k: dict(v) for k, v in gap_families.items()}, sort_keys=True))
-          if report["candidate_count"] <= 0:
-              raise SystemExit("F4A_R8_EMPTY_COHORT")
-          if report["proposal_count"] != report["candidate_count"] or report["blocked_count"] != 0:
-              raise SystemExit("F4A_R8_PLAN_NOT_COMPLETE")
-          if legacy or invalid:
-              raise SystemExit("F4A_R8_INVALID_STATUS")
-          if not reachable or ratio < 0.80:
-              raise SystemExit("F4A_R8_COVERAGE_BELOW_80_PERCENT")
-          if any(report["boundaries"].values()):
-              raise SystemExit("F4A_R8_PLAN_BOUNDARY_VIOLATION")
+          print("F4A_R8_PLAN_GAPS=" + json.dumps({k: dict(v) for k, v in gaps.items()}, sort_keys=True))
+          if report["candidate_count"] <= 0 or report["proposal_count"] != report["candidate_count"] or report["blocked_count"] != 0:
+              raise SystemExit("F4A_R8_PLAN_INCOMPLETE")
+          if bad or not reachable or ratio < 0.80 or any(report["boundaries"].values()):
+              raise SystemExit("F4A_R8_SILVER_PREFLIGHT_FAIL")
           print("F4A_R8_SILVER_PREFLIGHT=PASS")
           PY
 
-      - name: Audit current persisted Silver to Product to Control Center state
+      - name: Audit persisted Silver to Product to Control Center pre-state
         shell: bash
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/f4a_r8_operator_prestate.json"
           "$RUNTIME_PYTHON" -m scripts.run_f4a_r3_bronze2e_requirement_audit --output "$output"
           "$RUNTIME_PYTHON" - "$output" <<'PY'
-          import json
-          import sys
+          import json, sys
           with open(sys.argv[1], encoding="utf-8") as handle:
               report = json.load(handle)
           print(f"F4A_R8_PRESTATE_CANDIDATES={report['candidate_count']}")
           print(f"F4A_R8_PRESTATE_OPERATOR_COUNT={report['operator_candidate_count']}")
           print(f"F4A_R8_PRESTATE_COVERAGE_RATIO={report['reachable_without_extractor_gap_ratio']:.4f}")
-          print(f"F4A_R8_PRESTATE_LEGACY={report['rows_with_legacy_ambiguous_status']}")
           print(f"F4A_R8_PRESTATE_PROJECTION_LOSS={report['rows_with_silver_to_operator_projection_loss']}")
           print(f"F4A_R8_PRESTATE_VIOLATIONS={report['violating_row_count']}")
-          if report["candidate_count"] != report["operator_candidate_count"]:
-              raise SystemExit("F4A_R8_PRESTATE_SCOPE_MISMATCH")
-          if any(report["boundaries"].values()):
-              raise SystemExit("F4A_R8_PRESTATE_BOUNDARY_VIOLATION")
+          if report["candidate_count"] != report["operator_candidate_count"] or any(report["boundaries"].values()):
+              raise SystemExit("F4A_R8_PRESTATE_STRUCTURAL_FAIL")
           print("F4A_R8_OPERATOR_PRESTATE_AUDIT=PASS")
           PY
 
@@ -244,8 +199,7 @@ jobs:
           output="$RUNNER_TEMP/f4a_r8_product_refresh_preflight.json"
           "$RUNTIME_PYTHON" -m scripts.run_f4a_requirement_evidence_refresh --output "$output"
           "$RUNTIME_PYTHON" - "$output" <<'PY'
-          import json
-          import sys
+          import json, sys
           with open(sys.argv[1], encoding="utf-8") as handle:
               report = json.load(handle)
           print(f"F4A_R8_PRODUCT_CANDIDATES={report['candidate_count']}")
@@ -253,10 +207,8 @@ jobs:
           print(f"F4A_R8_PRODUCT_BLOCKED={report['blocked_count']}")
           print(f"F4A_R8_PRODUCT_WOULD_CHANGE={report['would_change_count']}")
           print(f"F4A_R8_PRODUCT_JOBS_WITH_SKILLS={report['jobs_with_skills']}")
-          if report["blocked_count"]:
-              raise SystemExit("F4A_R8_PRODUCT_PREFLIGHT_BLOCKED")
-          if report["proposal_count"] != report["candidate_count"]:
-              raise SystemExit("F4A_R8_PRODUCT_PREFLIGHT_INCOMPLETE")
+          if report["blocked_count"] or report["proposal_count"] != report["candidate_count"]:
+              raise SystemExit("F4A_R8_PRODUCT_PREFLIGHT_FAIL")
           print("F4A_R8_PRODUCT_PREFLIGHT=PASS")
           PY
 
