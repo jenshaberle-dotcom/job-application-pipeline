@@ -58,6 +58,9 @@ def project_silver_requirement_evidence(
     seniority = _mapping(fields.get("requirements_seniority"))
     skills = _mapping(fields.get("job_skills"))
     display_context = _mapping(payload.get("display_context"))
+    if display_context.get("observer_authority") not in (None, False):
+        return None
+
     source_employment_types = _string_list(employment.get("source_employment_types"))
     inferred_scope = normalize_employment_scope(source_employment_types)
     employment_scope = str(display_context.get("employment_scope") or inferred_scope)
@@ -65,6 +68,7 @@ def project_silver_requirement_evidence(
         display_context.get("employment_scope_status")
         or ("observed_structured" if inferred_scope != "unknown" else "source_absent")
     )
+    compensation = _mapping(display_context.get("compensation"))
 
     parser_family = str(payload.get("parser_family") or "unclassified")
     return {
@@ -107,8 +111,21 @@ def project_silver_requirement_evidence(
         ),
         "experience_requirement": display_context.get("experience_requirement"),
         "experience_months": display_context.get("experience_months"),
+        "experience_min_months": display_context.get("experience_min_months"),
+        "experience_max_months": display_context.get("experience_max_months"),
         "experience_requirement_status": str(
             display_context.get("experience_requirement_status") or "source_absent"
+        ),
+        "compensation_amount": compensation.get("amount"),
+        "compensation_currency": compensation.get("currency"),
+        "compensation_period": compensation.get("period"),
+        "compensation_qualifier": compensation.get("qualifier"),
+        "compensation_status": str(
+            display_context.get("compensation_status") or "source_absent"
+        ),
+        "collective_agreement": display_context.get("collective_agreement") is True,
+        "collective_agreement_status": str(
+            display_context.get("collective_agreement_status") or "source_absent"
         ),
         "title_seniority_signal": str(
             display_context.get("title_seniority_signal") or "unknown"
