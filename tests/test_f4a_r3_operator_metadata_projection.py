@@ -207,3 +207,14 @@ def test_normal_review_surface_consolidates_origin_truth_and_profile_fit() -> No
     assert "r4-score-card" in source
     assert "width: `${bounded}%`" in source
     assert ".r4-review-stack + .ow-facts" in css
+
+
+def test_pending_fit_is_not_rendered_as_repeated_origin_warning() -> None:
+    css = (FRONTEND / "review-labels.css").read_text(encoding="utf-8")
+
+    assert "Missing Candidate-Fit evidence is a pending evaluation state" in css
+    assert ".r4-fit-state.warn" in css
+    assert "color: var(--muted);" in css
+    assert ".r4-review-stack ~ .ow-evidence" in css
+    assert ".ow-job-list > button > span:last-child .ow-status:first-child" in css
+    assert ".ow-job-list > button > span:last-child .ow-status.warn" in css
