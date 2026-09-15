@@ -233,8 +233,11 @@ def _is_requirement_heading(block: _Block) -> bool:
 def _is_stop_heading(block: _Block) -> bool:
     if block.tag in _HEADING_TAGS:
         return not _is_requirement_heading(block)
-    if len(block.text) > 100:
-        return False
+    # Stop phrases are deliberately allowed to prefix long paragraph/list blocks.
+    # Several real ATS templates render a pseudo-heading (for example
+    # "You can look forward to ...") and its full benefits copy inside one
+    # block. Length must therefore not turn a semantically explicit stop marker
+    # back into requirement evidence.
     return _matches_heading(block.text, _STOP_HEADING_PHRASES)
 
 
