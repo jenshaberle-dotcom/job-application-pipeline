@@ -143,6 +143,75 @@ def test_skill_matching_uses_token_boundaries() -> None:
     assert fields == {"skills": ("SQL",)}
 
 
+def test_skill_matching_covers_unambiguous_r7_cross_source_terms() -> None:
+    text = (
+        "Kenntnisse in BPMN 2.0, Java, JavaScript, TypeScript, Spring Boot, COBOL, "
+        "DORA, PowerPoint, Scrum, SAP, Datenbanken, Datenmodellierung, UAT, IFRS, "
+        "IoT, CI/CD, Modbus TCP, MQTT, TCP/IP, LAN, WLAN, DNS und DHCP."
+    )
+    fields, references = deterministic_detail_semantics(
+        html="<html></html>",
+        text=text,
+        page_title="Technology Specialist",
+        detail_url=DETAIL_URL,
+        target_location="hannover",
+        requested_fields=("skills",),
+    )
+
+    expected = {
+        "bpmn 2.0",
+        "java",
+        "javascript",
+        "typescript",
+        "spring boot",
+        "cobol",
+        "dora",
+        "powerpoint",
+        "scrum",
+        "sap",
+        "datenbanken",
+        "datenmodellierung",
+        "uat",
+        "ifrs",
+        "iot",
+        "ci/cd",
+        "modbus tcp",
+        "mqtt",
+        "tcp/ip",
+        "lan",
+        "wlan",
+        "dns",
+        "dhcp",
+    }
+    assert {value.casefold() for value in fields["skills"]} == expected
+    skill_references = [reference for reference in references if reference.field == "skills"]
+    assert len(skill_references) == len(expected)
+    assert all(
+        reference.span_start is not None
+        and reference.span_end is not None
+        and text[reference.span_start : reference.span_end] == reference.evidence
+        for reference in skill_references
+    )
+
+
+def test_skill_matching_keeps_ambiguous_shadow_terms_fail_closed() -> None:
+    text = (
+        "Go React Excel SAFe R IP Control Release Science dem drei bis rke. "
+        "Ability to react quickly and excel in a safe environment."
+    )
+    fields, references = deterministic_detail_semantics(
+        html="<html></html>",
+        text=text,
+        page_title="Generalist",
+        detail_url=DETAIL_URL,
+        target_location="hannover",
+        requested_fields=("skills",),
+    )
+
+    assert fields == {}
+    assert references == ()
+
+
 def test_remote_phrase_is_grounded_without_location_inference() -> None:
     text = "Wir ermöglichen mobiles Arbeiten und flexible Arbeitszeiten."
     fields, references = deterministic_detail_semantics(
