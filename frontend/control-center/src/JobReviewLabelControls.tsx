@@ -170,14 +170,14 @@ const fitLabel = (value: string | undefined) => {
   const status = normalized(value);
   if (status === "passed") return "match";
   if (status === "failed") return "conflict";
-  return "fit evidence missing";
+  return null;
 };
 
 const fitDecisionLabel = (value: string | undefined | null) => {
   const status = normalized(value);
   if (status === "passed") return "fit confirmed";
   if (status === "failed") return "fit conflict";
-  return "fit evidence missing";
+  return "candidate fit not fully assessed";
 };
 
 const fitTone = (value: string | undefined) => {
@@ -198,11 +198,12 @@ function EvidenceRow({
   secondary?: string | null;
   fit?: string;
 }) {
+  const resolvedFitLabel = fitLabel(fit);
   return (
     <div className="r4-evidence-row">
       <span>{label}</span>
       <div><b>{primary}</b>{secondary && <small>{secondary}</small>}</div>
-      <em className={`r4-fit-state ${fitTone(fit)}`}>{fitLabel(fit)}</em>
+      {resolvedFitLabel && <em className={`r4-fit-state ${fitTone(fit)}`}>{resolvedFitLabel}</em>}
     </div>
   );
 }
