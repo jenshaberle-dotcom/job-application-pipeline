@@ -1,10 +1,10 @@
 """Read-only R7 skill-evidence reliability audit for the current review cohort.
 
 The audit reuses the exact generic Origin parser and Silver projection used by
-F4A-R3/R4, then measures skill recall by source family. An optional external
-observer can propose exact skill spans through the tool-neutral JSON contract;
-those spans are diagnostic only and are never written to Bronze, Silver or
-Product state.
+F4A-R3/R4, then measures skill recall by source family. Optional external
+observers are scoped to provider-neutral requirement sections and can propose
+exact skill spans through the tool-neutral JSON contract. Those spans are
+strictly diagnostic and are never written to Bronze, Silver or Product state.
 """
 
 from __future__ import annotations
@@ -30,6 +30,9 @@ from src.search_intelligence.product_v1_downstream_preview import (
     DownstreamPreviewStop,
     fetch_public_https_detail_document,
 )
+from src.search_intelligence.requirement_section_evidence import (
+    extract_requirement_section_evidence,
+)
 from src.silver.external_observer_contract import (
     ExternalObserverError,
     run_external_skill_observer,
@@ -37,7 +40,7 @@ from src.silver.external_observer_contract import (
 from src.silver.requirement_evidence_projection import build_silver_requirement_evidence
 
 
-REPORT_SCHEMA = "job_application_pipeline.f4a_r7_skill_reliability_audit.v1"
+REPORT_SCHEMA = "job_application_pipeline.f4a_r7_skill_reliability_audit.v2"
 _REQUIREMENT_SECTION_MARKERS = (
     "anforderungen",
     "qualifikationen",
@@ -77,7 +80,9 @@ def _source_host(url: object) -> str:
 
 def _requirement_surface_signal(text: object) -> bool:
     normalized = _text(text).casefold()
-    return bool(normalized) and any(marker in normalized for marker in _REQUIREMENT_SECTION_MARKERS)
+    return bool(normalized) and any(
+        marker in normalized for marker in _REQUIREMENT_SECTION_MARKERS
+    )
 
 
 def _skill_field(payload: Mapping[str, Any]) -> tuple[str, list[str]]:
@@ -121,6 +126,8 @@ def _build_row(
         url=document.final_url,
         page_title=document.title,
     )
+    requirement_sections = extract_requirement_section_evidence(document.html)
+
     raw_data = project_detail_evidence_into_raw_data(baseline._best_raw_data(row), detail)
     job = raw_data.get("job")
     if not isinstance(job, dict):
@@ -147,23 +154,20 @@ def _build_row(
         or detail.get("visible_text_excerpt")
         or ""
     )
-    visible_text = (
-        detail.get("visible_text_excerpt")
-        or detail.get("main_text_excerpt")
-        or requirement_text
-        or ""
+    requirement_signal = bool(requirement_sections.text) or _requirement_surface_signal(
+        requirement_text
     )
-    requirement_signal = _requirement_surface_signal(requirement_text)
+    observer_text = requirement_sections.text
 
     external_count = 0
     external_rejected = 0
     incremental: list[str] = []
     observer_error: str | None = None
-    if observer_command and _text(visible_text):
+    if observer_command and _text(observer_text):
         try:
             observed = run_external_skill_observer(
                 command=observer_command,
-                text=_text(visible_text),
+                text=_text(observer_text),
                 observer_name=observer_name,
                 timeout_seconds=30.0,
             )
@@ -171,7 +175,11 @@ def _build_row(
             external_rejected = observed.rejected_count
             for fact in observed.facts:
                 evidence = _text(fact.evidence)
-                if evidence and _is_incremental(evidence, skills) and evidence not in incremental:
+                if (
+                    evidence
+                    and _is_incremental(evidence, skills)
+                    and evidence not in incremental
+                ):
                     incremental.append(evidence)
         except ExternalObserverError as exc:
             observer_error = str(exc)
@@ -185,11 +193,16 @@ def _build_row(
         "structured_jobposting_found": detail.get("structured_jobposting_found") is True,
         "requirement_surface_present": bool(_text(requirement_text)),
         "requirement_section_signal": requirement_signal,
+        "requirement_section_extracted": bool(requirement_sections.text),
+        "requirement_section_count": len(requirement_sections.sections),
+        "requirement_section_chars": len(requirement_sections.text),
+        "requirement_section_truncated": requirement_sections.truncated,
         "structured_skill_count": len(structured_skills),
         "skill_status": skill_status,
         "skill_count": len(skills),
         "skills": skills,
         "skill_recall_risk": bool(requirement_signal and not skills),
+        "external_observer_scope": "requirement_sections",
         "external_observer_candidate_count": external_count,
         "external_observer_rejected_count": external_rejected,
         "external_incremental_skill_count": len(incremental),
@@ -198,32 +211,49 @@ def _build_row(
     }
 
 
-def _aggregate(rows: Sequence[Mapping[str, object]], key: str) -> dict[str, dict[str, object]]:
+def _aggregate(
+    rows: Sequence[Mapping[str, object]], key: str
+) -> dict[str, dict[str, object]]:
     grouped: dict[str, list[Mapping[str, object]]] = defaultdict(list)
     for row in rows:
         grouped[_text(row.get(key)) or "unknown"].append(row)
 
     result: dict[str, dict[str, object]] = {}
     for name, items in sorted(grouped.items()):
-        requirement_rows = sum(bool(item.get("requirement_section_signal")) for item in items)
+        requirement_rows = sum(
+            bool(item.get("requirement_section_signal")) for item in items
+        )
+        extracted_rows = sum(
+            bool(item.get("requirement_section_extracted")) for item in items
+        )
         skill_rows = sum(int(item.get("skill_count") or 0) > 0 for item in items)
         risk_rows = sum(bool(item.get("skill_recall_risk")) for item in items)
-        incremental_rows = sum(int(item.get("external_incremental_skill_count") or 0) > 0 for item in items)
+        incremental_rows = sum(
+            int(item.get("external_incremental_skill_count") or 0) > 0
+            for item in items
+        )
         result[name] = {
             "job_count": len(items),
             "structured_jobposting_count": sum(
                 bool(item.get("structured_jobposting_found")) for item in items
             ),
             "requirement_section_signal_count": requirement_rows,
+            "requirement_section_extracted_count": extracted_rows,
+            "requirement_section_extracted_ratio": (
+                extracted_rows / len(items) if items else 0.0
+            ),
             "skill_observed_job_count": skill_rows,
             "skill_recall_risk_count": risk_rows,
             "skill_observed_ratio": skill_rows / len(items) if items else 0.0,
             "skill_observed_on_requirement_signal_ratio": (
-                (requirement_rows - risk_rows) / requirement_rows if requirement_rows else 0.0
+                (requirement_rows - risk_rows) / requirement_rows
+                if requirement_rows
+                else 0.0
             ),
             "external_incremental_job_count": incremental_rows,
             "external_incremental_skill_count": sum(
-                int(item.get("external_incremental_skill_count") or 0) for item in items
+                int(item.get("external_incremental_skill_count") or 0)
+                for item in items
             ),
         }
     return result
@@ -272,12 +302,17 @@ def build_report(
                 }
             )
 
-    statuses = Counter(_text(row.get("skill_status")) or "unknown" for row in observed)
+    statuses = Counter(
+        _text(row.get("skill_status")) or "unknown" for row in observed
+    )
     risk_rows = [row for row in observed if row["skill_recall_risk"]]
+    section_rows = [row for row in observed if row["requirement_section_extracted"]]
     external_incremental = [
         row for row in observed if int(row["external_incremental_skill_count"]) > 0
     ]
-    observer_errors = [row for row in observed if row.get("external_observer_error")]
+    observer_errors = [
+        row for row in observed if row.get("external_observer_error")
+    ]
     return {
         "schema": REPORT_SCHEMA,
         "mode": "read_only",
@@ -285,14 +320,19 @@ def build_report(
         "audited_count": len(observed),
         "origin_unavailable_count": len(unavailable),
         "blocked_count": len(blocked),
+        "requirement_section_extracted_job_count": len(section_rows),
         "skill_status_counts": dict(sorted(statuses.items())),
-        "skill_observed_job_count": sum(int(row["skill_count"]) > 0 for row in observed),
+        "skill_observed_job_count": sum(
+            int(row["skill_count"]) > 0 for row in observed
+        ),
         "skill_recall_risk_count": len(risk_rows),
         "external_observer_enabled": bool(observer_command),
         "external_observer_name": observer_name if observer_command else None,
+        "external_observer_scope": "requirement_sections",
         "external_incremental_job_count": len(external_incremental),
         "external_incremental_skill_count": sum(
-            int(row["external_incremental_skill_count"]) for row in external_incremental
+            int(row["external_incremental_skill_count"])
+            for row in external_incremental
         ),
         "external_observer_error_count": len(observer_errors),
         "by_source_name": _aggregate(observed, "source_name"),
@@ -320,7 +360,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path)
     parser.add_argument(
         "--observer-command",
-        help="Optional isolated observer command; parsed with shlex and never required by JAP runtime.",
+        help=(
+            "Optional isolated observer command; parsed with shlex and never "
+            "required by JAP runtime."
+        ),
     )
     parser.add_argument("--observer-name", default="external_skill_observer")
     return parser
@@ -346,6 +389,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"F4A_R7_SKILL_AUDIT_AUDITED={report['audited_count']}")
     print(f"F4A_R7_SKILL_AUDIT_BLOCKED={report['blocked_count']}")
     print(f"F4A_R7_SKILL_AUDIT_UNAVAILABLE={report['origin_unavailable_count']}")
+    print(
+        "F4A_R7_SKILL_AUDIT_REQUIREMENT_SECTIONS="
+        f"{report['requirement_section_extracted_job_count']}"
+    )
     print(f"F4A_R7_SKILL_AUDIT_OBSERVED={report['skill_observed_job_count']}")
     print(f"F4A_R7_SKILL_AUDIT_RECALL_RISK={report['skill_recall_risk_count']}")
     print(
@@ -358,14 +405,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(
         "F4A_R7_SKILL_AUDIT_BY_SOURCE="
-        + json.dumps(report["by_source_name"], ensure_ascii=False, sort_keys=True)
+        + json.dumps(
+            report["by_source_name"], ensure_ascii=False, sort_keys=True
+        )
     )
     print("F4A_R7_SKILL_AUDIT=PASS")
 
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True, default=str),
+            json.dumps(
+                report,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+                default=str,
+            ),
             encoding="utf-8",
         )
     return 0
