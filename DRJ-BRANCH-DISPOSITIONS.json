@@ -1,0 +1,143 @@
+{
+  "schema_version": "drj.branch_dispositions.v1",
+  "repository": "jenshaberle-dotcom/job-application-pipeline",
+  "repository_id": 1230805345,
+  "records": [
+    {
+      "branch": "agent/630-workday-cxs-acquisition",
+      "expected_sha": "c6dc7ddf8ccfb1c90ae1c32d578afed669759ba8",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "CANONICALIZED",
+      "evidence_refs": [
+        "repo:docs/knowledge/branch_salvage_704.md#agent630-workday-cxs-acquisition",
+        "repo:docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json#workday_recovered_precedent"
+      ]
+    },
+    {
+      "branch": "agent/676-external-deterministic-salvage",
+      "expected_sha": "e4a7b980a19fdcf1f0b312f9d3ae2af904012501",
+      "semantic_disposition": "RETIRE",
+      "unique_history_disposition": "HARVESTED",
+      "evidence_refs": [
+        "repo:docs/knowledge/branch_salvage_704.md#acq-676-v6-provider-public-feed-capability",
+        "git:commit:b06827bae362893f5a0be20aa8ba39e9afd78bb0"
+      ]
+    },
+    {
+      "branch": "agent/707-private-candidate-fact-approval",
+      "expected_sha": "893ec176cb4acbd8542f0f0de348567e9561c42b",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "CANONICALIZED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/720",
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/721"
+      ]
+    },
+    {
+      "branch": "agent/707-private-candidate-fact-approval-refresh",
+      "expected_sha": "6a5eec28b01c7ff8113f762392dca4f577a1c4ac",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "CANONICALIZED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/722",
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/721",
+        "repo:docs/knowledge/drj_branch_dispositions_20260916.md#agent707-private-candidate-fact-approval-refresh"
+      ]
+    },
+    {
+      "branch": "agent/f4a-profile-fit-coverage",
+      "expected_sha": "36fc1ce891b28a30db0085c86a14051d9f7c6b01",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/867#issuecomment-5648479625",
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/868"
+      ]
+    },
+    {
+      "branch": "agent/origin-entity-locale-and-brand-aliases",
+      "expected_sha": "2d6be950b4b703c9332cf609758bf62551e5184c",
+      "semantic_disposition": "DEPRECATED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/322#issuecomment-5175702498"
+      ]
+    },
+    {
+      "branch": "agent/origin-evidence-main-integration-001",
+      "expected_sha": "2c60bea92b51c03f28b5a6a9c28ecb09f4d3d87e",
+      "semantic_disposition": "RETIRE",
+      "unique_history_disposition": "CANONICALIZED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/279",
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/277"
+      ]
+    },
+    {
+      "branch": "agent/origin-secret-names-001",
+      "expected_sha": "cc7cab411460f2b02672d1a44743411fd1f2d5e4",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "CANONICALIZED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/275#issuecomment-5141887738",
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/278"
+      ]
+    },
+    {
+      "branch": "agent/p1-full-connector-inventory-audit",
+      "expected_sha": "50ecf6326565e34a915c9a50cec95c25ede2a023",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/837"
+      ]
+    },
+    {
+      "branch": "agent/p1-generic-origin-z-baseline",
+      "expected_sha": "0d5c81aa7505d035b138d3cfc4ca7176ad646877",
+      "semantic_disposition": "DEPRECATED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/845"
+      ]
+    },
+    {
+      "branch": "agent/p1-origin-initial-proof-revalidation",
+      "expected_sha": "df9160ea0962163078c0beb955cf4eb1167992be",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/839"
+      ]
+    },
+    {
+      "branch": "agent/p1-promote-proven-origin-connectors",
+      "expected_sha": "851d3983a9b048229e16a6b4bdd8d5e71dbdbff7",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/840"
+      ]
+    },
+    {
+      "branch": "agent/v41-manual-hardening",
+      "expected_sha": "9a0eaa384ece495c05c171da57c3f7d18fef9a5b",
+      "semantic_disposition": "DEPRECATED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "repo:docs/knowledge/branch_salvage_704.md#pr663-agentv41-manual-hardening",
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/663"
+      ]
+    },
+    {
+      "branch": "hotfix/product-v1-view-type-stability",
+      "expected_sha": "235dfe955e28dfd4e7b4fcd5e0bb7db1a1fc7740",
+      "semantic_disposition": "RETIRE",
+      "unique_history_disposition": "HARVESTED",
+      "evidence_refs": [
+        "repo:docs/knowledge/branch_salvage_704.md#product-v1-view-type-stability",
+        "git:commit:b06827bae362893f5a0be20aa8ba39e9afd78bb0"
+      ]
+    }
+  ]
+}
