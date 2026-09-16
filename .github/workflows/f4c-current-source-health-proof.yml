@@ -10,6 +10,7 @@ on:
       - scripts/product_v1_data_layers_runtime.py
       - scripts/run_f4c_current_source_health_proof.py
       - scripts/run_f4c_data_layer_reconciliation.py
+      - scripts/run_f4c_source_health_reconciliation.py
       - scripts/run_product_v1_demo_control_center.py
       - frontend/control-center/src/F4cSourceHealthSurface.tsx
       - frontend/control-center/src/f4c-source-health-surface.css
@@ -19,6 +20,7 @@ on:
       - tests/test_f4c_current_source_health_contract.py
       - tests/test_f4c_operator_surface_contract.py
       - tests/test_f4c_data_layer_reconciliation.py
+      - tests/test_f4c_source_health_reconciliation.py
       - tests/test_product_v1_data_layers_runtime.py
       - .github/workflows/f4c-current-source-health-proof.yml
   workflow_dispatch:
@@ -99,16 +101,19 @@ jobs:
             tests/test_f4c_current_source_health_contract.py \
             tests/test_f4c_operator_surface_contract.py \
             tests/test_f4c_data_layer_reconciliation.py \
+            tests/test_f4c_source_health_reconciliation.py \
             tests/test_product_v1_data_layers_runtime.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/product_v1_f4c_source_health_runtime.py \
             scripts/product_v1_data_layers_runtime.py \
             scripts/run_f4c_current_source_health_proof.py \
             scripts/run_f4c_data_layer_reconciliation.py \
+            scripts/run_f4c_source_health_reconciliation.py \
             scripts/run_product_v1_demo_control_center.py \
             tests/test_f4c_current_source_health_contract.py \
             tests/test_f4c_operator_surface_contract.py \
             tests/test_f4c_data_layer_reconciliation.py \
+            tests/test_f4c_source_health_reconciliation.py \
             tests/test_product_v1_data_layers_runtime.py
 
       - name: Run real read-only Product proof
