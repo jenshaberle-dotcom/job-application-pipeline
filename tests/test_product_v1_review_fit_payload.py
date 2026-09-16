@@ -17,7 +17,7 @@ def _payload(job: dict[str, object]) -> dict[str, object]:
     )
 
 
-def test_unranked_job_gets_review_fit_without_product_score_authority() -> None:
+def test_unranked_job_gets_review_fit_without_affinity_authority() -> None:
     payload = _payload(
         {
             "silver_job_id": 1,
@@ -35,11 +35,13 @@ def test_unranked_job_gets_review_fit_without_product_score_authority() -> None:
 
     assert job["overall_quality_score"] == job["review_fit_score"]
     assert job["product_overall_quality_score"] is None
+    assert job["affinity_score"] is None
     assert job["display_fit_scope"] == "review_preview"
+    assert job["combined_score"] is None
     assert payload["boundaries"]["review_fit_preview_is_not_ranking_authority"] is True
 
 
-def test_authoritative_product_score_wins_display_fit() -> None:
+def test_authoritative_affinity_does_not_replace_review_fit() -> None:
     payload = _payload(
         {
             "silver_job_id": 2,
@@ -51,10 +53,20 @@ def test_authoritative_product_score_wins_display_fit() -> None:
             "lifecycle_status": "active_confirmed",
             "product_readiness_status": "rankable",
             "overall_quality_score": 70.4,
+            "affinity_score": 70.4,
+            "affinity_authority": "pd-052",
+            "affinity_authority_status": "authoritative",
         }
     )
     job = payload["job_readiness"][0]
 
-    assert job["overall_quality_score"] == 70.4
+    assert job["affinity_score"] == 70.4
     assert job["product_overall_quality_score"] == 70.4
-    assert job["display_fit_scope"] == "authoritative_product_score"
+    assert job["affinity_authority"] == "pd-052"
+    assert job["affinity_authority_status"] == "authoritative"
+    assert job["overall_quality_score"] == job["review_fit_score"]
+    assert job["display_fit_scope"] == "review_preview"
+    assert job["combined_score"] is None
+    assert payload["summary"]["affinity_authoritative_count"] == 1
+    assert payload["summary"]["combined_score_count"] == 0
+    assert payload["boundaries"]["affinity_is_not_candidate_fit"] is True
