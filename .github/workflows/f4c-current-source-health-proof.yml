@@ -6,7 +6,12 @@ on:
     paths:
       - scripts/product_v1_f4c_source_health_runtime.py
       - scripts/run_f4c_current_source_health_proof.py
+      - scripts/run_product_v1_demo_control_center.py
+      - frontend/control-center/src/F4cSourceHealthSurface.tsx
+      - frontend/control-center/src/f4c-source-health-surface.css
+      - frontend/control-center/src/main.tsx
       - tests/test_f4c_current_source_health_contract.py
+      - tests/test_f4c_operator_surface_contract.py
       - .github/workflows/f4c-current-source-health-proof.yml
   workflow_dispatch:
 
@@ -82,11 +87,15 @@ jobs:
           site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4c-current-health-sites")"
           test -d "$site"
           echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          "$RUNTIME_PYTHON" -m pytest -q tests/test_f4c_current_source_health_contract.py
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_f4c_current_source_health_contract.py \
+            tests/test_f4c_operator_surface_contract.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/product_v1_f4c_source_health_runtime.py \
             scripts/run_f4c_current_source_health_proof.py \
-            tests/test_f4c_current_source_health_contract.py
+            scripts/run_product_v1_demo_control_center.py \
+            tests/test_f4c_current_source_health_contract.py \
+            tests/test_f4c_operator_surface_contract.py
 
       - name: Run real read-only Product proof
         shell: bash
