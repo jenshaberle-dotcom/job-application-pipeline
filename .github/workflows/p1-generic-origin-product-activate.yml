@@ -31,6 +31,7 @@ concurrency:
 jobs:
   activate:
     name: Activate generic proof-pass sources and prove persisted Product E2E
+    if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 180
     env:
