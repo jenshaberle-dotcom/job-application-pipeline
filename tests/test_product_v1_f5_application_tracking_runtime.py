@@ -9,10 +9,16 @@ def _application(**overrides: object) -> dict[str, object]:
         "application_key": "application:7",
         "silver_job_id": 42,
         "draft_request_id": None,
+        "discovery_kind": "jap_prepared",
+        "discovered_at": "2026-09-16T10:00:00+00:00",
         "title": "ML Engineer",
         "company_name": "Example GmbH",
         "display_company_name": "Example GmbH",
         "source_url": "https://example.test/jobs/42",
+        "job_identity_snapshot": {
+            "title": "ML Engineer",
+            "company_name": "Example GmbH",
+        },
         "prepared_at": "2026-09-16T10:00:00+00:00",
         "prepared_by": "operator",
         "submission_id": 9,
@@ -21,6 +27,12 @@ def _application(**overrides: object) -> dict[str, object]:
         "submission_authority_kind": "operator_confirmation",
         "submission_authority_reference": "manual:42",
         "authoritative_stage": "applied",
+        "observed_stage": None,
+        "observed_event_class": None,
+        "observed_at": None,
+        "observed_confidence": None,
+        "effective_stage": "applied",
+        "effective_stage_basis": "authoritative_fallback",
         "authoritative_event_count": 0,
         "latest_authoritative_event_at": None,
         "attention_candidate_count": 1,
@@ -43,9 +55,10 @@ def _candidate(**overrides: object) -> dict[str, object]:
         "confidence": 0.99,
         "ambiguity_reason": None,
         "review_status": "unreviewed",
+        "observed_at": "2026-09-16T11:55:00+00:00",
         "created_at": "2026-09-16T12:00:00+00:00",
         "evidence_payload": {
-            "reason_code": "deterministic_offer_phrase",
+            "reason_code": "deterministic_offer_signal",
             "evidence_span": "offer",
             "raw_body": "must never leave the private evidence boundary",
             "headers": {"secret": "not exposed"},
@@ -55,19 +68,66 @@ def _candidate(**overrides: object) -> dict[str, object]:
     return row
 
 
-def test_candidate_offer_signal_cannot_advance_authoritative_stage() -> None:
+def test_observed_offer_can_be_primary_without_rewriting_authoritative_stage() -> None:
     payload = build_application_tracking_payload(
-        applications=[_application(authoritative_stage="applied")],
+        applications=[
+            _application(
+                authoritative_stage="applied",
+                observed_stage="offer",
+                observed_event_class="offer_signal",
+                observed_at="2026-09-16T11:55:00+00:00",
+                observed_confidence=0.99,
+                effective_stage="offer",
+                effective_stage_basis="mailbox_observed",
+            )
+        ],
         candidates=[_candidate(candidate_class="offer_signal")],
     )
 
     application = payload["applications"][0]
     assert application["authoritative_stage"] == "applied"
+    assert application["observed_stage"] == "offer"
+    assert application["effective_stage"] == "offer"
+    assert application["effective_stage_basis"] == "mailbox_observed"
     assert application["stage_authority"] == (
-        "application_submission_and_confirmed_lifecycle_events"
+        "mailbox_observed_with_separate_authoritative_correction"
     )
-    assert application["evidence_candidates"][0]["candidate_class"] == "offer_signal"
     assert application["evidence_candidates"][0]["authority"] == "evidence_only"
+
+
+def test_unknown_job_mailbox_application_is_supported_from_identity_snapshot() -> None:
+    payload = build_application_tracking_payload(
+        applications=[
+            _application(
+                silver_job_id=None,
+                title=None,
+                company_name=None,
+                display_company_name=None,
+                source_url=None,
+                discovery_kind="mailbox_observed",
+                job_identity_snapshot={
+                    "job_title": "Senior Data Engineer",
+                    "employer_name": "External GmbH",
+                    "application_url": "https://example.test/application/123",
+                },
+                authoritative_stage="prepared",
+                observed_stage="applied",
+                observed_event_class="application_acknowledgement",
+                effective_stage="applied",
+                effective_stage_basis="mailbox_observed",
+            )
+        ],
+        candidates=[_candidate(candidate_class="application_acknowledgement")],
+    )
+
+    application = payload["applications"][0]
+    assert application["silver_job_id"] is None
+    assert application["job_link_status"] == "external"
+    assert application["title"] == "Senior Data Engineer"
+    assert application["display_company_name"] == "External GmbH"
+    assert application["source_url"] == "https://example.test/application/123"
+    assert payload["summary"]["mailbox_discovered_count"] == 1
+    assert payload["boundaries"]["unknown_job_application_supported"] is True
 
 
 def test_projection_exposes_only_bounded_normalized_evidence_fields() -> None:
@@ -78,14 +138,14 @@ def test_projection_exposes_only_bounded_normalized_evidence_fields() -> None:
     evidence = payload["applications"][0]["evidence_candidates"][0]["evidence"]
 
     assert evidence == {
-        "reason_code": "deterministic_offer_phrase",
+        "reason_code": "deterministic_offer_signal",
         "evidence_span": "offer",
     }
     assert "raw_body" not in evidence
     assert "headers" not in evidence
 
 
-def test_unmatched_candidate_stays_outside_application_authority() -> None:
+def test_unmatched_candidate_stays_outside_application_state() -> None:
     payload = build_application_tracking_payload(
         applications=[_application(attention_candidate_count=0)],
         candidates=[

@@ -5,19 +5,24 @@ on:
     paths:
       - ".github/workflows/f5-application-lifecycle-reconciliation.yml"
       - "db/migrations/112_create_authoritative_application_lifecycle.sql"
+      - "db/migrations/113_enable_mailbox_first_application_tracking.sql"
       - "scripts/run_f5_application_lifecycle_reconciliation.py"
       - "scripts/run_f5_application_lifecycle_schema_qualification.py"
+      - "scripts/run_f5_mailbox_tracking_schema_qualification.py"
       - "scripts/run_f5_application_tracking_product_proof.py"
       - "scripts/product_v1_f5_application_tracking_runtime.py"
       - "scripts/product_v1_f5_application_actions.py"
+      - "scripts/product_v1_f5_mailbox_ingest.py"
       - "scripts/run_product_v1_demo_control_center.py"
       - "src/search_intelligence/application_event_classifier.py"
       - "tests/test_f5_application_lifecycle_reconciliation.py"
       - "tests/test_f5_application_lifecycle_schema_qualification.py"
       - "tests/test_f5_authoritative_application_lifecycle_contract.py"
+      - "tests/test_f5_mailbox_first_application_contract.py"
       - "tests/test_f5_application_tracking_product_proof.py"
       - "tests/test_product_v1_f5_application_tracking_runtime.py"
       - "tests/test_product_v1_f5_application_actions.py"
+      - "tests/test_product_v1_f5_mailbox_ingest.py"
       - "tests/test_application_event_classifier.py"
       - "frontend/control-center/src/F5ApplicationTracking.tsx"
       - "frontend/control-center/src/f5-application-tracking.css"
@@ -31,7 +36,7 @@ on:
       mode:
         description: "F5 qualification phase"
         required: true
-        default: tracking
+        default: preflight
         type: choice
         options:
           - tracking
@@ -63,8 +68,8 @@ jobs:
        (github.event.issue.number == 737 &&
         github.event.comment.user.login == 'jenshaberle-dotcom' &&
         github.event.comment.author_association == 'OWNER' &&
-        (startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:apply:v1 -->') ||
-         startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:postapply:v1 -->'))))
+        (startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:apply:v1 -->') ||
+         startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:postapply:v1 -->'))))
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
@@ -72,18 +77,19 @@ jobs:
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       MODE: >-
-        ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:apply:v1 -->') && 'apply' ||
+        ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:apply:v1 -->') && 'apply' ||
             github.event_name == 'issue_comment' && 'postapply' ||
-            github.event_name == 'workflow_dispatch' && inputs.mode || 'tracking' }}
+            github.event_name == 'workflow_dispatch' && inputs.mode || 'preflight' }}
       SOURCE_SHA: >-
         ${{ github.event_name == 'issue_comment' && github.sha ||
             github.event_name == 'workflow_dispatch' && inputs.source_sha ||
             github.event.pull_request.head.sha }}
       APPROVAL_TOKEN: >-
-        ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:apply:v1 -->') && 'F5-SLICE-B-MIGRATION-112' ||
+        ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:apply:v1 -->') && 'F5-MAILBOX-FIRST-MIGRATION-113' ||
             inputs.approval_token || '' }}
-      OUTPUT: /tmp/jap-f5-application-lifecycle-qualification.json
-      TARGET_MIGRATION: 112_create_authoritative_application_lifecycle.sql
+      OUTPUT: /tmp/jap-f5-mailbox-schema-qualification.json
+      PRODUCT_OUTPUT: /tmp/jap-f5-mailbox-product-proof.json
+      TARGET_MIGRATION: 113_enable_mailbox_first_application_tracking.sql
 
     steps:
       - name: Check out exact source
@@ -163,46 +169,40 @@ jobs:
           "$RUNTIME_PYTHON" -m py_compile \
             scripts/run_f5_application_lifecycle_reconciliation.py \
             scripts/run_f5_application_lifecycle_schema_qualification.py \
+            scripts/run_f5_mailbox_tracking_schema_qualification.py \
             scripts/run_f5_application_tracking_product_proof.py \
             scripts/product_v1_f5_application_tracking_runtime.py \
             scripts/product_v1_f5_application_actions.py \
+            scripts/product_v1_f5_mailbox_ingest.py \
             src/search_intelligence/application_event_classifier.py
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
             tests/test_f5_authoritative_application_lifecycle_contract.py \
+            tests/test_f5_mailbox_first_application_contract.py \
             tests/test_f5_application_tracking_product_proof.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
+            tests/test_product_v1_f5_mailbox_ingest.py \
             tests/test_application_event_classifier.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/run_f5_application_lifecycle_reconciliation.py \
             scripts/run_f5_application_lifecycle_schema_qualification.py \
+            scripts/run_f5_mailbox_tracking_schema_qualification.py \
             scripts/run_f5_application_tracking_product_proof.py \
             scripts/product_v1_f5_application_tracking_runtime.py \
             scripts/product_v1_f5_application_actions.py \
+            scripts/product_v1_f5_mailbox_ingest.py \
             src/search_intelligence/application_event_classifier.py \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
             tests/test_f5_authoritative_application_lifecycle_contract.py \
+            tests/test_f5_mailbox_first_application_contract.py \
             tests/test_f5_application_tracking_product_proof.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
+            tests/test_product_v1_f5_mailbox_ingest.py \
             tests/test_application_event_classifier.py
-
-      - name: Run real Product tracking proof read-only
-        if: ${{ env.MODE == 'tracking' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          set -a
-          # shellcheck disable=SC1090
-          source "$RUNTIME_ENV_FILE"
-          set +a
-          export PGOPTIONS="-c default_transaction_read_only=on"
-          "$RUNTIME_PYTHON" -m scripts.run_f5_application_tracking_product_proof \
-            --source-sha "$SOURCE_SHA" \
-            --output "$OUTPUT"
 
       - name: Run exact-head real DB migration preflight read-only
         if: ${{ env.MODE == 'preflight' }}
@@ -210,14 +210,26 @@ jobs:
         run: |
           set -euo pipefail
           set -a
-          # shellcheck disable=SC1090
           source "$RUNTIME_ENV_FILE"
           set +a
           export PGOPTIONS="-c default_transaction_read_only=on"
-          "$RUNTIME_PYTHON" -m scripts.run_f5_application_lifecycle_schema_qualification \
+          "$RUNTIME_PYTHON" -m scripts.run_f5_mailbox_tracking_schema_qualification \
             --phase preflight \
             --source-sha "$SOURCE_SHA" \
             --output "$OUTPUT"
+
+      - name: Run real Product tracking proof read-only
+        if: ${{ env.MODE == 'tracking' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_application_tracking_product_proof \
+            --source-sha "$SOURCE_SHA" \
+            --output "$PRODUCT_OUTPUT"
 
       - name: Prove apply authority is exact current main
         if: ${{ env.MODE == 'apply' }}
@@ -228,26 +240,25 @@ jobs:
             workflow_dispatch|issue_comment) ;;
             *) echo "F5_SCHEMA_APPLY_EVENT_NOT_AUTHORIZED=$GITHUB_EVENT_NAME" >&2; exit 3 ;;
           esac
-          test "$APPROVAL_TOKEN" = "F5-SLICE-B-MIGRATION-112"
+          test "$APPROVAL_TOKEN" = "F5-MAILBOX-FIRST-MIGRATION-113"
           git fetch origin main --depth=1
           main_sha="$(git rev-parse FETCH_HEAD)"
           test "$SOURCE_SHA" = "$main_sha"
           echo "F5_SCHEMA_APPLY_AUTHORITY=PASS source=$SOURCE_SHA target=$TARGET_MIGRATION"
 
-      - name: Apply exact lifecycle migration 112
+      - name: Apply exact mailbox-first migration 113
         if: ${{ env.MODE == 'apply' }}
         shell: bash
         run: |
           set -euo pipefail
           set -a
-          # shellcheck disable=SC1090
           source "$RUNTIME_ENV_FILE"
           set +a
           unset PGOPTIONS
           "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
             --apply-exact "$TARGET_MIGRATION" \
             --require-sole-pending \
-            --applied-by f5-slice-b-exact-workflow
+            --applied-by f5-mailbox-first-exact-workflow
           echo "F5_SCHEMA_EXACT_APPLY=PASS source=$SOURCE_SHA target=$TARGET_MIGRATION"
 
       - name: Prove post-apply source is exact current main
@@ -270,20 +281,24 @@ jobs:
         run: |
           set -euo pipefail
           set -a
-          # shellcheck disable=SC1090
           source "$RUNTIME_ENV_FILE"
           set +a
           export PGOPTIONS="-c default_transaction_read_only=on"
-          "$RUNTIME_PYTHON" -m scripts.run_f5_application_lifecycle_schema_qualification \
+          "$RUNTIME_PYTHON" -m scripts.run_f5_mailbox_tracking_schema_qualification \
             --phase postapply \
             --source-sha "$SOURCE_SHA" \
             --output "$OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_application_tracking_product_proof \
+            --source-sha "$SOURCE_SHA" \
+            --output "$PRODUCT_OUTPUT"
 
       - name: Upload F5 lifecycle qualification evidence
         if: ${{ env.MODE != 'apply' }}
         uses: actions/upload-artifact@v4
         with:
           name: f5-application-lifecycle-${{ env.MODE }}-${{ env.SOURCE_SHA }}
-          path: ${{ env.OUTPUT }}
-          if-no-files-found: error
+          path: |
+            ${{ env.OUTPUT }}
+            ${{ env.PRODUCT_OUTPUT }}
+          if-no-files-found: warn
           retention-days: 14

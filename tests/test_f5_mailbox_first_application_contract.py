@@ -1,0 +1,78 @@
+from pathlib import Path
+
+
+MIGRATION = Path("db/migrations/113_enable_mailbox_first_application_tracking.sql")
+
+
+def _sql() -> str:
+    return MIGRATION.read_text(encoding="utf-8")
+
+
+def test_mailbox_discovered_application_does_not_require_known_silver_job() -> None:
+    sql = _sql()
+
+    assert "ALTER COLUMN silver_job_id DROP NOT NULL" in sql
+    assert "discovery_kind TEXT NOT NULL DEFAULT 'jap_prepared'" in sql
+    assert "'mailbox_observed'" in sql
+    assert "Optional canonical JAP/Silver job link" in sql
+
+
+def test_mailbox_observation_time_is_explicit_and_indexed() -> None:
+    sql = _sql()
+
+    assert "ADD COLUMN IF NOT EXISTS observed_at TIMESTAMPTZ" in sql
+    assert "ALTER COLUMN observed_at SET NOT NULL" in sql
+    assert "idx_application_event_candidates_observed" in sql
+
+
+def test_observed_stage_is_derived_only_from_exact_deterministic_high_confidence_evidence() -> None:
+    sql = _sql()
+    eligible = sql.split("eligible_observations AS", 1)[1].split(
+        "), latest_observation AS", 1
+    )[0]
+
+    assert "candidate.match_status = 'exact'" in eligible
+    assert "candidate.confidence >= 0.95" in eligible
+    assert "LIKE 'deterministic_%'" in eligible
+    assert "candidate.review_status IN ('unreviewed', 'accepted_as_evidence')" in eligible
+    assert "'ambiguous'" not in eligible
+
+
+def test_observed_stage_mapping_tracks_mailbox_lifecycle_without_rewriting_authority() -> None:
+    sql = _sql()
+    eligible = sql.split("eligible_observations AS", 1)[1].split(
+        "), latest_observation AS", 1
+    )[0]
+
+    for candidate_class, stage in (
+        ("application_acknowledgement", "applied"),
+        ("recruiter_contact", "reply"),
+        ("assessment_request", "reply"),
+        ("interview_invitation", "interview"),
+        ("offer_signal", "offer"),
+        ("rejection", "closed"),
+        ("withdrawal_confirmation", "closed"),
+    ):
+        assert f"WHEN '{candidate_class}' THEN '{stage}'" in eligible
+
+    assert "UPDATE application_lifecycle_events" not in sql
+    assert "DELETE FROM application_lifecycle_events" not in sql
+    assert "coalesce(observation.observed_stage, base.authoritative_stage) AS effective_stage" in sql
+
+
+def test_ambiguous_evidence_remains_attention_not_automatic_status() -> None:
+    sql = _sql()
+
+    assert "review_status IN ('unreviewed', 'ambiguous')" in sql
+    assert "evidence_review_required" in sql
+    assert "candidate.match_status = 'exact'" in sql
+
+
+def test_mailbox_first_migration_introduces_no_mail_or_submission_side_effect() -> None:
+    sql = _sql().lower()
+
+    assert "send_email" not in sql
+    assert "smtp" not in sql
+    assert "requests.post" not in sql
+    assert "insert into application_submissions" not in sql
+    assert "no mailbox network access" in sql
