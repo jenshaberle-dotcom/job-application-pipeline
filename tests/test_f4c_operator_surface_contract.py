@@ -25,18 +25,20 @@ def test_source_health_surface_is_mounted_and_names_separate_truth_dimensions() 
     assert "<F4cSourceHealthSurface />" in main
     for label in (
         "Current health & scheduling",
-        "Latest run",
-        "Run age",
-        "Scheduling",
-        "Cadence",
-        "Next expected run",
+        "Last attempt result",
+        "Last attempt at",
+        "Since last attempt",
+        "Recurring schedule",
+        "Expected interval",
+        "Next expected attempt",
         "Reachability now",
-        "Last yield",
+        "Last delivery yield",
         "Zero-yield success",
     ):
         assert label in surface
-    assert "A historical successful run is run history only" in surface
-    assert "current reachability remains unknown until actually measured" in surface
+    assert "no expected interval is defined" in surface
+    assert "Current health is a freshness claim, not a copy of run history" in surface
+    assert "Reachability is shown only when it was actually measured" in surface
 
 
 def test_redundant_operations_and_data_layer_source_health_surfaces_are_hidden() -> None:
