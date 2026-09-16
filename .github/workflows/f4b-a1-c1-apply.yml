@@ -93,7 +93,7 @@ jobs:
             src/search_intelligence/product_v1_service.py \
             tests/test_f4b_a1_c1_affinity_authority.py
 
-      - name: Prove sole pending migration before mutation
+      - name: Prove exact migration state before mutation
         shell: bash
         run: |
           set -euo pipefail
@@ -108,18 +108,31 @@ jobs:
           )
           target = "111_restore_pd051_threshold_and_create_affinity_authority.sql"
           migrations = discover_migration_files()
+          by_key = {item.migration_key: item for item in migrations}
+          if target not in by_key:
+              raise SystemExit("F4B_A1_C1_TARGET_MIGRATION_MISSING")
           with connect() as conn:
               tracked = load_tracked_migrations(conn)
           mismatches = checksum_mismatches(migrations, tracked)
           if mismatches:
               raise SystemExit("F4B_A1_C1_CHECKSUM_DRIFT")
           pending = [item.migration_key for item in pending_migrations(migrations, tracked)]
-          if pending != [target]:
-              raise SystemExit(f"F4B_A1_C1_NOT_SOLE_PENDING:{pending}")
-          print(f"F4B_A1_C1_SOLE_PENDING={target}")
+          tracked_target = tracked.get(target)
+          if tracked_target is None:
+              if pending != [target]:
+                  raise SystemExit(f"F4B_A1_C1_NOT_SOLE_PENDING:{pending}")
+              print(f"F4B_A1_C1_MIGRATION_STATE=pending:{target}")
+          else:
+              if tracked_target.execution_status != "success":
+                  raise SystemExit(
+                      f"F4B_A1_C1_TARGET_NOT_SUCCESS:{tracked_target.execution_status}"
+                  )
+              if pending:
+                  raise SystemExit(f"F4B_A1_C1_UNEXPECTED_PENDING_AFTER_TARGET:{pending}")
+              print(f"F4B_A1_C1_MIGRATION_STATE=already_applied:{target}")
           PY
 
-      - name: Apply exact migration 111
+      - name: Apply or verify exact migration 111
         shell: bash
         run: |
           set -euo pipefail
