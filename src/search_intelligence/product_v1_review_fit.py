@@ -1,9 +1,10 @@
-"""Deterministic review-fit preview for jobs without authoritative Product V1 scores.
+"""Deterministic review-fit preview without Candidate-Fit authority.
 
-The score is an operator-orientation surface only. It may help order the review
-queue, but it has no ranking, Top-5, hard-filter, application or product authority.
-It intentionally uses only already-projected role, geography and lifecycle signals;
-operator relevance labels are never fed back into this score.
+The score is an operator-orientation surface only. It may help explain or order a
+review queue, but it has no ranking, Top-5, hard-filter, application, Candidate-Fit
+or Combined-score authority. F4B C1 gives the separate PD-052 Affinity score
+(`Will ich diesen Job?`) explicit authority; that Affinity must never be reused as
+an answer to `Passt dieser Job zu mir?`.
 """
 from __future__ import annotations
 
@@ -127,16 +128,11 @@ def enrich_review_fit(row: Mapping[str, object]) -> dict[str, object]:
     preview = build_review_fit_preview(row)
     enriched["review_fit_score"] = preview.score
     enriched["review_fit"] = preview.canonical_payload()
-    enriched["display_fit_score"] = (
-        float(row["overall_quality_score"])
-        if row.get("overall_quality_score") is not None
-        else preview.score
-    )
-    enriched["display_fit_scope"] = (
-        "authoritative_product_score"
-        if row.get("overall_quality_score") is not None
-        else "review_preview"
-    )
+    # F4B truth boundary: there is no authoritative numeric Candidate Fit in
+    # this freeze campaign. A PD-052 overall/affinity score in `row` therefore
+    # must not replace this explicitly non-authoritative review preview.
+    enriched["display_fit_score"] = preview.score
+    enriched["display_fit_scope"] = "review_preview"
     return enriched
 
 
