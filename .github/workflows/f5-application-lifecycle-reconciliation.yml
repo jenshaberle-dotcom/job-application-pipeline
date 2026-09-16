@@ -12,6 +12,8 @@ on:
       - "tests/test_f5_authoritative_application_lifecycle_contract.py"
       - "docs/current/REENTRY.md"
       - "docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md"
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       mode:
@@ -42,16 +44,31 @@ concurrency:
 jobs:
   qualify:
     name: F5 lifecycle schema exact-head qualification
-    if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
+    if: >-
+      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+      (github.event_name != 'issue_comment' ||
+       (github.event.issue.number == 737 &&
+        github.event.comment.user.login == 'jenshaberle-dotcom' &&
+        github.event.comment.author_association == 'OWNER' &&
+        (startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:apply:v1 -->') ||
+         startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:postapply:v1 -->'))))
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
-      MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'preflight' }}
-      SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
-      APPROVAL_TOKEN: ${{ inputs.approval_token || '' }}
+      MODE: >-
+        ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:apply:v1 -->') && 'apply' ||
+            github.event_name == 'issue_comment' && 'postapply' ||
+            github.event_name == 'workflow_dispatch' && inputs.mode || 'preflight' }}
+      SOURCE_SHA: >-
+        ${{ github.event_name == 'issue_comment' && github.sha ||
+            github.event_name == 'workflow_dispatch' && inputs.source_sha ||
+            github.event.pull_request.head.sha }}
+      APPROVAL_TOKEN: >-
+        ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:apply:v1 -->') && 'F5-SLICE-B-MIGRATION-112' ||
+            inputs.approval_token || '' }}
       OUTPUT: /tmp/jap-f5-application-lifecycle-schema-qualification.json
       TARGET_MIGRATION: 112_create_authoritative_application_lifecycle.sql
 
@@ -164,7 +181,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch|issue_comment) ;;
+            *) echo "F5_SCHEMA_APPLY_EVENT_NOT_AUTHORIZED=$GITHUB_EVENT_NAME" >&2; exit 3 ;;
+          esac
           test "$APPROVAL_TOKEN" = "F5-SLICE-B-MIGRATION-112"
           git fetch origin main --depth=1
           main_sha="$(git rev-parse FETCH_HEAD)"
@@ -192,7 +212,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch|issue_comment) ;;
+            *) echo "F5_SCHEMA_POSTAPPLY_EVENT_NOT_AUTHORIZED=$GITHUB_EVENT_NAME" >&2; exit 3 ;;
+          esac
           git fetch origin main --depth=1
           main_sha="$(git rev-parse FETCH_HEAD)"
           test "$SOURCE_SHA" = "$main_sha"
