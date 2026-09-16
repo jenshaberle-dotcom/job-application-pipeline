@@ -7,7 +7,7 @@ from scripts.product_v1_data_layers_runtime import (
 )
 
 
-def test_builder_preserves_missing_history_and_current_snapshot_boundary() -> None:
+def test_builder_separates_persisted_inventory_from_current_product_scope() -> None:
     today = date(2026, 9, 3)
     payload = build_data_layers_payload(
         today=today,
@@ -24,19 +24,41 @@ def test_builder_preserves_missing_history_and_current_snapshot_boundary() -> No
         latest_silver_normalization=datetime(2026, 9, 3, 5, 5, tzinfo=timezone.utc),
         latest_gold_assessment=datetime(2026, 9, 3, 5, 10, tzinfo=timezone.utc),
         sources=[],
+        current_scope={
+            "all_jobs": 28,
+            "gold_in_all_jobs": 27,
+            "gold_outside_all_jobs": 3,
+            "all_jobs_without_gold": 1,
+            "gold_outside_historical": 2,
+            "gold_outside_out_of_profile": 1,
+            "gold_outside_discovery_sources": 0,
+            "gold_outside_duplicate_origin": 0,
+            "all_jobs_gold_assessed_pct": 96.4,
+        },
     )
 
     assert payload["inventory"] == {
         "bronze_jobs": 100,
         "silver_jobs": 60,
         "gold_assessed": 30,
+    }
+    assert payload["current_product_scope"] == {
+        "all_jobs": 28,
+        "gold_in_all_jobs": 27,
+        "gold_outside_all_jobs": 3,
+        "all_jobs_without_gold": 1,
+        "gold_outside_historical": 2,
+        "gold_outside_out_of_profile": 1,
+        "gold_outside_discovery_sources": 0,
+        "gold_outside_duplicate_origin": 0,
+        "gold_assessed_pct": 96.4,
         "rankable_now": 6,
         "top_jobs_now": 5,
     }
     assert payload["coverage"] == {
         "bronze_to_silver_pct": 60.0,
         "silver_to_gold_pct": 50.0,
-        "gold_to_rankable_pct": 20.0,
+        "all_jobs_gold_assessed_pct": 96.4,
     }
     flow = payload["flow"]
     assert isinstance(flow, list)
@@ -55,6 +77,7 @@ def test_builder_preserves_missing_history_and_current_snapshot_boundary() -> No
     assert boundaries["creates_telemetry"] is False
     assert boundaries["historical_rankable_series_available"] is False
     assert boundaries["historical_top5_series_available"] is False
+    assert boundaries["persisted_inventory_is_not_current_product_scope"] is True
 
 
 def test_builder_uses_null_not_fake_percentage_when_denominator_is_missing() -> None:
@@ -78,7 +101,7 @@ def test_builder_uses_null_not_fake_percentage_when_denominator_is_missing() -> 
     assert payload["coverage"] == {
         "bronze_to_silver_pct": None,
         "silver_to_gold_pct": None,
-        "gold_to_rankable_pct": None,
+        "all_jobs_gold_assessed_pct": None,
     }
     flow = payload["flow"]
     assert isinstance(flow, list)
