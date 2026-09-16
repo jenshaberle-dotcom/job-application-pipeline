@@ -45,17 +45,30 @@ def _display_job(
     *,
     profile_fit_preference_tags: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Add F4A coverage and the independent non-authoritative review preview."""
+    """Expose Candidate Fit and exact-bound PD-052 Affinity as separate truths."""
     enriched = enrich_profile_fit_coverage(
         row, candidate_preference_tags=profile_fit_preference_tags
     )
     enriched = enrich_review_fit(enriched)
-    product_score = row.get("overall_quality_score")
-    enriched["product_overall_quality_score"] = product_score
-    # Compatibility for the current Control Center: its generic Fit column reads
-    # overall_quality_score. The authoritative value remains separately preserved
-    # and display_fit_scope makes the provenance explicit in the API.
+
+    affinity_score = row.get("affinity_score")
+    affinity_status = str(row.get("affinity_authority_status") or "unavailable")
+    enriched["affinity_score"] = affinity_score
+    enriched["affinity_authority"] = row.get("affinity_authority") or "pd-052"
+    enriched["affinity_authority_status"] = affinity_status
+    enriched["affinity_components"] = {
+        "profile_direction": row.get("affinity_profile_direction_score"),
+        "reliability_focus": row.get("affinity_reliability_focus_score"),
+        "data_focus": row.get("affinity_data_focus_score"),
+        "evidence_quality": row.get("affinity_evidence_quality_score"),
+    }
+    # Legacy name retained for existing application/ranking compatibility. It is
+    # now explicitly the exact-bound Affinity score, never Candidate Fit.
+    enriched["product_overall_quality_score"] = affinity_score
+    # Compatibility for the current Control Center: the generic Fit field remains
+    # the F4A display Fit preview. Affinity is available only through affinity_*.
     enriched["overall_quality_score"] = enriched["display_fit_score"]
+    enriched["combined_score"] = None
     return enriched
 
 
@@ -83,6 +96,7 @@ def build_product_v1_payload(
         1
         for job in job_readiness
         if _value(job, "product_readiness_status") == "rankable"
+        and _value(job, "affinity_authority_status") == "authoritative"
     )
     origin_blocker_count = sum(
         1
@@ -220,6 +234,11 @@ def build_product_v1_payload(
         - profile_fit_complete_count
         - profile_fit_insufficient_evidence_count
     )
+    affinity_authoritative_count = sum(
+        1
+        for job in display_job_readiness
+        if _value(job, "affinity_authority_status") == "authoritative"
+    )
     payload = {
         "schema_version": "pipeline.product_v1.control_center.v1",
         "product": {
@@ -231,25 +250,19 @@ def build_product_v1_payload(
             {
                 "id": "stepstone_waves",
                 "title": "StepStone Waves",
-                "status": "available"
-                if wave_states
-                else "waiting_for_runtime_state",
+                "status": "available" if wave_states else "waiting_for_runtime_state",
                 "summary": "Bounded company-exclusion waves rotate through a logical cooldown pool without pagination.",
             },
             {
                 "id": "top_jobs",
                 "title": "Origin-validated Top 5",
-                "status": "available"
-                if top_jobs_available
-                else "operator_decision_required",
-                "summary": "Only lifecycle-confirmed, origin-validated, hard-filter-passing jobs can enter authoritative ranking.",
+                "status": "available" if top_jobs_available else "operator_decision_required",
+                "summary": "Only lifecycle-confirmed, origin-validated, hard-filter-passing jobs with exact Affinity authority can enter authoritative ranking.",
             },
             {
                 "id": "application_assistant",
                 "title": "CV & Application Letter Assistant",
-                "status": "ready_for_inputs"
-                if all(application_sources_ready.values())
-                else "operator_inputs_required",
+                "status": "ready_for_inputs" if all(application_sources_ready.values()) else "operator_inputs_required",
                 "summary": "Source-grounded draft preparation with no invented facts and no automatic submission.",
             },
             {
@@ -266,15 +279,13 @@ def build_product_v1_payload(
             "verified_market_opportunity_count": verified_market_opportunity_count,
             "pending_market_opportunity_count": pending_market_opportunity_count,
             "current_active_job_count": lifecycle_counts["active_confirmed"],
+            "affinity_authoritative_count": affinity_authoritative_count,
+            "combined_score_count": 0,
             "profile_fit_complete_count": profile_fit_complete_count,
-            "profile_fit_insufficient_evidence_count": (
-                profile_fit_insufficient_evidence_count
-            ),
+            "profile_fit_insufficient_evidence_count": profile_fit_insufficient_evidence_count,
             "profile_fit_unclassified_count": profile_fit_unclassified_count,
             "stale_job_count": lifecycle_counts["stale_needs_refresh"],
-            "inactive_confirmed_job_count": lifecycle_counts[
-                "inactive_confirmed"
-            ],
+            "inactive_confirmed_job_count": lifecycle_counts["inactive_confirmed"],
             "unverifiable_job_count": lifecycle_counts["unverifiable"],
             "rankable_job_count": rankable_count if lifecycle_contract_ready else 0,
             "origin_blocker_count": origin_blocker_count,
@@ -282,15 +293,13 @@ def build_product_v1_payload(
             "application_ready_count": sum(
                 1
                 for item in safe_application_readiness
-                if _value(item, "application_readiness_status")
-                == "ready_for_generation"
+                if _value(item, "application_readiness_status") == "ready_for_generation"
             ),
         },
         "wave_states": list(wave_states),
         "observed_opportunities": list(observed_opportunities),
         "ranking_policy": policy or {"status": "operator_decision_required"},
-        "hard_filter_policy": hard_policy
-        or {"status": "operator_decision_required"},
+        "hard_filter_policy": hard_policy or {"status": "operator_decision_required"},
         "job_readiness": display_job_readiness,
         "top_jobs": safe_top_jobs,
         "application_readiness": safe_application_readiness,
@@ -311,6 +320,9 @@ def build_product_v1_payload(
             "observed_opportunity_is_not_ranking_authority": True,
             "historical_job_presence_is_not_current_activity": True,
             "current_compensation_is_local_runtime_context_only": True,
+            "affinity_is_not_candidate_fit": True,
+            "affinity_is_not_combined_score": True,
+            "combined_score_authority": False,
             "review_fit_preview_is_not_ranking_authority": True,
             "profile_fit_coverage_is_not_ranking_authority": True,
             "profile_fit_missing_evidence_is_not_negative_fit": True,
