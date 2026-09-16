@@ -1,4 +1,4 @@
-"""Real read-only F4C Product proof for current source-health semantics."""
+"""Real read-only F4C Product proof for source operator semantics."""
 from __future__ import annotations
 
 import argparse
@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from scripts.product_v1_control_center_base import load_product_v1_payload
 from scripts.product_v1_f4c_source_health_runtime import (
+    load_source_operator_evidence,
     load_source_schedule_evidence,
     project_current_source_health,
 )
@@ -23,9 +24,11 @@ def build_report(*, source_sha: str, observed_at: datetime | None = None) -> dic
     now = observed_at or datetime.now(timezone.utc)
     raw = load_product_v1_payload()
     schedules = load_source_schedule_evidence()
+    operator_evidence = load_source_operator_evidence()
     projected = project_current_source_health(
         raw,
         schedule_evidence=schedules,
+        operator_evidence=operator_evidence,
         observed_at=now,
     )
 
@@ -45,11 +48,12 @@ def build_report(*, source_sha: str, observed_at: datetime | None = None) -> dic
     }
     rows: list[dict[str, object]] = []
     current_health_counts: Counter[str] = Counter()
+    scan_counts: Counter[str] = Counter()
     historical_success_healthy = 0
-    projected_success_healthy = 0
     success_without_cadence_unknown = 0
     zero_yield_success = 0
-    reachability_unknown = 0
+    reachability_not_checked = 0
+    comparable_disappearance = 0
 
     for projected_row in projected_sources:
         if not isinstance(projected_row, Mapping):
@@ -58,6 +62,7 @@ def build_report(*, source_sha: str, observed_at: datetime | None = None) -> dic
         prior_row = _mapping(prior_by_name.get(source_name))
         prior_health = _mapping(prior_row.get("operational_health"))
         current_health = _mapping(projected_row.get("operational_health"))
+        scan = _mapping(projected_row.get("source_scan"))
         scheduling = _mapping(projected_row.get("scheduling"))
         reachability = _mapping(projected_row.get("reachability"))
         delivery = _mapping(projected_row.get("delivery"))
@@ -67,11 +72,10 @@ def build_report(*, source_sha: str, observed_at: datetime | None = None) -> dic
         prior_status = str(prior_health.get("status") or "unknown")
         current_status = str(current_health.get("status") or "unknown")
         current_health_counts[current_status] += 1
+        scan_counts[str(scan.get("status") or "unknown")] += 1
 
         if latest == "success" and prior_status == "healthy":
             historical_success_healthy += 1
-        if latest == "success" and current_status == "healthy":
-            projected_success_healthy += 1
         if (
             latest == "success"
             and current_status == "unknown"
@@ -81,8 +85,10 @@ def build_report(*, source_sha: str, observed_at: datetime | None = None) -> dic
             success_without_cadence_unknown += 1
         if delivery.get("latest_success_zero_yield") is True:
             zero_yield_success += 1
-        if reachability.get("status") == "unknown":
-            reachability_unknown += 1
+        if reachability.get("status") == "not_checked":
+            reachability_not_checked += 1
+        if delivery.get("disappeared_comparison_available") is True:
+            comparable_disappearance += 1
 
         rows.append(
             {
@@ -90,21 +96,25 @@ def build_report(*, source_sha: str, observed_at: datetime | None = None) -> dic
                 "source_role": projected_row.get("source_role"),
                 "active": activation.get("active"),
                 "latest_run_status": latest,
+                "latest_scan_status": scan.get("status"),
+                "latest_scan_at": scan.get("finished_at"),
                 "historical_product_health": prior_status,
-                "current_health": current_status,
-                "current_health_reason": current_health.get("reason"),
-                "last_run_at": current_health.get("last_run_at"),
-                "last_run_age_hours": current_health.get("last_run_age_hours"),
-                "schedule_status": scheduling.get("status"),
+                "internal_current_health": current_status,
+                "internal_current_health_reason": current_health.get("reason"),
                 "recurring_ingestion_eligible": scheduling.get(
                     "recurring_ingestion_eligible"
                 ),
-                "cadence_authority": scheduling.get("cadence_authority"),
-                "expected_cadence_minutes": scheduling.get(
-                    "expected_cadence_minutes"
+                "live_reachability": reachability.get("status"),
+                "current_job_count": delivery.get("current_job_count"),
+                "last_job_delivery_at": delivery.get("last_job_delivery_at"),
+                "latest_job_observed_at": delivery.get("latest_job_observed_at"),
+                "source_data_age_hours": delivery.get("source_data_age_hours"),
+                "disappeared_comparison_available": delivery.get(
+                    "disappeared_comparison_available"
                 ),
-                "next_expected_run_at": scheduling.get("next_expected_run_at"),
-                "current_reachability": reachability.get("status"),
+                "disappeared_since_previous_success": delivery.get(
+                    "disappeared_since_previous_success"
+                ),
                 "zero_yield_latest_success": delivery.get(
                     "latest_success_zero_yield"
                 ),
@@ -115,20 +125,17 @@ def build_report(*, source_sha: str, observed_at: datetime | None = None) -> dic
     summary = {
         "source_count": len(rows),
         "historical_success_rendered_healthy_count": historical_success_healthy,
-        "projected_success_rendered_healthy_count": projected_success_healthy,
         "success_without_cadence_projected_unknown_count": success_without_cadence_unknown,
         "zero_yield_latest_success_count": zero_yield_success,
-        "reachability_unknown_count": reachability_unknown,
-        "current_health": dict(sorted(current_health_counts.items())),
+        "reachability_not_checked_count": reachability_not_checked,
+        "disappeared_comparable_source_count": comparable_disappearance,
+        "internal_current_health": dict(sorted(current_health_counts.items())),
+        "latest_scan_status": dict(sorted(scan_counts.items())),
         "schedule_evidence_source_count": len(schedules),
-        "explicit_cadence_authority_count": sum(
-            1
-            for row in rows
-            if row.get("cadence_authority") is True
-        ),
+        "operator_evidence_source_count": len(operator_evidence),
     }
     return {
-        "schema_version": "f4c.current_source_health_proof.v1",
+        "schema_version": "f4c.source_operator_evidence_proof.v2",
         "source_sha": source_sha,
         "observed_at": now.astimezone(timezone.utc).isoformat(),
         "summary": summary,

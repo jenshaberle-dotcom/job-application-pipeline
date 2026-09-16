@@ -159,7 +159,7 @@ class ProductV1DemoHandler(ProductV1Handler):
             return
         if parsed.path == DATA_LAYERS_PATH:
             try:
-                self._send_json(load_data_layers_payload(load_product_v1_payload()))
+                self._send_json(load_data_layers_payload(_load_operator_product_payload()))
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_runtime_error(exc)
             return

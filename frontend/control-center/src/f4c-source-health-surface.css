@@ -2,10 +2,6 @@
   display: none !important;
 }
 
-.data-layers-screen .dl-source-card {
-  display: none !important;
-}
-
 .f4c-health-summary {
   min-width: 116px;
 }
@@ -76,6 +72,12 @@
   margin-top: 14px;
 }
 
+.f4c-health-grid-secondary {
+  padding-top: 12px;
+  border-top: 1px solid rgba(127, 155, 176, 0.16);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .f4c-health-grid > div {
   display: flex;
   flex-direction: column;
@@ -94,8 +96,15 @@
   color: #e7f5ff;
 }
 
+.f4c-health-grid small {
+  color: #7892a6;
+  font-size: 0.64rem;
+  line-height: 1.35;
+}
+
 @media (max-width: 1050px) {
-  .f4c-health-grid {
+  .f4c-health-grid,
+  .f4c-health-grid-secondary {
     grid-template-columns: 1fr;
   }
 }

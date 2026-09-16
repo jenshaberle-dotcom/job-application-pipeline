@@ -1,8 +1,10 @@
 """Read-only F4C source-health/operator-surface reconciliation.
 
-This diagnostic deliberately does not define a new health policy. It measures the
-current Product projection and proves where a latest successful ingestion is being
-rendered as ``healthy`` without an explicit cadence/freshness authority.
+This diagnostic measures the Product source-health projection and the frontend
+ownership boundaries.  It preserves the original historical-success diagnostic
+while also proving the consolidated F4C operator surface: Sources owns source
+health, the redundant Operations navigation is hidden, and Data Layers owns layer
+flow without a competing per-source last-run table.
 """
 from __future__ import annotations
 
@@ -97,7 +99,7 @@ def load_recurring_profile_evidence() -> dict[str, dict[str, object]]:
 
 
 def surface_contract_evidence() -> dict[str, object]:
-    """Measure the current UI ownership overlap from the active frontend sources."""
+    """Measure current semantic ownership from the active frontend sources."""
 
     workspace = (ROOT / "frontend/control-center/src/OperatorWorkspace.tsx").read_text(
         encoding="utf-8"
@@ -105,16 +107,25 @@ def surface_contract_evidence() -> dict[str, object]:
     layers = (ROOT / "frontend/control-center/src/DataLayersTab.tsx").read_text(
         encoding="utf-8"
     )
+    source_health = (
+        ROOT / "frontend/control-center/src/F4cSourceHealthSurface.tsx"
+    ).read_text(encoding="utf-8")
     main = (ROOT / "frontend/control-center/src/main.tsx").read_text(encoding="utf-8")
     return {
         "active_workspace": "import App from \"./OperatorWorkspace\"" in main,
         "sources_owns_source_connector_overview": (
             "function Sources" in workspace and "source_connector_overview" in workspace
         ),
+        # The legacy component still exists in OperatorWorkspace, but F4C removes
+        # it from the top-level operator navigation until a distinct runtime model exists.
         "operations_reuses_source_lifecycle_summary": (
             "function Operations" in workspace
             and "const overview = payload.source_connector_overview.summary" in workspace
             and "<h2>Source lifecycle</h2>" in workspace
+        ),
+        "operations_top_level_hidden": (
+            '.includes("Operations")' in source_health
+            and 'wrapper.dataset.f4cHidden = "true"' in source_health
         ),
         "data_layers_has_per_source_last_run_projection": (
             "type SourceRow" in layers
@@ -122,7 +133,13 @@ def surface_contract_evidence() -> dict[str, object]:
             and "<h2>Source contribution</h2>" in layers
         ),
         "data_layers_owns_bronze_silver_gold_flow": (
-            "Bronze → Silver → Gold materialization" in layers and "Layer flow" in layers
+            "Layer flow" in layers
+            and "Bronze new" in layers
+            and "Silver normalized" in layers
+            and "Gold assessed" in layers
+        ),
+        "data_layers_separates_persisted_and_current_scope": (
+            "Persisted inventory" in layers and "Current Product scope" in layers
         ),
     }
 
@@ -175,8 +192,9 @@ def reconcile(
             operational_health == "healthy" and latest_run_status == "success"
         )
 
-        # Current repo truth models recurring eligibility, but no explicit per-source
-        # cadence/freshness threshold is projected into Product source health.
+        # This legacy reconciliation intentionally records whether the input Product
+        # projection made a current-health claim without cadence authority.  The F4C
+        # current-health proof separately verifies that the live projection no longer does.
         cadence_authority = "not_projected"
         current_health_support = (
             "historical_run_success_only_no_cadence_freshness_authority"
@@ -254,8 +272,14 @@ def reconcile(
             "operations_source_lifecycle_overlap": bool(
                 surface_evidence.get("operations_reuses_source_lifecycle_summary")
             ),
+            "operations_top_level_hidden": bool(
+                surface_evidence.get("operations_top_level_hidden")
+            ),
             "data_layers_per_source_run_overlap": bool(
                 surface_evidence.get("data_layers_has_per_source_last_run_projection")
+            ),
+            "data_layers_scope_separated": bool(
+                surface_evidence.get("data_layers_separates_persisted_and_current_scope")
             ),
         },
         "surface_contract_evidence": dict(surface_evidence),
@@ -278,22 +302,23 @@ def reconcile(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-
-    from scripts.product_v1_control_center_base import load_product_v1_payload
-
+    observed_at = datetime.now(timezone.utc)
+    payload = __import__(
+        "scripts.product_v1_control_center_base", fromlist=["load_product_v1_payload"]
+    ).load_product_v1_payload(include_source_connector_overview=True)
     report = reconcile(
-        load_product_v1_payload(include_source_connector_overview=True),
+        payload,
         recurring_profiles=load_recurring_profile_evidence(),
         source_sha=args.source_sha,
-        observed_at=datetime.now(timezone.utc),
+        observed_at=observed_at,
         surface_evidence=surface_contract_evidence(),
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
-        json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        json.dumps(report, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
     print(json.dumps(report["summary"], sort_keys=True))
