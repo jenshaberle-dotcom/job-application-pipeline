@@ -257,7 +257,7 @@ function DataLayersScreen({
           <div className="ow-card-title">
             <div>
               <span>Last {payload.window_days} days · independent scales</span>
-              <h2>Current-cohort layer flow</h2>
+              <h2>Layer flow · current cohort</h2>
             </div>
           </div>
           <div className="dl-small-multiples">
