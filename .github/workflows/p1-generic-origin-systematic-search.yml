@@ -25,6 +25,7 @@ concurrency:
 jobs:
   baseline:
     name: Bounded targeted-search baseline across active generic origins
+    if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 45
     env:
