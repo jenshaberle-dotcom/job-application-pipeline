@@ -41,11 +41,9 @@ jobs:
                   raise SystemExit(f"RCC_BLUE_REWRITE_EXPECTED_ONCE:{path}:count={count}")
               target.write_text(text.replace(old, new, 1), encoding="utf-8")
 
+          freeze_expr = "$" + "{{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}"
           blue = "    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]\n"
-          guarded_blue = (
-              "    if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}\n"
-              + blue
-          )
+          guarded_blue = f"    if: {freeze_expr}\n" + blue
           replace_once(
               ".github/workflows/p1-generic-origin-product-activate.yml",
               blue,
