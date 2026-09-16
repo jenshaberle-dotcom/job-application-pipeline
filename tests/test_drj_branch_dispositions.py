@@ -75,7 +75,7 @@ def test_every_machine_record_has_durable_ledger_entry() -> None:
 
 def test_batch_one_explicitly_preserves_unresolved_refs() -> None:
     ledger = LEDGER.read_text(encoding="utf-8")
-    for branch in (
+    expected_mentions = (
         "agent/676-deterministic-connector-builder",
         "agent/p1-connector-delivery-audit",
         "agent/f2-acceptance-cohort",
@@ -83,12 +83,17 @@ def test_batch_one_explicitly_preserves_unresolved_refs() -> None:
         "agent/rcc-step1-wsl-inventory-001a",
         "agent/warm-hosted-fallback-jobapp-001a",
         "agent/winapp-020-prebuilt-frontend-startup",
-        "docs/acq-runtime-api-strategy-reentry",
+        "refs/heads/docs/acq-runtime-api-strategy-reentry",
         "feature/runtime-runner-selector-hardening",
         "rcc-workload-ready-jap-canary",
         "tmp/jap-lockgen-final",
-    ):
-        assert f"`{branch}`" in ledger
+    )
+    for mention in expected_mentions:
+        assert f"`{mention}`" in ledger
+
+    assert "docs/acq-runtime-api-strategy-reentry" not in EXPECTED_BRANCHES
+    for mention in expected_mentions:
+        branch = mention.removeprefix("refs/heads/")
         assert branch not in EXPECTED_BRANCHES
 
 
