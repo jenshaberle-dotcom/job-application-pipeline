@@ -196,6 +196,7 @@ def main() -> int:
     summaries = reconcile_reviewed_personio_detail_health(
         health_repository=JobLifecycleHealthRepository()
     )
+    public_http_requests = sum(summary.probe_count for summary in summaries)
     print(
         json.dumps(
             {
@@ -205,11 +206,12 @@ def main() -> int:
                 "boundary": {
                     "reviewed_personio_sources_only": True,
                     "employer_specific_branching": False,
+                    "public_http_requests": public_http_requests,
                     "ranking_writes": False,
                     "fit_writes": False,
                     "combined_score_writes": False,
                     "application_writes": False,
-                    "provider_or_llm_requests": 0,
+                    "paid_provider_or_llm_requests": 0,
                 },
             },
             indent=2,
