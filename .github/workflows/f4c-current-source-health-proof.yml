@@ -154,7 +154,7 @@ jobs:
           print(json.dumps(summary, sort_keys=True))
           PY
 
-      - name: Reconcile persisted Gold with current Product jobs
+      - name: Reconcile persisted Gold with All jobs
         shell: bash
         run: |
           set -euo pipefail
@@ -173,14 +173,19 @@ jobs:
           if report.get("source_sha") != sys.argv[2]:
               raise SystemExit("F4C_DATA_LAYER_SOURCE_SHA_MISMATCH")
           summary = report.get("summary") or {}
-          if int(summary.get("persisted_gold_assessment_count") or 0) <= 0:
+          gold = int(summary.get("persisted_gold_assessment_count") or 0)
+          inside = int(summary.get("persisted_gold_in_all_jobs_count") or 0)
+          outside = int(summary.get("persisted_gold_outside_all_jobs_count") or 0)
+          base = int(summary.get("base_product_readiness_count") or 0)
+          all_jobs = int(summary.get("operator_all_jobs_count") or 0)
+          if gold <= 0:
               raise SystemExit("F4C_GOLD_COHORT_EMPTY")
-          if int(summary.get("current_product_job_count") or 0) <= 0:
-              raise SystemExit("F4C_CURRENT_PRODUCT_COHORT_EMPTY")
-          if int(summary.get("current_product_without_gold_assessment_count") or 0) != 0:
-              raise SystemExit("F4C_CURRENT_PRODUCT_WITHOUT_GOLD_ASSESSMENT")
+          if all_jobs <= 0 or base < all_jobs:
+              raise SystemExit("F4C_ALL_JOBS_PROJECTION_INVALID")
+          if inside + outside != gold:
+              raise SystemExit("F4C_GOLD_RECONCILIATION_ARITHMETIC_MISMATCH")
           if int(summary.get("unexplained_active_representative_gap_count") or 0) != 0:
-              raise SystemExit("F4C_UNEXPLAINED_GOLD_CURRENT_GAP")
+              raise SystemExit("F4C_UNEXPLAINED_GOLD_ALL_JOBS_GAP")
           expected = {
               "db_writes": 0,
               "provider_calls": 0,
