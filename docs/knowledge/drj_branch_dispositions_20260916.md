@@ -118,6 +118,6 @@ The following known historical refs remain preserve/review because current exact
 - `agent/p1-connector-delivery-audit`: diagnostic history exists, but no sufficiently explicit exact-head terminal handoff has yet been established;
 - `agent/f2-acceptance-cohort` and `agent/f2-operator-cold-e2e`: no durable project-side terminal evidence located;
 - `agent/rcc-step1-wsl-inventory-001a`: one-time/read-only naming and commit intent alone are not terminal semantic evidence;
-- `agent/warm-hosted-fallback-jobapp-001a`, `agent/winapp-020-prebuilt-frontend-startup`, `docs/acq-runtime-api-strategy-reentry`, `feature/runtime-runner-selector-hardening`, `rcc-workload-ready-jap-canary`, `tmp/jap-lockgen-final`: require separate exact-head successor/harvest/rejection proof.
+- `agent/warm-hosted-fallback-jobapp-001a`, `agent/winapp-020-prebuilt-frontend-startup`, `refs/heads/docs/acq-runtime-api-strategy-reentry`, `feature/runtime-runner-selector-hardening`, `rcc-workload-ready-jap-canary`, `tmp/jap-lockgen-final`: require separate exact-head successor/harvest/rejection proof.
 
 This omission is intentional. No branch is made retireable from age, naming, apparent inactivity, branch pressure, or similarity alone.
