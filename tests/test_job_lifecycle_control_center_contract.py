@@ -13,6 +13,9 @@ def test_control_center_payload_exposes_lifecycle_health_counts() -> None:
             "silver_job_id": 1,
             "lifecycle_status": "active_confirmed",
             "product_readiness_status": "rankable",
+            "affinity_score": 78.0,
+            "affinity_authority": "pd-052",
+            "affinity_authority_status": "authoritative",
         },
         {
             "silver_job_id": 2,
@@ -46,6 +49,8 @@ def test_control_center_payload_exposes_lifecycle_health_counts() -> None:
     assert payload["summary"]["inactive_confirmed_job_count"] == 1
     assert payload["summary"]["unverifiable_job_count"] == 1
     assert payload["summary"]["rankable_job_count"] == 1
+    assert payload["summary"]["affinity_authoritative_count"] == 1
+    assert payload["summary"]["combined_score_count"] == 0
     assert len(payload["top_jobs"]) == 1
     assert payload["boundaries"]["historical_job_presence_is_not_current_activity"]
 
