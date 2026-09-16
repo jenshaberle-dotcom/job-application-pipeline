@@ -138,6 +138,38 @@
         "repo:docs/knowledge/branch_salvage_704.md#product-v1-view-type-stability",
         "git:commit:b06827bae362893f5a0be20aa8ba39e9afd78bb0"
       ]
+    },
+    {
+      "branch": "agent/warm-hosted-fallback-jobapp-001a",
+      "expected_sha": "62dd3754fadd739a6f8124fa0f8a3cccf2e81bed",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "CANONICALIZED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/701",
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/703",
+        "repo:docs/knowledge/drj_branch_dispositions_20260916_batch2.md#agentwarm-hosted-fallback-jobapp-001a"
+      ]
+    },
+    {
+      "branch": "docs/acq-runtime-api-strategy-reentry",
+      "expected_sha": "7e9d08a2ce2bda0e414f6125a460931eaf287255",
+      "semantic_disposition": "SUPERSEDED",
+      "unique_history_disposition": "CANONICALIZED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/647#issuecomment-5409560425",
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/653",
+        "repo:docs/knowledge/drj_branch_dispositions_20260916_batch2.md#refsheadsdocsacq-runtime-api-strategy-reentry"
+      ]
+    },
+    {
+      "branch": "feature/runtime-runner-selector-hardening",
+      "expected_sha": "1833eafadabd3b8f6dac80de14614929a099d10f",
+      "semantic_disposition": "DEPRECATED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/644",
+        "repo:docs/knowledge/drj_branch_dispositions_20260916_batch2.md#featureruntime-runner-selector-hardening"
+      ]
     }
   ]
 }
