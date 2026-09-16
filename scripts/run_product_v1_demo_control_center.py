@@ -25,6 +25,10 @@ from scripts.product_v1_application_workspace_runtime_quality import (
     generate_application_draft_payload,
 )
 from scripts.product_v1_data_layers_runtime import load_data_layers_payload
+from scripts.product_v1_f4c_source_health_runtime import (
+    load_source_schedule_evidence,
+    project_current_source_health,
+)
 from scripts.product_v1_job_presentation_runtime import (
     enrich_product_payload_for_operator,
 )
@@ -83,6 +87,16 @@ def _json_transport_value(value: object) -> object:
     return value
 
 
+def _load_operator_product_payload() -> dict[str, object]:
+    """Apply read-only operator enrichments plus the F4C current-health contract."""
+
+    enriched = enrich_product_payload_for_operator(load_product_v1_payload())
+    return project_current_source_health(
+        enriched,
+        schedule_evidence=load_source_schedule_evidence(),
+    )
+
+
 def parse_application_draft_action_payload(payload: object) -> int:
     if not isinstance(payload, Mapping):
         raise DemoActionStop("action payload must be a JSON object")
@@ -100,7 +114,7 @@ def parse_application_draft_action_payload(payload: object) -> int:
 
 
 class ProductV1DemoHandler(ProductV1Handler):
-    server_version = "DeepOceanProductV1/0.10-demo"
+    server_version = "DeepOceanProductV1/0.11-demo"
 
     def _send_json(
         self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
@@ -139,9 +153,7 @@ class ProductV1DemoHandler(ProductV1Handler):
         parsed = urlparse(self.path)
         if parsed.path == PRODUCT_V1_PATH:
             try:
-                self._send_json(
-                    enrich_product_payload_for_operator(load_product_v1_payload())
-                )
+                self._send_json(_load_operator_product_payload())
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_runtime_error(exc)
             return
@@ -292,8 +304,8 @@ def run_server(args: argparse.Namespace) -> None:
     print(f"Private application documents: {private_root}")
     print(
         "Boundary: real Product V1 truth + read-only Bronze/Silver/Gold observability + "
-        "local-private document intake + bounded Application Workspace; no automatic "
-        "submission or send."
+        "current source-health projection + local-private document intake + bounded "
+        "Application Workspace; no automatic submission or send."
     )
     try:
         server.serve_forever()
