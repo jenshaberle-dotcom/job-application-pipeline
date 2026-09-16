@@ -6,6 +6,7 @@ RUNTIME = ROOT / "scripts/run_product_v1_demo_control_center.py"
 MAIN = ROOT / "frontend/control-center/src/main.tsx"
 SURFACE = ROOT / "frontend/control-center/src/F4cSourceHealthSurface.tsx"
 STYLE = ROOT / "frontend/control-center/src/f4c-source-health-surface.css"
+DATA_LAYERS = ROOT / "frontend/control-center/src/DataLayersTab.tsx"
 
 
 def test_installed_product_payload_uses_current_source_health_projection() -> None:
@@ -41,15 +42,28 @@ def test_source_health_surface_is_mounted_and_names_separate_truth_dimensions() 
     assert "Reachability is shown only when it was actually measured" in surface
 
 
-def test_redundant_operations_and_data_layer_source_health_surfaces_are_hidden() -> None:
+def test_redundant_operations_and_data_layer_source_health_surfaces_are_removed() -> None:
     surface = SURFACE.read_text(encoding="utf-8")
     style = STYLE.read_text(encoding="utf-8")
+    data_layers = DATA_LAYERS.read_text(encoding="utf-8")
 
     assert '.includes("Operations")' in surface
     assert 'wrapper.dataset.f4cHidden = "true"' in surface
     assert '[data-f4c-hidden="true"]' in style
-    assert ".data-layers-screen .dl-source-card" in style
-    assert "display: none !important" in style
+    assert "dl-source-card" not in data_layers
+    assert "Source contribution" not in data_layers
+    assert "Last run" not in data_layers
+
+
+def test_data_layers_names_persisted_and_current_populations_separately() -> None:
+    data_layers = DATA_LAYERS.read_text(encoding="utf-8")
+
+    assert "Persisted inventory" in data_layers
+    assert "Current Product scope" in data_layers
+    assert "same current review population shown in the main navigation" in data_layers
+    assert "persisted Gold outside current All jobs" in data_layers
+    assert "independent scales" in data_layers
+    assert "repeat source sightings · not new jobs" in data_layers
 
 
 def test_surface_is_read_only_and_does_not_create_new_operator_actions() -> None:
