@@ -67,7 +67,7 @@ def test_data_layers_uses_one_current_population_and_omits_repeat_observation_ch
     assert "one population" in data_layers
     assert "exact current <b>All jobs</b> population" in data_layers
     assert "Every stage below uses the same current population" in data_layers
-    assert "Current-cohort layer flow" in data_layers
+    assert "Layer flow · current cohort" in data_layers
     assert "Repeat source sightings are intentionally not plotted here" in data_layers
     assert "bronze_observations" not in data_layers
     assert "Persisted inventory" not in data_layers
