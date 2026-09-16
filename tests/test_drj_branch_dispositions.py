@@ -10,6 +10,7 @@ PATH = ROOT / "DRJ-BRANCH-DISPOSITIONS.json"
 LEDGERS = (
     ROOT / "docs" / "knowledge" / "drj_branch_dispositions_20260916.md",
     ROOT / "docs" / "knowledge" / "drj_branch_dispositions_20260916_batch2.md",
+    ROOT / "docs" / "knowledge" / "drj_branch_dispositions_20260916_batch3.md",
 )
 
 EXPECTED_REPOSITORY = "jenshaberle-dotcom/job-application-pipeline"
@@ -33,6 +34,10 @@ EXPECTED_BRANCHES = {
     "docs/acq-runtime-api-strategy-reentry",
     "feature/runtime-runner-selector-hardening",
     "hotfix/product-v1-view-type-stability",
+    "agent/f2-acceptance-cohort",
+    "agent/f2-operator-cold-e2e",
+    "agent/rcc-step1-wsl-inventory-001a",
+    "rcc-workload-ready-jap-canary",
 }
 SEMANTIC = {"RETIRE", "SUPERSEDED", "DEPRECATED"}
 UNIQUE_HISTORY = {"CANONICALIZED", "HARVESTED", "REJECTED"}
@@ -91,11 +96,7 @@ def test_unresolved_refs_remain_outside_machine_terminal_scope() -> None:
     expected_mentions = (
         "agent/676-deterministic-connector-builder",
         "agent/p1-connector-delivery-audit",
-        "agent/f2-acceptance-cohort",
-        "agent/f2-operator-cold-e2e",
-        "agent/rcc-step1-wsl-inventory-001a",
         "agent/winapp-020-prebuilt-frontend-startup",
-        "rcc-workload-ready-jap-canary",
         "tmp/jap-lockgen-final",
     )
     for mention in expected_mentions:
@@ -114,6 +115,37 @@ def test_batch_two_is_exactly_three_additional_terminal_records() -> None:
     assert payload_by_branch["feature/runtime-runner-selector-hardening"][
         "expected_sha"
     ] == "1833eafadabd3b8f6dac80de14614929a099d10f"
+
+
+def test_batch_three_is_exactly_four_additional_terminal_records() -> None:
+    payload_by_branch = {record["branch"]: record for record in _payload()["records"]}
+    expected = {
+        "agent/f2-acceptance-cohort": (
+            "dc923a3577533dcd1ab8190f295bbe0476ab4dff",
+            "DEPRECATED",
+            "REJECTED",
+        ),
+        "agent/f2-operator-cold-e2e": (
+            "cd850f5e32fdc61fdd0a1b9f148e3ea4347e3b25",
+            "DEPRECATED",
+            "REJECTED",
+        ),
+        "agent/rcc-step1-wsl-inventory-001a": (
+            "ba154ec46b8dd9ad0c0da4eb28c2baaa444bffa1",
+            "RETIRE",
+            "HARVESTED",
+        ),
+        "rcc-workload-ready-jap-canary": (
+            "b575c3f057792ca48927721435460f7e1a5f012d",
+            "RETIRE",
+            "HARVESTED",
+        ),
+    }
+    for branch, (sha, semantic, history) in expected.items():
+        record = payload_by_branch[branch]
+        assert record["expected_sha"] == sha
+        assert record["semantic_disposition"] == semantic
+        assert record["unique_history_disposition"] == history
 
 
 def test_semantic_evidence_file_contains_no_effect_authority() -> None:
