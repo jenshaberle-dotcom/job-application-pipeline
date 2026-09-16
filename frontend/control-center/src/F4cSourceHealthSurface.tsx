@@ -77,6 +77,46 @@ function healthTone(value: string | null | undefined) {
   return "warn";
 }
 
+function healthExplanation(health?: SourceHealth) {
+  switch (health?.reason) {
+    case "successful_run_without_explicit_cadence_authority":
+      return "Unknown because the last attempt succeeded, but no expected interval is defined. JAP cannot determine whether that success is still fresh.";
+    case "latest_attempt_in_progress":
+      return "Unknown while the latest ingestion attempt is still running.";
+    case "no_successful_run_current_health_evidence":
+      return "Unknown because there is no successful ingestion attempt that can support a current-health claim.";
+    case "successful_run_timestamp_missing":
+      return "Unknown because the successful attempt has no usable timestamp.";
+    case "latest_attempt_failed":
+      return "Degraded because the latest ingestion attempt failed.";
+    case "successful_run_overdue_for_explicit_cadence":
+      return "Stale because the last successful attempt is older than the explicitly defined expected interval.";
+    case "successful_run_within_explicit_cadence":
+      return "Healthy because the last successful attempt is still inside the explicitly defined expected interval.";
+    default:
+      return human(health?.reason);
+  }
+}
+
+function scheduleText(scheduling?: SourceScheduling) {
+  if (scheduling?.status === "recurring_enabled_cadence_unknown") {
+    return "Recurring enabled · interval unknown";
+  }
+  if (scheduling?.status === "not_scheduled") return "Not scheduled";
+  if (scheduling?.status === "scheduled") return "Recurring schedule defined";
+  return "Scheduling evidence unavailable";
+}
+
+function reachabilityText(reachability?: SourceReachability) {
+  if (
+    reachability?.status === "unknown" &&
+    reachability?.reason === "no_current_reachability_measurement"
+  ) {
+    return "Not measured";
+  }
+  return human(reachability?.status);
+}
+
 export default function F4cSourceHealthSurface() {
   const [payload, setPayload] = useState<ProductPayload | null>(null);
   const [selectedName, setSelectedName] = useState("");
@@ -182,19 +222,20 @@ export default function F4cSourceHealthSurface() {
               {human(health?.status)}
             </span>
           </div>
-          <p className="f4c-health-reason">{human(health?.reason)}</p>
+          <p className="f4c-health-reason">{healthExplanation(health)}</p>
           <div className="f4c-health-grid">
-            <div><span>Latest run</span><b>{human(health?.latest_run_status)}</b></div>
-            <div><span>Run age</span><b>{health?.last_run_age_hours == null ? "Unknown" : `${health.last_run_age_hours.toFixed(1)} h`}</b></div>
-            <div><span>Scheduling</span><b>{human(scheduling?.status)}</b></div>
-            <div><span>Cadence</span><b>{scheduling?.expected_cadence_minutes == null ? "No authority" : `${scheduling.expected_cadence_minutes} min`}</b></div>
-            <div><span>Next expected run</span><b>{dateTime(scheduling?.next_expected_run_at)}</b></div>
-            <div><span>Reachability now</span><b>{human(reachability?.status)}</b></div>
-            <div><span>Last yield</span><b>{delivery?.latest_run_loaded ?? 0} loaded · {delivery?.latest_run_inserted ?? 0} inserted</b></div>
+            <div><span>Last attempt result</span><b>{human(health?.latest_run_status)}</b></div>
+            <div><span>Last attempt at</span><b>{dateTime(health?.last_run_at)}</b></div>
+            <div><span>Since last attempt</span><b>{health?.last_run_age_hours == null ? "Unknown" : `${health.last_run_age_hours.toFixed(1)} h`}</b></div>
+            <div><span>Recurring schedule</span><b>{scheduleText(scheduling)}</b></div>
+            <div><span>Expected interval</span><b>{scheduling?.expected_cadence_minutes == null ? "Not defined" : `${scheduling.expected_cadence_minutes} min`}</b></div>
+            <div><span>Next expected attempt</span><b>{dateTime(scheduling?.next_expected_run_at)}</b></div>
+            <div><span>Reachability now</span><b>{reachabilityText(reachability)}</b></div>
+            <div><span>Last delivery yield</span><b>{delivery?.latest_run_loaded ?? 0} loaded · {delivery?.latest_run_inserted ?? 0} inserted</b></div>
             <div><span>Zero-yield success</span><b>{delivery?.latest_success_zero_yield ? "Yes · not a failure" : "No"}</b></div>
           </div>
           <p className="f4c-health-boundary">
-            A historical successful run is run history only. Current health becomes healthy or stale only with explicit cadence authority; current reachability remains unknown until actually measured.
+            Current health is a freshness claim, not a copy of run history. A successful attempt can support healthy/stale only when an explicit expected interval exists. Reachability is shown only when it was actually measured.
           </p>
         </section>,
         detailRoot,
