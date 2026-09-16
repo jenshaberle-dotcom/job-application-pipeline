@@ -20,6 +20,7 @@ concurrency:
 jobs:
   reconcile:
     name: Read-only real Product application lifecycle baseline
+    if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
