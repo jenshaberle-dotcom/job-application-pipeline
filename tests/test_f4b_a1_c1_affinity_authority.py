@@ -28,7 +28,7 @@ def test_c1_affinity_view_requires_exact_current_binding() -> None:
 def test_readiness_uses_exact_affinity_but_keeps_hard_filter_gate() -> None:
     sql = MIGRATION.read_text(encoding="utf-8")
     readiness = sql[sql.index("CREATE OR REPLACE VIEW gold_product_v1_job_readiness") :]
-    assert "affinity.affinity_score AS overall_quality_score" in readiness
+    assert "affinity.affinity_score::numeric AS overall_quality_score" in readiness
     assert "WHEN hard_filter_status = 'failed' THEN 'blocked_hard_filter'" in readiness
     assert "WHEN hard_filter_status = 'unknown'" in readiness
     assert "WHEN overall_quality_score IS NULL THEN 'assessment_required'" in readiness
@@ -36,6 +36,15 @@ def test_readiness_uses_exact_affinity_but_keeps_hard_filter_gate() -> None:
         "WHEN overall_quality_score IS NULL"
     )
     assert "affinity_authority_status" in readiness
+
+
+def test_c1_preserves_existing_readiness_numeric_types() -> None:
+    sql = MIGRATION.read_text(encoding="utf-8")
+    assert "'profile_direction_score')::numeric(6,2)" in sql
+    assert "'reliability_focus_score')::numeric(6,2)" in sql
+    assert "'data_focus_score')::numeric(6,2)" in sql
+    assert "'evidence_quality_score')::numeric(6,2)" in sql
+    assert "affinity.affinity_score::numeric AS overall_quality_score" in sql
 
 
 def test_c1_runner_writes_no_fit_combined_or_top5_authority() -> None:
