@@ -6,15 +6,23 @@ Read this file from canonical `refs/heads/main` before continuing Product work. 
 
 ## Live repository checkpoint — 2026-09-16
 
-Canonical accepted campaign main:
+Canonical accepted campaign main / installed Product source:
 
-`main@35224c9b8351a3a260ba5d5e51236d61bb7ed8f5`
+`main@6f489bcecab1b03765ca46c42badda74425b3726`
 
-Installed Product source / immutable desktop release:
+Immutable desktop release:
 
-`main@ec2e411ad5240f38e3cc38ee7f76dbac369a8388` / `jap-winapp-desktop-v1.0.32`
+`jap-winapp-desktop-v1.0.35`
 
-Local deploy run `34970391624`, attempt `2`, proved installed version/source identity and bounded headless behavior. Installed operator acceptance closed F4A on 2026-09-15.
+Post-release local deploy run `35074728199` proved exact source handoff and installed identity:
+
+- `JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS`;
+- installed desktop version `1.0.35`;
+- pinned source `6f489bcecab1b03765ca46c42badda74425b3726`;
+- `pending-update.json` absent after successful apply;
+- bounded headless desktop rejection proof passed.
+
+Interactive operator acceptance on 2026-09-16 then confirmed the installed UI exposes the About/version surface and that `All jobs` opens directly in descending explicit Affinity order. F4B is therefore closed.
 
 ## F4A — OPERATOR ACCEPTED / COMPLETE
 
@@ -26,14 +34,14 @@ The final accepted truth path is:
 
 Do not reopen F4A for normal extraction/skill/UI polish. Reopen only for a proven acceptance-critical false-truth defect.
 
-Carried residuals remain:
+F4A/F4B carried residuals are resolved as follows:
 
-- `#883`: About/version discoverability — non-blocking UI debt for a later natural UI checkpoint;
-- `#884`: Hannover Re Fit conflict — reconciled in F4B as truthful hard-gate evidence, not an employer-specific defect.
+- `#883` About/version discoverability: **CLOSED** by installed v1.0.35 operator proof;
+- `#884` Hannover Re Fit conflict: **CLOSED** after F4B reconciliation classified it as truthful hard-gate/evidence behavior, with no employer-specific override.
 
-## Frozen campaign sequence — unchanged
+## Frozen campaign sequence — current
 
-`F4B -> F4C -> F5 -> F6`
+`F4C -> F5 -> F6`
 
 Historical target-version arithmetic is not sequencing authority. Each package uses the next available immutable release after exact-head acceptance.
 
@@ -68,76 +76,72 @@ Exact-head discipline remains mandatory:
 - release/deploy automation is Product contract, not workaround;
 - installed operator rejection keeps a package open even when CI/release/deploy are green.
 
-## F4B — ACTIVE / A1 + C1 IMPLEMENTATION AUTHORIZED
+## F4B — OPERATOR ACCEPTED / COMPLETE
 
-Product target remains issue `#885`, but the current freeze scope was deliberately narrowed by Operator Gate 001 on 2026-09-16.
+Canonical product target `#885` is closed for this freeze campaign.
 
-The product concepts remain distinct:
+The product concepts remain deliberately distinct:
 
 - Affinity: `Will ich diesen Job?`
 - Candidate<->Job Fit: `Passt dieser Job zu mir?`
-- Combined decision score: future synthesis only after Fit evidence is mature enough.
+- Combined decision score: deferred synthesis after stronger Fit evidence exists;
 - Top 5: downstream `at_most_no_fill` projection only.
 
-### Completed read-only evidence phase
+### Read-only evidence and operator decision
 
-PR `#888 — agent/f4b-readonly-cohort` established the current cohort truth without Product mutation.
+PR `#888 — agent/f4b-readonly-cohort` established the real current-cohort truth before authority mutation. Operator Gate 001 then approved:
 
-Final pre-decision gate head:
+- `PD-051=70/100` as the runtime minimum-quality authority;
+- PD-052 components/weights as explicit deterministic **Affinity/desirability** authority independent of Fit gates;
+- no automatic capability-overlap rule in this freeze campaign;
+- no numeric Fit or Combined score in this freeze campaign.
 
-`24cdd0140b0fc8499ddffaa0e0ab61610b16b72c`
+Stable future residual `F4B-FOLLOWUP-001` is tracked by issue `#891`. It owns generic skill-extraction hardening, capability auto-fit, numeric Fit and Combined-score calibration in the **next freeze campaign** and must not pull the current campaign backward.
 
-Qualification on that head:
+### Final installed acceptance
 
-- Pipeline CI `35002871935`: **SUCCESS**;
-- Re-Entry `35002871734`: **SUCCESS**;
-- real warm Product reconciliation `35002867627`: **SUCCESS**;
-- DB writes `0`, provider calls `0`, paid-provider spend `$0.00`.
+The current-campaign F4B implementation and release path completed through immutable desktop v1.0.35. Interactive installed proof confirmed:
 
-Current cohort truth at the gate:
+- About/version is discoverable and reports v1.0.35 plus source/runtime identity;
+- `All jobs` defaults to explicit Affinity descending order (observed `86%, 86%, 78%, 78%, ...`) without an operator sort action;
+- hard-gate/unknown semantics remain separate from Affinity;
+- no Combined authority was fabricated;
+- Top 5 remains `at_most_no_fill` and is not quota-filled.
 
-- `71` active-confirmed, Origin-validated Product jobs;
-- `69` Profile Fit unknown and `2` true negative hard-requirement conflicts;
-- `0` authoritative numeric Fit rows and therefore `0` authoritative Combined scores;
-- current Top-5 count `0`;
-- `0` exact-current active capability reviews, `6` stale reviews, `65` missing;
-- read-only Affinity available for `67/71` jobs, with 4 current Product URLs returning HTTP 404;
-- runtime PD-052 weight vector still matches approved `40/25/20/15`;
-- runtime `minimum_quality_score=60` conflicts with approved `PD-051=70` and came from historical DEMO-001 Top-5-filling logic.
+Issues `#883`, `#884`, and `#885` are closed. F4B is not to be reopened for the deferred #891 work during this campaign.
 
-### Operator Gate 001 — DECIDED
+## F4C — ACTIVE / READ-ONLY RECONCILIATION FIRST
 
-Canonical packet:
+Canonical item: issue `#898` and `docs/planning/active/F4C-SOURCE-HEALTH-OPERATOR-SURFACE.md`.
 
-`docs/planning/active/F4B-OPERATOR-GATE-001.md`
+F4C is **Source Health + Operator Surface Consolidation**. `Sources`, `Data Layers` and `Operations` must converge on distinct truthful operator contracts. A historical ingestion `success` is run history, not current source health.
 
-Operator decision on 2026-09-16:
+The current implementation already exposes the architectural mismatch that F4C must resolve:
 
-- **A1 APPROVED:** `PD-051=70/100` remains authority. Runtime 60 is drift and must be corrected through a new migration/qualification path.
-- **C1 APPROVED:** the existing deterministic PD-052 components/weights become explicit **Affinity/desirability** authority, calculated independently of Candidate Fit/hard-filter completion. Affinity may not override hard conflicts or missing required Fit evidence.
-- **B DEFERRED:** no automatic capability-overlap rule is authorized in this freeze campaign. B1 remains the preferred future direction but is deliberately deferred until broader connector maturity and a larger real-job cohort provide a stronger generic skill-extraction calibration basis and/or enough evidence to qualify an ML-assisted layer.
-- **Combined scoring DEFERRED:** the current truth of zero authoritative Combined scores is accepted and does not block F4B closure.
+- `source_heartbeat` historically maps the latest ingestion `success` directly to `healthy`;
+- the Product source overview similarly maps latest run `success` to operational `healthy` without a cadence/freshness input;
+- `Data Layers` correctly has a separate layer-flow/freshness projection, but still includes per-source last-run rows;
+- `Operations` currently renders source/connector lifecycle counts and blocker groups, overlapping `Sources` rather than owning a distinct runtime-execution read model.
 
-Stable future residual:
+F4C health truth must keep these dimensions separate:
 
-`F4B-FOLLOWUP-001`
+`lifecycle eligibility != scheduler/run history != current reachability != evidence freshness != delivery/product yield`
 
-It owns capability auto-fit, generic skill-extraction hardening, numeric Fit and Combined-score calibration in the **next freeze campaign**. It must not pull the current campaign back into connector/skill/ML work.
+### Sole next action
 
-### Current-campaign F4B implementation scope
+Build and run one **read-only current-cohort reconciliation** before Product mutation. It must quantify, per source where evidence exists:
 
-Only two authority changes remain in scope:
+- lifecycle/activation state;
+- recurring-ingestion eligibility / explicit scheduling evidence where available;
+- latest run outcome and timestamps;
+- evidence age without inventing a cadence threshold;
+- whether the current projection labels historical run success as `healthy`;
+- current reachability evidence availability versus inference;
+- Bronze/Silver contribution separately from source health;
+- current blocker/attention state;
+- the semantic ownership currently shown under `Sources`, `Data Layers`, and `Operations`.
 
-1. restore runtime minimum quality to `70/100` without mutating historical migrations;
-2. expose/persist PD-052 as explicit Affinity independent of Fit gates while preserving component breakdown, uncertainty and exact evidence binding.
-
-Do not implement B1, numeric Fit, skill-extraction expansion, ML Fit authority or Combined scoring in this campaign.
-
-**Sole next action:** finish the #888 decision/evidence baseline, merge its exact qualified head, then implement A1+C1 on a fresh branch from the resulting canonical `main`. Continue through real Product proof and the normal release/deploy/operator-acceptance path; stop only at the next genuine operator gate.
-
-## F4C — queued immediately after F4B
-
-F4C remains Source Health + Operator Surface Consolidation. `Sources`, `Data Layers` and `Operations` must converge on distinct truthful operator contracts. Historical `success` is not current source health.
+The baseline must be read-only, provider-free and mutation-free. Only after that evidence may F4C introduce a cadence-aware current-health contract or remove/consolidate redundant operator surfaces.
 
 ## F5 — queued
 
@@ -153,8 +157,7 @@ A bounded, understood, non-critical residual may cross a package boundary only w
 
 Active carried residuals:
 
-- `CR-F1-001`: fresh company -> F1 discovery -> CAND-001 persistence -> proof/activation remains open and must not distort F4B merely to close it;
-- `#883`: About/version discoverability at the next natural UI checkpoint;
-- `F4B-FOLLOWUP-001`: capability auto-fit, generic skill-extraction hardening, numeric Fit and Combined-score calibration in the next freeze campaign.
+- `CR-F1-001`: fresh company -> F1 discovery -> CAND-001 persistence -> proof/activation remains open and must not distort F4C merely to close it;
+- `#891 / F4B-FOLLOWUP-001`: generic skill extraction, capability auto-fit, numeric Fit and Combined calibration in the next freeze campaign.
 
-Completed campaign packages remain F0, F1 capability delivery, F2, F3 and F4A.
+Completed campaign packages are F0, F1 capability delivery, F2, F3, F4A and F4B.
