@@ -7,6 +7,7 @@ on:
       - agent/f4c-operator-feedback-hardening
     paths:
       - scripts/product_v1_f4c_source_health_runtime.py
+      - scripts/product_v1_data_layers_runtime.py
       - scripts/run_f4c_current_source_health_proof.py
       - scripts/run_f4c_data_layer_reconciliation.py
       - scripts/run_product_v1_demo_control_center.py
@@ -18,6 +19,7 @@ on:
       - tests/test_f4c_current_source_health_contract.py
       - tests/test_f4c_operator_surface_contract.py
       - tests/test_f4c_data_layer_reconciliation.py
+      - tests/test_product_v1_data_layers_runtime.py
       - .github/workflows/f4c-current-source-health-proof.yml
   workflow_dispatch:
 
@@ -30,7 +32,7 @@ concurrency:
 
 jobs:
   prove:
-    name: Prove historical success is not current health
+    name: Prove F4C source health and Data Layers truth
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
@@ -96,15 +98,18 @@ jobs:
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f4c_current_source_health_contract.py \
             tests/test_f4c_operator_surface_contract.py \
-            tests/test_f4c_data_layer_reconciliation.py
+            tests/test_f4c_data_layer_reconciliation.py \
+            tests/test_product_v1_data_layers_runtime.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/product_v1_f4c_source_health_runtime.py \
+            scripts/product_v1_data_layers_runtime.py \
             scripts/run_f4c_current_source_health_proof.py \
             scripts/run_f4c_data_layer_reconciliation.py \
             scripts/run_product_v1_demo_control_center.py \
             tests/test_f4c_current_source_health_contract.py \
             tests/test_f4c_operator_surface_contract.py \
-            tests/test_f4c_data_layer_reconciliation.py
+            tests/test_f4c_data_layer_reconciliation.py \
+            tests/test_product_v1_data_layers_runtime.py
 
       - name: Run real read-only Product proof
         shell: bash
@@ -202,6 +207,45 @@ jobs:
           print(json.dumps(summary, sort_keys=True))
           PY
 
+      - name: Prove population-aware Data Layers Product projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNNER_TEMP/f4c_data_layer_reconciliation.json" "$RUNNER_TEMP/f4c_data_layers_product.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          from scripts.product_v1_data_layers_runtime import load_data_layers_payload
+          from scripts.run_product_v1_demo_control_center import _load_operator_product_payload
+
+          reconciliation = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          summary = reconciliation.get("summary") or {}
+          payload = load_data_layers_payload(_load_operator_product_payload())
+          Path(sys.argv[2]).write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
+          scope = payload.get("current_product_scope") or {}
+          inventory = payload.get("inventory") or {}
+          expected = {
+              "all_jobs": int(summary.get("operator_all_jobs_count") or 0),
+              "gold_in_all_jobs": int(summary.get("persisted_gold_in_all_jobs_count") or 0),
+              "gold_outside_all_jobs": int(summary.get("persisted_gold_outside_all_jobs_count") or 0),
+              "all_jobs_without_gold": int(summary.get("all_jobs_without_gold_assessment_count") or 0),
+          }
+          for key, value in expected.items():
+              if int(scope.get(key) or 0) != value:
+                  raise SystemExit(f"F4C_DATA_LAYERS_SCOPE_MISMATCH:{key}")
+          reasons = summary.get("gold_outside_all_jobs_reason_counts") or {}
+          if int(scope.get("gold_outside_historical") or 0) != int(reasons.get("historical_job") or 0):
+              raise SystemExit("F4C_DATA_LAYERS_HISTORICAL_SCOPE_MISMATCH")
+          if int(scope.get("gold_outside_out_of_profile") or 0) != int(reasons.get("out_of_profile_job") or 0):
+              raise SystemExit("F4C_DATA_LAYERS_PROFILE_SCOPE_MISMATCH")
+          if int(inventory.get("gold_assessed") or 0) != int(summary.get("persisted_gold_assessment_count") or 0):
+              raise SystemExit("F4C_DATA_LAYERS_GOLD_INVENTORY_MISMATCH")
+          boundaries = payload.get("boundaries") or {}
+          if boundaries.get("persisted_inventory_is_not_current_product_scope") is not True:
+              raise SystemExit("F4C_DATA_LAYERS_SCOPE_BOUNDARY_MISSING")
+          print("F4C_DATA_LAYERS_PRODUCT_PROJECTION=PASS")
+          print(json.dumps({"inventory": inventory, "current_product_scope": scope}, sort_keys=True))
+          PY
+
       - name: Preserve bounded proof
         uses: actions/upload-artifact@v4
         with:
@@ -209,5 +253,6 @@ jobs:
           path: |
             ${{ runner.temp }}/f4c_current_source_health_proof.json
             ${{ runner.temp }}/f4c_data_layer_reconciliation.json
+            ${{ runner.temp }}/f4c_data_layers_product.json
           if-no-files-found: error
           retention-days: 1
