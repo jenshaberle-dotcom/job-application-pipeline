@@ -2,16 +2,22 @@ name: F4C current source health proof
 
 on:
   push:
-    branches: [agent/f4c-current-health-contract]
+    branches:
+      - agent/f4c-current-health-contract
+      - agent/f4c-operator-feedback-hardening
     paths:
       - scripts/product_v1_f4c_source_health_runtime.py
       - scripts/run_f4c_current_source_health_proof.py
+      - scripts/run_f4c_data_layer_reconciliation.py
       - scripts/run_product_v1_demo_control_center.py
       - frontend/control-center/src/F4cSourceHealthSurface.tsx
       - frontend/control-center/src/f4c-source-health-surface.css
+      - frontend/control-center/src/DataLayersTab.tsx
+      - frontend/control-center/src/data-layers-tab.css
       - frontend/control-center/src/main.tsx
       - tests/test_f4c_current_source_health_contract.py
       - tests/test_f4c_operator_surface_contract.py
+      - tests/test_f4c_data_layer_reconciliation.py
       - .github/workflows/f4c-current-source-health-proof.yml
   workflow_dispatch:
 
@@ -89,13 +95,16 @@ jobs:
           echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f4c_current_source_health_contract.py \
-            tests/test_f4c_operator_surface_contract.py
+            tests/test_f4c_operator_surface_contract.py \
+            tests/test_f4c_data_layer_reconciliation.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/product_v1_f4c_source_health_runtime.py \
             scripts/run_f4c_current_source_health_proof.py \
+            scripts/run_f4c_data_layer_reconciliation.py \
             scripts/run_product_v1_demo_control_center.py \
             tests/test_f4c_current_source_health_contract.py \
-            tests/test_f4c_operator_surface_contract.py
+            tests/test_f4c_operator_surface_contract.py \
+            tests/test_f4c_data_layer_reconciliation.py
 
       - name: Run real read-only Product proof
         shell: bash
@@ -145,10 +154,55 @@ jobs:
           print(json.dumps(summary, sort_keys=True))
           PY
 
+      - name: Reconcile persisted Gold with current Product jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_f4c_data_layer_reconciliation \
+            --source-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/f4c_data_layer_reconciliation.json"
+
+      - name: Verify data-layer reconciliation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNNER_TEMP/f4c_data_layer_reconciliation.json" "$GITHUB_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if report.get("source_sha") != sys.argv[2]:
+              raise SystemExit("F4C_DATA_LAYER_SOURCE_SHA_MISMATCH")
+          summary = report.get("summary") or {}
+          if int(summary.get("persisted_gold_assessment_count") or 0) <= 0:
+              raise SystemExit("F4C_GOLD_COHORT_EMPTY")
+          if int(summary.get("current_product_job_count") or 0) <= 0:
+              raise SystemExit("F4C_CURRENT_PRODUCT_COHORT_EMPTY")
+          if int(summary.get("current_product_without_gold_assessment_count") or 0) != 0:
+              raise SystemExit("F4C_CURRENT_PRODUCT_WITHOUT_GOLD_ASSESSMENT")
+          if int(summary.get("unexplained_active_representative_gap_count") or 0) != 0:
+              raise SystemExit("F4C_UNEXPLAINED_GOLD_CURRENT_GAP")
+          expected = {
+              "db_writes": 0,
+              "provider_calls": 0,
+              "network_probes": 0,
+              "ranking_authority_changed": False,
+              "application_authority_changed": False,
+              "source_activation_changed": False,
+          }
+          boundaries = report.get("boundaries") or {}
+          for key, value in expected.items():
+              if boundaries.get(key) != value:
+                  raise SystemExit(f"F4C_DATA_LAYER_BOUNDARY_VIOLATION:{key}")
+          print("F4C_DATA_LAYER_RECONCILIATION=PASS")
+          print(json.dumps(summary, sort_keys=True))
+          PY
+
       - name: Preserve bounded proof
         uses: actions/upload-artifact@v4
         with:
           name: f4c-current-source-health-${{ github.sha }}
-          path: ${{ runner.temp }}/f4c_current_source_health_proof.json
+          path: |
+            ${{ runner.temp }}/f4c_current_source_health_proof.json
+            ${{ runner.temp }}/f4c_data_layer_reconciliation.json
           if-no-files-found: error
           retention-days: 1
