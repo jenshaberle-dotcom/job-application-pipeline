@@ -1,0 +1,165 @@
+{
+  "schema": "job_application_pipeline.demo_strict_proven_detail_delta.v1",
+  "observed_at": "2026-09-03",
+  "purpose": "Continue current detail validation for the historically strict-proven deterministic connector pool. Detail proof is established independently of profile relevance. This evidence grants no Product V1 ranking, activation, application, or submission authority.",
+  "baseline": {
+    "main_commit": "80cda242b89fee7cc56bb43f24aaa1a70c34806d",
+    "strict_proven_sources_total": 36,
+    "baseline_sources_with_current_detail_proof": 33,
+    "baseline_sources_without_current_detail_proof": [
+      "amadeus_fire",
+      "compugroup_medical",
+      "trustyou"
+    ]
+  },
+  "carrier_detail_surface_clusters": [
+    {
+      "cluster": "employer_owned_or_explicitly_delegated_web_detail",
+      "company_keys": [
+        "finanz_informatik",
+        "dirk_rossmann",
+        "enercity",
+        "ratiodata",
+        "deutsche_bahn",
+        "deloitte",
+        "vhv_gruppe",
+        "wertgarantie",
+        "genoverband_e_v",
+        "materna_information_communications",
+        "msg_systems",
+        "hannover_ruck",
+        "amadeus_fire",
+        "aok_niedersachsen_die_gesundheitskasse",
+        "freenet_dls",
+        "madsack",
+        "sopra_steria",
+        "accompio",
+        "materna"
+      ],
+      "count": 19,
+      "note": "Observed current detail or listing surfaces are employer-owned or employer-explicitly delegated web routes. This cluster intentionally does not infer a hidden ATS family where current evidence does not require one."
+    },
+    {
+      "cluster": "enterprise_hosted_ats_detail",
+      "company_keys": [
+        "hdi",
+        "adesso",
+        "clarios_germany",
+        "computacenter",
+        "e_on_grid_solutions",
+        "gft_technologies",
+        "tuv_sud"
+      ],
+      "count": 7,
+      "note": "Corporate jobs hosts expose stable concrete detail routes through enterprise ATS-style carriers. Provider recognition remains evidence classification, not authority by itself."
+    },
+    {
+      "cluster": "shared_public_sector_detail_portal",
+      "company_keys": [
+        "landesbetrieb_it_niedersachsen",
+        "land_niedersachsen",
+        "it_niedersachsen"
+      ],
+      "count": 3,
+      "note": "Shared Niedersachsen career portal with concrete public-sector detail pages and source-local identity."
+    },
+    {
+      "cluster": "greenhouse_detail",
+      "company_keys": ["commercetools", "zscaler_germany"],
+      "count": 2
+    },
+    {
+      "cluster": "lever_inventory_detail",
+      "company_keys": ["trustyou"],
+      "count": 1
+    },
+    {
+      "cluster": "softgarden_detail",
+      "company_keys": ["wavestone"],
+      "count": 1
+    },
+    {
+      "cluster": "personio_detail",
+      "company_keys": ["comrce"],
+      "count": 1
+    },
+    {
+      "cluster": "ashby_detail",
+      "company_keys": ["bjak"],
+      "count": 1
+    },
+    {
+      "cluster": "official_career_surface_without_current_employer_origin_detail",
+      "company_keys": ["compugroup_medical"],
+      "count": 1,
+      "note": "Current official CGM career surface is authoritative for company/career context, but the current Data Engineer BI vacancy remains third-party observed and is not promoted to concrete Employer-Origin detail truth."
+    }
+  ],
+  "detail_delta": [
+    {
+      "company_key": "amadeus_fire",
+      "previous_state": "official_listing_detail_access_challenge",
+      "current_state": "detail_proven",
+      "detail_proven": true,
+      "evidence": [
+        {
+          "title": "Data Scientist / Data Engineer (m/w/d)",
+          "detail_url": "https://www.amadeus-fire.de/jobs/data-scientist-data-engineer-m-w-d-hannover-241084-4",
+          "location": "Hannover",
+          "work_model": "Hybrid",
+          "profile_relevance": "strong_data_engineering_data_science",
+          "hannover_or_remote_germany_scope": true,
+          "evidence_note": "Current official Amadeus Fire detail page exposes a concrete vacancy with Data Engineer/Data Scientist scope, data integration, cloud technologies and BI."
+        },
+        {
+          "title": "AI Engineer (m/w/d)",
+          "detail_url": "https://www.amadeus-fire.de/jobs/ai-engineer-m-w-d-hannover-253308",
+          "location": "Hannover",
+          "work_model": "100% Homeoffice / deutschlandweit remote",
+          "profile_relevance": "strong_ai_engineering",
+          "hannover_or_remote_germany_scope": true,
+          "evidence_note": "Current official Amadeus Fire detail page exposes a concrete AI Engineer vacancy and explicitly states Germany-wide remote work."
+        }
+      ]
+    },
+    {
+      "company_key": "compugroup_medical",
+      "current_state": "detail_not_yet_proven",
+      "detail_proven": false,
+      "official_origin_evidence": "https://www.cgm.com/irl_en/about-cgm/career.html",
+      "external_current_signal": {
+        "title": "Data Engineer BI (m/w/d)",
+        "location": "Waldems",
+        "requisition_id": "JR109347"
+      },
+      "note": "Current third-party vacancy copies are useful recall only. No concrete official CGM detail route was established in this pass, so Employer-Origin detail authority remains open."
+    },
+    {
+      "company_key": "trustyou",
+      "current_state": "no_current_openings_observed",
+      "detail_proven": false,
+      "official_origin_evidence": "https://www.trustyou.com/careers/",
+      "note": "Current official careers page explicitly exposes a Current openings section but no concrete opening was returned in this pass. This is not a negative lifecycle authority claim and does not fabricate a vacancy detail."
+    }
+  ],
+  "post_delta_summary": {
+    "sources_with_current_detail_proof": 34,
+    "sources_without_current_detail_proof": 2,
+    "remaining_without_current_detail_proof": [
+      "compugroup_medical",
+      "trustyou"
+    ],
+    "interpretation": "Amadeus Fire current detail evidence is now positive. CGM remains an authority-resolution gap. TrustYou remains a current no-opening observation rather than a failed connector or invented detail."
+  },
+  "boundaries": {
+    "profile_relevance_required_for_detail_proof": false,
+    "third_party_listing_as_detail_authority": false,
+    "source_activation": false,
+    "database_write": false,
+    "bronze_silver_gold_write": false,
+    "ranking_or_top5_authority": false,
+    "application_authority": false,
+    "submission_action": false,
+    "negative_lifecycle_authority_created": false
+  }
+}
