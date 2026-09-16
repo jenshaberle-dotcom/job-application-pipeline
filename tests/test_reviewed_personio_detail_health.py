@@ -22,6 +22,8 @@ def target(
     source_name: str = "personio:1komma5grad",
     source_url: str = "https://1komma5grad.jobs.personio.de/job/2731150?language=de",
     title: str = "(Junior) Data Engineer - Data Platform (m/f/d)",
+    canonical_source_type: str | None = "employer_origin_ats_backed_career_site",
+    raw_source_type: str | None = "employer_origin_ats_backed_career_site",
 ) -> JobHealthTarget:
     return JobHealthTarget(
         silver_job_id=silver_job_id,
@@ -31,8 +33,8 @@ def target(
         external_job_id=str(2731150 + silver_job_id),
         source_url=source_url,
         title=title,
-        canonical_source_type="employer_origin_ats_backed_career_site",
-        raw_source_type="employer_origin_ats_backed_career_site",
+        canonical_source_type=canonical_source_type,
+        raw_source_type=raw_source_type,
     )
 
 
@@ -47,7 +49,7 @@ class FakeRepository:
     ) -> list[JobHealthTarget]:
         return list(self.targets_by_source.get(source_name, []))
 
-    def append_health_observation(
+    def append_verified_inventory_exact_detail_health_observation(
         self,
         *,
         expected_target: JobHealthTarget,
@@ -102,12 +104,17 @@ def test_generic_404_stays_unverifiable() -> None:
 
 
 def test_reviewed_personio_current_feed_target_is_exact_detail_rechecked() -> None:
-    dead = target()
+    # Deliberately mirror the legacy authority shape that triggered the real
+    # v1.0.33 failure: current inventory authority exists while historical
+    # Bronze/Silver source_type projection is absent.
+    dead = target(canonical_source_type=None, raw_source_type=None)
     alive = target(
         silver_job_id=2,
         source_name="personio:eraneos",
         source_url="https://eraneos.jobs.personio.de/job/555?language=de",
         title="Data Engineer",
+        canonical_source_type=None,
+        raw_source_type=None,
     )
     repository = FakeRepository(
         {

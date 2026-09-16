@@ -5,6 +5,9 @@ on:
     branches: [agent/f4b-operator-hardening-lifecycle-score-truth]
     paths:
       - ".github/workflows/f4b-personio-lifecycle-real-proof.yml"
+      - "scripts/reconcile_reviewed_personio_detail_health.py"
+      - "src/ingestion/verified_inventory_exact_detail_health.py"
+      - "src/job_lifecycle_health.py"
   workflow_dispatch:
 
 permissions:
@@ -156,6 +159,10 @@ jobs:
           boundary = report["boundary"]
           if boundary["reviewed_personio_sources_only"] is not True:
               raise SystemExit("F4B_PERSONIO_SCOPE_NOT_BOUNDED")
+          if boundary["verified_inventory_writer"] is not True:
+              raise SystemExit("F4B_PERSONIO_VERIFIED_WRITER_MISSING")
+          if boundary["historical_source_type_guard_relaxed_globally"] is not False:
+              raise SystemExit("F4B_PERSONIO_GLOBAL_SOURCE_GUARD_RELAXED")
           if boundary["employer_specific_branching"] is not False:
               raise SystemExit("F4B_PERSONIO_EMPLOYER_BRANCHING_DETECTED")
           if boundary["ranking_writes"] is not False:
@@ -185,7 +192,6 @@ jobs:
           from src.config import get_database_config
 
           job_id = int(os.environ["SILVER_JOB_ID"])
-          expected_source = os.environ["EXPECTED_SOURCE_NAME"]
           with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
               with conn.cursor() as cur:
                   cur.execute(

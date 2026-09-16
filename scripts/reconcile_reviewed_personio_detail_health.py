@@ -23,9 +23,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-from typing import Callable
+from typing import Callable, Protocol
 from urllib.parse import urlsplit
 
+from src.ingestion.verified_inventory_exact_detail_health import (
+    VerifiedInventoryExactDetailHealthRepository,
+)
 from src.job_lifecycle_health import (
     COVERAGE_EXACT_DETAIL,
     OUTCOME_CLOSED,
@@ -35,7 +38,6 @@ from src.job_lifecycle_health import (
     HealthClassification,
     HttpProbeResult,
     JobHealthTarget,
-    JobLifecycleHealthRepository,
     classify_exact_detail,
     ensure_expected_target_identity,
     fetch_exact_detail,
@@ -50,6 +52,21 @@ from src.search_intelligence.vacancy_page_signals import normalize_page_text
 MAX_PERSONIO_DETAIL_PROBES_PER_SOURCE = 50
 PERSONIO_DETAIL_HEALTH_OBSERVER = "scheduled_daily_reviewed_personio_exact_detail"
 PERSONIO_NOT_FOUND_MARKER = "diese url existiert nicht"
+
+
+class VerifiedInventoryHealthRepository(Protocol):
+    def load_active_targets_for_verified_complete_inventory_source(
+        self, source_name: str
+    ) -> list[JobHealthTarget]: ...
+
+    def append_verified_inventory_exact_detail_health_observation(
+        self,
+        *,
+        expected_target: JobHealthTarget,
+        classification: HealthClassification,
+        observed_by: str,
+        ingestion_run_id: int | None = None,
+    ) -> int: ...
 
 
 @dataclass(frozen=True)
@@ -122,12 +139,12 @@ def classify_reviewed_personio_exact_detail(
 
 def reconcile_reviewed_personio_detail_health(
     *,
-    health_repository: JobLifecycleHealthRepository,
+    health_repository: VerifiedInventoryHealthRepository,
     fetcher: Callable[..., HttpProbeResult] = fetch_exact_detail,
     timeout_seconds: float = REQUEST_TIMEOUT_SECONDS,
     max_probes_per_source: int = MAX_PERSONIO_DETAIL_PROBES_PER_SOURCE,
 ) -> tuple[PersonioDetailHealthSummary, ...]:
-    """Confirm every currently-active target in the reviewed Personio authority set."""
+    """Confirm every current target in the reviewed Personio authority set."""
 
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
@@ -165,11 +182,14 @@ def reconcile_reviewed_personio_detail_health(
                 unverifiable_count += 1
                 continue
 
-            observation_id = health_repository.append_health_observation(
-                expected_target=target,
-                classification=classification,
-                observed_by=PERSONIO_DETAIL_HEALTH_OBSERVER,
-                ingestion_run_id=None,
+            observation_id = (
+                health_repository
+                .append_verified_inventory_exact_detail_health_observation(
+                    expected_target=target,
+                    classification=classification,
+                    observed_by=PERSONIO_DETAIL_HEALTH_OBSERVER,
+                    ingestion_run_id=None,
+                )
             )
             written_ids.append(observation_id)
             if classification.outcome == OUTCOME_CLOSED:
@@ -194,7 +214,7 @@ def reconcile_reviewed_personio_detail_health(
 
 def main() -> int:
     summaries = reconcile_reviewed_personio_detail_health(
-        health_repository=JobLifecycleHealthRepository()
+        health_repository=VerifiedInventoryExactDetailHealthRepository()
     )
     public_http_requests = sum(summary.probe_count for summary in summaries)
     print(
@@ -205,6 +225,8 @@ def main() -> int:
                 "sources": [summary.canonical_payload() for summary in summaries],
                 "boundary": {
                     "reviewed_personio_sources_only": True,
+                    "verified_inventory_writer": True,
+                    "historical_source_type_guard_relaxed_globally": False,
                     "employer_specific_branching": False,
                     "public_http_requests": public_http_requests,
                     "ranking_writes": False,
