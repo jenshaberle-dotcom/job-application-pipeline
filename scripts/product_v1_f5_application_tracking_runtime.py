@@ -66,7 +66,9 @@ def build_application_tracking_payload(
     candidates: list[Mapping[str, object]],
     available: bool = True,
 ) -> dict[str, object]:
-    stage_counts = Counter(str(row.get("authoritative_stage") or "prepared") for row in applications)
+    stage_counts = Counter(
+        str(row.get("authoritative_stage") or "prepared") for row in applications
+    )
     candidate_by_application: dict[int, list[dict[str, object]]] = {}
     unmatched_candidates: list[dict[str, object]] = []
 
@@ -121,13 +123,21 @@ def build_application_tracking_payload(
                 "submission_authority_kind": row.get("submission_authority_kind"),
                 "submission_authority_reference": row.get("submission_authority_reference"),
                 "authoritative_stage": stage,
-                "authoritative_event_count": int(row.get("authoritative_event_count") or 0),
-                "latest_authoritative_event_at": row.get("latest_authoritative_event_at"),
-                "attention_candidate_count": int(row.get("attention_candidate_count") or 0),
+                "authoritative_event_count": int(
+                    row.get("authoritative_event_count") or 0
+                ),
+                "latest_authoritative_event_at": row.get(
+                    "latest_authoritative_event_at"
+                ),
+                "attention_candidate_count": int(
+                    row.get("attention_candidate_count") or 0
+                ),
                 "latest_candidate_at": row.get("latest_candidate_at"),
                 "attention_status": row.get("attention_status") or "none",
                 "evidence_candidates": candidate_by_application.get(application_id, []),
-                "stage_authority": "application_submission_and_confirmed_lifecycle_events",
+                "stage_authority": (
+                    "application_submission_and_confirmed_lifecycle_events"
+                ),
             }
         )
 
@@ -136,12 +146,18 @@ def build_application_tracking_payload(
         "available": available,
         "summary": {
             "application_count": len(rows),
-            "submitted_count": sum(1 for row in rows if row.get("submission_id") is not None),
+            "submitted_count": sum(
+                1 for row in rows if row.get("submission_id") is not None
+            ),
             "attention_count": sum(
-                1 for row in rows if int(row.get("attention_candidate_count") or 0) > 0
+                1
+                for row in rows
+                if int(row.get("attention_candidate_count") or 0) > 0
             ),
             "unmatched_candidate_count": len(unmatched_candidates),
-            "stage_counts": {stage: int(stage_counts.get(stage, 0)) for stage in STAGES},
+            "stage_counts": {
+                stage: int(stage_counts.get(stage, 0)) for stage in STAGES
+            },
         },
         "applications": rows,
         "unmatched_evidence_candidates": unmatched_candidates,
@@ -175,7 +191,7 @@ def load_application_tracking_payload() -> dict[str, object]:
                     tracking.*,
                     silver.title,
                     silver.company_name,
-                    silver.display_company_name,
+                    silver.company_name AS display_company_name,
                     silver.source_url
                 FROM gold_product_v1_application_tracking tracking
                 LEFT JOIN silver_jobs silver
@@ -205,7 +221,9 @@ def load_application_tracking_payload() -> dict[str, object]:
                         review_status,
                         created_at
                     FROM application_event_candidates
-                    WHERE review_status IN ('unreviewed', 'ambiguous', 'accepted_as_evidence')
+                    WHERE review_status IN (
+                        'unreviewed', 'ambiguous', 'accepted_as_evidence'
+                    )
                     ORDER BY created_at DESC, id DESC
                     """
                 )
