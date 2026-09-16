@@ -143,10 +143,15 @@ def test_empty_or_invalid_source_overview_fails_closed() -> None:
         )
 
 
-def test_current_frontend_contract_exposes_f4c_overlap() -> None:
+def test_current_frontend_contract_confirms_f4c_surface_consolidation() -> None:
     evidence = surface_contract_evidence()
     assert evidence["active_workspace"] is True
     assert evidence["sources_owns_source_connector_overview"] is True
+    # Legacy Operations implementation remains in the workspace source for now,
+    # but F4C removes it from the top-level operator navigation.
     assert evidence["operations_reuses_source_lifecycle_summary"] is True
-    assert evidence["data_layers_has_per_source_last_run_projection"] is True
+    assert evidence["operations_top_level_hidden"] is True
+    # Data Layers must no longer compete with Sources for per-source run status.
+    assert evidence["data_layers_has_per_source_last_run_projection"] is False
     assert evidence["data_layers_owns_bronze_silver_gold_flow"] is True
+    assert evidence["data_layers_separates_persisted_and_current_scope"] is True
