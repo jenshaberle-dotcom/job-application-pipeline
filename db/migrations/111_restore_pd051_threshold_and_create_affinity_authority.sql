@@ -111,7 +111,7 @@ WITH approved_policy AS (
         affinity.data_focus_score,
         affinity.reliability_focus_score,
         affinity.evidence_quality_score,
-        affinity.affinity_score AS overall_quality_score,
+        affinity.affinity_score::numeric AS overall_quality_score,
         assessment.work_model,
         assessment.commute_minutes,
         assessment.public_transport_quality,
