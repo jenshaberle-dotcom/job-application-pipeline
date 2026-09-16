@@ -3,6 +3,7 @@ from pathlib import Path
 
 MIGRATION = Path("db/migrations/111_restore_pd051_threshold_and_create_affinity_authority.sql")
 AFFINITY_RUNNER = Path("scripts/run_f4b_affinity_authority.py")
+APPLY_WORKFLOW = Path(".github/workflows/f4b-a1-c1-apply.yml")
 HISTORICAL_TOP5 = Path("scripts/run_product_v1_top5_policy_review.py")
 SERVICE = Path("src/search_intelligence/product_v1_service.py")
 
@@ -45,6 +46,21 @@ def test_c1_preserves_existing_readiness_numeric_types() -> None:
     assert "'data_focus_score')::numeric(6,2)" in sql
     assert "'evidence_quality_score')::numeric(6,2)" in sql
     assert "affinity.affinity_score::numeric AS overall_quality_score" in sql
+
+
+def test_c1_json_binding_parameters_have_explicit_text_types() -> None:
+    source = AFFINITY_RUNNER.read_text(encoding="utf-8")
+    assert "'assessment_detail_sha256',CAST(%s AS text)" in source
+    assert "'policy_version',CAST(%s AS text)" in source
+
+
+def test_a1_c1_apply_is_retry_safe_after_exact_migration_success() -> None:
+    source = APPLY_WORKFLOW.read_text(encoding="utf-8")
+    assert "tracked_target = tracked.get(target)" in source
+    assert 'tracked_target.execution_status != "success"' in source
+    assert "F4B_A1_C1_MIGRATION_STATE=already_applied" in source
+    assert "F4B_A1_C1_UNEXPECTED_PENDING_AFTER_TARGET" in source
+    assert '--apply-exact "$TARGET_MIGRATION"' in source
 
 
 def test_c1_runner_writes_no_fit_combined_or_top5_authority() -> None:
