@@ -64,12 +64,14 @@ def test_sources_separate_delivery_zero_yield_sensors_and_attention() -> None:
     assert "ow-source-group-title" in source
 
 
-def test_data_layers_uses_bounded_mount_wait_not_mutation_observer() -> None:
+def test_data_layers_waits_for_workspace_with_mutation_observer() -> None:
     source = (FRONTEND / "DataLayersTab.tsx").read_text(encoding="utf-8")
 
-    assert "attempts < 80" in source
-    assert "window.setTimeout(bindRoots, 50)" in source
-    assert "MutationObserver" not in source
+    assert "new MutationObserver(" in source
+    assert "observer.observe(document.body, { childList: true, subtree: true })" in source
+    assert "observer?.disconnect()" in source
+    assert "attempts < 80" not in source
+    assert "window.setTimeout(bindRoots, 50)" not in source
 
 
 def test_application_workspace_exposes_four_files_plus_zip_download() -> None:
