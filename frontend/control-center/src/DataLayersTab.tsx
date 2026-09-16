@@ -205,26 +205,28 @@ export default function DataLayersTab() {
 
   useEffect(() => {
     let cancelled = false;
-    let timer: number | null = null;
-    let attempts = 0;
+    let observer: MutationObserver | null = null;
 
     const bindRoots = () => {
-      if (cancelled) return;
+      if (cancelled) return false;
       const nav = document.querySelector<HTMLElement>(".ow-sidebar nav");
       const main = document.querySelector<HTMLElement>(".ow-main");
-      if (nav && main) {
-        setNavRoot(nav);
-        setMainRoot(main);
-        return;
-      }
-      attempts += 1;
-      if (attempts < 80) timer = window.setTimeout(bindRoots, 50);
+      if (!nav || !main) return false;
+      setNavRoot(nav);
+      setMainRoot(main);
+      return true;
     };
 
-    bindRoots();
+    if (!bindRoots()) {
+      observer = new MutationObserver(() => {
+        if (bindRoots()) observer?.disconnect();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+
     return () => {
       cancelled = true;
-      if (timer != null) window.clearTimeout(timer);
+      observer?.disconnect();
     };
   }, []);
 

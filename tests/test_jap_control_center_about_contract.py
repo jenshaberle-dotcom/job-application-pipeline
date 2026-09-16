@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "frontend" / "control-center" / "src"
 MAIN = SRC / "main.tsx"
 ABOUT = SRC / "AboutPanel.tsx"
+DATA_LAYERS = SRC / "DataLayersTab.tsx"
 ABOUT_CSS = SRC / "about-panel.css"
 LIVE_LAUNCHER = ROOT / "scripts" / "run_product_v1_live_demo.py"
 CANONICAL_SERVER = ROOT / "scripts" / "run_product_v1_control_center.py"
@@ -23,6 +24,8 @@ def test_about_is_operator_tab_with_installed_app_identity() -> None:
     assert "<AboutPanel />" in main
     assert 'document.querySelector<HTMLElement>(".ow-sidebar nav")' in about
     assert 'document.querySelector<HTMLElement>(".ow-main")' in about
+    assert "new MutationObserver(" in about
+    assert "attempts < 80" not in about
     assert '<i>ⓘ</i><span>About</span>' in about
     assert 'fetch("/app-info.json"' in about
     assert "desktop_version" in about
@@ -31,6 +34,18 @@ def test_about_is_operator_tab_with_installed_app_identity() -> None:
     assert "Internal diagnostic only" in about
     assert "Integrated self-update" in about
     assert "Prompted inside this app" in about
+
+
+def test_dynamic_operator_tabs_wait_for_workspace_without_time_budget() -> None:
+    about = _text(ABOUT)
+    data_layers = _text(DATA_LAYERS)
+
+    for source in (about, data_layers):
+        assert "new MutationObserver(" in source
+        assert "observer.observe(document.body, { childList: true, subtree: true })" in source
+        assert "observer?.disconnect()" in source
+        assert "attempts < 80" not in source
+        assert "window.setTimeout(bindRoots, 50)" not in source
 
 
 def test_demo_pilot_badge_is_hidden_from_operator_header() -> None:
