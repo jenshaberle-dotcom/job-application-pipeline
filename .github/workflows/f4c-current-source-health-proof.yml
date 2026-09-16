@@ -1,0 +1,145 @@
+name: F4C current source health proof
+
+on:
+  push:
+    branches: [agent/f4c-current-health-contract]
+    paths:
+      - scripts/product_v1_f4c_source_health_runtime.py
+      - scripts/run_f4c_current_source_health_proof.py
+      - tests/test_f4c_current_source_health_contract.py
+      - .github/workflows/f4c-current-source-health-proof.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4c-current-source-health-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: Prove historical success is not current health
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Bind verified runtime and masked DB environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          mapfile -t ctx < <(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json, sys
+          from pathlib import PurePosixPath
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id) or context.get("Repository") != repository or context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_IDENTITY_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          root = PurePosixPath(context["CheckoutRoot"])
+          if root not in PurePosixPath(context["Interpreter"]).parents or root not in PurePosixPath(context["EnvFile"]).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )
+          test "${#ctx[@]}" -eq 2
+          runtime_python="${ctx[0]}"
+          runtime_env_file="${ctx[1]}"
+          "$runtime_python" - "$runtime_env_file" "$GITHUB_ENV" <<'PY'
+          import secrets, sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+          values = dotenv_values(Path(sys.argv[1]))
+          required = ("POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
+          if any(values.get(key) in (None, "") for key in required):
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING")
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{values[key]}\n{marker}\n")
+          PY
+          echo "RUNTIME_PYTHON=$runtime_python" >> "$GITHUB_ENV"
+
+      - name: Qualify focused contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4c-current-health-sites")"
+          test -d "$site"
+          echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          "$RUNTIME_PYTHON" -m pytest -q tests/test_f4c_current_source_health_contract.py
+          "$RUNTIME_PYTHON" -m ruff check \
+            scripts/product_v1_f4c_source_health_runtime.py \
+            scripts/run_f4c_current_source_health_proof.py \
+            tests/test_f4c_current_source_health_contract.py
+
+      - name: Run real read-only Product proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_f4c_current_source_health_proof \
+            --source-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/f4c_current_source_health_proof.json"
+
+      - name: Verify current-health truth boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNNER_TEMP/f4c_current_source_health_proof.json" "$GITHUB_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if report.get("source_sha") != sys.argv[2]:
+              raise SystemExit("F4C_SOURCE_SHA_MISMATCH")
+          summary = report.get("summary") or {}
+          if int(summary.get("source_count") or 0) <= 0:
+              raise SystemExit("F4C_SOURCE_COHORT_EMPTY")
+          if int(summary.get("historical_success_rendered_healthy_count") or 0) <= 0:
+              raise SystemExit("F4C_BASELINE_MISMATCH_NOT_OBSERVED")
+          if int(summary.get("success_without_cadence_projected_unknown_count") or 0) <= 0:
+              raise SystemExit("F4C_MISSING_CADENCE_NOT_EXPLICIT")
+          for row in report.get("rows") or []:
+              if row.get("latest_run_status") == "success" and row.get("current_health") == "healthy" and row.get("cadence_authority") is not True:
+                  raise SystemExit(f"F4C_FALSE_CURRENT_HEALTH:{row.get('source_name')}")
+              if row.get("zero_yield_latest_success") is True and row.get("current_health_reason") == "latest_attempt_failed":
+                  raise SystemExit(f"F4C_ZERO_YIELD_COLLAPSED_TO_FAILURE:{row.get('source_name')}")
+          expected = {
+              "db_writes": 0,
+              "provider_calls": 0,
+              "network_probes": 0,
+              "source_activation_changed": False,
+              "scheduler_changed": False,
+              "ranking_authority_changed": False,
+              "top5_authority_changed": False,
+              "application_authority_changed": False,
+          }
+          boundaries = report.get("boundaries") or {}
+          for key, value in expected.items():
+              if boundaries.get(key) != value:
+                  raise SystemExit(f"F4C_BOUNDARY_VIOLATION:{key}")
+          print("F4C_CURRENT_SOURCE_HEALTH_PROOF=PASS")
+          print(json.dumps(summary, sort_keys=True))
+          PY
+
+      - name: Preserve bounded proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4c-current-source-health-${{ github.sha }}
+          path: ${{ runner.temp }}/f4c_current_source_health_proof.json
+          if-no-files-found: error
+          retention-days: 1
