@@ -1,8 +1,8 @@
-"""Read-only Bronze/Silver/Gold observability for the Product V1 demo.
+"""Read-only Bronze/Silver/Gold observability for Product V1.
 
-This module projects existing database truth only. It creates no telemetry rows,
-changes no source or scheduler state, and owns no Product V1 ranking, Top-5 or
-application authority.
+Persisted layer inventory and the current operator review scope are deliberately
+separate populations.  This module projects both without creating telemetry,
+changing source/scheduler state, or owning ranking/application authority.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import psycopg
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 
 
-SCHEMA_VERSION = "job_application_pipeline.product_v1_data_layers.v1"
+SCHEMA_VERSION = "job_application_pipeline.product_v1_data_layers.v2"
 FLOW_DAYS = 14
 
 
@@ -108,6 +108,65 @@ def _ratio(numerator: int | None, denominator: int | None) -> float | None:
     return round((numerator / denominator) * 100.0, 1)
 
 
+def _collection_ids(value: object) -> set[int]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return set()
+    result: set[int] = set()
+    for row in value:
+        if not isinstance(row, Mapping) or row.get("silver_job_id") is None:
+            continue
+        try:
+            result.add(int(row["silver_job_id"]))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _gold_scope_reconciliation(
+    conn: psycopg.Connection[Any],
+    product_payload: Mapping[str, object],
+) -> dict[str, int | float | None]:
+    """Compare persisted Gold IDs with the exact operator All-jobs population."""
+
+    all_job_ids = _collection_ids(product_payload.get("job_readiness"))
+    if not _relation_exists(conn, "job_product_assessments"):
+        return {
+            "all_jobs": len(all_job_ids),
+            "gold_in_all_jobs": 0,
+            "gold_outside_all_jobs": 0,
+            "all_jobs_without_gold": len(all_job_ids),
+            "gold_outside_historical": 0,
+            "gold_outside_out_of_profile": 0,
+            "gold_outside_discovery_sources": 0,
+            "gold_outside_duplicate_origin": 0,
+            "all_jobs_gold_assessed_pct": None,
+        }
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT silver_job_id FROM job_product_assessments")
+        assessed_ids = {int(row[0]) for row in cur.fetchall()}
+
+    historical_ids = _collection_ids(product_payload.get("historical_jobs"))
+    out_of_profile_ids = _collection_ids(product_payload.get("out_of_profile_jobs"))
+    discovery_ids = _collection_ids(product_payload.get("discovery_source_jobs"))
+    duplicate_ids = _collection_ids(product_payload.get("duplicate_origin_jobs"))
+    outside = assessed_ids - all_job_ids
+    return {
+        "all_jobs": len(all_job_ids),
+        "gold_in_all_jobs": len(assessed_ids & all_job_ids),
+        "gold_outside_all_jobs": len(outside),
+        "all_jobs_without_gold": len(all_job_ids - assessed_ids),
+        "gold_outside_historical": len(outside & historical_ids),
+        "gold_outside_out_of_profile": len(outside & out_of_profile_ids),
+        "gold_outside_discovery_sources": len(outside & discovery_ids),
+        "gold_outside_duplicate_origin": len(outside & duplicate_ids),
+        "all_jobs_gold_assessed_pct": _ratio(
+            len(assessed_ids & all_job_ids),
+            len(all_job_ids),
+        ),
+    }
+
+
 def _source_rows(product_payload: Mapping[str, object]) -> list[dict[str, object]]:
     overview = product_payload.get("source_connector_overview")
     if not isinstance(overview, Mapping):
@@ -171,6 +230,7 @@ def build_data_layers_payload(
     latest_silver_normalization: object | None,
     latest_gold_assessment: object | None,
     sources: Sequence[Mapping[str, object]],
+    current_scope: Mapping[str, int | float | None] | None = None,
 ) -> dict[str, object]:
     """Assemble the transport payload without inventing missing history."""
 
@@ -194,6 +254,7 @@ def build_data_layers_payload(
             }
         )
 
+    scope = dict(current_scope or {})
     return {
         "schema_version": SCHEMA_VERSION,
         "window_days": FLOW_DAYS,
@@ -201,6 +262,23 @@ def build_data_layers_payload(
             "bronze_jobs": bronze_count,
             "silver_jobs": silver_count,
             "gold_assessed": gold_assessed_count,
+        },
+        "current_product_scope": {
+            "all_jobs": int(scope.get("all_jobs") or 0),
+            "gold_in_all_jobs": int(scope.get("gold_in_all_jobs") or 0),
+            "gold_outside_all_jobs": int(scope.get("gold_outside_all_jobs") or 0),
+            "all_jobs_without_gold": int(scope.get("all_jobs_without_gold") or 0),
+            "gold_outside_historical": int(scope.get("gold_outside_historical") or 0),
+            "gold_outside_out_of_profile": int(
+                scope.get("gold_outside_out_of_profile") or 0
+            ),
+            "gold_outside_discovery_sources": int(
+                scope.get("gold_outside_discovery_sources") or 0
+            ),
+            "gold_outside_duplicate_origin": int(
+                scope.get("gold_outside_duplicate_origin") or 0
+            ),
+            "gold_assessed_pct": scope.get("all_jobs_gold_assessed_pct"),
             "rankable_now": rankable_now,
             "top_jobs_now": top_jobs_now,
         },
@@ -208,7 +286,7 @@ def build_data_layers_payload(
         "coverage": {
             "bronze_to_silver_pct": _ratio(silver_count, bronze_count),
             "silver_to_gold_pct": _ratio(gold_assessed_count, silver_count),
-            "gold_to_rankable_pct": _ratio(rankable_now, gold_assessed_count),
+            "all_jobs_gold_assessed_pct": scope.get("all_jobs_gold_assessed_pct"),
         },
         "freshness": {
             "latest_bronze_observation_at": latest_bronze_observation,
@@ -225,6 +303,7 @@ def build_data_layers_payload(
             "ranking_authority": False,
             "application_authority": False,
             "source_activation_authority": False,
+            "persisted_inventory_is_not_current_product_scope": True,
         },
     }
 
@@ -244,6 +323,7 @@ def load_data_layers_payload(
         bronze_count = _count_rows(conn, "raw_jobs")
         silver_count = _count_rows(conn, "silver_jobs")
         gold_count = _count_rows(conn, "job_product_assessments")
+        current_scope = _gold_scope_reconciliation(conn, product_payload)
         bronze_flow = _daily_counts(
             conn,
             relation_name="raw_jobs",
@@ -299,4 +379,5 @@ def load_data_layers_payload(
         latest_silver_normalization=latest_silver,
         latest_gold_assessment=latest_gold,
         sources=_source_rows(product_payload),
+        current_scope=current_scope,
     )
