@@ -1,0 +1,224 @@
+name: F4B A1 C1 exact runtime apply
+
+on:
+  push:
+    branches: [agent/f4b-a1-c1-affinity-authority]
+    paths:
+      - .github/triggers/f4b-a1-c1-apply.trigger
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4b-a1-c1-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply exact A1 threshold and C1 Affinity authority
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      TARGET_MIGRATION: 111_restore_pd051_threshold_and_create_affinity_authority.sql
+      AFFINITY_APPROVAL_TOKEN: F4B-A1-C1-AFFINITY-2026-09-16
+    steps:
+      - name: Check out exact trigger head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Bind verified runtime and masked DB environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          mapfile -t ctx < <(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json, sys
+          from pathlib import PurePosixPath
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id) or context.get("Repository") != repository or context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_IDENTITY_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          root = PurePosixPath(context["CheckoutRoot"])
+          if root not in PurePosixPath(context["Interpreter"]).parents or root not in PurePosixPath(context["EnvFile"]).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )
+          test "${#ctx[@]}" -eq 2
+          runtime_python="${ctx[0]}"
+          runtime_env_file="${ctx[1]}"
+          "$runtime_python" - "$runtime_env_file" "$GITHUB_ENV" <<'PY'
+          import secrets, sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+          values = dotenv_values(Path(sys.argv[1]))
+          required = ("POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
+          if any(values.get(key) in (None, "") for key in required):
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING")
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{values[key]}\n{marker}\n")
+          PY
+          echo "RUNTIME_PYTHON=$runtime_python" >> "$GITHUB_ENV"
+
+      - name: Requalify focused A1 C1 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/jap-f4b-a1-c1-sites")"
+          test -d "$site"
+          echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_f4b_a1_c1_affinity_authority.py \
+            tests/test_f4b_affinity_reconciliation.py \
+            tests/test_product_v1_review_fit_payload.py \
+            tests/test_job_lifecycle_control_center_contract.py \
+            tests/test_apply_db_migrations.py
+          "$RUNTIME_PYTHON" -m ruff check \
+            scripts/run_f4b_affinity_authority.py \
+            scripts/run_product_v1_top5_policy_review.py \
+            src/search_intelligence/product_v1_review_fit.py \
+            src/search_intelligence/product_v1_service.py \
+            tests/test_f4b_a1_c1_affinity_authority.py
+
+      - name: Prove exact migration state before mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py --status | tee "$RUNNER_TEMP/migration-before.txt"
+          "$RUNTIME_PYTHON" - <<'PY'
+          from scripts.apply_db_migrations import (
+              checksum_mismatches,
+              connect,
+              discover_migration_files,
+              load_tracked_migrations,
+              pending_migrations,
+          )
+          target = "111_restore_pd051_threshold_and_create_affinity_authority.sql"
+          migrations = discover_migration_files()
+          by_key = {item.migration_key: item for item in migrations}
+          if target not in by_key:
+              raise SystemExit("F4B_A1_C1_TARGET_MIGRATION_MISSING")
+          with connect() as conn:
+              tracked = load_tracked_migrations(conn)
+          mismatches = checksum_mismatches(migrations, tracked)
+          if mismatches:
+              raise SystemExit("F4B_A1_C1_CHECKSUM_DRIFT")
+          pending = [item.migration_key for item in pending_migrations(migrations, tracked)]
+          tracked_target = tracked.get(target)
+          if tracked_target is None:
+              if pending != [target]:
+                  raise SystemExit(f"F4B_A1_C1_NOT_SOLE_PENDING:{pending}")
+              print(f"F4B_A1_C1_MIGRATION_STATE=pending:{target}")
+          else:
+              if tracked_target.execution_status != "success":
+                  raise SystemExit(
+                      f"F4B_A1_C1_TARGET_NOT_SUCCESS:{tracked_target.execution_status}"
+                  )
+              if pending:
+                  raise SystemExit(f"F4B_A1_C1_UNEXPECTED_PENDING_AFTER_TARGET:{pending}")
+              print(f"F4B_A1_C1_MIGRATION_STATE=already_applied:{target}")
+          PY
+
+      - name: Apply or verify exact migration 111
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" scripts/apply_db_migrations.py \
+            --apply-exact "$TARGET_MIGRATION" \
+            --require-sole-pending \
+            --applied-by f4b-a1-c1-operator-authority \
+            | tee "$RUNNER_TEMP/migration-apply.txt"
+
+      - name: Plan exact current Affinity authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_f4b_affinity_authority \
+            --output "$RUNNER_TEMP/f4b-affinity-plan.json"
+
+      - name: Apply exact current Affinity authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_f4b_affinity_authority \
+            --apply \
+            --approval-token "$AFFINITY_APPROVAL_TOKEN" \
+            --reviewed-by jens \
+            --output "$RUNNER_TEMP/f4b-affinity-apply.json"
+
+      - name: Prove convergence and Product truth boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_f4b_affinity_authority \
+            --output "$RUNNER_TEMP/f4b-affinity-post.json"
+          "$RUNTIME_PYTHON" - <<'PY' | tee "$RUNNER_TEMP/f4b-product-proof.json"
+          import json
+          from scripts.product_v1_control_center_base import load_product_v1_payload
+          payload = load_product_v1_payload(include_source_connector_overview=False)
+          summary = payload.get("summary", {})
+          policy = payload.get("ranking_policy", {})
+          jobs = payload.get("job_readiness", [])
+          exact_affinity = [j for j in jobs if j.get("affinity_authority_status") == "authoritative"]
+          combined = [j for j in jobs if j.get("combined_score") is not None]
+          hard_failed = [j for j in jobs if j.get("hard_filter_status") == "failed"]
+          if float(policy.get("minimum_quality_score") or -1) != 70.0:
+              raise SystemExit("F4B_A1_THRESHOLD_NOT_70")
+          if policy.get("policy_version") != "product-v1-2026-09-16-affinity-v1":
+              raise SystemExit("F4B_A1_C1_POLICY_VERSION_MISMATCH")
+          if not exact_affinity:
+              raise SystemExit("F4B_C1_NO_AUTHORITATIVE_AFFINITY")
+          if combined or int(summary.get("combined_score_count") or 0) != 0:
+              raise SystemExit("F4B_COMBINED_SCORE_MUST_REMAIN_ABSENT")
+          if any(j.get("product_readiness_status") == "rankable" for j in hard_failed):
+              raise SystemExit("F4B_HARD_FILTER_OVERRIDE_DETECTED")
+          proof = {
+              "source_sha": __import__("os").environ["GITHUB_SHA"],
+              "minimum_quality_score": policy.get("minimum_quality_score"),
+              "policy_version": policy.get("policy_version"),
+              "current_active_job_count": summary.get("current_active_job_count"),
+              "affinity_authoritative_count": summary.get("affinity_authoritative_count"),
+              "rankable_job_count": summary.get("rankable_job_count"),
+              "top_job_count": summary.get("top_job_count"),
+              "combined_score_count": summary.get("combined_score_count"),
+              "hard_filter_failed_count": len(hard_failed),
+              "provider_or_llm_requests": 0,
+          }
+          print(json.dumps(proof, sort_keys=True))
+          PY
+          "$RUNTIME_PYTHON" - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ["RUNNER_TEMP"]) / "f4b-affinity-post.json"
+          report = json.loads(path.read_text(encoding="utf-8"))
+          if report.get("would_change_count") != 0:
+              raise SystemExit(f"F4B_C1_NOT_CONVERGED:{report.get('would_change_count')}")
+          print("F4B_A1_C1_CONVERGENCE=PASS")
+          PY
+
+      - name: Preserve bounded A1 C1 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4b-a1-c1-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/migration-before.txt
+            ${{ runner.temp }}/migration-apply.txt
+            ${{ runner.temp }}/f4b-affinity-plan.json
+            ${{ runner.temp }}/f4b-affinity-apply.json
+            ${{ runner.temp }}/f4b-affinity-post.json
+            ${{ runner.temp }}/f4b-product-proof.json
+          if-no-files-found: error
+          retention-days: 2
