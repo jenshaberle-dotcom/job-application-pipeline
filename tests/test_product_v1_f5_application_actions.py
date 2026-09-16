@@ -101,6 +101,6 @@ def test_action_source_has_no_external_submission_or_email_path() -> None:
     assert "selenium" not in source
     assert "playwright" not in source
     assert "gmail api" not in source
-    assert "authority_kind":="operator_confirmation" if False else True
+    assert "'operator_confirmation'" in source
     assert "external_submission_action" in source
     assert "record_operator_confirmed_submission" in source
