@@ -1,0 +1,101 @@
+[data-f4c-hidden="true"] {
+  display: none !important;
+}
+
+.data-layers-screen .dl-source-card {
+  display: none !important;
+}
+
+.f4c-health-summary {
+  min-width: 116px;
+}
+
+.f4c-health-card {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(87, 197, 255, 0.24);
+  border-radius: 12px;
+  background: rgba(9, 30, 44, 0.78);
+}
+
+.f4c-health-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.f4c-health-card-head > div > span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #62d6ff;
+}
+
+.f4c-health-card-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.f4c-health-status {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.f4c-health-status.good {
+  color: #6ee7b7;
+}
+
+.f4c-health-status.bad {
+  color: #fb7185;
+}
+
+.f4c-health-status.warn {
+  color: #fbbf24;
+}
+
+.f4c-health-reason,
+.f4c-health-boundary {
+  margin: 10px 0 0;
+  color: #9fb4c5;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.f4c-health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin-top: 14px;
+}
+
+.f4c-health-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.f4c-health-grid span {
+  color: #7f9bb0;
+  font-size: 0.68rem;
+}
+
+.f4c-health-grid b {
+  overflow-wrap: anywhere;
+  font-size: 0.76rem;
+  color: #e7f5ff;
+}
+
+@media (max-width: 1050px) {
+  .f4c-health-grid {
+    grid-template-columns: 1fr;
+  }
+}
