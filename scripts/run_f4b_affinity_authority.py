@@ -283,8 +283,8 @@ def _apply_one(
                         jsonb_build_object(
                             'authority','pd-052',
                             'status','authoritative',
-                            'assessment_detail_sha256',%s,
-                            'policy_version',%s
+                            'assessment_detail_sha256',CAST(%s AS text),
+                            'policy_version',CAST(%s AS text)
                         )
                     ),
                 ranking_updated_at=now()
