@@ -1,100 +1,95 @@
 # F4B Operator Gate 001 — Fit + Affinity authority
 
-Status: **OPERATOR DECISION REQUIRED**
+Status: **OPERATOR DECIDED — A1 + C1 APPROVED; B/COMBINED DEFERRED**
 
-This is the first genuine F4B operator gate. The provider-free/read-only engineering work has been exhausted far enough that the next changes would alter Product authority rather than merely expose existing truth.
+Decision date: 2026-09-16
 
-Evidence basis before this gate documentation:
+This is the first genuine F4B operator gate. The provider-free/read-only engineering work was exhausted far enough that the next changes would alter Product authority rather than merely expose existing truth.
 
-- exact candidate head `969b218b51d1392ce1b05ac67b4423054287f444`;
-- Pipeline CI `35002352454` — SUCCESS;
-- Re-Entry `35002352154` — SUCCESS;
-- real warm Product reconciliation `35002347221` — SUCCESS;
-- artifact `10410505725`;
+Evidence basis before the operator decision:
+
+- candidate gate head `24cdd0140b0fc8499ddffaa0e0ab61610b16b72c`;
+- Pipeline CI `35002871935` — SUCCESS;
+- Re-Entry `35002871734` — SUCCESS;
+- real warm Product reconciliation `35002867627` — SUCCESS;
 - 71 current Product jobs, 67 fresh same-Origin Affinity observations, 4 unavailable/404;
 - 0 DB writes, 0 provider calls, 0 paid-provider spend.
 
-No Combined-score formula is being approved at this gate. Current Fit completeness is insufficient for a meaningful arithmetic-vs-geometric comparison.
+The operator explicitly confirmed that the current cohort has **no authoritative Combined score** and that this is acceptable for the current freeze campaign. Numeric Candidate<->Job Fit automation, generic skill-extraction hardening and Combined-score calibration are deliberately deferred to the next freeze campaign rather than being forced through insufficient evidence now.
 
 ## Decision A — authoritative minimum quality threshold
 
-**Recommendation: A1 — restore/canonicalize 70/100.**
+**APPROVED: A1 — restore/canonicalize 70/100.**
 
-A1. `70/100` remains authoritative, matching approved `PD-051`. The runtime `60` value is treated as historical DEMO-001 drift and must be corrected through normal Product policy migration/qualification.
+`70/100` remains authoritative, matching approved `PD-051`. The runtime `60` value is historical DEMO-001 drift and must be corrected through the normal Product policy migration/qualification path.
 
-A2. Explicitly supersede `PD-051` and approve `60/100` as the new authority.
-
-A3. Leave the contradiction unresolved and freeze ranking mutation until a later Combined-score decision.
-
-Why A1 is recommended:
+Rationale:
 
 - `PD-051` still says 70;
 - the historical 60-cutoff path was explicitly designed to obtain five recommendations;
-- current `PD-050` forbids quota filling and F4B explicitly makes Top 5 a derived projection;
+- `PD-050` forbids quota filling and F4B keeps Top 5 as an at-most projection;
 - restoring 70 repairs governance without manufacturing Fit or changing the current zero-rankable truth.
 
-## Decision B — what exact Candidate capability overlap may authorize
+## Decision B — Candidate capability overlap authority
 
-**Recommendation: B1 — strict positive-only evidence for the skill subfactor.**
+**DEFERRED — no B option is approved for the current freeze campaign.**
 
-B1. When current job-side bounded skill evidence exists and **every observed skill** is exactly backed by approved Candidate Fact capability evidence, JAP may mark only the **observed-skill subfactor** as passed. Partial overlap, zero overlap, missing job skills, or stale review bindings remain `unknown/manual_review_required`. Missing Candidate tags may **never** auto-fail Fit. Seniority, employment, hours, language and geography remain separate gates.
+B1 remains the preferred future direction: strict positive-only evidence may eventually allow an observed-skill subfactor to pass when every observed job-side skill is exactly backed by approved Candidate Fact capability evidence. However, the operator explicitly judged the current generic skill-extraction basis as not mature enough to promote even that rule into Product authority now.
 
-B2. Allow a majority rule such as `>=50%` exact observed-skill overlap to pass the skill subfactor. Zero/missing remains unknown; never auto-fail.
-
-B3. Keep all capability Fit manual; exact overlap remains explanatory/prioritization evidence only and grants no Fit authority.
-
-Current cohort impact for orientation:
+Current evidence supporting deferral:
 
 - B1 would positively resolve only 3 current observed-skill subfactors;
-- B2 would positively resolve 15;
-- B3 would resolve none automatically.
+- B2 (`>=50%` exact overlap) would resolve 15, but the present extraction/candidate-tag coverage cannot justify that broader authority;
+- missing Candidate tags remain non-negative evidence;
+- the six historical `passed` capability reviews remain revision-stale and may not be rebound automatically.
 
-Why B1 is recommended:
+Stable residual: **`F4B-FOLLOWUP-001`**.
 
-- approved Candidate Fact capability tags are intentionally narrow, so absence is not negative evidence;
-- the job-skill extractor is useful but not proven exhaustive enough for negative inference;
-- B1 permits only a one-way positive claim that is directly evidenced and keeps every ambiguous case fail-closed;
-- it is sufficient to validate the production plumbing without optimizing the rankable count.
-
-The six stale historical `passed` reviews are **not** part of this choice: exact-head/revision discipline already forbids rebinding them automatically. They must remain stale until a fresh review or newly approved deterministic authority resolves them.
+The next freeze campaign should revisit capability Fit only after broader connector maturity and a larger real-job cohort provide a stronger generic extraction calibration set and/or enough evidence to qualify an ML-assisted skill understanding layer. Until then, partial/zero/missing capability overlap remains `unknown/manual_review_required` and grants no new Fit authority.
 
 ## Decision C — role of the existing PD-052 score in F4B
 
-**Recommendation: C1 — approve PD-052 components/weights as the initial Affinity authority, independent of Fit gates.**
+**APPROVED: C1 — PD-052 components/weights become the initial Affinity authority, independent of Fit gates.**
 
-C1. The existing deterministic components and approved weight vector (`40% profile direction / 25% reliability / 20% data / 15% evidence quality`) become the F4B **Affinity/desirability** score. It answers only `Will ich diesen Job?` and is calculated independently of Candidate Fit/hard-filter status. It may not override a hard Fit conflict. A fresh same-Origin but not-yet-persisted detail revision may be shown as provisional Affinity evidence but must be persisted/requalified before authoritative Combined ranking.
+The existing deterministic components and approved weight vector (`40% profile direction / 25% reliability / 20% data / 15% evidence quality`) are the F4B **Affinity/desirability** score. It answers only `Will ich diesen Job?` and is calculated independently of Candidate Fit/hard-filter completion.
 
-C2. Keep PD-052 only as the legacy ranking score and design a new Affinity rubric before F4B continues.
+Boundaries:
 
-C3. Keep Affinity read-only/non-authoritative throughout F4B and use it only after full Candidate Fit is known.
+- Affinity may not override a hard Fit conflict or missing required Fit evidence;
+- a fresh same-Origin but not-yet-persisted detail revision may be shown only as provisional Affinity evidence until persisted/requalified;
+- C1 does not create numeric Candidate Fit;
+- C1 does not create a Combined score;
+- C1 does not authorize ML/LLM ranking authority.
 
-Why C1 is recommended:
+Rationale:
 
-- the current deterministic rubric already measures the desirability/direction dimensions F4B calls Affinity;
+- the deterministic rubric already measures the desirability/direction dimensions F4B calls Affinity;
 - its weights still exactly match approved PD-052;
 - fresh real-cohort evidence exists for 67/71 jobs;
-- separating calculation from Fit gates fixes the current architecture mismatch without inventing a new scoring model during the freeze campaign;
-- later operator feedback or learned methods can improve Affinity without blocking the current freeze.
+- separating Affinity calculation from Fit gates fixes the current architecture mismatch without inventing a new scoring model during the freeze campaign.
 
-## What is already decided and is not being reopened
+## Combined score — explicitly deferred
+
+No arithmetic, geometric or other Combined-score formula is approved in this campaign. The current state of **0 authoritative Combined scores** is accepted repo/product truth, not an F4B blocker.
+
+Combined calibration moves with `F4B-FOLLOWUP-001` to the next freeze campaign after capability/skill evidence is materially stronger. That later campaign may compare Fit-dominant arithmetic and stronger low-component-penalty formulas only on sufficiently evidenced real jobs.
+
+## What remains unchanged
 
 - `PD-050`: Top 5 means at most five; no fill.
 - Explicit hard-filter conflict remains blocking.
 - Unknown evidence is not a midpoint and is not silently positive.
-- Hannover Re 20h/week and fixed-term examples are true negative hard-gate evidence.
-- Existing `PD-020..023` geography/work-model preferences remain the authority; current geography unknowns are a technical evidence/materialization problem, not a request for new preferences.
+- Hannover Re 20h/week and fixed-term examples remain true negative hard-gate evidence.
+- Existing `PD-020..023` geography/work-model preferences remain authority; current geography unknowns are an evidence/materialization issue, not a request for new preferences.
 - No employer-specific exception, ML/LLM ranking authority, automatic application, or automatic email action is authorized.
 
-## After operator decision
+## Authorized current-campaign implementation
 
-If the operator approves `A1 + B1 + C1`, the next engineering slice is deterministic and bounded:
+Only these two authority changes are authorized now:
 
-1. record the decisions in the Product Decision Register;
-2. correct the runtime quality threshold to 70 through a new migration/qualification path;
-3. make PD-052 Affinity independent of Fit gates while preserving the score breakdown/explanations;
-4. implement the B1 positive-only observed-skill subfactor and leave every other capability case unknown;
-5. project existing PD-020..023 geography semantics from generic job-location evidence without inventing missing commute facts;
-6. invalidate/supersede stale capability reviews rather than rebinding them;
-7. rerun the current cohort and only then determine whether enough complete Fit rows exist to compare Combined-score formulas.
+1. **A1:** restore runtime `minimum_quality_score` to `70/100` through a new migration/qualification path without mutating historical migrations.
+2. **C1:** make the existing PD-052 score available as explicit Affinity/desirability independent of Candidate Fit/hard-filter completion, preserving component breakdown, uncertainty and exact evidence binding.
 
-If another option is selected, implement exactly that authority instead. No release/merge is authorized merely by creating this gate document.
+Do **not** implement B1, capability auto-fit, skill-extraction expansion, numeric Fit or Combined scoring in this freeze campaign.
+
+After A1+C1 exact-head qualification, the normal package flow remains merge -> immutable release -> automatic local deploy -> installed operator acceptance. `F4B-FOLLOWUP-001` must remain carried into the next freeze campaign and must not block F4C/F5/F6 merely because Combined scoring is absent.
