@@ -170,6 +170,50 @@
         "github:jenshaberle-dotcom/job-application-pipeline/pull/644",
         "repo:docs/knowledge/drj_branch_dispositions_20260916_batch2.md#featureruntime-runner-selector-hardening"
       ]
+    },
+    {
+      "branch": "agent/f2-acceptance-cohort",
+      "expected_sha": "dc923a3577533dcd1ab8190f295bbe0476ab4dff",
+      "semantic_disposition": "DEPRECATED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/862",
+        "git:commit:fb06e1191ae044d0c0547e9136c7860b097bdf5b",
+        "repo:docs/planning/active/f3_truth_lifecycle_hardening.md#entry-gate",
+        "repo:docs/knowledge/drj_branch_dispositions_20260916_batch3.md#agentf2-acceptance-cohort"
+      ]
+    },
+    {
+      "branch": "agent/f2-operator-cold-e2e",
+      "expected_sha": "cd850f5e32fdc61fdd0a1b9f148e3ea4347e3b25",
+      "semantic_disposition": "DEPRECATED",
+      "unique_history_disposition": "REJECTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/pull/862",
+        "git:commit:fb06e1191ae044d0c0547e9136c7860b097bdf5b",
+        "repo:docs/planning/active/f3_truth_lifecycle_hardening.md#entry-gate",
+        "repo:docs/knowledge/drj_branch_dispositions_20260916_batch3.md#agentf2-operator-cold-e2e"
+      ]
+    },
+    {
+      "branch": "agent/rcc-step1-wsl-inventory-001a",
+      "expected_sha": "ba154ec46b8dd9ad0c0da4eb28c2baaa444bffa1",
+      "semantic_disposition": "RETIRE",
+      "unique_history_disposition": "HARVESTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/actions/runs/34631891824",
+        "repo:docs/knowledge/drj_branch_dispositions_20260916_batch3.md#agentrcc-step1-wsl-inventory-001a"
+      ]
+    },
+    {
+      "branch": "rcc-workload-ready-jap-canary",
+      "expected_sha": "b575c3f057792ca48927721435460f7e1a5f012d",
+      "semantic_disposition": "RETIRE",
+      "unique_history_disposition": "HARVESTED",
+      "evidence_refs": [
+        "github:jenshaberle-dotcom/job-application-pipeline/actions/runs/34356910371",
+        "repo:docs/knowledge/drj_branch_dispositions_20260916_batch3.md#rcc-workload-ready-jap-canary"
+      ]
     }
   ]
 }
