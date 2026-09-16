@@ -45,13 +45,13 @@ CREATE OR REPLACE VIEW gold_product_v1_affinity AS
 SELECT
     assessment.silver_job_id,
     review.overall_quality_score AS affinity_score,
-    (review.component_scores ->> 'profile_direction_score')::numeric
+    (review.component_scores ->> 'profile_direction_score')::numeric(6,2)
         AS profile_direction_score,
-    (review.component_scores ->> 'reliability_focus_score')::numeric
+    (review.component_scores ->> 'reliability_focus_score')::numeric(6,2)
         AS reliability_focus_score,
-    (review.component_scores ->> 'data_focus_score')::numeric
+    (review.component_scores ->> 'data_focus_score')::numeric(6,2)
         AS data_focus_score,
-    (review.component_scores ->> 'evidence_quality_score')::numeric
+    (review.component_scores ->> 'evidence_quality_score')::numeric(6,2)
         AS evidence_quality_score,
     review.assessment_updated_at,
     review.assessment_detail_sha256,
