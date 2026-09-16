@@ -1,6 +1,6 @@
 # F5 — Application Lifecycle + Outcome Tracking
 
-Status: ACTIVE — read-only reconciliation first
+Status: ACTIVE — Slice B authoritative lifecycle foundation
 
 Canonical issue: `#737 / APP-TRACK-001`
 
@@ -21,43 +21,59 @@ The operator must be able to answer which applications are active, when/how they
 5. **Append-only provenance.** Authoritative lifecycle/history changes must be append-only or explicitly superseding; no destructive rewrite of historical state.
 6. **Deterministic first.** Exact identity/thread/domain/rule evidence is used before any model assistance. A future model may assist residual ambiguity but does not create authority.
 
-## Repository baseline before F5 mutation
+## Slice A — COMPLETE
 
-At `main@1fa2f36a4881a481f44c4d4ae32f7e1b7479f99b`:
+Merged by PR `#911` as `main@80dd0d1017fb46cc9cea9f2f34bea78924febc2e`.
 
-- migration `077_create_product_v1_monolith_foundation.sql` provides `application_source_documents` and `application_draft_requests`;
-- `application_draft_requests.status` stops at preparation/review states: `blocked_missing_sources`, `blocked_job_not_eligible`, `ready_for_generation`, `drafted_for_review`, `approved_by_operator`, `rejected_by_operator`;
-- no submitted timestamp/channel, employer-response event, interview, offer/rejection outcome or append-only post-submit status authority is defined by that table;
-- the current `Applications` Control Center surface deliberately renders a future lifecycle and states `No submitted applications yet` rather than fabricating persisted applications;
-- the public repository contains planning references to Gmail but no Gmail implementation.
+Exact tested candidate: `b990b1f16e8ee5e49e5e435afa2aab9578e435e5`.
 
-These are repository observations only. Real Product DB truth must be reconciled before schema or authority changes.
+Terminal evidence:
 
-## Frozen-package slices
+- F5 reconciliation run `35125652183`: SUCCESS;
+- Pipeline CI `35125652472`: SUCCESS;
+- Re-entry target identity `35125652242`: SUCCESS;
+- evidence artifact `10459645819`, zip SHA256 `37b3a36bdf9ac5cc13e737b207fc83e4f4776bdf1446e61cedf7ad15080fd8d1`.
 
-### Slice A — read-only lifecycle reconciliation
+Real Product DB truth before lifecycle mutation:
 
-Measure the real Product DB and current UI/schema without mutation:
+- application-shaped relations: `3`;
+- `application_draft_requests`: `0` rows / `0` distinct jobs;
+- submitted-like draft states: `0`;
+- post-submit/submission/event/outcome candidate relations: `0`;
+- DB writes/provider calls/Gmail reads/email actions/submission actions/application-state mutations: all `0`.
 
-- relation/column inventory for current application tables/read models;
-- row counts and status counts for application source documents and draft requests;
-- distinct job identities represented by draft requests;
-- presence of any existing post-submit/submission/event/status relations;
-- whether current Product/UI has a persisted application-portfolio source or only static future-state copy;
-- exact zero-side-effect boundaries.
+Conclusion: there is no historical submitted-application/event authority to migrate. Slice B may introduce a clean additive foundation.
 
-The output is diagnostic authority only. It must not create a lifecycle policy merely because a similarly named relation exists.
+## Slice B — ACTIVE
 
-### Slice B — authoritative application lifecycle + provenance schema
+Migration `112_create_authoritative_application_lifecycle.sql` defines four distinct layers:
 
-Only after Slice A evidence:
+1. `applications` — prepared application identity bound to exact Silver job identity snapshot. Presence means **Prepared**, never Applied.
+2. `application_submissions` — the **only submission authority**, one explicit submission record per application, requiring timestamp/channel plus `operator_confirmation` or `approved_authoritative_record` provenance.
+3. `application_lifecycle_events` — append-only authoritative post-submit events. Corrections add a new event using `supersedes_event_id`; history is not rewritten.
+4. `application_event_candidates` — communication evidence only. Gmail/manual/runtime evidence may create candidates, but candidate existence/review never directly advances authoritative lifecycle stage.
 
-- define authoritative application identity and append-only submission/status event model;
-- bind exact Silver/job/employer identity and explicit operator-confirmed submission timestamp/channel;
-- add read models that distinguish authoritative state from evidence candidates;
-- provider-free transition/idempotency/ambiguity tests.
+`gold_product_v1_application_tracking` derives the operator-facing authoritative stage only from prepared identity + explicit submission + active authoritative events:
 
-### Slice C — read-only Gmail evidence bridge
+`prepared -> applied -> reply -> interview -> offer -> closed`
+
+Evidence candidates may set `attention_status=evidence_review_required`, but do not affect `authoritative_stage`.
+
+### Slice B acceptance
+
+- historical migrations remain byte-immutable;
+- migration 112 is the sole pending migration before apply;
+- schema/constraints prove identity, submission authority, append-only lifecycle and evidence-candidate separation;
+- stage derivation excludes candidate classification/review state;
+- correction/supersession cannot delete prior lifecycle history;
+- no Gmail/provider/send/automatic-submit path exists;
+- focused tests + Ruff + full CI green on exact head;
+- migration preflight proves 0 checksum drift and exact sole-pending target;
+- apply uses exact migration 112 only;
+- post-apply real DB proof verifies relations/view and zero seeded application/submission/event/candidate rows;
+- only then may Slice C start.
+
+## Slice C — queued: read-only Gmail evidence bridge
 
 Private runtime only:
 
@@ -65,7 +81,7 @@ Private runtime only:
 - normalized evidence candidate payloads with message/thread IDs, sender/domain, timestamps and bounded evidence excerpts/fingerprints;
 - prove zero send/reply/archive/delete actions.
 
-### Slice D — deterministic-first event classification
+## Slice D — queued: deterministic-first event classification
 
 Initial classes:
 
@@ -73,7 +89,7 @@ Initial classes:
 
 Every result carries reason/evidence and application-match provenance. Model assistance, if later justified, is residual-only and cannot silently mutate lifecycle authority.
 
-### Slice E — Control Center lifecycle UX
+## Slice E — queued: Control Center lifecycle UX
 
 Primary operator surface stays simple:
 
@@ -81,28 +97,17 @@ Primary operator surface stays simple:
 
 Attention/next-action is primary. Evidence, uncertainty and provenance use progressive disclosure. This package must not absorb the broader post-freeze UX simplification work tracked in `#910`.
 
-### Slice F — bounded transition automation
+## Slice F — queued: bounded transition automation
 
 Only after measured precision and explicit operator policy approval. False authoritative transition count must remain zero during shadow/canary.
 
 ## Sole next action
 
-Implement and run **Slice A only** as an exact-head, provider-free, network-free, read-only Product reconciliation against the real local PostgreSQL state. Record its cohort/schema findings before introducing a migration or lifecycle write path.
-
-## Acceptance for Slice A
-
-- exact source SHA is recorded;
-- real DB transaction is read-only;
-- application relation/column inventory is explicit;
-- counts/statuses are measured rather than inferred;
-- draft/review states are never relabelled as submitted;
-- existence of a relation alone never makes it application-state authority;
-- current UI/static future-state is distinguished from persisted truth;
-- `db_writes=0`, `provider_calls=0`, `gmail_reads=0`, `email_actions=0`, `application_state_mutations=0`.
+Qualify **Slice B** on an exact head, prove migration 112 is the sole pending migration with zero checksum drift, then apply exactly migration 112 and run a post-apply real Product DB contract proof before any Gmail read or lifecycle write path is introduced.
 
 ## Sequencing
 
-Current frozen campaign order is now:
+Current frozen campaign order remains:
 
 `F5 -> F6`
 
