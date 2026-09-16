@@ -1,25 +1,47 @@
-name: F5 application lifecycle reconciliation
+name: F5 application lifecycle qualification
 
 on:
   pull_request:
     paths:
       - ".github/workflows/f5-application-lifecycle-reconciliation.yml"
+      - "db/migrations/112_create_authoritative_application_lifecycle.sql"
       - "scripts/run_f5_application_lifecycle_reconciliation.py"
+      - "scripts/run_f5_application_lifecycle_schema_qualification.py"
       - "tests/test_f5_application_lifecycle_reconciliation.py"
+      - "tests/test_f5_application_lifecycle_schema_qualification.py"
+      - "tests/test_f5_authoritative_application_lifecycle_contract.py"
       - "docs/current/REENTRY.md"
       - "docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "F5 Slice-B phase"
+        required: true
+        default: preflight
+        type: choice
+        options:
+          - preflight
+          - apply
+          - postapply
+      source_sha:
+        description: "Exact source SHA to qualify/apply"
+        required: true
+        type: string
+      approval_token:
+        description: "Required only for apply mode"
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: f5-application-lifecycle-reconciliation-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: f5-application-lifecycle-qualification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  reconcile:
-    name: Read-only real Product application lifecycle baseline
+  qualify:
+    name: F5 lifecycle schema exact-head qualification
     if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
@@ -27,15 +49,27 @@ jobs:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
-      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      OUTPUT: /tmp/jap-f5-application-lifecycle-reconciliation.json
+      MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'preflight' }}
+      SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+      APPROVAL_TOKEN: ${{ inputs.approval_token || '' }}
+      OUTPUT: /tmp/jap-f5-application-lifecycle-schema-qualification.json
+      TARGET_MIGRATION: 112_create_authoritative_application_lifecycle.sql
 
     steps:
       - name: Check out exact source
         uses: actions/checkout@v4
         with:
           ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
           persist-credentials: false
+
+      - name: Prove exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$SOURCE_SHA"
+          echo "F5_EXACT_SOURCE=PASS source=$actual mode=$MODE"
 
       - name: Resolve verified RCC runtime context
         shell: bash
@@ -96,13 +130,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m py_compile scripts/run_f5_application_lifecycle_reconciliation.py
-          "$RUNTIME_PYTHON" -m pytest -q tests/test_f5_application_lifecycle_reconciliation.py
+          "$RUNTIME_PYTHON" -m py_compile \
+            scripts/run_f5_application_lifecycle_reconciliation.py \
+            scripts/run_f5_application_lifecycle_schema_qualification.py
+          "$RUNTIME_PYTHON" -m pytest -q \
+            tests/test_f5_application_lifecycle_reconciliation.py \
+            tests/test_f5_application_lifecycle_schema_qualification.py \
+            tests/test_f5_authoritative_application_lifecycle_contract.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/run_f5_application_lifecycle_reconciliation.py \
-            tests/test_f5_application_lifecycle_reconciliation.py
+            scripts/run_f5_application_lifecycle_schema_qualification.py \
+            tests/test_f5_application_lifecycle_reconciliation.py \
+            tests/test_f5_application_lifecycle_schema_qualification.py \
+            tests/test_f5_authoritative_application_lifecycle_contract.py
 
-      - name: Run exact-head real DB reconciliation read-only
+      - name: Run exact-head real DB migration preflight read-only
+        if: ${{ env.MODE == 'preflight' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -111,65 +154,70 @@ jobs:
           source "$RUNTIME_ENV_FILE"
           set +a
           export PGOPTIONS="-c default_transaction_read_only=on"
-          "$RUNTIME_PYTHON" -m scripts.run_f5_application_lifecycle_reconciliation \
+          "$RUNTIME_PYTHON" -m scripts.run_f5_application_lifecycle_schema_qualification \
+            --phase preflight \
             --source-sha "$SOURCE_SHA" \
             --output "$OUTPUT"
 
-      - name: Verify F5 truth and side-effect boundary
+      - name: Prove apply authority is exact current main
+        if: ${{ env.MODE == 'apply' }}
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" - "$OUTPUT" "$SOURCE_SHA" <<'PY'
-          import json
-          import sys
-          from pathlib import Path
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$APPROVAL_TOKEN" = "F5-SLICE-B-MIGRATION-112"
+          git fetch origin main --depth=1
+          main_sha="$(git rev-parse FETCH_HEAD)"
+          test "$SOURCE_SHA" = "$main_sha"
+          echo "F5_SCHEMA_APPLY_AUTHORITY=PASS source=$SOURCE_SHA target=$TARGET_MIGRATION"
 
-          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          expected_sha = sys.argv[2]
-          if report.get("source_sha") != expected_sha:
-              raise SystemExit("F5_SOURCE_SHA_MISMATCH")
-          if report.get("authority") != "diagnostic_only_no_application_lifecycle_mutation":
-              raise SystemExit("F5_AUTHORITY_BOUNDARY_MISMATCH")
+      - name: Apply exact lifecycle migration 112
+        if: ${{ env.MODE == 'apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          unset PGOPTIONS
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
+            --apply-exact "$TARGET_MIGRATION" \
+            --require-sole-pending \
+            --applied-by f5-slice-b-exact-workflow
+          echo "F5_SCHEMA_EXACT_APPLY=PASS source=$SOURCE_SHA target=$TARGET_MIGRATION"
 
-          findings = report.get("authority_findings") or {}
-          if findings.get("draft_request_is_submission_authority") is not False:
-              raise SystemExit("F5_DRAFT_PROMOTED_TO_SUBMISSION_AUTHORITY")
-          if findings.get("draft_or_operator_approval_implies_submitted") is not False:
-              raise SystemExit("F5_APPROVAL_PROMOTED_TO_SUBMITTED")
-          if findings.get("relation_name_alone_creates_lifecycle_authority") is not False:
-              raise SystemExit("F5_RELATION_NAME_PROMOTED_TO_AUTHORITY")
-          if findings.get("gmail_evidence_is_application_state_authority") is not False:
-              raise SystemExit("F5_GMAIL_PROMOTED_TO_APPLICATION_AUTHORITY")
+      - name: Prove post-apply source is exact current main
+        if: ${{ env.MODE == 'postapply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          git fetch origin main --depth=1
+          main_sha="$(git rev-parse FETCH_HEAD)"
+          test "$SOURCE_SHA" = "$main_sha"
+          echo "F5_SCHEMA_POSTAPPLY_SOURCE=PASS source=$SOURCE_SHA"
 
-          boundaries = report.get("boundaries") or {}
-          expected = {
-              "db_writes": 0,
-              "provider_calls": 0,
-              "network_probes": 0,
-              "gmail_reads": 0,
-              "email_actions": 0,
-              "application_submission_actions": 0,
-              "application_state_mutations": 0,
-              "ranking_authority_changed": False,
-              "top5_authority_changed": False,
-          }
-          for key, value in expected.items():
-              if boundaries.get(key) != value:
-                  raise SystemExit(f"F5_BOUNDARY_MISMATCH:{key}={boundaries.get(key)!r}")
+      - name: Run post-apply real DB proof read-only
+        if: ${{ env.MODE == 'postapply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_application_lifecycle_schema_qualification \
+            --phase postapply \
+            --source-sha "$SOURCE_SHA" \
+            --output "$OUTPUT"
 
-          summary = report.get("summary") or {}
-          print(f"F5_REAL_DB_RELATIONS={summary.get('application_relation_count')}")
-          print(f"F5_REAL_DB_DRAFTS={summary.get('application_draft_request_count')}")
-          print(f"F5_REAL_DB_DRAFT_JOBS={summary.get('application_draft_distinct_job_count')}")
-          print(f"F5_REAL_DB_DRAFT_STATUSES={json.dumps(summary.get('application_draft_status_counts') or {}, sort_keys=True)}")
-          print(f"F5_REAL_DB_POST_SUBMIT_CANDIDATE_RELATIONS={summary.get('post_submit_candidate_relation_count')}")
-          print("F5_READ_ONLY_BOUNDARY=PASS")
-          PY
-
-      - name: Upload F5 reconciliation evidence
+      - name: Upload F5 lifecycle qualification evidence
+        if: ${{ env.MODE != 'apply' }}
         uses: actions/upload-artifact@v4
         with:
-          name: f5-application-lifecycle-reconciliation-${{ env.SOURCE_SHA }}
+          name: f5-application-lifecycle-${{ env.MODE }}-${{ env.SOURCE_SHA }}
           path: ${{ env.OUTPUT }}
           if-no-files-found: error
           retention-days: 14
