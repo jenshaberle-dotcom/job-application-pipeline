@@ -350,7 +350,7 @@ function JobDetail({ job, payload, refresh }: { job: Job; payload: ProductPayloa
 function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
   const [filter, setFilter] = useState<JobFilter>("all");
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<JobSort>("newest");
+  const [sort, setSort] = useState<JobSort>("fit_desc");
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
