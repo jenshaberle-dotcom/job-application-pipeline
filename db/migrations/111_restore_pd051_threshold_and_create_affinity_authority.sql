@@ -78,3 +78,144 @@ WHERE assessment.origin_validation_status = 'validated'
 
 COMMENT ON VIEW gold_product_v1_affinity IS
 'F4B C1 exact-bound PD-052 Affinity/desirability authority. Affinity answers whether a job is attractive; it is not Candidate Fit, Combined score, hard-filter override or Top-5 authority.';
+
+-- Preserve the canonical Product V1 readiness column contract from migration
+-- 109, but source the four legacy score columns and overall_quality_score only
+-- from exact-bound Affinity authority. This prevents stale score persistence
+-- from making a job rankable after an unrelated assessment revision changes.
+-- Explicit affinity_* fields are appended for the API/UI.
+CREATE OR REPLACE VIEW gold_product_v1_job_readiness AS
+WITH approved_policy AS (
+    SELECT *
+    FROM product_v1_ranking_policy
+    WHERE policy_key = 'default'
+), scored AS (
+    SELECT
+        silver.id AS silver_job_id,
+        silver.title,
+        silver.company_name,
+        silver.city,
+        silver.country,
+        silver.publication_date,
+        silver.source_name,
+        silver.source_url,
+        silver.canonical_source_type,
+        assessment.origin_validation_status,
+        CASE coalesce(lifecycle.lifecycle_status, 'stale_needs_refresh')
+            WHEN 'active_confirmed' THEN 'active'
+            WHEN 'inactive_confirmed' THEN 'inactive'
+            ELSE 'unknown'
+        END AS activity_status,
+        coalesce(hard_filter.hard_filter_status, 'unknown') AS hard_filter_status,
+        affinity.profile_direction_score,
+        affinity.data_focus_score,
+        affinity.reliability_focus_score,
+        affinity.evidence_quality_score,
+        affinity.affinity_score AS overall_quality_score,
+        assessment.work_model,
+        assessment.commute_minutes,
+        assessment.public_transport_quality,
+        assessment.explanations,
+        assessment.uncertainties,
+        policy.policy_key,
+        policy.policy_version,
+        hard_filter.hard_filter_reasons,
+        hard_filter.salary_signal,
+        policy.status AS ranking_policy_status,
+        coalesce(lifecycle.lifecycle_status, 'stale_needs_refresh') AS lifecycle_status,
+        lifecycle.last_positive_observed_at,
+        lifecycle.last_health_checked_at,
+        coalesce(
+            lifecycle.lifecycle_evidence_reason,
+            'no_explicit_health_baseline'
+        ) AS lifecycle_evidence_reason,
+        lifecycle.latest_health_outcome,
+        lifecycle.latest_health_coverage,
+        assessment.activity_status AS assessment_activity_status,
+        affinity.affinity_score,
+        affinity.profile_direction_score AS affinity_profile_direction_score,
+        affinity.reliability_focus_score AS affinity_reliability_focus_score,
+        affinity.data_focus_score AS affinity_data_focus_score,
+        affinity.evidence_quality_score AS affinity_evidence_quality_score,
+        coalesce(affinity.affinity_authority, 'pd-052') AS affinity_authority,
+        coalesce(
+            affinity.affinity_authority_status,
+            'unavailable'
+        ) AS affinity_authority_status
+    FROM silver_jobs silver
+    JOIN gold_vacancy_identity identity
+      ON identity.silver_job_id = silver.id
+     AND identity.is_representative
+    LEFT JOIN job_product_assessments assessment
+      ON assessment.silver_job_id = silver.id
+    LEFT JOIN gold_product_v1_hard_filter_evaluation hard_filter
+      ON hard_filter.silver_job_id = silver.id
+    LEFT JOIN approved_policy policy
+      ON policy.policy_key = 'default'
+    LEFT JOIN gold_job_lifecycle_health lifecycle
+      ON lifecycle.silver_job_id = silver.id
+    LEFT JOIN gold_product_v1_affinity affinity
+      ON affinity.silver_job_id = silver.id
+)
+SELECT
+    silver_job_id,
+    title,
+    company_name,
+    city,
+    country,
+    publication_date,
+    source_name,
+    source_url,
+    canonical_source_type,
+    origin_validation_status,
+    activity_status,
+    hard_filter_status,
+    profile_direction_score,
+    data_focus_score,
+    reliability_focus_score,
+    evidence_quality_score,
+    overall_quality_score,
+    work_model,
+    commute_minutes,
+    public_transport_quality,
+    explanations,
+    uncertainties,
+    policy_key,
+    policy_version,
+    CASE
+        WHEN origin_validation_status IS NULL THEN 'assessment_required'
+        WHEN origin_validation_status = 'rejected' THEN 'blocked_origin'
+        WHEN origin_validation_status = 'pending'
+            THEN 'origin_validation_required'
+        WHEN activity_status = 'inactive' THEN 'blocked_inactive'
+        WHEN activity_status = 'unknown'
+            THEN 'activity_evidence_required'
+        WHEN hard_filter_status = 'failed' THEN 'blocked_hard_filter'
+        WHEN hard_filter_status = 'unknown'
+            THEN 'hard_filter_evidence_required'
+        WHEN overall_quality_score IS NULL THEN 'assessment_required'
+        WHEN ranking_policy_status <> 'approved'
+            THEN 'ranking_policy_required'
+        ELSE 'rankable'
+    END AS product_readiness_status,
+    hard_filter_reasons,
+    salary_signal,
+    ranking_policy_status,
+    lifecycle_status,
+    last_positive_observed_at,
+    last_health_checked_at,
+    lifecycle_evidence_reason,
+    latest_health_outcome,
+    latest_health_coverage,
+    assessment_activity_status,
+    affinity_score,
+    affinity_profile_direction_score,
+    affinity_reliability_focus_score,
+    affinity_data_focus_score,
+    affinity_evidence_quality_score,
+    affinity_authority,
+    affinity_authority_status
+FROM scored;
+
+COMMENT ON VIEW gold_product_v1_job_readiness IS
+'Canonical Product V1 readiness with exact-bound PD-052 Affinity. Legacy score fields are Affinity compatibility fields; hard gates still own rankability and Affinity is not Candidate Fit or Combined score.';
