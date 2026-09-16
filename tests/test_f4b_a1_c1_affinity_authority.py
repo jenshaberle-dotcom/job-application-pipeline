@@ -3,7 +3,7 @@ from pathlib import Path
 
 MIGRATION = Path("db/migrations/111_restore_pd051_threshold_and_create_affinity_authority.sql")
 AFFINITY_RUNNER = Path("scripts/run_f4b_affinity_authority.py")
-APPLY_WORKFLOW = Path(".github/workflows/f4b-a1-c1-apply.yml")
+APPLY_WORKFLOW = Path(".github/retired-workflows/rcc-blue-cutover-20260916/f4b-a1-c1-apply.yml")
 HISTORICAL_TOP5 = Path("scripts/run_product_v1_top5_policy_review.py")
 SERVICE = Path("src/search_intelligence/product_v1_service.py")
 

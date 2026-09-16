@@ -38,6 +38,7 @@ concurrency:
 jobs:
   proof:
     name: Generic layer product proof across all origin candidates
+    if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 120
     env:

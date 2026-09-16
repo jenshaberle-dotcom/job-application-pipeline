@@ -47,8 +47,9 @@ jobs:
   deploy:
     name: Stage or bootstrap JAP Control Center update on local workstation
     if: >-
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
+      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+      (github.event_name != 'workflow_run' ||
+       github.event.workflow_run.conclusion == 'success')
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 15
 

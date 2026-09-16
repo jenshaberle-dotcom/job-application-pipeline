@@ -147,7 +147,7 @@ jobs:
   campaign:
     name: Execute trusted local DB/gate campaign
     needs: admission
-    if: needs.admission.outputs.admitted == 'true'
+    if: needs.admission.outputs.admitted == 'true' && vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true'
     concurrency:
       group: trusted-local-product-campaign
       cancel-in-progress: false

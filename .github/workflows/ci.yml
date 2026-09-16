@@ -21,7 +21,7 @@ jobs:
     with:
       heartbeat_workflow: warm-runner-heartbeat.yml
       heartbeat_max_age_seconds: 900
-      warm_runs_on_json: '["self-hosted","Linux","X64","job-pipeline-runtime-linux"]'
+      warm_runs_on_json: '["self-hosted","rcc-general-linux-01--jap"]'
       hosted_runs_on_json: '["ubuntu-latest"]'
 
   validate:
