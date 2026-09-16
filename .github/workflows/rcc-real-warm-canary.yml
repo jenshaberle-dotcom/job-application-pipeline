@@ -7,10 +7,24 @@ on:
         description: Exact RCC reservation id returned by the out-of-band admission plane
         required: true
         type: string
-      expected_runner:
-        description: Exact RCC-reserved runner name
+      physical_runner:
+        description: Neutral RCC physical host identity
         required: true
-        default: job-pipeline-runtime-warm-01-linux
+        default: rcc-general-linux-01
+        type: string
+      facade_runner:
+        description: Exact repository-visible JAP facade runner name
+        required: true
+        default: rcc-general-linux-01--jap
+        type: string
+      runs_on_json:
+        description: Exact RCC pre-assignment runs-on selector returned by admission
+        required: true
+        default: '["self-hosted","rcc-general-linux-01--jap"]'
+        type: string
+      source_sha:
+        description: Exact JAP commit SHA to execute
+        required: true
         type: string
 
 permissions:
@@ -22,33 +36,59 @@ concurrency:
 
 jobs:
   canary:
-    name: Real JAP warm workload
-    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    name: Real JAP shared warm workload
+    runs-on: ${{ fromJSON(inputs.runs_on_json) }}
     timeout-minutes: 30
     env:
       RCC_EXPECTED_PROFILE_HASH: 62dda18c8360e15ae054cdb4e0420effcca26a04a7f6ac751a9332fd966001e7
       RCC_EXPECTED_PYTHON: 3.12.14
       RCC_RESERVATION_ID: ${{ inputs.reservation_id }}
-      RCC_EXPECTED_RUNNER: ${{ inputs.expected_runner }}
+      RCC_PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
+      RCC_FACADE_RUNNER: ${{ inputs.facade_runner }}
+      RCC_SOURCE_SHA: ${{ inputs.source_sha }}
 
     steps:
-      - name: Start measured canary and prove exact handoff
+      - name: Start measured canary and prove exact pre-assignment handoff
         shell: bash
+        working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
           started="$(date +%s%3N)"
           printf 'RCC_CANARY_STARTED_MS=%s\n' "$started" >> "$GITHUB_ENV"
           test -n "$RCC_RESERVATION_ID"
-          test "$RUNNER_NAME" = "$RCC_EXPECTED_RUNNER"
-          echo "RCC_EXACT_RUNNER_HANDOFF=PASS runner=$RUNNER_NAME reservation=$RCC_RESERVATION_ID"
+          test "$RCC_PHYSICAL_RUNNER" = "rcc-general-linux-01"
+          test "$RUNNER_NAME" = "$RCC_FACADE_RUNNER"
+          test "$RCC_FACADE_RUNNER" = "rcc-general-linux-01--jap"
+          echo "RCC_EXACT_RUNNER_HANDOFF=PASS physical=$RCC_PHYSICAL_RUNNER facade=$RUNNER_NAME reservation=$RCC_RESERVATION_ID"
 
-      - name: Check out exact source
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Materialize ephemeral exact source
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          [[ "$RCC_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          # The Actions workspace is not source authority on shared capacity.
+          rm -rf -- "$GITHUB_WORKSPACE"
+          mkdir -p -- "$GITHUB_WORKSPACE"
+          test -z "$(find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -print -quit)"
+
+          source_root="$RUNNER_TEMP/jap-golden-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$source_root"
+          git init -q "$source_root"
+          git -C "$source_root" remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -C "$source_root" fetch --no-tags --depth=1 origin "$RCC_SOURCE_SHA"
+          git -C "$source_root" checkout -q --detach FETCH_HEAD
+          actual="$(git -C "$source_root" rev-parse HEAD)"
+          test "$actual" = "$RCC_SOURCE_SHA"
+          test -z "$(git -C "$source_root" status --porcelain --untracked-files=all)"
+          printf 'JAP_SOURCE=%s\n' "$source_root" >> "$GITHUB_ENV"
+          echo "JAP_EPHEMERAL_SOURCE=PASS source=$actual path=$source_root"
+          echo "JAP_PERSISTENT_PROJECT_WORKSPACE=NONE"
 
       - name: Bind qualified persistent RCC Python
         shell: bash
+        working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
           root="$HOME/.cache/DeepOceanInfrastructure/RunnerToolchain/PythonEnvs/job-pipeline-runtime-linux-warm"
@@ -71,8 +111,10 @@ jobs:
 
       - name: Bind pre-provisioned persistent JAP local OSS overlay
         shell: bash
+        working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
+          cd "$JAP_SOURCE"
           mapfile -t specs < <(
             "$RCC_CANARY_PYTHON" - requirements.txt <<'PY'
           from pathlib import Path
@@ -112,33 +154,68 @@ jobs:
 
       - name: Compile active Python paths
         shell: bash
-        run: "$RCC_CANARY_PYTHON -m compileall -q src scripts tests"
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          cd "$JAP_SOURCE"
+          "$RCC_CANARY_PYTHON" -m compileall -q src scripts tests
 
       - name: Validate migration tooling and governance contracts
         shell: bash
-        run: "$RCC_CANARY_PYTHON scripts/validate_ci_contract.py"
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          cd "$JAP_SOURCE"
+          "$RCC_CANARY_PYTHON" scripts/validate_ci_contract.py
 
       - name: Run hard Ruff correctness gate
         shell: bash
-        run: "$RCC_CANARY_PYTHON -m ruff check . --select E4,E7,E9,F --ignore E402"
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          cd "$JAP_SOURCE"
+          "$RCC_CANARY_PYTHON" -m ruff check . --select E4,E7,E9,F --ignore E402
 
       - name: Run full test suite
         shell: bash
-        run: "$RCC_CANARY_PYTHON -m pytest -q"
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          cd "$JAP_SOURCE"
+          "$RCC_CANARY_PYTHON" -m pytest -q
 
-      - name: Record measured warm-canary outcome
+      - name: Delete ephemeral source before reservation release
         if: always()
         shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${JAP_SOURCE:-}" ]]; then
+            rm -rf -- "$JAP_SOURCE"
+            test ! -e "$JAP_SOURCE"
+          fi
+          rm -rf -- "$GITHUB_WORKSPACE"
+          mkdir -p -- "$GITHUB_WORKSPACE"
+          test -z "$(find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -print -quit)"
+          echo "JAP_EPHEMERAL_SOURCE_CLEANUP=PASS"
+          echo "JAP_WORKLOAD_RESIDUE=NONE"
+
+      - name: Record measured shared warm-canary outcome
+        if: always()
+        shell: bash
+        working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
           ended="$(date +%s%3N)"
           elapsed="$((ended - RCC_CANARY_STARTED_MS))"
           {
-            echo "## RCC real JAP warm canary"
+            echo "## RCC real JAP shared warm canary"
             echo ""
-            echo "- runner: \`$RUNNER_NAME\`"
+            echo "- physical runner: \`$RCC_PHYSICAL_RUNNER\`"
+            echo "- repository facade: \`$RUNNER_NAME\`"
             echo "- reservation: \`$RCC_RESERVATION_ID\`"
-            echo "- source: \`$GITHUB_SHA\`"
+            echo "- exact source: \`$RCC_SOURCE_SHA\`"
+            echo "- source workspace: \`EPHEMERAL_EXACT_SOURCE_DELETE_ALWAYS\`"
             echo "- Python: \`$RCC_EXPECTED_PYTHON\`"
             echo "- setup-python: \`NONE\`"
             echo "- pip install: \`NONE\`"
@@ -146,4 +223,4 @@ jobs:
             echo "- remote pip cache restore: \`NONE\`"
             echo "- measured job body: \`${elapsed} ms\`"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "RCC_REAL_WARM_CANARY_MEASURED_MS=$elapsed"
+          echo "RCC_REAL_SHARED_WARM_CANARY_MEASURED_MS=$elapsed"
