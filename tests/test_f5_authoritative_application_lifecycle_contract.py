@@ -41,14 +41,28 @@ def test_f5_submission_requires_exact_provenance_and_idempotency() -> None:
     assert "ON DELETE RESTRICT" in submissions
 
 
-def test_f5_authoritative_events_are_append_only_and_superseding() -> None:
+def test_f5_authoritative_events_require_explicit_submission_authority() -> None:
+    sql = _sql()
+    events = sql.split("CREATE TABLE IF NOT EXISTS application_lifecycle_events", 1)[1].split(
+        "CREATE TABLE IF NOT EXISTS application_event_candidates", 1
+    )[0]
+
+    assert "submission_id BIGINT NOT NULL" in events
+    assert "REFERENCES application_submissions(id) ON DELETE RESTRICT" in events
+    assert "application_id BIGINT" not in events
+    assert "Every event references explicit submission authority" in sql
+
+
+def test_f5_authoritative_events_are_append_only_and_same_submission_superseding() -> None:
     sql = _sql()
     events = sql.split("CREATE TABLE IF NOT EXISTS application_lifecycle_events", 1)[1].split(
         "CREATE TABLE IF NOT EXISTS application_event_candidates", 1
     )[0]
 
     assert "supersedes_event_id BIGINT" in events
-    assert "REFERENCES application_lifecycle_events(id) ON DELETE RESTRICT" in events
+    assert "UNIQUE (id, submission_id)" in events
+    assert "FOREIGN KEY (supersedes_event_id, submission_id)" in events
+    assert "REFERENCES application_lifecycle_events(id, submission_id)" in events
     assert "idempotency_key TEXT NOT NULL UNIQUE" in events
     assert "UPDATE application_lifecycle_events" not in sql
     assert "DELETE FROM application_lifecycle_events" not in sql
@@ -93,6 +107,16 @@ def test_f5_tracking_stage_never_uses_candidate_classification_as_authority() ->
     assert "review_status" not in stage_case
 
 
+def test_f5_event_rollup_is_bound_back_through_submission_authority() -> None:
+    sql = _sql()
+    view = sql.split("CREATE OR REPLACE VIEW gold_product_v1_application_tracking", 1)[1]
+    event_rollup = view.split("event_rollup AS", 1)[1].split("), candidate_rollup AS", 1)[0]
+
+    assert "JOIN application_submissions submission" in event_rollup
+    assert "submission.id = event.submission_id" in event_rollup
+    assert "GROUP BY submission.application_id" in event_rollup
+
+
 def test_f5_stage_precedence_is_closed_offer_interview_reply_applied() -> None:
     sql = _sql()
     view = sql.split("CREATE OR REPLACE VIEW gold_product_v1_application_tracking", 1)[1]
@@ -112,6 +136,7 @@ def test_f5_superseded_events_are_excluded_from_current_stage_rollup() -> None:
     )[0]
 
     assert "replacement.supersedes_event_id = event.id" in active_events
+    assert "replacement.submission_id = event.submission_id" in active_events
     assert "WHERE NOT EXISTS" in active_events
 
 
