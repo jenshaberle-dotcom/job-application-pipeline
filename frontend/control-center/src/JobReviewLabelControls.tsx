@@ -24,6 +24,13 @@ export type JobReviewLabelState = {
 
 type ProfileFitFactor = { status?: string; reason?: string };
 
+type AffinityComponents = {
+  profile_direction?: number | null;
+  data_focus?: number | null;
+  reliability_focus?: number | null;
+  evidence_quality?: number | null;
+};
+
 type JobRequirementTruth = {
   silver_job_id: number;
   title?: string | null;
@@ -34,6 +41,12 @@ type JobRequirementTruth = {
   product_readiness_status?: string | null;
   overall_quality_score?: number | null;
   product_overall_quality_score?: number | null;
+  affinity_score?: number | null;
+  affinity_authority_status?: string | null;
+  affinity_components?: AffinityComponents | null;
+  display_fit_score?: number | null;
+  display_fit_scope?: string | null;
+  combined_score?: number | null;
   profile_direction_score?: number | null;
   data_focus_score?: number | null;
   reliability_focus_score?: number | null;
@@ -346,14 +359,40 @@ export default function JobReviewLabelControls({
   const skills = job?.job_skills || [];
   const skillsPrimary = skills.length ? skills.join(", ") : "No explicit skills list detected";
 
+  const affinity = typeof job?.affinity_score === "number"
+    ? job.affinity_score
+    : job?.overall_quality_score;
+  const affinityComponents = job?.affinity_components || {};
   const scoreCandidates: Array<[string, number | null | undefined]> = [
-    [job?.product_readiness_status === "rankable" ? "Overall" : "Role affinity", job?.overall_quality_score],
-    ["Profile direction", job?.profile_direction_score],
-    ["Data focus", job?.data_focus_score],
-    ["Reliability", job?.reliability_focus_score],
-    ["Evidence quality", job?.evidence_quality_score],
+    ["Affinity", affinity],
+    ["Target-role alignment", affinityComponents.profile_direction ?? job?.profile_direction_score],
+    ["Data focus", affinityComponents.data_focus ?? job?.data_focus_score],
+    ["Reliability focus", affinityComponents.reliability_focus ?? job?.reliability_focus_score],
+    ["Evidence quality", affinityComponents.evidence_quality ?? job?.evidence_quality_score],
   ];
   const scores = scoreCandidates.filter((item): item is [string, number] => typeof item[1] === "number");
+
+  const fitDecision = normalized(job?.profile_fit_decision);
+  const fitPrimary = fitDecision === "passed"
+    ? "confirmed"
+    : fitDecision === "failed"
+      ? "conflict"
+      : "?";
+  const fitSecondary = fitDecision === "passed"
+    ? "Evidence-backed categorical Candidate Fit; numeric Fit is not authoritative in this campaign."
+    : fitDecision === "failed"
+      ? "Evidence-backed Fit conflict; high Affinity cannot override it."
+      : "Insufficient evidence; numeric Candidate Fit is deferred to F4B-FOLLOWUP-001 / #891.";
+  const combinedPrimary = typeof job?.combined_score === "number"
+    ? `${Math.round(job.combined_score)}%`
+    : fitDecision === "failed"
+      ? "blocked"
+      : "?";
+  const combinedSecondary = typeof job?.combined_score === "number"
+    ? "Authoritative Combined score."
+    : fitDecision === "failed"
+      ? "Combined remains blocked by the Fit conflict."
+      : "No Combined formula is authorized until numeric Fit is qualified in the next freeze campaign.";
 
   return (
     <div className="r4-review-stack">
@@ -424,10 +463,32 @@ export default function JobReviewLabelControls({
         </> : <p className="review-requirement-warning">{requirementsError || "Loading persisted job evidence…"}</p>}
       </section>
 
+      <section className="r4-requirement-fit" aria-label="Affinity Fit and Combined truth">
+        <header>
+          <div><span className="eyebrow">Decision truth</span><h3>Affinity · Job Fit · Combined</h3></div>
+        </header>
+        <EvidenceRow
+          label="Affinity"
+          primary={typeof affinity === "number" ? `${Math.round(affinity)}%` : "?"}
+          secondary="Will ich diesen Job? Independent of Candidate Fit and hard-filter completion."
+        />
+        <EvidenceRow
+          label="Job Fit"
+          primary={fitPrimary}
+          secondary={fitSecondary}
+          fit={job?.profile_fit_decision || undefined}
+        />
+        <EvidenceRow
+          label="Combined"
+          primary={combinedPrimary}
+          secondary={combinedSecondary}
+        />
+      </section>
+
       {scores.length > 0 && <section className="ow-score-card r4-score-card">
-        <h3>{job?.product_readiness_status === "rankable" ? "Product score" : "Review signals"}</h3>
+        <h3>Affinity components</h3>
         {scores.map(([name, value]) => <ScoreBar key={name} label={name} value={value} />)}
-        {job?.product_readiness_status !== "rankable" && <p className="ow-score-note">Review signals are orientation only until Profile Fit and hard requirements are evidence-backed.</p>}
+        <p className="ow-score-note">Affinity answers desirability only. Target-role alignment is one weighted component, not a second name for Affinity.</p>
       </section>}
     </div>
   );

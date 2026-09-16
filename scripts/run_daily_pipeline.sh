@@ -198,6 +198,7 @@ fi
 
 VOCAB_EXIT=0
 ORIGIN_EXIT=0
+LIFECYCLE_EXIT=0
 SENSOR_EXIT=0
 SILVER_EXIT=0
 SNAPSHOT_EXIT=0
@@ -224,6 +225,20 @@ if [ "$ORIGIN_EXIT" -ne 0 ]; then
   log "WARN employer-origin ingestion degraded exit_code=$ORIGIN_EXIT; continuing so successful origin observations can reach Silver"
 else
   log "Employer-origin ingestion completed"
+fi
+
+# A verified Personio complete inventory proves source-level visibility, but the
+# provider may retain an XML row after the concrete /job/<id> page has become its
+# explicit 404 page. Reconcile those reviewed ATS targets after ingestion so exact
+# detail truth can supersede same-run feed optimism. This stage is authoritative
+# lifecycle truth and therefore fail-closed for the daily core.
+log "Reconciling reviewed Personio exact-detail lifecycle truth"
+"$RUNTIME_PYTHON" -m scripts.reconcile_reviewed_personio_detail_health 2>&1 | tee -a "$LOG_FILE"
+LIFECYCLE_EXIT=${PIPESTATUS[0]}
+if [ "$LIFECYCLE_EXIT" -ne 0 ]; then
+  log "ERROR reviewed Personio exact-detail lifecycle reconciliation failed exit_code=$LIFECYCLE_EXIT"
+else
+  log "Reviewed Personio exact-detail lifecycle reconciliation completed"
 fi
 
 log "Running sensor Bronze ingestion"
@@ -256,12 +271,13 @@ else
   log "SKIP source value snapshot because Silver normalization failed"
 fi
 
-log "component_status vocabulary=$VOCAB_EXIT origin=$ORIGIN_EXIT sensor=$SENSOR_EXIT silver=$SILVER_EXIT snapshot=$SNAPSHOT_EXIT"
+log "component_status vocabulary=$VOCAB_EXIT origin=$ORIGIN_EXIT lifecycle=$LIFECYCLE_EXIT sensor=$SENSOR_EXIT silver=$SILVER_EXIT snapshot=$SNAPSHOT_EXIT"
 
-# Employer-origin freshness and Silver are the authoritative daily core. Vocabulary
-# learning and market sensors can degrade explicitly without suppressing a successful
-# origin observation from reaching Silver/current lifecycle truth.
-if [ "$ORIGIN_EXIT" -ne 0 ] || [ "$SILVER_EXIT" -ne 0 ] || [ "$SNAPSHOT_EXIT" -ne 0 ]; then
+# Employer-origin freshness, exact-detail lifecycle reconciliation and Silver are
+# the authoritative daily core. Vocabulary learning and market sensors can degrade
+# explicitly without suppressing successful Origin observations from reaching
+# Silver/current lifecycle truth.
+if [ "$ORIGIN_EXIT" -ne 0 ] || [ "$LIFECYCLE_EXIT" -ne 0 ] || [ "$SILVER_EXIT" -ne 0 ] || [ "$SNAPSHOT_EXIT" -ne 0 ]; then
   log "END daily job pipeline FAILED_AUTHORITATIVE_CORE"
   exit 1
 fi
