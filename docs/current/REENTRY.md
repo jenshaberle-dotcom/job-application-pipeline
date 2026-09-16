@@ -6,44 +6,41 @@ Read this file from canonical `refs/heads/main` before continuing Product work. 
 
 ## Live repository checkpoint — 2026-09-16
 
-Canonical accepted campaign main / installed Product source:
+Canonical installed/accepted Product source before the active F5 package:
 
-`main@6f489bcecab1b03765ca46c42badda74425b3726`
+`main@1fa2f36a4881a481f44c4d4ae32f7e1b7479f99b`
 
 Immutable desktop release:
 
-`jap-winapp-desktop-v1.0.35`
+`jap-winapp-desktop-v1.0.37`
 
-Post-release local deploy run `35074728199` proved exact source handoff and installed identity:
+Release workflow `35123098242` published the Windows desktop host from that exact source. Post-release local deploy run `35123289806` then proved:
 
+- exact release source handoff `1fa2f36a4881a481f44c4d4ae32f7e1b7479f99b`;
 - `JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS`;
-- installed desktop version `1.0.35`;
-- pinned source `6f489bcecab1b03765ca46c42badda74425b3726`;
+- installed desktop version `1.0.37`;
+- matching pinned source SHA;
 - `pending-update.json` absent after successful apply;
 - bounded headless desktop rejection proof passed.
 
-Interactive operator acceptance on 2026-09-16 then confirmed the installed UI exposes the About/version surface and that `All jobs` opens directly in descending explicit Affinity order. F4B is therefore closed.
+Interactive installed operator acceptance on 2026-09-16 confirmed:
 
-## F4A — OPERATOR ACCEPTED / COMPLETE
+- About reports `v1.0.37` and source `1fa2f36a4881…`;
+- Sources separates latest scan/run truth, delivery/yield, job age and live reachability; live reachability remains explicitly `Not checked` when not measured;
+- redundant Operations top-level navigation is absent;
+- Data Layers presents the current-cohort Bronze -> Silver -> Gold path without the competing per-source health table.
 
-F4A Profile Fit + requirement-evidence hardening is accepted and no longer blocks the frozen campaign.
+Issue `#898` is closed as completed. F4C is operator accepted.
 
-The final accepted truth path is:
-
-`Employer Origin -> Bronze evidence -> Silver requirement sidecar -> Product V1 -> Control Center`
-
-Do not reopen F4A for normal extraction/skill/UI polish. Reopen only for a proven acceptance-critical false-truth defect.
-
-F4A/F4B carried residuals are resolved as follows:
-
-- `#883` About/version discoverability: **CLOSED** by installed v1.0.35 operator proof;
-- `#884` Hannover Re Fit conflict: **CLOSED** after F4B reconciliation classified it as truthful hard-gate/evidence behavior, with no employer-specific override.
+Operator feedback that does **not** reopen F4C is tracked by `#910`: reduce primary operator detail through progressive disclosure/status clusters/traffic-light semantics and re-audit Data Layers metric/cohort/time-window consistency against DB truth. `#910` is post-freeze work and must not displace F5/F6.
 
 ## Frozen campaign sequence — current
 
-`F4C -> F5 -> F6`
+`F5 -> F6`
 
 Historical target-version arithmetic is not sequencing authority. Each package uses the next available immutable release after exact-head acceptance.
+
+Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C.
 
 ## Product authority that remains invariant
 
@@ -57,7 +54,7 @@ Rules:
 2. Source admission and job admission remain separate.
 3. Market sensors are discovery/freshness evidence only.
 4. Only credible vacancies with exact Origin evidence enter Bronze.
-5. Learned observers may improve discovery/understanding but create no source/Fit/ranking authority without separate qualification.
+5. Learned observers may improve discovery/understanding but create no source/Fit/ranking/application authority without separate qualification.
 6. Product/Control Center consumes upstream truth; UI-only repair is not authority.
 7. No employer-specific identity/ranking exception, fuzzy merge, weak URL rewrite or invented missing requirement is allowed.
 8. Missing evidence stays missing/unknown unless an approved deterministic or reviewed authority resolves it.
@@ -80,72 +77,73 @@ Exact-head discipline remains mandatory:
 
 Canonical product target `#885` is closed for this freeze campaign.
 
-The product concepts remain deliberately distinct:
+Stable future residual `#891 / F4B-FOLLOWUP-001` owns generic skill-extraction hardening, capability auto-fit, numeric Fit and Combined-score calibration in the next freeze campaign. It must not pull the current campaign backward.
+
+The accepted product concepts remain distinct:
 
 - Affinity: `Will ich diesen Job?`
 - Candidate<->Job Fit: `Passt dieser Job zu mir?`
 - Combined decision score: deferred synthesis after stronger Fit evidence exists;
 - Top 5: downstream `at_most_no_fill` projection only.
 
-### Read-only evidence and operator decision
+## F4C — OPERATOR ACCEPTED / COMPLETE
 
-PR `#888 — agent/f4b-readonly-cohort` established the real current-cohort truth before authority mutation. Operator Gate 001 then approved:
+Canonical item `#898 / F4C Source Health + Operator Surface Consolidation` is closed.
 
-- `PD-051=70/100` as the runtime minimum-quality authority;
-- PD-052 components/weights as explicit deterministic **Affinity/desirability** authority independent of Fit gates;
-- no automatic capability-overlap rule in this freeze campaign;
-- no numeric Fit or Combined score in this freeze campaign.
-
-Stable future residual `F4B-FOLLOWUP-001` is tracked by issue `#891`. It owns generic skill-extraction hardening, capability auto-fit, numeric Fit and Combined-score calibration in the **next freeze campaign** and must not pull the current campaign backward.
-
-### Final installed acceptance
-
-The current-campaign F4B implementation and release path completed through immutable desktop v1.0.35. Interactive installed proof confirmed:
-
-- About/version is discoverable and reports v1.0.35 plus source/runtime identity;
-- `All jobs` defaults to explicit Affinity descending order (observed `86%, 86%, 78%, 78%, ...`) without an operator sort action;
-- hard-gate/unknown semantics remain separate from Affinity;
-- no Combined authority was fabricated;
-- Top 5 remains `at_most_no_fill` and is not quota-filled.
-
-Issues `#883`, `#884`, and `#885` are closed. F4B is not to be reopened for the deferred #891 work during this campaign.
-
-## F4C — ACTIVE / READ-ONLY RECONCILIATION FIRST
-
-Canonical item: issue `#898` and `docs/planning/active/F4C-SOURCE-HEALTH-OPERATOR-SURFACE.md`.
-
-F4C is **Source Health + Operator Surface Consolidation**. `Sources`, `Data Layers` and `Operations` must converge on distinct truthful operator contracts. A historical ingestion `success` is run history, not current source health.
-
-The current implementation already exposes the architectural mismatch that F4C must resolve:
-
-- `source_heartbeat` historically maps the latest ingestion `success` directly to `healthy`;
-- the Product source overview similarly maps latest run `success` to operational `healthy` without a cadence/freshness input;
-- `Data Layers` correctly has a separate layer-flow/freshness projection, but still includes per-source last-run rows;
-- `Operations` currently renders source/connector lifecycle counts and blocker groups, overlapping `Sources` rather than owning a distinct runtime-execution read model.
-
-F4C health truth must keep these dimensions separate:
+Accepted truth dimensions remain separate:
 
 `lifecycle eligibility != scheduler/run history != current reachability != evidence freshness != delivery/product yield`
 
+The final F4C implementation stopped treating historical run success as current health without cadence/freshness authority, preserved successful zero-yield as valid run truth, separated live reachability from scan success, removed redundant Operations navigation and removed the competing source-health table from Data Layers.
+
+Post-freeze operator simplification/Data-Layers truth audit is isolated in `#910` and is not a blocker for F5/F6.
+
+## F5 — ACTIVE / READ-ONLY RECONCILIATION FIRST
+
+Canonical item: `APP-TRACK-001` / issue `#737` and `docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md`.
+
+F5 extends the Product journey beyond `draft_for_review` into evidence-first post-application tracking:
+
+`application prepared -> operator confirms submitted -> communication evidence observed -> event candidate -> reviewed/authoritative lifecycle state -> next action`
+
+Authority rules:
+
+- submission authority comes only from explicit operator confirmation or another separately approved authoritative submission record;
+- Gmail/runtime communication is evidence only and may not silently rewrite lifecycle state;
+- Gmail credentials/raw private messages remain private-runtime/secrets-bound;
+- the public Pipeline repo owns schemas/read models/provider-free contracts/tests/UI semantics;
+- no automatic email reply/send and no automatic application submit;
+- lifecycle/status history is append-only or explicitly superseding, never destructive rewrite;
+- deterministic identity/thread/domain/rule evidence precedes any future model assistance.
+
+### Repository baseline before mutation
+
+At accepted `main@1fa2f36…`:
+
+- `application_source_documents` and `application_draft_requests` exist from migration 077;
+- draft-request status stops at preparation/review (`blocked_*`, `ready_for_generation`, `drafted_for_review`, `approved_by_operator`, `rejected_by_operator`);
+- the public contract has no approved submitted timestamp/channel, response event, interview, offer/rejection outcome or append-only post-submit lifecycle authority;
+- the Control Center `Applications` surface deliberately says `No submitted applications yet` and renders future-state lifecycle copy rather than inventing persistence;
+- public JAP contains Gmail planning boundaries but no Gmail implementation.
+
+These are repository observations, not real DB conclusions.
+
 ### Sole next action
 
-Build and run one **read-only current-cohort reconciliation** before Product mutation. It must quantify, per source where evidence exists:
+Run one **exact-head, provider-free, network-free, read-only real Product DB reconciliation** before introducing any lifecycle migration or write path. It must measure:
 
-- lifecycle/activation state;
-- recurring-ingestion eligibility / explicit scheduling evidence where available;
-- latest run outcome and timestamps;
-- evidence age without inventing a cadence threshold;
-- whether the current projection labels historical run success as `healthy`;
-- current reachability evidence availability versus inference;
-- Bronze/Silver contribution separately from source health;
-- current blocker/attention state;
-- the semantic ownership currently shown under `Sources`, `Data Layers`, and `Operations`.
+- current application-shaped relations, columns and relevant constraints;
+- application source-document counts/statuses;
+- draft-request counts/statuses and distinct job identities;
+- presence of any existing post-submit/submission/event/outcome relations;
+- current persisted Product/UI application-portfolio authority versus static future-state copy;
+- explicit zero-side-effect boundary.
 
-The baseline must be read-only, provider-free and mutation-free. Only after that evidence may F4C introduce a cadence-aware current-health contract or remove/consolidate redundant operator surfaces.
+The baseline must prove:
 
-## F5 — queued
+`db_writes=0`, `provider_calls=0`, `gmail_reads=0`, `email_actions=0`, `application_submission_actions=0`, `application_state_mutations=0`.
 
-Canonical item remains `APP-TRACK-001` / issue `#737`: Application Lifecycle + Gmail-backed Outcome Tracking. Submission authority comes only from explicit operator confirmation or separately approved authoritative record. Gmail remains read-only evidence and may not silently rewrite lifecycle state or send replies.
+Only after that evidence may F5 Slice B define the authoritative application/submission/status provenance schema.
 
 ## F6 — queued
 
@@ -157,7 +155,6 @@ A bounded, understood, non-critical residual may cross a package boundary only w
 
 Active carried residuals:
 
-- `CR-F1-001`: fresh company -> F1 discovery -> CAND-001 persistence -> proof/activation remains open and must not distort F4C merely to close it;
-- `#891 / F4B-FOLLOWUP-001`: generic skill extraction, capability auto-fit, numeric Fit and Combined calibration in the next freeze campaign.
-
-Completed campaign packages are F0, F1 capability delivery, F2, F3, F4A and F4B.
+- `CR-F1-001`: fresh company -> F1 discovery -> CAND-001 persistence -> proof/activation remains open and must not distort F5 merely to close it;
+- `#891 / F4B-FOLLOWUP-001`: generic skill extraction, capability auto-fit, numeric Fit and Combined calibration in the next freeze campaign;
+- `#910`: post-freeze operator UX simplification + Data Layers truth audit.
