@@ -73,6 +73,24 @@ pressure, gate status, next safe actions and agent/health summaries. The current
 Agent Monitor uses derived lifecycle/gate/orchestrator signals; true runtime
 agent health remains future work.
 
+## Local and cloud runtime coexistence
+
+JAP is one product with multiple runtime and presentation transports. This
+repository remains the current upstream authority for product/domain semantics;
+`jap-cloud-based` owns bounded Azure adaptation and cloud-runtime concerns.
+
+The local WSL/PostgreSQL/WebView2 runtime and the Azure
+PostgreSQL/FastAPI/Container-Apps runtime may coexist for as long as that is
+useful. They must converge on shared product contracts rather than independently
+reimplement ranking, gates, Top-5, application or data-layer semantics.
+
+The React Control Center is a portable product surface: WebView2 is one local
+presentation shell, while the same product UI may later run in a browser against
+a compatible cloud API. Cloud succession is evidence-driven and requires an
+explicit operator decision; a working cloud demo does not retire local JAP.
+
+See `../decisions/adr/034_define_shared_jap_product_and_runtime_coexistence.md`.
+
 ## Current maturity note
 
 The documentation structure is now stable enough for product work again, but the
