@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
-from typing import Any, Mapping
+from typing import Mapping
 
 import psycopg
 from psycopg.rows import dict_row
