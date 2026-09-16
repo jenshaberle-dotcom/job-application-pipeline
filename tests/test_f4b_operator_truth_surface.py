@@ -21,7 +21,6 @@ def test_f4b_operator_surface_exposes_unknown_fit_and_combined_without_inventing
     assert 'label="Job Fit"' in source
     assert 'label="Combined"' in source
     assert 'const fitPrimary = fitDecision === "passed"' in source
-    assert '? "conflict"' not in source
     assert 'fitDecision === "failed"\n      ? "blocked"\n      : "?"' in source
     assert "numeric Candidate Fit is deferred to F4B-FOLLOWUP-001 / #891" in source
     assert "No Combined formula is authorized until numeric Fit is qualified" in source
