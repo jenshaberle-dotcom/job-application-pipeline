@@ -7,9 +7,21 @@ on:
       - "db/migrations/112_create_authoritative_application_lifecycle.sql"
       - "scripts/run_f5_application_lifecycle_reconciliation.py"
       - "scripts/run_f5_application_lifecycle_schema_qualification.py"
+      - "scripts/run_f5_application_tracking_product_proof.py"
+      - "scripts/product_v1_f5_application_tracking_runtime.py"
+      - "scripts/product_v1_f5_application_actions.py"
+      - "scripts/run_product_v1_demo_control_center.py"
+      - "src/search_intelligence/application_event_classifier.py"
       - "tests/test_f5_application_lifecycle_reconciliation.py"
       - "tests/test_f5_application_lifecycle_schema_qualification.py"
       - "tests/test_f5_authoritative_application_lifecycle_contract.py"
+      - "tests/test_f5_application_tracking_product_proof.py"
+      - "tests/test_product_v1_f5_application_tracking_runtime.py"
+      - "tests/test_product_v1_f5_application_actions.py"
+      - "tests/test_application_event_classifier.py"
+      - "frontend/control-center/src/F5ApplicationTracking.tsx"
+      - "frontend/control-center/src/f5-application-tracking.css"
+      - "frontend/control-center/src/DemoProductPolish.tsx"
       - "docs/current/REENTRY.md"
       - "docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md"
   issue_comment:
@@ -17,11 +29,12 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "F5 Slice-B phase"
+        description: "F5 qualification phase"
         required: true
-        default: preflight
+        default: tracking
         type: choice
         options:
+          - tracking
           - preflight
           - apply
           - postapply
@@ -43,7 +56,7 @@ concurrency:
 
 jobs:
   qualify:
-    name: F5 lifecycle schema exact-head qualification
+    name: F5 lifecycle exact-head qualification
     if: >-
       vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
       (github.event_name != 'issue_comment' ||
@@ -61,7 +74,7 @@ jobs:
       MODE: >-
         ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:apply:v1 -->') && 'apply' ||
             github.event_name == 'issue_comment' && 'postapply' ||
-            github.event_name == 'workflow_dispatch' && inputs.mode || 'preflight' }}
+            github.event_name == 'workflow_dispatch' && inputs.mode || 'tracking' }}
       SOURCE_SHA: >-
         ${{ github.event_name == 'issue_comment' && github.sha ||
             github.event_name == 'workflow_dispatch' && inputs.source_sha ||
@@ -69,7 +82,7 @@ jobs:
       APPROVAL_TOKEN: >-
         ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-lifecycle-schema:apply:v1 -->') && 'F5-SLICE-B-MIGRATION-112' ||
             inputs.approval_token || '' }}
-      OUTPUT: /tmp/jap-f5-application-lifecycle-schema-qualification.json
+      OUTPUT: /tmp/jap-f5-application-lifecycle-qualification.json
       TARGET_MIGRATION: 112_create_authoritative_application_lifecycle.sql
 
     steps:
@@ -149,17 +162,47 @@ jobs:
           set -euo pipefail
           "$RUNTIME_PYTHON" -m py_compile \
             scripts/run_f5_application_lifecycle_reconciliation.py \
-            scripts/run_f5_application_lifecycle_schema_qualification.py
+            scripts/run_f5_application_lifecycle_schema_qualification.py \
+            scripts/run_f5_application_tracking_product_proof.py \
+            scripts/product_v1_f5_application_tracking_runtime.py \
+            scripts/product_v1_f5_application_actions.py \
+            src/search_intelligence/application_event_classifier.py
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
-            tests/test_f5_authoritative_application_lifecycle_contract.py
+            tests/test_f5_authoritative_application_lifecycle_contract.py \
+            tests/test_f5_application_tracking_product_proof.py \
+            tests/test_product_v1_f5_application_tracking_runtime.py \
+            tests/test_product_v1_f5_application_actions.py \
+            tests/test_application_event_classifier.py
           "$RUNTIME_PYTHON" -m ruff check \
             scripts/run_f5_application_lifecycle_reconciliation.py \
             scripts/run_f5_application_lifecycle_schema_qualification.py \
+            scripts/run_f5_application_tracking_product_proof.py \
+            scripts/product_v1_f5_application_tracking_runtime.py \
+            scripts/product_v1_f5_application_actions.py \
+            src/search_intelligence/application_event_classifier.py \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
-            tests/test_f5_authoritative_application_lifecycle_contract.py
+            tests/test_f5_authoritative_application_lifecycle_contract.py \
+            tests/test_f5_application_tracking_product_proof.py \
+            tests/test_product_v1_f5_application_tracking_runtime.py \
+            tests/test_product_v1_f5_application_actions.py \
+            tests/test_application_event_classifier.py
+
+      - name: Run real Product tracking proof read-only
+        if: ${{ env.MODE == 'tracking' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_application_tracking_product_proof \
+            --source-sha "$SOURCE_SHA" \
+            --output "$OUTPUT"
 
       - name: Run exact-head real DB migration preflight read-only
         if: ${{ env.MODE == 'preflight' }}
