@@ -1,0 +1,235 @@
+name: F4B reviewed Personio lifecycle real proof
+
+on:
+  push:
+    branches: [agent/f4b-operator-hardening-lifecycle-score-truth]
+    paths:
+      - ".github/workflows/f4b-personio-lifecycle-real-proof.yml"
+      - "scripts/reconcile_reviewed_personio_detail_health.py"
+      - "src/ingestion/verified_inventory_exact_detail_health.py"
+      - "src/job_lifecycle_health.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f4b-reviewed-personio-lifecycle-real-proof
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: Prove exact Personio detail can supersede stale feed optimism
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 15
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      SILVER_JOB_ID: "434"
+      EXPECTED_SOURCE_NAME: "personio:1komma5grad"
+      EXPECTED_SOURCE_URL: "https://1komma5grad.jobs.personio.de/job/2731150?language=de"
+
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents or root not in PurePosixPath(env_file).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Load masked Product database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$RUNTIME_ENV_FILE" "$GITHUB_ENV" <<'PY'
+          import secrets
+          import sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+
+          values = dotenv_values(Path(sys.argv[1]))
+          required = (
+              "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB",
+              "POSTGRES_USER", "POSTGRES_PASSWORD",
+          )
+          missing = [key for key in required if values.get(key) in (None, "")]
+          if missing:
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING:" + ",".join(missing))
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  value = str(values[key])
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  while marker in value:
+                      marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{value}\n{marker}\n")
+          PY
+
+      - name: Prove exact target identity and current public closure evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import os
+
+          from scripts.reconcile_reviewed_personio_detail_health import (
+              classify_reviewed_personio_exact_detail,
+          )
+          from src.job_lifecycle_health import (
+              JobLifecycleHealthRepository,
+              fetch_exact_detail,
+          )
+
+          job_id = int(os.environ["SILVER_JOB_ID"])
+          expected_source = os.environ["EXPECTED_SOURCE_NAME"]
+          expected_url = os.environ["EXPECTED_SOURCE_URL"]
+          repository = JobLifecycleHealthRepository()
+          target = repository.load_target(job_id)
+          if target.source_name != expected_source:
+              raise SystemExit("F4B_PERSONIO_TARGET_SOURCE_DRIFT")
+          if target.source_url != expected_url:
+              raise SystemExit("F4B_PERSONIO_TARGET_URL_DRIFT")
+
+          probe = fetch_exact_detail(target.source_url)
+          classification = classify_reviewed_personio_exact_detail(target, probe)
+          if probe.status_code != 404:
+              raise SystemExit(f"F4B_PERSONIO_EXPECTED_404_NOT_OBSERVED:{probe.status_code}")
+          if classification.outcome != "closed":
+              raise SystemExit(f"F4B_PERSONIO_404_NOT_CLOSED:{classification.outcome}")
+          if classification.coverage != "exact_detail":
+              raise SystemExit("F4B_PERSONIO_CLOSURE_NOT_EXACT_DETAIL")
+          if classification.evidence_reason != "personio_explicit_job_url_not_found":
+              raise SystemExit("F4B_PERSONIO_CLOSURE_REASON_DRIFT")
+
+          print(f"F4B_PERSONIO_TARGET_SILVER_ID={job_id}")
+          print(f"F4B_PERSONIO_HTTP_STATUS={probe.status_code}")
+          print("F4B_PERSONIO_PROVIDER_CLOSURE_CLASSIFICATION=PASS")
+          PY
+
+      - name: Apply bounded reviewed Personio lifecycle reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/f4b_personio_lifecycle.json"
+          "$RUNTIME_PYTHON" -m scripts.reconcile_reviewed_personio_detail_health | tee "$report"
+          "$RUNTIME_PYTHON" - "$report" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          boundary = report["boundary"]
+          if boundary["reviewed_personio_sources_only"] is not True:
+              raise SystemExit("F4B_PERSONIO_SCOPE_NOT_BOUNDED")
+          if boundary["verified_inventory_writer"] is not True:
+              raise SystemExit("F4B_PERSONIO_VERIFIED_WRITER_MISSING")
+          if boundary["historical_source_type_guard_relaxed_globally"] is not False:
+              raise SystemExit("F4B_PERSONIO_GLOBAL_SOURCE_GUARD_RELAXED")
+          if boundary["employer_specific_branching"] is not False:
+              raise SystemExit("F4B_PERSONIO_EMPLOYER_BRANCHING_DETECTED")
+          if boundary["ranking_writes"] is not False:
+              raise SystemExit("F4B_PERSONIO_RANKING_WRITE_BOUNDARY_BROKEN")
+          if boundary["fit_writes"] is not False or boundary["combined_score_writes"] is not False:
+              raise SystemExit("F4B_PERSONIO_FIT_WRITE_BOUNDARY_BROKEN")
+          if boundary["application_writes"] is not False:
+              raise SystemExit("F4B_PERSONIO_APPLICATION_WRITE_BOUNDARY_BROKEN")
+          if boundary["paid_provider_or_llm_requests"] != 0:
+              raise SystemExit("F4B_PERSONIO_PAID_PROVIDER_BOUNDARY_BROKEN")
+          if boundary["public_http_requests"] <= 0:
+              raise SystemExit("F4B_PERSONIO_NO_REAL_HTTP_PROOF")
+          if not any(item["source_name"] == "personio:1komma5grad" and item["closed_write_count"] >= 1 for item in report["sources"]):
+              raise SystemExit("F4B_PERSONIO_EXPECTED_CLOSED_WRITE_MISSING")
+          print("F4B_PERSONIO_REAL_RECONCILIATION=PASS")
+          PY
+
+      - name: Verify dead target is no longer current Product truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - <<'PY'
+          import os
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from src.config import get_database_config
+
+          job_id = int(os.environ["SILVER_JOB_ID"])
+          with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT lifecycle_status, latest_health_outcome, latest_health_coverage, "
+                      "lifecycle_evidence_reason, latest_health_observed_by "
+                      "FROM gold_job_lifecycle_health WHERE silver_job_id = %s",
+                      (job_id,),
+                  )
+                  health = cur.fetchone()
+                  cur.execute(
+                      "SELECT 1 FROM gold_current_job_opportunities WHERE id = %s",
+                      (job_id,),
+                  )
+                  current = cur.fetchone()
+                  cur.execute(
+                      "SELECT 1 FROM gold_product_v1_job_readiness "
+                      "WHERE silver_job_id = %s AND lifecycle_status = 'active_confirmed'",
+                      (job_id,),
+                  )
+                  product_current = cur.fetchone()
+              conn.rollback()
+
+          if health is None:
+              raise SystemExit("F4B_PERSONIO_POST_HEALTH_MISSING")
+          if health["lifecycle_status"] != "inactive_confirmed":
+              raise SystemExit(f"F4B_PERSONIO_STILL_ACTIVE:{health['lifecycle_status']}")
+          if health["latest_health_outcome"] != "closed":
+              raise SystemExit("F4B_PERSONIO_POST_OUTCOME_NOT_CLOSED")
+          if health["latest_health_coverage"] != "exact_detail":
+              raise SystemExit("F4B_PERSONIO_POST_COVERAGE_NOT_EXACT_DETAIL")
+          if health["lifecycle_evidence_reason"] != "personio_explicit_job_url_not_found":
+              raise SystemExit("F4B_PERSONIO_POST_REASON_DRIFT")
+          if health["latest_health_observed_by"] != "scheduled_daily_reviewed_personio_exact_detail":
+              raise SystemExit("F4B_PERSONIO_POST_OBSERVER_DRIFT")
+          if current is not None or product_current is not None:
+              raise SystemExit("F4B_PERSONIO_DEAD_JOB_REMAINS_CURRENT")
+
+          print(f"F4B_PERSONIO_LIFECYCLE_STATUS={health['lifecycle_status']}")
+          print("F4B_PERSONIO_DEAD_JOB_REMOVED_FROM_CURRENT_PRODUCT=PASS")
+          print("F4B_PERSONIO_REAL_PRODUCT_PROOF=PASS")
+          PY

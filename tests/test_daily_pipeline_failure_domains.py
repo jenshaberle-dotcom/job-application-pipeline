@@ -53,6 +53,7 @@ case \"$*\" in
   *\"-m pip install\"*) exit 0 ;;
   *\"-m scripts.run_company_vocabulary_agent\"*) exit 0 ;;
   *\"-m src.ingest_jobs --role employer_origin\"*) exit \"${FAKE_ORIGIN_EXIT:-0}\" ;;
+  *\"-m scripts.reconcile_reviewed_personio_detail_health\"*) exit \"${FAKE_LIFECYCLE_EXIT:-0}\" ;;
   *\"-m src.ingest_jobs --role sensor\"*) exit \"${FAKE_SENSOR_EXIT:-0}\" ;;
   *\"-m src.run_silver_jobs\"*) exit \"${FAKE_SILVER_EXIT:-0}\" ;;
   *\"-m scripts.create_source_value_snapshot\"*) exit \"${FAKE_SNAPSHOT_EXIT:-0}\" ;;
@@ -124,6 +125,7 @@ def _run_daily(
     tmp_path: Path,
     *,
     origin_exit: int = 0,
+    lifecycle_exit: int = 0,
     sensor_exit: int = 0,
     silver_exit: int = 0,
     snapshot_exit: int = 0,
@@ -148,6 +150,7 @@ def _run_daily(
             # component result variables. Otherwise Bash legitimately overwrites
             # the inherited test controls before the fake child process starts.
             "FAKE_ORIGIN_EXIT": str(origin_exit),
+            "FAKE_LIFECYCLE_EXIT": str(lifecycle_exit),
             "FAKE_SENSOR_EXIT": str(sensor_exit),
             "FAKE_SILVER_EXIT": str(silver_exit),
             "FAKE_SNAPSHOT_EXIT": str(snapshot_exit),
@@ -179,6 +182,7 @@ def test_sensor_failure_does_not_block_silver_or_daily_core_success(tmp_path: Pa
     assert any("-m pip install" in call for call in calls)
     assert any("-m scripts.run_company_vocabulary_agent" in call for call in calls)
     assert any("--role employer_origin" in call for call in calls)
+    assert any("-m scripts.reconcile_reviewed_personio_detail_health" in call for call in calls)
     assert any("--role sensor" in call for call in calls)
     assert any("-m src.run_silver_jobs" in call for call in calls)
     assert any("-m scripts.create_source_value_snapshot" in call for call in calls)
@@ -187,13 +191,25 @@ def test_sensor_failure_does_not_block_silver_or_daily_core_success(tmp_path: Pa
     assert "authoritative origin freshness will continue" in log_text
 
 
-def test_origin_failure_still_runs_silver_but_fails_authoritative_core(tmp_path: Path) -> None:
+def test_origin_failure_still_runs_lifecycle_and_silver_but_fails_authoritative_core(tmp_path: Path) -> None:
     completed, calls, log_text = _run_daily(tmp_path, origin_exit=1)
 
     assert completed.returncode == 1
+    assert any("-m scripts.reconcile_reviewed_personio_detail_health" in call for call in calls)
     assert any("--role sensor" in call for call in calls)
     assert any("-m src.run_silver_jobs" in call for call in calls)
     assert "successful origin observations can reach Silver" in log_text
+    assert "FAILED_AUTHORITATIVE_CORE" in log_text
+
+
+def test_lifecycle_failure_still_runs_silver_but_fails_authoritative_core(tmp_path: Path) -> None:
+    completed, calls, log_text = _run_daily(tmp_path, lifecycle_exit=1)
+
+    assert completed.returncode == 1
+    assert any("-m scripts.reconcile_reviewed_personio_detail_health" in call for call in calls)
+    assert any("--role sensor" in call for call in calls)
+    assert any("-m src.run_silver_jobs" in call for call in calls)
+    assert "exact-detail lifecycle reconciliation failed" in log_text
     assert "FAILED_AUTHORITATIVE_CORE" in log_text
 
 
@@ -234,6 +250,7 @@ def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     assert "RUNTIME_PYTHON" in daily
     assert "ensure_pinned_local_oss_runtime.sh" in daily
     assert ".runtime/local-oss-sites" in daily
+    assert "scripts.reconcile_reviewed_personio_detail_health" in daily
 
     assert 'required = ("extruct", "trafilatura")' in provisioner
     assert "sha256sum" in provisioner
