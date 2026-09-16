@@ -61,6 +61,7 @@ are used as active architecture anchors.
 | ADR-031 | Accepted | Current | Keep; Deep Ocean identity remains the preferred product identity. | `docs/reference/product/README.md` |
 | ADR-032 | Accepted | Current | Keep; Jinja2 is the current Control Center presentation layer. | `docs/reference/documentation/design_rules.md` |
 | ADR-033 | Accepted | Current | Keep; Search Intelligence safety/security boundary remains active. | `docs/reference/security/safety_security_state_architecture.md` |
+| ADR-034 | Accepted | Current | Keep; one JAP product may coexist across local/offline and cloud runtimes while sharing product semantics and explicit succession evidence. | `docs/current/architecture.md` |
 
 ## Immediate follow-up queue
 
