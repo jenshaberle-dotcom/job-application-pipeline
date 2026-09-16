@@ -6,31 +6,17 @@ Read this file from canonical `refs/heads/main` before continuing Product work. 
 
 ## Live repository checkpoint — 2026-09-16
 
-Canonical installed/accepted Product source before the active F5 package:
+Canonical repository `main` after the F5 Slice-A baseline merge:
 
-`main@1fa2f36a4881a481f44c4d4ae32f7e1b7479f99b`
+`main@80dd0d1017fb46cc9cea9f2f34bea78924febc2e`
 
-Immutable desktop release:
+The currently installed/operator-accepted Product remains:
 
-`jap-winapp-desktop-v1.0.37`
+`1fa2f36a4881a481f44c4d4ae32f7e1b7479f99b` / `jap-winapp-desktop-v1.0.37`
 
-Release workflow `35123098242` published the Windows desktop host from that exact source. Post-release local deploy run `35123289806` then proved:
+This distinction is intentional: PR `#911` changed only diagnostic/re-entry/planning/test/workflow assets and did not change the installed Product surface. No Windows release was required for that read-only baseline slice.
 
-- exact release source handoff `1fa2f36a4881a481f44c4d4ae32f7e1b7479f99b`;
-- `JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS`;
-- installed desktop version `1.0.37`;
-- matching pinned source SHA;
-- `pending-update.json` absent after successful apply;
-- bounded headless desktop rejection proof passed.
-
-Interactive installed operator acceptance on 2026-09-16 confirmed:
-
-- About reports `v1.0.37` and source `1fa2f36a4881…`;
-- Sources separates latest scan/run truth, delivery/yield, job age and live reachability; live reachability remains explicitly `Not checked` when not measured;
-- redundant Operations top-level navigation is absent;
-- Data Layers presents the current-cohort Bronze -> Silver -> Gold path without the competing per-source health table.
-
-Issue `#898` is closed as completed. F4C is operator accepted.
+Release workflow `35123098242` published v1.0.37 from `1fa2f36a…`. Post-release local deploy run `35123289806` proved the exact installed release, matching source SHA, no pending update and bounded headless rejection. Interactive operator acceptance on 2026-09-16 confirmed the F4C installed surface and closed issue `#898`.
 
 Operator feedback that does **not** reopen F4C is tracked by `#910`: reduce primary operator detail through progressive disclosure/status clusters/traffic-light semantics and re-audit Data Layers metric/cohort/time-window consistency against DB truth. `#910` is post-freeze work and must not displace F5/F6.
 
@@ -40,7 +26,7 @@ Operator feedback that does **not** reopen F4C is tracked by `#910`: reduce prim
 
 Historical target-version arithmetic is not sequencing authority. Each package uses the next available immutable release after exact-head acceptance.
 
-Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C.
+Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 Slice A is also complete; F5 as a package remains active.
 
 ## Product authority that remains invariant
 
@@ -61,17 +47,19 @@ Rules:
 
 ## Frozen package execution policy
 
-Normal package flow remains:
+Normal product-changing package flow remains:
 
 `implementation -> focused tests -> Full Suite/Ruff/React/Windows contracts -> real Product/Origin proof -> merge exact tested head -> immutable Windows release -> automatic local deploy -> interactive operator test -> record evidence -> next package`
+
+Read-only diagnostic slices that do not change installed Product behavior may merge after exact-head real proof + full CI without manufacturing a no-op Windows release.
 
 Exact-head discipline remains mandatory:
 
 - every branch change invalidates earlier final qualification authority;
 - tracked migrations are immutable; corrections use a new migration;
-- package PRs remain Draft until final exact-head qualification and real Product proof are complete;
+- package PRs remain Draft until final exact-head qualification and required real Product proof are complete;
 - release/deploy automation is Product contract, not workaround;
-- installed operator rejection keeps a package open even when CI/release/deploy are green.
+- installed operator rejection keeps a product-changing package open even when CI/release/deploy are green.
 
 ## F4B — OPERATOR ACCEPTED / COMPLETE
 
@@ -98,7 +86,7 @@ The final F4C implementation stopped treating historical run success as current 
 
 Post-freeze operator simplification/Data-Layers truth audit is isolated in `#910` and is not a blocker for F5/F6.
 
-## F5 — ACTIVE / READ-ONLY RECONCILIATION FIRST
+## F5 — ACTIVE / SLICE B AUTHORITATIVE LIFECYCLE FOUNDATION
 
 Canonical item: `APP-TRACK-001` / issue `#737` and `docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md`.
 
@@ -116,34 +104,51 @@ Authority rules:
 - lifecycle/status history is append-only or explicitly superseding, never destructive rewrite;
 - deterministic identity/thread/domain/rule evidence precedes any future model assistance.
 
-### Repository baseline before mutation
+### F5 Slice A — COMPLETE
 
-At accepted `main@1fa2f36…`:
+Merged via PR `#911` as `main@80dd0d1017fb46cc9cea9f2f34bea78924febc2e` after exact candidate `b990b1f16e8ee5e49e5e435afa2aab9578e435e5` passed:
 
-- `application_source_documents` and `application_draft_requests` exist from migration 077;
-- draft-request status stops at preparation/review (`blocked_*`, `ready_for_generation`, `drafted_for_review`, `approved_by_operator`, `rejected_by_operator`);
-- the public contract has no approved submitted timestamp/channel, response event, interview, offer/rejection outcome or append-only post-submit lifecycle authority;
-- the Control Center `Applications` surface deliberately says `No submitted applications yet` and renders future-state lifecycle copy rather than inventing persistence;
-- public JAP contains Gmail planning boundaries but no Gmail implementation.
+- F5 real read-only DB reconciliation `35125652183`;
+- Pipeline CI `35125652472`;
+- Re-entry target identity `35125652242`.
 
-These are repository observations, not real DB conclusions.
+Evidence artifact `10459645819`, zip SHA256 `37b3a36bdf9ac5cc13e737b207fc83e4f4776bdf1446e61cedf7ad15080fd8d1`.
+
+Measured Product DB truth before mutation:
+
+- 3 application-shaped relations;
+- 0 application draft rows / 0 distinct draft jobs;
+- 0 submitted-like draft states;
+- 0 post-submit/submission/event/outcome candidate relations;
+- zero DB writes/provider calls/Gmail reads/email actions/submission actions/application-state mutations.
+
+Therefore F5 has no historical submitted-application authority to migrate.
+
+### F5 Slice B — ACTIVE
+
+The active candidate introduces additive migration `112_create_authoritative_application_lifecycle.sql` with four deliberately separated layers:
+
+1. `applications`: prepared application identity, exact Silver/job snapshot; **not submission authority**.
+2. `application_submissions`: **sole submission authority** with explicit submitted timestamp/channel and `operator_confirmation` or `approved_authoritative_record` provenance.
+3. `application_lifecycle_events`: append-only authoritative post-submit events; corrections supersede prior events rather than rewriting history.
+4. `application_event_candidates`: communication evidence only; Gmail/manual/runtime candidates cannot directly advance lifecycle state.
+
+`gold_product_v1_application_tracking` derives only:
+
+`prepared -> applied -> reply -> interview -> offer -> closed`
+
+from prepared identity + explicit submission + active authoritative events. Candidate rows may create attention but are excluded from authoritative stage derivation.
 
 ### Sole next action
 
-Run one **exact-head, provider-free, network-free, read-only real Product DB reconciliation** before introducing any lifecycle migration or write path. It must measure:
+Qualify Slice B on one exact head. Prove migration 112 is the **sole pending migration with zero checksum drift**, then apply exactly migration 112 and run a post-apply real DB proof verifying:
 
-- current application-shaped relations, columns and relevant constraints;
-- application source-document counts/statuses;
-- draft-request counts/statuses and distinct job identities;
-- presence of any existing post-submit/submission/event/outcome relations;
-- current persisted Product/UI application-portfolio authority versus static future-state copy;
-- explicit zero-side-effect boundary.
+- all four relations + tracking view exist with expected authority constraints;
+- no historical migration changed;
+- application/submission/lifecycle/candidate row counts remain `0` immediately after schema apply;
+- no Gmail/provider/send/automatic-submit action occurred.
 
-The baseline must prove:
-
-`db_writes=0`, `provider_calls=0`, `gmail_reads=0`, `email_actions=0`, `application_submission_actions=0`, `application_state_mutations=0`.
-
-Only after that evidence may F5 Slice B define the authoritative application/submission/status provenance schema.
+Only after this evidence may F5 Slice C begin.
 
 ## F6 — queued
 
