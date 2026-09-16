@@ -8,10 +8,11 @@
 -- Authority boundaries:
 --   * an application row means "prepared", never "submitted";
 --   * only application_submissions is submission authority;
+--   * authoritative lifecycle events require an explicit submission row;
 --   * application_event_candidates is evidence only and never feeds the
 --     authoritative lifecycle stage directly;
 --   * authoritative lifecycle events are append-only; corrections supersede
---     prior events instead of rewriting/deleting history;
+--     prior events for the same submission instead of rewriting/deleting history;
 --   * this migration performs no provider/Gmail call and creates no send or
 --     automatic application-submission path.
 
@@ -87,18 +88,22 @@ COMMENT ON TABLE application_submissions IS
 
 CREATE TABLE IF NOT EXISTS application_lifecycle_events (
     id BIGSERIAL PRIMARY KEY,
-    application_id BIGINT NOT NULL
-        REFERENCES applications(id) ON DELETE RESTRICT,
+    submission_id BIGINT NOT NULL
+        REFERENCES application_submissions(id) ON DELETE RESTRICT,
     event_type TEXT NOT NULL,
     event_at TIMESTAMPTZ NOT NULL,
     authority_kind TEXT NOT NULL,
     authority_reference TEXT NOT NULL,
     recorded_by TEXT NOT NULL,
     event_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    supersedes_event_id BIGINT
-        REFERENCES application_lifecycle_events(id) ON DELETE RESTRICT,
+    supersedes_event_id BIGINT,
     idempotency_key TEXT NOT NULL UNIQUE,
     recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_application_lifecycle_event_id_submission UNIQUE (id, submission_id),
+    CONSTRAINT fk_application_lifecycle_supersedes_same_submission
+        FOREIGN KEY (supersedes_event_id, submission_id)
+        REFERENCES application_lifecycle_events(id, submission_id)
+        ON DELETE RESTRICT,
     CONSTRAINT chk_application_lifecycle_event_type CHECK (
         event_type IN (
             'application_acknowledgement_confirmed',
@@ -134,11 +139,11 @@ CREATE TABLE IF NOT EXISTS application_lifecycle_events (
     )
 );
 
-CREATE INDEX IF NOT EXISTS idx_application_lifecycle_events_application
-ON application_lifecycle_events (application_id, event_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_application_lifecycle_events_submission
+ON application_lifecycle_events (submission_id, event_at DESC, id DESC);
 
 COMMENT ON TABLE application_lifecycle_events IS
-'Append-only F5 authoritative lifecycle history after submission. Corrections add a new authoritative event that may supersede an earlier event; evidence candidates never become authoritative merely by existing.';
+'Append-only F5 authoritative lifecycle history after submission. Every event references explicit submission authority. Corrections add a new authoritative event that may supersede an earlier event for the same submission; evidence candidates never become authoritative merely by existing.';
 
 CREATE TABLE IF NOT EXISTS application_event_candidates (
     id BIGSERIAL PRIMARY KEY,
@@ -218,26 +223,29 @@ WITH active_events AS (
         SELECT 1
         FROM application_lifecycle_events replacement
         WHERE replacement.supersedes_event_id = event.id
+          AND replacement.submission_id = event.submission_id
     )
 ), event_rollup AS (
     SELECT
-        application_id,
+        submission.application_id,
         count(*)::integer AS authoritative_event_count,
-        max(event_at) AS latest_authoritative_event_at,
-        bool_or(event_type IN (
+        max(event.event_at) AS latest_authoritative_event_at,
+        bool_or(event.event_type IN (
             'application_acknowledgement_confirmed',
             'recruiter_contact_confirmed',
             'assessment_request_confirmed'
         )) AS has_reply,
-        bool_or(event_type = 'interview_invitation_confirmed') AS has_interview,
-        bool_or(event_type = 'offer_confirmed') AS has_offer,
-        bool_or(event_type IN (
+        bool_or(event.event_type = 'interview_invitation_confirmed') AS has_interview,
+        bool_or(event.event_type = 'offer_confirmed') AS has_offer,
+        bool_or(event.event_type IN (
             'rejection_confirmed',
             'withdrawal_confirmed',
             'closed_other_confirmed'
         )) AS is_closed
-    FROM active_events
-    GROUP BY application_id
+    FROM active_events event
+    JOIN application_submissions submission
+      ON submission.id = event.submission_id
+    GROUP BY submission.application_id
 ), candidate_rollup AS (
     SELECT
         matched_application_id AS application_id,
@@ -288,4 +296,4 @@ LEFT JOIN candidate_rollup candidates
   ON candidates.application_id = application.id;
 
 COMMENT ON VIEW gold_product_v1_application_tracking IS
-'F5 authoritative application tracking read model. Stage derives only from prepared application identity, explicit submission authority and active authoritative lifecycle events. Communication candidates may surface attention but cannot advance stage.';
+'F5 authoritative application tracking read model. Stage derives only from prepared application identity, explicit submission authority and active authoritative lifecycle events bound to that submission. Communication candidates may surface attention but cannot advance stage.';
