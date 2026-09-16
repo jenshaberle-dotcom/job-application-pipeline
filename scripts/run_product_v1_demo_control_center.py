@@ -2,9 +2,9 @@
 
 The existing canonical Control Center remains the product truth source. This demo
 runtime adds the bounded Application Workspace, local-private base-document intake,
-and read-only presentation enrichments for current job review and Bronze/Silver/Gold
-observability. Presentation evidence never changes ranking, Top-5 or application
-authority.
+F5 application tracking, and read-only presentation enrichments. Explicit F5
+submission recording records only operator-confirmed truth that already happened;
+it never submits an application externally.
 """
 
 from __future__ import annotations
@@ -28,6 +28,14 @@ from scripts.product_v1_data_layers_runtime import load_data_layers_payload
 from scripts.product_v1_f4c_source_health_runtime import (
     load_source_schedule_evidence,
     project_current_source_health,
+)
+from scripts.product_v1_f5_application_actions import (
+    ApplicationActionError,
+    parse_submission_record_request,
+    record_operator_confirmed_submission,
+)
+from scripts.product_v1_f5_application_tracking_runtime import (
+    load_application_tracking_payload,
 )
 from scripts.product_v1_job_presentation_runtime import (
     enrich_product_payload_for_operator,
@@ -54,6 +62,7 @@ DATA_LAYERS_PATH = "/api/v1/product-v1/data-layers"
 APPLICATION_WORKSPACE_PATH = "/api/v1/product-v1/application-workspace"
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
+APPLICATION_SUBMISSION_RECORD_PATH = "/api/v1/product-v1/application-submission-record"
 _MAX_ACTION_BODY_BYTES = 4_096
 _MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
 _DEFAULT_PRIVATE_DOCUMENT_ROOT = Path("private_application_sources")
@@ -88,13 +97,15 @@ def _json_transport_value(value: object) -> object:
 
 
 def _load_operator_product_payload() -> dict[str, object]:
-    """Apply read-only operator enrichments plus the F4C current-health contract."""
+    """Apply read-only operator enrichments and bounded F4C/F5 projections."""
 
     enriched = enrich_product_payload_for_operator(load_product_v1_payload())
-    return project_current_source_health(
+    projected = project_current_source_health(
         enriched,
         schedule_evidence=load_source_schedule_evidence(),
     )
+    projected["application_tracking"] = load_application_tracking_payload()
+    return projected
 
 
 def parse_application_draft_action_payload(payload: object) -> int:
@@ -114,7 +125,7 @@ def parse_application_draft_action_payload(payload: object) -> int:
 
 
 class ProductV1DemoHandler(ProductV1Handler):
-    server_version = "DeepOceanProductV1/0.11-demo"
+    server_version = "DeepOceanProductV1/0.12-demo"
 
     def _send_json(
         self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
@@ -197,7 +208,9 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
-    def _read_demo_action_payload(self, *, max_bytes: int = _MAX_ACTION_BODY_BYTES) -> object:
+    def _read_demo_action_payload(
+        self, *, max_bytes: int = _MAX_ACTION_BODY_BYTES
+    ) -> object:
         content_type = (
             str(self.headers.get("Content-Type") or "")
             .split(";", 1)[0]
@@ -227,7 +240,11 @@ class ProductV1DemoHandler(ProductV1Handler):
                 self._read_demo_action_payload(max_bytes=_MAX_UPLOAD_BODY_BYTES)
             )
             self._send_json(payload)
-        except (DemoActionStop, LocalDocumentIntakeStop, PrivateApplicationSourceTextError) as exc:
+        except (
+            DemoActionStop,
+            LocalDocumentIntakeStop,
+            PrivateApplicationSourceTextError,
+        ) as exc:
             self._send_json(
                 {
                     "status": "blocked",
@@ -249,10 +266,55 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
+    def _post_submission_record(self) -> None:
+        """Record an operator-confirmed past submission; never submit externally."""
+
+        try:
+            raw = self._read_demo_action_payload()
+            if not isinstance(raw, Mapping):
+                raise ApplicationActionError("action_payload_must_be_object")
+            request = parse_submission_record_request(raw)
+            result = record_operator_confirmed_submission(request)
+            self._send_json(
+                {
+                    **result,
+                    "authority": "explicit_operator_confirmation",
+                    "email_actions": 0,
+                    "provider_requests": 0,
+                    "external_submission_actions": 0,
+                }
+            )
+        except (DemoActionStop, ApplicationActionError) as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "email_actions": 0,
+                    "provider_requests": 0,
+                    "external_submission_actions": 0,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
+        except Exception as exc:  # pragma: no cover - runtime diagnostics
+            self._send_json(
+                {
+                    "status": "error",
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                    "email_actions": 0,
+                    "provider_requests": 0,
+                    "external_submission_actions": 0,
+                },
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+
     def do_POST(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
         if parsed.path == APPLICATION_SOURCE_UPLOAD_PATH:
             self._post_document_upload()
+            return
+        if parsed.path == APPLICATION_SUBMISSION_RECORD_PATH:
+            self._post_submission_record()
             return
         if parsed.path != APPLICATION_DRAFT_PATH:
             super().do_POST()
@@ -305,7 +367,8 @@ def run_server(args: argparse.Namespace) -> None:
     print(
         "Boundary: real Product V1 truth + read-only Bronze/Silver/Gold observability + "
         "current source-health projection + local-private document intake + bounded "
-        "Application Workspace; no automatic submission or send."
+        "Application Workspace + explicit operator-confirmed application tracking; "
+        "no automatic submission or send."
     )
     try:
         server.serve_forever()

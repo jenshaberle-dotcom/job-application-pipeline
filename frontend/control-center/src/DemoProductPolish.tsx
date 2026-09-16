@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import F5ApplicationTracking, { type F5ProductPayload } from "./F5ApplicationTracking";
 import { readProductTruth } from "./productPayloadRuntimeAdapter";
 import "./demo-product-polish.css";
 
-type PolishPayload = {
+type PolishPayload = F5ProductPayload & {
   summary: {
     observed_job_count: number;
     current_active_job_count: number;
@@ -35,18 +36,7 @@ type PolishPayload = {
   }>;
 };
 
-type IconName =
-  | "discover"
-  | "verify"
-  | "rank"
-  | "prepare"
-  | "attention"
-  | "prepared"
-  | "applied"
-  | "reply"
-  | "interview"
-  | "offer"
-  | "closed";
+type IconName = "discover" | "verify" | "rank" | "prepare" | "attention";
 
 const TOOLTIP_COPY: Record<string, string> = {
   Bronze: "Raw, source-preserving job evidence before normalization.",
@@ -76,16 +66,9 @@ function Icon({ name }: { name: IconName }) {
     rank: <><path d="m12 3 2.5 5.1 5.6.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.6-.8L12 3Z" /></>,
     prepare: <><path d="M7 3h8l4 4v14H7z" /><path d="M15 3v5h5M10 13h6M10 17h6" /></>,
     attention: <><path d="M12 4 3 20h18L12 4Z" /><path d="M12 9v5M12 17h.01" /></>,
-    prepared: <><path d="M6 3h9l3 3v15H6z" /><path d="m9 13 2 2 4-5" /></>,
-    applied: <><path d="M4 12h12" /><path d="m12 8 4 4-4 4" /><path d="M20 5v14" /></>,
-    reply: <><path d="M4 5h16v11H8l-4 4V5Z" /><path d="M8 9h8M8 12h5" /></>,
-    interview: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16M9 14h2M13 14h2" /></>,
-    offer: <><path d="M5 8h14v12H5z" /><path d="M9 8V5h6v3M5 12h14" /></>,
-    closed: <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></>,
   };
   return <svg className="demo-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
-
 
 function applyTooltips() {
   document.querySelectorAll<HTMLElement>("span, h2, h3, th").forEach((element) => {
@@ -142,30 +125,6 @@ function AttentionPanel({ payload }: { payload: PolishPayload }) {
       <strong>{attention.length}</strong>
     </div>
     {attention.length > 0 && <div className="demo-attention-list">{attention.slice(0, 4).map((item) => <article key={item.key}><b>{item.title}</b><span>{item.detail}</span></article>)}</div>}
-  </section>;
-}
-
-function ApplicationLifecycle({ payload }: { payload: PolishPayload }) {
-  const prepared = payload.summary.top_job_count > 0
-    && payload.application_sources_ready.base_cv
-    && payload.application_sources_ready.base_application_letter;
-  const stages: Array<{ icon: IconName; label: string; detail: string; state: "current" | "pending" | "future" }> = [
-    { icon: "prepared", label: "Prepared", detail: prepared ? "Ready for a human-reviewed draft" : "Preparation prerequisites incomplete", state: prepared ? "current" : "pending" },
-    { icon: "applied", label: "Applied", detail: "Awaiting manual submission confirmation", state: "future" },
-    { icon: "reply", label: "Reply", detail: "Tracking begins only after submission", state: "future" },
-    { icon: "interview", label: "Interview", detail: "No authoritative event recorded", state: "future" },
-    { icon: "offer", label: "Offer", detail: "No authoritative event recorded", state: "future" },
-    { icon: "closed", label: "Closed", detail: "No authoritative outcome recorded", state: "future" },
-  ];
-  return <section className="demo-application-lifecycle" aria-label="Planned evidence-first application lifecycle">
-    <div className="demo-lifecycle-heading"><div><span>Evidence-first lifecycle · APP-TRACK-001</span><h2>Prepared → Applied → Reply → Interview → Offer → Closed</h2></div><b>Future-safe surface</b></div>
-    <div className="demo-lifecycle-stages">{stages.map((stage, index) => <article key={stage.label} className={stage.state}>
-      <div className="demo-icon-tile"><Icon name={stage.icon} /></div>
-      <span>{stage.label}</span>
-      <b>{stage.detail}</b>
-      {index < stages.length - 1 && <i aria-hidden="true">→</i>}
-    </article>)}</div>
-    <div className="demo-lifecycle-boundary"><strong>Tracking begins after manual submission confirmation.</strong><span>Email/recruiter communication may later become evidence, but it does not silently become application-state authority.</span></div>
   </section>;
 }
 
@@ -240,6 +199,6 @@ export default function DemoProductPolish() {
   if (!payload || !stackRoot) return null;
 
   if (view === "overall") return createPortal(<><Journey payload={payload} /><AttentionPanel payload={payload} /></>, stackRoot);
-  if (view === "applications") return createPortal(<ApplicationLifecycle payload={payload} />, stackRoot);
+  if (view === "applications") return createPortal(<F5ApplicationTracking payload={payload} />, stackRoot);
   return null;
 }
