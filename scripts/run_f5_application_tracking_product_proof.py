@@ -1,4 +1,4 @@
-"""Exact-head read-only Product proof for the F5 tracking projection."""
+"""Exact-head read-only Product proof for the F5 mailbox-first tracking projection."""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ from scripts.product_v1_f5_application_tracking_runtime import (
 )
 
 
-PROOF_SCHEMA = "jap.f5.application_tracking_product_proof.v1"
+PROOF_SCHEMA = "jap.f5.application_tracking_product_proof.v2"
 
 
 def build_report(*, source_sha: str) -> dict[str, object]:
@@ -25,7 +25,8 @@ def build_report(*, source_sha: str) -> dict[str, object]:
     boundaries = payload.get("boundaries") or {}
     expected_boundaries = {
         "read_only_projection": True,
-        "communication_candidate_is_not_lifecycle_authority": True,
+        "mailbox_observed_status_is_separate_from_authoritative_history": True,
+        "unknown_job_application_supported": True,
         "gmail_credentials_present": False,
         "raw_mail_body_exposed": False,
         "email_send_authority": False,
@@ -39,9 +40,17 @@ def build_report(*, source_sha: str) -> dict[str, object]:
     for row in applications:
         if not isinstance(row, dict):
             raise RuntimeError("F5_TRACKING_APPLICATION_ROW_INVALID")
-        stage = row.get("authoritative_stage")
-        if stage not in STAGES:
-            raise RuntimeError(f"F5_TRACKING_STAGE_INVALID:{stage}")
+        authoritative_stage = row.get("authoritative_stage")
+        effective_stage = row.get("effective_stage")
+        observed_stage = row.get("observed_stage")
+        if authoritative_stage not in STAGES:
+            raise RuntimeError(f"F5_TRACKING_AUTHORITATIVE_STAGE_INVALID:{authoritative_stage}")
+        if effective_stage not in STAGES:
+            raise RuntimeError(f"F5_TRACKING_EFFECTIVE_STAGE_INVALID:{effective_stage}")
+        if observed_stage is not None and observed_stage not in STAGES:
+            raise RuntimeError(f"F5_TRACKING_OBSERVED_STAGE_INVALID:{observed_stage}")
+        if row.get("silver_job_id") is None and row.get("job_link_status") != "external":
+            raise RuntimeError("F5_TRACKING_UNKNOWN_JOB_LINK_STATUS_INVALID")
         for candidate in row.get("evidence_candidates") or []:
             if not isinstance(candidate, dict) or candidate.get("authority") != "evidence_only":
                 raise RuntimeError("F5_TRACKING_CANDIDATE_AUTHORITY_INVALID")
@@ -75,7 +84,8 @@ def main() -> int:
     summary = report["summary"]
     print(f"F5_TRACKING_SOURCE_SHA={args.source_sha}")
     print(f"F5_TRACKING_APPLICATIONS={summary.get('application_count')}")
-    print(f"F5_TRACKING_SUBMITTED={summary.get('submitted_count')}")
+    print(f"F5_TRACKING_MAILBOX_DISCOVERED={summary.get('mailbox_discovered_count')}")
+    print(f"F5_TRACKING_OBSERVED_STATUS={summary.get('observed_status_count')}")
     print(f"F5_TRACKING_ATTENTION={summary.get('attention_count')}")
     print(f"F5_TRACKING_UNMATCHED={summary.get('unmatched_candidate_count')}")
     print("F5_TRACKING_REAL_PRODUCT_PROOF=PASS")

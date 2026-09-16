@@ -1,9 +1,10 @@
-"""Read-only F5 application lifecycle projection for the local Control Center.
+"""Read-only F5 mailbox-first application lifecycle projection.
 
-The projection consumes only the authoritative schema introduced by migration 112.
-Communication evidence candidates can raise operator attention, but they never
-advance ``authoritative_stage``. Raw mailbox content and Gmail credentials are not
-owned by this public repository.
+Applications may be discovered from mailbox evidence even when JAP has never seen
+that job. ``authoritative_stage`` remains audit/correction truth; ``observed_stage``
+is the automatically tracked mailbox state derived by the DB view from exact,
+deterministic, high-confidence evidence. Raw mailbox content and Gmail credentials
+remain outside this public repository.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from psycopg.rows import dict_row
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 
 
-SCHEMA_VERSION = "job_application_pipeline.f5.application_tracking.v1"
+SCHEMA_VERSION = "job_application_pipeline.f5.application_tracking.v2"
 TRACKING_VIEW = "gold_product_v1_application_tracking"
 STAGES = ("prepared", "applied", "reply", "interview", "offer", "closed")
 
@@ -60,15 +61,30 @@ def _safe_evidence_summary(payload: object) -> dict[str, object]:
     return result
 
 
+def _snapshot_text(snapshot: object, *keys: str) -> str | None:
+    if not isinstance(snapshot, Mapping):
+        return None
+    for key in keys:
+        value = snapshot.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _stage(value: object, *, fallback: str = "prepared") -> str:
+    text = str(value or "").strip()
+    return text if text in STAGES else fallback
+
+
 def build_application_tracking_payload(
     *,
     applications: list[Mapping[str, object]],
     candidates: list[Mapping[str, object]],
     available: bool = True,
 ) -> dict[str, object]:
-    stage_counts = Counter(
-        str(row.get("authoritative_stage") or "prepared") for row in applications
-    )
     candidate_by_application: dict[int, list[dict[str, object]]] = {}
     unmatched_candidates: list[dict[str, object]] = []
 
@@ -84,6 +100,7 @@ def build_application_tracking_payload(
             "confidence": row.get("confidence"),
             "ambiguity_reason": row.get("ambiguity_reason"),
             "review_status": row.get("review_status"),
+            "observed_at": row.get("observed_at") or row.get("created_at"),
             "created_at": row.get("created_at"),
             "evidence": _safe_evidence_summary(row.get("evidence_payload")),
             "authority": "evidence_only",
@@ -100,21 +117,51 @@ def build_application_tracking_payload(
         candidate_by_application.setdefault(key, []).append(item)
 
     rows: list[dict[str, object]] = []
+    stage_counts: Counter[str] = Counter()
+    mailbox_discovered_count = 0
+    observed_count = 0
+
     for row in applications:
         application_id = int(row["application_id"])
-        stage = str(row.get("authoritative_stage") or "prepared")
-        if stage not in STAGES:
-            stage = "prepared"
+        authoritative_stage = _stage(row.get("authoritative_stage"))
+        observed_raw = row.get("observed_stage")
+        observed_stage = _stage(observed_raw) if observed_raw else None
+        effective_stage = _stage(
+            row.get("effective_stage"),
+            fallback=observed_stage or authoritative_stage,
+        )
+        stage_counts[effective_stage] += 1
+
+        discovery_kind = str(row.get("discovery_kind") or "jap_prepared")
+        if discovery_kind == "mailbox_observed":
+            mailbox_discovered_count += 1
+        if observed_stage is not None:
+            observed_count += 1
+
+        snapshot = row.get("job_identity_snapshot")
+        silver_job_id = row.get("silver_job_id")
+        title = row.get("title") or _snapshot_text(snapshot, "title", "job_title", "position")
+        company_name = row.get("company_name") or _snapshot_text(
+            snapshot, "company_name", "employer_name", "company"
+        )
+        display_company_name = row.get("display_company_name") or company_name
+        source_url = row.get("source_url") or _snapshot_text(
+            snapshot, "source_url", "job_url", "application_url"
+        )
+
         rows.append(
             {
                 "application_id": application_id,
                 "application_key": row.get("application_key"),
-                "silver_job_id": row.get("silver_job_id"),
+                "silver_job_id": silver_job_id,
+                "job_link_status": "linked" if silver_job_id is not None else "external",
                 "draft_request_id": row.get("draft_request_id"),
-                "title": row.get("title"),
-                "company_name": row.get("company_name"),
-                "display_company_name": row.get("display_company_name"),
-                "source_url": row.get("source_url"),
+                "discovery_kind": discovery_kind,
+                "discovered_at": row.get("discovered_at") or row.get("prepared_at"),
+                "title": title,
+                "company_name": company_name,
+                "display_company_name": display_company_name,
+                "source_url": source_url,
                 "prepared_at": row.get("prepared_at"),
                 "prepared_by": row.get("prepared_by"),
                 "submission_id": row.get("submission_id"),
@@ -122,7 +169,14 @@ def build_application_tracking_payload(
                 "submission_channel": row.get("submission_channel"),
                 "submission_authority_kind": row.get("submission_authority_kind"),
                 "submission_authority_reference": row.get("submission_authority_reference"),
-                "authoritative_stage": stage,
+                "authoritative_stage": authoritative_stage,
+                "observed_stage": observed_stage,
+                "observed_event_class": row.get("observed_event_class"),
+                "observed_at": row.get("observed_at"),
+                "observed_confidence": row.get("observed_confidence"),
+                "effective_stage": effective_stage,
+                "effective_stage_basis": row.get("effective_stage_basis")
+                or ("mailbox_observed" if observed_stage else "authoritative_fallback"),
                 "authoritative_event_count": int(
                     row.get("authoritative_event_count") or 0
                 ),
@@ -136,7 +190,7 @@ def build_application_tracking_payload(
                 "attention_status": row.get("attention_status") or "none",
                 "evidence_candidates": candidate_by_application.get(application_id, []),
                 "stage_authority": (
-                    "application_submission_and_confirmed_lifecycle_events"
+                    "mailbox_observed_with_separate_authoritative_correction"
                 ),
             }
         )
@@ -149,6 +203,8 @@ def build_application_tracking_payload(
             "submitted_count": sum(
                 1 for row in rows if row.get("submission_id") is not None
             ),
+            "mailbox_discovered_count": mailbox_discovered_count,
+            "observed_status_count": observed_count,
             "attention_count": sum(
                 1
                 for row in rows
@@ -163,7 +219,8 @@ def build_application_tracking_payload(
         "unmatched_evidence_candidates": unmatched_candidates,
         "boundaries": {
             "read_only_projection": True,
-            "communication_candidate_is_not_lifecycle_authority": True,
+            "mailbox_observed_status_is_separate_from_authoritative_history": True,
+            "unknown_job_application_supported": True,
             "gmail_credentials_present": False,
             "raw_mail_body_exposed": False,
             "email_send_authority": False,
@@ -197,7 +254,12 @@ def load_application_tracking_payload() -> dict[str, object]:
                 LEFT JOIN silver_jobs silver
                   ON silver.id = tracking.silver_job_id
                 ORDER BY
-                    coalesce(tracking.submitted_at, tracking.prepared_at) DESC,
+                    coalesce(
+                        tracking.observed_at,
+                        tracking.submitted_at,
+                        tracking.discovered_at,
+                        tracking.prepared_at
+                    ) DESC,
                     tracking.application_id DESC
                 """
             )
@@ -219,12 +281,13 @@ def load_application_tracking_payload() -> dict[str, object]:
                         ambiguity_reason,
                         evidence_payload,
                         review_status,
+                        observed_at,
                         created_at
                     FROM application_event_candidates
                     WHERE review_status IN (
                         'unreviewed', 'ambiguous', 'accepted_as_evidence'
                     )
-                    ORDER BY created_at DESC, id DESC
+                    ORDER BY observed_at DESC, id DESC
                     """
                 )
                 candidates = [dict(row) for row in cur.fetchall()]
