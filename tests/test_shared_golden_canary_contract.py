@@ -23,6 +23,7 @@ def test_real_canary_uses_exact_shared_facade_and_ephemeral_source() -> None:
         encoding="utf-8"
     )
 
+    assert "run-name: RCC real warm canary ${{ inputs.reservation_id }}" in workflow
     assert 'default: rcc-general-linux-01' in workflow
     assert 'default: rcc-general-linux-01--jap' in workflow
     assert 'default: \'["self-hosted","rcc-general-linux-01--jap"]\'' in workflow

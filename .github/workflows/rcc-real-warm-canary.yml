@@ -1,4 +1,5 @@
 name: RCC real warm canary
+run-name: RCC real warm canary ${{ inputs.reservation_id }}
 
 on:
   workflow_dispatch:
