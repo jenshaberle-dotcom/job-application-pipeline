@@ -7,6 +7,7 @@ import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
 import DemoOperatorHardening from "./DemoOperatorHardening";
 import DemoProductPolish from "./DemoProductPolish";
 import DemoTruthRibbon from "./DemoTruthRibbon";
+import F4cSourceHealthSurface from "./F4cSourceHealthSurface";
 import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
 import "./styles.css";
@@ -29,6 +30,7 @@ createRoot(root).render(
       <DemoOperatorHardening />
       <DemoProductPolish />
       <DemoTruthRibbon />
+      <F4cSourceHealthSurface />
       <DemoApplicationWorkspace />
       <ApplicationWorkspaceEventBridge />
     </RuntimeErrorBoundary>
