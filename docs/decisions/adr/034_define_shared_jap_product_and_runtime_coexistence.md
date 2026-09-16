@@ -101,4 +101,4 @@ This ADR does not change the active JAP Cloud M2 acceptance scope, authorize Azu
 
 ## Counterpart
 
-The mirrored cloud-side decision is maintained in `jenshaberle-dotcom/jap-cloud-based` as `docs/decisions/ADR-0003-shared-jap-product-runtime-coexistence.md`.
+The mirrored cloud-side decision is JAP Cloud ADR-0003: https://github.com/jenshaberle-dotcom/jap-cloud-based/blob/main/docs/decisions/ADR-0003-shared-jap-product-runtime-coexistence.md
