@@ -19,6 +19,14 @@ def test_non_current_lifecycle_is_explicitly_classified() -> None:
     assert classify_non_current_gold(row) == "lifecycle_inactive_confirmed"
 
 
+def test_missing_lifecycle_is_not_collapsed_into_active_truth() -> None:
+    row = {
+        "is_representative": True,
+        "lifecycle_status": None,
+    }
+    assert classify_non_current_gold(row) == "lifecycle_unknown"
+
+
 def test_active_representative_gap_is_not_silently_explained() -> None:
     row = {
         "is_representative": True,
