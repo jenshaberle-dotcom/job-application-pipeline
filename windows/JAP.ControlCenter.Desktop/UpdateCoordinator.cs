@@ -10,6 +10,8 @@ internal sealed class UpdateCoordinator : IDisposable
     private const string ResultSchema = "job_application_pipeline.windows_update_result.v1";
     private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v2";
     private const string CompatibilityLine = "1";
+    private const string UpdaterShell = "pwsh";
+    private const int UpdaterShellMajor = 7;
     private static readonly TimeSpan SnoozeDuration = TimeSpan.FromHours(6);
 
     private readonly Form _owner;
@@ -77,7 +79,8 @@ internal sealed class UpdateCoordinator : IDisposable
             WriteEvent(
                 "pending_blocked",
                 $"installed={current.DesktopHostVersion} target={pending.TargetDesktopVersion} "
-                + $"line={pending.CompatibilityLine} schema={pending.InstallerSchema}");
+                + $"line={pending.CompatibilityLine} schema={pending.InstallerSchema} "
+                + $"updater_shell={pending.UpdaterShell} updater_shell_major={pending.UpdaterShellMajor}");
             return false;
         }
 
@@ -134,12 +137,8 @@ internal sealed class UpdateCoordinator : IDisposable
             }
 
             WriteAcceptedManifest(pending.ManifestJson);
-            var powershell = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                "System32",
-                "WindowsPowerShell",
-                "v1.0",
-                "powershell.exe");
+            var powershell = ResolvePowerShell7();
+            WriteEvent("update_shell_resolved", $"engine=pwsh major=7 executable={powershell}");
             var startInfo = new ProcessStartInfo
             {
                 FileName = powershell,
@@ -164,7 +163,7 @@ internal sealed class UpdateCoordinator : IDisposable
             _applyingUpdate = true;
             _pollTimer.Stop();
             TryDelete(_snoozePath);
-            WriteEvent("update_accepted", $"target={pending.TargetDesktopVersion}");
+            WriteEvent("update_accepted", $"target={pending.TargetDesktopVersion} shell=pwsh");
             _owner.BeginInvoke(new Action(() => _owner.Close()));
             return true;
         }
@@ -190,7 +189,9 @@ internal sealed class UpdateCoordinator : IDisposable
     {
         if (current.Schema != InstallSchema
             || pending.InstallerSchema != InstallSchema
-            || pending.CompatibilityLine != CompatibilityLine)
+            || pending.CompatibilityLine != CompatibilityLine
+            || pending.UpdaterShell != UpdaterShell
+            || pending.UpdaterShellMajor != UpdaterShellMajor)
         {
             return false;
         }
@@ -252,6 +253,8 @@ internal sealed class UpdateCoordinator : IDisposable
                 GetString(root, "target_desktop_version"),
                 GetString(root, "compatibility_line"),
                 GetString(root, "installer_schema"),
+                GetString(root, "updater_shell"),
+                GetInt32(root, "updater_shell_major"),
                 raw);
         }
         catch (Exception exc) when (exc is IOException or JsonException)
@@ -361,11 +364,50 @@ internal sealed class UpdateCoordinator : IDisposable
         }
     }
 
+    private static string ResolvePowerShell7()
+    {
+        var candidates = new List<string>();
+        foreach (var root in new[]
+                 {
+                     Environment.GetEnvironmentVariable("ProgramW6432"),
+                     Environment.GetEnvironmentVariable("ProgramFiles")
+                 })
+        {
+            if (!string.IsNullOrWhiteSpace(root))
+            {
+                candidates.Add(Path.Combine(root, "PowerShell", "7", "pwsh.exe"));
+            }
+        }
+
+        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        foreach (var directory in path.Split(
+                     Path.PathSeparator,
+                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            candidates.Add(Path.Combine(directory, "pwsh.exe"));
+        }
+
+        var resolved = candidates
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(File.Exists);
+        return resolved
+            ?? throw new FileNotFoundException(
+                "PowerShell 7.x (pwsh.exe) ist für JAP-Updates erforderlich.");
+    }
+
     private static string GetString(JsonElement root, string property)
     {
         return root.TryGetProperty(property, out var value)
             ? value.GetString() ?? string.Empty
             : string.Empty;
+    }
+
+    private static int GetInt32(JsonElement root, string property)
+    {
+        return root.TryGetProperty(property, out var value)
+            && value.TryGetInt32(out var parsed)
+            ? parsed
+            : -1;
     }
 
     private static void WriteJsonAtomic(string path, object value)
@@ -421,6 +463,8 @@ internal sealed class UpdateCoordinator : IDisposable
         string TargetDesktopVersion,
         string CompatibilityLine,
         string InstallerSchema,
+        string UpdaterShell,
+        int UpdaterShellMajor,
         string ManifestJson);
 
     private sealed record SnoozeState(
