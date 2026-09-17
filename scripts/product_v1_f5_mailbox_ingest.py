@@ -30,6 +30,18 @@ _DISCOVERY_CLASSES = frozenset(
         "withdrawal_confirmation",
     }
 )
+_PERSISTENCE_CLASSES = frozenset(
+    {
+        "application_acknowledgement",
+        "recruiter_contact",
+        "interview_invitation",
+        "assessment_request",
+        "offer_signal",
+        "rejection",
+        "withdrawal_confirmation",
+        "ambiguous",
+    }
+)
 _ALLOWED_MAIL_DIRECTIONS = frozenset({"inbound", "outbound"})
 _ALLOWED_GMAIL_SEARCH_SIGNALS = frozenset(
     {
@@ -202,9 +214,23 @@ def mailbox_application_key(observation: NormalizedMailboxObservation) -> str:
     return "mailbox-application:" + canonical_sha256(identity)
 
 
+def source_message_identity_key(observation: NormalizedMailboxObservation) -> str:
+    """Return classifier-independent identity for one normalized Gmail message."""
+
+    return "gmail-message:" + canonical_sha256(
+        {
+            "source_kind": "gmail",
+            "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
+            "message_reference": observation.message_reference,
+        }
+    )
+
+
 def evidence_fingerprint(
     observation: NormalizedMailboxObservation, classification: ClassificationResult
 ) -> str:
+    """Fingerprint one interpretation of a stable source message."""
+
     return canonical_sha256(
         {
             "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
@@ -225,6 +251,12 @@ def should_discover_application(classification: ClassificationResult) -> bool:
     )
 
 
+def should_persist_candidate(classification: ClassificationResult) -> bool:
+    """Keep bounded lifecycle/review evidence; discard deterministic mailbox noise."""
+
+    return classification.candidate_class in _PERSISTENCE_CLASSES
+
+
 def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, object]:
     return {
         "job_title": observation.job_title,
@@ -241,11 +273,6 @@ def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, o
 def ingest_normalized_mailbox_observation(
     observation: NormalizedMailboxObservation,
 ) -> dict[str, object]:
-    import psycopg
-    from psycopg.rows import dict_row
-
-    from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
-
     classification = classify_application_evidence(
         subject=observation.subject,
         text_excerpt=observation.text_excerpt,
@@ -254,19 +281,76 @@ def ingest_normalized_mailbox_observation(
         counterparty_domain=observation.counterparty_domain,
         deterministic_event_signals=observation.gmail_search_signals,
     )
-    discovery_allowed = should_discover_application(classification)
+    source_identity_key = source_message_identity_key(observation)
     application_key = mailbox_application_key(observation)
     evidence_hash = evidence_fingerprint(observation, classification)
+
+    if not should_persist_candidate(classification):
+        return {
+            "application_key": None,
+            "application_id": None,
+            "application_discovered": False,
+            "application_created": False,
+            "candidate_recorded": False,
+            "candidate_noop": False,
+            "candidate_skipped": True,
+            "superseded_candidate_id": None,
+            "source_identity_key": source_identity_key,
+            "candidate_class": classification.candidate_class,
+            "confidence": classification.confidence,
+            "match_status": "unmatched",
+            "observed_at": observation.observed_at.isoformat(),
+            "mail_direction": observation.mail_direction,
+            "counterparty_domain": observation.counterparty_domain,
+            "authoritative_state_mutation": False,
+            "application_submission_action": False,
+            "email_action": False,
+        }
+
+    import psycopg
+    from psycopg.rows import dict_row
+
+    from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+
+    discovery_allowed = should_discover_application(classification)
     snapshot = _identity_snapshot(observation)
     snapshot_sha = canonical_sha256(snapshot)
+    application_created = False
+    candidate_noop = False
+    superseded_candidate_id: int | None = None
 
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
     ) as conn:
         with conn.transaction():
             with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        matched_application_id,
+                        match_status,
+                        candidate_class,
+                        evidence_fingerprint
+                    FROM application_event_candidates
+                    WHERE source_kind = 'gmail'
+                      AND source_identity_key = %s
+                      AND is_active
+                    FOR UPDATE
+                    """,
+                    (source_identity_key,),
+                )
+                active_candidate = cur.fetchone()
+
                 application_id: int | None = None
-                if discovery_allowed:
+                if (
+                    active_candidate is not None
+                    and active_candidate["matched_application_id"] is not None
+                ):
+                    # Reclassification alone must not silently rematch an already
+                    # identified source message to another application.
+                    application_id = int(active_candidate["matched_application_id"])
+                elif discovery_allowed:
                     provenance = {
                         "discovery": "mailbox_observed",
                         "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
@@ -307,6 +391,7 @@ def ingest_normalized_mailbox_observation(
                     inserted = cur.fetchone()
                     if inserted is not None:
                         application_id = int(inserted["id"])
+                        application_created = True
                     else:
                         cur.execute(
                             "SELECT id FROM applications WHERE application_key = %s FOR SHARE",
@@ -318,68 +403,118 @@ def ingest_normalized_mailbox_observation(
                         application_id = int(existing["id"])
 
                 match_status = "exact" if application_id is not None else "unmatched"
-                ambiguity_reason = None if application_id is not None else "no_safe_application_identity"
-                evidence_payload = classification.as_payload()
-                evidence_payload.update(
-                    {
-                        "sender_domain": observation.sender_domain,
-                        "mail_direction": observation.mail_direction,
-                        "counterparty_domain": observation.counterparty_domain,
-                        "employer_evidence_source": observation.employer_evidence_source,
-                        "gmail_search_signals": list(observation.gmail_search_signals),
-                        "subject_fingerprint": canonical_sha256(
-                            {"subject": _normalized(observation.subject)}
-                        ),
-                        "thread_match_reason": (
-                            "mailbox_application_identity"
-                            if application_id is not None
-                            else "not_discovered"
-                        ),
-                    }
-                )
-                cur.execute(
-                    """
-                    INSERT INTO application_event_candidates (
-                        matched_application_id,
-                        match_status,
-                        candidate_class,
-                        source_kind,
-                        source_thread_reference,
-                        source_message_reference,
-                        evidence_fingerprint,
-                        confidence,
-                        ambiguity_reason,
-                        evidence_payload,
-                        review_status,
-                        observed_at
+                ambiguity_reason = (
+                    None
+                    if application_id is not None
+                    else (
+                        "classification_ambiguous"
+                        if classification.candidate_class == "ambiguous"
+                        else "no_safe_application_identity"
                     )
-                    VALUES (%s, %s, %s, 'gmail', %s, %s, %s, %s, %s,
-                            %s::jsonb, %s, %s)
-                    ON CONFLICT (source_kind, evidence_fingerprint, candidate_class)
-                    DO NOTHING
-                    RETURNING id
-                    """,
-                    (
-                        application_id,
-                        match_status,
-                        classification.candidate_class,
-                        observation.thread_reference,
-                        observation.message_reference,
-                        evidence_hash,
-                        classification.confidence,
-                        ambiguity_reason,
-                        json.dumps(evidence_payload, ensure_ascii=False, sort_keys=True),
-                        "unreviewed" if application_id is not None else "ambiguous",
-                        observation.observed_at,
-                    ),
                 )
-                candidate = cur.fetchone()
+
+                same_interpretation = (
+                    active_candidate is not None
+                    and str(active_candidate["candidate_class"])
+                    == classification.candidate_class
+                    and str(active_candidate["evidence_fingerprint"]) == evidence_hash
+                    and active_candidate["matched_application_id"] == application_id
+                    and str(active_candidate["match_status"]) == match_status
+                )
+
+                candidate = None
+                if same_interpretation:
+                    candidate_noop = True
+                else:
+                    if active_candidate is not None:
+                        superseded_candidate_id = int(active_candidate["id"])
+                        cur.execute(
+                            """
+                            UPDATE application_event_candidates
+                            SET is_active = FALSE
+                            WHERE id = %s AND is_active
+                            """,
+                            (superseded_candidate_id,),
+                        )
+                        if cur.rowcount != 1:
+                            raise MailboxIngestError("active_candidate_supersession_race")
+
+                    evidence_payload = classification.as_payload()
+                    evidence_payload.update(
+                        {
+                            "sender_domain": observation.sender_domain,
+                            "mail_direction": observation.mail_direction,
+                            "counterparty_domain": observation.counterparty_domain,
+                            "employer_evidence_source": observation.employer_evidence_source,
+                            "gmail_search_signals": list(observation.gmail_search_signals),
+                            "source_identity_key": source_identity_key,
+                            "subject_fingerprint": canonical_sha256(
+                                {"subject": _normalized(observation.subject)}
+                            ),
+                            "thread_match_reason": (
+                                "mailbox_application_identity"
+                                if application_id is not None
+                                else "not_discovered"
+                            ),
+                        }
+                    )
+                    review_status = (
+                        "ambiguous"
+                        if classification.candidate_class == "ambiguous"
+                        or application_id is None
+                        else "unreviewed"
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO application_event_candidates (
+                            matched_application_id,
+                            match_status,
+                            candidate_class,
+                            source_kind,
+                            source_thread_reference,
+                            source_message_reference,
+                            source_identity_key,
+                            evidence_fingerprint,
+                            confidence,
+                            ambiguity_reason,
+                            evidence_payload,
+                            review_status,
+                            observed_at,
+                            is_active,
+                            supersedes_candidate_id
+                        )
+                        VALUES (%s, %s, %s, 'gmail', %s, %s, %s, %s, %s, %s,
+                                %s::jsonb, %s, %s, TRUE, %s)
+                        RETURNING id
+                        """,
+                        (
+                            application_id,
+                            match_status,
+                            classification.candidate_class,
+                            observation.thread_reference,
+                            observation.message_reference,
+                            source_identity_key,
+                            evidence_hash,
+                            classification.confidence,
+                            ambiguity_reason,
+                            json.dumps(evidence_payload, ensure_ascii=False, sort_keys=True),
+                            review_status,
+                            observation.observed_at,
+                            superseded_candidate_id,
+                        ),
+                    )
+                    candidate = cur.fetchone()
 
     return {
         "application_key": application_key if application_id is not None else None,
         "application_id": application_id,
         "application_discovered": application_id is not None,
+        "application_created": application_created,
         "candidate_recorded": candidate is not None,
+        "candidate_noop": candidate_noop,
+        "candidate_skipped": False,
+        "superseded_candidate_id": superseded_candidate_id,
+        "source_identity_key": source_identity_key,
         "candidate_class": classification.candidate_class,
         "confidence": classification.confidence,
         "match_status": match_status,
