@@ -6,20 +6,25 @@ on:
       - ".github/workflows/f5-application-lifecycle-reconciliation.yml"
       - "db/migrations/112_create_authoritative_application_lifecycle.sql"
       - "db/migrations/113_enable_mailbox_first_application_tracking.sql"
+      - "db/migrations/114_application_event_candidate_source_identity.sql"
       - "scripts/run_f5_application_lifecycle_reconciliation.py"
       - "scripts/run_f5_application_lifecycle_schema_qualification.py"
       - "scripts/run_f5_mailbox_tracking_schema_qualification.py"
+      - "scripts/run_f5_candidate_supersession_schema_qualification.py"
       - "scripts/run_f5_application_tracking_product_proof.py"
       - "scripts/product_v1_f5_application_tracking_runtime.py"
       - "scripts/product_v1_f5_application_actions.py"
       - "scripts/product_v1_f5_mailbox_ingest.py"
       - "scripts/run_product_v1_f5_mailbox_batch_preflight.py"
+      - "scripts/run_product_v1_f5_mailbox_persistence_preflight.py"
       - "scripts/run_product_v1_demo_control_center.py"
       - "src/search_intelligence/application_event_classifier.py"
       - "tests/test_f5_application_lifecycle_reconciliation.py"
       - "tests/test_f5_application_lifecycle_schema_qualification.py"
       - "tests/test_f5_authoritative_application_lifecycle_contract.py"
       - "tests/test_f5_mailbox_first_application_contract.py"
+      - "tests/test_f5_candidate_supersession_schema_qualification.py"
+      - "tests/test_f5_mailbox_candidate_supersession_contract.py"
       - "tests/test_f5_application_tracking_product_proof.py"
       - "tests/test_product_v1_f5_application_tracking_runtime.py"
       - "tests/test_product_v1_f5_application_actions.py"
@@ -46,12 +51,15 @@ on:
           - preflight
           - apply
           - postapply
+          - candidate_preflight
+          - candidate_apply
+          - candidate_postapply
       source_sha:
         description: "Exact source SHA to qualify/apply"
         required: true
         type: string
       approval_token:
-        description: "Required only for apply mode"
+        description: "Required only for apply modes"
         required: false
         type: string
 
@@ -72,7 +80,9 @@ jobs:
         github.event.comment.user.login == 'jenshaberle-dotcom' &&
         github.event.comment.author_association == 'OWNER' &&
         (startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:apply:v1 -->') ||
-         startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:postapply:v1 -->'))))
+         startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:postapply:v1 -->') ||
+         startsWith(github.event.comment.body, '<!-- jap-f5-candidate-supersession:apply:v1 -->') ||
+         startsWith(github.event.comment.body, '<!-- jap-f5-candidate-supersession:postapply:v1 -->'))))
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
@@ -81,7 +91,9 @@ jobs:
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       MODE: >-
         ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:apply:v1 -->') && 'apply' ||
-            github.event_name == 'issue_comment' && 'postapply' ||
+            github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:postapply:v1 -->') && 'postapply' ||
+            github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-candidate-supersession:apply:v1 -->') && 'candidate_apply' ||
+            github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-candidate-supersession:postapply:v1 -->') && 'candidate_postapply' ||
             github.event_name == 'workflow_dispatch' && inputs.mode || 'current' }}
       SOURCE_SHA: >-
         ${{ github.event_name == 'issue_comment' && github.sha ||
@@ -89,10 +101,13 @@ jobs:
             github.event.pull_request.head.sha }}
       APPROVAL_TOKEN: >-
         ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:apply:v1 -->') && 'F5-MAILBOX-FIRST-MIGRATION-113' ||
+            github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-candidate-supersession:apply:v1 -->') && 'F5-CANDIDATE-SUPERSESSION-MIGRATION-114' ||
             inputs.approval_token || '' }}
       OUTPUT: /tmp/jap-f5-mailbox-schema-qualification.json
       PRODUCT_OUTPUT: /tmp/jap-f5-mailbox-product-proof.json
+      CANDIDATE_OUTPUT: /tmp/jap-f5-candidate-supersession-qualification.json
       TARGET_MIGRATION: 113_enable_mailbox_first_application_tracking.sql
+      CANDIDATE_TARGET_MIGRATION: 114_application_event_candidate_source_identity.sql
 
     steps:
       - name: Check out exact source
@@ -173,17 +188,21 @@ jobs:
             scripts/run_f5_application_lifecycle_reconciliation.py \
             scripts/run_f5_application_lifecycle_schema_qualification.py \
             scripts/run_f5_mailbox_tracking_schema_qualification.py \
+            scripts/run_f5_candidate_supersession_schema_qualification.py \
             scripts/run_f5_application_tracking_product_proof.py \
             scripts/product_v1_f5_application_tracking_runtime.py \
             scripts/product_v1_f5_application_actions.py \
             scripts/product_v1_f5_mailbox_ingest.py \
             scripts/run_product_v1_f5_mailbox_batch_preflight.py \
+            scripts/run_product_v1_f5_mailbox_persistence_preflight.py \
             src/search_intelligence/application_event_classifier.py
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
             tests/test_f5_authoritative_application_lifecycle_contract.py \
             tests/test_f5_mailbox_first_application_contract.py \
+            tests/test_f5_candidate_supersession_schema_qualification.py \
+            tests/test_f5_mailbox_candidate_supersession_contract.py \
             tests/test_f5_application_tracking_product_proof.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
@@ -194,16 +213,20 @@ jobs:
             scripts/run_f5_application_lifecycle_reconciliation.py \
             scripts/run_f5_application_lifecycle_schema_qualification.py \
             scripts/run_f5_mailbox_tracking_schema_qualification.py \
+            scripts/run_f5_candidate_supersession_schema_qualification.py \
             scripts/run_f5_application_tracking_product_proof.py \
             scripts/product_v1_f5_application_tracking_runtime.py \
             scripts/product_v1_f5_application_actions.py \
             scripts/product_v1_f5_mailbox_ingest.py \
             scripts/run_product_v1_f5_mailbox_batch_preflight.py \
+            scripts/run_product_v1_f5_mailbox_persistence_preflight.py \
             src/search_intelligence/application_event_classifier.py \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
             tests/test_f5_authoritative_application_lifecycle_contract.py \
             tests/test_f5_mailbox_first_application_contract.py \
+            tests/test_f5_candidate_supersession_schema_qualification.py \
+            tests/test_f5_mailbox_candidate_supersession_contract.py \
             tests/test_f5_application_tracking_product_proof.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
@@ -228,7 +251,7 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --output "$PRODUCT_OUTPUT"
 
-      - name: Run exact-head real DB migration preflight read-only
+      - name: Run exact-head real DB migration 113 preflight read-only
         if: ${{ env.MODE == 'preflight' }}
         shell: bash
         run: |
@@ -241,6 +264,20 @@ jobs:
             --phase preflight \
             --source-sha "$SOURCE_SHA" \
             --output "$OUTPUT"
+
+      - name: Run candidate supersession migration 114 preflight read-only
+        if: ${{ env.MODE == 'candidate_preflight' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_candidate_supersession_schema_qualification \
+            --phase preflight \
+            --source-sha "$SOURCE_SHA" \
+            --output "$CANDIDATE_OUTPUT"
 
       - name: Run real Product tracking proof read-only
         if: ${{ env.MODE == 'tracking' }}
@@ -255,7 +292,7 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --output "$PRODUCT_OUTPUT"
 
-      - name: Prove apply authority is exact current main
+      - name: Prove migration 113 apply authority is exact current main
         if: ${{ env.MODE == 'apply' }}
         shell: bash
         run: |
@@ -285,7 +322,37 @@ jobs:
             --applied-by f5-mailbox-first-exact-workflow
           echo "F5_SCHEMA_EXACT_APPLY=PASS source=$SOURCE_SHA target=$TARGET_MIGRATION"
 
-      - name: Prove post-apply source is exact current main
+      - name: Prove migration 114 apply authority is exact current main
+        if: ${{ env.MODE == 'candidate_apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch|issue_comment) ;;
+            *) echo "F5_CANDIDATE_APPLY_EVENT_NOT_AUTHORIZED=$GITHUB_EVENT_NAME" >&2; exit 3 ;;
+          esac
+          test "$APPROVAL_TOKEN" = "F5-CANDIDATE-SUPERSESSION-MIGRATION-114"
+          git fetch origin main --depth=1
+          main_sha="$(git rev-parse FETCH_HEAD)"
+          test "$SOURCE_SHA" = "$main_sha"
+          echo "F5_CANDIDATE_APPLY_AUTHORITY=PASS source=$SOURCE_SHA target=$CANDIDATE_TARGET_MIGRATION"
+
+      - name: Apply exact candidate supersession migration 114
+        if: ${{ env.MODE == 'candidate_apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          unset PGOPTIONS
+          "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
+            --apply-exact "$CANDIDATE_TARGET_MIGRATION" \
+            --require-sole-pending \
+            --applied-by f5-candidate-supersession-exact-workflow
+          echo "F5_CANDIDATE_SCHEMA_EXACT_APPLY=PASS source=$SOURCE_SHA target=$CANDIDATE_TARGET_MIGRATION"
+
+      - name: Prove migration 113 post-apply source is exact current main
         if: ${{ env.MODE == 'postapply' }}
         shell: bash
         run: |
@@ -299,7 +366,7 @@ jobs:
           test "$SOURCE_SHA" = "$main_sha"
           echo "F5_SCHEMA_POSTAPPLY_SOURCE=PASS source=$SOURCE_SHA"
 
-      - name: Run post-apply real DB proof read-only
+      - name: Run migration 113 post-apply real DB proof read-only
         if: ${{ env.MODE == 'postapply' }}
         shell: bash
         run: |
@@ -316,13 +383,45 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --output "$PRODUCT_OUTPUT"
 
+      - name: Prove migration 114 post-apply source is exact current main
+        if: ${{ env.MODE == 'candidate_postapply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch|issue_comment) ;;
+            *) echo "F5_CANDIDATE_POSTAPPLY_EVENT_NOT_AUTHORIZED=$GITHUB_EVENT_NAME" >&2; exit 3 ;;
+          esac
+          git fetch origin main --depth=1
+          main_sha="$(git rev-parse FETCH_HEAD)"
+          test "$SOURCE_SHA" = "$main_sha"
+          echo "F5_CANDIDATE_POSTAPPLY_SOURCE=PASS source=$SOURCE_SHA"
+
+      - name: Run migration 114 post-apply real DB proof read-only
+        if: ${{ env.MODE == 'candidate_postapply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_candidate_supersession_schema_qualification \
+            --phase postapply \
+            --source-sha "$SOURCE_SHA" \
+            --output "$CANDIDATE_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_application_tracking_product_proof \
+            --source-sha "$SOURCE_SHA" \
+            --output "$PRODUCT_OUTPUT"
+
       - name: Upload F5 lifecycle qualification evidence
-        if: ${{ env.MODE != 'apply' }}
+        if: ${{ env.MODE != 'apply' && env.MODE != 'candidate_apply' }}
         uses: actions/upload-artifact@v4
         with:
           name: f5-application-lifecycle-${{ env.MODE }}-${{ env.SOURCE_SHA }}
           path: |
             ${{ env.OUTPUT }}
             ${{ env.PRODUCT_OUTPUT }}
+            ${{ env.CANDIDATE_OUTPUT }}
           if-no-files-found: warn
           retention-days: 14
