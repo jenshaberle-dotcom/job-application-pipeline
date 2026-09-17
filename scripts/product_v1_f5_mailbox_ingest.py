@@ -282,7 +282,7 @@ def ingest_normalized_mailbox_observation(
         deterministic_event_signals=observation.gmail_search_signals,
     )
     source_identity_key = source_message_identity_key(observation)
-    application_key = mailbox_application_key(observation)
+    generated_application_key = mailbox_application_key(observation)
     evidence_hash = evidence_fingerprint(observation, classification)
 
     if not should_persist_candidate(classification):
@@ -318,25 +318,35 @@ def ingest_normalized_mailbox_observation(
     application_created = False
     candidate_noop = False
     superseded_candidate_id: int | None = None
+    resolved_application_key: str | None = None
 
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
     ) as conn:
         with conn.transaction():
             with conn.cursor() as cur:
+                # Serialize both first-seen and already-seen processing of one source
+                # identity. Row locks alone cannot protect the first insert race.
+                cur.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                    (source_identity_key,),
+                )
                 cur.execute(
                     """
                     SELECT
-                        id,
-                        matched_application_id,
-                        match_status,
-                        candidate_class,
-                        evidence_fingerprint
-                    FROM application_event_candidates
-                    WHERE source_kind = 'gmail'
-                      AND source_identity_key = %s
-                      AND is_active
-                    FOR UPDATE
+                        candidate.id,
+                        candidate.matched_application_id,
+                        candidate.match_status,
+                        candidate.candidate_class,
+                        candidate.evidence_fingerprint,
+                        application.application_key AS matched_application_key
+                    FROM application_event_candidates candidate
+                    LEFT JOIN applications application
+                      ON application.id = candidate.matched_application_id
+                    WHERE candidate.source_kind = 'gmail'
+                      AND candidate.source_identity_key = %s
+                      AND candidate.is_active
+                    FOR UPDATE OF candidate
                     """,
                     (source_identity_key,),
                 )
@@ -350,6 +360,10 @@ def ingest_normalized_mailbox_observation(
                     # Reclassification alone must not silently rematch an already
                     # identified source message to another application.
                     application_id = int(active_candidate["matched_application_id"])
+                    matched_key = active_candidate["matched_application_key"]
+                    if matched_key is None:
+                        raise MailboxIngestError("matched_application_key_missing")
+                    resolved_application_key = str(matched_key)
                 elif discovery_allowed:
                     provenance = {
                         "discovery": "mailbox_observed",
@@ -381,7 +395,7 @@ def ingest_normalized_mailbox_observation(
                         RETURNING id
                         """,
                         (
-                            application_key,
+                            generated_application_key,
                             observation.observed_at,
                             json.dumps(snapshot, ensure_ascii=False, sort_keys=True),
                             snapshot_sha,
@@ -395,12 +409,13 @@ def ingest_normalized_mailbox_observation(
                     else:
                         cur.execute(
                             "SELECT id FROM applications WHERE application_key = %s FOR SHARE",
-                            (application_key,),
+                            (generated_application_key,),
                         )
                         existing = cur.fetchone()
                         if existing is None:
                             raise MailboxIngestError("application_missing_after_conflict")
                         application_id = int(existing["id"])
+                    resolved_application_key = generated_application_key
 
                 match_status = "exact" if application_id is not None else "unmatched"
                 ambiguity_reason = (
@@ -506,7 +521,7 @@ def ingest_normalized_mailbox_observation(
                     candidate = cur.fetchone()
 
     return {
-        "application_key": application_key if application_id is not None else None,
+        "application_key": resolved_application_key,
         "application_id": application_id,
         "application_discovered": application_id is not None,
         "application_created": application_created,
