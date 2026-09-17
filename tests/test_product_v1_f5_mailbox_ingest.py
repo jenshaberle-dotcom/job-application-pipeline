@@ -85,6 +85,38 @@ def test_parser_preserves_bounded_direction_and_counterparty_provenance() -> Non
     assert parsed.sender_domain == "gmail.com"
 
 
+def test_parser_accepts_only_bounded_gmail_search_signal_classes() -> None:
+    base = {
+        "source_kind": "gmail",
+        "mailbox_account_fingerprint": "acct",
+        "thread_reference": "thread",
+        "message_reference": "message",
+        "observed_at": "2026-06-21T12:00:00+00:00",
+        "subject": "Update zu Ihrer Bewerbung",
+        "text_excerpt": "Vielen Dank für Ihre Bewerbung.",
+        "sender_domain": "example.com",
+        "mail_direction": "inbound",
+        "counterparty_domain": "example.com",
+    }
+    parsed = parse_normalized_mailbox_observation(
+        dict(base, gmail_search_signals=["rejection", "assessment_request"])
+    )
+    assert parsed.gmail_search_signals == ("rejection", "assessment_request")
+
+    with pytest.raises(MailboxIngestError, match="gmail_search_signals_must_be_list"):
+        parse_normalized_mailbox_observation(
+            dict(base, gmail_search_signals="rejection")
+        )
+    with pytest.raises(MailboxIngestError, match="invalid_gmail_search_signal"):
+        parse_normalized_mailbox_observation(
+            dict(base, gmail_search_signals=["made_up_transition"])
+        )
+    with pytest.raises(MailboxIngestError, match="duplicate_gmail_search_signal"):
+        parse_normalized_mailbox_observation(
+            dict(base, gmail_search_signals=["rejection", "rejection"])
+        )
+
+
 def test_outbound_requires_domain_not_recipient_address() -> None:
     base = {
         "source_kind": "gmail",
@@ -170,6 +202,38 @@ def test_ambiguous_or_other_evidence_cannot_create_application() -> None:
 
     assert should_discover_application(ambiguous) is False
     assert should_discover_application(other) is False
+
+
+def test_batch_preflight_consumes_bounded_signal_without_body_material() -> None:
+    result = preflight_rows(
+        [
+            {
+                "source_kind": "gmail",
+                "mailbox_account_fingerprint": "acct",
+                "thread_reference": "cap-thread",
+                "message_reference": "cap-message",
+                "observed_at": "2026-06-21T10:02:08+00:00",
+                "subject": "Capgemini - Rückmeldung zu deinem Bewerbungsprozess",
+                "text_excerpt": (
+                    "Hallo Jens, vielen Dank für deine Bewerbung für die Position als "
+                    "(Senior) Azure Data Engineer (w/m/d) sowie das entgegengebrachte Interesse"
+                ),
+                "sender_domain": "capgemini.com",
+                "employer_name": "Capgemini",
+                "job_title": "(Senior) Azure Data Engineer (w/m/d)",
+                "mail_direction": "inbound",
+                "counterparty_domain": "capgemini.com",
+                "employer_evidence_source": "counterparty_domain_brand",
+                "gmail_search_signals": ["rejection"],
+            }
+        ]
+    )
+
+    assert result.invalid_rows == 0
+    assert result.ambiguous_rows == 0
+    assert result.discoverable_rows == 1
+    assert result.class_counts == {"rejection": 1}
+    assert result.findings[0].candidate_class == "rejection"
 
 
 def test_batch_preflight_is_read_only_contract_surface() -> None:
