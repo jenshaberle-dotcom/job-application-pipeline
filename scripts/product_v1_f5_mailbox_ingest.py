@@ -14,10 +14,6 @@ import hashlib
 import json
 from typing import Mapping
 
-import psycopg
-from psycopg.rows import dict_row
-
-from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from src.search_intelligence.application_event_classifier import (
     ClassificationResult,
     classify_application_evidence,
@@ -245,6 +241,11 @@ def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, o
 def ingest_normalized_mailbox_observation(
     observation: NormalizedMailboxObservation,
 ) -> dict[str, object]:
+    import psycopg
+    from psycopg.rows import dict_row
+
+    from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+
     classification = classify_application_evidence(
         subject=observation.subject,
         text_excerpt=observation.text_excerpt,

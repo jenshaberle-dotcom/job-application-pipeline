@@ -172,3 +172,39 @@ def test_direct_script_entrypoint_runs_from_repository_root(tmp_path: Path) -> N
     assert "GMAIL_NETWORK_REQUESTS=0" in completed.stdout
     assert "DATABASE_WRITES=0" in completed.stdout
     assert report_path.is_file()
+
+
+def test_direct_script_entrypoint_needs_no_site_packages_or_db_driver(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    input_path = tmp_path / "mailbox-no-site-packages.jsonl"
+    report_path = tmp_path / "report-no-site-packages.json"
+    input_path.write_text(json.dumps(_row()) + "\n", encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(repo_root / "scripts" / "run_product_v1_f5_mailbox_batch_preflight.py"),
+            "--input",
+            str(input_path),
+            "--since",
+            "2026-01-01",
+            "--until",
+            "2026-09-17",
+            "--output",
+            str(report_path),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "F5_MAILBOX_BATCH_PREFLIGHT=PASS" in completed.stdout
+    assert "GMAIL_NETWORK_REQUESTS=0" in completed.stdout
+    assert "DATABASE_CONNECTIONS=0" in completed.stdout
+    assert "DATABASE_WRITES=0" in completed.stdout
+    assert report_path.is_file()
