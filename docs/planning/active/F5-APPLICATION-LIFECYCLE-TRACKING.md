@@ -1,6 +1,6 @@
 # F5 — Application Lifecycle + Outcome Tracking
 
-Status: ACTIVE — Slice B authoritative lifecycle foundation
+Status: ACTIVE — Slice C real read-only Gmail evidence preview gate
 
 Canonical issue: `#737 / APP-TRACK-001`
 
@@ -42,44 +42,75 @@ Real Product DB truth before lifecycle mutation:
 - post-submit/submission/event/outcome candidate relations: `0`;
 - DB writes/provider calls/Gmail reads/email actions/submission actions/application-state mutations: all `0`.
 
-Conclusion: there is no historical submitted-application/event authority to migrate. Slice B may introduce a clean additive foundation.
+Conclusion: there was no historical submitted-application/event authority to migrate.
 
-## Slice B — ACTIVE
+## Slice B — COMPLETE
 
-Migration `112_create_authoritative_application_lifecycle.sql` defines four distinct layers:
+Migration `112_create_authoritative_application_lifecycle.sql` established four distinct layers:
 
-1. `applications` — prepared application identity bound to exact Silver job identity snapshot. Presence means **Prepared**, never Applied.
-2. `application_submissions` — the **only submission authority**, one explicit submission record per application, requiring timestamp/channel plus `operator_confirmation` or `approved_authoritative_record` provenance.
-3. `application_lifecycle_events` — append-only authoritative post-submit events. Corrections add a new event using `supersedes_event_id`; history is not rewritten.
-4. `application_event_candidates` — communication evidence only. Gmail/manual/runtime evidence may create candidates, but candidate existence/review never directly advances authoritative lifecycle stage.
+1. `applications` — prepared application identity. Presence means **Prepared**, never Applied.
+2. `application_submissions` — the **only submission authority**, requiring timestamp/channel plus `operator_confirmation` or `approved_authoritative_record` provenance.
+3. `application_lifecycle_events` — append-only authoritative post-submit events. Corrections add a superseding event rather than rewriting history.
+4. `application_event_candidates` — communication evidence only. Candidate existence/review never directly advances authoritative lifecycle stage.
 
 `gold_product_v1_application_tracking` derives the operator-facing authoritative stage only from prepared identity + explicit submission + active authoritative events:
 
 `prepared -> applied -> reply -> interview -> offer -> closed`
 
-Evidence candidates may set `attention_status=evidence_review_required`, but do not affect `authoritative_stage`.
+Slice-B terminal evidence on canonical `main@367e18f901710980db59569f9c370e62a31fa8b6`:
 
-### Slice B acceptance
+- exact migration-112 apply run `35131672947`: SUCCESS;
+- independent read-only post-apply run `35132353319`: SUCCESS;
+- focused contracts `21 passed`, Ruff PASS;
+- checksum drift `0`, pending migrations `0`;
+- required relations/constraints PASS;
+- no seeded application/submission/lifecycle/candidate truth.
 
-- historical migrations remain byte-immutable;
-- migration 112 is the sole pending migration before apply;
-- schema/constraints prove identity, submission authority, append-only lifecycle and evidence-candidate separation;
-- stage derivation excludes candidate classification/review state;
-- correction/supersession cannot delete prior lifecycle history;
-- no Gmail/provider/send/automatic-submit path exists;
-- focused tests + Ruff + full CI green on exact head;
-- migration preflight proves 0 checksum drift and exact sole-pending target;
-- apply uses exact migration 112 only;
-- post-apply real DB proof verifies relations/view and zero seeded application/submission/event/candidate rows;
-- only then may Slice C start.
+## Mailbox-first correction — COMPLETE
 
-## Slice C — queued: read-only Gmail evidence bridge
+F5 then exposed a real modeling gap: `applications.silver_job_id` was structurally mandatory, which prevented mailbox-first discovery for communication that cannot yet be matched to a current JAP job. The correction was additive migration `113_enable_mailbox_first_application_tracking.sql`; historical migration 112 remained byte-immutable.
 
-Private runtime only:
+Migration 113 now allows mailbox-first evidence without manufacturing application authority, extends the tracking projection with mailbox discovery/observed-status fields and preserves the migration-112 view column prefix required by PostgreSQL `CREATE OR REPLACE VIEW`.
 
-- bounded mailbox/thread search;
-- normalized evidence candidate payloads with message/thread IDs, sender/domain, timestamps and bounded evidence excerpts/fingerprints;
-- prove zero send/reply/archive/delete actions.
+Canonical public state: `main@dbe216a452ac53ca323920fb2929eb44fb9dd1aa`.
+
+Terminal evidence:
+
+- exact migration-113 apply run `35186715621`: SUCCESS;
+- independent read-only post-apply + real Product proof `35186749692`: SUCCESS;
+- Product DB after apply: `0` applications, `0` mailbox-discovered, `0` observed-status, `0` attention, `0` unmatched;
+- evidence artifact `10482821186`, SHA256 `88557ee40da2606d5f0d08655a4a8b1675fda7ddac2dcc65ad7b5649a80358b9`;
+- no invented application/submission/lifecycle truth.
+
+## Slice C — ACTIVE: real read-only Gmail evidence preview
+
+The private runtime bridge is merged in `jenshaberle-dotcom/job-pipeline-runtime` as `main@c79311f67a203e5cacf0aad285e455ed8be7bc03` via runtime PR `#374`.
+
+The bridge boundary is deliberately narrow:
+
+- OAuth Desktop Authorization Code + PKCE;
+- exact scope `https://www.googleapis.com/auth/gmail.readonly`;
+- Gmail message fetches use `format=metadata`, never raw/full bodies;
+- normalized preview contains bounded Subject/Snippet, sender domain, deterministic hints and SHA-256 mailbox/thread/message references;
+- credentials/tokens remain local and are never committed or uploaded;
+- preview output is local JSONL only;
+- Gmail writes `0`, JAP/PostgreSQL writes `0`, provider cost `0`.
+
+Exact runtime evidence before merge:
+
+- F5 Gmail boundary contract `35187483965`: SUCCESS (`6/6` tests);
+- Runtime re-entry `35187483663`: SUCCESS;
+- contract output: `gmail_writes=0 database_writes=0 provider_cost=0`.
+
+### Slice C acceptance sequence
+
+1. Operator creates/supplies a Google OAuth **Desktop app** client with Gmail API enabled and keeps the client JSON outside the repository.
+2. Operator runs local `doctor`, then grants the exact `gmail.readonly` scope once via the runtime `authorize` command.
+3. Run one real read-only `scan` to local JSONL.
+4. Measure real hit count, sender-domain/title coverage, Gmail thread fragmentation, likely duplicate application identities and how often employer/job identity can be matched deterministically.
+5. Only if that evidence is acceptable may normalized observations be bridged into the public JAP mailbox-ingestion contract.
+
+No application row, event candidate row or authoritative lifecycle event may be created merely to make the preview look complete. Gmail evidence remains non-authoritative.
 
 ## Slice D — queued: deterministic-first event classification
 
@@ -103,7 +134,9 @@ Only after measured precision and explicit operator policy approval. False autho
 
 ## Sole next action
 
-Qualify **Slice B** on an exact head, prove migration 112 is the sole pending migration with zero checksum drift, then apply exactly migration 112 and run a post-apply real Product DB contract proof before any Gmail read or lifecycle write path is introduced.
+Reach the **human OAuth gate only**: create/supply the local Google Desktop OAuth client, grant exactly `gmail.readonly`, run one real metadata-only preview, and inspect the resulting matching/thread evidence.
+
+Do **not** add a DB persistence path, Gmail write scope, model-based authority or fake application before that preview evidence exists.
 
 ## Sequencing
 
