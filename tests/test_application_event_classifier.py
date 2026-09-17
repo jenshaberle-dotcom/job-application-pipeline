@@ -17,6 +17,54 @@ def test_rejection_phrase_is_evidence_only() -> None:
     assert result.confidence == 0.97
 
 
+def test_non_application_cancellation_is_not_rejection_evidence() -> None:
+    result = classify_application_evidence(
+        subject="Absage Coaching Session",
+        text_excerpt="Ihre Coaching-Sitzung am Freitag wurde abgesagt.",
+        sender_domain="coaching.example",
+    )
+
+    assert result.candidate_class == "other"
+    assert result.reason_code == "no_deterministic_event_phrase"
+
+
+def test_private_calendar_assessment_reminder_is_not_application_evidence() -> None:
+    result = classify_application_evidence(
+        subject="Benachrichtigung: Nach Assessment Termin im Mai schauen",
+        text_excerpt="Termine für Urologie in den Kalender eingetragen.",
+        sender_domain="google.com",
+    )
+
+    assert result.candidate_class == "other"
+    assert result.reason_code == "no_deterministic_event_phrase"
+
+
+def test_application_assessment_request_remains_detected() -> None:
+    result = classify_application_evidence(
+        subject="Assessment invitation for your application",
+        text_excerpt="Please complete the assessment test for the position.",
+        sender_domain="careers.example",
+    )
+
+    assert result.candidate_class == "assessment_request"
+    assert result.reason_code == "deterministic_assessment_request"
+
+
+def test_outbound_email_application_is_applied_observation_not_submission_authority() -> None:
+    result = classify_application_evidence(
+        subject="Bewerbung als Junior Data Engineer (m/w/d)",
+        text_excerpt="Sehr geehrte Damen und Herren, anbei meine Bewerbung.",
+        sender_domain="gmail.com",
+        mail_direction="outbound",
+        counterparty_domain="example-employer.com",
+    )
+
+    assert result.candidate_class == "application_acknowledgement"
+    assert result.reason_code == "deterministic_outbound_application_sent"
+    assert result.confidence == 0.99
+    assert result.authority == "evidence_only"
+
+
 def test_german_interview_invitation_is_detected() -> None:
     result = classify_application_evidence(
         subject="Einladung zum Vorstellungsgespräch",

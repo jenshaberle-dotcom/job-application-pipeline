@@ -63,7 +63,11 @@ _RULES: dict[str, tuple[tuple[str, str], ...]] = {
         (r"\binvite\s+you\s+(?:to|for)\s+(?:an?\s+)?interview\b", "invite you to interview"),
     ),
     "assessment_request": (
-        (r"\b(?:assessment|coding\s+challenge|case\s+study|take[- ]home)\b", "assessment request"),
+        (
+            r"\bassessment\s+(?:request|invitation|invite|link|test|centre|center)\b",
+            "assessment request",
+        ),
+        (r"\b(?:coding\s+challenge|case\s+study|take[- ]home)\b", "assessment request"),
         (r"\b(?:online[- ]?test|eignungstest|fachtest|arbeitsprobe)\b", "assessment request"),
     ),
     "application_acknowledgement": (
@@ -95,6 +99,18 @@ _CLASS_PRIORITY = (
     "recruiter_contact",
 )
 
+_APPLICATION_CONTEXT = re.compile(
+    r"\b(?:bewerbung|bewerbungsprozess|application|candidate|candidacy|"
+    r"stelle|position|job|recruiting|recruitment|talent\s+acquisition|"
+    r"vorstellungsgespräch|interview)\b",
+    re.I,
+)
+_OUTBOUND_APPLICATION_SUBJECT = re.compile(
+    r"^(?:re:\s*)?(?:bewerbung\s+(?:als|für|auf)|initiativbewerbung\b|"
+    r"application\s+(?:for|as)|unsolicited\s+application\b)",
+    re.I,
+)
+
 
 def _normalize(value: str | None) -> str:
     return " ".join((value or "").casefold().split())
@@ -109,11 +125,17 @@ def _matches(text: str, rules: Iterable[tuple[str, str]]) -> list[tuple[str, str
     return result
 
 
+def _has_application_context(text: str) -> bool:
+    return bool(_APPLICATION_CONTEXT.search(text))
+
+
 def classify_application_evidence(
     *,
     subject: str | None,
     text_excerpt: str | None,
     sender_domain: str | None = None,
+    mail_direction: str | None = None,
+    counterparty_domain: str | None = None,
 ) -> ClassificationResult:
     """Classify one bounded communication excerpt without creating state authority."""
 
@@ -129,11 +151,31 @@ def classify_application_evidence(
             matched_terms=(),
         )
 
+    direction = _normalize(mail_direction)
+    if direction == "outbound" and _OUTBOUND_APPLICATION_SUBJECT.search(subject_text):
+        # Keep the schema's existing applied-observation bucket while preserving
+        # the materially different evidence reason. This is mailbox evidence only;
+        # it does not create application_submissions authority.
+        return ClassificationResult(
+            candidate_class="application_acknowledgement",
+            confidence=0.99,
+            reason_code="deterministic_outbound_application_sent",
+            evidence_span=subject_text[:240],
+            matched_terms=("outbound application sent",),
+        )
+
     class_matches: dict[str, list[tuple[str, str]]] = {}
+    has_application_context = _has_application_context(combined)
     for candidate_class in _CLASS_PRIORITY:
         matches = _matches(combined, _RULES[candidate_class])
-        if matches:
-            class_matches[candidate_class] = matches
+        if not matches:
+            continue
+        # Words such as "Absage" and "assessment" are common outside recruiting.
+        # High-impact rejection and assessment evidence therefore require bounded
+        # application/recruiting context before they may become lifecycle evidence.
+        if candidate_class in {"rejection", "assessment_request"} and not has_application_context:
+            continue
+        class_matches[candidate_class] = matches
 
     if len(class_matches) > 1:
         terms = tuple(
@@ -168,7 +210,7 @@ def classify_application_evidence(
             matched_terms=tuple(label for label, _ in matches),
         )
 
-    domain = _normalize(sender_domain)
+    domain = _normalize(counterparty_domain) or _normalize(sender_domain)
     if domain:
         return ClassificationResult(
             candidate_class="other",
