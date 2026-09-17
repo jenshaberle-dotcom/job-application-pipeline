@@ -13,16 +13,21 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime
 import json
 from pathlib import Path
+import sys
 from typing import Any, Mapping
 
-from scripts.product_v1_f5_mailbox_ingest import (
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.product_v1_f5_mailbox_ingest import (  # noqa: E402
     MailboxIngestError,
     evidence_fingerprint,
     mailbox_application_key,
     parse_normalized_mailbox_observation,
     should_discover_application,
 )
-from src.search_intelligence.application_event_classifier import (
+from src.search_intelligence.application_event_classifier import (  # noqa: E402
     ClassificationResult,
     classify_application_evidence,
 )
@@ -211,7 +216,11 @@ def preflight_rows(
 
 
 def print_result(result: BatchPreflightResult, *, findings_limit: int) -> None:
-    print("F5_MAILBOX_BATCH_PREFLIGHT=PASS" if result.invalid_rows == 0 else "F5_MAILBOX_BATCH_PREFLIGHT=FAIL")
+    print(
+        "F5_MAILBOX_BATCH_PREFLIGHT=PASS"
+        if result.invalid_rows == 0
+        else "F5_MAILBOX_BATCH_PREFLIGHT=FAIL"
+    )
     print(f"INPUT_ROWS={result.input_rows}")
     print(f"WINDOW_ROWS={result.window_rows}")
     print(f"VALID_ROWS={result.valid_rows}")
@@ -233,21 +242,32 @@ def print_result(result: BatchPreflightResult, *, findings_limit: int) -> None:
         print(f"FINDING_{index}_DATE={finding.observed_at[:10]}")
         print(f"FINDING_{index}_CLASS={finding.candidate_class}")
         print(f"FINDING_{index}_REASON={finding.reason_code}")
-        print(f"FINDING_{index}_DISCOVERABLE={'true' if finding.discoverable else 'false'}")
+        print(
+            f"FINDING_{index}_DISCOVERABLE="
+            f"{'true' if finding.discoverable else 'false'}"
+        )
         print(f"FINDING_{index}_EMPLOYER={finding.employer_name or 'UNKNOWN'}")
         print(f"FINDING_{index}_TITLE={finding.job_title or 'UNKNOWN'}")
         print(f"FINDING_{index}_DIRECTION={finding.mail_direction}")
-        print(f"FINDING_{index}_COUNTERPARTY_DOMAIN={finding.counterparty_domain or 'UNKNOWN'}")
+        print(
+            f"FINDING_{index}_COUNTERPARTY_DOMAIN="
+            f"{finding.counterparty_domain or 'UNKNOWN'}"
+        )
 
 
 def write_json(path: Path, result: BatchPreflightResult) -> None:
     payload = asdict(result)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Read-only F5 normalized mailbox batch preflight")
+    parser = argparse.ArgumentParser(
+        description="Read-only F5 normalized mailbox batch preflight"
+    )
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--since", type=_parse_iso_date)
     parser.add_argument("--until", type=_parse_iso_date)
