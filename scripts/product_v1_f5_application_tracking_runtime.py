@@ -34,6 +34,28 @@ def _relation_exists(conn: psycopg.Connection[Any], relation_name: str) -> bool:
     return bool(row and row[0])
 
 
+def _column_exists(
+    conn: psycopg.Connection[Any], relation_name: str, column_name: str
+) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = %s
+                  AND column_name = %s
+            ) AS present
+            """,
+            (relation_name, column_name),
+        )
+        row = cur.fetchone()
+    if isinstance(row, Mapping):
+        return bool(row.get("present"))
+    return bool(row and row[0])
+
+
 def _safe_evidence_summary(payload: object) -> dict[str, object]:
     """Expose bounded normalized evidence fields only, never arbitrary raw mail."""
 
@@ -267,8 +289,13 @@ def load_application_tracking_payload() -> dict[str, object]:
 
             candidates: list[dict[str, object]] = []
             if _relation_exists(conn, "application_event_candidates"):
+                active_filter = (
+                    "AND is_active"
+                    if _column_exists(conn, "application_event_candidates", "is_active")
+                    else ""
+                )
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         id AS candidate_id,
                         matched_application_id,
@@ -287,6 +314,7 @@ def load_application_tracking_payload() -> dict[str, object]:
                     WHERE review_status IN (
                         'unreviewed', 'ambiguous', 'accepted_as_evidence'
                     )
+                    {active_filter}
                     ORDER BY observed_at DESC, id DESC
                     """
                 )
