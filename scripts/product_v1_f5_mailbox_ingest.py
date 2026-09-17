@@ -35,6 +35,15 @@ _DISCOVERY_CLASSES = frozenset(
     }
 )
 _ALLOWED_MAIL_DIRECTIONS = frozenset({"inbound", "outbound"})
+_ALLOWED_GMAIL_SEARCH_SIGNALS = frozenset(
+    {
+        "rejection",
+        "offer_signal",
+        "interview_invitation",
+        "assessment_request",
+        "withdrawal_confirmation",
+    }
+)
 
 
 class MailboxIngestError(RuntimeError):
@@ -56,6 +65,7 @@ class NormalizedMailboxObservation:
     mail_direction: str = "inbound"
     counterparty_domain: str | None = None
     employer_evidence_source: str | None = None
+    gmail_search_signals: tuple[str, ...] = ()
 
 
 def _text(value: object, *, limit: int, required: bool = False) -> str | None:
@@ -77,6 +87,27 @@ def _domain(value: object, *, required: bool = False) -> str | None:
     if "@" in normalized or "/" in normalized or " " in normalized or "." not in normalized:
         raise MailboxIngestError("invalid_bounded_domain")
     return normalized
+
+
+def _gmail_search_signals(value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)):
+        raise MailboxIngestError("gmail_search_signals_must_be_list")
+    if len(value) > len(_ALLOWED_GMAIL_SEARCH_SIGNALS):
+        raise MailboxIngestError("too_many_gmail_search_signals")
+
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise MailboxIngestError("invalid_gmail_search_signal")
+        signal = item.casefold().strip()
+        if signal not in _ALLOWED_GMAIL_SEARCH_SIGNALS:
+            raise MailboxIngestError("invalid_gmail_search_signal")
+        if signal in result:
+            raise MailboxIngestError("duplicate_gmail_search_signal")
+        result.append(signal)
+    return tuple(result)
 
 
 def _parse_time(value: object) -> datetime:
@@ -140,6 +171,9 @@ def parse_normalized_mailbox_observation(
         counterparty_domain=counterparty_domain,
         employer_evidence_source=_text(
             payload.get("employer_evidence_source"), limit=80
+        ),
+        gmail_search_signals=_gmail_search_signals(
+            payload.get("gmail_search_signals")
         ),
     )
 
@@ -217,6 +251,7 @@ def ingest_normalized_mailbox_observation(
         sender_domain=observation.sender_domain,
         mail_direction=observation.mail_direction,
         counterparty_domain=observation.counterparty_domain,
+        deterministic_event_signals=observation.gmail_search_signals,
     )
     discovery_allowed = should_discover_application(classification)
     application_key = mailbox_application_key(observation)
@@ -290,6 +325,7 @@ def ingest_normalized_mailbox_observation(
                         "mail_direction": observation.mail_direction,
                         "counterparty_domain": observation.counterparty_domain,
                         "employer_evidence_source": observation.employer_evidence_source,
+                        "gmail_search_signals": list(observation.gmail_search_signals),
                         "subject_fingerprint": canonical_sha256(
                             {"subject": _normalized(observation.subject)}
                         ),

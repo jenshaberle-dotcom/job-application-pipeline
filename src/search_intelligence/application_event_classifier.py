@@ -87,8 +87,6 @@ _RULES: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
-# High-impact outcomes win only when they are the sole deterministic class. If
-# one bounded excerpt contains conflicting classes, human review is safer.
 _CLASS_PRIORITY = (
     "rejection",
     "offer_signal",
@@ -98,6 +96,16 @@ _CLASS_PRIORITY = (
     "application_acknowledgement",
     "recruiter_contact",
 )
+_HIGH_IMPACT_CLASSES = frozenset(
+    {
+        "rejection",
+        "offer_signal",
+        "interview_invitation",
+        "assessment_request",
+        "withdrawal_confirmation",
+    }
+)
+_DETERMINISTIC_EVENT_SIGNALS = _HIGH_IMPACT_CLASSES
 
 _APPLICATION_CONTEXT = re.compile(
     r"\b(?:bewerbung|bewerbungsprozess|application|candidate|candidacy|"
@@ -129,6 +137,53 @@ def _has_application_context(text: str) -> bool:
     return bool(_APPLICATION_CONTEXT.search(text))
 
 
+def _normalized_event_signals(values: Iterable[str] | None) -> tuple[str, ...]:
+    if values is None:
+        return ()
+    result: list[str] = []
+    for value in values:
+        signal = _normalize(value)
+        if signal in _DETERMINISTIC_EVENT_SIGNALS and signal not in result:
+            result.append(signal)
+    return tuple(result)
+
+
+def _ambiguous_result(
+    class_matches: dict[str, list[tuple[str, str]]],
+) -> ClassificationResult:
+    terms = tuple(
+        label
+        for candidate_class in _CLASS_PRIORITY
+        for label, _ in class_matches.get(candidate_class, [])
+    )
+    first_span = next(
+        span
+        for candidate_class in _CLASS_PRIORITY
+        for _, span in class_matches.get(candidate_class, [])
+    )
+    return ClassificationResult(
+        candidate_class="ambiguous",
+        confidence=None,
+        reason_code="multiple_deterministic_classes",
+        evidence_span=first_span[:240],
+        matched_terms=terms,
+    )
+
+
+def _deterministic_result(
+    candidate_class: str,
+    matches: list[tuple[str, str]],
+) -> ClassificationResult:
+    confidence = 0.97 if candidate_class in {"rejection", "offer_signal"} else 0.95
+    return ClassificationResult(
+        candidate_class=candidate_class,
+        confidence=confidence,
+        reason_code=f"deterministic_{candidate_class}",
+        evidence_span=matches[0][1][:240],
+        matched_terms=tuple(label for label, _ in matches),
+    )
+
+
 def classify_application_evidence(
     *,
     subject: str | None,
@@ -136,13 +191,15 @@ def classify_application_evidence(
     sender_domain: str | None = None,
     mail_direction: str | None = None,
     counterparty_domain: str | None = None,
+    deterministic_event_signals: Iterable[str] | None = None,
 ) -> ClassificationResult:
     """Classify one bounded communication excerpt without creating state authority."""
 
     subject_text = _normalize(subject)
     excerpt_text = _normalize(text_excerpt)
     combined = f"{subject_text}\n{excerpt_text}".strip()
-    if not combined:
+    event_signals = _normalized_event_signals(deterministic_event_signals)
+    if not combined and not event_signals:
         return ClassificationResult(
             candidate_class="ambiguous",
             confidence=None,
@@ -167,48 +224,48 @@ def classify_application_evidence(
     class_matches: dict[str, list[tuple[str, str]]] = {}
     has_application_context = _has_application_context(combined)
     for candidate_class in _CLASS_PRIORITY:
-        matches = _matches(combined, _RULES[candidate_class])
-        if not matches:
-            continue
-        # Words such as "Absage" and "assessment" are common outside recruiting.
-        # High-impact rejection and assessment evidence therefore require bounded
-        # application/recruiting context before they may become lifecycle evidence.
-        if candidate_class in {"rejection", "assessment_request"} and not has_application_context:
-            continue
-        class_matches[candidate_class] = matches
+        matches = _matches(combined, _RULES[candidate_class]) if combined else []
+        if matches:
+            # Words such as "Absage" and "assessment" are common outside recruiting.
+            # High-impact rejection and assessment evidence therefore require bounded
+            # application/recruiting context before they may become lifecycle evidence.
+            if candidate_class in {"rejection", "assessment_request"} and not has_application_context:
+                matches = []
+        if candidate_class in event_signals:
+            matches.append(
+                (
+                    f"bounded event signal: {candidate_class}",
+                    f"deterministic_event_signal:{candidate_class}",
+                )
+            )
+        if matches:
+            class_matches[candidate_class] = matches
+
+    high_impact_matches = [
+        candidate_class
+        for candidate_class in _CLASS_PRIORITY
+        if candidate_class in _HIGH_IMPACT_CLASSES and candidate_class in class_matches
+    ]
+    if len(high_impact_matches) > 1:
+        return _ambiguous_result(class_matches)
+    if len(high_impact_matches) == 1:
+        candidate_class = high_impact_matches[0]
+        return _deterministic_result(candidate_class, class_matches[candidate_class])
+
+    # Acknowledgement language frequently names the recruiting function as part of
+    # the same receipt. That is one clear receipt event, not a lifecycle conflict.
+    if "application_acknowledgement" in class_matches:
+        return _deterministic_result(
+            "application_acknowledgement",
+            class_matches["application_acknowledgement"],
+        )
 
     if len(class_matches) > 1:
-        terms = tuple(
-            label
-            for candidate_class in _CLASS_PRIORITY
-            for label, _ in class_matches.get(candidate_class, [])
-        )
-        first_span = next(
-            span
-            for candidate_class in _CLASS_PRIORITY
-            for _, span in class_matches.get(candidate_class, [])
-        )
-        return ClassificationResult(
-            candidate_class="ambiguous",
-            confidence=None,
-            reason_code="multiple_deterministic_classes",
-            evidence_span=first_span[:240],
-            matched_terms=terms,
-        )
+        return _ambiguous_result(class_matches)
 
     if len(class_matches) == 1:
         candidate_class = next(iter(class_matches))
-        matches = class_matches[candidate_class]
-        # Deterministic phrase evidence is intentionally confidence-bounded: this
-        # number describes classifier evidence strength, not application status.
-        confidence = 0.97 if candidate_class in {"rejection", "offer_signal"} else 0.95
-        return ClassificationResult(
-            candidate_class=candidate_class,
-            confidence=confidence,
-            reason_code=f"deterministic_{candidate_class}",
-            evidence_span=matches[0][1][:240],
-            matched_terms=tuple(label for label, _ in matches),
-        )
+        return _deterministic_result(candidate_class, class_matches[candidate_class])
 
     domain = _normalize(counterparty_domain) or _normalize(sender_domain)
     if domain:
