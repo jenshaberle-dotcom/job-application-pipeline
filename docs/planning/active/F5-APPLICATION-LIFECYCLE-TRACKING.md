@@ -1,6 +1,6 @@
 # F5 — Application Lifecycle + Outcome Tracking
 
-Status: ACTIVE — signal-hardened real Gmail re-preview gate before first persistence
+Status: ACTIVE — real signal-enhanced Gmail re-preview accepted; persistence qualification next
 
 Canonical issue: `#737 / APP-TRACK-001`
 
@@ -64,9 +64,9 @@ Private runtime OAuth/read boundary remains deliberately narrow:
 
 Observation hardening before the latest outcome work already added inbound/outbound direction, bounded counterparty domain, conservative employer/title recovery and hard aggregator-noise suppression.
 
-## Real annual batch preflight — MEASURED BEFORE LATEST OUTCOME HARDENING
+## Historical real annual batch preflight — BEFORE LATEST OUTCOME HARDENING
 
-The real 2026 batch used for the previous preflight produced:
+The prior 2026 batch produced:
 
 - `203` input observations;
 - `93` rows inside the selected 2026 window;
@@ -101,53 +101,86 @@ Public PR `#925` changes deterministic precedence generically:
 
 The real Gmail message is a rejection, but the metadata snippet ends before the decisive rejection wording. Expanding per-message fetches to `full`/`raw` was rejected because it would broaden private-content exposure unnecessarily.
 
-Runtime PR `#381`, merged as runtime `main@2f39b449f9df3e97cb373435797677195d61f590`, instead adds Gmail server-side `messages.list` searches for **strong lifecycle-specific phrases only**. Returned provider message IDs are immediately hashed and intersected with normalized observations. The runtime persists only bounded labels under `gmail_search_signals`; it does not persist search text, provider IDs, recipient addresses or message bodies.
+Runtime PR `#381` adds Gmail server-side `messages.list` searches for **strong lifecycle-specific phrases only**. Returned provider message IDs are immediately hashed and intersected with normalized observations. The runtime persists only bounded labels under `gmail_search_signals`; it does not persist search text, provider IDs, recipient addresses or message bodies.
 
 Broad terms such as bare `Absage` or bare `Vorstellungsgespräch` are deliberately not sufficient high-impact signal evidence.
 
-Public PR `#925`, merged as public `main@192fac0cda6b112f45f954f94fde9285d81f5f0d`, validates those labels fail-closed and feeds them into the same deterministic classifier used by batch preflight and production ingestion. Allowed labels are exactly:
+Public PR `#925` validates those labels fail-closed and feeds them into the same deterministic classifier used by batch preflight and production ingestion. Allowed labels are exactly:
 
 `rejection`, `offer_signal`, `interview_invitation`, `assessment_request`, `withdrawal_confirmation`.
 
 The discovery threshold was not relaxed and all classifier results remain `evidence_only`.
 
-### Exact-head qualification
+Public PR `#927` fixed the direct operator CLI import path. Public PR `#928` then moved PostgreSQL-specific imports behind the actual persistence function and added a direct `python -S` subprocess regression, proving the public read-only preflight does not require site-packages/`psycopg`. Exact PR-928 candidate `49f8466fa47e8cb6c1d7e07707e473394d3345e5` passed F5 qualification `35250071633`, Re-entry `35250071679` and Pipeline CI `35250072571` before merge as public `main@1a2de9e9feefc35d42cb16c82ab5cddde5c78331`.
 
-Public candidate `3ddc4ee2869a4b60bd85f84585ecb45179c4fa98`:
+## Real signal-enhanced annual re-preview — ACCEPTED
 
-- F5 application lifecycle qualification `35221200869`: SUCCESS;
-- Pipeline re-entry target identity `35221200667`: SUCCESS;
-- Pipeline CI `35221201032`: SUCCESS, including Full Suite, Ruff, migration/governance and React build.
+The fresh private normalized JSONL has SHA-256:
 
-Runtime candidate `e18d526e1ba185b7e9f7a2e4cb28cf3920c8545c`:
+`33265bb4da98ce422ff8df9318b8279651cc5231d45f3a6e948628ed2ccdc4b5`
 
-- Runtime re-entry target identity `35221220970`: SUCCESS;
-- F5 Gmail read-only bridge PR check `35221221052`: SUCCESS.
+The public preflight ran from exact public `main@1a2de9e9feefc35d42cb16c82ab5cddde5c78331` with `python3 -S`, proving the intended dependency-free read-only operator surface.
 
-## Important truth boundary after hardening
+Measured 2026 result:
 
-The previous `93`-row real batch measurement predates the new signal enrichment. It is **not** evidence that the new runtime/public pair has passed a real annual re-preview.
+- `203` input observations;
+- `93` rows inside the selected 2026 window;
+- `93` valid, `0` invalid;
+- `11` discoverable rows;
+- `11` review-worthy rows;
+- `82` `other`;
+- `0` `ambiguous`;
+- `9` unique application keys;
+- `0` duplicate evidence rows;
+- class counts: `8` `application_acknowledgement`, `3` `rejection`;
+- `GMAIL_NETWORK_REQUESTS=0`;
+- `DATABASE_CONNECTIONS=0`;
+- `DATABASE_WRITES=0`;
+- `APPLICATION_SUBMISSION_ACTIONS=0`.
 
-First persistence remains blocked. No existing normalized JSONL should be applied merely because its old read-only preflight was green.
+Real regression findings are now correct:
 
-Before first write, also resolve reclassification idempotency: if the same Gmail message was once classified as one candidate class and later reclassified after better evidence, the persistence design must supersede/review the older candidate rather than leave contradictory active evidence merely because candidate class/reason participate in its evidence fingerprint.
+1. HDI 2026-07-23 is `rejection`; HDI 2026-07-01 is `application_acknowledgement` under the same application identity.
+2. Capgemini 2026-06-21 is `rejection`; Capgemini 2026-03-14 is `application_acknowledgement` under the same application identity.
+3. Former ambiguity is eliminated (`2 -> 0`).
+4. MODULAT 2026-01-12 is additionally discovered as a deterministic rejection.
+5. Eleven discoverable messages produce nine unique application identities, which is expected lifecycle evidence multiplicity rather than duplicate processing.
+
+The re-preview gate is therefore passed. No Gmail rescan is required for persistence design; the exact JSONL/hash above is the accepted private batch evidence for the next qualification slice.
+
+## Persistence qualification — ACTIVE / FIRST WRITE STILL BLOCKED
+
+The remaining blocker is no longer classification quality. It is source-message idempotency and safe reclassification.
+
+Current schema problem:
+
+- `application_event_candidates` uniqueness is `(source_kind, evidence_fingerprint, candidate_class)`;
+- current `evidence_fingerprint` contains `mailbox_account_fingerprint`, `message_reference`, `candidate_class` and `reason_code`;
+- therefore the same immutable Gmail message can receive a different fingerprint after classifier/evidence improvement and leave two co-active candidate interpretations.
+
+The next persistence contract must distinguish **message identity** from **interpretation identity**:
+
+1. Stable source identity for Gmail is derived from `source_kind + mailbox_account_fingerprint + source_message_reference`.
+2. Reprocessing the same source message with the same interpretation is a no-op.
+3. Reclassification of the same source message creates/preserves audit history while making exactly one interpretation active; the prior interpretation is explicitly superseded/dismissed.
+4. Distinct messages for the same application remain distinct evidence rows and can represent lifecycle progression. HDI and Capgemini are the real acceptance fixtures for this rule.
+5. Supersession applies to communication evidence only. It may not create `application_submissions` or `application_lifecycle_events`.
+6. A batch apply path must be bounded, preflightable, idempotent and require explicit exact-main apply authority.
+7. No Gmail write scope is added.
 
 ## Sole next action
 
-1. From runtime `main@2f39b449f9df3e97cb373435797677195d61f590`, run a **new real read-only annual Gmail scan** to a fresh private JSONL.
-2. From current public main, run `scripts/run_product_v1_f5_mailbox_batch_preflight.py` against that fresh JSONL for the intended 2026 window.
-3. Inspect counts, unique identities, duplicates, ambiguity and especially the HDI/Capgemini classifications.
-4. Stop before database persistence and record the measured result.
+Implement and exact-head qualify the smallest **source-message identity + candidate supersession persistence package**:
 
-Only after that new real signal-enhanced preview is acceptable may F5 introduce a separately qualified bounded persistence/apply path.
+1. add a new immutable migration after 113 rather than rewriting prior migrations;
+2. add provider-free schema/ingest tests for same-message no-op, same-message reclassification supersession, and different-message same-application lifecycle progression;
+3. add a read-only batch persistence preflight that predicts application inserts, candidate inserts, candidate no-ops and candidate supersessions without DB writes;
+4. run Full Suite/Ruff/React/F5 qualification and merge exact tested head;
+5. stop before migration apply / real Gmail batch persistence and request the real DB migration-preflight/operator authority gate.
 
-Until then: **no DB persistence of the Gmail batch, no Gmail write scope, no automatic application submit, no model-created authority and no authoritative lifecycle transition from unreviewed mailbox evidence**.
+Until that package is qualified: **no DB persistence of the Gmail batch, no Gmail write scope, no automatic application submit, no model-created authority and no authoritative lifecycle transition from mailbox evidence**.
 
-## Next slices after the re-preview gate
-
-### Persistence qualification — BLOCKED ON SOLE NEXT ACTION
-
-Add the smallest bounded/idempotent apply path only after the new real preview passes. It must preserve communication-as-evidence semantics, prove no submission/lifecycle authority is manufactured, and define safe reclassification supersession.
+## Next slices after persistence qualification
 
 ### Control Center lifecycle UX — queued
 
