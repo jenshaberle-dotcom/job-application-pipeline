@@ -1,6 +1,6 @@
 # F5 — Application Lifecycle + Outcome Tracking
 
-Status: ACTIVE — Slice C real read-only Gmail evidence preview gate
+Status: ACTIVE — signal-hardened real Gmail re-preview gate before first persistence
 
 Canonical issue: `#737 / APP-TRACK-001`
 
@@ -10,133 +10,156 @@ Extend the Product journey beyond `draft_for_review` without inventing submissio
 
 `application prepared -> operator confirms submitted -> communication evidence observed -> event candidate -> reviewed/authoritative lifecycle state -> next action`
 
-The operator must be able to answer which applications are active, when/how they were submitted, whether a reply exists, what the evidenced response class is, what needs attention next, and whether a displayed state is authoritative or inferred evidence.
+The operator must be able to answer which applications are active, when/how they were submitted, whether a reply exists, what kind of response is evidenced, what needs attention next, and whether a displayed state is authoritative or inferred evidence.
 
 ## Authority boundaries
 
-1. **Submission authority is explicit.** A submitted application may exist only after an explicit operator confirmation or another separately approved authoritative submission record.
+1. **Submission authority is explicit.** A submitted application may exist only after explicit operator confirmation or another separately approved authoritative submission record.
 2. **Communication evidence is not lifecycle authority.** Gmail/runtime evidence may create bounded event candidates; it may not silently mutate authoritative application state.
-3. **Public/private split remains strict.** The public Pipeline repo owns schemas, contracts, read models, provider-free classification rules/tests and UI semantics. Gmail credentials/raw message handling stay private-runtime/secrets-bound.
+3. **Public/private split remains strict.** Public Pipeline owns schemas, contracts, read models, provider-free classifier/tests/UI semantics. Gmail credentials and raw private message handling stay private-runtime/secrets-bound.
 4. **No automatic send or submit.** F5 introduces no email reply/send authority and no automatic application submission.
-5. **Append-only provenance.** Authoritative lifecycle/history changes must be append-only or explicitly superseding; no destructive rewrite of historical state.
-6. **Deterministic first.** Exact identity/thread/domain/rule evidence is used before any model assistance. A future model may assist residual ambiguity but does not create authority.
+5. **Append-only provenance.** Authoritative lifecycle/history changes must be append-only or explicitly superseding.
+6. **Deterministic first.** Exact identity/thread/domain/rule evidence is used before any future model assistance.
 
 ## Slice A — COMPLETE
 
-Merged by PR `#911` as `main@80dd0d1017fb46cc9cea9f2f34bea78924febc2e`.
-
-Exact tested candidate: `b990b1f16e8ee5e49e5e435afa2aab9578e435e5`.
-
-Terminal evidence:
-
-- F5 reconciliation run `35125652183`: SUCCESS;
-- Pipeline CI `35125652472`: SUCCESS;
-- Re-entry target identity `35125652242`: SUCCESS;
-- evidence artifact `10459645819`, zip SHA256 `37b3a36bdf9ac5cc13e737b207fc83e4f4776bdf1446e61cedf7ad15080fd8d1`.
-
-Real Product DB truth before lifecycle mutation:
-
-- application-shaped relations: `3`;
-- `application_draft_requests`: `0` rows / `0` distinct jobs;
-- submitted-like draft states: `0`;
-- post-submit/submission/event/outcome candidate relations: `0`;
-- DB writes/provider calls/Gmail reads/email actions/submission actions/application-state mutations: all `0`.
-
-Conclusion: there was no historical submitted-application/event authority to migrate.
+PR `#911` established the real read-only Product reconciliation and proved there was no historical submitted-application/event authority to migrate.
 
 ## Slice B — COMPLETE
 
-Migration `112_create_authoritative_application_lifecycle.sql` established four distinct layers:
+Migration `112_create_authoritative_application_lifecycle.sql` established:
 
-1. `applications` — prepared application identity. Presence means **Prepared**, never Applied.
-2. `application_submissions` — the **only submission authority**, requiring timestamp/channel plus `operator_confirmation` or `approved_authoritative_record` provenance.
-3. `application_lifecycle_events` — append-only authoritative post-submit events. Corrections add a superseding event rather than rewriting history.
-4. `application_event_candidates` — communication evidence only. Candidate existence/review never directly advances authoritative lifecycle stage.
+1. `applications` — prepared/discovered application identity, never submission authority by presence alone;
+2. `application_submissions` — sole submission authority;
+3. `application_lifecycle_events` — append-only authoritative post-submit events;
+4. `application_event_candidates` — communication evidence only.
 
-`gold_product_v1_application_tracking` derives the operator-facing authoritative stage only from prepared identity + explicit submission + active authoritative events:
+`gold_product_v1_application_tracking` derives the authoritative surface only from prepared identity + explicit submission + active authoritative events:
 
 `prepared -> applied -> reply -> interview -> offer -> closed`
 
-Slice-B terminal evidence on canonical `main@367e18f901710980db59569f9c370e62a31fa8b6`:
-
-- exact migration-112 apply run `35131672947`: SUCCESS;
-- independent read-only post-apply run `35132353319`: SUCCESS;
-- focused contracts `21 passed`, Ruff PASS;
-- checksum drift `0`, pending migrations `0`;
-- required relations/constraints PASS;
-- no seeded application/submission/lifecycle/candidate truth.
+Migration-112 terminal proof remained clean: no seeded application/submission/lifecycle/candidate truth.
 
 ## Mailbox-first correction — COMPLETE
 
-F5 then exposed a real modeling gap: `applications.silver_job_id` was structurally mandatory, which prevented mailbox-first discovery for communication that cannot yet be matched to a current JAP job. The correction was additive migration `113_enable_mailbox_first_application_tracking.sql`; historical migration 112 remained byte-immutable.
-
-Migration 113 now allows mailbox-first evidence without manufacturing application authority, extends the tracking projection with mailbox discovery/observed-status fields and preserves the migration-112 view column prefix required by PostgreSQL `CREATE OR REPLACE VIEW`.
-
-Canonical public state: `main@dbe216a452ac53ca323920fb2929eb44fb9dd1aa`.
+Migration `113_enable_mailbox_first_application_tracking.sql` corrected the mandatory `silver_job_id` modeling gap without rewriting migration 112. Mailbox-first discovery can now exist without manufacturing a current JAP job or submission authority.
 
 Terminal evidence:
 
-- exact migration-113 apply run `35186715621`: SUCCESS;
-- independent read-only post-apply + real Product proof `35186749692`: SUCCESS;
-- Product DB after apply: `0` applications, `0` mailbox-discovered, `0` observed-status, `0` attention, `0` unmatched;
-- evidence artifact `10482821186`, SHA256 `88557ee40da2606d5f0d08655a4a8b1675fda7ddac2dcc65ad7b5649a80358b9`;
-- no invented application/submission/lifecycle truth.
+- exact migration-113 apply `35186715621`: SUCCESS;
+- independent post-apply + Product proof `35186749692`: SUCCESS;
+- checksum drift `0`, pending migrations `0`;
+- Product DB after apply had `0` applications, `0` mailbox-discovered, `0` observed-status, `0` attention, `0` unmatched.
 
-## Slice C — ACTIVE: real read-only Gmail evidence preview
+## Real Gmail preview foundation — COMPLETE
 
-The private runtime bridge is merged in `jenshaberle-dotcom/job-pipeline-runtime` as `main@c79311f67a203e5cacf0aad285e455ed8be7bc03` via runtime PR `#374`.
+Private runtime OAuth/read boundary remains deliberately narrow:
 
-The bridge boundary is deliberately narrow:
-
-- OAuth Desktop Authorization Code + PKCE;
+- Google Desktop OAuth + PKCE;
 - exact scope `https://www.googleapis.com/auth/gmail.readonly`;
-- Gmail message fetches use `format=metadata`, never raw/full bodies;
-- normalized preview contains bounded Subject/Snippet, sender domain, deterministic hints and SHA-256 mailbox/thread/message references;
-- credentials/tokens remain local and are never committed or uploaded;
-- preview output is local JSONL only;
-- Gmail writes `0`, JAP/PostgreSQL writes `0`, provider cost `0`.
+- per-message Gmail fetches use `format=metadata`, never `full`/`raw`;
+- normalized private JSONL carries bounded Subject/Snippet, deterministic identity hints and SHA-256 mailbox/thread/message references;
+- credentials/tokens remain local;
+- no Gmail writes, JAP/PostgreSQL writes, application submissions or provider cost.
 
-Exact runtime evidence before merge:
+Observation hardening before the latest outcome work already added inbound/outbound direction, bounded counterparty domain, conservative employer/title recovery and hard aggregator-noise suppression.
 
-- F5 Gmail boundary contract `35187483965`: SUCCESS (`6/6` tests);
-- Runtime re-entry `35187483663`: SUCCESS;
-- contract output: `gmail_writes=0 database_writes=0 provider_cost=0`.
+## Real annual batch preflight — MEASURED BEFORE LATEST OUTCOME HARDENING
 
-### Slice C acceptance sequence
+The real 2026 batch used for the previous preflight produced:
 
-1. Operator creates/supplies a Google OAuth **Desktop app** client with Gmail API enabled and keeps the client JSON outside the repository.
-2. Operator runs local `doctor`, then grants the exact `gmail.readonly` scope once via the runtime `authorize` command.
-3. Run one real read-only `scan` to local JSONL.
-4. Measure real hit count, sender-domain/title coverage, Gmail thread fragmentation, likely duplicate application identities and how often employer/job identity can be matched deterministically.
-5. Only if that evidence is acceptable may normalized observations be bridged into the public JAP mailbox-ingestion contract.
+- `203` input observations;
+- `93` rows inside the selected 2026 window;
+- `93` valid, `0` invalid;
+- `8` discoverable rows;
+- `10` review-worthy rows;
+- `83` `other`;
+- `2` `ambiguous`;
+- `8` unique application keys;
+- `0` duplicate evidence rows;
+- public-preflight Gmail network requests `0`;
+- DB connections/writes `0`;
+- application submission actions `0`.
 
-No application row, event candidate row or authoritative lifecycle event may be created merely to make the preview look complete. Gmail evidence remains non-authoritative.
+PR `#924` merged the read-only batch preflight contract and qualified it before any apply/persistence mode exists.
 
-## Slice D — queued: deterministic-first event classification
+## Outcome-evidence hardening — COMPLETE / MERGED
 
-Initial classes:
+Real Gmail inspection exposed two distinct gaps:
 
-`application_acknowledgement`, `recruiter_contact`, `interview_invitation`, `assessment_request`, `offer_signal`, `rejection`, `withdrawal_confirmation`, `other`, `ambiguous`.
+### HDI 2026-07-23 — acknowledgement + rejection
 
-Every result carries reason/evidence and application-match provenance. Model assistance, if later justified, is residual-only and cannot silently mutate lifecycle authority.
+The mail is a clear rejection but includes `Thank you for your application`. The previous classifier treated simultaneous deterministic classes as `ambiguous` even when only one was a high-impact outcome.
 
-## Slice E — queued: Control Center lifecycle UX
+Public PR `#925` changes deterministic precedence generically:
 
-Primary operator surface stays simple:
+- exactly one high-impact class (`rejection`, `offer_signal`, `interview_invitation`, `assessment_request`, `withdrawal_confirmation`) outranks background acknowledgement/recruiter language;
+- multiple conflicting high-impact classes still return `ambiguous` and require review;
+- acknowledgement plus generic recruiter wording resolves as acknowledgement rather than a false lifecycle conflict.
 
-`Prepared -> Applied -> Reply -> Interview -> Offer -> Closed`
+### Capgemini 2026-06-21 — decisive rejection after Gmail snippet boundary
 
-Attention/next-action is primary. Evidence, uncertainty and provenance use progressive disclosure. This package must not absorb the broader post-freeze UX simplification work tracked in `#910`.
+The real Gmail message is a rejection, but the metadata snippet ends before the decisive rejection wording. Expanding per-message fetches to `full`/`raw` was rejected because it would broaden private-content exposure unnecessarily.
 
-## Slice F — queued: bounded transition automation
+Runtime PR `#381`, merged as runtime `main@2f39b449f9df3e97cb373435797677195d61f590`, instead adds Gmail server-side `messages.list` searches for **strong lifecycle-specific phrases only**. Returned provider message IDs are immediately hashed and intersected with normalized observations. The runtime persists only bounded labels under `gmail_search_signals`; it does not persist search text, provider IDs, recipient addresses or message bodies.
 
-Only after measured precision and explicit operator policy approval. False authoritative transition count must remain zero during shadow/canary.
+Broad terms such as bare `Absage` or bare `Vorstellungsgespräch` are deliberately not sufficient high-impact signal evidence.
+
+Public PR `#925`, merged as public `main@192fac0cda6b112f45f954f94fde9285d81f5f0d`, validates those labels fail-closed and feeds them into the same deterministic classifier used by batch preflight and production ingestion. Allowed labels are exactly:
+
+`rejection`, `offer_signal`, `interview_invitation`, `assessment_request`, `withdrawal_confirmation`.
+
+The discovery threshold was not relaxed and all classifier results remain `evidence_only`.
+
+### Exact-head qualification
+
+Public candidate `3ddc4ee2869a4b60bd85f84585ecb45179c4fa98`:
+
+- F5 application lifecycle qualification `35221200869`: SUCCESS;
+- Pipeline re-entry target identity `35221200667`: SUCCESS;
+- Pipeline CI `35221201032`: SUCCESS, including Full Suite, Ruff, migration/governance and React build.
+
+Runtime candidate `e18d526e1ba185b7e9f7a2e4cb28cf3920c8545c`:
+
+- Runtime re-entry target identity `35221220970`: SUCCESS;
+- F5 Gmail read-only bridge PR check `35221221052`: SUCCESS.
+
+## Important truth boundary after hardening
+
+The previous `93`-row real batch measurement predates the new signal enrichment. It is **not** evidence that the new runtime/public pair has passed a real annual re-preview.
+
+First persistence remains blocked. No existing normalized JSONL should be applied merely because its old read-only preflight was green.
+
+Before first write, also resolve reclassification idempotency: if the same Gmail message was once classified as one candidate class and later reclassified after better evidence, the persistence design must supersede/review the older candidate rather than leave contradictory active evidence merely because candidate class/reason participate in its evidence fingerprint.
 
 ## Sole next action
 
-Reach the **human OAuth gate only**: create/supply the local Google Desktop OAuth client, grant exactly `gmail.readonly`, run one real metadata-only preview, and inspect the resulting matching/thread evidence.
+1. From runtime `main@2f39b449f9df3e97cb373435797677195d61f590`, run a **new real read-only annual Gmail scan** to a fresh private JSONL.
+2. From current public main, run `scripts/run_product_v1_f5_mailbox_batch_preflight.py` against that fresh JSONL for the intended 2026 window.
+3. Inspect counts, unique identities, duplicates, ambiguity and especially the HDI/Capgemini classifications.
+4. Stop before database persistence and record the measured result.
 
-Do **not** add a DB persistence path, Gmail write scope, model-based authority or fake application before that preview evidence exists.
+Only after that new real signal-enhanced preview is acceptable may F5 introduce a separately qualified bounded persistence/apply path.
+
+Until then: **no DB persistence of the Gmail batch, no Gmail write scope, no automatic application submit, no model-created authority and no authoritative lifecycle transition from unreviewed mailbox evidence**.
+
+## Next slices after the re-preview gate
+
+### Persistence qualification — BLOCKED ON SOLE NEXT ACTION
+
+Add the smallest bounded/idempotent apply path only after the new real preview passes. It must preserve communication-as-evidence semantics, prove no submission/lifecycle authority is manufactured, and define safe reclassification supersession.
+
+### Control Center lifecycle UX — queued
+
+Primary operator surface remains:
+
+`Prepared -> Applied -> Reply -> Interview -> Offer -> Closed`
+
+Attention/next-action is primary. Evidence, uncertainty and provenance use progressive disclosure. Broader post-freeze UX simplification remains isolated in `#910`.
+
+### Bounded transition automation — queued
+
+Only after measured precision and explicit operator policy approval. False authoritative transition count must remain zero during shadow/canary.
 
 ## Sequencing
 
@@ -144,4 +167,4 @@ Current frozen campaign order remains:
 
 `F5 -> F6`
 
-F4C is operator accepted and complete. Post-freeze UX/Data-Layers polish is tracked separately in `#910` and must not pull this campaign backward.
+F4C is operator accepted and complete. F6 remains blocked until F5 reaches its package-completion authority.
