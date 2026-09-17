@@ -2,6 +2,8 @@ from pathlib import Path
 
 
 MIGRATION = Path("db/migrations/113_enable_mailbox_first_application_tracking.sql")
+QUALIFIER = Path("scripts/run_f5_mailbox_tracking_schema_qualification.py")
+WORKFLOW = Path(".github/workflows/f5-application-lifecycle-reconciliation.yml")
 
 
 def _sql() -> str:
@@ -109,3 +111,17 @@ def test_mailbox_first_migration_introduces_no_mail_or_submission_side_effect() 
     assert "requests.post" not in sql
     assert "insert into application_submissions" not in sql
     assert "no mailbox network access" in sql
+
+
+def test_steady_state_qualification_measures_rows_without_reopening_migration_gate() -> None:
+    qualifier = QUALIFIER.read_text(encoding="utf-8")
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert 'choices=("preflight", "postapply", "current")' in qualifier
+    assert 'phase="current", require_empty_rows=False' in qualifier
+    assert '"row_policy": "must_be_empty" if require_empty_rows else "measure_only"' in qualifier
+    assert "default: current" in workflow
+    assert "inputs.mode || 'current'" in workflow
+    assert "env.MODE == 'current'" in workflow
+    assert "--phase current" in workflow
+    assert "run_f5_application_tracking_product_proof" in workflow
