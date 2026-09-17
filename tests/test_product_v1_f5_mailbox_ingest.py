@@ -26,12 +26,15 @@ def _observation(**overrides: object) -> NormalizedMailboxObservation:
         "employer_name": "Example GmbH",
         "job_title": "Senior Data Engineer",
         "source_url": None,
+        "mail_direction": "inbound",
+        "counterparty_domain": "example.com",
+        "employer_evidence_source": "counterparty_domain_brand",
     }
     data.update(overrides)
     return NormalizedMailboxObservation(**data)
 
 
-def test_parser_rejects_raw_mail_and_secret_material() -> None:
+def test_parser_rejects_raw_mail_secret_and_recipient_material() -> None:
     base = {
         "source_kind": "gmail",
         "mailbox_account_fingerprint": "acct",
@@ -41,11 +44,64 @@ def test_parser_rejects_raw_mail_and_secret_material() -> None:
         "subject": "Bewerbung eingegangen",
         "text_excerpt": "Vielen Dank für Ihre Bewerbung",
     }
-    for forbidden in ("raw_body", "headers", "access_token"):
+    for forbidden in (
+        "raw_body",
+        "headers",
+        "access_token",
+        "to",
+        "recipient",
+        "recipient_address",
+        "from_address",
+    ):
         payload = dict(base)
-        payload[forbidden] = "secret"
+        payload[forbidden] = "secret@example.test"
         with pytest.raises(MailboxIngestError, match="raw_or_secret_mail_material_forbidden"):
             parse_normalized_mailbox_observation(payload)
+
+
+def test_parser_preserves_bounded_direction_and_counterparty_provenance() -> None:
+    parsed = parse_normalized_mailbox_observation(
+        {
+            "source_kind": "gmail",
+            "mailbox_account_fingerprint": "acct",
+            "thread_reference": "thread",
+            "message_reference": "message",
+            "observed_at": "2026-06-20T12:00:00+00:00",
+            "subject": "Bewerbung als Junior Data Engineer (m/w/d)",
+            "text_excerpt": "Anbei meine Bewerbung.",
+            "sender_domain": "gmail.com",
+            "employer_name": "Example Employer",
+            "job_title": "Junior Data Engineer (m/w/d)",
+            "mail_direction": "outbound",
+            "counterparty_domain": "jobs.example-employer.com",
+            "employer_evidence_source": "counterparty_domain_brand",
+        }
+    )
+
+    assert parsed.mail_direction == "outbound"
+    assert parsed.counterparty_domain == "jobs.example-employer.com"
+    assert parsed.employer_evidence_source == "counterparty_domain_brand"
+    assert parsed.sender_domain == "gmail.com"
+
+
+def test_outbound_requires_domain_not_recipient_address() -> None:
+    base = {
+        "source_kind": "gmail",
+        "mailbox_account_fingerprint": "acct",
+        "thread_reference": "thread",
+        "message_reference": "message",
+        "observed_at": "2026-06-20T12:00:00+00:00",
+        "subject": "Bewerbung als Junior Data Engineer",
+        "text_excerpt": "Anbei meine Bewerbung.",
+        "sender_domain": "gmail.com",
+        "mail_direction": "outbound",
+    }
+    with pytest.raises(MailboxIngestError, match="required_text_missing"):
+        parse_normalized_mailbox_observation(base)
+
+    leaking = dict(base, counterparty_domain="jobs@example-employer.com")
+    with pytest.raises(MailboxIngestError, match="invalid_bounded_domain"):
+        parse_normalized_mailbox_observation(leaking)
 
 
 def test_application_identity_is_independent_of_jap_job_and_stable_across_threads() -> None:
@@ -71,6 +127,20 @@ def test_clear_application_acknowledgement_can_discover_unknown_application() ->
     )
 
     assert result.candidate_class == "application_acknowledgement"
+    assert should_discover_application(result) is True
+
+
+def test_outbound_application_evidence_can_discover_without_submission_authority() -> None:
+    result = classify_application_evidence(
+        subject="Bewerbung als Junior Data Engineer (m/w/d)",
+        text_excerpt="Anbei meine Bewerbung.",
+        sender_domain="gmail.com",
+        mail_direction="outbound",
+        counterparty_domain="example-employer.com",
+    )
+
+    assert result.reason_code == "deterministic_outbound_application_sent"
+    assert result.authority == "evidence_only"
     assert should_discover_application(result) is True
 
 
