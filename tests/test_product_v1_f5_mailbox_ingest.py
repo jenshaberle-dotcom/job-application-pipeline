@@ -9,6 +9,7 @@ from scripts.product_v1_f5_mailbox_ingest import (
     parse_normalized_mailbox_observation,
     should_discover_application,
 )
+from scripts.run_product_v1_f5_mailbox_batch_preflight import preflight_rows
 from src.search_intelligence.application_event_classifier import (
     classify_application_evidence,
 )
@@ -169,3 +170,44 @@ def test_ambiguous_or_other_evidence_cannot_create_application() -> None:
 
     assert should_discover_application(ambiguous) is False
     assert should_discover_application(other) is False
+
+
+def test_batch_preflight_is_read_only_contract_surface() -> None:
+    result = preflight_rows(
+        [
+            {
+                "source_kind": "gmail",
+                "mailbox_account_fingerprint": "acct",
+                "thread_reference": "thread-outbound",
+                "message_reference": "message-outbound",
+                "observed_at": "2026-06-20T12:00:00+00:00",
+                "subject": "Bewerbung als Junior Data Engineer (m/w/d)",
+                "text_excerpt": "Anbei meine Bewerbung.",
+                "sender_domain": "gmail.com",
+                "employer_name": "Example Employer",
+                "job_title": "Junior Data Engineer (m/w/d)",
+                "mail_direction": "outbound",
+                "counterparty_domain": "example-employer.com",
+                "employer_evidence_source": "counterparty_domain_brand",
+            },
+            {
+                "source_kind": "gmail",
+                "mailbox_account_fingerprint": "acct",
+                "thread_reference": "thread-noise",
+                "message_reference": "message-noise",
+                "observed_at": "2026-03-24T12:00:00+00:00",
+                "subject": "Absage Coaching Session",
+                "text_excerpt": "Ihre Coaching-Sitzung wurde abgesagt.",
+                "sender_domain": "kornferry.com",
+                "employer_name": "Korn Ferry Advance",
+                "job_title": None,
+                "mail_direction": "inbound",
+                "counterparty_domain": "kornferry.com",
+            },
+        ]
+    )
+
+    assert result.invalid_rows == 0
+    assert result.discoverable_rows == 1
+    assert result.other_rows == 1
+    assert result.unique_application_keys == 1
