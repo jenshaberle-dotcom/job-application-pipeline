@@ -1,0 +1,167 @@
+name: WBAA M3 authorized live source extraction
+
+on:
+  push:
+    branches: [wbaa/m3-live-source-extraction-20260917]
+    paths:
+      - .wbaa/run_m3_live_source_extraction.py
+      - .wbaa/m3-target/contracts/m3-job-migration-manifest.json
+      - .github/workflows/wbaa-m3-live-source-extraction.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wbaa-m3-live-source-extraction-20260917
+  cancel-in-progress: false
+
+jobs:
+  extract:
+    name: Read bounded JAP source and build M3 evidence
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      SOURCE_SHA: 27a5e78fb3041eee1b1f3964676f62d1db82a067
+      TARGET_CANDIDATE: e03df393f7de9354b4c37cd33711bd3e04a0879f
+      TARGET_MANIFEST_BLOB_SHA: cf303e5e63c337da1a25fcb896183f1191c5ca23
+      AUTHORITY_REFERENCE: WBAA#134-comment-5711751027
+    steps:
+      - name: Check out isolated carrier
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact carrier and source binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git cat-file -e "$SOURCE_SHA^{commit}"
+          git merge-base --is-ancestor "$SOURCE_SHA" "$GITHUB_SHA"
+          test "$(git hash-object .wbaa/m3-target/contracts/m3-job-migration-manifest.json)" = "$TARGET_MANIFEST_BLOB_SHA"
+          test "$(git hash-object db/migrations/003_silver_jobs_model.sql)" = "3197adb4297190f2f96fcf2edc9c4fdb933734a2"
+          git diff --exit-code "$SOURCE_SHA" -- src db/migrations/003_silver_jobs_model.sql
+          mapfile -t changed < <(git diff --name-only "$SOURCE_SHA" "$GITHUB_SHA" | sort)
+          expected=(
+            ".github/workflows/wbaa-m3-live-source-extraction.yml"
+            ".wbaa/m3-target/contracts/m3-job-migration-manifest.json"
+            ".wbaa/run_m3_live_source_extraction.py"
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
+          test "${#changed[@]}" -eq "${#expected_sorted[@]}"
+          for i in "${!expected_sorted[@]}"; do
+            test "${changed[$i]}" = "${expected_sorted[$i]}"
+          done
+          echo "CARRIER_BINDING=PASS source_sha=$SOURCE_SHA target_candidate=$TARGET_CANDIDATE authority=$AUTHORITY_REFERENCE"
+
+      - name: Bind verified runtime and masked DB environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          mapfile -t ctx < <(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json, sys
+          from pathlib import PurePosixPath
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id) or context.get("Repository") != repository or context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_IDENTITY_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          root = PurePosixPath(context["CheckoutRoot"])
+          if root not in PurePosixPath(context["Interpreter"]).parents or root not in PurePosixPath(context["EnvFile"]).parents:
+              raise SystemExit("RUNTIME_CONTEXT_PATH_MISMATCH")
+          print(context["Interpreter"])
+          print(context["EnvFile"])
+          PY
+          )
+          test "${#ctx[@]}" -eq 2
+          runtime_python="${ctx[0]}"
+          runtime_env_file="${ctx[1]}"
+          "$runtime_python" - "$runtime_env_file" "$GITHUB_ENV" <<'PY'
+          import secrets, sys
+          from pathlib import Path
+          from dotenv import dotenv_values
+          values = dotenv_values(Path(sys.argv[1]))
+          required = ("POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
+          if any(values.get(key) in (None, "") for key in required):
+              raise SystemExit("RUNTIME_ENV_POSTGRES_KEYS_MISSING")
+          print(f"::add-mask::{values['POSTGRES_PASSWORD']}")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as handle:
+              for key in required:
+                  marker = f"JAP_ENV_{secrets.token_hex(12)}"
+                  handle.write(f"{key}<<{marker}\n{values[key]}\n{marker}\n")
+          PY
+          echo "RUNTIME_PYTHON=$runtime_python" >> "$GITHUB_ENV"
+
+      - name: Prepare pinned local OSS runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="$(bash scripts/ensure_pinned_local_oss_runtime.sh "$RUNTIME_PYTHON" requirements.txt "$RUNNER_TEMP/wbaa-m3-live-source-sites")"
+          test -d "$site"
+          echo "PYTHONPATH=$site:${PYTHONPATH:-}" >> "$GITHUB_ENV"
+
+      - name: Execute authorized read-only source extraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/wbaa-m3-live-source"
+          mkdir -p "$out"
+          env \
+            -u OPENAI_API_KEY \
+            -u ANTHROPIC_API_KEY \
+            -u AZURE_CLIENT_SECRET \
+            -u AZURE_CREDENTIALS \
+            PGAPPNAME=wbaa-m3-live-source-extraction \
+            "$RUNTIME_PYTHON" .wbaa/run_m3_live_source_extraction.py \
+              --repo-root "$GITHUB_WORKSPACE" \
+              --manifest .wbaa/m3-target/contracts/m3-job-migration-manifest.json \
+              --output "$out/jobs.ndjson" \
+              --evidence-output "$out/evidence.json"
+
+      - name: Verify bounded artifact and no tracked source mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/wbaa-m3-live-source"
+          "$RUNTIME_PYTHON" - "$out/jobs.ndjson" "$out/evidence.json" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          artifact = Path(sys.argv[1]).read_bytes()
+          evidence = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          actual = hashlib.sha256(artifact).hexdigest()
+          if actual != evidence["export"]["artifact_sha256"]:
+              raise SystemExit("ARTIFACT_SHA256_MISMATCH")
+          if evidence["export"]["selected_row_count"] <= 0:
+              raise SystemExit("ROW_COUNT_NOT_POSITIVE")
+          if evidence["extraction"]["transaction_read_only"] != "on":
+              raise SystemExit("READ_ONLY_PROOF_MISSING")
+          effects = evidence["effects"]
+          if any(bool(value) for value in effects.values()):
+              raise SystemExit("UNAUTHORIZED_EFFECT_RECORDED")
+          if set(evidence["extraction"]["selected_columns"]) != {
+              "raw_job_id", "source_name", "external_job_id", "source_url",
+              "title", "company_name", "city", "publication_date"
+          }:
+              raise SystemExit("SELECTED_COLUMN_SCOPE_DRIFT")
+          print(f"ARTIFACT_VERIFIED=PASS rows={evidence['export']['selected_row_count']} sha256={actual}")
+          PY
+          git diff --exit-code "$GITHUB_SHA" -- . ':(exclude).wbaa' ':(exclude).github/workflows/wbaa-m3-live-source-extraction.yml'
+          test -z "$(git status --porcelain --untracked-files=no)"
+
+      - name: Preserve bounded M3 export evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: jap-cloud-m3-live-source-${{ env.SOURCE_SHA }}
+          path: |
+            ${{ runner.temp }}/wbaa-m3-live-source/jobs.ndjson
+            ${{ runner.temp }}/wbaa-m3-live-source/evidence.json
+          if-no-files-found: error
+          retention-days: 30
