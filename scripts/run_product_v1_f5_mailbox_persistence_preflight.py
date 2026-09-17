@@ -3,7 +3,9 @@
 
 The planner never connects to Gmail or PostgreSQL. It predicts application inserts,
 candidate inserts, no-ops and source-message supersessions against an explicit
-bounded state snapshot. Real persistence remains a separately authorized action.
+bounded state snapshot. First-seen `other` noise is skipped, while `other` may
+supersede an already-active relevant interpretation so stale evidence cannot remain
+active. Real persistence remains a separately authorized action.
 """
 from __future__ import annotations
 
@@ -182,19 +184,25 @@ def plan_rows(
             counterparty_domain=observation.counterparty_domain,
             deterministic_event_signals=observation.gmail_search_signals,
         )
-        if not should_persist_candidate(classification):
+        source_key = source_message_identity_key(observation)
+        existing = active.get(source_key)
+        default_persistence_allowed = should_persist_candidate(classification)
+
+        if not default_persistence_allowed and existing is None:
             skipped_other_rows += 1
             continue
 
         persistence_candidate_rows += 1
         class_counts[classification.candidate_class] += 1
-        source_key = source_message_identity_key(observation)
         source_messages.add(source_key)
         interpretation = evidence_fingerprint(observation, classification)
-        existing = active.get(source_key)
 
         application_key: str | None = existing.application_key if existing else None
-        if application_key is None and should_discover_application(classification):
+        if (
+            default_persistence_allowed
+            and application_key is None
+            and should_discover_application(classification)
+        ):
             application_key = mailbox_application_key(observation)
             applications.add(application_key)
 
