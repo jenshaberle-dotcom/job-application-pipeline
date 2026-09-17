@@ -137,12 +137,13 @@ WITH active_events AS (
     WHERE observation_rank = 1
 ), application_base AS (
     SELECT
+        -- Keep the complete migration-112 view prefix position-stable. PostgreSQL
+        -- CREATE OR REPLACE VIEW permits new columns only after existing columns;
+        -- inserting discovery columns in the middle is interpreted as a rename.
         application.id AS application_id,
         application.application_key,
         application.silver_job_id,
         application.draft_request_id,
-        application.discovery_kind,
-        application.discovered_at,
         application.prepared_at,
         application.prepared_by,
         application.job_identity_snapshot,
@@ -168,7 +169,9 @@ WITH active_events AS (
             WHEN coalesce(candidates.attention_candidate_count, 0) > 0
                 THEN 'evidence_review_required'
             ELSE 'none'
-        END AS attention_status
+        END AS attention_status,
+        application.discovery_kind,
+        application.discovered_at
     FROM applications application
     LEFT JOIN application_submissions submission
       ON submission.application_id = application.id
