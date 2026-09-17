@@ -11,6 +11,7 @@ GREEN_FACADE = "rcc-general-linux-01--jap"
 
 EXPECTED_ACTIVE_BLUE = {
     "f5-application-lifecycle-reconciliation.yml",
+    "f5-candidate-supersession-preflight.yml",
     "jap-windows-control-center-local-deploy.yml",
     "p1-generic-origin-product-activate.yml",
     "p1-generic-origin-product-proof.yml",
