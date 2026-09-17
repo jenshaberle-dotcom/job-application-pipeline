@@ -3,7 +3,9 @@
 Preflight proves migration 113 is the sole pending migration with zero checksum
 drift and that the currently installed schema still has the expected pre-correction
 shape. Post-apply proves the mailbox-first columns/view exist and no application
-truth was seeded by the migration.
+truth was seeded by the migration. Current is the steady-state read-only contract:
+it proves migration 113 remains applied with valid schema/view shape while measuring,
+not forbidding, real application rows created after migration acceptance.
 """
 from __future__ import annotations
 
@@ -127,7 +129,9 @@ def preflight(*, source_sha: str) -> dict[str, object]:
     }
 
 
-def postapply(*, source_sha: str) -> dict[str, object]:
+def _applied_state(
+    *, source_sha: str, phase: str, require_empty_rows: bool
+) -> dict[str, object]:
     with connect() as conn:
         conn.execute("SET TRANSACTION READ ONLY")
         if not schema_migrations_exists(conn):
@@ -169,12 +173,12 @@ def postapply(*, source_sha: str) -> dict[str, object]:
             raise QualificationStop(f"TRACKING_VIEW_COLUMN_MISSING:{column}")
 
     nonzero = {name: count for name, count in counts.items() if count != 0}
-    if nonzero:
+    if require_empty_rows and nonzero:
         raise QualificationStop(f"MIGRATION_SEEDED_APPLICATION_TRUTH:{nonzero}")
 
     return {
         "schema": "jap.f5.mailbox_first_schema_qualification.v1",
-        "phase": "postapply",
+        "phase": phase,
         "source_sha": source_sha,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "target_migration": TARGET_MIGRATION,
@@ -184,6 +188,7 @@ def postapply(*, source_sha: str) -> dict[str, object]:
         "candidate_columns": candidates,
         "tracking_view_columns": view_columns,
         "row_counts": counts,
+        "row_policy": "must_be_empty" if require_empty_rows else "measure_only",
         "boundaries": {
             "db_writes": 0,
             "gmail_reads": 0,
@@ -192,6 +197,16 @@ def postapply(*, source_sha: str) -> dict[str, object]:
             "authoritative_state_mutations": 0,
         },
     }
+
+
+def postapply(*, source_sha: str) -> dict[str, object]:
+    return _applied_state(
+        source_sha=source_sha, phase="postapply", require_empty_rows=True
+    )
+
+
+def current(*, source_sha: str) -> dict[str, object]:
+    return _applied_state(source_sha=source_sha, phase="current", require_empty_rows=False)
 
 
 def validate_report(report: Mapping[str, object], *, phase: str, source_sha: str) -> None:
@@ -213,16 +228,19 @@ def validate_report(report: Mapping[str, object], *, phase: str, source_sha: str
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--phase", required=True, choices=("preflight", "postapply"))
+    parser.add_argument(
+        "--phase", required=True, choices=("preflight", "postapply", "current")
+    )
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    report = (
-        preflight(source_sha=args.source_sha)
-        if args.phase == "preflight"
-        else postapply(source_sha=args.source_sha)
-    )
+    phase_runner = {
+        "preflight": preflight,
+        "postapply": postapply,
+        "current": current,
+    }[args.phase]
+    report = phase_runner(source_sha=args.source_sha)
     validate_report(report, phase=args.phase, source_sha=args.source_sha)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")

@@ -36,9 +36,10 @@ on:
       mode:
         description: "F5 qualification phase"
         required: true
-        default: preflight
+        default: current
         type: choice
         options:
+          - current
           - tracking
           - preflight
           - apply
@@ -79,7 +80,7 @@ jobs:
       MODE: >-
         ${{ github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '<!-- jap-f5-mailbox-schema:apply:v1 -->') && 'apply' ||
             github.event_name == 'issue_comment' && 'postapply' ||
-            github.event_name == 'workflow_dispatch' && inputs.mode || 'preflight' }}
+            github.event_name == 'workflow_dispatch' && inputs.mode || 'current' }}
       SOURCE_SHA: >-
         ${{ github.event_name == 'issue_comment' && github.sha ||
             github.event_name == 'workflow_dispatch' && inputs.source_sha ||
@@ -203,6 +204,23 @@ jobs:
             tests/test_product_v1_f5_application_actions.py \
             tests/test_product_v1_f5_mailbox_ingest.py \
             tests/test_application_event_classifier.py
+
+      - name: Run current mailbox-first schema proof read-only
+        if: ${{ env.MODE == 'current' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_mailbox_tracking_schema_qualification \
+            --phase current \
+            --source-sha "$SOURCE_SHA" \
+            --output "$OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.run_f5_application_tracking_product_proof \
+            --source-sha "$SOURCE_SHA" \
+            --output "$PRODUCT_OUTPUT"
 
       - name: Run exact-head real DB migration preflight read-only
         if: ${{ env.MODE == 'preflight' }}

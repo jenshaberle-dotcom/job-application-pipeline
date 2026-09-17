@@ -4,29 +4,29 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, the exact package branch may carry a fresher candidate version of this authority; merge only after the package's required qualification.
 
-## Live repository checkpoint — 2026-09-16
+## Live repository checkpoint — 2026-09-17
 
-Canonical repository `main` after the F5 Slice-A baseline merge:
+Canonical public repository state:
 
-`main@80dd0d1017fb46cc9cea9f2f34bea78924febc2e`
+`main@dbe216a452ac53ca323920fb2929eb44fb9dd1aa`
 
-The currently installed/operator-accepted Product remains:
+This main includes the F5 authoritative lifecycle foundation, the mailbox-first correction through migration `113_enable_mailbox_first_application_tracking.sql`, and the PostgreSQL view-order recovery from PR `#919`.
+
+The last recorded installed/operator-accepted Product remains:
 
 `1fa2f36a4881a481f44c4d4ae32f7e1b7479f99b` / `jap-winapp-desktop-v1.0.37`
 
-This distinction is intentional: PR `#911` changed only diagnostic/re-entry/planning/test/workflow assets and did not change the installed Product surface. No Windows release was required for that read-only baseline slice.
+An intermediate immutable F5 release `jap-winapp-desktop-v1.0.38` was published from `27a5e78fb3041eee1b1f3964676f62d1db82a067` by release run `35137017336`. Local deploy run `35137225884` staged it correctly and stopped fail-closed at the required GUI-consent gate; no later installed/operator acceptance for v1.0.38 is recorded here. F5 remains open and newer corrective public-main work now exists, so v1.0.38 is not package-completion authority.
 
-Release workflow `35123098242` published v1.0.37 from `1fa2f36a…`. Post-release local deploy run `35123289806` proved the exact installed release, matching source SHA, no pending update and bounded headless rejection. Interactive operator acceptance on 2026-09-16 confirmed the F4C installed surface and closed issue `#898`.
-
-Operator feedback that does **not** reopen F4C is tracked by `#910`: reduce primary operator detail through progressive disclosure/status clusters/traffic-light semantics and re-audit Data Layers metric/cohort/time-window consistency against DB truth. `#910` is post-freeze work and must not displace F5/F6.
+F4C remains complete. Post-freeze operator simplification/Data-Layers consistency work stays isolated in `#910` and must not displace F5/F6.
 
 ## Frozen campaign sequence — current
 
 `F5 -> F6`
 
-Historical target-version arithmetic is not sequencing authority. Each package uses the next available immutable release after exact-head acceptance.
+Historical target-version arithmetic is not sequencing authority. Each package uses the next appropriate immutable release only after exact-head acceptance of the package state to be installed.
 
-Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 Slice A is also complete; F5 as a package remains active.
+Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 Slices A and B plus the mailbox-first schema correction are complete; F5 as a package remains active at the real Gmail preview gate.
 
 ## Product authority that remains invariant
 
@@ -51,7 +51,7 @@ Normal product-changing package flow remains:
 
 `implementation -> focused tests -> Full Suite/Ruff/React/Windows contracts -> real Product/Origin proof -> merge exact tested head -> immutable Windows release -> automatic local deploy -> interactive operator test -> record evidence -> next package`
 
-Read-only diagnostic slices that do not change installed Product behavior may merge after exact-head real proof + full CI without manufacturing a no-op Windows release.
+Read-only diagnostic/private-preview slices that do not change installed Product behavior may merge after exact-head qualification without manufacturing a no-op Windows release.
 
 Exact-head discipline remains mandatory:
 
@@ -59,7 +59,8 @@ Exact-head discipline remains mandatory:
 - tracked migrations are immutable; corrections use a new migration;
 - package PRs remain Draft until final exact-head qualification and required real Product proof are complete;
 - release/deploy automation is Product contract, not workaround;
-- installed operator rejection keeps a product-changing package open even when CI/release/deploy are green.
+- installed operator rejection keeps a product-changing package open even when CI/release/deploy are green;
+- private mailbox evidence remains non-authoritative until a separately qualified public ingestion contract consumes it.
 
 ## F4B — OPERATOR ACCEPTED / COMPLETE
 
@@ -86,7 +87,7 @@ The final F4C implementation stopped treating historical run success as current 
 
 Post-freeze operator simplification/Data-Layers truth audit is isolated in `#910` and is not a blocker for F5/F6.
 
-## F5 — ACTIVE / SLICE B AUTHORITATIVE LIFECYCLE FOUNDATION
+## F5 — ACTIVE / SLICE C REAL READ-ONLY GMAIL PREVIEW
 
 Canonical item: `APP-TRACK-001` / issue `#737` and `docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md`.
 
@@ -110,25 +111,16 @@ Merged via PR `#911` as `main@80dd0d1017fb46cc9cea9f2f34bea78924febc2e` after ex
 
 - F5 real read-only DB reconciliation `35125652183`;
 - Pipeline CI `35125652472`;
-- Re-entry target identity `35125652242`.
+- Re-entry target identity `35125652242`;
+- evidence artifact `10459645819`, zip SHA256 `37b3a36bdf9ac5cc13e737b207fc83e4f4776bdf1446e61cedf7ad15080fd8d1`.
 
-Evidence artifact `10459645819`, zip SHA256 `37b3a36bdf9ac5cc13e737b207fc83e4f4776bdf1446e61cedf7ad15080fd8d1`.
+Measured Product DB truth before mutation had zero historical submitted-application/event authority.
 
-Measured Product DB truth before mutation:
+### F5 Slice B — COMPLETE
 
-- 3 application-shaped relations;
-- 0 application draft rows / 0 distinct draft jobs;
-- 0 submitted-like draft states;
-- 0 post-submit/submission/event/outcome candidate relations;
-- zero DB writes/provider calls/Gmail reads/email actions/submission actions/application-state mutations.
+Migration `112_create_authoritative_application_lifecycle.sql` established four deliberately separated layers:
 
-Therefore F5 has no historical submitted-application authority to migrate.
-
-### F5 Slice B — ACTIVE
-
-The active candidate introduces additive migration `112_create_authoritative_application_lifecycle.sql` with four deliberately separated layers:
-
-1. `applications`: prepared application identity, exact Silver/job snapshot; **not submission authority**.
+1. `applications`: prepared application identity; presence is **not submission authority**.
 2. `application_submissions`: **sole submission authority** with explicit submitted timestamp/channel and `operator_confirmation` or `approved_authoritative_record` provenance.
 3. `application_lifecycle_events`: append-only authoritative post-submit events; corrections supersede prior events rather than rewriting history.
 4. `application_event_candidates`: communication evidence only; Gmail/manual/runtime candidates cannot directly advance lifecycle state.
@@ -139,16 +131,59 @@ The active candidate introduces additive migration `112_create_authoritative_app
 
 from prepared identity + explicit submission + active authoritative events. Candidate rows may create attention but are excluded from authoritative stage derivation.
 
+Terminal evidence on canonical `main@367e18f901710980db59569f9c370e62a31fa8b6`:
+
+- migration-112 exact apply `35131672947`: SUCCESS;
+- independent read-only post-apply `35132353319`: SUCCESS;
+- focused contracts `21 passed`, Ruff PASS;
+- checksum drift `0`, pending migrations `0`;
+- required relations/constraints PASS;
+- zero seeded application/submission/lifecycle/candidate truth.
+
+### F5 mailbox-first correction — COMPLETE
+
+A real modeling gap was then found: mandatory `applications.silver_job_id` prevented mailbox-first discovery when a communication could not yet be matched to a current JAP job. Additive migration `113_enable_mailbox_first_application_tracking.sql` corrected that without rewriting migration 112.
+
+After PR `#919`, canonical public `main` is `dbe216a452ac53ca323920fb2929eb44fb9dd1aa`.
+
+Terminal evidence:
+
+- migration-113 exact apply `35186715621`: SUCCESS;
+- independent read-only post-apply + Product proof `35186749692`: SUCCESS;
+- Product DB after apply: `0` applications, `0` mailbox-discovered, `0` observed-status, `0` attention, `0` unmatched;
+- evidence artifact `10482821186`, SHA256 `88557ee40da2606d5f0d08655a4a8b1675fda7ddac2dcc65ad7b5649a80358b9`;
+- no invented application/submission/lifecycle truth.
+
+### F5 Slice C — ACTIVE / PRIVATE RUNTIME GMAIL PREVIEW
+
+The private runtime bridge is merged in `jenshaberle-dotcom/job-pipeline-runtime` as:
+
+`main@c79311f67a203e5cacf0aad285e455ed8be7bc03`
+
+via runtime PR `#374`.
+
+Exact runtime evidence before merge:
+
+- F5 Gmail read-only bridge contract `35187483965`: SUCCESS (`6/6` tests);
+- Runtime re-entry `35187483663`: SUCCESS;
+- exact scope `https://www.googleapis.com/auth/gmail.readonly`;
+- metadata-only Gmail message reads;
+- hashed mailbox/thread/message references;
+- `gmail_writes=0`, `database_writes=0`, `provider_cost=0`.
+
+The private bridge writes only a local normalized JSONL preview. It has no JAP/PostgreSQL persistence path and creates no application authority.
+
 ### Sole next action
 
-Qualify Slice B on one exact head. Prove migration 112 is the **sole pending migration with zero checksum drift**, then apply exactly migration 112 and run a post-apply real DB proof verifying:
+Human OAuth gate only:
 
-- all four relations + tracking view exist with expected authority constraints;
-- no historical migration changed;
-- application/submission/lifecycle/candidate row counts remain `0` immediately after schema apply;
-- no Gmail/provider/send/automatic-submit action occurred.
+1. Create/supply a local Google OAuth **Desktop app** client with Gmail API enabled; keep the client JSON outside both repositories.
+2. Run the private runtime `doctor` command locally.
+3. Grant exactly `gmail.readonly` once through the runtime `authorize` command.
+4. Run one real metadata-only `scan` to local JSONL.
+5. Inspect hit count, sender-domain/title coverage, Gmail thread fragmentation, likely duplicate application identities and deterministic employer/job matching quality.
 
-Only after this evidence may F5 Slice C begin.
+Only after that real preview evidence is acceptable may F5 add a normalized public mailbox-ingestion/persistence path. Before then: **no DB persistence, no Gmail write scope, no fake application, no model-created authority**.
 
 ## F6 — queued
 
