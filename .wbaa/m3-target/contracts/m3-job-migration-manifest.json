@@ -1,0 +1,158 @@
+{
+  "contract_version": "1.2",
+  "mission": "M3_REAL_JAP_MIGRATION",
+  "purpose": "Bound the minimum upstream JAP job projection and deterministic export format needed by the existing JAP Cloud JobRepository contract before any source-data extraction or Azure import.",
+  "source": {
+    "repository": "jenshaberle-dotcom/job-application-pipeline",
+    "source_sha": "27a5e78fb3041eee1b1f3964676f62d1db82a067",
+    "relation": "silver_jobs",
+    "relation_schema_authority": {
+      "path": "db/migrations/003_silver_jobs_model.sql",
+      "blob_sha": "3197adb4297190f2f96fcf2edc9c4fdb933734a2"
+    },
+    "key_relationships": [
+      {
+        "from_relation": "silver_jobs",
+        "from_column": "raw_job_id",
+        "to_relation": "raw_jobs",
+        "to_column": "id",
+        "constraint": "NOT NULL UNIQUE FOREIGN KEY",
+        "migration_scope_usage": "provenance_only; raw_jobs is not selected or exported"
+      }
+    ],
+    "selected_columns": [
+      "raw_job_id",
+      "source_name",
+      "external_job_id",
+      "source_url",
+      "title",
+      "company_name",
+      "city",
+      "publication_date"
+    ],
+    "explicitly_excluded": [
+      "raw_jobs.raw_data",
+      "application_or_applicant_data",
+      "credentials_or_tokens",
+      "unrestricted_historical_database_copy"
+    ]
+  },
+  "target": {
+    "repository": "jenshaberle-dotcom/jap-cloud-based",
+    "base_sha": "034d234a58f01238299c08369ee095df4cfdeefc",
+    "domain_type": "Job",
+    "repository_protocol": "JobRepository",
+    "fields": [
+      "job_id",
+      "title",
+      "employer",
+      "location",
+      "posted_at",
+      "source_url"
+    ]
+  },
+  "mapping": {
+    "job_id": "trim(source_name) + ':' + trim(external_job_id) when external_job_id is non-empty after trimming, otherwise trim(source_name) + ':raw-' + raw_job_id",
+    "title": "trim(title)",
+    "employer": "trim(company_name)",
+    "location": "trim(city)",
+    "posted_at": "publication_date rendered as ISO-8601 calendar date without inventing time-of-day precision",
+    "source_url": "trim(source_url)"
+  },
+  "eligibility": {
+    "required_non_null_source_columns": [
+      "raw_job_id",
+      "source_name",
+      "source_url",
+      "title",
+      "company_name",
+      "city",
+      "publication_date"
+    ],
+    "required_non_empty_text_columns": [
+      "source_name",
+      "source_url",
+      "title",
+      "company_name",
+      "city"
+    ],
+    "row_order": [
+      "publication_date DESC",
+      "source_name ASC",
+      "external_job_id ASC NULLS LAST",
+      "raw_job_id ASC"
+    ],
+    "scope_rule": "Export only rows that can truthfully populate the existing Job domain contract. Do not fabricate missing presentation fields."
+  },
+  "expected_count_classes": {
+    "selected_source_rows": {
+      "class": "positive_integer",
+      "rule": "Must be positive after the manifest-bound eligibility filter; the exact value is measured only during an authorized live extraction."
+    },
+    "export_rows": {
+      "class": "exact_match",
+      "rule": "Must equal selected_source_rows after all pre-import invariants pass; otherwise export fails closed rather than silently dropping rows."
+    },
+    "target_import_rows": {
+      "class": "exact_match_after_authorized_import",
+      "rule": "Must equal export_rows after an authorized target import; this provider-free preparation does not assert a target count."
+    },
+    "rejected_rows": {
+      "class": "zero_on_success",
+      "rule": "A successful path has zero silently rejected rows; any row-level invariant failure blocks progression and is evidence, not an implicit filter."
+    }
+  },
+  "export_contract": {
+    "input_shape": "JSON array whose row objects contain exactly the selected source columns and no additional source fields",
+    "format": "ndjson",
+    "encoding": "utf-8",
+    "line_ending": "LF",
+    "field_order": [
+      "job_id",
+      "title",
+      "employer",
+      "location",
+      "posted_at",
+      "source_url"
+    ],
+    "checksum": "sha256",
+    "text_normalization": "Strip surrounding Unicode whitespace from selected text fields; reject values empty after trimming; perform no other text transformation.",
+    "sort_semantics": "publication_date as ISO date descending; source_name Unicode code-point ascending; non-null external_job_id Unicode code-point ascending before null; raw_job_id integer ascending",
+    "empty_export_allowed": false,
+    "live_database_access_owned_by_exporter": false
+  },
+  "pre_import_invariants": [
+    "Every exported job_id is non-empty and unique within the export.",
+    "Every exported title, employer and location is non-empty after trimming.",
+    "Every source_url is an absolute http or https URL.",
+    "Every posted_at value is derived only from publication_date and preserves its date precision.",
+    "Every exported row is traceable to source_name plus external_job_id or raw_job_id.",
+    "Every input row contains exactly the selected source columns, so the export contains no raw_data payload and no applicant/application data."
+  ],
+  "evidence_required_after_authorized_extraction": {
+    "source_database_schema_revision": true,
+    "extraction_started_at": true,
+    "extraction_completed_at": true,
+    "migration_manifest_sha256": true,
+    "data_origin": true,
+    "authority_reference": true,
+    "export_artifact_sha256": true,
+    "selected_row_count": true,
+    "pre_import_invariant_results": true
+  },
+  "effect_state": {
+    "live_source_data_read_performed": false,
+    "export_artifact_created": false,
+    "azure_database_created": false,
+    "azure_schema_mutation_performed": false,
+    "azure_import_performed": false,
+    "application_data_mode_changed": false
+  },
+  "authority": {
+    "provider_transport_authorized": false,
+    "live_source_extraction_authorized": false,
+    "azure_data_effect_authorized": false,
+    "azure_region_change_authorized": false,
+    "automatic_merge_authorized": false
+  }
+}
