@@ -14,6 +14,7 @@ from src.search_intelligence.application_event_classifier import classify_applic
 
 
 MIGRATION = Path("db/migrations/114_application_event_candidate_source_identity.sql")
+INGEST = Path("scripts/product_v1_f5_mailbox_ingest.py")
 
 
 def _row(**overrides: object) -> dict[str, object]:
@@ -165,6 +166,15 @@ def test_other_mail_is_not_planned_for_persistence() -> None:
     assert plan.skipped_other_rows == 1
     assert plan.application_inserts == 0
     assert plan.candidate_inserts == 0
+
+
+def test_ingest_serializes_first_seen_source_identity_and_preserves_existing_match() -> None:
+    source = INGEST.read_text(encoding="utf-8")
+
+    assert "pg_advisory_xact_lock(hashtext(%s))" in source
+    assert "application.application_key AS matched_application_key" in source
+    assert "FOR UPDATE OF candidate" in source
+    assert 'resolved_application_key = str(matched_key)' in source
 
 
 def test_migration_enforces_one_active_interpretation_per_source_message() -> None:
