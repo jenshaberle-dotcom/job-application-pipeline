@@ -8,13 +8,13 @@ Read this file from canonical `refs/heads/main` before continuing Product work. 
 
 Canonical public repository state before this re-entry refresh:
 
-`main@192fac0cda6b112f45f954f94fde9285d81f5f0d`
+`main@1a2de9e9feefc35d42cb16c82ab5cddde5c78331`
 
 Canonical private runtime state:
 
-`jenshaberle-dotcom/job-pipeline-runtime@2f39b449f9df3e97cb373435797677195d61f590`
+`jenshaberle-dotcom/job-pipeline-runtime@805ff8a751c3a3630879d9765658ec5c17ceec22`
 
-Public PR `#925` and runtime PR `#381` completed the pre-persistence mailbox outcome hardening. The public exact tested head was `3ddc4ee2869a4b60bd85f84585ecb45179c4fa98`; terminal gates were F5 application lifecycle qualification `35221200869` SUCCESS, Pipeline re-entry target identity `35221200667` SUCCESS and Pipeline CI `35221201032` SUCCESS. The runtime exact tested head was `e18d526e1ba185b7e9f7a2e4cb28cf3920c8545c`; terminal gates were Runtime re-entry target identity `35221220970` SUCCESS and F5 Gmail read-only bridge PR check `35221221052` SUCCESS.
+Public PR `#925` and runtime PR `#381` completed the pre-persistence mailbox outcome hardening. Public PR `#927` then fixed the real direct-CLI preflight import path, and public PR `#928` decoupled the read-only preflight from PostgreSQL-driver availability. PR `#928` exact candidate `49f8466fa47e8cb6c1d7e07707e473394d3345e5` passed F5 application lifecycle qualification `35250071633`, Pipeline re-entry target identity `35250071679` and Pipeline CI `35250072571`, all SUCCESS, before merge as `1a2de9e9feefc35d42cb16c82ab5cddde5c78331`.
 
 The last recorded installed/operator-accepted Product remains:
 
@@ -26,7 +26,7 @@ F5 remains open. No no-op Windows release is required for these read-only/privat
 
 `F5 -> F6`
 
-Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 Slices A and B plus the mailbox-first schema correction are complete. F5 is now at the **signal-hardened real Gmail re-preview gate before first persistence**.
+Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 Slices A and B plus the mailbox-first schema correction and signal-enhanced real Gmail re-preview are complete. F5 is now at the **persistence qualification / source-message supersession design gate before first mailbox write**.
 
 ## Product authority that remains invariant
 
@@ -63,7 +63,7 @@ Canonical item `#898 / F4C Source Health + Operator Surface Consolidation` is cl
 
 Post-freeze operator simplification/Data-Layers truth audit remains isolated in `#910` and is not a blocker for F5/F6.
 
-## F5 — ACTIVE / SIGNAL-HARDENED REAL GMAIL RE-PREVIEW
+## F5 — ACTIVE / REAL RE-PREVIEW ACCEPTED; PERSISTENCE QUALIFICATION
 
 Canonical item: `APP-TRACK-001` / issue `#737` and `docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md`.
 
@@ -100,50 +100,56 @@ Migration `112_create_authoritative_application_lifecycle.sql` established four 
 
 Migration `113_enable_mailbox_first_application_tracking.sql` made mailbox-first discovery possible without inventing a JAP job or submission authority. Exact migration apply `35186715621` and independent post-apply/Product proof `35186749692` were SUCCESS with checksum drift `0`, pending migrations `0`, and zero seeded application/submission/lifecycle/candidate truth.
 
-### Real Gmail preview + observation hardening — COMPLETE THROUGH PRE-PERSISTENCE CONTRACT
+### Real Gmail preview + observation hardening — COMPLETE THROUGH ACCEPTED SIGNAL RE-PREVIEW
 
 The private runtime OAuth/read boundary is established and remains exact `gmail.readonly`. Gmail per-message reads remain `format=metadata`; normalized output contains bounded Subject/Snippet, deterministic identity hints and hashed mailbox/thread/message references. Gmail writes, JAP/PostgreSQL writes and provider cost remain zero in the preview bridge.
 
-The latest real annual mailbox batch used for pre-hardening measurement produced:
+The historical pre-hardening annual batch produced `203` input rows, `93` rows in the selected 2026 window, `8` discoverable rows, `10` review-worthy rows, `83` other, `2` ambiguous, `8` unique application keys and `0` duplicate evidence rows. That batch exposed the HDI acknowledgement+rejection conflict, the Capgemini snippet-boundary rejection and the low-impact acknowledgement+recruiter ambiguity pattern.
+
+Public PR `#925` hardened deterministic precedence and validates bounded `gmail_search_signals`. Runtime PR `#381` adds server-side Gmail `messages.list` searches for strong lifecycle-specific phrases only, hashes provider message IDs, downloads no full/raw body and emits only whitelisted signal labels.
+
+The **new signal-enhanced real annual preview is now accepted**. Operator run on 2026-09-17 used private JSONL SHA-256 `33265bb4da98ce422ff8df9318b8279651cc5231d45f3a6e948628ed2ccdc4b5` and public `main@1a2de9e9feefc35d42cb16c82ab5cddde5c78331`. Public preflight result:
 
 - input rows `203`;
-- 2026 window rows `93`, all `93` valid;
-- discoverable rows `8`;
-- review-worthy rows `10`;
-- other rows `83`;
-- ambiguous rows `2`;
-- unique application keys `8`;
+- 2026 window rows `93`;
+- valid rows `93`, invalid rows `0`;
+- discoverable rows `11`;
+- review-worthy rows `11`;
+- other rows `82`;
+- ambiguous rows `0`;
+- unique application keys `9`;
 - duplicate evidence rows `0`;
+- class counts: `8` application acknowledgements, `3` rejections;
 - Gmail network requests from public preflight `0`;
 - database connections/writes `0`;
 - application submission actions `0`.
 
-Those measurements exposed two real semantic gaps and one low-impact ambiguity pattern:
+The critical regressions are resolved in real evidence:
 
-1. HDI 2026-07-23 is a clear rejection whose bounded text also contains acknowledgement wording. Public classification now lets one clear high-impact outcome outrank background acknowledgement/recruiter wording; conflicting high-impact outcomes still remain `ambiguous`.
-2. Capgemini 2026-06-21 is a clear rejection in the real Gmail message, but Gmail's metadata snippet ended before the decisive rejection phrase. Runtime PR `#381` therefore adds server-side Gmail `messages.list` searches for **strong lifecycle-specific phrases only**, hashes returned provider message IDs, and emits only whitelisted bounded labels in `gmail_search_signals`. It still downloads no full/raw body.
-3. A genuine acknowledgement that also mentions Talent Acquisition is no longer treated as a lifecycle conflict merely because generic recruiter wording co-occurs.
+- HDI 2026-07-23 is now `rejection` while HDI 2026-07-01 remains `application_acknowledgement` for the same application identity;
+- Capgemini 2026-06-21 is now `rejection` while Capgemini 2026-03-14 remains `application_acknowledgement` for the same application identity;
+- the former ambiguity count drops from `2` to `0`;
+- MODULAT 2026-01-12 is additionally discovered as a deterministic rejection;
+- `11` discoverable evidence rows collapse to `9` unique application keys, confirming that multiple lifecycle messages for one application must remain distinct evidence rows under one application identity.
 
-Public PR `#925` validates `gmail_search_signals` fail-closed and feeds them into the same deterministic classifier used by batch preflight and production ingestion. Allowed signal classes are restricted to `rejection`, `offer_signal`, `interview_invitation`, `assessment_request`, and `withdrawal_confirmation`. Classifier output remains `evidence_only`; `should_discover_application` thresholds were not relaxed.
+### First persistence remains blocked on source-message idempotency
 
-No claim is made that the **new signal-enhanced real annual preview** has passed yet. The previous 93-row measurement predates this hardening.
+The real re-preview gate is passed, but the current candidate table still cannot safely persist reclassification history. `application_event_candidates` uniqueness is based on `(source_kind, evidence_fingerprint, candidate_class)`, while `evidence_fingerprint` contains `message_reference`, `candidate_class` and `reason_code`. Therefore the same unchanged Gmail message can produce a second active candidate after classifier/evidence improvement.
 
-### First persistence remains blocked
+Before first mailbox persistence, F5 must qualify a source-message identity contract with these properties:
 
-Do not persist the old preview batch merely because its contract preflight passed. Before first mailbox persistence authority:
+1. Gmail source identity is stable on `source_kind + mailbox_account_fingerprint + source_message_reference`, not on classifier output.
+2. Reprocessing an unchanged message with the same interpretation is a true no-op.
+3. Reclassification of the same message preserves audit history but leaves exactly one active candidate interpretation; the prior interpretation is explicitly superseded/dismissed rather than co-active.
+4. Multiple different Gmail messages for the same application remain independent evidence and may legitimately represent lifecycle progression, as the HDI and Capgemini real pairs prove.
+5. Candidate supersession affects only evidence projection; it creates no submission row and no authoritative lifecycle event.
+6. The bounded persistence path must have a dry-run/preflight mode and exact explicit apply authority; Gmail writes remain impossible.
 
-1. run a new real Runtime read-only annual Gmail scan from runtime `main@2f39b449f9df3e97cb373435797677195d61f590` to a fresh local JSONL;
-2. run public `run_product_v1_f5_mailbox_batch_preflight.py` from current public main against that fresh JSONL for the intended 2026 window;
-3. inspect class counts, discoverable identities, ambiguity, duplicate evidence and the HDI/Capgemini regressions;
-4. only if the new signal-enhanced batch is acceptable may a separately qualified bounded persistence/apply path be introduced.
-
-Until then: **no DB persistence of the Gmail batch, no Gmail write scope, no automatic application submit, no model-created authority, and no authoritative lifecycle transition from unreviewed mailbox evidence**.
-
-One persistence-design residual must also be handled before first write: an unchanged Gmail message that was previously classified differently must not leave contradictory active candidates merely because `candidate_class`/`reason_code` participate in its evidence fingerprint. First-persistence qualification must define idempotent supersession/review semantics for such reclassification.
+Until that contract and its migration/apply path are separately qualified: **no DB persistence of the Gmail batch, no Gmail write scope, no automatic application submit, no model-created authority, and no authoritative lifecycle transition from mailbox evidence**.
 
 ## Sole next action
 
-Run the **new real signal-enhanced read-only Gmail annual scan**, then rerun the **public read-only batch preflight** on that fresh JSONL. Stop before DB persistence and report the measured result.
+Implement and exact-head qualify the **F5 source-message idempotency + candidate supersession persistence contract**, including schema migration, provider-free tests and a bounded read-only batch persistence preflight. Stop before applying any new migration or writing the real Gmail batch; the next operator/authority gate is the real DB migration preflight for that exact merged main.
 
 ## F6 — queued
 
