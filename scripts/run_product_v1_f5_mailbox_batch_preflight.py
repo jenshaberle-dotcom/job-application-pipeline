@@ -118,6 +118,7 @@ def _classification(payload: Mapping[str, object]) -> tuple[Any, ClassificationR
         sender_domain=observation.sender_domain,
         mail_direction=observation.mail_direction,
         counterparty_domain=observation.counterparty_domain,
+        deterministic_event_signals=observation.gmail_search_signals,
     )
     return observation, classification
 
