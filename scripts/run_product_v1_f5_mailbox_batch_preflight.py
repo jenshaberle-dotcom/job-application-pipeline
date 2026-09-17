@@ -13,16 +13,21 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime
 import json
 from pathlib import Path
+import sys
 from typing import Any, Mapping
 
-from scripts.product_v1_f5_mailbox_ingest import (
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.product_v1_f5_mailbox_ingest import (  # noqa: E402
     MailboxIngestError,
     evidence_fingerprint,
     mailbox_application_key,
     parse_normalized_mailbox_observation,
     should_discover_application,
 )
-from src.search_intelligence.application_event_classifier import (
+from src.search_intelligence.application_event_classifier import (  # noqa: E402
     ClassificationResult,
     classify_application_evidence,
 )
