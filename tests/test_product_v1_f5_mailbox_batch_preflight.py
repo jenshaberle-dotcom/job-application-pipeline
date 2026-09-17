@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
+import json
+from pathlib import Path
+import subprocess
+import sys
 
 from scripts.run_product_v1_f5_mailbox_batch_preflight import preflight_rows
 
@@ -136,3 +140,35 @@ def test_date_window_is_applied_before_contract_counting() -> None:
     assert result.input_rows == 2
     assert result.window_rows == 1
     assert result.valid_rows == 1
+
+
+def test_direct_script_entrypoint_runs_from_repository_root(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    input_path = tmp_path / "mailbox.jsonl"
+    report_path = tmp_path / "report.json"
+    input_path.write_text(json.dumps(_row()) + "\n", encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "scripts" / "run_product_v1_f5_mailbox_batch_preflight.py"),
+            "--input",
+            str(input_path),
+            "--since",
+            "2026-01-01",
+            "--until",
+            "2026-09-17",
+            "--output",
+            str(report_path),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "F5_MAILBOX_BATCH_PREFLIGHT=PASS" in completed.stdout
+    assert "GMAIL_NETWORK_REQUESTS=0" in completed.stdout
+    assert "DATABASE_WRITES=0" in completed.stdout
+    assert report_path.is_file()
