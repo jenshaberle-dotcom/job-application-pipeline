@@ -168,6 +168,49 @@ def test_other_mail_is_not_planned_for_persistence() -> None:
     assert plan.candidate_inserts == 0
 
 
+def test_other_reclassification_tombstones_existing_active_evidence() -> None:
+    payload = _row(
+        subject="Allgemeine Nachricht",
+        text_excerpt="Keine Bewerbungsinformation.",
+    )
+    observation = parse_normalized_mailbox_observation(payload)
+    current = classify_application_evidence(
+        subject=observation.subject,
+        text_excerpt=observation.text_excerpt,
+        sender_domain=observation.sender_domain,
+    )
+    previous_observation = parse_normalized_mailbox_observation(_row())
+    previous = classify_application_evidence(
+        subject=previous_observation.subject,
+        text_excerpt=previous_observation.text_excerpt,
+        sender_domain=previous_observation.sender_domain,
+    )
+    source_key = source_message_identity_key(observation)
+    application_key = "mailbox-application:existing"
+    active = {
+        source_key: ActiveCandidate(
+            source_identity_key=source_key,
+            evidence_fingerprint=evidence_fingerprint(observation, previous),
+            candidate_class=previous.candidate_class,
+            application_key=application_key,
+        )
+    }
+
+    plan = plan_rows(
+        [payload],
+        existing_application_keys={application_key},
+        active_candidates=active,
+    )
+
+    assert current.candidate_class == "other"
+    assert plan.persistence_candidate_rows == 1
+    assert plan.skipped_other_rows == 0
+    assert plan.application_inserts == 0
+    assert plan.candidate_inserts == 0
+    assert plan.candidate_supersessions == 1
+    assert plan.class_counts == {"other": 1}
+
+
 def test_ingest_serializes_first_seen_source_identity_and_preserves_existing_match() -> None:
     source = INGEST.read_text(encoding="utf-8")
 
@@ -175,6 +218,7 @@ def test_ingest_serializes_first_seen_source_identity_and_preserves_existing_mat
     assert "application.application_key AS matched_application_key" in source
     assert "FOR UPDATE OF candidate" in source
     assert 'resolved_application_key = str(matched_key)' in source
+    assert 'review_status = "dismissed"' in source
 
 
 def test_migration_enforces_one_active_interpretation_per_source_message() -> None:
