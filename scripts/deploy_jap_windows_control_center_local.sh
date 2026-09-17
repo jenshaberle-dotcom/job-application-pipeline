@@ -13,6 +13,9 @@ INSTALL_SCHEMA="job_application_pipeline.windows_control_center_install.v2"
 UPDATE_MODE="gui_prompt_latest_direct_v1"
 COMPATIBILITY_LINE="1"
 PENDING_SCHEMA="job_application_pipeline.windows_pending_update.v1"
+UPDATER_SHELL="pwsh"
+UPDATER_SHELL_MAJOR="7"
+UPDATER_TRANSITION_BOOTSTRAP="windows_powershell_5_1_to_pwsh7_once"
 BOOTSTRAP_MIN_VERSION="1.0.5"
 
 blocked() {
@@ -25,13 +28,34 @@ deferred() {
   exit 0
 }
 
+resolve_windows_pwsh() {
+  if command -v pwsh.exe >/dev/null 2>&1; then
+    command -v pwsh.exe
+    return 0
+  fi
+  local candidate
+  for candidate in \
+    "/mnt/c/Program Files/PowerShell/7/pwsh.exe" \
+    "/mnt/c/Program Files (x86)/PowerShell/7/pwsh.exe"; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 if [[ "${GITHUB_ACTIONS:-}" == "true" && "${RUNNER_NAME:-}" != "$EXPECTED_RUNNER" && "${RUNNER_NAME:-}" != "$MIGRATED_RUNNER" ]]; then
   blocked "unexpected_runner:${RUNNER_NAME:-missing}"
 fi
 
-for command_name in git python3 powershell.exe wslpath curl sha256sum; do
+for command_name in git python3 wslpath curl sha256sum; do
   command -v "$command_name" >/dev/null 2>&1 || blocked "missing_command:${command_name}"
 done
+WINDOWS_PWSH="$(resolve_windows_pwsh)" || blocked "pwsh7_unavailable"
+PWSH_VERSION="$("$WINDOWS_PWSH" -NoProfile -Command '$PSVersionTable.PSVersion.ToString()' | tr -d '\r' | tail -n 1)"
+[[ "$PWSH_VERSION" =~ ^7\. ]] || blocked "pwsh7_version_invalid:${PWSH_VERSION}"
+printf 'JAP_LOCAL_DEPLOY_PWSH=PASS version=%s executable=%s\n' "$PWSH_VERSION" "$WINDOWS_PWSH"
 
 SOURCE_SHA="$(git -C "$ROOT" rev-parse HEAD)"
 [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || blocked "invalid_source_sha"
@@ -66,14 +90,20 @@ print(data.get("compatibility_line", ""))
 print(data.get("policy", ""))
 print(data.get("installer_schema", ""))
 print(data.get("snooze_hours", ""))
+print(data.get("updater_shell", ""))
+print(data.get("updater_shell_major", ""))
+print(data.get("transition_bootstrap", ""))
 PY
 )
-[[ "${#compatibility[@]}" -eq 5 ]] || blocked "compatibility_projection_failed"
+[[ "${#compatibility[@]}" -eq 8 ]] || blocked "compatibility_projection_failed"
 [[ "${compatibility[0]}" == "job_application_pipeline.windows_update_compatibility.v1" ]] || blocked "compatibility_schema_mismatch"
 [[ "${compatibility[1]}" == "$COMPATIBILITY_LINE" ]] || blocked "compatibility_line_mismatch"
 [[ "${compatibility[2]}" == "latest_direct" ]] || blocked "compatibility_policy_mismatch"
 [[ "${compatibility[3]}" == "$INSTALL_SCHEMA" ]] || blocked "installer_schema_mismatch"
 [[ "${compatibility[4]}" == "6" ]] || blocked "snooze_contract_mismatch"
+[[ "${compatibility[5]}" == "$UPDATER_SHELL" ]] || blocked "updater_shell_mismatch:${compatibility[5]}"
+[[ "${compatibility[6]}" == "$UPDATER_SHELL_MAJOR" ]] || blocked "updater_shell_major_mismatch:${compatibility[6]}"
+[[ "${compatibility[7]}" == "$UPDATER_TRANSITION_BOOTSTRAP" ]] || blocked "updater_transition_mismatch:${compatibility[7]}"
 
 RELEASE_SHA="$(git ls-remote "$READ_ONLY_FETCH_URL" "refs/tags/${DESKTOP_TAG}" | awk 'NR==1 {print $1}')"
 if [[ -z "$RELEASE_SHA" ]]; then
@@ -90,7 +120,7 @@ if ! curl -fsSIL --connect-timeout 5 --max-time 20 "$RELEASE_ASSET_URL" >/dev/nu
   deferred "desktop_release_asset_unavailable:${DESKTOP_TAG}"
 fi
 
-WINDOWS_LOCALAPPDATA="$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r' | tail -n 1)"
+WINDOWS_LOCALAPPDATA="$("$WINDOWS_PWSH" -NoProfile -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r' | tail -n 1)"
 [[ -n "$WINDOWS_LOCALAPPDATA" ]] || blocked "localappdata_unavailable"
 WSL_LOCALAPPDATA="$(wslpath -u "$WINDOWS_LOCALAPPDATA")"
 [[ -n "$WSL_LOCALAPPDATA" ]] || blocked "localappdata_mapping_failed"
@@ -113,9 +143,11 @@ print(data.get("wsl_distro", ""))
 print(data.get("schema", ""))
 print(data.get("update_mode", ""))
 print(data.get("compatibility_line", ""))
+print(data.get("updater_shell", ""))
+print(data.get("updater_shell_major", ""))
 PY
 )
-[[ "${#installed[@]}" -eq 8 ]] || blocked "installed_config_projection_failed"
+[[ "${#installed[@]}" -eq 10 ]] || blocked "installed_config_projection_failed"
 [[ "${installed[0]}" == "$EXPECTED_REPOSITORY_ID" ]] || blocked "installed_repository_id_mismatch"
 [[ "${installed[1]}" == "$EXPECTED_REPOSITORY" ]] || blocked "installed_repository_name_mismatch"
 [[ "${installed[5]}" == "$INSTALL_SCHEMA" ]] || blocked "installed_schema_mismatch:${installed[5]}"
@@ -132,7 +164,7 @@ fi
 [[ "$INSTALLED_MAJOR" == "$COMPATIBILITY_LINE" ]] || blocked "installed_compatibility_line_unsupported:${installed[3]}"
 
 set +e
-powershell.exe -NoProfile -Command '$p = Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue; if ($null -ne $p) { exit 10 }; exit 0' >/dev/null 2>&1
+"$WINDOWS_PWSH" -NoProfile -Command '$p = Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue; if ($null -ne $p) { exit 10 }; exit 0' >/dev/null 2>&1
 process_status=$?
 set -e
 if [[ "$process_status" -ne 0 && "$process_status" -ne 10 ]]; then
@@ -142,10 +174,14 @@ HOST_RUNNING=0
 [[ "$process_status" -eq 10 ]] && HOST_RUNNING=1
 
 if [[ "${installed[2]}" == "$SOURCE_SHA" && "${installed[3]}" == "$DESKTOP_VERSION" && "${installed[6]}" == "$UPDATE_MODE" ]]; then
+  [[ "${installed[8]}" == "$UPDATER_SHELL" ]] || blocked "installed_updater_shell_mismatch:${installed[8]}"
+  [[ "${installed[9]}" == "$UPDATER_SHELL_MAJOR" ]] || blocked "installed_updater_shell_major_mismatch:${installed[9]}"
   rm -f "$INSTALL_ROOT/state/pending-update.json"
   printf 'JAP_LOCAL_DEPLOY=NO_CHANGE\n'
   printf 'PINNED_MAIN=%s\n' "$SOURCE_SHA"
   printf 'DESKTOP_HOST_VERSION=%s\n' "$DESKTOP_VERSION"
+  printf 'UPDATER_SHELL=%s\n' "$UPDATER_SHELL"
+  printf 'UPDATER_SHELL_VERSION=%s\n' "$PWSH_VERSION"
   exit 0
 fi
 
@@ -167,16 +203,22 @@ print(data.get("pinned_sha", ""))
 print(data.get("desktop_host_version", ""))
 print(data.get("update_mode", ""))
 print(data.get("compatibility_line", ""))
+print(data.get("updater_shell", ""))
+print(data.get("updater_shell_major", ""))
 PY
   )
   [[ "${bootstrapped[0]}" == "$SOURCE_SHA" ]] || blocked "bootstrap_main_sha_mismatch:${bootstrapped[0]}:${SOURCE_SHA}"
   [[ "${bootstrapped[1]}" == "$DESKTOP_VERSION" ]] || blocked "bootstrap_desktop_version_mismatch:${bootstrapped[1]}:${DESKTOP_VERSION}"
   [[ "${bootstrapped[2]}" == "$UPDATE_MODE" ]] || blocked "bootstrap_update_mode_missing"
   [[ "${bootstrapped[3]}" == "$COMPATIBILITY_LINE" ]] || blocked "bootstrap_compatibility_line_missing"
+  [[ "${bootstrapped[4]}" == "$UPDATER_SHELL" ]] || blocked "bootstrap_updater_shell_missing:${bootstrapped[4]}"
+  [[ "${bootstrapped[5]}" == "$UPDATER_SHELL_MAJOR" ]] || blocked "bootstrap_updater_shell_major_missing:${bootstrapped[5]}"
   rm -f "$INSTALL_ROOT/state/pending-update.json" "$INSTALL_ROOT/state/update-snooze.json"
   printf 'JAP_LOCAL_DEPLOY=BOOTSTRAP_PASS\n'
   printf 'PINNED_MAIN=%s\n' "$SOURCE_SHA"
   printf 'DESKTOP_HOST_VERSION=%s\n' "$DESKTOP_VERSION"
+  printf 'UPDATER_SHELL=%s\n' "$UPDATER_SHELL"
+  printf 'UPDATER_SHELL_VERSION=%s\n' "$PWSH_VERSION"
   exit 0
 fi
 
@@ -225,13 +267,28 @@ python3 - "$PENDING_TMP" \
   "$WINDOWS_SOURCE_ROOT" \
   "$WINDOWS_ARCHIVE" \
   "$WINDOWS_CHECKSUM" \
-  "$EXPECTED_HASH" <<'PY'
+  "$EXPECTED_HASH" \
+  "$UPDATER_SHELL" \
+  "$UPDATER_SHELL_MAJOR" \
+  "$UPDATER_TRANSITION_BOOTSTRAP" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-(output, target_sha, version, tag, source_root, archive, checksum, sha256) = sys.argv[1:]
+(
+    output,
+    target_sha,
+    version,
+    tag,
+    source_root,
+    archive,
+    checksum,
+    sha256,
+    updater_shell,
+    updater_shell_major,
+    transition_bootstrap,
+) = sys.argv[1:]
 value = {
     "schema": "job_application_pipeline.windows_pending_update.v1",
     "target_main_sha": target_sha,
@@ -240,6 +297,9 @@ value = {
     "compatibility_line": "1",
     "installer_schema": "job_application_pipeline.windows_control_center_install.v2",
     "policy": "latest_direct",
+    "updater_shell": updater_shell,
+    "updater_shell_major": int(updater_shell_major),
+    "transition_bootstrap": transition_bootstrap,
     "source_root": source_root,
     "desktop_archive": archive,
     "desktop_checksum": checksum,
@@ -255,6 +315,8 @@ printf 'PINNED_MAIN_TARGET=%s\n' "$SOURCE_SHA"
 printf 'DESKTOP_HOST_VERSION_TARGET=%s\n' "$DESKTOP_VERSION"
 printf 'UPDATE_POLICY=latest_direct\n'
 printf 'UPDATE_COMPATIBILITY_LINE=%s\n' "$COMPATIBILITY_LINE"
+printf 'UPDATER_SHELL_TARGET=%s\n' "$UPDATER_SHELL"
+printf 'UPDATER_SHELL_MAJOR_TARGET=%s\n' "$UPDATER_SHELL_MAJOR"
 printf 'PENDING_UPDATE=%s\n' "$WINDOWS_LOCALAPPDATA\\JAP-Control-Center\\state\\pending-update.json"
 
 if ((HOST_RUNNING)); then
@@ -266,7 +328,7 @@ WINDOWS_APPLIER="$(wslpath -w "$STAGE_ROOT/source/Apply-JAP-Control-Center-Updat
 WINDOWS_PENDING="$(wslpath -w "$PENDING_JSON")"
 printf 'JAP_LOCAL_DEPLOY=AUTO_APPLY_CLOSED\n'
 set +e
-powershell.exe \
+"$WINDOWS_PWSH" \
   -NoProfile \
   -ExecutionPolicy Bypass \
   -File "$WINDOWS_APPLIER" \
@@ -285,10 +347,16 @@ from pathlib import Path
 data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig"))
 print(data.get("pinned_sha", ""))
 print(data.get("desktop_host_version", ""))
+print(data.get("updater_shell", ""))
+print(data.get("updater_shell_major", ""))
 PY
 )
 [[ "${deployed[0]}" == "$SOURCE_SHA" ]] || blocked "auto_apply_main_sha_mismatch:${deployed[0]}:${SOURCE_SHA}"
 [[ "${deployed[1]}" == "$DESKTOP_VERSION" ]] || blocked "auto_apply_desktop_version_mismatch:${deployed[1]}:${DESKTOP_VERSION}"
+[[ "${deployed[2]}" == "$UPDATER_SHELL" ]] || blocked "auto_apply_updater_shell_mismatch:${deployed[2]}"
+[[ "${deployed[3]}" == "$UPDATER_SHELL_MAJOR" ]] || blocked "auto_apply_updater_shell_major_mismatch:${deployed[3]}"
 printf 'JAP_LOCAL_DEPLOY=AUTO_APPLY_PASS\n'
 printf 'PINNED_MAIN=%s\n' "$SOURCE_SHA"
 printf 'DESKTOP_HOST_VERSION=%s\n' "$DESKTOP_VERSION"
+printf 'UPDATER_SHELL=%s\n' "$UPDATER_SHELL"
+printf 'UPDATER_SHELL_VERSION=%s\n' "$PWSH_VERSION"
