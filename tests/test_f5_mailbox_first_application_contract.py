@@ -118,7 +118,8 @@ def test_steady_state_qualification_measures_rows_without_reopening_migration_ga
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert 'choices=("preflight", "postapply", "current")' in qualifier
-    assert 'phase="current", require_empty_rows=False' in qualifier
+    assert 'NEXT_CANDIDATE_MIGRATION = "114_application_event_candidate_source_identity.sql"' in qualifier
+    assert "allowed_pending=frozenset({NEXT_CANDIDATE_MIGRATION})" in qualifier
     assert '"row_policy": "must_be_empty" if require_empty_rows else "measure_only"' in qualifier
     assert "default: current" in workflow
     assert "inputs.mode || 'current'" in workflow

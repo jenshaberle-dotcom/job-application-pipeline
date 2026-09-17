@@ -5,7 +5,8 @@ drift and that the currently installed schema still has the expected pre-correct
 shape. Post-apply proves the mailbox-first columns/view exist and no application
 truth was seeded by the migration. Current is the steady-state read-only contract:
 it proves migration 113 remains applied with valid schema/view shape while measuring,
-not forbidding, real application rows created after migration acceptance.
+not forbidding, real application rows created after migration acceptance. A known
+next F5 migration may be pending without invalidating migration-113 steady state.
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from scripts.apply_db_migrations import (
 )
 
 TARGET_MIGRATION = "113_enable_mailbox_first_application_tracking.sql"
+NEXT_CANDIDATE_MIGRATION = "114_application_event_candidate_source_identity.sql"
 TARGET_VIEW = "gold_product_v1_application_tracking"
 
 
@@ -130,7 +132,11 @@ def preflight(*, source_sha: str) -> dict[str, object]:
 
 
 def _applied_state(
-    *, source_sha: str, phase: str, require_empty_rows: bool
+    *,
+    source_sha: str,
+    phase: str,
+    require_empty_rows: bool,
+    allowed_pending: frozenset[str] = frozenset(),
 ) -> dict[str, object]:
     with connect() as conn:
         conn.execute("SET TRANSACTION READ ONLY")
@@ -147,10 +153,10 @@ def _applied_state(
     target = tracked.get(TARGET_MIGRATION)
     if target is None or target.execution_status != "success":
         raise QualificationStop("TARGET_MIGRATION_NOT_SUCCESS")
-    if pending:
-        raise QualificationStop(
-            "UNEXPECTED_PENDING:" + ",".join(item.migration_key for item in pending)
-        )
+    pending_keys = [item.migration_key for item in pending]
+    unexpected_pending = [key for key in pending_keys if key not in allowed_pending]
+    if unexpected_pending:
+        raise QualificationStop("UNEXPECTED_PENDING:" + ",".join(unexpected_pending))
 
     for column in ("silver_job_id", "prepared_at", "prepared_by"):
         if applications.get(column, {}).get("is_nullable") != "YES":
@@ -182,7 +188,7 @@ def _applied_state(
         "source_sha": source_sha,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "target_migration": TARGET_MIGRATION,
-        "pending_migrations": [],
+        "pending_migrations": pending_keys,
         "checksum_mismatches": [],
         "applications_columns": applications,
         "candidate_columns": candidates,
@@ -206,7 +212,12 @@ def postapply(*, source_sha: str) -> dict[str, object]:
 
 
 def current(*, source_sha: str) -> dict[str, object]:
-    return _applied_state(source_sha=source_sha, phase="current", require_empty_rows=False)
+    return _applied_state(
+        source_sha=source_sha,
+        phase="current",
+        require_empty_rows=False,
+        allowed_pending=frozenset({NEXT_CANDIDATE_MIGRATION}),
+    )
 
 
 def validate_report(report: Mapping[str, object], *, phase: str, source_sha: str) -> None:
