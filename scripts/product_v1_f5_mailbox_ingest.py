@@ -34,6 +34,7 @@ _DISCOVERY_CLASSES = frozenset(
         "withdrawal_confirmation",
     }
 )
+_ALLOWED_MAIL_DIRECTIONS = frozenset({"inbound", "outbound"})
 
 
 class MailboxIngestError(RuntimeError):
@@ -52,6 +53,9 @@ class NormalizedMailboxObservation:
     employer_name: str | None
     job_title: str | None
     source_url: str | None
+    mail_direction: str = "inbound"
+    counterparty_domain: str | None = None
+    employer_evidence_source: str | None = None
 
 
 def _text(value: object, *, limit: int, required: bool = False) -> str | None:
@@ -63,6 +67,16 @@ def _text(value: object, *, limit: int, required: bool = False) -> str | None:
     if len(text) > limit:
         raise MailboxIngestError("bounded_text_too_long")
     return text
+
+
+def _domain(value: object, *, required: bool = False) -> str | None:
+    domain = _text(value, limit=255, required=required)
+    if domain is None:
+        return None
+    normalized = domain.casefold().strip(" .")
+    if "@" in normalized or "/" in normalized or " " in normalized or "." not in normalized:
+        raise MailboxIngestError("invalid_bounded_domain")
+    return normalized
 
 
 def _parse_time(value: object) -> datetime:
@@ -85,8 +99,25 @@ def parse_normalized_mailbox_observation(
 ) -> NormalizedMailboxObservation:
     if str(payload.get("source_kind") or "") != "gmail":
         raise MailboxIngestError("source_kind_must_be_gmail")
-    if "raw_body" in payload or "headers" in payload or "access_token" in payload:
+    forbidden = {
+        "raw_body",
+        "headers",
+        "access_token",
+        "to",
+        "recipient",
+        "recipient_address",
+        "from_address",
+    }
+    if forbidden.intersection(payload):
         raise MailboxIngestError("raw_or_secret_mail_material_forbidden")
+
+    mail_direction = _text(payload.get("mail_direction"), limit=20) or "inbound"
+    mail_direction = mail_direction.casefold()
+    if mail_direction not in _ALLOWED_MAIL_DIRECTIONS:
+        raise MailboxIngestError("invalid_mail_direction")
+    counterparty_domain = _domain(
+        payload.get("counterparty_domain"), required=mail_direction == "outbound"
+    )
 
     return NormalizedMailboxObservation(
         mailbox_account_fingerprint=_text(
@@ -101,10 +132,15 @@ def parse_normalized_mailbox_observation(
         observed_at=_parse_time(payload.get("observed_at")),
         subject=_text(payload.get("subject"), limit=400) or "",
         text_excerpt=_text(payload.get("text_excerpt"), limit=1200) or "",
-        sender_domain=_text(payload.get("sender_domain"), limit=255),
+        sender_domain=_domain(payload.get("sender_domain")),
         employer_name=_text(payload.get("employer_name"), limit=300),
         job_title=_text(payload.get("job_title"), limit=500),
         source_url=_text(payload.get("source_url"), limit=1200),
+        mail_direction=mail_direction,
+        counterparty_domain=counterparty_domain,
+        employer_evidence_source=_text(
+            payload.get("employer_evidence_source"), limit=80
+        ),
     )
 
 
@@ -164,6 +200,9 @@ def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, o
         "job_title": observation.job_title,
         "employer_name": observation.employer_name,
         "sender_domain": observation.sender_domain,
+        "mail_direction": observation.mail_direction,
+        "counterparty_domain": observation.counterparty_domain,
+        "employer_evidence_source": observation.employer_evidence_source,
         "application_url": observation.source_url,
         "identity_source": "gmail_normalized_observation",
     }
@@ -176,6 +215,8 @@ def ingest_normalized_mailbox_observation(
         subject=observation.subject,
         text_excerpt=observation.text_excerpt,
         sender_domain=observation.sender_domain,
+        mail_direction=observation.mail_direction,
+        counterparty_domain=observation.counterparty_domain,
     )
     discovery_allowed = should_discover_application(classification)
     application_key = mailbox_application_key(observation)
@@ -194,6 +235,9 @@ def ingest_normalized_mailbox_observation(
                         "discovery": "mailbox_observed",
                         "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
                         "thread_reference": observation.thread_reference,
+                        "mail_direction": observation.mail_direction,
+                        "counterparty_domain": observation.counterparty_domain,
+                        "employer_evidence_source": observation.employer_evidence_source,
                         "email_action": False,
                         "application_submission_action": False,
                     }
@@ -243,6 +287,9 @@ def ingest_normalized_mailbox_observation(
                 evidence_payload.update(
                     {
                         "sender_domain": observation.sender_domain,
+                        "mail_direction": observation.mail_direction,
+                        "counterparty_domain": observation.counterparty_domain,
+                        "employer_evidence_source": observation.employer_evidence_source,
                         "subject_fingerprint": canonical_sha256(
                             {"subject": _normalized(observation.subject)}
                         ),
@@ -300,6 +347,8 @@ def ingest_normalized_mailbox_observation(
         "confidence": classification.confidence,
         "match_status": match_status,
         "observed_at": observation.observed_at.isoformat(),
+        "mail_direction": observation.mail_direction,
+        "counterparty_domain": observation.counterparty_domain,
         "authoritative_state_mutation": False,
         "application_submission_action": False,
         "email_action": False,
