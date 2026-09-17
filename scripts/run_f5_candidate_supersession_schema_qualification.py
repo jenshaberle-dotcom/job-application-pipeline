@@ -205,7 +205,12 @@ def _applied(*, source_sha: str, phase: str) -> dict[str, object]:
     if missing_constraints:
         raise QualificationStop("CONSTRAINTS_MISSING:" + ",".join(missing_constraints))
     active_index = indexes.get("uq_application_event_candidate_active_source", "")
-    if "UNIQUE INDEX" not in active_index.upper() or "WHERE (is_active" not in active_index:
+    active_index_upper = active_index.upper()
+    if (
+        "CREATE UNIQUE INDEX" not in active_index_upper
+        or "WHERE" not in active_index_upper
+        or "IS_ACTIVE" not in active_index_upper
+    ):
         raise QualificationStop("ACTIVE_SOURCE_UNIQUE_INDEX_INVALID")
     if duplicate_active != 0:
         raise QualificationStop(f"DUPLICATE_ACTIVE_SOURCE_IDENTITIES:{duplicate_active}")
