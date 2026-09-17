@@ -18,7 +18,19 @@ $DesktopHostAsset = "JAP-Control-Center-Desktop-win-x64.zip"
 $InstallSchema = "job_application_pipeline.windows_control_center_install.v2"
 $UpdateMode = "gui_prompt_latest_direct_v1"
 $CompatibilityLine = "1"
+$UpdaterShell = "pwsh"
+$UpdaterShellMajor = 7
 $Port = 8780
+
+if ($PSVersionTable.PSEdition -ne "Core" -or $PSVersionTable.PSVersion.Major -ne $UpdaterShellMajor) {
+    throw "JAP Control Center installation requires PowerShell 7.x (pwsh). Running: $($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion)."
+}
+$PowerShellExecutable = Join-Path $PSHOME "pwsh.exe"
+if (-not (Test-Path -LiteralPath $PowerShellExecutable -PathType Leaf)) {
+    throw "PowerShell 7 executable was not found at the active PSHOME: $PowerShellExecutable"
+}
+$UpdaterShellVersion = $PSVersionTable.PSVersion.ToString()
+
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $CurrentPath = Join-Path $InstallRoot "current.json"
 $StableLauncher = Join-Path $InstallRoot "JAP-Control-Center.ps1"
@@ -237,7 +249,11 @@ foreach ($required in @($sourceLauncher, $sourceStopper, $sourceApplier, $source
 }
 $desktopHostVersion = (Get-Content -Raw $desktopVersionPath).Trim()
 $compatibility = Get-Content -Raw $compatibilityPath | ConvertFrom-Json
-if ($compatibility.policy -ne "latest_direct" -or $compatibility.compatibility_line -ne $CompatibilityLine -or $compatibility.installer_schema -ne $InstallSchema) {
+if ($compatibility.policy -ne "latest_direct" -or
+    $compatibility.compatibility_line -ne $CompatibilityLine -or
+    $compatibility.installer_schema -ne $InstallSchema -or
+    [string]$compatibility.updater_shell -ne $UpdaterShell -or
+    [int]$compatibility.updater_shell_major -ne $UpdaterShellMajor) {
     throw "Desktop host update compatibility contract is invalid."
 }
 if ($desktopHostVersion -notmatch '^1\.\d+\.\d+$') {
@@ -284,6 +300,9 @@ Write-JsonAtomic $CurrentPath @{
     update_mode = $UpdateMode
     update_surface = "integrated_main_app"
     compatibility_line = $CompatibilityLine
+    updater_shell = $UpdaterShell
+    updater_shell_major = $UpdaterShellMajor
+    updater_shell_version = $UpdaterShellVersion
     secrets_location = "wsl_project_env_only"
     private_documents_location = "wsl_project_private_application_sources_only"
 }
@@ -293,14 +312,13 @@ $legacyUpdateShortcut = Join-Path $programs "Update JAP Control Center.lnk"
 Remove-Item -Force $legacyUpdateShortcut -ErrorAction SilentlyContinue
 
 if (-not $NoShortcuts) {
-    $powershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
     $stopArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$StableStopper`""
 
     $desktop = [Environment]::GetFolderPath("Desktop")
     New-AppShortcut (Join-Path $desktop "JAP Control Center.lnk") $DesktopHostExe "" "$DesktopHostExe,0"
 
     New-AppShortcut (Join-Path $programs "JAP Control Center.lnk") $DesktopHostExe "" "$DesktopHostExe,0"
-    New-AppShortcut (Join-Path $programs "Stop JAP Control Center.lnk") $powershell $stopArguments
+    New-AppShortcut (Join-Path $programs "Stop JAP Control Center.lnk") $PowerShellExecutable $stopArguments
 }
 
 Write-Host "JAP_CONTROL_CENTER_INSTALL=PASS"
@@ -317,6 +335,8 @@ Write-Host "DESKTOP_HOST_EXE=$DesktopHostExe"
 Write-Host "UPDATE_MODE=$UpdateMode"
 Write-Host "UPDATE_SURFACE=integrated_main_app"
 Write-Host "UPDATE_COMPATIBILITY_LINE=$CompatibilityLine"
+Write-Host "UPDATER_SHELL=$UpdaterShell"
+Write-Host "UPDATER_SHELL_VERSION=$UpdaterShellVersion"
 Write-Host "URI=http://127.0.0.1:$Port/"
 Write-Host "Boundary: no .env, credentials, PostgreSQL data, CV or application documents are copied to Windows."
 
