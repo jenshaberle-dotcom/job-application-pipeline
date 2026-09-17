@@ -252,7 +252,7 @@ def should_discover_application(classification: ClassificationResult) -> bool:
 
 
 def should_persist_candidate(classification: ClassificationResult) -> bool:
-    """Keep bounded lifecycle/review evidence; discard deterministic mailbox noise."""
+    """Persist lifecycle/review evidence; first-seen deterministic noise stays out."""
 
     return classification.candidate_class in _PERSISTENCE_CLASSES
 
@@ -267,6 +267,34 @@ def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, o
         "employer_evidence_source": observation.employer_evidence_source,
         "application_url": observation.source_url,
         "identity_source": "gmail_normalized_observation",
+    }
+
+
+def _skipped_result(
+    *,
+    observation: NormalizedMailboxObservation,
+    classification: ClassificationResult,
+    source_identity_key: str,
+) -> dict[str, object]:
+    return {
+        "application_key": None,
+        "application_id": None,
+        "application_discovered": False,
+        "application_created": False,
+        "candidate_recorded": False,
+        "candidate_noop": False,
+        "candidate_skipped": True,
+        "superseded_candidate_id": None,
+        "source_identity_key": source_identity_key,
+        "candidate_class": classification.candidate_class,
+        "confidence": classification.confidence,
+        "match_status": "unmatched",
+        "observed_at": observation.observed_at.isoformat(),
+        "mail_direction": observation.mail_direction,
+        "counterparty_domain": observation.counterparty_domain,
+        "authoritative_state_mutation": False,
+        "application_submission_action": False,
+        "email_action": False,
     }
 
 
@@ -285,34 +313,13 @@ def ingest_normalized_mailbox_observation(
     generated_application_key = mailbox_application_key(observation)
     evidence_hash = evidence_fingerprint(observation, classification)
 
-    if not should_persist_candidate(classification):
-        return {
-            "application_key": None,
-            "application_id": None,
-            "application_discovered": False,
-            "application_created": False,
-            "candidate_recorded": False,
-            "candidate_noop": False,
-            "candidate_skipped": True,
-            "superseded_candidate_id": None,
-            "source_identity_key": source_identity_key,
-            "candidate_class": classification.candidate_class,
-            "confidence": classification.confidence,
-            "match_status": "unmatched",
-            "observed_at": observation.observed_at.isoformat(),
-            "mail_direction": observation.mail_direction,
-            "counterparty_domain": observation.counterparty_domain,
-            "authoritative_state_mutation": False,
-            "application_submission_action": False,
-            "email_action": False,
-        }
-
     import psycopg
     from psycopg.rows import dict_row
 
     from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 
     discovery_allowed = should_discover_application(classification)
+    default_persistence_allowed = should_persist_candidate(classification)
     snapshot = _identity_snapshot(observation)
     snapshot_sha = canonical_sha256(snapshot)
     application_created = False
@@ -351,6 +358,16 @@ def ingest_normalized_mailbox_observation(
                     (source_identity_key,),
                 )
                 active_candidate = cur.fetchone()
+
+                # First-seen `other` is noise and creates no persistent row. If an
+                # earlier active interpretation exists, however, record a dismissed
+                # `other` tombstone so stale lifecycle evidence becomes inactive.
+                if not default_persistence_allowed and active_candidate is None:
+                    return _skipped_result(
+                        observation=observation,
+                        classification=classification,
+                        source_identity_key=source_identity_key,
+                    )
 
                 application_id: int | None = None
                 if (
@@ -473,12 +490,15 @@ def ingest_normalized_mailbox_observation(
                             ),
                         }
                     )
-                    review_status = (
-                        "ambiguous"
-                        if classification.candidate_class == "ambiguous"
+                    if classification.candidate_class == "other":
+                        review_status = "dismissed"
+                    elif (
+                        classification.candidate_class == "ambiguous"
                         or application_id is None
-                        else "unreviewed"
-                    )
+                    ):
+                        review_status = "ambiguous"
+                    else:
+                        review_status = "unreviewed"
                     cur.execute(
                         """
                         INSERT INTO application_event_candidates (
