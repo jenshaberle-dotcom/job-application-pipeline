@@ -17,6 +17,50 @@ def test_rejection_phrase_is_evidence_only() -> None:
     assert result.confidence == 0.97
 
 
+def test_rejection_dominates_acknowledgement_language_in_same_message() -> None:
+    result = classify_application_evidence(
+        subject="Your application: AI Engineer / Data Scientist",
+        text_excerpt=(
+            "Thank you for your application. After careful review we regret to inform "
+            "you that we have been unable to shortlist you."
+        ),
+        sender_domain="example.test",
+    )
+
+    assert result.candidate_class == "rejection"
+    assert result.reason_code == "deterministic_rejection"
+    assert result.confidence == 0.97
+
+
+def test_bounded_rejection_signal_recovers_truncated_metadata_snippet() -> None:
+    result = classify_application_evidence(
+        subject="Capgemini - Rückmeldung zu deinem Bewerbungsprozess",
+        text_excerpt=(
+            "Hallo Jens, vielen Dank für deine Bewerbung für die Position als "
+            "(Senior) Azure Data Engineer (w/m/d) sowie das entgegengebrachte Interesse"
+        ),
+        sender_domain="capgemini.com",
+        deterministic_event_signals=("rejection",),
+    )
+
+    assert result.candidate_class == "rejection"
+    assert result.reason_code == "deterministic_rejection"
+    assert "bounded event signal: rejection" in result.matched_terms
+    assert result.authority == "evidence_only"
+
+
+def test_conflicting_high_impact_signals_still_require_review() -> None:
+    result = classify_application_evidence(
+        subject="Update zu Ihrer Bewerbung",
+        text_excerpt="Vielen Dank für Ihre Bewerbung.",
+        deterministic_event_signals=("offer_signal", "rejection"),
+    )
+
+    assert result.candidate_class == "ambiguous"
+    assert result.reason_code == "multiple_deterministic_classes"
+    assert result.confidence is None
+
+
 def test_non_application_cancellation_is_not_rejection_evidence() -> None:
     result = classify_application_evidence(
         subject="Absage Coaching Session",
