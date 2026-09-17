@@ -11,6 +11,8 @@ $ExpectedRepository = "jenshaberle-dotcom/job-application-pipeline"
 $ExpectedInstallSchema = "job_application_pipeline.windows_control_center_install.v2"
 $ExpectedPendingSchema = "job_application_pipeline.windows_pending_update.v1"
 $ExpectedCompatibilityLine = "1"
+$ExpectedUpdaterShell = "pwsh"
+$ExpectedUpdaterShellMajor = 7
 $ResultSchema = "job_application_pipeline.windows_update_result.v1"
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $ManifestPath = [System.IO.Path]::GetFullPath($ManifestPath)
@@ -33,6 +35,28 @@ function Write-UpdateLog([string]$Phase, [string]$Detail = "") {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $UpdateLog) | Out-Null
     $line = "{0}`t{1}`t{2}" -f [DateTime]::UtcNow.ToString("o"), $Phase, ($Detail -replace "[`r`n]", " ")
     Add-Content -Encoding UTF8 -Path $UpdateLog -Value $line
+}
+
+function Resolve-PowerShell7 {
+    $candidates = @()
+    foreach ($root in @($env:ProgramW6432, $env:ProgramFiles)) {
+        if (-not [string]::IsNullOrWhiteSpace($root)) {
+            $candidates += (Join-Path $root "PowerShell\7\pwsh.exe")
+        }
+    }
+
+    $command = Get-Command pwsh.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $command -and -not [string]::IsNullOrWhiteSpace([string]$command.Source)) {
+        $candidates += [string]$command.Source
+    }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return [System.IO.Path]::GetFullPath($candidate)
+        }
+    }
+
+    throw "PowerShell 7.x (pwsh.exe) is required for JAP updates and was not found."
 }
 
 function Read-Json([string]$Path) {
@@ -61,6 +85,25 @@ function Remove-AcceptedManifest {
     }
 }
 
+$PowerShell7 = Resolve-PowerShell7
+if ($PSVersionTable.PSVersion.Major -lt $ExpectedUpdaterShellMajor -or $PSVersionTable.PSEdition -ne "Core") {
+    Write-UpdateLog "shell_bootstrap" ("from={0} edition={1} target={2}" -f $PSVersionTable.PSVersion, $PSVersionTable.PSEdition, $PowerShell7)
+    & $PowerShell7 `
+        -NoProfile `
+        -ExecutionPolicy Bypass `
+        -File $PSCommandPath `
+        -ManifestPath $ManifestPath `
+        -HostPid $HostPid `
+        -InstallRoot $InstallRoot
+    $bootstrapExitCode = $LASTEXITCODE
+    Write-UpdateLog "shell_bootstrap_exit" "exit_code=$bootstrapExitCode"
+    exit $bootstrapExitCode
+}
+if ($PSVersionTable.PSVersion.Major -ne $ExpectedUpdaterShellMajor) {
+    throw "JAP updater requires PowerShell 7.x; running version is $($PSVersionTable.PSVersion)."
+}
+Write-UpdateLog "shell_ready" ("edition={0} version={1} executable={2}" -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion, $PowerShell7)
+
 $targetVersion = "unknown"
 $targetSha = "unknown"
 try {
@@ -75,6 +118,9 @@ try {
     }
     if ($manifest.installer_schema -ne $ExpectedInstallSchema) {
         throw "Unsupported installer schema: $($manifest.installer_schema)"
+    }
+    if ([string]$manifest.updater_shell -ne $ExpectedUpdaterShell -or [int]$manifest.updater_shell_major -ne $ExpectedUpdaterShellMajor) {
+        throw "Unsupported updater shell contract: $($manifest.updater_shell) $($manifest.updater_shell_major)"
     }
 
     $targetVersion = [string]$manifest.target_desktop_version
@@ -126,15 +172,15 @@ try {
 
     $stopper = Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"
     if (Test-Path $stopper) {
-        Write-UpdateLog "runtime_stop"
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stopper | Out-Null
+        Write-UpdateLog "runtime_stop" "shell=pwsh version=$($PSVersionTable.PSVersion)"
+        & $PowerShell7 -NoProfile -ExecutionPolicy Bypass -File $stopper | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "Managed JAP runtime stop failed with exit code $LASTEXITCODE."
         }
     }
 
-    Write-UpdateLog "installer_start" "target=$targetVersion sha=$targetSha"
-    & powershell.exe `
+    Write-UpdateLog "installer_start" "target=$targetVersion sha=$targetSha shell=pwsh version=$($PSVersionTable.PSVersion)"
+    & $PowerShell7 `
         -NoProfile `
         -ExecutionPolicy Bypass `
         -File $installer `
@@ -157,6 +203,9 @@ try {
     if ($deployed.desktop_host_version -ne $targetVersion) {
         throw "Update verification failed: desktop host is $($deployed.desktop_host_version), expected $targetVersion."
     }
+    if ([string]$deployed.updater_shell -ne $ExpectedUpdaterShell -or [int]$deployed.updater_shell_major -ne $ExpectedUpdaterShellMajor) {
+        throw "Update verification failed: installed updater shell is not PowerShell 7."
+    }
 
     if (Test-Path $PendingPath) {
         try {
@@ -177,10 +226,12 @@ try {
         status = "success"
         target_main_sha = $targetSha
         target_desktop_version = $targetVersion
+        updater_shell = $ExpectedUpdaterShell
+        updater_shell_version = $PSVersionTable.PSVersion.ToString()
         completed_at = [DateTime]::UtcNow.ToString("o")
         detail = ""
     }
-    Write-UpdateLog "update_pass" "target=$targetVersion sha=$targetSha"
+    Write-UpdateLog "update_pass" "target=$targetVersion sha=$targetSha shell=pwsh version=$($PSVersionTable.PSVersion)"
     Restart-JapIfPresent
     exit 0
 }
@@ -193,6 +244,8 @@ catch {
             status = "failed"
             target_main_sha = $targetSha
             target_desktop_version = $targetVersion
+            updater_shell = $ExpectedUpdaterShell
+            updater_shell_version = $PSVersionTable.PSVersion.ToString()
             completed_at = [DateTime]::UtcNow.ToString("o")
             detail = $detail
         }
