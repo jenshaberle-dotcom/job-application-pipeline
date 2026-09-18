@@ -11,6 +11,8 @@ from scripts.run_product_v1_f5_mailbox_persistence_apply import (
     _plan_sha256,
     _select_apply_rows,
     _summarize_results,
+    _validate_sha256,
+    _validate_source_sha,
 )
 from scripts.run_product_v1_f5_mailbox_persistence_preflight import (
     ActiveCandidate,
@@ -174,3 +176,24 @@ def test_live_preflight_is_read_only_and_binds_same_input_plan_source_identities
     assert 'parser.add_argument("--source-sha", required=True)' in source
     assert "plan_sha256_mismatch" in source
     assert "checkout_source_mismatch" in source
+
+
+def test_source_sha_validator_accepts_git_commit_identity_not_only_sha256() -> None:
+    git_sha1 = "47f9adca6362f4c180114c8f15494411079953ca"
+    git_sha256 = "a" * 64
+
+    assert _validate_source_sha(git_sha1) == git_sha1
+    assert _validate_source_sha(git_sha256) == git_sha256
+    assert _validate_sha256("b" * 64, name="expected_plan_sha256") == "b" * 64
+
+
+def test_source_sha_validator_rejects_non_git_object_identity() -> None:
+    import pytest
+
+    from scripts.run_product_v1_f5_mailbox_persistence_apply import PersistenceApplyError
+
+    with pytest.raises(PersistenceApplyError, match="invalid_source_sha"):
+        _validate_source_sha("c" * 39)
+
+    with pytest.raises(PersistenceApplyError, match="invalid_expected_input_sha256"):
+        _validate_sha256("d" * 40, name="expected_input_sha256")
