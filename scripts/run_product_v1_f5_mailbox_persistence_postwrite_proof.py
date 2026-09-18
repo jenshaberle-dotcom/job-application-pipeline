@@ -122,8 +122,7 @@ def _validate_apply_report(
 ) -> None:
     expected_scalars: dict[str, object] = {
         "schema": "jap.f5.mailbox_persistence_apply.v1",
-        "proof_source_sha": proof_source_sha,
-        "apply_source_sha": apply_source_sha,
+        "source_sha": source_sha,
         "input_sha256": input_sha256,
         "plan_sha256": plan_sha256,
         "application_inserts": expected_application_inserts,
