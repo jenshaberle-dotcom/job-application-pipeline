@@ -5,8 +5,9 @@ CONTROL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="${JAP_DEPLOY_SOURCE_ROOT:-$CONTROL_ROOT}"
 EXPECTED_REPOSITORY_ID="1230805345"
 EXPECTED_REPOSITORY="jenshaberle-dotcom/job-application-pipeline"
-EXPECTED_RUNNER="job-pipeline-runtime-linux"
-MIGRATED_RUNNER="job-pipeline-runtime-warm-01-linux"
+ROUTING_LABEL="job-pipeline-runtime-linux"
+EXPECTED_RUNNER="rcc-general-linux-01--jap"
+LEGACY_WARM_RUNNER="job-pipeline-runtime-warm-01-linux"
 READ_ONLY_FETCH_URL="https://github.com/${EXPECTED_REPOSITORY}.git"
 DESKTOP_ASSET="JAP-Control-Center-Desktop-win-x64.zip"
 INSTALL_SCHEMA="job_application_pipeline.windows_control_center_install.v2"
@@ -25,8 +26,11 @@ deferred() {
   exit 0
 }
 
-if [[ "${GITHUB_ACTIONS:-}" == "true" && "${RUNNER_NAME:-}" != "$EXPECTED_RUNNER" && "${RUNNER_NAME:-}" != "$MIGRATED_RUNNER" ]]; then
+if [[ "${GITHUB_ACTIONS:-}" == "true" && "${RUNNER_NAME:-}" != "$EXPECTED_RUNNER" && "${RUNNER_NAME:-}" != "$LEGACY_WARM_RUNNER" ]]; then
   blocked "unexpected_runner:${RUNNER_NAME:-missing}"
+fi
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  printf 'JAP_LOCAL_DEPLOY_RUNNER_ADMISSION=PASS runner=%s routing_label=%s\n' "$RUNNER_NAME" "$ROUTING_LABEL"
 fi
 
 for command_name in git python3 powershell.exe wslpath curl sha256sum; do

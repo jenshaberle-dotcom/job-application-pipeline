@@ -34,14 +34,15 @@ def test_local_deploy_preserves_automatic_compatibility_path_until_rcc_cutover()
     assert "getLatestRelease" in workflow
     assert "release_workflow_run" in workflow
     assert "latest_published_release" in workflow
-    assert "JAP_LOCAL_DEPLOY_ADMISSION=LEGACY_COMPAT" in workflow
-    assert "JAP_LOCAL_DEPLOY_RCC_CUTOVER_PENDING=TRUE" in workflow
+    assert "JAP_LOCAL_DEPLOY_ADMISSION=BLUE_FACADE" in workflow
+    assert "JAP_LOCAL_DEPLOY_RCC_CUTOVER_PENDING=FALSE" in workflow
 
 
 def test_reserved_dispatch_keeps_exact_rcc_handoff_contract() -> None:
     workflow = _text(LOCAL_DEPLOY_WORKFLOW)
     assert "reservation_id:" in workflow
     assert "expected_runner:" in workflow
+    assert "default: rcc-general-linux-01--jap" in workflow
     assert "source_sha:" in workflow
     assert "if: github.event_name == 'workflow_dispatch'" in workflow
     assert "RCC_RESERVATION_ID: ${{ inputs.reservation_id }}" in workflow
@@ -95,8 +96,10 @@ def test_local_runner_can_receive_release_root_from_current_control_plane() -> N
 def test_local_runner_stages_latest_direct_update_and_auto_applies_when_closed() -> None:
     script = _text(LOCAL_DEPLOY)
     assert 'EXPECTED_REPOSITORY_ID="1230805345"' in script
-    assert 'EXPECTED_RUNNER="job-pipeline-runtime-linux"' in script
-    assert 'MIGRATED_RUNNER="job-pipeline-runtime-warm-01-linux"' in script
+    assert 'ROUTING_LABEL="job-pipeline-runtime-linux"' in script
+    assert 'EXPECTED_RUNNER="rcc-general-linux-01--jap"' in script
+    assert 'LEGACY_WARM_RUNNER="job-pipeline-runtime-warm-01-linux"' in script
+    assert "JAP_LOCAL_DEPLOY_RUNNER_ADMISSION=PASS" in script
     assert 'UPDATE_MODE="gui_prompt_latest_direct_v1"' in script
     assert 'PENDING_SCHEMA="job_application_pipeline.windows_pending_update.v1"' in script
     assert 'policy": "latest_direct"' in script
