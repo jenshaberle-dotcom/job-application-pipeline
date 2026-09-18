@@ -108,3 +108,17 @@ def test_postwrite_contract_is_read_only_and_checks_product_authority_separation
     assert "INSERT INTO " not in source
     assert "UPDATE " not in source
     assert "DELETE FROM " not in source
+
+
+def test_postwrite_proof_separates_current_proof_source_from_historical_apply_source() -> None:
+    source = POSTWRITE.read_text(encoding="utf-8")
+
+    assert 'parser.add_argument("--proof-source-sha", required=True)' in source
+    assert 'parser.add_argument("--apply-source-sha", required=True)' in source
+    assert "proof_source_sha = _validate_source_sha(proof_source_sha)" in source
+    assert "apply_source_sha = _validate_source_sha(apply_source_sha)" in source
+    assert "actual_source_sha != proof_source_sha" in source
+    assert "source_sha=apply_source_sha" in source
+    assert "qualify_candidate_schema_current(source_sha=proof_source_sha)" in source
+    assert '"proof_source_sha": proof_source_sha' in source
+    assert '"apply_source_sha": apply_source_sha' in source

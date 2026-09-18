@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Independent read-only terminal proof for the first F5 mailbox persistence batch.
 
-The proof binds the committed apply report, normalized JSONL and exact public source
-SHA, independently re-derives expected Gmail evidence identities, and verifies the
-persisted PostgreSQL rows plus Product read-model authority separation. It performs
+The proof binds the committed apply report, normalized JSONL, historical apply source
+SHA and current proof source SHA independently, re-derives expected Gmail evidence
+identities, and verifies persisted PostgreSQL rows plus Product read-model authority
+separation. It performs
 no Gmail access and no database writes.
 """
 from __future__ import annotations
@@ -417,7 +418,8 @@ def prove_postwrite(
     apply_report_path: Path,
     expected_apply_report_sha256: str,
     expected_prewrite_plan_sha256: str,
-    source_sha: str,
+    proof_source_sha: str,
+    apply_source_sha: str,
     since: date | None,
     until: date | None,
     expected_application_inserts: int,
@@ -432,12 +434,14 @@ def prove_postwrite(
     expected_prewrite_plan_sha256 = _validate_sha256(
         expected_prewrite_plan_sha256, name="expected_prewrite_plan_sha256"
     )
-    source_sha = _validate_source_sha(source_sha)
+    proof_source_sha = _validate_source_sha(proof_source_sha)
+    apply_source_sha = _validate_source_sha(apply_source_sha)
 
     actual_source_sha = _checkout_sha()
-    if actual_source_sha != source_sha:
+    if actual_source_sha != proof_source_sha:
         raise PostwriteProofError(
-            f"checkout_source_mismatch:expected={source_sha}:actual={actual_source_sha}"
+            "checkout_source_mismatch:"
+            f"expected={proof_source_sha}:actual={actual_source_sha}"
         )
 
     input_sha256 = _sha256_file(input_path)
@@ -456,7 +460,7 @@ def prove_postwrite(
     apply_report = _load_json_object(apply_report_path)
     _validate_apply_report(
         apply_report,
-        source_sha=source_sha,
+        source_sha=apply_source_sha,
         input_sha256=input_sha256,
         plan_sha256=expected_prewrite_plan_sha256,
         expected_application_inserts=expected_application_inserts,
@@ -480,7 +484,7 @@ def prove_postwrite(
         )
 
     # Separate read-only schema proof before inspecting persisted product truth.
-    qualify_candidate_schema_current(source_sha=source_sha)
+    qualify_candidate_schema_current(source_sha=proof_source_sha)
 
     import psycopg
     from psycopg.rows import dict_row
@@ -562,7 +566,8 @@ def prove_postwrite(
 
     return {
         "schema": "jap.f5.mailbox_persistence_postwrite_proof.v1",
-        "source_sha": source_sha,
+        "proof_source_sha": proof_source_sha,
+        "apply_source_sha": apply_source_sha,
         "input_sha256": input_sha256,
         "apply_report_sha256": apply_report_sha256,
         "prewrite_plan_sha256": expected_prewrite_plan_sha256,
@@ -596,7 +601,8 @@ def main() -> int:
     parser.add_argument("--apply-report", type=Path, required=True)
     parser.add_argument("--expected-apply-report-sha256", required=True)
     parser.add_argument("--expected-prewrite-plan-sha256", required=True)
-    parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--proof-source-sha", required=True)
+    parser.add_argument("--apply-source-sha", required=True)
     parser.add_argument("--since", type=_parse_iso_date)
     parser.add_argument("--until", type=_parse_iso_date)
     parser.add_argument("--expected-application-inserts", type=int, required=True)
@@ -615,7 +621,8 @@ def main() -> int:
             apply_report_path=args.apply_report.expanduser(),
             expected_apply_report_sha256=args.expected_apply_report_sha256,
             expected_prewrite_plan_sha256=args.expected_prewrite_plan_sha256,
-            source_sha=args.source_sha,
+            proof_source_sha=args.proof_source_sha,
+            apply_source_sha=args.apply_source_sha,
             since=args.since,
             until=args.until,
             expected_application_inserts=args.expected_application_inserts,
@@ -640,7 +647,8 @@ def main() -> int:
 
     print("F5_MAILBOX_PERSISTENCE_POSTWRITE_PROOF=PASS")
     for key in (
-        "source_sha",
+        "proof_source_sha",
+        "apply_source_sha",
         "input_sha256",
         "apply_report_sha256",
         "prewrite_plan_sha256",
