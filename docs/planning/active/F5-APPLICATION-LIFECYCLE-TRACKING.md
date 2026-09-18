@@ -1,6 +1,6 @@
 # F5 — Application Lifecycle + Outcome Tracking
 
-Status: ACTIVE — migration 114 applied/post-apply qualified; bounded first persistence apply qualification next
+Status: ACTIVE — first real Gmail persistence terminally proven; immutable Windows delivery/operator acceptance next
 
 Canonical issue: `#737 / APP-TRACK-001`
 
@@ -148,7 +148,7 @@ Real regression findings are now correct:
 
 The re-preview gate is therefore passed. No Gmail rescan is required for persistence design; the exact JSONL/hash above is the accepted private batch evidence for the next qualification slice.
 
-## Persistence qualification — MIGRATION 114 COMPLETE / FIRST BATCH WRITE STILL BLOCKED
+## Persistence qualification — FIRST REAL BATCH TERMINAL PASS
 
 PR `#930` implemented stable source-message identity, candidate supersession semantics and the provider-free persistence planner. PR `#931` added the read-only exact-main migration-114 preflight trigger.
 
@@ -180,30 +180,84 @@ Migration `114_application_event_candidate_source_identity.sql` terminal evidenc
 
 The post-apply qualifier requires migration 114 tracked successful, no pending migrations, no checksum drift, required source-identity/supersession columns/constraints/indexes present, duplicate active source identities `0`, and the Product tracking view to exclude superseded evidence. Post-apply boundaries remain fully read-only.
 
-The real Gmail batch has **not** been persisted.
+The real Gmail batch is now persisted under explicit operator authority and independently terminally qualified.
 
-## Atomic bounded first persistence apply — ACTIVE
+## Atomic bounded first persistence apply — COMPLETE / TERMINAL PASS
 
-The next package must make the first write mechanically narrow rather than relying on operator intent alone:
+PR `#932` implemented the atomic apply path and the live-DB read-only preflight. PR `#933` fixed the initial fail-closed Git source SHA validation defect before any DB connection or mutation occurred.
 
-1. exact checkout SHA must match approved source SHA;
-2. normalized JSONL SHA must match the accepted private evidence SHA;
-3. a fresh live-DB state-aware persistence plan must hash to the approved plan SHA;
-4. current migration-114 schema must pass before mutation;
-5. live state snapshot + apply run inside one serializable outer PostgreSQL transaction;
-6. only planned persistence rows are passed to the ingest path;
-7. actual application inserts / candidate inserts / no-ops / supersessions must exactly equal the approved plan before commit;
-8. application-submission and authoritative-lifecycle row counts must remain unchanged;
-9. no Gmail network/write path exists in the public apply surface;
-10. execution requires an explicit apply flag plus the dedicated approval token `F5-GMAIL-BATCH-PERSISTENCE-V1`.
+Accepted live preflight on exact public source `19fb4b7e1a36830d895161e19922dfa398e49bfd`:
+
+- input rows `203`, window rows `93`;
+- valid / invalid `93 / 0`;
+- persistence candidate rows `11`;
+- skipped first-seen `other` `82`;
+- application inserts `9`;
+- candidate inserts `11`;
+- no-ops / supersessions `0 / 0`;
+- classes `8 application_acknowledgement`, `3 rejection`;
+- input SHA-256 `33265bb4da98ce422ff8df9318b8279651cc5231d45f3a6e948628ed2ccdc4b5`;
+- plan SHA-256 `741f00096e44d8ea020819697ae335ae0ee8a9839beace6386fd3e13957eb3c5`;
+- DB writes, Gmail actions, submission actions and authoritative lifecycle mutations `0`.
+
+The operator explicitly authorized that exact batch. The atomic apply then returned:
+
+- `F5_MAILBOX_PERSISTENCE_APPLY=PASS`;
+- `TRANSACTION=committed`;
+- exact application inserts `9`;
+- exact candidate inserts `11`;
+- no-ops / supersessions `0 / 0`;
+- apply report SHA-256 `51599f3848ae4befd78712c4f34c0badabef075ed4f062082ad9a52845b25e8e`;
+- no Gmail network/write action, email action, application submission action or authoritative lifecycle mutation.
+
+PR `#934` added an independent post-write verifier. PR `#935` separated current proof source from historical apply source. Terminal post-write proof on `main@560417bd83e452d880e2c0e327c16c590de4fd9e` returned:
+
+- proof report SHA-256 `9cc4626b6296f6bd90bb7a23e4ef83a676e1492e7e6cc7d28ec4e29cfbd3e96f`;
+- verified applications `9`;
+- verified candidates `11`;
+- verified Product tracking rows `9`;
+- active Gmail candidates `11`;
+- scoped submissions / authoritative lifecycle rows `0 / 0`;
+- global submissions / authoritative lifecycle rows `0 / 0`;
+- class counts `8 application_acknowledgement`, `3 rejection`;
+- Product `authoritative_stage` remains `prepared`;
+- Product observed/effective stage derives from the active mailbox evidence;
+- read-only proof DB writes `0`.
+
+Issue `#737` terminal evidence comment is `5731105594`.
+
+## Current delivery truth
+
+The current public runtime + React implementation already supports the mailbox-first Product surface, including:
+
+- external/mailbox-only applications without a Silver job;
+- `observed_stage` and `effective_stage`;
+- mailbox-discovered and observed-status summary counts;
+- active evidence candidates only;
+- progressive evidence detail;
+- explicit separation between mailbox observation and authoritative correction/history;
+- no automatic Gmail send/reply and no automatic application submission.
+
+The latest published immutable Windows desktop is `jap-winapp-desktop-v1.0.38` from source `27a5e78fb3041eee1b1f3964676f62d1db82a067`. That release predates the current mailbox-first Product projection and cannot be mutated in place.
+
+The next immutable delivery target is therefore `v1.0.39`.
 
 ## Sole next action
 
-Qualify and merge the atomic bounded persistence apply package. Then run a fresh exact-main/live-DB read-only plan check against the accepted JSONL and stop at the explicit operator authority gate before the real batch write.
+Qualify and merge the v1.0.39 delivery package, publish the immutable desktop release from the exact merge source, allow the established local deploy/update mechanism to install that exact release, and perform one interactive operator acceptance against the real 9-application cohort.
+
+The operator test must verify at least:
+
+1. the F5 Application Tracking surface shows the real mailbox-discovered applications rather than an empty/demo projection;
+2. observed/effective lifecycle status is visible;
+3. authoritative status remains separately labelled and is not silently advanced by Gmail evidence;
+4. evidence detail remains bounded and contains no raw mail body;
+5. there is no automatic email send/reply or automatic application submission;
+6. About/release metadata binds the running product to v1.0.39 and its exact release source.
 
 ## Next slices after persistence qualification
 
-### Control Center lifecycle UX — queued
+### Control Center lifecycle UX — IMPLEMENTED / DELIVERY + OPERATOR ACCEPTANCE PENDING
 
 Primary operator surface remains:
 
