@@ -23,7 +23,8 @@ from scripts.run_product_v1_f5_mailbox_persistence_apply import (  # noqa: E402
     _load_live_state,
     _plan_sha256,
     _sha256_file,
-    _validate_sha,
+    _validate_sha256,
+    _validate_source_sha,
 )
 from scripts.run_product_v1_f5_mailbox_persistence_preflight import (  # noqa: E402
     load_jsonl,
@@ -47,13 +48,13 @@ def live_preflight(
     since: date | None,
     until: date | None,
 ) -> dict[str, object]:
-    expected_input_sha256 = _validate_sha(
+    expected_input_sha256 = _validate_sha256(
         expected_input_sha256, name="expected_input_sha256"
     )
-    expected_plan_sha256 = _validate_sha(
+    expected_plan_sha256 = _validate_sha256(
         expected_plan_sha256, name="expected_plan_sha256"
     )
-    source_sha = _validate_sha(source_sha, name="source_sha")
+    source_sha = _validate_source_sha(source_sha)
 
     actual_source_sha = _checkout_sha()
     if actual_source_sha != source_sha:
