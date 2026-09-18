@@ -22,6 +22,7 @@ from src.search_intelligence.application_event_classifier import (
 
 
 APPLY = Path("scripts/run_product_v1_f5_mailbox_persistence_apply.py")
+LIVE_PREFLIGHT = Path("scripts/run_product_v1_f5_mailbox_persistence_live_preflight.py")
 INGEST = Path("scripts/product_v1_f5_mailbox_ingest.py")
 
 
@@ -160,3 +161,16 @@ def test_result_summary_rejects_any_forbidden_authority_boundary() -> None:
     assert summary["application_inserts"] == 1
     assert summary["candidate_inserts"] == 1
     assert summary["candidate_supersessions"] == 0
+
+
+def test_live_preflight_is_read_only_and_binds_same_input_plan_source_identities() -> None:
+    source = LIVE_PREFLIGHT.read_text(encoding="utf-8")
+
+    assert 'conn.execute("SET TRANSACTION READ ONLY")' in source
+    assert '"database_writes": 0' in source
+    assert '"gmail_network_requests": 0' in source
+    assert 'parser.add_argument("--expected-input-sha256", required=True)' in source
+    assert 'parser.add_argument("--expected-plan-sha256", required=True)' in source
+    assert 'parser.add_argument("--source-sha", required=True)' in source
+    assert "plan_sha256_mismatch" in source
+    assert "checkout_source_mismatch" in source
