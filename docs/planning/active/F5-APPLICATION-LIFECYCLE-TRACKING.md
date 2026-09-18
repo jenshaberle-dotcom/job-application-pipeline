@@ -1,6 +1,6 @@
 # F5 — Application Lifecycle + Outcome Tracking
 
-Status: ACTIVE — real signal-enhanced Gmail re-preview accepted; persistence qualification next
+Status: ACTIVE — migration 114 applied/post-apply qualified; bounded first persistence apply qualification next
 
 Canonical issue: `#737 / APP-TRACK-001`
 
@@ -148,37 +148,58 @@ Real regression findings are now correct:
 
 The re-preview gate is therefore passed. No Gmail rescan is required for persistence design; the exact JSONL/hash above is the accepted private batch evidence for the next qualification slice.
 
-## Persistence qualification — ACTIVE / FIRST WRITE STILL BLOCKED
+## Persistence qualification — MIGRATION 114 COMPLETE / FIRST BATCH WRITE STILL BLOCKED
 
-The remaining blocker is no longer classification quality. It is source-message idempotency and safe reclassification.
+PR `#930` implemented stable source-message identity, candidate supersession semantics and the provider-free persistence planner. PR `#931` added the read-only exact-main migration-114 preflight trigger.
 
-Current schema problem:
+The accepted real annual JSONL remains SHA-256:
 
-- `application_event_candidates` uniqueness is `(source_kind, evidence_fingerprint, candidate_class)`;
-- current `evidence_fingerprint` contains `mailbox_account_fingerprint`, `message_reference`, `candidate_class` and `reason_code`;
-- therefore the same immutable Gmail message can receive a different fingerprint after classifier/evidence improvement and leave two co-active candidate interpretations.
+`33265bb4da98ce422ff8df9318b8279651cc5231d45f3a6e948628ed2ccdc4b5`
 
-The next persistence contract must distinguish **message identity** from **interpretation identity**:
+The accepted persistence planner result on exact public `main@a5a98205e7a6eec253e0a78ea5ba8e16bc439170` is:
 
-1. Stable source identity for Gmail is derived from `source_kind + mailbox_account_fingerprint + source_message_reference`.
-2. Reprocessing the same source message with the same interpretation is a no-op.
-3. Reclassification of the same source message creates/preserves audit history while making exactly one interpretation active; the prior interpretation is explicitly superseded/dismissed.
-4. Distinct messages for the same application remain distinct evidence rows and can represent lifecycle progression. HDI and Capgemini are the real acceptance fixtures for this rule.
-5. Supersession applies to communication evidence only. It may not create `application_submissions` or `application_lifecycle_events`.
-6. A batch apply path must be bounded, preflightable, idempotent and require explicit exact-main apply authority.
-7. No Gmail write scope is added.
+- input `203`, window `93`, valid `93`, invalid `0`;
+- persistence candidate rows `11`, skipped first-seen `other` `82`;
+- predicted application inserts `9`;
+- predicted candidate inserts `11`;
+- predicted no-ops `0`;
+- predicted supersessions `0`;
+- unique source messages `11`;
+- classes `8 application_acknowledgement`, `3 rejection`;
+- plan SHA-256 `741f00096e44d8ea020819697ae335ae0ee8a9839beace6386fd3e13957eb3c5`;
+- Gmail requests, DB connections/writes, submission actions and authoritative lifecycle mutations `0`.
+
+Migration `114_application_event_candidate_source_identity.sql` terminal evidence:
+
+- exact-main read-only preflight `35274669336`: SUCCESS;
+- first apply attempt `35308823088`: fail-closed at stale RCC runtime-context; migration apply step skipped;
+- operator RCC refresh: repository identity, checkout, env, interpreter, PostgreSQL capability and WSL projection all `PASS`;
+- exact migration apply `35311387470`: SUCCESS;
+- independent read-only post-apply `35311424361`: SUCCESS;
+- post-apply artifact `10533103923`, digest `sha256:b78bd0b142e5a7929b08864b3aaa5437d0d01ecc9f872f163510144c42b74e2b`.
+
+The post-apply qualifier requires migration 114 tracked successful, no pending migrations, no checksum drift, required source-identity/supersession columns/constraints/indexes present, duplicate active source identities `0`, and the Product tracking view to exclude superseded evidence. Post-apply boundaries remain fully read-only.
+
+The real Gmail batch has **not** been persisted.
+
+## Atomic bounded first persistence apply — ACTIVE
+
+The next package must make the first write mechanically narrow rather than relying on operator intent alone:
+
+1. exact checkout SHA must match approved source SHA;
+2. normalized JSONL SHA must match the accepted private evidence SHA;
+3. a fresh live-DB state-aware persistence plan must hash to the approved plan SHA;
+4. current migration-114 schema must pass before mutation;
+5. live state snapshot + apply run inside one serializable outer PostgreSQL transaction;
+6. only planned persistence rows are passed to the ingest path;
+7. actual application inserts / candidate inserts / no-ops / supersessions must exactly equal the approved plan before commit;
+8. application-submission and authoritative-lifecycle row counts must remain unchanged;
+9. no Gmail network/write path exists in the public apply surface;
+10. execution requires an explicit apply flag plus the dedicated approval token `F5-GMAIL-BATCH-PERSISTENCE-V1`.
 
 ## Sole next action
 
-Implement and exact-head qualify the smallest **source-message identity + candidate supersession persistence package**:
-
-1. add a new immutable migration after 113 rather than rewriting prior migrations;
-2. add provider-free schema/ingest tests for same-message no-op, same-message reclassification supersession, and different-message same-application lifecycle progression;
-3. add a read-only batch persistence preflight that predicts application inserts, candidate inserts, candidate no-ops and candidate supersessions without DB writes;
-4. run Full Suite/Ruff/React/F5 qualification and merge exact tested head;
-5. stop before migration apply / real Gmail batch persistence and request the real DB migration-preflight/operator authority gate.
-
-Until that package is qualified: **no DB persistence of the Gmail batch, no Gmail write scope, no automatic application submit, no model-created authority and no authoritative lifecycle transition from mailbox evidence**.
+Qualify and merge the atomic bounded persistence apply package. Then run a fresh exact-main/live-DB read-only plan check against the accepted JSONL and stop at the explicit operator authority gate before the real batch write.
 
 ## Next slices after persistence qualification
 
