@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Independent read-only terminal proof for the first F5 mailbox persistence batch.
 
-The proof binds the committed apply report, normalized JSONL and exact public source
-SHA, independently re-derives expected Gmail evidence identities, and verifies the
-persisted PostgreSQL rows plus Product read-model authority separation. It performs
+The proof binds the committed apply report, normalized JSONL, historical apply source
+SHA and current proof source SHA independently, re-derives expected Gmail evidence
+identities, and verifies persisted PostgreSQL rows plus Product read-model authority
+separation. It performs
 no Gmail access and no database writes.
 """
 from __future__ import annotations
@@ -566,7 +567,8 @@ def prove_postwrite(
 
     return {
         "schema": "jap.f5.mailbox_persistence_postwrite_proof.v1",
-        "source_sha": source_sha,
+        "proof_source_sha": proof_source_sha,
+        "apply_source_sha": apply_source_sha,
         "input_sha256": input_sha256,
         "apply_report_sha256": apply_report_sha256,
         "prewrite_plan_sha256": expected_prewrite_plan_sha256,
