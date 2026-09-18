@@ -8,6 +8,7 @@ not create submission authority or authoritative lifecycle events.
 """
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
@@ -300,6 +301,8 @@ def _skipped_result(
 
 def ingest_normalized_mailbox_observation(
     observation: NormalizedMailboxObservation,
+    *,
+    connection: object | None = None,
 ) -> dict[str, object]:
     classification = classify_application_evidence(
         subject=observation.subject,
@@ -327,9 +330,16 @@ def ingest_normalized_mailbox_observation(
     superseded_candidate_id: int | None = None
     resolved_application_key: str | None = None
 
-    with psycopg.connect(
-        DatabaseConfig.from_environment().dsn(), row_factory=dict_row
-    ) as conn:
+    connection_context = (
+        psycopg.connect(
+            DatabaseConfig.from_environment().dsn(),
+            row_factory=dict_row,
+        )
+        if connection is None
+        else nullcontext(connection)
+    )
+
+    with connection_context as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 # Serialize both first-seen and already-seen processing of one source
