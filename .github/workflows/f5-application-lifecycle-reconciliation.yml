@@ -19,6 +19,7 @@ on:
       - "scripts/run_product_v1_f5_mailbox_persistence_preflight.py"
       - "scripts/run_product_v1_f5_mailbox_persistence_apply.py"
       - "scripts/run_product_v1_f5_mailbox_persistence_live_preflight.py"
+      - "scripts/run_product_v1_f5_mailbox_persistence_postwrite_proof.py"
       - "scripts/run_product_v1_demo_control_center.py"
       - "src/search_intelligence/application_event_classifier.py"
       - "tests/test_f5_application_lifecycle_reconciliation.py"
@@ -199,6 +200,7 @@ jobs:
             scripts/run_product_v1_f5_mailbox_persistence_preflight.py \
             scripts/run_product_v1_f5_mailbox_persistence_apply.py \
             scripts/run_product_v1_f5_mailbox_persistence_live_preflight.py \
+            scripts/run_product_v1_f5_mailbox_persistence_postwrite_proof.py \
             src/search_intelligence/application_event_classifier.py
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f5_application_lifecycle_reconciliation.py \
@@ -208,6 +210,7 @@ jobs:
             tests/test_f5_candidate_supersession_schema_qualification.py \
             tests/test_f5_mailbox_candidate_supersession_contract.py \
             tests/test_f5_mailbox_persistence_apply_contract.py \
+            tests/test_f5_mailbox_persistence_postwrite_proof.py \
             tests/test_f5_application_tracking_product_proof.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
@@ -227,6 +230,7 @@ jobs:
             scripts/run_product_v1_f5_mailbox_persistence_preflight.py \
             scripts/run_product_v1_f5_mailbox_persistence_apply.py \
             scripts/run_product_v1_f5_mailbox_persistence_live_preflight.py \
+            scripts/run_product_v1_f5_mailbox_persistence_postwrite_proof.py \
             src/search_intelligence/application_event_classifier.py \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
@@ -235,6 +239,7 @@ jobs:
             tests/test_f5_candidate_supersession_schema_qualification.py \
             tests/test_f5_mailbox_candidate_supersession_contract.py \
             tests/test_f5_mailbox_persistence_apply_contract.py \
+            tests/test_f5_mailbox_persistence_postwrite_proof.py \
             tests/test_f5_application_tracking_product_proof.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
