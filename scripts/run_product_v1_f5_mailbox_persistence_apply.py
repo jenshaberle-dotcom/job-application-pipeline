@@ -47,6 +47,7 @@ from src.search_intelligence.application_event_classifier import (  # noqa: E402
 
 APPROVAL_TOKEN = "F5-GMAIL-BATCH-PERSISTENCE-V1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_GIT_COMMIT_SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 
 class PersistenceApplyError(RuntimeError):
@@ -97,10 +98,17 @@ def _checkout_sha() -> str:
         raise PersistenceApplyError("checkout_sha_unavailable") from exc
 
 
-def _validate_sha(value: str, *, name: str) -> str:
+def _validate_sha256(value: str, *, name: str) -> str:
     normalized = value.casefold().strip()
     if not _SHA256_RE.fullmatch(normalized):
         raise PersistenceApplyError(f"invalid_{name}")
+    return normalized
+
+
+def _validate_source_sha(value: str) -> str:
+    normalized = value.casefold().strip()
+    if not _GIT_COMMIT_SHA_RE.fullmatch(normalized):
+        raise PersistenceApplyError("invalid_source_sha")
     return normalized
 
 
@@ -239,13 +247,13 @@ def apply_batch(
     since: date | None,
     until: date | None,
 ) -> dict[str, object]:
-    expected_input_sha256 = _validate_sha(
+    expected_input_sha256 = _validate_sha256(
         expected_input_sha256, name="expected_input_sha256"
     )
-    expected_plan_sha256 = _validate_sha(
+    expected_plan_sha256 = _validate_sha256(
         expected_plan_sha256, name="expected_plan_sha256"
     )
-    source_sha = _validate_sha(source_sha, name="source_sha")
+    source_sha = _validate_source_sha(source_sha)
 
     actual_source_sha = _checkout_sha()
     if actual_source_sha != source_sha:
