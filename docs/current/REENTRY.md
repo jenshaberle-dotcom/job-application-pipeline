@@ -132,24 +132,59 @@ The critical regressions are resolved in real evidence:
 - MODULAT 2026-01-12 is additionally discovered as a deterministic rejection;
 - `11` discoverable evidence rows collapse to `9` unique application keys, confirming that multiple lifecycle messages for one application must remain distinct evidence rows under one application identity.
 
-### First persistence remains blocked on source-message idempotency
+### Candidate source identity + migration 114 — COMPLETE
 
-The real re-preview gate is passed, but the current candidate table still cannot safely persist reclassification history. `application_event_candidates` uniqueness is based on `(source_kind, evidence_fingerprint, candidate_class)`, while `evidence_fingerprint` contains `message_reference`, `candidate_class` and `reason_code`. Therefore the same unchanged Gmail message can produce a second active candidate after classifier/evidence improvement.
+PR `#930` implemented the source-message identity/supersession contract and a provider-free persistence planner. PR `#931` added the exact-main real DB preflight trigger. The stable Gmail source identity is now independent of classifier interpretation: `source_kind + mailbox_account_fingerprint + source_message_reference`. Reclassification preserves audit history while migration 114 enforces exactly one active interpretation per source message; different Gmail messages for the same application remain independent evidence.
 
-Before first mailbox persistence, F5 must qualify a source-message identity contract with these properties:
+The accepted private annual preview remains exactly:
 
-1. Gmail source identity is stable on `source_kind + mailbox_account_fingerprint + source_message_reference`, not on classifier output.
-2. Reprocessing an unchanged message with the same interpretation is a true no-op.
-3. Reclassification of the same message preserves audit history but leaves exactly one active candidate interpretation; the prior interpretation is explicitly superseded/dismissed rather than co-active.
-4. Multiple different Gmail messages for the same application remain independent evidence and may legitimately represent lifecycle progression, as the HDI and Capgemini real pairs prove.
-5. Candidate supersession affects only evidence projection; it creates no submission row and no authoritative lifecycle event.
-6. The bounded persistence path must have a dry-run/preflight mode and exact explicit apply authority; Gmail writes remain impossible.
+- JSONL rows `203`;
+- SHA-256 `33265bb4da98ce422ff8df9318b8279651cc5231d45f3a6e948628ed2ccdc4b5`.
 
-Until that contract and its migration/apply path are separately qualified: **no DB persistence of the Gmail batch, no Gmail write scope, no automatic application submit, no model-created authority, and no authoritative lifecycle transition from mailbox evidence**.
+The operator persistence planner on exact public `main@a5a98205e7a6eec253e0a78ea5ba8e16bc439170` is accepted:
+
+- input rows `203`;
+- 2026 window rows `93`;
+- valid / invalid `93 / 0`;
+- persistence candidate rows `11`;
+- skipped first-seen `other` rows `82`;
+- predicted application inserts `9`;
+- predicted candidate inserts `11`;
+- predicted no-ops `0`;
+- predicted supersessions `0`;
+- classes: `8` acknowledgement, `3` rejection;
+- plan SHA-256 `741f00096e44d8ea020819697ae335ae0ee8a9839beace6386fd3e13957eb3c5`;
+- Gmail requests, DB writes, submission actions and authoritative lifecycle mutations all `0`.
+
+Migration `114_application_event_candidate_source_identity.sql` is now **applied and independently post-apply qualified** on that same exact source:
+
+- exact-main preflight run `35274669336`: SUCCESS;
+- first apply attempt `35308823088`: fail-closed before mutation because RCC runtime context was stale; apply step skipped;
+- operator RCC refresh then proved repository identity, checkout, env, interpreter and PostgreSQL `SELECT 1` capability `PASS`;
+- exact apply run `35311387470`: SUCCESS;
+- independent read-only post-apply run `35311424361`: SUCCESS;
+- post-apply artifact `10533103923`, digest `sha256:b78bd0b142e5a7929b08864b3aaa5437d0d01ecc9f872f163510144c42b74e2b`;
+- migration 114 tracked successful, pending migrations `0`, checksum drift `0`, duplicate active source identities `0`;
+- post-apply proof performed no DB writes, Gmail reads, email actions, submission actions or authoritative lifecycle mutations.
+
+The real Gmail batch is still **not persisted**.
+
+### Bounded first persistence apply — ACTIVE / WRITE STILL BLOCKED
+
+The remaining engineering requirement is an explicit bounded apply surface for the accepted normalized JSONL. It must:
+
+1. bind execution to exact source SHA, exact private input SHA and exact state-aware persistence-plan SHA;
+2. re-prove migration-114/current schema before mutation;
+3. snapshot live application/candidate state inside a serializable transaction;
+4. apply only planned persistence rows, with the entire batch atomic;
+5. require actual effects to match the precomputed plan before commit;
+6. prove that `application_submissions` and `application_lifecycle_events` do not change;
+7. remain incapable of Gmail writes, email actions or automatic application submission;
+8. require a separate explicit operator approval token for the real batch write.
 
 ## Sole next action
 
-Implement and exact-head qualify the **F5 source-message idempotency + candidate supersession persistence contract**, including schema migration, provider-free tests and a bounded read-only batch persistence preflight. Stop before applying any new migration or writing the real Gmail batch; the next operator/authority gate is the real DB migration preflight for that exact merged main.
+Qualify and merge the **atomic bounded F5 Gmail persistence apply surface**. Then run a fresh exact-main/live-DB read-only plan check against the accepted JSONL and stop at the explicit operator authority gate before writing the `9` mailbox-discovered application identities and `11` evidence candidates.
 
 ## F6 — queued
 
