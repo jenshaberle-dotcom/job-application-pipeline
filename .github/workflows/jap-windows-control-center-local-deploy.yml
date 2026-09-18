@@ -29,7 +29,7 @@ on:
       expected_runner:
         description: Exact physical runner reserved by RCC
         required: true
-        default: job-pipeline-runtime-warm-01-linux
+        default: rcc-general-linux-01--jap
         type: string
       source_sha:
         description: Exact JAP released source SHA bound to the reserved deploy workload
@@ -115,8 +115,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "JAP_LOCAL_DEPLOY_ADMISSION=LEGACY_COMPAT event=$GITHUB_EVENT_NAME runner=$RUNNER_NAME"
-          echo "JAP_LOCAL_DEPLOY_RCC_CUTOVER_PENDING=TRUE"
+          echo "JAP_LOCAL_DEPLOY_ADMISSION=BLUE_FACADE event=$GITHUB_EVENT_NAME runner=$RUNNER_NAME"
+          echo "JAP_LOCAL_DEPLOY_RCC_CUTOVER_PENDING=FALSE"
 
       - name: Check out current deploy control plane
         uses: actions/checkout@v4
