@@ -1,6 +1,6 @@
 .ow-job-list-head,
 .ow-job-list > button {
-  grid-template-columns: 74px 96px minmax(270px, 1fr) 145px 96px 118px 138px;
+  grid-template-columns: 62px 88px minmax(240px, 1fr) 128px 90px 116px 124px 98px;
 }
 
 .ow-sort {
@@ -110,7 +110,7 @@
 @media (max-width: 1250px) {
   .ow-job-list-head,
   .ow-job-list > button {
-    grid-template-columns: 70px 88px minmax(220px, 1fr) 122px 88px 104px 120px;
+    grid-template-columns: 58px 82px minmax(210px, 1fr) 116px 84px 104px 112px 92px;
   }
 
   .ow-source-summary-strip {
