@@ -66,6 +66,13 @@ type SourceConnector = {
   layers: { bronze_count: number; silver_count: number };
 };
 
+type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed";
+type LinkedApplication = {
+  silver_job_id?: number | null;
+  effective_stage: ApplicationStage;
+  observed_at?: string | null;
+};
+
 type ProductPayload = {
   summary: {
     observed_job_count: number;
@@ -107,13 +114,17 @@ type ProductPayload = {
     sources: SourceConnector[];
   };
   operator_blockers: Array<{ code: string; title: string; detail: string }>;
+  application_tracking?: {
+    available: boolean;
+    applications: LinkedApplication[];
+  };
   review_label_capture?: {
     available: boolean;
   };
 };
 
 type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "approvals" | "operations";
-type JobFilter = "current" | "unreviewed" | "interesting" | "not_relevant" | "rankable" | "all";
+type JobFilter = "current" | "unreviewed" | "interesting" | "not_relevant" | "rankable" | "applied" | "all";
 type JobSort =
   | "newest"
   | "oldest"
@@ -141,6 +152,15 @@ const employerName = (job: Job) => job.display_company_name || job.company_name 
 const locationText = (job: Job) => job.city || job.country || (normalize(job.work_model) === "remote" ? "Remote" : "Location not confirmed");
 const reviewText = (job: Job) => job.review_label?.label || "unreviewed";
 const gateText = (job: Job) => job.product_readiness_status || "unknown";
+const applicationStageLabel: Record<ApplicationStage, string> = {
+  prepared: "Erkannt",
+  applied: "Beworben",
+  reply: "Antwort",
+  interview: "Interview",
+  offer: "Angebot",
+  closed: "Geschlossen",
+};
+const isAppliedStage = (stage: ApplicationStage) => stage !== "prepared";
 
 function externalJobUrl(job: Job): string | null {
   // Product/application authority still uses the guarded source_url. For review
@@ -316,7 +336,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
   </div>;
 }
 
-function JobDetail({ job, payload, refresh }: { job: Job; payload: ProductPayload; refresh: () => Promise<void> }) {
+function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications }: { job: Job; payload: ProductPayload; refresh: () => Promise<void>; applicationStage?: ApplicationStage | null; onOpenApplications?: () => void }) {
   const sourceUrl = externalJobUrl(job);
   const rankable = isRankable(job);
   const profileFitFactors = job.profile_fit_factors || {};
@@ -338,20 +358,29 @@ function JobDetail({ job, payload, refresh }: { job: Job; payload: ProductPayloa
 
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{rankable && <OpenApplicationButton />}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{rankable && <OpenApplicationButton />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Profile Fit coverage</span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /></div><div><span>Profile Fit decision</span><Status value={job.profile_fit_decision || "unknown"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
-    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
+    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
     <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected explanation evidence.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected uncertainty.</p>}</div></section>
   </aside>;
 }
 
-function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
+function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refresh: () => Promise<void>; onNavigate: (view: View) => void }) {
   const [filter, setFilter] = useState<JobFilter>("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<JobSort>("fit_desc");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const applicationByJobId = useMemo(() => {
+    const linked = new Map<number, LinkedApplication>();
+    for (const application of payload.application_tracking?.applications || []) {
+      if (typeof application.silver_job_id === "number") {
+        linked.set(application.silver_job_id, application);
+      }
+    }
+    return linked;
+  }, [payload.application_tracking?.applications]);
 
   const filtered = useMemo(() => {
     const q = normalize(search);
@@ -363,6 +392,10 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
         if (filter === "interesting" && job.review_label?.label !== "interesting") return false;
         if (filter === "not_relevant" && job.review_label?.label !== "not_relevant") return false;
         if (filter === "rankable" && job.product_readiness_status !== "rankable") return false;
+        if (filter === "applied") {
+          const application = applicationByJobId.get(job.silver_job_id);
+          if (!application || !isAppliedStage(application.effective_stage)) return false;
+        }
         if (
           q &&
           !normalize(
@@ -372,7 +405,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
         return true;
       })
       .sort((a, b) => compareJobs(a, b, sort));
-  }, [filter, payload.job_readiness, search, sort]);
+  }, [applicationByJobId, filter, payload.job_readiness, search, sort]);
 
   const selected =
     filtered.find((job) => job.silver_job_id === selectedId) ||
@@ -391,6 +424,10 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
     rankable: payload.job_readiness.filter(
       (job) => job.product_readiness_status === "rankable"
     ).length,
+    applied: payload.job_readiness.filter((job) => {
+      const application = applicationByJobId.get(job.silver_job_id);
+      return Boolean(application && isAppliedStage(application.effective_stage));
+    }).length,
     all: payload.job_readiness.length,
   };
 
@@ -436,6 +473,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
           ["interesting", "Interesting"],
           ["not_relevant", "Not relevant"],
           ["rankable", "Rankable"],
+          ["applied", "Beworben"],
         ] as Array<[JobFilter, string]>).map(([id, text]) =>
           <button
             type="button"
@@ -489,6 +527,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
           {sortHeader("published", "Published")}
           {sortHeader("observed", "First JAP observed")}
           {sortHeader("gate", "Gate")}
+          <span>Application</span>
         </div>
 
         {filtered.map((job) =>
@@ -522,6 +561,12 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
             </span>
 
             <span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /><Status value={job.product_readiness_status} /></span>
+
+            {applicationByJobId.get(job.silver_job_id)
+              ? <span className={`ow-application-status ${applicationByJobId.get(job.silver_job_id)?.effective_stage}`}>
+                  {applicationStageLabel[applicationByJobId.get(job.silver_job_id)!.effective_stage]}
+                </span>
+              : <span className="ow-application-status none">—</span>}
           </button>
         )}
 
@@ -530,7 +575,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
       </div>
 
       {selected
-        ? <JobDetail job={selected} payload={payload} refresh={refresh} />
+        ? <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} onOpenApplications={() => onNavigate("applications")} />
         : <aside className="ow-job-detail">
             <p className="ow-empty">Select a job.</p>
           </aside>}
@@ -726,7 +771,7 @@ export default function OperatorWorkspace() {
     </aside>
     <div className="ow-content-shell">
       <header className="ow-topline"><div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Product V1 · live pipeline</span></div><button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button></header>
-      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} onPrepare={() => setView("application")} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
+      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} onNavigate={setView} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} onPrepare={() => setView("application")} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
 }

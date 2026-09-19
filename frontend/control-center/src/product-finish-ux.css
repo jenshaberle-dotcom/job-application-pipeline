@@ -35,7 +35,7 @@
 
 .ow-job-list-head,
 .ow-job-list > button {
-  grid-template-columns: 76px 128px minmax(340px, 1fr) minmax(170px, .55fr) minmax(190px, .6fr);
+  grid-template-columns: 62px 100px minmax(260px, 1fr) 140px 90px 118px 126px 104px;
   gap: 12px;
 }
 

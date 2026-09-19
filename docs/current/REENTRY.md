@@ -16,17 +16,13 @@ Canonical private runtime state:
 
 Public PR `#925` and runtime PR `#381` completed the pre-persistence mailbox outcome hardening. Public PR `#927` then fixed the real direct-CLI preflight import path, and public PR `#928` decoupled the read-only preflight from PostgreSQL-driver availability. PR `#928` exact candidate `49f8466fa47e8cb6c1d7e07707e473394d3345e5` passed F5 application lifecycle qualification `35250071633`, Pipeline re-entry target identity `35250071679` and Pipeline CI `35250072571`, all SUCCESS, before merge as `1a2de9e9feefc35d42cb16c82ab5cddde5c78331`.
 
-The last recorded installed/operator-accepted Product remains:
-
-`1fa2f36a4881a481f44c4d4ae32f7e1b7479f99b` / `jap-winapp-desktop-v1.0.37`
-
-The latest immutable published desktop release is `jap-winapp-desktop-v1.0.38`, source `27a5e78fb3041eee1b1f3964676f62d1db82a067`. It predates the mailbox-first F5 Product projection now present on `main`, so it is not the terminal F5 delivery target. F5 remains open only for current-Product delivery/operator acceptance; the first real Gmail evidence persistence slice itself is terminally proven.
+The current operator-visible Product is `jap-winapp-desktop-v1.0.40` from exact source `d725b7de482721cb83176e1ea1e643210a02df51`. Operator review confirms the precise-warning/status-cluster presentation is materially improved. F5 remains open for one final read-only UX linkage slice: compact portfolio rows plus `silver_job_id -> effective_stage` application status inside All jobs.
 
 ## Frozen campaign sequence — current
 
 `F5 -> F6`
 
-Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 schema, mailbox-first correction, real Gmail re-preview, source-message supersession, first bounded persistence write and independent post-write proof are complete. F5 is now at the **immutable Windows delivery + operator acceptance gate for the already-merged mailbox-first tracking UI**.
+Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 schema, mailbox-first correction, real Gmail re-preview, source-message supersession, first bounded persistence write and independent post-write proof are complete. F5 is now at the **compact portfolio + All-jobs application linkage delivery gate**. The underlying Gmail persistence and lifecycle truth are already terminally proven.
 
 ## Product authority that remains invariant
 
@@ -226,9 +222,21 @@ The installed v1.0.39 About screen proved version `1.0.39` and source `27c0c27b.
 
 Issue #737 comment `5740140017` records the defect boundary. No new Gmail or lifecycle authority is implied.
 
+### v1.0.40 operator review — ACCEPTED WITH FINAL UX FOLLOW-UP
+
+The operator confirms the corrected warning semantics, status clustering and richer job metadata are substantially better. Final F5 UX feedback is tracked in issue #737 comment `5740425082`:
+
+- Applications should default to a compact row containing current effective status + job identity and expand on demand;
+- All jobs should show the linked F5 application status for Silver-backed applications;
+- the `Beworben` filter must exclude `prepared/Erkannt` identities;
+- linked job detail should navigate directly to Applications;
+- all linkage remains read-only and reuses F5 `silver_job_id -> effective_stage`.
+
+Target release is `v1.0.41`.
+
 ## Sole next action
 
-Qualify and merge the v1.0.40 operator-feedback hardening package, require the immutable Windows desktop release to publish from its exact merge source, then use the existing local deploy/update path and perform one interactive operator acceptance against the real 9-application cohort. Acceptance must confirm that mailbox-observed status is visible while authoritative state remains separately labeled and no automatic send/submit behavior exists.
+Qualify, merge, release and install v1.0.41, then perform one interactive operator check of compact Applications and the All-jobs Application column/filter. No application/lifecycle mutation is part of this gate.
 
 ## F6 — queued
 

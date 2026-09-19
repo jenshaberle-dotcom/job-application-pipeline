@@ -45,7 +45,22 @@ def test_application_cards_surface_bounded_job_identity_metadata() -> None:
     assert "Arbeitgeber-Hinweis" in tracking
     assert "Kommunikations-Domain" in tracking
     assert "Job-/Bewerbungsquelle" in tracking
-    assert "Jobtitel aus Mail-Metadaten noch nicht ableitbar" in tracking
-    assert "Arbeitgeber aus Mail-Metadaten noch nicht ableitbar" in tracking
+    assert "Jobtitel noch nicht ableitbar" in tracking
+    assert "Arbeitgeber noch nicht ableitbar" in tracking
     assert "application.counterparty_domain || application.sender_domain" in tracking
     assert "application.source_url" in tracking
+
+
+def test_application_tracking_defaults_to_compact_rows_with_individual_and_global_expand() -> None:
+    tracking = _text(TRACKING)
+    styles = _text(STYLES)
+
+    assert "expandedIds" in tracking
+    assert "toggleExpanded(application.application_id)" in tracking
+    assert "Alle aufklappen" in tracking
+    assert "Alle einklappen" in tracking
+    assert "f5-compact-row" in tracking
+    assert "f5-expanded-body" in tracking
+    assert 'aria-expanded={expanded}' in tracking
+    assert ".f5-compact-row" in styles
+    assert ".f5-expanded-body" in styles

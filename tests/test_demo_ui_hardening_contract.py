@@ -24,9 +24,10 @@ def test_every_job_table_heading_is_a_sort_control_and_gate_stays_in_grid() -> N
     for column in ("fit", "review", "job", "location", "published", "observed", "gate"):
         assert f'sortHeader("{column}"' in source
     assert (
-        "grid-template-columns: 74px 96px minmax(270px, 1fr) "
-        "145px 96px 118px 138px"
+        "grid-template-columns: 62px 88px minmax(240px, 1fr) "
+        "128px 90px 116px 124px 98px"
     ) in css
+    assert "<span>Application</span>" in source
 
 
 def test_ba_internal_reference_is_never_opened_as_browser_scheme() -> None:
