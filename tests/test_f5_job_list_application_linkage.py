@@ -43,3 +43,14 @@ def test_all_jobs_accepts_exact_read_only_projected_linkage_without_persisting()
     assert 'linkage_status: "exact_projected"' in source
     assert "DB-Link noch nicht persistiert" in source
     assert "database_writes" in source
+
+
+def test_all_jobs_pending_evidence_is_not_a_warning_storm() -> None:
+    source = _text(WORKSPACE)
+    styles = _text(STYLES)
+
+    assert 'return "pending"' in source
+    assert 'normalized.includes("stale")' in source
+    assert 'normalized.includes("required")' in source
+    assert 'className="ow-gate-state"' in source
+    assert ".ow-status.pending" in styles
