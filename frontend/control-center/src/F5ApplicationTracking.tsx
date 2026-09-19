@@ -183,6 +183,7 @@ function RecordSubmission({ jobs, trackedIds }: { jobs: F5TrackingJob[]; tracked
 export default function F5ApplicationTracking({ payload }: { payload: F5ProductPayload }) {
   const tracking = payload.application_tracking;
   const [filter, setFilter] = useState<Filter>("all");
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
   const applications = tracking?.applications || [];
   const trackedIds = useMemo(() => new Set(applications.flatMap((item) => typeof item.silver_job_id === "number" ? [item.silver_job_id] : [])), [applications]);
   const filtered = useMemo(() => applications.filter((item) => {
@@ -195,6 +196,28 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
     stage,
     applications: filtered.filter((item) => item.effective_stage === stage),
   })).filter((group) => group.applications.length > 0), [filtered]);
+  const allFilteredExpanded = filtered.length > 0 && filtered.every((item) => expandedIds.has(item.application_id));
+
+  function toggleExpanded(applicationId: number) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(applicationId)) next.delete(applicationId);
+      else next.add(applicationId);
+      return next;
+    });
+  }
+
+  function toggleAllFiltered() {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (allFilteredExpanded) {
+        filtered.forEach((item) => next.delete(item.application_id));
+      } else {
+        filtered.forEach((item) => next.add(item.application_id));
+      }
+      return next;
+    });
+  }
 
   if (!tracking?.available) return <section className="f5-tracking-shell"><div className="f5-empty"><h2>Application Tracking noch nicht verfügbar</h2><p>Die F5-Datenstruktur ist in diesem Runtime-Zustand nicht verfügbar.</p></div></section>;
 
@@ -204,27 +227,47 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
       <div className="f5-summary-pills"><b>{tracking.summary.application_count}<small>gesamt</small></b><b>{tracking.summary.mailbox_discovered_count || 0}<small>aus Mailbox</small></b><b className={tracking.summary.attention_count ? "attention" : ""}>{tracking.summary.attention_count}<small>prüfen</small></b></div>
     </header>
 
-    <nav className="f5-status-tabs" aria-label="Application status filter">
-      {(["all", "attention", "active", "closed"] as Filter[]).map((item) => <button key={item} type="button" className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item === "all" ? "Alle" : item === "attention" ? "Prüfen" : item === "active" ? "Aktiv" : "Geschlossen"}</button>)}
-    </nav>
+    <div className="f5-application-toolbar">
+      <nav className="f5-status-tabs" aria-label="Application status filter">
+        {(["all", "attention", "active", "closed"] as Filter[]).map((item) => <button key={item} type="button" className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item === "all" ? "Alle" : item === "attention" ? "Prüfen" : item === "active" ? "Aktiv" : "Geschlossen"}</button>)}
+      </nav>
+      <button type="button" className="f5-density-toggle" onClick={toggleAllFiltered} disabled={filtered.length === 0}>
+        {allFilteredExpanded ? "Alle einklappen" : "Alle aufklappen"}
+      </button>
+    </div>
 
     {applications.length === 0 ? <div className="f5-empty"><h3>Noch keine Bewerbungen aus der Mailbox erkannt</h3><p>Nach dem Mailbox-Sync erscheinen hier auch Bewerbungen auf Stellen, die JAP vorher nie gesehen hat.</p></div> : filtered.length === 0 ? <div className="f5-empty"><h3>Keine Bewerbungen in diesem Filter</h3><p>Für den gewählten Statusfilter gibt es aktuell keine Treffer.</p></div> : <div className="f5-status-groups">{grouped.map((group) => <section key={group.stage} className={`f5-status-group ${group.stage}`} aria-labelledby={`f5-group-${group.stage}`}>
       <header className="f5-status-group-head"><div><span>Status</span><h3 id={`f5-group-${group.stage}`}>{stageLabel[group.stage]}</h3></div><b>{group.applications.length}</b></header>
       <div className="f5-application-list">{group.applications.map((application) => {
         const warning = attentionMessage(application);
         const totalEvidence = application.evidence_candidates.length;
-        return <article key={application.application_id} className={application.attention_candidate_count ? "needs-attention" : ""}>
-          <div className="f5-card-head"><div><span>{application.display_company_name || application.company_name || "Arbeitgeber aus Mail-Metadaten noch nicht ableitbar"}</span><h3>{application.title || (application.silver_job_id ? `Job ${application.silver_job_id}` : "Jobtitel aus Mail-Metadaten noch nicht ableitbar")}</h3><small>{application.job_link_status === "linked" ? "Mit JAP-Job verknüpft" : "Außerhalb JAP entdeckt"}</small></div><b className={`f5-stage-badge ${application.effective_stage}`}>{stageLabel[application.effective_stage]}</b></div>
-          <StageStrip stage={application.effective_stage} />
-          <div className="f5-card-meta"><span><small>Zuletzt beobachtet</small>{formatDate(application.observed_at || application.discovered_at)}</span><span><small>Signal</small>{application.observed_event_class || "—"}</span><span><small>Evidence</small>{application.attention_candidate_count ? `${application.attention_candidate_count} prüfen · ${totalEvidence} gesamt` : totalEvidence ? `${totalEvidence} qualifiziert` : "keine"}</span></div>
-          <div className="f5-job-meta">
-            <span><small>Entdeckt</small>{formatDate(application.discovered_at)}</span>
-            <span><small>Arbeitgeber-Hinweis</small>{application.employer_evidence_source || "—"}</span>
-            <span><small>Kommunikations-Domain</small>{application.counterparty_domain || application.sender_domain || "—"}</span>
-            {application.source_url ? <a href={application.source_url} target="_blank" rel="noreferrer"><small>Job-/Bewerbungsquelle</small>Öffnen ↗</a> : <span><small>Job-/Bewerbungsquelle</small>—</span>}
-          </div>
-          {warning && <div className="f5-attention-note">{warning}</div>}
-          <details className="f5-evidence-details"><summary>Details & Evidence</summary><div><p><b>Beobachteter Status:</b> {stageLabel[application.effective_stage]} · {application.effective_stage_basis || "—"}</p><p><b>Autoritative Korrektur:</b> {stageLabel[application.authoritative_stage]}</p><p><b>Autoritative Events:</b> {application.authoritative_event_count}</p>{application.evidence_candidates.length === 0 ? <p>Keine Kommunikations-Evidence hinterlegt.</p> : application.evidence_candidates.map((candidate) => <p key={candidate.candidate_id || `${candidate.candidate_class}-${candidate.created_at}`} className={candidate.requires_review ? "review-required" : "qualified-evidence"}><b>{candidate.candidate_class || "ambiguous"}</b> · {candidate.requires_review ? "Prüfung nötig" : "qualifiziert"}{candidate.confidence != null ? ` · ${Math.round(candidate.confidence * 100)} %` : ""} · {formatDate(candidate.observed_at)}</p>)}</div></details>
+        const expanded = expandedIds.has(application.application_id);
+        const employer = application.display_company_name || application.company_name || "Arbeitgeber noch nicht ableitbar";
+        const jobTitle = application.title || (application.silver_job_id ? `Job ${application.silver_job_id}` : "Jobtitel noch nicht ableitbar");
+        return <article key={application.application_id} className={`${application.attention_candidate_count ? "needs-attention " : ""}${expanded ? "expanded" : "compact"}`}>
+          <button
+            type="button"
+            className="f5-compact-row"
+            aria-expanded={expanded}
+            onClick={() => toggleExpanded(application.application_id)}
+          >
+            <b className={`f5-stage-badge ${application.effective_stage}`}>{stageLabel[application.effective_stage]}</b>
+            <span className="f5-compact-job"><strong>{jobTitle}</strong><small>{employer}</small></span>
+            <span className="f5-expand-indicator" aria-hidden="true">{expanded ? "⌃" : "⌄"}</span>
+          </button>
+          {expanded && <div className="f5-expanded-body">
+            <div className="f5-card-head"><div><span>{employer}</span><h3>{jobTitle}</h3><small>{application.job_link_status === "linked" ? "Mit JAP-Job verknüpft" : "Außerhalb JAP entdeckt"}</small></div><b className={`f5-stage-badge ${application.effective_stage}`}>{stageLabel[application.effective_stage]}</b></div>
+            <StageStrip stage={application.effective_stage} />
+            <div className="f5-card-meta"><span><small>Zuletzt beobachtet</small>{formatDate(application.observed_at || application.discovered_at)}</span><span><small>Signal</small>{application.observed_event_class || "—"}</span><span><small>Evidence</small>{application.attention_candidate_count ? `${application.attention_candidate_count} prüfen · ${totalEvidence} gesamt` : totalEvidence ? `${totalEvidence} qualifiziert` : "keine"}</span></div>
+            <div className="f5-job-meta">
+              <span><small>Entdeckt</small>{formatDate(application.discovered_at)}</span>
+              <span><small>Arbeitgeber-Hinweis</small>{application.employer_evidence_source || "—"}</span>
+              <span><small>Kommunikations-Domain</small>{application.counterparty_domain || application.sender_domain || "—"}</span>
+              {application.source_url ? <a href={application.source_url} target="_blank" rel="noreferrer"><small>Job-/Bewerbungsquelle</small>Öffnen ↗</a> : <span><small>Job-/Bewerbungsquelle</small>—</span>}
+            </div>
+            {warning && <div className="f5-attention-note">{warning}</div>}
+            <details className="f5-evidence-details"><summary>Details & Evidence</summary><div><p><b>Beobachteter Status:</b> {stageLabel[application.effective_stage]} · {application.effective_stage_basis || "—"}</p><p><b>Autoritative Korrektur:</b> {stageLabel[application.authoritative_stage]}</p><p><b>Autoritative Events:</b> {application.authoritative_event_count}</p>{application.evidence_candidates.length === 0 ? <p>Keine Kommunikations-Evidence hinterlegt.</p> : application.evidence_candidates.map((candidate) => <p key={candidate.candidate_id || `${candidate.candidate_class}-${candidate.created_at}`} className={candidate.requires_review ? "review-required" : "qualified-evidence"}><b>{candidate.candidate_class || "ambiguous"}</b> · {candidate.requires_review ? "Prüfung nötig" : "qualifiziert"}{candidate.confidence != null ? ` · ${Math.round(candidate.confidence * 100)} %` : ""} · {formatDate(candidate.observed_at)}</p>)}</div></details>
+          </div>}
         </article>;
       })}</div>
     </section>)}</div>}
