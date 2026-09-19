@@ -21,6 +21,7 @@ on:
       - "scripts/run_product_v1_f5_mailbox_persistence_live_preflight.py"
       - "scripts/run_product_v1_f5_mailbox_persistence_postwrite_proof.py"
       - "scripts/run_product_v1_f5_mailbox_identity_enrichment_preflight.py"
+      - "scripts/run_product_v1_f5_mailbox_silver_reconciliation_preflight.py"
       - "scripts/run_product_v1_demo_control_center.py"
       - "src/search_intelligence/application_event_classifier.py"
       - "tests/test_f5_application_lifecycle_reconciliation.py"
@@ -114,6 +115,7 @@ jobs:
       OUTPUT: /tmp/jap-f5-mailbox-schema-qualification.json
       PRODUCT_OUTPUT: /tmp/jap-f5-mailbox-product-proof.json
       CANDIDATE_OUTPUT: /tmp/jap-f5-candidate-supersession-qualification.json
+      RECONCILIATION_OUTPUT: /tmp/jap-f5-mailbox-silver-reconciliation.json
       TARGET_MIGRATION: 113_enable_mailbox_first_application_tracking.sql
       CANDIDATE_TARGET_MIGRATION: 114_application_event_candidate_source_identity.sql
 
@@ -207,6 +209,7 @@ jobs:
             scripts/run_product_v1_f5_mailbox_persistence_live_preflight.py \
             scripts/run_product_v1_f5_mailbox_persistence_postwrite_proof.py \
             scripts/run_product_v1_f5_mailbox_identity_enrichment_preflight.py \
+            scripts/run_product_v1_f5_mailbox_silver_reconciliation_preflight.py \
             src/search_intelligence/application_event_classifier.py
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f5_application_lifecycle_reconciliation.py \
@@ -218,6 +221,7 @@ jobs:
             tests/test_f5_mailbox_persistence_apply_contract.py \
             tests/test_f5_mailbox_persistence_postwrite_proof.py \
             tests/test_f5_mailbox_identity_enrichment_preflight.py \
+            tests/test_f5_mailbox_silver_reconciliation_preflight.py \
             tests/test_f5_application_tracking_product_proof.py \
             tests/test_f5_application_tracking_ui_contract.py \
             tests/test_f5_job_list_application_linkage.py \
@@ -273,6 +277,9 @@ jobs:
           "$RUNTIME_PYTHON" -m scripts.run_f5_application_tracking_product_proof \
             --source-sha "$SOURCE_SHA" \
             --output "$PRODUCT_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.run_product_v1_f5_mailbox_silver_reconciliation_preflight \
+            --source-sha "$SOURCE_SHA" \
+            --output "$RECONCILIATION_OUTPUT"
 
       - name: Run exact-head real DB migration 113 preflight read-only
         if: ${{ env.MODE == 'preflight' }}
@@ -446,5 +453,6 @@ jobs:
             ${{ env.OUTPUT }}
             ${{ env.PRODUCT_OUTPUT }}
             ${{ env.CANDIDATE_OUTPUT }}
+            ${{ env.RECONCILIATION_OUTPUT }}
           if-no-files-found: warn
           retention-days: 14
