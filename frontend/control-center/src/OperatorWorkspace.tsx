@@ -68,9 +68,12 @@ type SourceConnector = {
 
 type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed";
 type LinkedApplication = {
+  application_id?: number;
   silver_job_id?: number | null;
   effective_stage: ApplicationStage;
   observed_at?: string | null;
+  linkage_status?: "persisted" | "exact_projected";
+  linkage_basis?: string;
 };
 
 type ProductPayload = {
@@ -117,6 +120,14 @@ type ProductPayload = {
   application_tracking?: {
     available: boolean;
     applications: LinkedApplication[];
+    job_linkage?: {
+      read_only: boolean;
+      exact_matches: LinkedApplication[];
+      exact_match_count: number;
+      unresolved_count: number;
+      database_writes: number;
+      authoritative_lifecycle_mutations: number;
+    };
   };
   review_label_capture?: {
     available: boolean;
@@ -259,8 +270,9 @@ function compareJobs(a: Job, b: Job, sort: JobSort) {
 function tone(value: string | undefined | null) {
   const normalized = normalize(value);
   if (["rankable", "active", "active confirmed", "active_confirmed", "approved", "interesting", "passed", "profile_fit_complete"].includes(normalized) || normalized.startsWith("active_last_run_")) return "good";
-  if (normalized.includes("failed") || normalized.includes("blocked") || normalized === "not_relevant") return "bad";
-  if (normalized.includes("required") || normalized.includes("unknown") || normalized.includes("stale") || normalized.includes("insufficient") || normalized === "unsure") return "warn";
+  if (normalized.includes("failed") || normalized.includes("blocked") || normalized.includes("rejected") || normalized === "not_relevant") return "bad";
+  if (normalized.includes("stale") || normalized.includes("ambiguous") || normalized === "unsure") return "warn";
+  if (normalized.includes("required") || normalized.includes("unknown") || normalized.includes("insufficient")) return "pending";
   return "neutral";
 }
 
@@ -376,11 +388,28 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
     const linked = new Map<number, LinkedApplication>();
     for (const application of payload.application_tracking?.applications || []) {
       if (typeof application.silver_job_id === "number") {
-        linked.set(application.silver_job_id, application);
+        linked.set(application.silver_job_id, {
+          ...application,
+          linkage_status: "persisted",
+        });
+      }
+    }
+    for (const application of payload.application_tracking?.job_linkage?.exact_matches || []) {
+      if (
+        typeof application.silver_job_id === "number" &&
+        !linked.has(application.silver_job_id)
+      ) {
+        linked.set(application.silver_job_id, {
+          ...application,
+          linkage_status: "exact_projected",
+        });
       }
     }
     return linked;
-  }, [payload.application_tracking?.applications]);
+  }, [
+    payload.application_tracking?.applications,
+    payload.application_tracking?.job_linkage?.exact_matches,
+  ]);
 
   const filtered = useMemo(() => {
     const q = normalize(search);
@@ -560,13 +589,21 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
               {displayDate(job.first_jap_observed_at)}
             </span>
 
-            <span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /><Status value={job.product_readiness_status} /></span>
+            <span className="ow-gate-state"><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /><Status value={job.product_readiness_status} /></span>
 
             {applicationByJobId.get(job.silver_job_id)
-              ? <span className={`ow-application-status ${applicationByJobId.get(job.silver_job_id)?.effective_stage}`}>
+              ? <span
+                  className={`ow-application-status ${applicationByJobId.get(job.silver_job_id)?.effective_stage}`}
+                  title={applicationByJobId.get(job.silver_job_id)?.linkage_status === "exact_projected"
+                    ? "Exakt aus Mailbox-Evidence zu diesem JAP-Job zugeordnet; DB-Link noch nicht persistiert."
+                    : "Persistierte Application-Verknüpfung."}
+                >
                   {applicationStageLabel[applicationByJobId.get(job.silver_job_id)!.effective_stage]}
                 </span>
-              : <span className="ow-application-status none">—</span>}
+              : <span
+                  className="ow-application-status none"
+                  title="Keine sichere Zuordnung zwischen diesem JAP-Job und einer bekannten Bewerbung. Das ist nicht gleichbedeutend mit 'nicht beworben'."
+                >Ungeklärt</span>}
           </button>
         )}
 

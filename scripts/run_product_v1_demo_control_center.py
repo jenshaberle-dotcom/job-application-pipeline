@@ -37,6 +37,9 @@ from scripts.product_v1_f5_application_actions import (
 from scripts.product_v1_f5_application_tracking_runtime import (
     load_application_tracking_payload,
 )
+from scripts.run_product_v1_f5_mailbox_silver_reconciliation_preflight import (
+    build_tracking_job_linkage,
+)
 from scripts.product_v1_job_presentation_runtime import (
     enrich_product_payload_for_operator,
 )
@@ -104,7 +107,17 @@ def _load_operator_product_payload() -> dict[str, object]:
         enriched,
         schedule_evidence=load_source_schedule_evidence(),
     )
-    projected["application_tracking"] = load_application_tracking_payload()
+    tracking = load_application_tracking_payload()
+    raw_jobs = projected.get("job_readiness")
+    jobs = [row for row in raw_jobs if isinstance(row, dict)] if isinstance(raw_jobs, list) else []
+    raw_applications = tracking.get("applications")
+    applications = (
+        [row for row in raw_applications if isinstance(row, dict)]
+        if isinstance(raw_applications, list)
+        else []
+    )
+    tracking["job_linkage"] = build_tracking_job_linkage(applications, jobs)
+    projected["application_tracking"] = tracking
     return projected
 
 

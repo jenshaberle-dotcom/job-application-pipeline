@@ -338,11 +338,12 @@
 }
 
 /* In the list, missing fit evidence is queue state, not an extraction warning. */
-.ow-job-list > button > span:last-child .ow-status:first-child {
+.ow-job-list > button > .ow-gate-state .ow-status:first-child {
   display: none;
 }
 
-.ow-job-list > button > span:last-child .ow-status.warn {
+.ow-job-list > button > .ow-gate-state .ow-status.pending,
+.ow-job-list > button > .ow-gate-state .ow-status.warn {
   border-color: #31566a;
   color: #afc5d2;
   background: rgba(5, 18, 29, 0.72);

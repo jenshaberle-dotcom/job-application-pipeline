@@ -119,6 +119,7 @@ button, input { font: inherit; }
 .ow-status { display: inline-flex; width: fit-content; align-items: center; min-height: 20px; padding: 2px 7px; border: 1px solid #31566a; border-radius: 10px; text-transform: uppercase; letter-spacing: .05em; font-size: 7px; font-weight: 800; color: #afc5d2; }
 .ow-status.good { border-color: #237e66; color: var(--ow-green); background: #0b302c; }
 .ow-status.warn { border-color: #7f6527; color: var(--ow-amber); background: #312811; }
+.ow-status.pending { border-color: #31566a; color: #9fb8c7; background: rgba(5, 18, 29, 0.72); }
 .ow-status.bad { border-color: #78414a; color: var(--ow-red); background: #331c24; }
 
 .ow-job-detail { padding: 14px; align-self: start; position: sticky; top: 62px; max-height: calc(100vh - 80px); overflow: auto; }
