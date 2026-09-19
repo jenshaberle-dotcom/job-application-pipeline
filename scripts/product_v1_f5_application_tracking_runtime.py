@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 
 
-SCHEMA_VERSION = "job_application_pipeline.f5.application_tracking.v2"
+SCHEMA_VERSION = "job_application_pipeline.f5.application_tracking.v3"
 TRACKING_VIEW = "gold_product_v1_application_tracking"
 STAGES = ("prepared", "applied", "reply", "interview", "offer", "closed")
 OBSERVABLE_CLASSES = frozenset(
