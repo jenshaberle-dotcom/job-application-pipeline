@@ -18,8 +18,11 @@ def test_all_jobs_reuses_f5_effective_stage_by_silver_job_identity() -> None:
     assert "application.silver_job_id" in source
     assert "application.effective_stage" in source
     assert '["applied", "Beworben"]' in source
-    assert 'if (filter === "applied" && !applicationByJobId.has(job.silver_job_id))' in source
+    assert 'if (filter === "applied")' in source
+    assert "isAppliedStage(application.effective_stage)" in source
     assert "<span>Application</span>" in source
+    assert 'onOpenApplications={() => onNavigate("applications")}' in source
+    assert ">Open Applications</button>" in source
 
 
 def test_job_list_application_marker_uses_existing_f5_read_model_only() -> None:
