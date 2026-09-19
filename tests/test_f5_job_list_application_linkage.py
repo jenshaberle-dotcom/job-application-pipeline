@@ -54,3 +54,10 @@ def test_all_jobs_pending_evidence_is_not_a_warning_storm() -> None:
     assert 'normalized.includes("required")' in source
     assert 'className="ow-gate-state"' in source
     assert ".ow-status.pending" in styles
+
+
+def test_unlinked_application_status_is_explicitly_unknown_not_negative() -> None:
+    source = _text(WORKSPACE)
+
+    assert ">Ungeklärt</span>" in source
+    assert "nicht gleichbedeutend mit 'nicht beworben'" in source
