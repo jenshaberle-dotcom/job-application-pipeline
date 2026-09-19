@@ -175,6 +175,10 @@ def test_unknown_job_mailbox_application_is_supported_from_identity_snapshot() -
                     "job_title": "Senior Data Engineer",
                     "employer_name": "External GmbH",
                     "application_url": "https://example.test/application/123",
+                    "sender_domain": "jobs.example.test",
+                    "counterparty_domain": "jobs.example.test",
+                    "employer_evidence_source": "counterparty_domain_brand",
+                    "identity_source": "gmail_normalized_observation",
                 },
                 authoritative_stage="prepared",
                 observed_stage="applied",
@@ -192,10 +196,10 @@ def test_unknown_job_mailbox_application_is_supported_from_identity_snapshot() -
     assert application["title"] == "Senior Data Engineer"
     assert application["display_company_name"] == "External GmbH"
     assert application["source_url"] == "https://example.test/application/123"
-    assert application["sender_domain"] == "example.com"
-    assert application["counterparty_domain"] == "example.com"
+    assert application["sender_domain"] == "jobs.example.test"
+    assert application["counterparty_domain"] == "jobs.example.test"
     assert application["employer_evidence_source"] == "counterparty_domain_brand"
-    assert application["identity_source"] is None
+    assert application["identity_source"] == "gmail_normalized_observation"
     assert payload["summary"]["mailbox_discovered_count"] == 1
     assert payload["boundaries"]["unknown_job_application_supported"] is True
 
