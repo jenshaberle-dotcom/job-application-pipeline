@@ -268,3 +268,47 @@ button, input { font: inherit; }
     margin-left: auto;
   }
 }
+
+/* F5 application linkage in the All jobs review surface */
+.ow-job-list-head,
+.ow-job-list > button {
+  grid-template-columns:
+    58px 86px minmax(220px, 1fr) 120px 82px 116px 118px 96px;
+}
+.ow-job-list-head > span {
+  color: var(--ow-muted);
+  font-size: 9px;
+}
+.ow-application-status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 21px;
+  padding: 2px 7px;
+  border: 1px solid #31566a;
+  border-radius: 10px;
+  color: #c4d8e3;
+  background: #0a1d2a;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-size: 7px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.ow-application-status.applied,
+.ow-application-status.reply { border-color:#237e66;color:var(--ow-green);background:#0b302c; }
+.ow-application-status.interview,
+.ow-application-status.offer { border-color:#2d7795;color:var(--ow-cyan);background:#0c2b3a; }
+.ow-application-status.closed { border-color:#4e5b65;color:#98aab4;background:#111d25; }
+.ow-application-status.prepared { border-color:#7f6527;color:var(--ow-amber);background:#312811; }
+.ow-application-status.none { opacity:.45; }
+
+@media (max-width: 1180px) {
+  .ow-job-list { overflow-x: auto; }
+  .ow-job-list-head,
+  .ow-job-list > button {
+    min-width: 900px;
+    grid-template-columns:
+      54px 82px minmax(210px, 1fr) 115px 80px 110px 112px 92px;
+  }
+}
