@@ -221,6 +221,12 @@ def build_application_tracking_payload(
         source_url = row.get("source_url") or _snapshot_text(
             snapshot, "source_url", "job_url", "application_url"
         )
+        sender_domain = _snapshot_text(snapshot, "sender_domain")
+        counterparty_domain = _snapshot_text(snapshot, "counterparty_domain")
+        employer_evidence_source = _snapshot_text(
+            snapshot, "employer_evidence_source"
+        )
+        identity_source = _snapshot_text(snapshot, "identity_source")
 
         application_candidates = candidate_by_application.get(application_id, [])
         review_required_count = sum(
@@ -240,6 +246,10 @@ def build_application_tracking_payload(
                 "company_name": company_name,
                 "display_company_name": display_company_name,
                 "source_url": source_url,
+                "sender_domain": sender_domain,
+                "counterparty_domain": counterparty_domain,
+                "employer_evidence_source": employer_evidence_source,
+                "identity_source": identity_source,
                 "prepared_at": row.get("prepared_at"),
                 "prepared_by": row.get("prepared_by"),
                 "submission_id": row.get("submission_id"),
