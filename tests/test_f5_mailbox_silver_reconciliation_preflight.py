@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from scripts.run_product_v1_f5_mailbox_silver_reconciliation_preflight import (
+    build_tracking_job_linkage,
     classify_application,
     normalize_company,
     normalize_title,
@@ -108,3 +109,56 @@ def test_reconciliation_preflight_is_strictly_read_only() -> None:
     assert "INSERT INTO " not in source
     assert "UPDATE " not in source
     assert "DELETE FROM " not in source
+
+
+def test_tracking_projection_surfaces_only_automatic_exact_matches() -> None:
+    tracking = [
+        {
+            "application_id": 5,
+            "silver_job_id": None,
+            "company_name": "HDI",
+            "display_company_name": "HDI",
+            "title": "AI Engineer / Data Scientist",
+            "source_url": None,
+            "effective_stage": "closed",
+        },
+        {
+            "application_id": 7,
+            "silver_job_id": None,
+            "company_name": "Capgemini",
+            "display_company_name": "Capgemini",
+            "title": "(Senior) Azure Data Engineer (w/m/d)",
+            "source_url": None,
+            "effective_stage": "closed",
+        },
+    ]
+    jobs = [
+        _job(
+            2,
+            company_name="HDI AG",
+            title="AI Engineer / Data Scientist (m/w/d)",
+        ),
+        _job(
+            483,
+            company_name="Sogeti Part of Capgemini (Capgemini Deutschland GmbH)",
+            title="(Senior) Cloud Engineer (w/m/d)",
+        ),
+    ]
+
+    linkage = build_tracking_job_linkage(tracking, jobs)
+
+    assert linkage["read_only"] is True
+    assert linkage["exact_match_count"] == 1
+    assert linkage["unresolved_count"] == 1
+    assert linkage["database_writes"] == 0
+    assert linkage["authoritative_lifecycle_mutations"] == 0
+    assert linkage["exact_matches"] == [
+        {
+            "application_id": 5,
+            "silver_job_id": 2,
+            "effective_stage": "closed",
+            "linkage_status": "exact_projected",
+            "linkage_basis": "exact_company_title",
+            "database_link_persisted": False,
+        }
+    ]
