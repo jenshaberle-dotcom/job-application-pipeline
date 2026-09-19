@@ -192,6 +192,10 @@ def test_unknown_job_mailbox_application_is_supported_from_identity_snapshot() -
     assert application["title"] == "Senior Data Engineer"
     assert application["display_company_name"] == "External GmbH"
     assert application["source_url"] == "https://example.test/application/123"
+    assert application["sender_domain"] == "example.com"
+    assert application["counterparty_domain"] == "example.com"
+    assert application["employer_evidence_source"] == "counterparty_domain_brand"
+    assert application["identity_source"] is None
     assert payload["summary"]["mailbox_discovered_count"] == 1
     assert payload["boundaries"]["unknown_job_application_supported"] is True
 
