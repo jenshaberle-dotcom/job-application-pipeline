@@ -294,6 +294,64 @@ def classify_application(
     }
 
 
+def build_tracking_job_linkage(
+    applications: list[dict[str, object]],
+    jobs: list[dict[str, object]],
+) -> dict[str, object]:
+    """Project only safe exact mailbox->Silver matches into Product read truth."""
+
+    exact_matches: list[dict[str, object]] = []
+    unresolved: list[dict[str, object]] = []
+    for application in applications:
+        silver_job_id = application.get("silver_job_id")
+        if silver_job_id is not None:
+            continue
+
+        pseudo = {
+            "silver_job_id": None,
+            "job_identity_snapshot": {
+                "employer_name": application.get("display_company_name")
+                or application.get("company_name"),
+                "job_title": application.get("title"),
+                "application_url": application.get("source_url"),
+            },
+        }
+        result = classify_application(pseudo, jobs)
+        candidates = result["candidate_jobs"]
+        if result["automatic_link_eligible"] and len(candidates) == 1:
+            candidate = candidates[0]
+            exact_matches.append(
+                {
+                    "application_id": int(application["application_id"]),
+                    "silver_job_id": int(candidate["silver_job_id"]),
+                    "effective_stage": application.get("effective_stage"),
+                    "linkage_status": "exact_projected",
+                    "linkage_basis": result["classification"],
+                    "database_link_persisted": False,
+                }
+            )
+        elif candidates:
+            unresolved.append(
+                {
+                    "application_id": int(application["application_id"]),
+                    "classification": result["classification"],
+                    "candidate_silver_job_ids": [
+                        int(candidate["silver_job_id"]) for candidate in candidates
+                    ],
+                }
+            )
+
+    return {
+        "read_only": True,
+        "exact_matches": exact_matches,
+        "unresolved": unresolved,
+        "exact_match_count": len(exact_matches),
+        "unresolved_count": len(unresolved),
+        "database_writes": 0,
+        "authoritative_lifecycle_mutations": 0,
+    }
+
+
 def run_preflight(*, source_sha: str) -> dict[str, object]:
     source_sha = _validate_source_sha(source_sha)
     actual = _checkout_sha()
