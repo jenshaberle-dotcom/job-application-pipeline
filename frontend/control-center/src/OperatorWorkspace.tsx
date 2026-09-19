@@ -270,8 +270,9 @@ function compareJobs(a: Job, b: Job, sort: JobSort) {
 function tone(value: string | undefined | null) {
   const normalized = normalize(value);
   if (["rankable", "active", "active confirmed", "active_confirmed", "approved", "interesting", "passed", "profile_fit_complete"].includes(normalized) || normalized.startsWith("active_last_run_")) return "good";
-  if (normalized.includes("failed") || normalized.includes("blocked") || normalized === "not_relevant") return "bad";
-  if (normalized.includes("required") || normalized.includes("unknown") || normalized.includes("stale") || normalized.includes("insufficient") || normalized === "unsure") return "warn";
+  if (normalized.includes("failed") || normalized.includes("blocked") || normalized.includes("rejected") || normalized === "not_relevant") return "bad";
+  if (normalized.includes("stale") || normalized.includes("ambiguous") || normalized === "unsure") return "warn";
+  if (normalized.includes("required") || normalized.includes("unknown") || normalized.includes("insufficient")) return "pending";
   return "neutral";
 }
 
@@ -588,7 +589,7 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
               {displayDate(job.first_jap_observed_at)}
             </span>
 
-            <span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /><Status value={job.product_readiness_status} /></span>
+            <span className="ow-gate-state"><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /><Status value={job.product_readiness_status} /></span>
 
             {applicationByJobId.get(job.silver_job_id)
               ? <span
