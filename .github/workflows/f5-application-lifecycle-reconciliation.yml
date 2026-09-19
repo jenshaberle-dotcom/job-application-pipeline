@@ -31,12 +31,15 @@ on:
       - "tests/test_f5_mailbox_candidate_supersession_contract.py"
       - "tests/test_f5_application_tracking_product_proof.py"
       - "tests/test_f5_application_tracking_ui_contract.py"
+      - "tests/test_f5_job_list_application_linkage.py"
       - "tests/test_product_v1_f5_application_tracking_runtime.py"
       - "tests/test_product_v1_f5_application_actions.py"
       - "tests/test_product_v1_f5_mailbox_ingest.py"
       - "tests/test_product_v1_f5_mailbox_batch_preflight.py"
       - "tests/test_application_event_classifier.py"
       - "frontend/control-center/src/F5ApplicationTracking.tsx"
+      - "frontend/control-center/src/OperatorWorkspace.tsx"
+      - "frontend/control-center/src/operator-workspace-v2.css"
       - "frontend/control-center/src/f5-application-tracking.css"
       - "frontend/control-center/src/DemoProductPolish.tsx"
       - "docs/current/REENTRY.md"
@@ -217,6 +220,7 @@ jobs:
             tests/test_f5_mailbox_identity_enrichment_preflight.py \
             tests/test_f5_application_tracking_product_proof.py \
             tests/test_f5_application_tracking_ui_contract.py \
+            tests/test_f5_job_list_application_linkage.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
             tests/test_product_v1_f5_mailbox_ingest.py \
