@@ -600,7 +600,10 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
                 >
                   {applicationStageLabel[applicationByJobId.get(job.silver_job_id)!.effective_stage]}
                 </span>
-              : <span className="ow-application-status none">—</span>}
+              : <span
+                  className="ow-application-status none"
+                  title="Keine sichere Zuordnung zwischen diesem JAP-Job und einer bekannten Bewerbung. Das ist nicht gleichbedeutend mit 'nicht beworben'."
+                >Ungeklärt</span>}
           </button>
         )}
 
