@@ -1,0 +1,435 @@
+#!/usr/bin/env python3
+"""Read-only reconciliation preflight for mailbox-first applications vs Silver jobs.
+
+The script never mutates application or lifecycle truth. It classifies each
+mailbox-observed application as already linked, exact deterministic match,
+review candidate, ambiguous, or unmatched against the current Product job list.
+"""
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+import json
+from pathlib import Path
+import re
+import sys
+import unicodedata
+from urllib.parse import urlsplit, urlunsplit
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.run_product_v1_f5_mailbox_persistence_apply import (  # noqa: E402
+    PersistenceApplyError,
+    _checkout_sha,
+    _validate_source_sha,
+)
+
+LEGAL_COMPANY_TOKENS = frozenset(
+    {
+        "ag",
+        "gmbh",
+        "mbh",
+        "kg",
+        "kgaa",
+        "se",
+        "inc",
+        "ltd",
+        "llc",
+        "co",
+        "company",
+        "holding",
+        "holdings",
+    }
+)
+TITLE_NOISE_TOKENS = frozenset(
+    {
+        "m",
+        "w",
+        "d",
+        "f",
+        "x",
+        "all",
+        "genders",
+        "gender",
+        "divers",
+        "diverse",
+    }
+)
+
+
+class ReconciliationPreflightError(RuntimeError):
+    pass
+
+
+def _ascii_words(value: object) -> list[str]:
+    text = unicodedata.normalize("NFKD", str(value or "").casefold())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.findall(r"[a-z0-9]+", text)
+
+
+def normalize_company(value: object) -> str:
+    tokens = [token for token in _ascii_words(value) if token not in LEGAL_COMPANY_TOKENS]
+    return " ".join(tokens)
+
+
+def normalize_title(value: object) -> str:
+    tokens = [token for token in _ascii_words(value) if token not in TITLE_NOISE_TOKENS]
+    return " ".join(tokens)
+
+
+def normalize_url(value: object) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parts = urlsplit(raw)
+    except ValueError:
+        return raw.rstrip("/").casefold()
+    if not parts.scheme or not parts.netloc:
+        return raw.rstrip("/").casefold()
+    host = parts.netloc.casefold()
+    if host.startswith("www."):
+        host = host[4:]
+    path = parts.path.rstrip("/") or "/"
+    # Keep the query because many ATS job identities live there; only fragment is noise.
+    return urlunsplit((parts.scheme.casefold(), host, path, parts.query, ""))
+
+
+def _snapshot_text(snapshot: object, key: str) -> str:
+    if not isinstance(snapshot, dict):
+        return ""
+    return str(snapshot.get(key) or "").strip()
+
+
+def _job_payload(row: dict[str, object]) -> dict[str, object]:
+    return {
+        "silver_job_id": int(row["silver_job_id"]),
+        "title": row.get("title"),
+        "company_name": row.get("company_name"),
+        "source_name": row.get("source_name"),
+        "source_url": row.get("source_url"),
+        "lifecycle_status": row.get("lifecycle_status"),
+    }
+
+
+def _unique(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    by_id = {int(row["silver_job_id"]): row for row in rows}
+    return [by_id[key] for key in sorted(by_id)]
+
+
+def classify_application(
+    application: dict[str, object],
+    jobs: list[dict[str, object]],
+) -> dict[str, object]:
+    linked = application.get("silver_job_id")
+    snapshot = application.get("job_identity_snapshot")
+    employer = _snapshot_text(snapshot, "employer_name")
+    title = _snapshot_text(snapshot, "job_title")
+    source_url = _snapshot_text(snapshot, "application_url")
+    employer_norm = normalize_company(employer)
+    title_norm = normalize_title(title)
+    url_norm = normalize_url(source_url)
+
+    if linked is not None:
+        return {
+            "classification": "already_linked",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [
+                _job_payload(row)
+                for row in jobs
+                if int(row["silver_job_id"]) == int(linked)
+            ],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+
+    url_matches = _unique(
+        [row for row in jobs if url_norm and normalize_url(row.get("source_url")) == url_norm]
+    )
+    if len(url_matches) == 1:
+        return {
+            "classification": "exact_source_url",
+            "automatic_link_eligible": True,
+            "candidate_jobs": [_job_payload(url_matches[0])],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+    if len(url_matches) > 1:
+        return {
+            "classification": "ambiguous_exact_source_url",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(row) for row in url_matches],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+
+    exact_company_title = _unique(
+        [
+            row
+            for row in jobs
+            if employer_norm
+            and title_norm
+            and normalize_company(row.get("company_name")) == employer_norm
+            and normalize_title(row.get("title")) == title_norm
+        ]
+    )
+    if len(exact_company_title) == 1:
+        return {
+            "classification": "exact_company_title",
+            "automatic_link_eligible": True,
+            "candidate_jobs": [_job_payload(exact_company_title[0])],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+    if len(exact_company_title) > 1:
+        return {
+            "classification": "ambiguous_exact_company_title",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(row) for row in exact_company_title],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+
+    employer_tokens = set(employer_norm.split())
+    alias_title = _unique(
+        [
+            row
+            for row in jobs
+            if employer_tokens
+            and title_norm
+            and employer_tokens.issubset(set(normalize_company(row.get("company_name")).split()))
+            and normalize_title(row.get("title")) == title_norm
+        ]
+    )
+    if len(alias_title) == 1:
+        return {
+            "classification": "review_company_alias_title_exact",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(alias_title[0])],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+
+    title_matches = _unique(
+        [row for row in jobs if title_norm and normalize_title(row.get("title")) == title_norm]
+    )
+    if len(title_matches) == 1:
+        return {
+            "classification": "review_title_exact_unique",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(title_matches[0])],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+
+    company_matches = _unique(
+        [
+            row
+            for row in jobs
+            if employer_norm and normalize_company(row.get("company_name")) == employer_norm
+        ]
+    )
+    if len(company_matches) == 1:
+        return {
+            "classification": "review_company_exact_unique",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(company_matches[0])],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+    if len(company_matches) > 1:
+        return {
+            "classification": "ambiguous_company",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(row) for row in company_matches],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+
+    alias_company = _unique(
+        [
+            row
+            for row in jobs
+            if employer_tokens
+            and employer_tokens.issubset(set(normalize_company(row.get("company_name")).split()))
+        ]
+    )
+    if len(alias_company) == 1:
+        return {
+            "classification": "review_company_alias_unique",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(alias_company[0])],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+    if len(alias_company) > 1:
+        return {
+            "classification": "ambiguous_company_alias",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(row) for row in alias_company],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+
+    return {
+        "classification": "no_match",
+        "automatic_link_eligible": False,
+        "candidate_jobs": [],
+        "mailbox_employer_name": employer or None,
+        "mailbox_job_title": title or None,
+        "mailbox_source_url_present": bool(source_url),
+    }
+
+
+def run_preflight(*, source_sha: str) -> dict[str, object]:
+    source_sha = _validate_source_sha(source_sha)
+    actual = _checkout_sha()
+    if actual != source_sha:
+        raise ReconciliationPreflightError(
+            f"checkout_source_mismatch:expected={source_sha}:actual={actual}"
+        )
+
+    import psycopg
+    from psycopg.rows import dict_row
+    from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+
+    with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+        with conn.transaction():
+            conn.execute("SET TRANSACTION READ ONLY")
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, application_key, silver_job_id, job_identity_snapshot
+                    FROM applications
+                    WHERE discovery_kind = 'mailbox_observed'
+                    ORDER BY id
+                    """
+                )
+                applications = [dict(row) for row in cur.fetchall()]
+                cur.execute(
+                    """
+                    SELECT
+                        silver_job_id,
+                        title,
+                        company_name,
+                        source_name,
+                        source_url,
+                        lifecycle_status
+                    FROM gold_product_v1_job_readiness
+                    ORDER BY silver_job_id
+                    """
+                )
+                jobs = [dict(row) for row in cur.fetchall()]
+
+    results: list[dict[str, object]] = []
+    counts: Counter[str] = Counter()
+    for application in applications:
+        classified = classify_application(application, jobs)
+        classification = str(classified["classification"])
+        counts[classification] += 1
+        results.append(
+            {
+                "application_id": int(application["id"]),
+                "application_key": application["application_key"],
+                **classified,
+            }
+        )
+
+    automatic = sum(1 for row in results if row["automatic_link_eligible"])
+    review = sum(
+        1
+        for row in results
+        if str(row["classification"]).startswith("review_")
+    )
+    ambiguous = sum(
+        1
+        for row in results
+        if str(row["classification"]).startswith("ambiguous_")
+    )
+    unmatched = sum(1 for row in results if row["classification"] == "no_match")
+    already_linked = sum(1 for row in results if row["classification"] == "already_linked")
+
+    return {
+        "schema": "jap.f5.mailbox_silver_reconciliation_preflight.v1",
+        "source_sha": source_sha,
+        "mailbox_application_count": len(applications),
+        "current_silver_job_count": len(jobs),
+        "already_linked_count": already_linked,
+        "automatic_link_eligible_count": automatic,
+        "review_candidate_count": review,
+        "ambiguous_count": ambiguous,
+        "unmatched_count": unmatched,
+        "classification_counts": dict(sorted(counts.items())),
+        "applications": results,
+        "database_connections": 1,
+        "database_writes": 0,
+        "gmail_network_requests": 0,
+        "email_actions": 0,
+        "application_submission_actions": 0,
+        "authoritative_lifecycle_mutations": 0,
+        "proof": "PASS",
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+
+    try:
+        report = run_preflight(source_sha=args.source_sha)
+    except (PersistenceApplyError, ReconciliationPreflightError, RuntimeError) as exc:
+        print(f"F5_MAILBOX_SILVER_RECONCILIATION_PREFLIGHT_ERROR={exc}")
+        return 2
+
+    output = args.output.expanduser()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
+
+    print("F5_MAILBOX_SILVER_RECONCILIATION_PREFLIGHT=PASS")
+    for key in (
+        "source_sha",
+        "mailbox_application_count",
+        "current_silver_job_count",
+        "already_linked_count",
+        "automatic_link_eligible_count",
+        "review_candidate_count",
+        "ambiguous_count",
+        "unmatched_count",
+    ):
+        print(f"{key.upper()}={report[key]}")
+    for classification, count in report["classification_counts"].items():
+        print(f"CLASS_{classification.upper()}={count}")
+    for item in report["applications"]:
+        candidates = ",".join(
+            str(candidate["silver_job_id"]) for candidate in item["candidate_jobs"]
+        ) or "-"
+        print(
+            "APPLICATION="
+            f"{item['application_id']}|{item['classification']}|candidates={candidates}"
+        )
+    print("DATABASE_CONNECTIONS=1")
+    print("DATABASE_WRITES=0")
+    print("GMAIL_NETWORK_REQUESTS=0")
+    print("EMAIL_ACTIONS=0")
+    print("APPLICATION_SUBMISSION_ACTIONS=0")
+    print("AUTHORITATIVE_LIFECYCLE_MUTATIONS=0")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
