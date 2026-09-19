@@ -37,3 +37,15 @@ def test_evidence_summary_distinguishes_qualified_from_review_required() -> None
     assert "qualified-evidence" in tracking
     assert "review-required" in tracking
     assert ".f5-status-group-head" in styles
+
+
+def test_application_cards_surface_bounded_job_identity_metadata() -> None:
+    tracking = _text(TRACKING)
+
+    assert "Arbeitgeber-Hinweis" in tracking
+    assert "Kommunikations-Domain" in tracking
+    assert "Job-/Bewerbungsquelle" in tracking
+    assert "Jobtitel aus Mail-Metadaten noch nicht ableitbar" in tracking
+    assert "Arbeitgeber aus Mail-Metadaten noch nicht ableitbar" in tracking
+    assert "application.counterparty_domain || application.sender_domain" in tracking
+    assert "application.source_url" in tracking
