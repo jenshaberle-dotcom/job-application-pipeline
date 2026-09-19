@@ -240,11 +240,11 @@ The current public runtime + React implementation already supports the mailbox-f
 
 The latest published immutable Windows desktop is `jap-winapp-desktop-v1.0.38` from source `27a5e78fb3041eee1b1f3964676f62d1db82a067`. That release predates the current mailbox-first Product projection and cannot be mutated in place.
 
-v1.0.39 is installed and operator-visible. The next immutable delivery target is now `v1.0.40` for the operator-feedback corrections.
+v1.0.40 is operator-visible and accepted as a substantial improvement. The next immutable delivery target is `v1.0.41` for compact Applications plus linked application status in All jobs.
 
 ## Sole next action
 
-Qualify and merge the v1.0.40 operator-feedback hardening package, publish/install its immutable desktop release, then run the read-only identity-enrichment preflight against the accepted 203-row preview before deciding whether any metadata repair write is needed. Interactive acceptance must confirm precise warnings, status clusters, richer job metadata, and unchanged evidence/authority boundaries.
+Qualify and merge the v1.0.41 compact/linkage package, publish/install its immutable desktop release, then perform one interactive operator acceptance. The separate read-only identity-enrichment preflight remains available for missing job metadata but does not block this UI linkage and grants no metadata repair authority.
 
 The operator test must verify at least:
 
