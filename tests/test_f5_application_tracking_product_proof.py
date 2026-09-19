@@ -5,7 +5,7 @@ from scripts import run_f5_application_tracking_product_proof as proof
 
 def _payload() -> dict[str, object]:
     return {
-        "schema_version": "job_application_pipeline.f5.application_tracking.v2",
+        "schema_version": "job_application_pipeline.f5.application_tracking.v3",
         "available": True,
         "summary": {
             "application_count": 1,

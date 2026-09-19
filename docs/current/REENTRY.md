@@ -214,11 +214,21 @@ Current `main` exposes `observed_stage`, `effective_stage`, mailbox-discovered a
 
 Published desktop v1.0.38 predates that mailbox-first projection. Therefore a new immutable v1 release is required; changing only live DB truth is insufficient because v1.0.38 does not contain the current tracking surface.
 
-The delivery package is v1.0.39. This is delivery of already-merged F5 behavior, not a new product-semantics decision.
+The installed v1.0.39 operator review proved the real mailbox cohort is visible, but exposed two completion defects: attention semantics were over-broad and the list lacked status clustering; several mailbox-only cards also lacked useful job identity. v1.0.40 is the corrective Product slice. It narrows attention to true review-required evidence, groups cards by effective lifecycle stage, surfaces bounded job identity metadata, and adds a read-only accepted-preview-vs-DB enrichment preflight before any metadata repair write.
+
+### v1.0.39 operator acceptance — PARTIAL / FOLLOW-UP OPEN
+
+The installed v1.0.39 About screen proved version `1.0.39` and source `27c0c27b...`. The Applications screen proved the real persisted cohort is visible. Operator feedback found:
+
+- HDI/other correctly classified high-confidence evidence still received the same amber warning because storage `unreviewed` state was conflated with actual review need;
+- applications need lifecycle-stage clustering;
+- some mailbox-only cards lack job title/employer detail.
+
+Issue #737 comment `5740140017` records the defect boundary. No new Gmail or lifecycle authority is implied.
 
 ## Sole next action
 
-Qualify and merge the v1.0.39 delivery/re-entry package, require the immutable Windows desktop release to publish from its exact merge source, then use the existing local deploy/update path and perform one interactive operator acceptance against the real 9-application cohort. Acceptance must confirm that mailbox-observed status is visible while authoritative state remains separately labeled and no automatic send/submit behavior exists.
+Qualify and merge the v1.0.40 operator-feedback hardening package, require the immutable Windows desktop release to publish from its exact merge source, then use the existing local deploy/update path and perform one interactive operator acceptance against the real 9-application cohort. Acceptance must confirm that mailbox-observed status is visible while authoritative state remains separately labeled and no automatic send/submit behavior exists.
 
 ## F6 — queued
 

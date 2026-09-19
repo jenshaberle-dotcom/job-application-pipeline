@@ -17,9 +17,57 @@ from psycopg.rows import dict_row
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 
 
-SCHEMA_VERSION = "job_application_pipeline.f5.application_tracking.v2"
+SCHEMA_VERSION = "job_application_pipeline.f5.application_tracking.v3"
 TRACKING_VIEW = "gold_product_v1_application_tracking"
 STAGES = ("prepared", "applied", "reply", "interview", "offer", "closed")
+OBSERVABLE_CLASSES = frozenset(
+    {
+        "application_acknowledgement",
+        "recruiter_contact",
+        "assessment_request",
+        "interview_invitation",
+        "offer_signal",
+        "rejection",
+        "withdrawal_confirmation",
+    }
+)
+
+
+def _candidate_requires_review(row: Mapping[str, object]) -> tuple[bool, str | None]:
+    """Mirror automatic-observation eligibility for Product review semantics."""
+
+    review_status = str(row.get("review_status") or "").strip()
+    if review_status == "ambiguous":
+        return True, str(row.get("ambiguity_reason") or "ambiguous_evidence")
+    if review_status not in {"unreviewed", "accepted_as_evidence"}:
+        return True, f"review_status:{review_status or 'missing'}"
+
+    if str(row.get("match_status") or "").strip() != "exact":
+        return True, "match_not_exact"
+
+    try:
+        confidence = float(row.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if confidence < 0.95:
+        return True, "confidence_below_0_95"
+
+    candidate_class = str(row.get("candidate_class") or "").strip()
+    if candidate_class not in OBSERVABLE_CLASSES:
+        return True, "class_not_status_eligible"
+
+    payload = row.get("evidence_payload")
+    reason_code = ""
+    if isinstance(payload, Mapping):
+        reason_code = str(payload.get("reason_code") or "").strip()
+    if not reason_code.startswith("deterministic_"):
+        return True, "non_deterministic_evidence"
+
+    if row.get("ambiguity_reason"):
+        return True, str(row.get("ambiguity_reason"))
+
+    return False, None
+
 
 
 def _relation_exists(conn: psycopg.Connection[Any], relation_name: str) -> bool:
@@ -111,6 +159,7 @@ def build_application_tracking_payload(
     unmatched_candidates: list[dict[str, object]] = []
 
     for row in candidates:
+        requires_review, review_reason = _candidate_requires_review(row)
         item = {
             "candidate_id": row.get("candidate_id"),
             "matched_application_id": row.get("matched_application_id"),
@@ -126,6 +175,8 @@ def build_application_tracking_payload(
             "created_at": row.get("created_at"),
             "evidence": _safe_evidence_summary(row.get("evidence_payload")),
             "authority": "evidence_only",
+            "requires_review": requires_review,
+            "review_reason": review_reason,
         }
         application_id = row.get("matched_application_id")
         if application_id is None:
@@ -170,6 +221,17 @@ def build_application_tracking_payload(
         source_url = row.get("source_url") or _snapshot_text(
             snapshot, "source_url", "job_url", "application_url"
         )
+        sender_domain = _snapshot_text(snapshot, "sender_domain")
+        counterparty_domain = _snapshot_text(snapshot, "counterparty_domain")
+        employer_evidence_source = _snapshot_text(
+            snapshot, "employer_evidence_source"
+        )
+        identity_source = _snapshot_text(snapshot, "identity_source")
+
+        application_candidates = candidate_by_application.get(application_id, [])
+        review_required_count = sum(
+            1 for candidate in application_candidates if candidate["requires_review"]
+        )
 
         rows.append(
             {
@@ -184,6 +246,10 @@ def build_application_tracking_payload(
                 "company_name": company_name,
                 "display_company_name": display_company_name,
                 "source_url": source_url,
+                "sender_domain": sender_domain,
+                "counterparty_domain": counterparty_domain,
+                "employer_evidence_source": employer_evidence_source,
+                "identity_source": identity_source,
                 "prepared_at": row.get("prepared_at"),
                 "prepared_by": row.get("prepared_by"),
                 "submission_id": row.get("submission_id"),
@@ -205,12 +271,15 @@ def build_application_tracking_payload(
                 "latest_authoritative_event_at": row.get(
                     "latest_authoritative_event_at"
                 ),
-                "attention_candidate_count": int(
+                "attention_candidate_count": review_required_count,
+                "storage_attention_candidate_count": int(
                     row.get("attention_candidate_count") or 0
                 ),
                 "latest_candidate_at": row.get("latest_candidate_at"),
-                "attention_status": row.get("attention_status") or "none",
-                "evidence_candidates": candidate_by_application.get(application_id, []),
+                "attention_status": (
+                    "evidence_review_required" if review_required_count else "none"
+                ),
+                "evidence_candidates": application_candidates,
                 "stage_authority": (
                     "mailbox_observed_with_separate_authoritative_correction"
                 ),
