@@ -29,6 +29,7 @@ on:
       - "tests/test_f5_candidate_supersession_schema_qualification.py"
       - "tests/test_f5_mailbox_candidate_supersession_contract.py"
       - "tests/test_f5_application_tracking_product_proof.py"
+      - "tests/test_f5_application_tracking_ui_contract.py"
       - "tests/test_product_v1_f5_application_tracking_runtime.py"
       - "tests/test_product_v1_f5_application_actions.py"
       - "tests/test_product_v1_f5_mailbox_ingest.py"
@@ -212,6 +213,7 @@ jobs:
             tests/test_f5_mailbox_persistence_apply_contract.py \
             tests/test_f5_mailbox_persistence_postwrite_proof.py \
             tests/test_f5_application_tracking_product_proof.py \
+            tests/test_f5_application_tracking_ui_contract.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
             tests/test_product_v1_f5_mailbox_ingest.py \
@@ -241,6 +243,7 @@ jobs:
             tests/test_f5_mailbox_persistence_apply_contract.py \
             tests/test_f5_mailbox_persistence_postwrite_proof.py \
             tests/test_f5_application_tracking_product_proof.py \
+            tests/test_f5_application_tracking_ui_contract.py \
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
             tests/test_product_v1_f5_mailbox_ingest.py \
