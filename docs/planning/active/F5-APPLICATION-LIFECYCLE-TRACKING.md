@@ -240,11 +240,11 @@ The current public runtime + React implementation already supports the mailbox-f
 
 The latest published immutable Windows desktop is `jap-winapp-desktop-v1.0.38` from source `27a5e78fb3041eee1b1f3964676f62d1db82a067`. That release predates the current mailbox-first Product projection and cannot be mutated in place.
 
-The next immutable delivery target is therefore `v1.0.39`.
+v1.0.39 is installed and operator-visible. The next immutable delivery target is now `v1.0.40` for the operator-feedback corrections.
 
 ## Sole next action
 
-Qualify and merge the v1.0.39 delivery package, publish the immutable desktop release from the exact merge source, allow the established local deploy/update mechanism to install that exact release, and perform one interactive operator acceptance against the real 9-application cohort.
+Qualify and merge the v1.0.40 operator-feedback hardening package, publish/install its immutable desktop release, then run the read-only identity-enrichment preflight against the accepted 203-row preview before deciding whether any metadata repair write is needed. Interactive acceptance must confirm precise warnings, status clusters, richer job metadata, and unchanged evidence/authority boundaries.
 
 The operator test must verify at least:
 
