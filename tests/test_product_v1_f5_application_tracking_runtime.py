@@ -93,6 +93,72 @@ def test_observed_offer_can_be_primary_without_rewriting_authoritative_stage() -
         "mailbox_observed_with_separate_authoritative_correction"
     )
     assert application["evidence_candidates"][0]["authority"] == "evidence_only"
+    assert application["evidence_candidates"][0]["requires_review"] is False
+    assert application["attention_candidate_count"] == 0
+    assert application["storage_attention_candidate_count"] == 1
+    assert payload["summary"]["attention_count"] == 0
+
+
+def test_ambiguous_candidate_remains_a_real_review_case() -> None:
+    payload = build_application_tracking_payload(
+        applications=[
+            _application(
+                observed_stage="closed",
+                observed_event_class="rejection",
+                observed_confidence=0.99,
+                effective_stage="closed",
+                effective_stage_basis="mailbox_observed",
+                attention_candidate_count=2,
+            )
+        ],
+        candidates=[
+            _candidate(candidate_class="rejection"),
+            _candidate(
+                candidate_id=4,
+                candidate_class="rejection",
+                review_status="ambiguous",
+                ambiguity_reason="multiple_application_candidates",
+            ),
+        ],
+    )
+
+    application = payload["applications"][0]
+    assert application["effective_stage"] == "closed"
+    assert application["attention_candidate_count"] == 1
+    assert application["storage_attention_candidate_count"] == 2
+    assert application["attention_status"] == "evidence_review_required"
+    assert application["evidence_candidates"][0]["requires_review"] is False
+    assert application["evidence_candidates"][1]["requires_review"] is True
+    assert payload["summary"]["attention_count"] == 1
+
+
+def test_multiple_qualified_signals_do_not_create_false_attention() -> None:
+    payload = build_application_tracking_payload(
+        applications=[
+            _application(
+                observed_stage="closed",
+                observed_event_class="rejection",
+                observed_confidence=0.99,
+                effective_stage="closed",
+                effective_stage_basis="mailbox_observed",
+                attention_candidate_count=2,
+            )
+        ],
+        candidates=[
+            _candidate(candidate_class="application_acknowledgement"),
+            _candidate(candidate_id=4, candidate_class="rejection"),
+        ],
+    )
+
+    application = payload["applications"][0]
+    assert application["effective_stage"] == "closed"
+    assert application["attention_candidate_count"] == 0
+    assert application["storage_attention_candidate_count"] == 2
+    assert all(
+        candidate["requires_review"] is False
+        for candidate in application["evidence_candidates"]
+    )
+    assert payload["summary"]["attention_count"] == 0
 
 
 def test_unknown_job_mailbox_application_is_supported_from_identity_snapshot() -> None:
