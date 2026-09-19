@@ -33,3 +33,13 @@ def test_job_list_application_marker_uses_existing_f5_read_model_only() -> None:
     assert "ow-application-status" in source
     assert "record_operator_confirmed_submission" not in source
     assert ".ow-application-status" in styles
+
+
+def test_all_jobs_accepts_exact_read_only_projected_linkage_without_persisting() -> None:
+    source = _text(WORKSPACE)
+
+    assert "job_linkage?:" in source
+    assert "job_linkage?.exact_matches" in source
+    assert 'linkage_status: "exact_projected"' in source
+    assert "DB-Link noch nicht persistiert" in source
+    assert "database_writes" in source
