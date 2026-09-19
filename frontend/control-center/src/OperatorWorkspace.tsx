@@ -160,6 +160,7 @@ const applicationStageLabel: Record<ApplicationStage, string> = {
   offer: "Angebot",
   closed: "Geschlossen",
 };
+const isAppliedStage = (stage: ApplicationStage) => stage !== "prepared";
 
 function externalJobUrl(job: Job): string | null {
   // Product/application authority still uses the guarded source_url. For review
@@ -335,7 +336,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
   </div>;
 }
 
-function JobDetail({ job, payload, refresh, applicationStage }: { job: Job; payload: ProductPayload; refresh: () => Promise<void>; applicationStage?: ApplicationStage | null }) {
+function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications }: { job: Job; payload: ProductPayload; refresh: () => Promise<void>; applicationStage?: ApplicationStage | null; onOpenApplications?: () => void }) {
   const sourceUrl = externalJobUrl(job);
   const rankable = isRankable(job);
   const profileFitFactors = job.profile_fit_factors || {};
@@ -357,7 +358,7 @@ function JobDetail({ job, payload, refresh, applicationStage }: { job: Job; payl
 
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{rankable && <OpenApplicationButton />}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{rankable && <OpenApplicationButton />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Profile Fit coverage</span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /></div><div><span>Profile Fit decision</span><Status value={job.profile_fit_decision || "unknown"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
@@ -366,7 +367,7 @@ function JobDetail({ job, payload, refresh, applicationStage }: { job: Job; payl
   </aside>;
 }
 
-function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
+function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refresh: () => Promise<void>; onNavigate: (view: View) => void }) {
   const [filter, setFilter] = useState<JobFilter>("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<JobSort>("fit_desc");
@@ -391,7 +392,10 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
         if (filter === "interesting" && job.review_label?.label !== "interesting") return false;
         if (filter === "not_relevant" && job.review_label?.label !== "not_relevant") return false;
         if (filter === "rankable" && job.product_readiness_status !== "rankable") return false;
-        if (filter === "applied" && !applicationByJobId.has(job.silver_job_id)) return false;
+        if (filter === "applied") {
+          const application = applicationByJobId.get(job.silver_job_id);
+          if (!application || !isAppliedStage(application.effective_stage)) return false;
+        }
         if (
           q &&
           !normalize(
@@ -420,9 +424,10 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
     rankable: payload.job_readiness.filter(
       (job) => job.product_readiness_status === "rankable"
     ).length,
-    applied: payload.job_readiness.filter(
-      (job) => applicationByJobId.has(job.silver_job_id)
-    ).length,
+    applied: payload.job_readiness.filter((job) => {
+      const application = applicationByJobId.get(job.silver_job_id);
+      return Boolean(application && isAppliedStage(application.effective_stage));
+    }).length,
     all: payload.job_readiness.length,
   };
 
@@ -570,7 +575,7 @@ function Jobs({ payload, refresh }: { payload: ProductPayload; refresh: () => Pr
       </div>
 
       {selected
-        ? <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />
+        ? <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} onOpenApplications={() => onNavigate("applications")} />
         : <aside className="ow-job-detail">
             <p className="ow-empty">Select a job.</p>
           </aside>}
@@ -766,7 +771,7 @@ export default function OperatorWorkspace() {
     </aside>
     <div className="ow-content-shell">
       <header className="ow-topline"><div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Product V1 · live pipeline</span></div><button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button></header>
-      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} onPrepare={() => setView("application")} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
+      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} onNavigate={setView} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} onPrepare={() => setView("application")} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
 }
