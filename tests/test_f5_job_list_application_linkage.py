@@ -3,8 +3,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT / "frontend" / "control-center" / "src" / "OperatorWorkspace.tsx"
+TRACKING = ROOT / "frontend" / "control-center" / "src" / "F5ApplicationTracking.tsx"
 STYLES = ROOT / "frontend" / "control-center" / "src" / "operator-workspace-v2.css"
-POLISH = ROOT / "frontend" / "control-center" / "src" / "DemoProductPolish.tsx"
 
 
 def _text(path: Path) -> str:
@@ -22,9 +22,6 @@ def test_all_jobs_reuses_f5_effective_stage_by_silver_job_identity() -> None:
     assert 'if (filter === "applied")' in source
     assert "isAppliedStage(application.effective_stage)" in source
     assert "<span>Application</span>" in source
-    assert 'product-v1:focus-tracked-application' in source
-    assert 'detail: { applicationId: application.application_id }' in source
-    assert 'openApplications(applicationByJobId.get(selected.silver_job_id))' in source
     assert ">Open Applications</button>" in source
 
 
@@ -66,6 +63,32 @@ def test_unlinked_application_status_is_explicitly_unknown_not_negative() -> Non
     assert "nicht gleichbedeutend mit 'nicht beworben'" in source
 
 
+def test_job_application_navigation_is_internal_persistent_state_not_event_bridge() -> None:
+    source = _text(WORKSPACE)
+
+    assert "selectedJobId" in source
+    assert "selectedApplicationId" in source
+    assert "setSelectedApplicationId(applicationId)" in source
+    assert "setSelectedJobId(silverJobId)" in source
+    assert "focusApplicationId={selectedApplicationId}" in source
+    assert "onOpenJob={openJob}" in source
+    assert "onOpenApplication={openApplication}" in source
+    assert "dispatchEvent" not in source
+    assert "CustomEvent" not in source
+
+
+def test_linkage_is_bidirectional_inside_application() -> None:
+    source = _text(WORKSPACE)
+    tracking = _text(TRACKING)
+
+    assert "<F5ApplicationTracking" in source
+    assert "onOpenJob?: (silverJobId: number) => void" in tracking
+    assert "projectedJobByApplicationId" in tracking
+    assert "application.silver_job_id ?? projectedJobByApplicationId.get" in tracking
+    assert "In All jobs öffnen ↔" in tracking
+    assert "onOpenJob(linkedJobId)" in tracking
+
+
 def test_application_status_cell_is_a_direct_read_only_drilldown() -> None:
     source = _text(WORKSPACE)
     styles = _text(STYLES)
@@ -75,12 +98,3 @@ def test_application_status_cell_is_a_direct_read_only_drilldown() -> None:
     assert "Klicken, um die Bewerbung zu öffnen." in source
     assert ".ow-application-status.linked" in styles
     assert "record_operator_confirmed_submission" not in source
-
-
-def test_programmatic_applications_navigation_resyncs_mailbox_portal() -> None:
-    polish = _text(POLISH)
-
-    assert "MutationObserver" in polish
-    assert 'window.addEventListener("product-v1:focus-tracked-application"' in polish
-    assert "setFocusedApplicationId(applicationId)" in polish
-    assert "focusApplicationId={focusedApplicationId}" in polish
