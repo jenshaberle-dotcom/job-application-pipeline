@@ -21,7 +21,9 @@ def test_all_jobs_reuses_f5_effective_stage_by_silver_job_identity() -> None:
     assert 'if (filter === "applied")' in source
     assert "isAppliedStage(application.effective_stage)" in source
     assert "<span>Application</span>" in source
-    assert 'onOpenApplications={() => onNavigate("applications")}' in source
+    assert 'product-v1:focus-tracked-application' in source
+    assert 'detail: { applicationId: application.application_id }' in source
+    assert 'openApplications(applicationByJobId.get(selected.silver_job_id))' in source
     assert ">Open Applications</button>" in source
 
 
@@ -61,3 +63,14 @@ def test_unlinked_application_status_is_explicitly_unknown_not_negative() -> Non
 
     assert ">Ungeklärt</span>" in source
     assert "nicht gleichbedeutend mit 'nicht beworben'" in source
+
+
+def test_application_status_cell_is_a_direct_read_only_drilldown() -> None:
+    source = _text(WORKSPACE)
+    styles = _text(STYLES)
+
+    assert "ow-application-status linked" in source
+    assert "event.stopPropagation()" in source
+    assert "Klicken, um die Bewerbung zu öffnen." in source
+    assert ".ow-application-status.linked" in styles
+    assert "record_operator_confirmed_submission" not in source
