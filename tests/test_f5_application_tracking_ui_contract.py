@@ -76,3 +76,15 @@ def test_application_tracking_can_focus_exact_application_from_all_jobs() -> Non
     assert "scrollIntoView" in tracking
     assert 'focusApplicationId === application.application_id ? " focused" : ""' in tracking
     assert ".f5-application-list>article.focused" in styles
+
+
+def test_application_tracking_reuses_exact_projected_link_for_reverse_navigation() -> None:
+    tracking = _text(TRACKING)
+    styles = _text(STYLES)
+
+    assert "tracking?.job_linkage?.exact_matches" in tracking
+    assert "projectedJobByApplicationId" in tracking
+    assert "projectedLink" in tracking
+    assert "Exakt read-only einem JAP-Job zugeordnet" in tracking
+    assert "In All jobs öffnen ↔" in tracking
+    assert ".f5-open-linked-job" in styles
