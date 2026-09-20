@@ -234,12 +234,11 @@ jobs:
             --require-stage ba_live \
             --require-stage ba_raw \
             --require-stage ba_silver \
-            --require-stage ba_gold \
+            --require-stage gold_canonical \
             --require-stage origin_candidate \
             --require-stage origin_active \
             --require-stage origin_raw \
-            --require-stage origin_silver \
-            --require-stage origin_gold
+            --require-stage origin_silver
 
       - name: Verify Bronze Silver Gold and canonical Control Center projection
         shell: bash

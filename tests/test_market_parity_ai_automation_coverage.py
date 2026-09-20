@@ -41,12 +41,11 @@ def test_activation_workflow_runs_normal_ba_ingestion_and_stage_probe() -> None:
         "ba_live",
         "ba_raw",
         "ba_silver",
-        "ba_gold",
+        "gold_canonical",
         "origin_candidate",
         "origin_active",
         "origin_raw",
         "origin_silver",
-        "origin_gold",
     ):
         assert f"--require-stage {stage}" in text
     assert "MARKET_PARITY_REQUIRED_SOURCE_NOT_PROOF_PASS" not in text

@@ -19,6 +19,7 @@ STAGES = (
     "ba_raw",
     "ba_silver",
     "ba_gold",
+    "gold_canonical",
     "origin_candidate",
     "origin_active",
     "origin_raw",
@@ -107,9 +108,12 @@ def _flat_matches(
 
 
 def _relation_exists(cur: Any, relation: str) -> bool:
-    cur.execute("SELECT to_regclass(%s) IS NOT NULL", (f"public.{relation}",))
+    cur.execute(
+        "SELECT to_regclass(%s) IS NOT NULL AS relation_exists",
+        (f"public.{relation}",),
+    )
     row = cur.fetchone()
-    return bool(row and row[0])
+    return bool(row and row["relation_exists"])
 
 
 def load_database_state(
@@ -192,11 +196,11 @@ def load_database_state(
                     SELECT silver_job_id, source_name, source_url, title, company_name,
                            product_readiness_status
                     FROM gold_product_v1_job_readiness
-                    WHERE source_name IN (%s, %s)
+                    WHERE company_name ILIKE %s
                     ORDER BY silver_job_id DESC
                     LIMIT 2000
                     """,
-                    (BA_SOURCE, origin_source),
+                    (f"%{expected_company}%",),
                 )
                 gold_rows = [dict(row) for row in cur.fetchall()]
 
@@ -238,6 +242,12 @@ def load_database_state(
         expected_title=expected_title,
         require_company=False,
     )
+    gold_canonical = _flat_matches(
+        gold_rows,
+        expected_company=expected_company,
+        expected_title=expected_title,
+        require_company=True,
+    )
 
     profile = SearchProfile(
         id=int(profile_row["id"]),
@@ -269,6 +279,7 @@ def load_database_state(
         "ba_silver": ba_silver,
         "origin_silver": origin_silver,
         "ba_gold": ba_gold,
+        "gold_canonical": gold_canonical,
         "origin_gold": origin_gold,
     }, profile
 
