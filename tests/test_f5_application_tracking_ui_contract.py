@@ -107,3 +107,10 @@ def test_reverse_navigation_never_opens_wrong_job_outside_current_view() -> None
     assert "linkedJobVisible" in tracking
     assert "liegt aber außerhalb der aktuellen All-jobs-Sicht" in tracking
     assert ".f5-linked-job-outside-view" in styles
+
+
+def test_manual_application_selection_updates_shared_operator_state() -> None:
+    tracking = _text(TRACKING)
+
+    assert "onSelectApplication?: (applicationId: number) => void" in tracking
+    assert "onSelectApplication?.(applicationId)" in tracking
