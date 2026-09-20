@@ -306,9 +306,15 @@ def ba_matches(
     *,
     expected_company: str,
     expected_title: str,
+    expected_external_job_id: str | None = None,
 ) -> list[Any]:
     result = []
     for record in records:
+        if (
+            expected_external_job_id
+            and str(record.external_job_id or "") != expected_external_job_id
+        ):
+            continue
         job = record.raw_data.get("job")
         if not isinstance(job, dict):
             continue
@@ -322,16 +328,25 @@ def ba_matches(
 
 def _print_stage(name: str, rows: list[Any]) -> None:
     print(f"PIPELINE_STAGE={name}|present={str(bool(rows)).lower()}|count={len(rows)}")
-    if rows:
-        first = rows[0]
-        if isinstance(first, dict):
-            print(
-                f"PIPELINE_STAGE_FIRST={name}|"
-                f"id={first.get('id') or first.get('silver_job_id') or first.get('candidate_id') or '-'}|"
-                f"source={first.get('source_name') or '-'}|"
-                f"title={first.get('title') or '-'}|"
-                f"url={first.get('source_url') or first.get('candidate_url') or first.get('origin_url') or '-'}"
-            )
+    if not rows:
+        return
+    first = rows[0]
+    if isinstance(first, dict):
+        print(
+            f"PIPELINE_STAGE_FIRST={name}|"
+            f"id={first.get('id') or first.get('silver_job_id') or first.get('candidate_id') or '-'}|"
+            f"source={first.get('source_name') or '-'}|"
+            f"title={first.get('title') or '-'}|"
+            f"url={first.get('source_url') or first.get('candidate_url') or first.get('origin_url') or '-'}"
+        )
+        return
+    print(
+        f"PIPELINE_STAGE_FIRST={name}|"
+        f"id={getattr(first, 'external_job_id', None) or '-'}|"
+        f"source={getattr(first, 'source_name', None) or '-'}|"
+        "title=-|"
+        f"url={getattr(first, 'source_url', None) or '-'}"
+    )
 
 
 def main() -> int:
@@ -365,6 +380,7 @@ def main() -> int:
             records,
             expected_company=args.expected_company,
             expected_title=args.expected_title,
+            expected_external_job_id=args.ba_external_job_id,
         )
 
     stages: dict[str, list[Any]] = {
