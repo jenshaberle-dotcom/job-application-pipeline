@@ -45,8 +45,8 @@ def test_doc001k_current_repository_has_complete_adr_status_table() -> None:
     report = build_adr_rebaseline_report(ROOT)
 
     assert report.status == "pass"
-    assert report.adr_file_count == 34
-    assert report.table_row_count == 34
+    assert report.adr_file_count == 35
+    assert report.table_row_count == 35
     assert report.missing_table_rows == []
     assert report.extra_table_rows == []
     assert report.invalid_doc_statuses == []
