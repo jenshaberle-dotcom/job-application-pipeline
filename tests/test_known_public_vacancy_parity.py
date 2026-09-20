@@ -12,7 +12,7 @@ def _record(*, title: str, employer: str):
     )
 
 
-def test_market_parity_text_matching_is_punctuation_insensitive() -> None:
+def test_market_probe_text_matching_is_punctuation_insensitive() -> None:
     assert normalize("AI Automation Architect – Software Development Lifecycle") == (
         "ai automation architect software development lifecycle"
     )

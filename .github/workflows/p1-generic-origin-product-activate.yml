@@ -16,6 +16,7 @@ on:
       - "scripts/run_daily_pipeline.sh"
       - "src/config.py"
       - "src/connectors/generic_employer_origin.py"
+      - "src/connectors/bundesagentur.py"
       - "src/connectors/generic_employer_origin_product.py"
       - "src/connectors/generic_job_detail_evidence.py"
       - "src/connectors/registry.py"
@@ -169,9 +170,6 @@ jobs:
           keys = payload.get("proof_pass_company_keys", [])
           if not keys:
               raise SystemExit("GENERIC_PROOF_PASS_COHORT_EMPTY")
-          if "hornetsecurity" not in keys:
-              raise SystemExit("MARKET_PARITY_REQUIRED_SOURCE_NOT_PROOF_PASS:hornetsecurity")
-          print("MARKET_PARITY_REQUIRED_SOURCE=hornetsecurity|proof=PASS")
           print(f"GENERIC_MAIN_CANDIDATES={payload['summary']['candidate_count']}")
           print(f"GENERIC_MAIN_PROOF_PASS={len(keys)}")
           for key in keys:
@@ -208,13 +206,21 @@ jobs:
             --source generic_origin \
             --log-level INFO
 
+      - name: Run configured BA market-sensor profile through normal Bronze ingestion
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m src.ingest_jobs \
+            --profile ba_data_engineer_30629_50km \
+            --log-level INFO
+
       - name: Run unchanged normal Silver transformation
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" -m src.run_silver_jobs
 
-      - name: Verify known public vacancy parity across active origin and BA sensor
+      - name: Verify target vacancy traversed the normal BA and Employer-Origin paths
         shell: bash
         run: |
           set -euo pipefail
@@ -223,7 +229,17 @@ jobs:
             --expected-company "Hornetsecurity" \
             --expected-title "AI Automation Architect Software Development Lifecycle" \
             --ba-profile-name ba_data_engineer_30629_50km \
-            --ba-search-term "AI Automation Architect"
+            --ba-search-term "AI Automation Architect" \
+            --live-ba \
+            --require-stage ba_live \
+            --require-stage ba_raw \
+            --require-stage ba_silver \
+            --require-stage ba_gold \
+            --require-stage origin_candidate \
+            --require-stage origin_active \
+            --require-stage origin_raw \
+            --require-stage origin_silver \
+            --require-stage origin_gold
 
       - name: Verify Bronze Silver Gold and canonical Control Center projection
         shell: bash
