@@ -16,12 +16,8 @@ concurrency:
 jobs:
   probe:
     name: Read-only BA query coverage
-    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
-    timeout-minutes: 15
-    env:
-      RCC_REPOSITORY_ID: "1230805345"
-      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
-      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
 
     steps:
       - name: Check out exact source
@@ -30,68 +26,67 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      - name: Resolve verified RCC runtime context
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: ""
+
+      - name: Install minimal connector dependencies
         shell: bash
         run: |
-          set -euo pipefail
-          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
-          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
-          import json
-          import sys
-          path, repo_id, repository, runner = sys.argv[1:]
-          with open(path, encoding="utf-8") as handle:
-              context = json.load(handle)
-          if context.get("RepositoryId") != int(repo_id):
-              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
-          if context.get("Repository") != repository:
-              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
-          if context.get("RunnerName") != runner:
-              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
-          if context.get("Status") != "PASS":
-              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
-          print(context["Interpreter"])
-          print(context["EnvFile"])
-          PY
-          )"
-          mapfile -t values <<< "$context_output"
-          test "${#values[@]}" -eq 2
-          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
-          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          python -m pip install --disable-pip-version-check --no-input             requests python-dotenv
 
       - name: Probe normal BA keyword families read-only
         shell: bash
         run: |
           set -euo pipefail
-          set -a
-          # shellcheck disable=SC1090
-          source "$RUNTIME_ENV_FILE"
-          set +a
-          export PGOPTIONS="-c default_transaction_read_only=on"
+          python - <<'PY'
+          from src.connectors.base import SearchProfile, SearchTerm
+          from src.connectors.bundesagentur import BundesagenturConnector
 
-          terms=(
-            "AI Automation Architect"
-            "AI Automation"
-            "AI Architect"
-            "Automation Architect"
-            "SDLC"
-            "Software Development Lifecycle"
-            "AI"
-            "Automation"
+          profile = SearchProfile(
+              id=0,
+              profile_name="ba_data_engineer_30629_50km",
+              source_name="bundesagentur_fuer_arbeit",
+              search_location="30629",
+              search_radius_km=50,
+              offer_type=1,
+              page_size=10,
+          )
+          expected = "10001-1003339347-S"
+          terms = (
+              "AI Automation Architect",
+              "AI Automation",
+              "AI Architect",
+              "Automation Architect",
+              "SDLC",
+              "Software Development Lifecycle",
+              "AI",
+              "Automation",
           )
 
-          found=0
-          for term in "${terms[@]}"; do
-            echo "=== BA_QUERY_FAMILY=$term ==="
-            output="$("$RUNTIME_PYTHON" -m scripts.run_known_public_vacancy_parity               --company-key hornetsecurity               --expected-company "Hornetsecurity"               --expected-title "AI Automation Architect Software Development Lifecycle"               --ba-profile-name ba_data_engineer_30629_50km               --ba-search-term "$term"               --ba-external-job-id "10001-1003339347-S"               --live-ba)"
-            printf '%s\n' "$output" | grep -E '^(PIPELINE_STAGE=ba_live|PIPELINE_STAGE_FIRST=ba_live|BA_LIVE_REQUEST=|DATABASE_WRITES=)'
-            if grep -q '^PIPELINE_STAGE=ba_live|present=true|' <<< "$output"; then
-              found=1
-              echo "BA_QUERY_COVERAGE=FOUND|term=$term"
-              break
-            fi
-          done
+          found = None
+          for term in terms:
+              records, request_url = BundesagenturConnector().fetch_jobs(
+                  profile,
+                  SearchTerm(term),
+              )
+              ids = {str(record.external_job_id or "") for record in records}
+              hit = expected in ids
+              print(
+                  "BA_QUERY_FAMILY="
+                  f"{term}|records={len(records)}|target={str(hit).lower()}|"
+                  f"request={request_url}"
+              )
+              if hit:
+                  found = term
+                  break
 
-          if [ "$found" -ne 1 ]; then
-            echo "BA_QUERY_COVERAGE=MISSING"
-            exit 3
-          fi
+          print("GMAIL_WRITES=0")
+          print("DATABASE_WRITES=0")
+          if found is None:
+              print("BA_QUERY_COVERAGE=MISSING")
+              raise SystemExit(3)
+          print(f"BA_QUERY_COVERAGE=FOUND|term={found}")
+          PY
