@@ -38,7 +38,7 @@ MAX_BODY_BYTES = 5_000_000
 DEFAULT_PAGE_SIZE = 20
 DEFAULT_PAGE_CAP = 3
 DEFAULT_JOB_CAP = 30
-DEFAULT_FINITE_INVENTORY_DETAIL_CAP = 24
+DEFAULT_FINITE_INVENTORY_DETAIL_CAP = 60
 
 _KEYWORD_FIELD_EXACT = frozenset({"q", "query", "keyword", "keywords", "search", "searchtext"})
 _KEYWORD_FIELD_MARKERS = ("keyword", "search", "query", "job", "position", "vacan", "stellen")
