@@ -68,3 +68,85 @@ def test_bundesagentur_keeps_refnr_compatibility_in_payload_shape() -> None:
 
     assert records[0].external_job_id == "10001-legacy-S"
     assert records[0].source_url == "https://example.org/jobs/legacy"
+
+
+
+def test_bundesagentur_pages_until_short_page_and_deduplicates() -> None:
+    profile = SearchProfile(
+        id=1,
+        profile_name="ba-demo",
+        source_name="bundesagentur_fuer_arbeit",
+        search_location="30629",
+        search_radius_km=50,
+        offer_type=1,
+        page_size=2,
+    )
+
+    page1 = Mock()
+    page1.url = "https://example.test/ba?page=1"
+    page1.json.return_value = {
+        "stellenangebote": [
+            {"referenznummer": "10001-a-S", "titel": "Role A"},
+            {"referenznummer": "10001-b-S", "titel": "Role B"},
+        ]
+    }
+    page2 = Mock()
+    page2.url = "https://example.test/ba?page=2"
+    page2.json.return_value = {
+        "stellenangebote": [
+            {"referenznummer": "10001-b-S", "titel": "Role B duplicate"},
+        ]
+    }
+
+    with patch(
+        "src.connectors.bundesagentur.requests.get",
+        side_effect=[page1, page2],
+    ) as get:
+        records, request_url = BundesagenturConnector().fetch_jobs(
+            profile,
+            SearchTerm("AI Automation Architect"),
+        )
+
+    assert get.call_count == 2
+    assert get.call_args_list[0].kwargs["params"]["page"] == 1
+    assert get.call_args_list[1].kwargs["params"]["page"] == 2
+    assert [record.external_job_id for record in records] == [
+        "10001-a-S",
+        "10001-b-S",
+    ]
+    assert records[0].raw_data["search_profile"]["page"] == 1
+    assert request_url == page1.url
+
+
+def test_bundesagentur_pagination_is_bounded_by_connector_cap() -> None:
+    profile = SearchProfile(
+        id=1,
+        profile_name="ba-demo",
+        source_name="bundesagentur_fuer_arbeit",
+        search_location="30629",
+        search_radius_km=50,
+        offer_type=1,
+        page_size=1,
+    )
+    responses = []
+    for page in range(1, BundesagenturConnector.max_pages + 1):
+        response = Mock()
+        response.url = f"https://example.test/ba?page={page}"
+        response.json.return_value = {
+            "stellenangebote": [
+                {"referenznummer": f"10001-{page}-S", "titel": f"Role {page}"}
+            ]
+        }
+        responses.append(response)
+
+    with patch(
+        "src.connectors.bundesagentur.requests.get",
+        side_effect=responses,
+    ) as get:
+        records, _ = BundesagenturConnector().fetch_jobs(
+            profile,
+            SearchTerm("AI"),
+        )
+
+    assert get.call_count == BundesagenturConnector.max_pages
+    assert len(records) == BundesagenturConnector.max_pages

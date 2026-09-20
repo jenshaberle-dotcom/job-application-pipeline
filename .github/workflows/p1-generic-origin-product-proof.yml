@@ -21,6 +21,7 @@ on:
       - "scripts/run_f4c_source_health_reconciliation.py"
       - "scripts/run_product_v1_demo_control_center.py"
       - "src/connectors/generic_employer_origin.py"
+      - "src/connectors/bundesagentur.py"
       - "src/connectors/generic_employer_origin_product.py"
       - "src/connectors/generic_job_detail_evidence.py"
       - "src/ingestion/generic_origin_bronze_admission.py"
@@ -41,6 +42,7 @@ on:
       - "tests/test_generic_origin_product_activation_contract.py"
       - "tests/test_generic_origin_source_overview_truth.py"
       - "tests/test_connector_registry.py"
+      - "tests/test_bundesagentur_connector.py"
 
 permissions:
   contents: read
@@ -166,6 +168,7 @@ jobs:
             tests/test_generic_origin_product_activation_contract.py \
             tests/test_generic_origin_source_overview_truth.py \
             tests/test_connector_registry.py \
+            tests/test_bundesagentur_connector.py \
             tests/test_known_public_vacancy_parity.py
 
       - name: Diagnose current persisted and live market path read-only
