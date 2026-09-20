@@ -7,7 +7,9 @@ on:
       - ".github/workflows/p1-generic-origin-product-activate.yml"
       - "requirements.txt"
       - "db/migrations/107_create_generic_employer_origin_active_sources.sql"
+      - "db/migrations/115_expand_ai_automation_market_coverage.sql"
       - "scripts/run_generic_employer_origin_product.py"
+      - "scripts/run_known_public_vacancy_parity.py"
       - "scripts/qualify_generic_employer_origin_connectors.py"
       - "scripts/apply_generic_employer_origin_activation.py"
       - "scripts/ensure_pinned_local_oss_runtime.sh"
@@ -39,7 +41,7 @@ jobs:
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       PRODUCT_OUTPUT: /tmp/jap-generic-employer-origin-product-main.json
-      GENERIC_MIGRATION: 107_create_generic_employer_origin_active_sources.sql
+      MARKET_PARITY_MIGRATION: 115_expand_ai_automation_market_coverage.sql
 
     steps:
       - name: Check out exact main commit
@@ -134,19 +136,19 @@ jobs:
           set +a
           env | grep '^POSTGRES_' | sed 's/=.*$/=<set>/'
 
-      - name: Ensure sole generic active-source projection migration
+      - name: Ensure current market-parity source and vocabulary migration
         shell: bash
         run: |
           set -euo pipefail
           status="$("$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status)"
           printf '%s\n' "$status"
           if grep -q '^pending_migrations: 0$' <<< "$status"; then
-            echo "GENERIC_MIGRATION_ALREADY_CURRENT=1"
+            echo "MARKET_PARITY_MIGRATION_ALREADY_CURRENT=1"
           else
             "$RUNTIME_PYTHON" -m scripts.apply_db_migrations \
-              --apply-exact "$GENERIC_MIGRATION" \
+              --apply-exact "$MARKET_PARITY_MIGRATION" \
               --require-sole-pending \
-              --applied-by "p1-generic-origin-main-${GITHUB_RUN_ID}"
+              --applied-by "market-parity-main-${GITHUB_RUN_ID}"
           fi
           status="$("$RUNTIME_PYTHON" -m scripts.apply_db_migrations --status)"
           printf '%s\n' "$status"
@@ -167,6 +169,9 @@ jobs:
           keys = payload.get("proof_pass_company_keys", [])
           if not keys:
               raise SystemExit("GENERIC_PROOF_PASS_COHORT_EMPTY")
+          if "hornetsecurity" not in keys:
+              raise SystemExit("MARKET_PARITY_REQUIRED_SOURCE_NOT_PROOF_PASS:hornetsecurity")
+          print("MARKET_PARITY_REQUIRED_SOURCE=hornetsecurity|proof=PASS")
           print(f"GENERIC_MAIN_CANDIDATES={payload['summary']['candidate_count']}")
           print(f"GENERIC_MAIN_PROOF_PASS={len(keys)}")
           for key in keys:
@@ -208,6 +213,17 @@ jobs:
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" -m src.run_silver_jobs
+
+      - name: Verify known public vacancy parity across active origin and BA sensor
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m scripts.run_known_public_vacancy_parity \
+            --company-key hornetsecurity \
+            --expected-company "Hornetsecurity" \
+            --expected-title "AI Automation Architect Software Development Lifecycle" \
+            --ba-profile-name ba_data_engineer_30629_50km \
+            --ba-search-term "AI Automation Architect"
 
       - name: Verify Bronze Silver Gold and canonical Control Center projection
         shell: bash
