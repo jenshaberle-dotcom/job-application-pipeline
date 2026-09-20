@@ -9,21 +9,28 @@ def read(name: str) -> str:
     return (SRC / name).read_text(encoding="utf-8")
 
 
-def test_initial_demo_components_share_one_product_truth_client() -> None:
-    operator = read("OperatorWorkspace.tsx")
-    polish = read("DemoProductPolish.tsx")
-    application = read("DemoApplicationWorkspace.tsx")
-    evidence = read("EvidencePreviewPanel.tsx")
+def test_control_center_loads_product_truth_once_and_distributes_snapshot() -> None:
+    main = read("main.tsx")
+    context = read("ProductTruthContext.tsx")
+    consumers = {
+        "OperatorWorkspace.tsx": read("OperatorWorkspace.tsx"),
+        "DemoProductPolish.tsx": read("DemoProductPolish.tsx"),
+        "DemoApplicationWorkspace.tsx": read("DemoApplicationWorkspace.tsx"),
+        "EvidencePreviewPanel.tsx": read("EvidencePreviewPanel.tsx"),
+        "F4cSourceHealthSurface.tsx": read("F4cSourceHealthSurface.tsx"),
+        "JobReviewLabelControls.tsx": read("JobReviewLabelControls.tsx"),
+    }
 
-    assert "readProductTruth<ProductPayload>()" in operator
-    assert "readProductTruth<PolishPayload>()" in polish
-    assert "readProductTruth<ProductTruth>()" in application
-    assert "readProductTruth<ProductPayload>()" in evidence
+    assert 'import { ProductTruthProvider } from "./ProductTruthContext";' in main
+    assert "<ProductTruthProvider>" in main
+    assert "readProductTruth<unknown>()" in context
+    assert 'readProductTruth<unknown>({ fresh: true })' in context
+    assert "refreshProductTruth" in context
 
-    assert 'fetch("/api/v1/product-v1"' not in operator
-    assert 'fetch("/api/v1/product-v1"' not in polish
-    assert 'readJson<ProductTruth>("/api/v1/product-v1")' not in application
-    assert 'fetch("/api/v1/product-v1"' not in evidence
+    for name, source in consumers.items():
+        assert 'from "./ProductTruthContext"' in source, name
+        assert "readProductTruth" not in source, name
+        assert 'fetch("/api/v1/product-v1"' not in source, name
 
 
 def test_demo_polish_does_not_watch_whole_document_mutations() -> None:
