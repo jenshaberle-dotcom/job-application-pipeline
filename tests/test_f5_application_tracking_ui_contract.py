@@ -64,3 +64,15 @@ def test_application_tracking_defaults_to_compact_rows_with_individual_and_globa
     assert 'aria-expanded={expanded}' in tracking
     assert ".f5-compact-row" in styles
     assert ".f5-expanded-body" in styles
+
+
+def test_application_tracking_can_focus_exact_application_from_all_jobs() -> None:
+    tracking = _text(TRACKING)
+    styles = _text(STYLES)
+
+    assert "focusApplicationId" in tracking
+    assert 'setFilter("all")' in tracking
+    assert "f5-application-\${focusApplicationId}" in tracking
+    assert "scrollIntoView" in tracking
+    assert 'focusApplicationId === application.application_id ? " focused" : ""' in tracking
+    assert ".f5-application-list>article.focused" in styles
