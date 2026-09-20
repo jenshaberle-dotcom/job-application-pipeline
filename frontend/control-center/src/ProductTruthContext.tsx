@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { readProductTruth } from "./productPayloadRuntimeAdapter";
 
 type ProductTruthContextValue = {
@@ -14,6 +14,7 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
   const [payload, setPayload] = useState<unknown | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -31,18 +32,26 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const refreshProductTruth = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const truth = await readProductTruth<unknown>({ fresh: true });
-      setPayload(truth);
-      setError(null);
-    } catch (reason: unknown) {
-      setError(String(reason));
-      throw reason;
-    } finally {
-      setRefreshing(false);
-    }
+  const refreshProductTruth = useCallback(() => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+
+    const request = (async () => {
+      setRefreshing(true);
+      try {
+        const truth = await readProductTruth<unknown>({ fresh: true });
+        setPayload(truth);
+        setError(null);
+      } catch (reason: unknown) {
+        setError(String(reason));
+        throw reason;
+      } finally {
+        if (refreshInFlight.current === request) refreshInFlight.current = null;
+        setRefreshing(false);
+      }
+    })();
+
+    refreshInFlight.current = request;
+    return request;
   }, []);
 
   const value = useMemo<ProductTruthContextValue>(
