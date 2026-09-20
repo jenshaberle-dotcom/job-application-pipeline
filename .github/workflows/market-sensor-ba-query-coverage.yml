@@ -66,6 +66,47 @@ jobs:
               "Automation",
           )
 
+          import requests
+          from src.config import BA_API_KEY
+
+          raw = requests.get(
+              BundesagenturConnector.base_url,
+              params={
+                  "was": "AI",
+                  "wo": profile.search_location,
+                  "umkreis": profile.search_radius_km,
+                  "page": 1,
+                  "size": profile.page_size,
+                  "angebotsart": profile.offer_type,
+              },
+              headers={"X-API-Key": BA_API_KEY},
+              timeout=30,
+          )
+          raw.raise_for_status()
+          raw_payload = raw.json()
+          print("BA_RAW_TOP_LEVEL_KEYS=" + ",".join(sorted(raw_payload.keys())))
+          for key, value in raw_payload.items():
+              if isinstance(value, list):
+                  first_keys = (
+                      ",".join(sorted(value[0].keys()))
+                      if value and isinstance(value[0], dict)
+                      else "-"
+                  )
+                  print(
+                      f"BA_RAW_LIST={key}|count={len(value)}|first_keys={first_keys}"
+                  )
+              elif isinstance(value, dict):
+                  nested_lists = [
+                      f"{nested_key}:{len(nested_value)}"
+                      for nested_key, nested_value in value.items()
+                      if isinstance(nested_value, list)
+                  ]
+                  if nested_lists:
+                      print(
+                          f"BA_RAW_DICT_LISTS={key}|"
+                          + ",".join(nested_lists)
+                      )
+
           found = None
           for term in terms:
               records, request_url = BundesagenturConnector().fetch_jobs(
