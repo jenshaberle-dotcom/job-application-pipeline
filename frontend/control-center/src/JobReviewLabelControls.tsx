@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { readProductTruth } from "./productPayloadRuntimeAdapter";
+import { useEffect, useMemo, useState } from "react";
+import { useProductTruth } from "./ProductTruthContext";
 import "./review-labels.css";
 
 export const JOB_REVIEW_LABEL_ACTION_PATH = "/api/v1/product-v1/job-review-label";
@@ -238,31 +238,18 @@ export default function JobReviewLabelControls({
   captureAvailable,
   refreshProductTruth,
 }: Props) {
+  const { payload } = useProductTruth<ProductRequirementPayload>();
   const [submitting, setSubmitting] = useState<JobReviewLabelValue | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [job, setJob] = useState<JobRequirementTruth | null>(null);
-  const [requirementsError, setRequirementsError] = useState<string | null>(null);
+  const job = useMemo(() => {
+    const jobs = [...(payload?.job_readiness || []), ...(payload?.top_jobs || [])];
+    return jobs.find((item) => item.silver_job_id === silverJobId) || null;
+  }, [payload, silverJobId]);
+  const requirementsError = payload && !job ? "Job evidence is not present in Product truth." : null;
 
   useEffect(() => {
     setSubmitting(null);
     setMessage(null);
-    setJob(null);
-    setRequirementsError(null);
-    let cancelled = false;
-    readProductTruth<ProductRequirementPayload>()
-      .then((payload) => {
-        if (cancelled) return;
-        const jobs = [...(payload.job_readiness || []), ...(payload.top_jobs || [])];
-        const match = jobs.find((item) => item.silver_job_id === silverJobId) || null;
-        setJob(match);
-        if (!match) setRequirementsError("Job evidence is not present in Product truth.");
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setRequirementsError(String(reason));
-      });
-    return () => {
-      cancelled = true;
-    };
   }, [silverJobId]);
 
   const submit = async (label: JobReviewLabelValue) => {
