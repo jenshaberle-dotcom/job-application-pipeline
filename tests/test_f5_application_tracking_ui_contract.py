@@ -88,3 +88,12 @@ def test_application_tracking_reuses_exact_projected_link_for_reverse_navigation
     assert "Exakt read-only einem JAP-Job zugeordnet" in tracking
     assert "In All jobs öffnen ↔" in tracking
     assert ".f5-open-linked-job" in styles
+
+
+def test_manual_tracking_write_refreshes_shared_truth_without_page_reload() -> None:
+    tracking = _text(TRACKING)
+
+    assert "refreshProductTruth: () => Promise<void>" in tracking
+    assert "onRecorded={refreshProductTruth}" in tracking
+    assert "await onRecorded()" in tracking
+    assert "window.location.reload()" not in tracking
