@@ -292,11 +292,11 @@ def extract_embedded_detail_urls(
         return len(result) >= limit
 
     for match in re.finditer(
-        r"https?://[^\\s\\\"'<>]+",
+        r"""https?://[^\s"'<>]+""",
         decoded,
         flags=re.IGNORECASE,
     ):
-        raw = match.group(0).strip().strip("\\"'),;")
+        raw = match.group(0).strip().strip(chr(34) + chr(39) + "),;")
         candidate = canonical_url(raw.replace("&amp;", "&"))
         if allowed_host(candidate, allowed_hosts):
             if append_candidate(candidate):
@@ -312,17 +312,18 @@ def extract_embedded_detail_urls(
             return tuple(result)
 
     relative_pattern = (
-        r"(?<![A-Za-z0-9_-])/"
-        r"(?:job|jobs|stellenangebote|offene-stellen|stellen-finden|"
-        r"karriere/jobs|karriere/offene-stellen)/[^\\s\\\"'<>]+"
+        r"""(?<![A-Za-z0-9_-])/"""
+        r"""(?:job|jobs|stellenangebote|offene-stellen|stellen-finden|"""
+        r"""karriere/jobs|karriere/offene-stellen)/[^\s"'<>]+"""
     )
     for match in re.finditer(relative_pattern, decoded, flags=re.IGNORECASE):
-        raw = match.group(0).strip().strip("\\"'),;")
+        raw = match.group(0).strip().strip(chr(34) + chr(39) + "),;")
         candidate = canonical_url(urljoin(base_url, raw.replace("&amp;", "&")))
         if append_candidate(candidate):
             return tuple(result)
 
     return tuple(result)
+
 
 def looks_like_listing_navigation(url: str, anchor_text: str) -> bool:
     if non_job_url(url) or job_detail_url_shape(url):
