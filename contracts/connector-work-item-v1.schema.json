@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jap.local/contracts/connector-work-item-v1.schema.json",
+  "title": "JAP Connector Work Item v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "work_id",
+    "pipeline_sha",
+    "profile_id",
+    "profile_name",
+    "source_name",
+    "source_role",
+    "scheduled_for_utc",
+    "attempt"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "jap.connector_work_item.v1"
+    },
+    "work_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pipeline_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "profile_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "profile_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "source_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "source_role": {
+      "enum": ["sensor", "employer_origin"]
+    },
+    "scheduled_for_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10
+    }
+  }
+}
