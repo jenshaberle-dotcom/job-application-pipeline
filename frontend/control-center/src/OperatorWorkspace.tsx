@@ -441,6 +441,15 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
     filtered[0] ||
     null;
 
+  const openApplications = (application?: LinkedApplication) => {
+    if (typeof application?.application_id === "number") {
+      window.dispatchEvent(new CustomEvent("product-v1:focus-tracked-application", {
+        detail: { applicationId: application.application_id },
+      }));
+    }
+    onNavigate("applications");
+  };
+
   const counts: Record<JobFilter, number> = {
     current: payload.job_readiness.filter(isCurrent).length,
     unreviewed: payload.job_readiness.filter((job) => !job.review_label).length,
@@ -593,10 +602,14 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
 
             {applicationByJobId.get(job.silver_job_id)
               ? <span
-                  className={`ow-application-status ${applicationByJobId.get(job.silver_job_id)?.effective_stage}`}
+                  className={`ow-application-status linked ${applicationByJobId.get(job.silver_job_id)?.effective_stage}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openApplications(applicationByJobId.get(job.silver_job_id));
+                  }}
                   title={applicationByJobId.get(job.silver_job_id)?.linkage_status === "exact_projected"
-                    ? "Exakt aus Mailbox-Evidence zu diesem JAP-Job zugeordnet; DB-Link noch nicht persistiert."
-                    : "Persistierte Application-Verknüpfung."}
+                    ? "Exakt aus Mailbox-Evidence zu diesem JAP-Job zugeordnet; DB-Link noch nicht persistiert. Klicken, um die Bewerbung zu öffnen."
+                    : "Persistierte Application-Verknüpfung. Klicken, um die Bewerbung zu öffnen."}
                 >
                   {applicationStageLabel[applicationByJobId.get(job.silver_job_id)!.effective_stage]}
                 </span>
@@ -612,7 +625,7 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
       </div>
 
       {selected
-        ? <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} onOpenApplications={() => onNavigate("applications")} />
+        ? <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} onOpenApplications={() => openApplications(applicationByJobId.get(selected.silver_job_id))} />
         : <aside className="ow-job-detail">
             <p className="ow-empty">Select a job.</p>
           </aside>}
