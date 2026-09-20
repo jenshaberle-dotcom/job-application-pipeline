@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { readProductTruth } from "./productPayloadRuntimeAdapter";
+import { useProductTruth } from "./ProductTruthContext";
 import "./evidence-preview.css";
 
 type Job = {
@@ -60,38 +60,28 @@ const hoursLabel = (minimum?: number | null, maximum?: number | null) => {
 };
 
 export default function EvidencePreviewPanel() {
+  const { payload } = useProductTruth<ProductPayload>();
   const [open, setOpen] = useState(false);
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const jobs = useMemo(
+    () => [...(payload?.job_readiness || [])].sort(
+      (left, right) => left.silver_job_id - right.silver_job_id
+    ),
+    [payload?.job_readiness],
+  );
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
-  const [loadingJobs, setLoadingJobs] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || jobs.length > 0 || loadingJobs) return;
-    let cancelled = false;
-    setLoadingJobs(true);
-    setError(null);
-    readProductTruth<ProductPayload>()
-      .then((payload) => {
-        if (cancelled) return;
-        const loaded = [...(payload.job_readiness || [])].sort(
-          (left, right) => left.silver_job_id - right.silver_job_id
-        );
-        setJobs(loaded);
-        if (loaded.length > 0) setSelectedId(loaded[0].silver_job_id);
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingJobs(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, jobs.length, loadingJobs]);
+    if (jobs.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    if (selectedId == null || !jobs.some((job) => job.silver_job_id === selectedId)) {
+      setSelectedId(jobs[0].silver_job_id);
+    }
+  }, [jobs, selectedId]);
 
   const selected = useMemo(
     () => jobs.find((job) => job.silver_job_id === selectedId) || null,
@@ -152,7 +142,7 @@ export default function EvidencePreviewPanel() {
               <span>Silver job</span>
               <select
                 value={selectedId ?? ""}
-                disabled={loadingJobs || jobs.length === 0}
+                disabled={jobs.length === 0}
                 onChange={(event) => {
                   setSelectedId(Number(event.target.value));
                   setPreview(null);
@@ -179,7 +169,6 @@ export default function EvidencePreviewPanel() {
             </div>
           )}
 
-          {loadingJobs && <p className="preview-message">Loading current Silver/readiness jobs…</p>}
           {error && <p className="preview-message preview-error">{error}</p>}
 
           {preview?.status === "preview_ready" && preview.assessment && preview.ranking && (

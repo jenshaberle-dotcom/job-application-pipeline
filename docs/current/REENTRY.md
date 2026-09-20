@@ -234,9 +234,29 @@ The operator confirms the corrected warning semantics, status clustering and ric
 
 Target release is `v1.0.41`.
 
+### v1.0.42 final operator-linkage architecture — ACTIVE / PR #941
+
+The v1.0.41 operator check exposed two separate completion items: current All-jobs warning density regressed after the Application column was inserted, and the job/application navigation remained a loose UI handoff rather than one coherent application state.
+
+PR #941 / v1.0.42 now keeps these boundaries explicit:
+
+- required/unknown/insufficient evidence is neutral pending presentation; stale/ambiguous/unsure remains amber and failed/blocked/rejected remains red;
+- safe mailbox->Silver reconciliation remains read-only; unresolved linkage remains `Ungeklärt` rather than being treated as a negative application fact;
+- Jobs and Applications consume one centrally owned Product-truth snapshot distributed inside the React application;
+- refresh is owned by one ProductTruth provider and concurrent refresh requests are deduplicated;
+- F4C, review controls, application preparation support and evidence preview no longer maintain independent Product-truth read/update paths;
+- Jobs -> Applications uses persistent application state (`selectedApplicationId`) rather than a one-shot browser event;
+- Applications -> Jobs uses the same application/Silver identity, including exact projected linkage, and navigates back only when that Silver job is actually present in the current All-jobs snapshot;
+- a linked historical/stale job outside the current review scope is shown as such and never redirects to an unrelated visible row;
+- the manual tracking fallback refreshes the shared Product truth after its explicit write instead of reloading the page.
+
+The current live reconciliation still has exactly one deterministic HDI -> Silver #2 match, and that job remains outside the current Employer-Origin All-jobs review scope. Therefore bidirectional navigation is implemented generically but correctly fails closed for that historical live case.
+
+No DB link persistence, Gmail action, automatic submission, authoritative lifecycle mutation, or second application-status heuristic is introduced.
+
 ## Sole next action
 
-Qualify, merge, release and install v1.0.41, then perform one interactive operator check of compact Applications and the All-jobs Application column/filter. No application/lifecycle mutation is part of this gate.
+Exact-head qualify PR #941, merge, release and install v1.0.42, then perform one interactive operator acceptance of the shared-snapshot behavior, warning density, Applications portfolio, and bidirectional Jobs <-> Applications navigation. No application/lifecycle mutation is part of this gate.
 
 ## F6 — queued
 

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { readProductTruth } from "./productPayloadRuntimeAdapter";
+import { useProductTruth } from "./ProductTruthContext";
 import "./f4c-source-health-surface.css";
 
 type SourceScan = {
@@ -140,22 +140,10 @@ function disappearedText(delivery?: SourceDelivery) {
 }
 
 export default function F4cSourceHealthSurface() {
-  const [payload, setPayload] = useState<ProductPayload | null>(null);
+  const { payload } = useProductTruth<ProductPayload>();
   const [selectedName, setSelectedName] = useState("");
   const [detailRoot, setDetailRoot] = useState<HTMLElement | null>(null);
   const [summaryRoot, setSummaryRoot] = useState<HTMLElement | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setPayload(await readProductTruth<ProductPayload>({ fresh: true }));
-    } catch {
-      setPayload(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   useEffect(() => {
     let cancelled = false;
@@ -200,17 +188,6 @@ export default function F4cSourceHealthSurface() {
       observer.disconnect();
     };
   }, []);
-
-  useEffect(() => {
-    const listener = (event: MouseEvent) => {
-      const target = event.target as Element | null;
-      const button = target?.closest<HTMLButtonElement>(".ow-topline button");
-      if (!button) return;
-      window.setTimeout(() => void load(), 100);
-    };
-    document.addEventListener("click", listener);
-    return () => document.removeEventListener("click", listener);
-  }, [load]);
 
   const summary = payload?.source_connector_overview.summary;
   const source = payload?.source_connector_overview.sources.find(

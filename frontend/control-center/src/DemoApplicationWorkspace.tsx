@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { readProductTruth } from "./productPayloadRuntimeAdapter";
+import { useProductTruth } from "./ProductTruthContext";
 import "./demo-application-workspace.css";
 import "./application-package-downloads.css";
 
@@ -177,9 +177,13 @@ function downloadLabel(file: DraftFile) {
 }
 
 export default function DemoApplicationWorkspace() {
+  const { payload: productTruth } = useProductTruth<ProductTruth>();
   const [open, setOpen] = useState(false);
-  const [topJobs, setTopJobs] = useState<TopJob[]>([]);
-  const [sourceReadiness, setSourceReadiness] = useState<ProductTruth["application_sources_ready"]>({});
+  const topJobs = useMemo(
+    () => Array.isArray(productTruth?.top_jobs) ? productTruth.top_jobs.slice(0, 5) : [],
+    [productTruth?.top_jobs],
+  );
+  const sourceReadiness = productTruth?.application_sources_ready || {};
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<ApplicationWorkspacePayload | null>(null);
   const [draft, setDraft] = useState<DraftPayload | null>(null);
@@ -188,20 +192,14 @@ export default function DemoApplicationWorkspace() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true;
-    readProductTruth<ProductTruth>()
-      .then((payload) => {
-        if (!active) return;
-        const jobs = Array.isArray(payload.top_jobs) ? payload.top_jobs.slice(0, 5) : [];
-        setTopJobs(jobs);
-        setSourceReadiness(payload.application_sources_ready || {});
-        setSelectedId(jobs[0]?.silver_job_id ?? null);
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(String(reason));
-      });
-    return () => { active = false; };
-  }, []);
+    if (topJobs.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    if (selectedId == null || !topJobs.some((job) => job.silver_job_id === selectedId)) {
+      setSelectedId(topJobs[0].silver_job_id);
+    }
+  }, [selectedId, topJobs]);
 
   useEffect(() => {
     if (!open || selectedId == null) return;

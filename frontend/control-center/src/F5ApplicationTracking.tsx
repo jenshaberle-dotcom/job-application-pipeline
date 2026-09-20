@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./f5-application-tracking.css";
 
 export type F5TrackingJob = {
@@ -71,6 +71,20 @@ export type F5ProductPayload = {
       stage_counts: Record<string, number>;
     };
     applications: TrackedApplication[];
+    job_linkage?: {
+      read_only: boolean;
+      exact_matches: Array<{
+        application_id?: number;
+        silver_job_id?: number | null;
+        effective_stage?: Stage;
+        linkage_status?: string;
+        linkage_basis?: string;
+      }>;
+      exact_match_count: number;
+      unresolved_count: number;
+      database_writes: number;
+      authoritative_lifecycle_mutations: number;
+    };
     unmatched_evidence_candidates: EvidenceCandidate[];
     boundaries: Record<string, boolean>;
   };
@@ -126,7 +140,7 @@ function StageStrip({ stage }: { stage: Stage }) {
   </div>;
 }
 
-function RecordSubmission({ jobs, trackedIds }: { jobs: F5TrackingJob[]; trackedIds: Set<number> }) {
+function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJob[]; trackedIds: Set<number>; onRecorded: () => Promise<void> }) {
   const available = jobs.filter((job) => !trackedIds.has(job.silver_job_id));
   const [jobId, setJobId] = useState(available[0]?.silver_job_id ? String(available[0].silver_job_id) : "");
   const [submittedAt, setSubmittedAt] = useState(localDateTimeNow());
@@ -159,7 +173,7 @@ function RecordSubmission({ jobs, trackedIds }: { jobs: F5TrackingJob[]; tracked
       if (!response.ok) throw new Error(payload.reason || `HTTP ${response.status}`);
       setState("saved");
       setMessage(payload.status === "already_recorded" ? "War bereits identisch erfasst." : "Als bereits versendet erfasst.");
-      window.setTimeout(() => window.location.reload(), 450);
+      await onRecorded();
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Erfassung fehlgeschlagen.");
@@ -180,12 +194,45 @@ function RecordSubmission({ jobs, trackedIds }: { jobs: F5TrackingJob[]; tracked
   </details>;
 }
 
-export default function F5ApplicationTracking({ payload }: { payload: F5ProductPayload }) {
+export default function F5ApplicationTracking({
+  payload,
+  focusApplicationId = null,
+  onOpenJob,
+  onSelectApplication,
+  refreshProductTruth,
+}: {
+  payload: F5ProductPayload;
+  focusApplicationId?: number | null;
+  onOpenJob?: (silverJobId: number) => void;
+  onSelectApplication?: (applicationId: number) => void;
+  refreshProductTruth: () => Promise<void>;
+}) {
   const tracking = payload.application_tracking;
   const [filter, setFilter] = useState<Filter>("all");
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
   const applications = tracking?.applications || [];
-  const trackedIds = useMemo(() => new Set(applications.flatMap((item) => typeof item.silver_job_id === "number" ? [item.silver_job_id] : [])), [applications]);
+  const projectedJobByApplicationId = useMemo(() => {
+    const projected = new Map<number, number>();
+    for (const match of tracking?.job_linkage?.exact_matches || []) {
+      if (typeof match.application_id === "number" && typeof match.silver_job_id === "number") {
+        projected.set(match.application_id, match.silver_job_id);
+      }
+    }
+    return projected;
+  }, [tracking?.job_linkage?.exact_matches]);
+  const trackedIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const application of applications) {
+      if (typeof application.silver_job_id === "number") ids.add(application.silver_job_id);
+      const projectedJobId = projectedJobByApplicationId.get(application.application_id);
+      if (typeof projectedJobId === "number") ids.add(projectedJobId);
+    }
+    return ids;
+  }, [applications, projectedJobByApplicationId]);
+  const visibleJobIds = useMemo(
+    () => new Set((payload.job_readiness || []).map((job) => job.silver_job_id)),
+    [payload.job_readiness],
+  );
   const filtered = useMemo(() => applications.filter((item) => {
     if (filter === "attention") return item.attention_candidate_count > 0;
     if (filter === "closed") return item.effective_stage === "closed";
@@ -198,7 +245,29 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
   })).filter((group) => group.applications.length > 0), [filtered]);
   const allFilteredExpanded = filtered.length > 0 && filtered.every((item) => expandedIds.has(item.application_id));
 
+  useEffect(() => {
+    if (typeof focusApplicationId !== "number") return;
+    if (!applications.some((item) => item.application_id === focusApplicationId)) return;
+
+    setFilter("all");
+    setExpandedIds((current) => {
+      if (current.has(focusApplicationId)) return current;
+      const next = new Set(current);
+      next.add(focusApplicationId);
+      return next;
+    });
+
+    const timer = window.setTimeout(() => {
+      document.getElementById(`f5-application-${focusApplicationId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [applications, focusApplicationId]);
+
   function toggleExpanded(applicationId: number) {
+    onSelectApplication?.(applicationId);
     setExpandedIds((current) => {
       const next = new Set(current);
       if (next.has(applicationId)) next.delete(applicationId);
@@ -243,8 +312,15 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
         const totalEvidence = application.evidence_candidates.length;
         const expanded = expandedIds.has(application.application_id);
         const employer = application.display_company_name || application.company_name || "Arbeitgeber noch nicht ableitbar";
-        const jobTitle = application.title || (application.silver_job_id ? `Job ${application.silver_job_id}` : "Jobtitel noch nicht ableitbar");
-        return <article key={application.application_id} className={`${application.attention_candidate_count ? "needs-attention " : ""}${expanded ? "expanded" : "compact"}`}>
+        const linkedJobId = application.silver_job_id ?? projectedJobByApplicationId.get(application.application_id) ?? null;
+        const projectedLink = application.silver_job_id == null && linkedJobId != null;
+        const linkedJobVisible = linkedJobId != null && visibleJobIds.has(linkedJobId);
+        const jobTitle = application.title || (linkedJobId ? `Job ${linkedJobId}` : "Jobtitel noch nicht ableitbar");
+        return <article
+          key={application.application_id}
+          id={`f5-application-${application.application_id}`}
+          className={`${application.attention_candidate_count ? "needs-attention " : ""}${expanded ? "expanded" : "compact"}${focusApplicationId === application.application_id ? " focused" : ""}`}
+        >
           <button
             type="button"
             className="f5-compact-row"
@@ -256,7 +332,7 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
             <span className="f5-expand-indicator" aria-hidden="true">{expanded ? "⌃" : "⌄"}</span>
           </button>
           {expanded && <div className="f5-expanded-body">
-            <div className="f5-card-head"><div><span>{employer}</span><h3>{jobTitle}</h3><small>{application.job_link_status === "linked" ? "Mit JAP-Job verknüpft" : "Außerhalb JAP entdeckt"}</small></div><b className={`f5-stage-badge ${application.effective_stage}`}>{stageLabel[application.effective_stage]}</b></div>
+            <div className="f5-card-head"><div><span>{employer}</span><h3>{jobTitle}</h3><small>{application.silver_job_id != null ? "Mit JAP-Job verknüpft" : projectedLink ? "Exakt read-only einem JAP-Job zugeordnet" : "Außerhalb JAP entdeckt"}</small></div><b className={`f5-stage-badge ${application.effective_stage}`}>{stageLabel[application.effective_stage]}</b></div>
             <StageStrip stage={application.effective_stage} />
             <div className="f5-card-meta"><span><small>Zuletzt beobachtet</small>{formatDate(application.observed_at || application.discovered_at)}</span><span><small>Signal</small>{application.observed_event_class || "—"}</span><span><small>Evidence</small>{application.attention_candidate_count ? `${application.attention_candidate_count} prüfen · ${totalEvidence} gesamt` : totalEvidence ? `${totalEvidence} qualifiziert` : "keine"}</span></div>
             <div className="f5-job-meta">
@@ -265,6 +341,11 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
               <span><small>Kommunikations-Domain</small>{application.counterparty_domain || application.sender_domain || "—"}</span>
               {application.source_url ? <a href={application.source_url} target="_blank" rel="noreferrer"><small>Job-/Bewerbungsquelle</small>Öffnen ↗</a> : <span><small>Job-/Bewerbungsquelle</small>—</span>}
             </div>
+            {linkedJobVisible && linkedJobId != null && onOpenJob
+              ? <button type="button" className="f5-open-linked-job" onClick={() => onOpenJob(linkedJobId)}>In All jobs öffnen ↔</button>
+              : linkedJobId != null
+                ? <div className="f5-linked-job-outside-view">Silver #{linkedJobId} ist verknüpft, liegt aber außerhalb der aktuellen All-jobs-Sicht.</div>
+                : null}
             {warning && <div className="f5-attention-note">{warning}</div>}
             <details className="f5-evidence-details"><summary>Details & Evidence</summary><div><p><b>Beobachteter Status:</b> {stageLabel[application.effective_stage]} · {application.effective_stage_basis || "—"}</p><p><b>Autoritative Korrektur:</b> {stageLabel[application.authoritative_stage]}</p><p><b>Autoritative Events:</b> {application.authoritative_event_count}</p>{application.evidence_candidates.length === 0 ? <p>Keine Kommunikations-Evidence hinterlegt.</p> : application.evidence_candidates.map((candidate) => <p key={candidate.candidate_id || `${candidate.candidate_class}-${candidate.created_at}`} className={candidate.requires_review ? "review-required" : "qualified-evidence"}><b>{candidate.candidate_class || "ambiguous"}</b> · {candidate.requires_review ? "Prüfung nötig" : "qualifiziert"}{candidate.confidence != null ? ` · ${Math.round(candidate.confidence * 100)} %` : ""} · {formatDate(candidate.observed_at)}</p>)}</div></details>
           </div>}
@@ -273,7 +354,7 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
     </section>)}</div>}
 
     {tracking.summary.unmatched_candidate_count > 0 && <div className="f5-unmatched-warning">{tracking.summary.unmatched_candidate_count} Mail-Signale können noch keiner Bewerbung eindeutig zugeordnet werden und landen in Prüfen.</div>}
-    <RecordSubmission jobs={payload.job_readiness || []} trackedIds={trackedIds} />
+    <RecordSubmission jobs={payload.job_readiness || []} trackedIds={trackedIds} onRecorded={refreshProductTruth} />
     <footer className="f5-truth-boundary">Mailbox read-only · keine E-Mail-Aktion · keine automatische Bewerbung · beobachteter Status mit separater Korrektur-/Audit-Wahrheit</footer>
   </section>;
 }

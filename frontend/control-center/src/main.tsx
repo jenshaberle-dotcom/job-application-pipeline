@@ -10,6 +10,7 @@ import DemoTruthRibbon from "./DemoTruthRibbon";
 import F4cSourceHealthSurface from "./F4cSourceHealthSurface";
 import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
+import { ProductTruthProvider } from "./ProductTruthContext";
 import "./styles.css";
 import "./compact-control-center.css";
 import "./demo-operator-focus.css";
@@ -24,15 +25,17 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <RuntimeErrorBoundary>
-      <App />
-      <DataLayersTab />
-      <AboutPanel />
-      <DemoOperatorHardening />
-      <DemoProductPolish />
-      <DemoTruthRibbon />
-      <F4cSourceHealthSurface />
-      <DemoApplicationWorkspace />
-      <ApplicationWorkspaceEventBridge />
+      <ProductTruthProvider>
+        <App />
+        <DataLayersTab />
+        <AboutPanel />
+        <DemoOperatorHardening />
+        <DemoProductPolish />
+        <DemoTruthRibbon />
+        <F4cSourceHealthSurface />
+        <DemoApplicationWorkspace />
+        <ApplicationWorkspaceEventBridge />
+      </ProductTruthProvider>
     </RuntimeErrorBoundary>
   </StrictMode>
 );

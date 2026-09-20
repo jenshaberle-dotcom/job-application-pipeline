@@ -77,7 +77,8 @@ def test_data_layers_uses_one_current_population_and_omits_repeat_observation_ch
 def test_surface_is_read_only_and_does_not_create_new_operator_actions() -> None:
     surface = SURFACE.read_text(encoding="utf-8")
 
-    assert "readProductTruth" in surface
+    assert "useProductTruth<ProductPayload>()" in surface
+    assert "readProductTruth" not in surface
     assert "fetch(" not in surface
     assert "POST" not in surface
     assert "application-draft" not in surface

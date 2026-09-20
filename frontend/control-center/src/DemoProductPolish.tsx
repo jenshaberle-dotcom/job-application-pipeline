@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import F5ApplicationTracking, { type F5ProductPayload } from "./F5ApplicationTracking";
-import { readProductTruth } from "./productPayloadRuntimeAdapter";
+import { useProductTruth } from "./ProductTruthContext";
 import "./demo-product-polish.css";
 
-type PolishPayload = F5ProductPayload & {
+type PolishPayload = {
   summary: {
     observed_job_count: number;
     current_active_job_count: number;
@@ -129,22 +128,11 @@ function AttentionPanel({ payload }: { payload: PolishPayload }) {
 }
 
 export default function DemoProductPolish() {
-  const [payload, setPayload] = useState<PolishPayload | null>(null);
+  const { payload } = useProductTruth<PolishPayload>();
   const [stackRoot, setStackRoot] = useState<HTMLElement | null>(null);
   const [view, setView] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = () =>
-      readProductTruth<PolishPayload>()
-        .then((truth) => {
-          if (!cancelled) setPayload(truth);
-        })
-        .catch(() => {
-          // Cosmetic enhancement must never replace or weaken the canonical fail-closed UI.
-        });
-
     const syncDom = () => {
       const nextView = viewId();
       setView((current) => current === nextView ? current : nextView);
@@ -156,7 +144,6 @@ export default function DemoProductPolish() {
       applyTooltips();
     };
 
-    void load();
     syncDom();
 
     const onClick = (event: MouseEvent) => {
@@ -170,9 +157,6 @@ export default function DemoProductPolish() {
         window.setTimeout(syncDom, 0);
       }
 
-      if (target?.closest(".ow-topline button, .dl-refresh")) {
-        window.setTimeout(() => void load(), 250);
-      }
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -183,7 +167,6 @@ export default function DemoProductPolish() {
     document.addEventListener("keydown", onKeyDown);
 
     return () => {
-      cancelled = true;
       document.removeEventListener("click", onClick);
       document.removeEventListener("keydown", onKeyDown);
       delete document.body.dataset.demoView;
@@ -199,6 +182,5 @@ export default function DemoProductPolish() {
   if (!payload || !stackRoot) return null;
 
   if (view === "overall") return createPortal(<><Journey payload={payload} /><AttentionPanel payload={payload} /></>, stackRoot);
-  if (view === "applications") return createPortal(<F5ApplicationTracking payload={payload} />, stackRoot);
   return null;
 }

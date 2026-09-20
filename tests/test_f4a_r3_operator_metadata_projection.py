@@ -216,5 +216,5 @@ def test_pending_fit_is_not_rendered_as_repeated_origin_warning() -> None:
     assert ".r4-fit-state.warn" in css
     assert "color: var(--muted);" in css
     assert ".r4-review-stack ~ .ow-evidence" in css
-    assert ".ow-job-list > button > span:last-child .ow-status:first-child" in css
-    assert ".ow-job-list > button > span:last-child .ow-status.warn" in css
+    assert ".ow-job-list > button > .ow-gate-state .ow-status:first-child" in css
+    assert ".ow-job-list > button > .ow-gate-state .ow-status.pending" in css
