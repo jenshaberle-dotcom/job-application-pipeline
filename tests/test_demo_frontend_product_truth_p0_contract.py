@@ -26,6 +26,7 @@ def test_control_center_loads_product_truth_once_and_distributes_snapshot() -> N
     assert "readProductTruth<unknown>()" in context
     assert 'readProductTruth<unknown>({ fresh: true })' in context
     assert "refreshProductTruth" in context
+    assert "refreshInFlight" in context
 
     for name, source in consumers.items():
         assert 'from "./ProductTruthContext"' in source, name
