@@ -485,7 +485,16 @@ def search_finite_inventory_surface(
     if not candidates:
         return None
 
-    selected = candidates[:detail_cap]
+    unique_candidates: list[tuple[str, str, bool]] = []
+    seen_urls: set[str] = set()
+    for detail_url, discovery_source, known_detail in candidates:
+        clean = canonical_url(detail_url)
+        if not clean or clean in seen_urls:
+            continue
+        seen_urls.add(clean)
+        unique_candidates.append((detail_url, discovery_source, known_detail))
+
+    selected = unique_candidates[:detail_cap]
     jobs: list[AcquiredJobPage] = []
     candidates_seen = 0
 
@@ -520,7 +529,7 @@ def search_finite_inventory_surface(
                 root.final_url,
             )
 
-    exhausted = len(candidates) <= detail_cap
+    exhausted = len(unique_candidates) <= detail_cap
     return GenericSearchOutcome(
         "finite_inventory_local_filter",
         query,

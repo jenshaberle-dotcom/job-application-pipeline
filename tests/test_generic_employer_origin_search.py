@@ -179,7 +179,7 @@ def test_finite_inventory_local_filter_is_bounded(monkeypatch) -> None:
 
     assert outcome is not None
     assert outcome.mechanism == "finite_inventory_local_filter"
-    assert outcome.candidates_seen == 7
+    assert outcome.detail_candidates_seen == 7
     assert len(proved) == 7
     assert outcome.exhausted is False
     assert outcome.stop_reason == "detail_cap"
