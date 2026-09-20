@@ -122,6 +122,7 @@ def load_database_state(
     expected_company: str,
     expected_title: str,
     ba_profile_name: str,
+    ba_external_job_id: str | None = None,
 ) -> tuple[dict[str, Any], SearchProfile]:
     origin_source = f"generic_origin:{company_key}"
     with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
@@ -206,8 +207,15 @@ def load_database_state(
 
         conn.rollback()
 
+    ba_raw_rows = [row for row in raw_rows if row["source_name"] == BA_SOURCE]
+    if ba_external_job_id:
+        ba_raw_rows = [
+            row
+            for row in ba_raw_rows
+            if str(row.get("external_job_id") or "") == ba_external_job_id
+        ]
     ba_raw = _raw_matches(
-        [row for row in raw_rows if row["source_name"] == BA_SOURCE],
+        ba_raw_rows,
         expected_company=expected_company,
         expected_title=expected_title,
         require_company=True,
@@ -218,8 +226,17 @@ def load_database_state(
         expected_title=expected_title,
         require_company=False,
     )
+    ba_silver_rows = [
+        row for row in silver_rows if row["source_name"] == BA_SOURCE
+    ]
+    if ba_external_job_id:
+        ba_silver_rows = [
+            row
+            for row in ba_silver_rows
+            if str(row.get("external_job_id") or "") == ba_external_job_id
+        ]
     ba_silver = _flat_matches(
-        [row for row in silver_rows if row["source_name"] == BA_SOURCE],
+        ba_silver_rows,
         expected_company=expected_company,
         expected_title=expected_title,
         require_company=True,
@@ -324,6 +341,7 @@ def main() -> int:
     parser.add_argument("--expected-title", required=True)
     parser.add_argument("--ba-profile-name", required=True)
     parser.add_argument("--ba-search-term", required=True)
+    parser.add_argument("--ba-external-job-id")
     parser.add_argument("--live-ba", action="store_true")
     parser.add_argument("--require-stage", action="append", choices=STAGES, default=[])
     args = parser.parse_args()
@@ -333,6 +351,7 @@ def main() -> int:
         expected_company=args.expected_company,
         expected_title=args.expected_title,
         ba_profile_name=args.ba_profile_name,
+        ba_external_job_id=args.ba_external_job_id,
     )
 
     live_matches: list[Any] = []
@@ -355,6 +374,8 @@ def main() -> int:
     for name in STAGES:
         _print_stage(name, stages.get(name, []))
 
+    if args.ba_external_job_id:
+        print(f"BA_EXPECTED_EXTERNAL_JOB_ID={args.ba_external_job_id}")
     if request_url:
         print(f"BA_LIVE_REQUEST={request_url}")
     print("DATABASE_WRITES=0")

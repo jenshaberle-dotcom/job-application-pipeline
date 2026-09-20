@@ -37,6 +37,7 @@ def test_activation_workflow_runs_normal_ba_ingestion_and_stage_probe() -> None:
     assert "--profile ba_data_engineer_30629_50km" in text
     assert "run_known_public_vacancy_parity" in text
     assert '--ba-search-term "AI Automation Architect"' in text
+    assert '--ba-external-job-id "10001-1003339347-S"' in text
     for stage in (
         "ba_live",
         "ba_raw",

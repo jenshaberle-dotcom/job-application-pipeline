@@ -230,6 +230,7 @@ jobs:
             --expected-title "AI Automation Architect Software Development Lifecycle" \
             --ba-profile-name ba_data_engineer_30629_50km \
             --ba-search-term "AI Automation Architect" \
+            --ba-external-job-id "10001-1003339347-S" \
             --live-ba \
             --require-stage ba_live \
             --require-stage ba_raw \
