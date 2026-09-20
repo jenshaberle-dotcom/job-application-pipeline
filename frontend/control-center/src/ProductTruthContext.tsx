@@ -45,7 +45,7 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
         setError(String(reason));
         throw reason;
       } finally {
-        if (refreshInFlight.current === request) refreshInFlight.current = null;
+        refreshInFlight.current = null;
         setRefreshing(false);
       }
     })();
