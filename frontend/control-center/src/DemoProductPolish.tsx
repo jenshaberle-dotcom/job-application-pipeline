@@ -132,6 +132,7 @@ export default function DemoProductPolish() {
   const [payload, setPayload] = useState<PolishPayload | null>(null);
   const [stackRoot, setStackRoot] = useState<HTMLElement | null>(null);
   const [view, setView] = useState("");
+  const [focusedApplicationId, setFocusedApplicationId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,13 +180,27 @@ export default function DemoProductPolish() {
       if (event.key === "Escape") window.setTimeout(syncDom, 0);
     };
 
+    const onFocusTrackedApplication = (event: Event) => {
+      const applicationId = (event as CustomEvent<{ applicationId?: unknown }>).detail?.applicationId;
+      if (typeof applicationId === "number" && Number.isInteger(applicationId) && applicationId > 0) {
+        setFocusedApplicationId(applicationId);
+      }
+    };
+
+    const mainRoot = document.querySelector<HTMLElement>(".ow-main");
+    const viewObserver = mainRoot ? new MutationObserver(() => window.setTimeout(syncDom, 0)) : null;
+    viewObserver?.observe(mainRoot, { childList: true });
+
     document.addEventListener("click", onClick);
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("product-v1:focus-tracked-application", onFocusTrackedApplication);
 
     return () => {
       cancelled = true;
+      viewObserver?.disconnect();
       document.removeEventListener("click", onClick);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("product-v1:focus-tracked-application", onFocusTrackedApplication);
       delete document.body.dataset.demoView;
       document.body.classList.remove("demo-polish-ready");
     };
@@ -199,6 +214,6 @@ export default function DemoProductPolish() {
   if (!payload || !stackRoot) return null;
 
   if (view === "overall") return createPortal(<><Journey payload={payload} /><AttentionPanel payload={payload} /></>, stackRoot);
-  if (view === "applications") return createPortal(<F5ApplicationTracking payload={payload} />, stackRoot);
+  if (view === "applications") return createPortal(<F5ApplicationTracking payload={payload} focusApplicationId={focusedApplicationId} />, stackRoot);
   return null;
 }
