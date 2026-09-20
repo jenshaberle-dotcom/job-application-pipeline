@@ -496,6 +496,7 @@ def search_finite_inventory_surface(
 
     selected = unique_candidates[:detail_cap]
     jobs: list[AcquiredJobPage] = []
+    seen_job_urls: set[str] = set()
     candidates_seen = 0
 
     for detail_url, discovery_source, known_detail in selected:
@@ -509,6 +510,10 @@ def search_finite_inventory_surface(
         )
         if job is None:
             continue
+        job_key = canonical_url(job.final_url)
+        if not job_key or job_key in seen_job_urls:
+            continue
+        seen_job_urls.add(job_key)
         if not _query_matches_detail(
             query=query,
             title=job.title,
