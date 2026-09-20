@@ -1,0 +1,207 @@
+{
+  "schema_version": "jap.f5.mailbox_semantics_contract.v1",
+  "authority": "job-application-pipeline",
+  "description": "Provider-neutral parity contract for bounded F5 mailbox evidence semantics. Public JAP is canonical; private runtime mirrors this file for non-authoritative preview acceptance.",
+  "event_signal_runtime_lifecycle": {
+    "rejection": "rejection",
+    "offer_signal": "offer",
+    "interview_invitation": "interview",
+    "assessment_request": "assessment",
+    "withdrawal_confirmation": "withdrawal"
+  },
+  "cases": [
+    {
+      "id": "ack_subject_role_employer",
+      "observation": {
+        "subject": "Deine Bewerbung Data Engineer (m/w/d) bei Example Energy",
+        "text_excerpt": "Vielen Dank für dein Interesse. Wir sichten deine Bewerbung für die Stelle Data Engineer.",
+        "sender_domain": "ats.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "ats.example",
+        "gmail_search_signals": []
+      },
+      "expected_public_candidate_class": "application_acknowledgement",
+      "expected_public_reason_code": "deterministic_application_acknowledgement",
+      "expected_runtime_lifecycle": "submitted",
+      "expected_application_kind": null
+    },
+    {
+      "id": "truncated_rejection_with_bounded_signal",
+      "observation": {
+        "subject": "Example Retail | (Junior) Data Engineer (m/w/d)",
+        "text_excerpt": "Wir freuen uns, dass Sie sich vorstellen können, Teil von Example Retail zu sein! Leider",
+        "sender_domain": "jobs.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "jobs.example",
+        "gmail_search_signals": [
+          "rejection"
+        ]
+      },
+      "expected_public_candidate_class": "rejection",
+      "expected_public_reason_code": "deterministic_rejection",
+      "expected_runtime_lifecycle": "rejection",
+      "expected_application_kind": null
+    },
+    {
+      "id": "contextual_rejection_phrase_without_signal",
+      "observation": {
+        "subject": "Rückmeldung zu Ihrer Bewerbung als Data Engineer",
+        "text_excerpt": "Leider müssen wir Ihnen aber mitteilen, dass es dieses Mal nicht geklappt hat.",
+        "sender_domain": "jobs.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "jobs.example",
+        "gmail_search_signals": []
+      },
+      "expected_public_candidate_class": "rejection",
+      "expected_public_reason_code": "deterministic_rejection",
+      "expected_runtime_lifecycle": "rejection",
+      "expected_application_kind": null
+    },
+    {
+      "id": "outbound_regular_application",
+      "observation": {
+        "subject": "Bewerbung als Junior Data Engineer (m/w/d)",
+        "text_excerpt": "Anbei meine Bewerbung.",
+        "sender_domain": "gmail.com",
+        "mail_direction": "outbound",
+        "counterparty_domain": "jobs.example",
+        "gmail_search_signals": []
+      },
+      "expected_public_candidate_class": "application_acknowledgement",
+      "expected_public_reason_code": "deterministic_outbound_application_sent",
+      "expected_runtime_lifecycle": "submitted",
+      "expected_application_kind": null
+    },
+    {
+      "id": "outbound_unsolicited_application",
+      "observation": {
+        "subject": "Initiativbewerbung Applicant Name",
+        "text_excerpt": "Anbei meine Initiativbewerbung.",
+        "sender_domain": "gmail.com",
+        "mail_direction": "outbound",
+        "counterparty_domain": "engineering.example",
+        "gmail_search_signals": []
+      },
+      "expected_public_candidate_class": "application_acknowledgement",
+      "expected_public_reason_code": "deterministic_outbound_application_sent",
+      "expected_runtime_lifecycle": "submitted",
+      "expected_application_kind": "unsolicited"
+    },
+    {
+      "id": "inbound_unsolicited_reply",
+      "observation": {
+        "subject": "AW: Initiativbewerbung Applicant Name",
+        "text_excerpt": "Vielen Dank für deine Bewerbung. Wir haben sie intern weitergeleitet.",
+        "sender_domain": "engineering.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "engineering.example",
+        "gmail_search_signals": []
+      },
+      "expected_public_candidate_class": "application_acknowledgement",
+      "expected_public_reason_code": "deterministic_application_acknowledgement",
+      "expected_runtime_lifecycle": "submitted",
+      "expected_application_kind": "unsolicited"
+    },
+    {
+      "id": "conflicting_high_impact_signals",
+      "observation": {
+        "subject": "Update zu Ihrer Bewerbung",
+        "text_excerpt": "Ihre Bewerbung wird bearbeitet.",
+        "sender_domain": "jobs.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "jobs.example",
+        "gmail_search_signals": [
+          "rejection",
+          "offer_signal"
+        ]
+      },
+      "expected_public_candidate_class": "ambiguous",
+      "expected_public_reason_code": "multiple_deterministic_classes",
+      "expected_runtime_lifecycle": null,
+      "expected_application_kind": null
+    },
+    {
+      "id": "non_application_cancellation_noise",
+      "observation": {
+        "subject": "Absage Coaching Session",
+        "text_excerpt": "Ihre Coaching-Sitzung am Freitag wurde abgesagt.",
+        "sender_domain": "coaching.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "coaching.example",
+        "gmail_search_signals": []
+      },
+      "expected_public_candidate_class": "other",
+      "expected_public_reason_code": "no_deterministic_event_phrase",
+      "expected_runtime_lifecycle": null,
+      "expected_application_kind": null
+    },
+    {
+      "id": "bounded_offer_signal",
+      "observation": {
+        "subject": "Update zu Ihrer Bewerbung",
+        "text_excerpt": "Ihre Bewerbung wird bearbeitet.",
+        "sender_domain": "jobs.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "jobs.example",
+        "gmail_search_signals": [
+          "offer_signal"
+        ]
+      },
+      "expected_public_candidate_class": "offer_signal",
+      "expected_public_reason_code": "deterministic_offer_signal",
+      "expected_runtime_lifecycle": "offer",
+      "expected_application_kind": null
+    },
+    {
+      "id": "bounded_interview_signal",
+      "observation": {
+        "subject": "Update zu Ihrer Bewerbung",
+        "text_excerpt": "Ihre Bewerbung wird bearbeitet.",
+        "sender_domain": "jobs.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "jobs.example",
+        "gmail_search_signals": [
+          "interview_invitation"
+        ]
+      },
+      "expected_public_candidate_class": "interview_invitation",
+      "expected_public_reason_code": "deterministic_interview_invitation",
+      "expected_runtime_lifecycle": "interview",
+      "expected_application_kind": null
+    },
+    {
+      "id": "bounded_assessment_signal",
+      "observation": {
+        "subject": "Update zu Ihrer Bewerbung",
+        "text_excerpt": "Ihre Bewerbung wird bearbeitet.",
+        "sender_domain": "jobs.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "jobs.example",
+        "gmail_search_signals": [
+          "assessment_request"
+        ]
+      },
+      "expected_public_candidate_class": "assessment_request",
+      "expected_public_reason_code": "deterministic_assessment_request",
+      "expected_runtime_lifecycle": "assessment",
+      "expected_application_kind": null
+    },
+    {
+      "id": "bounded_withdrawal_signal",
+      "observation": {
+        "subject": "Update zu Ihrer Bewerbung",
+        "text_excerpt": "Ihre Bewerbung wird bearbeitet.",
+        "sender_domain": "jobs.example",
+        "mail_direction": "inbound",
+        "counterparty_domain": "jobs.example",
+        "gmail_search_signals": [
+          "withdrawal_confirmation"
+        ]
+      },
+      "expected_public_candidate_class": "withdrawal_confirmation",
+      "expected_public_reason_code": "deterministic_withdrawal_confirmation",
+      "expected_runtime_lifecycle": "withdrawal",
+      "expected_application_kind": null
+    }
+  ]
+}
