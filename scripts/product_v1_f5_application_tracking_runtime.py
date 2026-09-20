@@ -116,6 +116,7 @@ def _safe_evidence_summary(payload: object) -> dict[str, object]:
         "sender_domain",
         "subject_fingerprint",
         "thread_match_reason",
+        "application_kind",
     )
     result: dict[str, object] = {}
     for key in allowed:
@@ -229,6 +230,16 @@ def build_application_tracking_payload(
         identity_source = _snapshot_text(snapshot, "identity_source")
 
         application_candidates = candidate_by_application.get(application_id, [])
+        application_kind = _snapshot_text(snapshot, "application_kind")
+        if application_kind is None:
+            for candidate in application_candidates:
+                evidence = candidate.get("evidence")
+                if not isinstance(evidence, Mapping):
+                    continue
+                candidate_kind = str(evidence.get("application_kind") or "").strip()
+                if candidate_kind == "unsolicited":
+                    application_kind = candidate_kind
+                    break
         review_required_count = sum(
             1 for candidate in application_candidates if candidate["requires_review"]
         )
@@ -250,6 +261,7 @@ def build_application_tracking_payload(
                 "counterparty_domain": counterparty_domain,
                 "employer_evidence_source": employer_evidence_source,
                 "identity_source": identity_source,
+                "application_kind": application_kind,
                 "prepared_at": row.get("prepared_at"),
                 "prepared_by": row.get("prepared_by"),
                 "submission_id": row.get("submission_id"),

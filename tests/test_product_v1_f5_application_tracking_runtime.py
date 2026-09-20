@@ -245,3 +245,56 @@ def test_unavailable_projection_is_empty_and_explicit() -> None:
     assert payload["summary"]["application_count"] == 0
     assert payload["boundaries"]["read_only_projection"] is True
     assert payload["boundaries"]["automatic_application_submission"] is False
+
+
+def test_unsolicited_application_kind_surfaces_from_snapshot() -> None:
+    payload = build_application_tracking_payload(
+        applications=[
+            _application(
+                silver_job_id=None,
+                title=None,
+                company_name=None,
+                display_company_name=None,
+                discovery_kind="mailbox_observed",
+                job_identity_snapshot={
+                    "employer_name": "Example Engineering",
+                    "application_kind": "unsolicited",
+                    "identity_source": "gmail_normalized_observation",
+                },
+            )
+        ],
+        candidates=[],
+    )
+
+    application = payload["applications"][0]
+    assert application["application_kind"] == "unsolicited"
+    assert application["title"] is None
+
+
+def test_unsolicited_application_kind_can_surface_from_active_evidence_fallback() -> None:
+    payload = build_application_tracking_payload(
+        applications=[
+            _application(
+                silver_job_id=None,
+                title=None,
+                company_name=None,
+                display_company_name=None,
+                discovery_kind="mailbox_observed",
+                job_identity_snapshot={
+                    "employer_name": "Example Engineering",
+                    "identity_source": "gmail_normalized_observation",
+                },
+            )
+        ],
+        candidates=[
+            _candidate(
+                candidate_class="application_acknowledgement",
+                evidence_payload={
+                    "reason_code": "deterministic_application_acknowledgement",
+                    "application_kind": "unsolicited",
+                },
+            )
+        ],
+    )
+
+    assert payload["applications"][0]["application_kind"] == "unsolicited"

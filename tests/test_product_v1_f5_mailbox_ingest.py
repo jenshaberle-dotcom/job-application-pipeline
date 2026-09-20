@@ -5,6 +5,8 @@ import pytest
 from scripts.product_v1_f5_mailbox_ingest import (
     MailboxIngestError,
     NormalizedMailboxObservation,
+    application_kind_for_observation,
+    evidence_fingerprint,
     mailbox_application_key,
     parse_normalized_mailbox_observation,
     should_discover_application,
@@ -275,3 +277,99 @@ def test_batch_preflight_is_read_only_contract_surface() -> None:
     assert result.discoverable_rows == 1
     assert result.other_rows == 1
     assert result.unique_application_keys == 1
+
+
+def test_unsolicited_application_kind_is_explicit_without_fake_job_title() -> None:
+    observation = _observation(
+        subject="AW: Initiativbewerbung Applicant Name",
+        text_excerpt="Vielen Dank für deine Bewerbung.",
+        job_title=None,
+    )
+    classification = classify_application_evidence(
+        subject=observation.subject,
+        text_excerpt=observation.text_excerpt,
+        sender_domain=observation.sender_domain,
+    )
+
+    assert application_kind_for_observation(observation) == "unsolicited"
+    assert classification.candidate_class == "application_acknowledgement"
+
+
+def test_unsolicited_semantic_changes_only_explicit_message_interpretation_fingerprint() -> None:
+    regular = _observation(
+        subject="Bewerbung als Data Engineer",
+        text_excerpt="Anbei meine Bewerbung.",
+        mail_direction="outbound",
+        counterparty_domain="example.com",
+    )
+    unsolicited = _observation(
+        subject="Initiativbewerbung Applicant Name",
+        text_excerpt="Anbei meine Initiativbewerbung.",
+        job_title=None,
+        mail_direction="outbound",
+        counterparty_domain="example.com",
+    )
+    regular_classification = classify_application_evidence(
+        subject=regular.subject,
+        text_excerpt=regular.text_excerpt,
+        sender_domain=regular.sender_domain,
+        mail_direction=regular.mail_direction,
+        counterparty_domain=regular.counterparty_domain,
+    )
+    unsolicited_classification = classify_application_evidence(
+        subject=unsolicited.subject,
+        text_excerpt=unsolicited.text_excerpt,
+        sender_domain=unsolicited.sender_domain,
+        mail_direction=unsolicited.mail_direction,
+        counterparty_domain=unsolicited.counterparty_domain,
+    )
+
+    assert regular_classification.reason_code == unsolicited_classification.reason_code
+    assert evidence_fingerprint(regular, regular_classification) != evidence_fingerprint(
+        unsolicited, unsolicited_classification
+    )
+
+
+def test_batch_preflight_recovers_generic_subject_ack_and_contextual_rejection() -> None:
+    result = preflight_rows(
+        [
+            {
+                "source_kind": "gmail",
+                "mailbox_account_fingerprint": "acct",
+                "thread_reference": "energy-thread",
+                "message_reference": "energy-message",
+                "observed_at": "2026-09-10T08:00:00+00:00",
+                "subject": "Deine Bewerbung Data Engineer (m/w/d) bei Example Energy",
+                "text_excerpt": "Wir sichten deine Bewerbung für die Stelle Data Engineer.",
+                "sender_domain": "myworkday.example",
+                "employer_name": "Example Energy",
+                "job_title": "Data Engineer (m/w/d)",
+                "mail_direction": "inbound",
+                "counterparty_domain": "myworkday.example",
+            },
+            {
+                "source_kind": "gmail",
+                "mailbox_account_fingerprint": "acct",
+                "thread_reference": "retail-thread",
+                "message_reference": "retail-message",
+                "observed_at": "2026-09-17T08:55:00+00:00",
+                "subject": "Rückmeldung zu Ihrer Bewerbung als Junior Data Engineer",
+                "text_excerpt": (
+                    "Leider müssen wir Ihnen aber mitteilen, dass es dieses Mal "
+                    "nicht geklappt hat."
+                ),
+                "sender_domain": "jobs.example",
+                "employer_name": "Example Retail",
+                "job_title": "Junior Data Engineer",
+                "mail_direction": "inbound",
+                "counterparty_domain": "jobs.example",
+            },
+        ]
+    )
+
+    assert result.invalid_rows == 0
+    assert result.discoverable_rows == 2
+    assert result.class_counts == {
+        "application_acknowledgement": 1,
+        "rejection": 1,
+    }

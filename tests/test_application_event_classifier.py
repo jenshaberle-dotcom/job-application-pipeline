@@ -167,3 +167,33 @@ def test_classifier_result_contains_no_state_mutation_authority() -> None:
     assert "application_state" not in payload
     assert "authoritative_stage" not in payload
     assert "transition" not in payload
+
+
+def test_application_subject_with_role_and_employer_is_acknowledgement() -> None:
+    result = classify_application_evidence(
+        subject="Deine Bewerbung Data Engineer (m/w/d) bei Example Energy",
+        text_excerpt=(
+            "Vielen Dank für dein Interesse an einer Mitarbeit. "
+            "Wir sichten deine Bewerbung für die Stelle Data Engineer."
+        ),
+        sender_domain="ats.example",
+    )
+
+    assert result.candidate_class == "application_acknowledgement"
+    assert result.reason_code == "deterministic_application_acknowledgement"
+    assert result.confidence == 0.95
+
+
+def test_contextual_rejection_with_not_worked_out_phrase_is_detected() -> None:
+    result = classify_application_evidence(
+        subject="Rückmeldung zu Ihrer Bewerbung als Data Engineer",
+        text_excerpt=(
+            "Leider müssen wir Ihnen aber mitteilen, dass es dieses Mal "
+            "nicht geklappt hat."
+        ),
+        sender_domain="jobs.example",
+    )
+
+    assert result.candidate_class == "rejection"
+    assert result.reason_code == "deterministic_rejection"
+    assert result.confidence == 0.97

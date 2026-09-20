@@ -114,3 +114,11 @@ def test_manual_application_selection_updates_shared_operator_state() -> None:
 
     assert "onSelectApplication?: (applicationId: number) => void" in tracking
     assert "onSelectApplication?.(applicationId)" in tracking
+
+
+def test_unsolicited_application_uses_truthful_kind_instead_of_missing_title_error() -> None:
+    tracking = _text(TRACKING)
+
+    assert "application_kind?: string | null" in tracking
+    assert 'application.application_kind === "unsolicited" ? "Initiativbewerbung" : null' in tracking
+    assert "<small>Bewerbungsart</small>{applicationKindLabel}" in tracking

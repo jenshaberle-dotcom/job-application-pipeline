@@ -39,6 +39,7 @@ type TrackedApplication = {
   counterparty_domain?: string | null;
   employer_evidence_source?: string | null;
   identity_source?: string | null;
+  application_kind?: string | null;
   prepared_at?: string | null;
   submitted_at?: string | null;
   submission_channel?: string | null;
@@ -315,7 +316,8 @@ export default function F5ApplicationTracking({
         const linkedJobId = application.silver_job_id ?? projectedJobByApplicationId.get(application.application_id) ?? null;
         const projectedLink = application.silver_job_id == null && linkedJobId != null;
         const linkedJobVisible = linkedJobId != null && visibleJobIds.has(linkedJobId);
-        const jobTitle = application.title || (linkedJobId ? `Job ${linkedJobId}` : "Jobtitel noch nicht ableitbar");
+        const applicationKindLabel = application.application_kind === "unsolicited" ? "Initiativbewerbung" : null;
+        const jobTitle = application.title || applicationKindLabel || (linkedJobId ? `Job ${linkedJobId}` : "Jobtitel noch nicht ableitbar");
         return <article
           key={application.application_id}
           id={`f5-application-${application.application_id}`}
@@ -337,6 +339,7 @@ export default function F5ApplicationTracking({
             <div className="f5-card-meta"><span><small>Zuletzt beobachtet</small>{formatDate(application.observed_at || application.discovered_at)}</span><span><small>Signal</small>{application.observed_event_class || "—"}</span><span><small>Evidence</small>{application.attention_candidate_count ? `${application.attention_candidate_count} prüfen · ${totalEvidence} gesamt` : totalEvidence ? `${totalEvidence} qualifiziert` : "keine"}</span></div>
             <div className="f5-job-meta">
               <span><small>Entdeckt</small>{formatDate(application.discovered_at)}</span>
+              {applicationKindLabel ? <span><small>Bewerbungsart</small>{applicationKindLabel}</span> : null}
               <span><small>Arbeitgeber-Hinweis</small>{application.employer_evidence_source || "—"}</span>
               <span><small>Kommunikations-Domain</small>{application.counterparty_domain || application.sender_domain || "—"}</span>
               {application.source_url ? <a href={application.source_url} target="_blank" rel="noreferrer"><small>Job-/Bewerbungsquelle</small>Öffnen ↗</a> : <span><small>Job-/Bewerbungsquelle</small>—</span>}
