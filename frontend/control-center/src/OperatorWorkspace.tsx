@@ -3,7 +3,8 @@ import ApplicationSourceUpload from "./ApplicationSourceUpload";
 import JobReviewLabelControls, {
   type JobReviewLabelState,
 } from "./JobReviewLabelControls";
-import { readProductTruth } from "./productPayloadRuntimeAdapter";
+import F5ApplicationTracking, { type F5ProductPayload } from "./F5ApplicationTracking";
+import { useProductTruth } from "./ProductTruthContext";
 import "./operator-workspace-v2.css";
 import "./operator-demo-hardening.css";
 
@@ -379,11 +380,28 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
   </aside>;
 }
 
-function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refresh: () => Promise<void>; onNavigate: (view: View) => void }) {
+function Jobs({
+  payload,
+  refresh,
+  selectedJobId,
+  onSelectJob,
+  onOpenApplication,
+}: {
+  payload: ProductPayload;
+  refresh: () => Promise<void>;
+  selectedJobId: number | null;
+  onSelectJob: (silverJobId: number) => void;
+  onOpenApplication: (applicationId: number | null) => void;
+}) {
   const [filter, setFilter] = useState<JobFilter>("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<JobSort>("fit_desc");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (selectedJobId == null) return;
+    setFilter("all");
+    setSearch("");
+  }, [selectedJobId]);
   const applicationByJobId = useMemo(() => {
     const linked = new Map<number, LinkedApplication>();
     for (const application of payload.application_tracking?.applications || []) {
@@ -437,18 +455,9 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
   }, [applicationByJobId, filter, payload.job_readiness, search, sort]);
 
   const selected =
-    filtered.find((job) => job.silver_job_id === selectedId) ||
+    filtered.find((job) => job.silver_job_id === selectedJobId) ||
     filtered[0] ||
     null;
-
-  const openApplications = (application?: LinkedApplication) => {
-    if (typeof application?.application_id === "number") {
-      window.dispatchEvent(new CustomEvent("product-v1:focus-tracked-application", {
-        detail: { applicationId: application.application_id },
-      }));
-    }
-    onNavigate("applications");
-  };
 
   const counts: Record<JobFilter, number> = {
     current: payload.job_readiness.filter(isCurrent).length,
@@ -575,7 +584,7 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
             className={
               selected?.silver_job_id === job.silver_job_id ? "selected" : ""
             }
-            onClick={() => setSelectedId(job.silver_job_id)}
+            onClick={() => onSelectJob(job.silver_job_id)}
           >
             <strong title={isRankable(job) ? "Authoritative Product score" : "Preliminary role affinity · detail check required"}>{scoreText(job.overall_quality_score)}</strong>
             <Status value={job.review_label?.label || "unreviewed"} />
@@ -605,7 +614,7 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
                   className={`ow-application-status linked ${applicationByJobId.get(job.silver_job_id)?.effective_stage}`}
                   onClick={(event) => {
                     event.stopPropagation();
-                    openApplications(applicationByJobId.get(job.silver_job_id));
+                    onOpenApplication(applicationByJobId.get(job.silver_job_id)?.application_id ?? null);
                   }}
                   title={applicationByJobId.get(job.silver_job_id)?.linkage_status === "exact_projected"
                     ? "Exakt aus Mailbox-Evidence zu diesem JAP-Job zugeordnet; DB-Link noch nicht persistiert. Klicken, um die Bewerbung zu öffnen."
@@ -625,7 +634,7 @@ function Jobs({ payload, refresh, onNavigate }: { payload: ProductPayload; refre
       </div>
 
       {selected
-        ? <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} onOpenApplications={() => openApplications(applicationByJobId.get(selected.silver_job_id))} />
+        ? <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} onOpenApplications={() => onOpenApplication(applicationByJobId.get(selected.silver_job_id)?.application_id ?? null)} />
         : <aside className="ow-job-detail">
             <p className="ow-empty">Select a job.</p>
           </aside>}
@@ -663,35 +672,30 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
   </div>;
 }
 
-function Applications({ payload, onPrepare }: { payload: ProductPayload; onPrepare: () => void }) {
-  const top = payload.top_jobs[0] || null;
-  const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
-  const prepareReady = Boolean(top && docsReady);
-  const topUrl = top ? externalJobUrl(top) : null;
+function Applications({
+  payload,
+  focusApplicationId,
+  onOpenJob,
+}: {
+  payload: ProductPayload;
+  focusApplicationId: number | null;
+  onOpenJob: (silverJobId: number) => void;
+}) {
   return <div className="ow-stack">
-    <header className="ow-page-header"><div><span>After preparation</span><h1>Applications</h1><p>Your application portfolio after a job leaves discovery and ranking. No submitted state is invented.</p></div></header>
-    <section className="ow-application-pipeline" aria-label="Application lifecycle">
-      <article className={`ow-application-stage ${prepareReady ? "active" : "active"}`}><span>1 · Prepare</span><b>{prepareReady ? "Ready for review package" : "Sources incomplete"}</b><small>{prepareReady ? "The Top-5 target and both approved base documents are available." : "Complete the Application step before a grounded review package can be prepared."}</small></article>
-      <article className="ow-application-stage"><span>2 · Review</span><b>Human review</b><small>CV and letter remain draft_for_review until you explicitly accept them.</small></article>
-      <article className="ow-application-stage"><span>3 · Submitted</span><b>Not submitted</b><small>Submission is manual. The product must never infer this state from draft generation.</small></article>
-      <article className="ow-application-stage"><span>4 · Interview</span><b>No interview recorded</b><small>Future tracking can hold interview dates, contacts, preparation notes and follow-ups.</small></article>
-      <article className="ow-application-stage"><span>5 · Decision</span><b>No decision recorded</b><small>Offer, rejected and withdrawn become explicit terminal outcomes.</small></article>
-    </section>
-    <section className="ow-after-application-grid">
-      <article className="ow-card">
-        <span className="ow-kicker">Current portfolio</span>
-        <h2>No submitted applications yet</h2>
-        {top ? <><p>The current next candidate is <b>{top.title}</b> at {employerName(top)}. It is still before submission, so it does not appear as a fake active application.</p><div className="ow-actions"><button type="button" onClick={onPrepare}>Open Application</button>{topUrl && <a href={topUrl} target="_blank" rel="noreferrer">Original job ↗</a>}</div></> : <p className="ow-muted">No authoritative Top-5 target is currently available.</p>}
-      </article>
-      <article className="ow-card">
-        <span className="ow-kicker">Product continuation</span>
-        <h2>What this becomes after the demo</h2>
-        <p>This is the natural home for submission date, application channel, recruiter/contact, next follow-up, interview rounds and final outcome. Those states should be append-only operator facts, not guesses from scraping or drafting.</p>
-      </article>
-    </section>
+    <header className="ow-page-header">
+      <div>
+        <span>After preparation</span>
+        <h1>Applications</h1>
+        <p>One shared Product truth snapshot connects mailbox application history and the All jobs review surface in both directions.</p>
+      </div>
+    </header>
+    <F5ApplicationTracking
+      payload={payload as unknown as F5ProductPayload}
+      focusApplicationId={focusApplicationId}
+      onOpenJob={onOpenJob}
+    />
   </div>;
 }
-
 function sourceGroup(source: SourceConnector): SourceGroup {
   if (source.current_blocker) return "Needs attention";
   if (normalize(source.source_role) === "sensor") return "Market sensors";
@@ -772,35 +776,19 @@ const navItems: Array<{ id: View; label: string; glyph: string }> = [
 ];
 
 export default function OperatorWorkspace() {
-  const [payload, setPayload] = useState<ProductPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { payload, error, refreshing, refreshProductTruth } = useProductTruth<ProductPayload>();
   const [view, setView] = useState<View>("overview");
-  const [refreshing, setRefreshing] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
 
-  useEffect(() => {
-    let active = true;
-
-    readProductTruth<ProductPayload>()
-      .then((truth) => {
-        if (active) setPayload(truth);
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(String(reason));
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const refresh = async () => {
-    setRefreshing(true);
-    try {
-      setPayload(await readProductTruth<ProductPayload>({ fresh: true }));
-      setError(null);
-    } finally {
-      setRefreshing(false);
-    }
+  const refresh = refreshProductTruth;
+  const openApplication = (applicationId: number | null) => {
+    setSelectedApplicationId(applicationId);
+    setView("applications");
+  };
+  const openJob = (silverJobId: number) => {
+    setSelectedJobId(silverJobId);
+    setView("jobs");
   };
 
   if (error) return <main className="ow-fatal"><div><span>Fail closed</span><h1>Control Center unavailable</h1><pre>{error}</pre></div></main>;
@@ -821,7 +809,7 @@ export default function OperatorWorkspace() {
     </aside>
     <div className="ow-content-shell">
       <header className="ow-topline"><div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Product V1 · live pipeline</span></div><button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button></header>
-      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} onNavigate={setView} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} onPrepare={() => setView("application")} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
+      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} onOpenApplication={openApplication} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} focusApplicationId={selectedApplicationId} onOpenJob={openJob} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
 }
