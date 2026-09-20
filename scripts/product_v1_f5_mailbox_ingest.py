@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
+import re
 from typing import Mapping
 
 from src.search_intelligence.application_event_classifier import (
@@ -52,6 +53,10 @@ _ALLOWED_GMAIL_SEARCH_SIGNALS = frozenset(
         "assessment_request",
         "withdrawal_confirmation",
     }
+)
+_UNSOLICITED_APPLICATION_SUBJECT = re.compile(
+    r"^(?:(?:re|aw|wg|fwd?):\s*)*(?:initiativbewerbung\b|unsolicited\s+application\b)",
+    re.I,
 )
 
 
@@ -191,6 +196,17 @@ def _normalized(value: str | None) -> str:
     return " ".join((value or "").casefold().split())
 
 
+def application_kind_for_observation(
+    observation: NormalizedMailboxObservation,
+) -> str | None:
+    """Return explicit bounded application kind without inventing a vacancy title."""
+
+    subject = " ".join(observation.subject.split())
+    if _UNSOLICITED_APPLICATION_SUBJECT.search(subject):
+        return "unsolicited"
+    return None
+
+
 def canonical_sha256(payload: Mapping[str, object]) -> str:
     encoded = json.dumps(
         payload,
@@ -232,14 +248,18 @@ def evidence_fingerprint(
 ) -> str:
     """Fingerprint one interpretation of a stable source message."""
 
-    return canonical_sha256(
-        {
-            "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
-            "message_reference": observation.message_reference,
-            "candidate_class": classification.candidate_class,
-            "reason_code": classification.reason_code,
-        }
-    )
+    payload: dict[str, object] = {
+        "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
+        "message_reference": observation.message_reference,
+        "candidate_class": classification.candidate_class,
+        "reason_code": classification.reason_code,
+    }
+    application_kind = application_kind_for_observation(observation)
+    if application_kind is not None:
+        # Only explicit non-default semantics participate. Ordinary historical
+        # message fingerprints therefore remain stable across this hardening.
+        payload["application_kind"] = application_kind
+    return canonical_sha256(payload)
 
 
 def should_discover_application(classification: ClassificationResult) -> bool:
@@ -259,7 +279,7 @@ def should_persist_candidate(classification: ClassificationResult) -> bool:
 
 
 def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, object]:
-    return {
+    snapshot: dict[str, object] = {
         "job_title": observation.job_title,
         "employer_name": observation.employer_name,
         "sender_domain": observation.sender_domain,
@@ -269,6 +289,10 @@ def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, o
         "application_url": observation.source_url,
         "identity_source": "gmail_normalized_observation",
     }
+    application_kind = application_kind_for_observation(observation)
+    if application_kind is not None:
+        snapshot["application_kind"] = application_kind
+    return snapshot
 
 
 def _skipped_result(
@@ -293,6 +317,7 @@ def _skipped_result(
         "observed_at": observation.observed_at.isoformat(),
         "mail_direction": observation.mail_direction,
         "counterparty_domain": observation.counterparty_domain,
+        "application_kind": application_kind_for_observation(observation),
         "authoritative_state_mutation": False,
         "application_submission_action": False,
         "email_action": False,
@@ -482,6 +507,9 @@ def ingest_normalized_mailbox_observation(
                             raise MailboxIngestError("active_candidate_supersession_race")
 
                     evidence_payload = classification.as_payload()
+                    application_kind = application_kind_for_observation(observation)
+                    if application_kind is not None:
+                        evidence_payload["application_kind"] = application_kind
                     evidence_payload.update(
                         {
                             "sender_domain": observation.sender_domain,
@@ -566,6 +594,7 @@ def ingest_normalized_mailbox_observation(
         "observed_at": observation.observed_at.isoformat(),
         "mail_direction": observation.mail_direction,
         "counterparty_domain": observation.counterparty_domain,
+        "application_kind": application_kind_for_observation(observation),
         "authoritative_state_mutation": False,
         "application_submission_action": False,
         "email_action": False,

@@ -44,6 +44,10 @@ class ClassificationResult:
 _RULES: dict[str, tuple[tuple[str, str], ...]] = {
     "rejection": (
         (r"\bleider\s+(?:nicht|keine)\b", "leider nicht"),
+        (
+            r"\bleider\b.{0,120}\bmitteilen\b.{0,180}\bnicht\s+geklappt\b",
+            "leider mitteilen / nicht geklappt",
+        ),
         (r"\babsage\b", "Absage"),
         (r"\bnicht\s+berücksichtigen\b", "nicht berücksichtigen"),
         (r"\bnot\s+(?:be\s+)?moving\s+forward\b", "not moving forward"),
@@ -71,6 +75,10 @@ _RULES: dict[str, tuple[tuple[str, str], ...]] = {
         (r"\b(?:online[- ]?test|eignungstest|fachtest|arbeitsprobe)\b", "assessment request"),
     ),
     "application_acknowledgement": (
+        (
+            r"(?:^|\n)(?:deine|ihre)\s+bewerbung\s+.{2,300}?\s+bei\s+.{2,120}(?=\n|$)",
+            "Bewerbungsbetreff bei Arbeitgeber",
+        ),
         (r"\b(?:bewerbung|application)\s+(?:ist\s+)?(?:eingegangen|received)\b", "application received"),
         (r"\bvielen\s+dank\s+für\s+(?:ihre|deine)\s+bewerbung\b", "Danke für Bewerbung"),
         (r"\bthank\s+you\s+for\s+(?:your\s+)?application\b", "thank you for your application"),
