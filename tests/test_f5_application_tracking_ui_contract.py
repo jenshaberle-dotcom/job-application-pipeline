@@ -72,7 +72,7 @@ def test_application_tracking_can_focus_exact_application_from_all_jobs() -> Non
 
     assert "focusApplicationId" in tracking
     assert 'setFilter("all")' in tracking
-    assert "f5-application-\${focusApplicationId}" in tracking
+    assert "f5-application-${focusApplicationId}" in tracking
     assert "scrollIntoView" in tracking
     assert 'focusApplicationId === application.application_id ? " focused" : ""' in tracking
     assert ".f5-application-list>article.focused" in styles
