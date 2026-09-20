@@ -103,11 +103,15 @@ class MeteredHttpExecutor:
         return self._plain_get_responses.get(canonical_url(url))
 
     def __call__(self, request: SearchRequest) -> tuple[str, str, int]:
+        method = request.method.upper()
+        fields = dict(request.fields)
+        if method == "GET" and not fields:
+            cached = self._plain_get_responses.get(canonical_url(request.url))
+            if cached is not None:
+                return cached
         if self.calls >= self.max_requests:
             raise RuntimeError("systematic search absolute request cap exceeded")
         self.calls += 1
-        method = request.method.upper()
-        fields = dict(request.fields)
         if method == "GET":
             response = self.session.get(
                 request.url,
