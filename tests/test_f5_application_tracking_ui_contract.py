@@ -97,3 +97,13 @@ def test_manual_tracking_write_refreshes_shared_truth_without_page_reload() -> N
     assert "onRecorded={refreshProductTruth}" in tracking
     assert "await onRecorded()" in tracking
     assert "window.location.reload()" not in tracking
+
+
+def test_reverse_navigation_never_opens_wrong_job_outside_current_view() -> None:
+    tracking = _text(TRACKING)
+    styles = _text(STYLES)
+
+    assert "visibleJobIds" in tracking
+    assert "linkedJobVisible" in tracking
+    assert "liegt aber außerhalb der aktuellen All-jobs-Sicht" in tracking
+    assert ".f5-linked-job-outside-view" in styles
