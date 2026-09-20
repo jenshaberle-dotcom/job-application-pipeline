@@ -140,7 +140,7 @@ function StageStrip({ stage }: { stage: Stage }) {
   </div>;
 }
 
-function RecordSubmission({ jobs, trackedIds }: { jobs: F5TrackingJob[]; trackedIds: Set<number> }) {
+function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJob[]; trackedIds: Set<number>; onRecorded: () => Promise<void> }) {
   const available = jobs.filter((job) => !trackedIds.has(job.silver_job_id));
   const [jobId, setJobId] = useState(available[0]?.silver_job_id ? String(available[0].silver_job_id) : "");
   const [submittedAt, setSubmittedAt] = useState(localDateTimeNow());
@@ -173,7 +173,7 @@ function RecordSubmission({ jobs, trackedIds }: { jobs: F5TrackingJob[]; tracked
       if (!response.ok) throw new Error(payload.reason || `HTTP ${response.status}`);
       setState("saved");
       setMessage(payload.status === "already_recorded" ? "War bereits identisch erfasst." : "Als bereits versendet erfasst.");
-      window.setTimeout(() => window.location.reload(), 450);
+      await onRecorded();
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Erfassung fehlgeschlagen.");
@@ -198,10 +198,12 @@ export default function F5ApplicationTracking({
   payload,
   focusApplicationId = null,
   onOpenJob,
+  refreshProductTruth,
 }: {
   payload: F5ProductPayload;
   focusApplicationId?: number | null;
   onOpenJob?: (silverJobId: number) => void;
+  refreshProductTruth: () => Promise<void>;
 }) {
   const tracking = payload.application_tracking;
   const [filter, setFilter] = useState<Filter>("all");
@@ -340,7 +342,7 @@ export default function F5ApplicationTracking({
     </section>)}</div>}
 
     {tracking.summary.unmatched_candidate_count > 0 && <div className="f5-unmatched-warning">{tracking.summary.unmatched_candidate_count} Mail-Signale können noch keiner Bewerbung eindeutig zugeordnet werden und landen in Prüfen.</div>}
-    <RecordSubmission jobs={payload.job_readiness || []} trackedIds={trackedIds} />
+    <RecordSubmission jobs={payload.job_readiness || []} trackedIds={trackedIds} onRecorded={refreshProductTruth} />
     <footer className="f5-truth-boundary">Mailbox read-only · keine E-Mail-Aktion · keine automatische Bewerbung · beobachteter Status mit separater Korrektur-/Audit-Wahrheit</footer>
   </section>;
 }
