@@ -72,6 +72,7 @@ def test_job_application_navigation_is_internal_persistent_state_not_event_bridg
     assert "setSelectedJobId(silverJobId)" in source
     assert "focusApplicationId={selectedApplicationId}" in source
     assert "onOpenJob={openJob}" in source
+    assert "onSelectApplication={setSelectedApplicationId}" in source
     assert "onOpenApplication={openApplication}" in source
     assert "product-v1:focus-tracked-application" not in source
 
