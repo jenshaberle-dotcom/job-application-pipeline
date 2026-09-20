@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import F5ApplicationTracking, { type F5ProductPayload } from "./F5ApplicationTracking";
-import { readProductTruth } from "./productPayloadRuntimeAdapter";
+import { useProductTruth } from "./ProductTruthContext";
 import "./demo-product-polish.css";
 
-type PolishPayload = F5ProductPayload & {
+type PolishPayload = {
   summary: {
     observed_job_count: number;
     current_active_job_count: number;
@@ -129,23 +128,11 @@ function AttentionPanel({ payload }: { payload: PolishPayload }) {
 }
 
 export default function DemoProductPolish() {
-  const [payload, setPayload] = useState<PolishPayload | null>(null);
+  const { payload } = useProductTruth<PolishPayload>();
   const [stackRoot, setStackRoot] = useState<HTMLElement | null>(null);
   const [view, setView] = useState("");
-  const [focusedApplicationId, setFocusedApplicationId] = useState<number | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = () =>
-      readProductTruth<PolishPayload>()
-        .then((truth) => {
-          if (!cancelled) setPayload(truth);
-        })
-        .catch(() => {
-          // Cosmetic enhancement must never replace or weaken the canonical fail-closed UI.
-        });
-
     const syncDom = () => {
       const nextView = viewId();
       setView((current) => current === nextView ? current : nextView);
@@ -157,7 +144,6 @@ export default function DemoProductPolish() {
       applyTooltips();
     };
 
-    void load();
     syncDom();
 
     const onClick = (event: MouseEvent) => {
@@ -171,36 +157,18 @@ export default function DemoProductPolish() {
         window.setTimeout(syncDom, 0);
       }
 
-      if (target?.closest(".ow-topline button, .dl-refresh")) {
-        window.setTimeout(() => void load(), 250);
-      }
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") window.setTimeout(syncDom, 0);
     };
 
-    const onFocusTrackedApplication = (event: Event) => {
-      const applicationId = (event as CustomEvent<{ applicationId?: unknown }>).detail?.applicationId;
-      if (typeof applicationId === "number" && Number.isInteger(applicationId) && applicationId > 0) {
-        setFocusedApplicationId(applicationId);
-      }
-    };
-
-    const mainRoot = document.querySelector<HTMLElement>(".ow-main");
-    const viewObserver = mainRoot ? new MutationObserver(() => window.setTimeout(syncDom, 0)) : null;
-    viewObserver?.observe(mainRoot, { childList: true });
-
     document.addEventListener("click", onClick);
     document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("product-v1:focus-tracked-application", onFocusTrackedApplication);
 
     return () => {
-      cancelled = true;
-      viewObserver?.disconnect();
       document.removeEventListener("click", onClick);
       document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("product-v1:focus-tracked-application", onFocusTrackedApplication);
       delete document.body.dataset.demoView;
       document.body.classList.remove("demo-polish-ready");
     };
@@ -214,6 +182,5 @@ export default function DemoProductPolish() {
   if (!payload || !stackRoot) return null;
 
   if (view === "overall") return createPortal(<><Journey payload={payload} /><AttentionPanel payload={payload} /></>, stackRoot);
-  if (view === "applications") return createPortal(<F5ApplicationTracking payload={payload} focusApplicationId={focusedApplicationId} />, stackRoot);
   return null;
 }
