@@ -227,6 +227,10 @@ export default function F5ApplicationTracking({
     }
     return ids;
   }, [applications, projectedJobByApplicationId]);
+  const visibleJobIds = useMemo(
+    () => new Set((payload.job_readiness || []).map((job) => job.silver_job_id)),
+    [payload.job_readiness],
+  );
   const filtered = useMemo(() => applications.filter((item) => {
     if (filter === "attention") return item.attention_candidate_count > 0;
     if (filter === "closed") return item.effective_stage === "closed";
@@ -307,6 +311,7 @@ export default function F5ApplicationTracking({
         const employer = application.display_company_name || application.company_name || "Arbeitgeber noch nicht ableitbar";
         const linkedJobId = application.silver_job_id ?? projectedJobByApplicationId.get(application.application_id) ?? null;
         const projectedLink = application.silver_job_id == null && linkedJobId != null;
+        const linkedJobVisible = linkedJobId != null && visibleJobIds.has(linkedJobId);
         const jobTitle = application.title || (linkedJobId ? `Job ${linkedJobId}` : "Jobtitel noch nicht ableitbar");
         return <article
           key={application.application_id}
@@ -333,7 +338,11 @@ export default function F5ApplicationTracking({
               <span><small>Kommunikations-Domain</small>{application.counterparty_domain || application.sender_domain || "—"}</span>
               {application.source_url ? <a href={application.source_url} target="_blank" rel="noreferrer"><small>Job-/Bewerbungsquelle</small>Öffnen ↗</a> : <span><small>Job-/Bewerbungsquelle</small>—</span>}
             </div>
-            {linkedJobId != null && onOpenJob && <button type="button" className="f5-open-linked-job" onClick={() => onOpenJob(linkedJobId)}>In All jobs öffnen ↔</button>}
+            {linkedJobVisible && linkedJobId != null && onOpenJob
+              ? <button type="button" className="f5-open-linked-job" onClick={() => onOpenJob(linkedJobId)}>In All jobs öffnen ↔</button>
+              : linkedJobId != null
+                ? <div className="f5-linked-job-outside-view">Silver #{linkedJobId} ist verknüpft, liegt aber außerhalb der aktuellen All-jobs-Sicht.</div>
+                : null}
             {warning && <div className="f5-attention-note">{warning}</div>}
             <details className="f5-evidence-details"><summary>Details & Evidence</summary><div><p><b>Beobachteter Status:</b> {stageLabel[application.effective_stage]} · {application.effective_stage_basis || "—"}</p><p><b>Autoritative Korrektur:</b> {stageLabel[application.authoritative_stage]}</p><p><b>Autoritative Events:</b> {application.authoritative_event_count}</p>{application.evidence_candidates.length === 0 ? <p>Keine Kommunikations-Evidence hinterlegt.</p> : application.evidence_candidates.map((candidate) => <p key={candidate.candidate_id || `${candidate.candidate_class}-${candidate.created_at}`} className={candidate.requires_review ? "review-required" : "qualified-evidence"}><b>{candidate.candidate_class || "ambiguous"}</b> · {candidate.requires_review ? "Prüfung nötig" : "qualifiziert"}{candidate.confidence != null ? ` · ${Math.round(candidate.confidence * 100)} %` : ""} · {formatDate(candidate.observed_at)}</p>)}</div></details>
           </div>}
