@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT / "frontend" / "control-center" / "src" / "OperatorWorkspace.tsx"
 STYLES = ROOT / "frontend" / "control-center" / "src" / "operator-workspace-v2.css"
+POLISH = ROOT / "frontend" / "control-center" / "src" / "DemoProductPolish.tsx"
 
 
 def _text(path: Path) -> str:
@@ -74,3 +75,12 @@ def test_application_status_cell_is_a_direct_read_only_drilldown() -> None:
     assert "Klicken, um die Bewerbung zu öffnen." in source
     assert ".ow-application-status.linked" in styles
     assert "record_operator_confirmed_submission" not in source
+
+
+def test_programmatic_applications_navigation_resyncs_mailbox_portal() -> None:
+    polish = _text(POLISH)
+
+    assert "MutationObserver" in polish
+    assert 'window.addEventListener("product-v1:focus-tracked-application"' in polish
+    assert "setFocusedApplicationId(applicationId)" in polish
+    assert "focusApplicationId={focusedApplicationId}" in polish
