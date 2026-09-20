@@ -198,11 +198,13 @@ export default function F5ApplicationTracking({
   payload,
   focusApplicationId = null,
   onOpenJob,
+  onSelectApplication,
   refreshProductTruth,
 }: {
   payload: F5ProductPayload;
   focusApplicationId?: number | null;
   onOpenJob?: (silverJobId: number) => void;
+  onSelectApplication?: (applicationId: number) => void;
   refreshProductTruth: () => Promise<void>;
 }) {
   const tracking = payload.application_tracking;
@@ -265,6 +267,7 @@ export default function F5ApplicationTracking({
   }, [applications, focusApplicationId]);
 
   function toggleExpanded(applicationId: number) {
+    onSelectApplication?.(applicationId);
     setExpandedIds((current) => {
       const next = new Set(current);
       if (next.has(applicationId)) next.delete(applicationId);
