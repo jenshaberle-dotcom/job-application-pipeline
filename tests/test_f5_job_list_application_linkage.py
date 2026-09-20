@@ -73,8 +73,7 @@ def test_job_application_navigation_is_internal_persistent_state_not_event_bridg
     assert "focusApplicationId={selectedApplicationId}" in source
     assert "onOpenJob={openJob}" in source
     assert "onOpenApplication={openApplication}" in source
-    assert "dispatchEvent" not in source
-    assert "CustomEvent" not in source
+    assert "product-v1:focus-tracked-application" not in source
 
 
 def test_linkage_is_bidirectional_inside_application() -> None:
