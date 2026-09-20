@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./f5-application-tracking.css";
 
 export type F5TrackingJob = {
@@ -180,7 +180,7 @@ function RecordSubmission({ jobs, trackedIds }: { jobs: F5TrackingJob[]; tracked
   </details>;
 }
 
-export default function F5ApplicationTracking({ payload }: { payload: F5ProductPayload }) {
+export default function F5ApplicationTracking({ payload, focusApplicationId = null }: { payload: F5ProductPayload; focusApplicationId?: number | null }) {
   const tracking = payload.application_tracking;
   const [filter, setFilter] = useState<Filter>("all");
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
@@ -197,6 +197,27 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
     applications: filtered.filter((item) => item.effective_stage === stage),
   })).filter((group) => group.applications.length > 0), [filtered]);
   const allFilteredExpanded = filtered.length > 0 && filtered.every((item) => expandedIds.has(item.application_id));
+
+  useEffect(() => {
+    if (typeof focusApplicationId !== "number") return;
+    if (!applications.some((item) => item.application_id === focusApplicationId)) return;
+
+    setFilter("all");
+    setExpandedIds((current) => {
+      if (current.has(focusApplicationId)) return current;
+      const next = new Set(current);
+      next.add(focusApplicationId);
+      return next;
+    });
+
+    const timer = window.setTimeout(() => {
+      document.getElementById(`f5-application-${focusApplicationId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [applications, focusApplicationId]);
 
   function toggleExpanded(applicationId: number) {
     setExpandedIds((current) => {
@@ -244,7 +265,11 @@ export default function F5ApplicationTracking({ payload }: { payload: F5ProductP
         const expanded = expandedIds.has(application.application_id);
         const employer = application.display_company_name || application.company_name || "Arbeitgeber noch nicht ableitbar";
         const jobTitle = application.title || (application.silver_job_id ? `Job ${application.silver_job_id}` : "Jobtitel noch nicht ableitbar");
-        return <article key={application.application_id} className={`${application.attention_candidate_count ? "needs-attention " : ""}${expanded ? "expanded" : "compact"}`}>
+        return <article
+          key={application.application_id}
+          id={`f5-application-${application.application_id}`}
+          className={`${application.attention_candidate_count ? "needs-attention " : ""}${expanded ? "expanded" : "compact"}${focusApplicationId === application.application_id ? " focused" : ""}`}
+        >
           <button
             type="button"
             className="f5-compact-row"
