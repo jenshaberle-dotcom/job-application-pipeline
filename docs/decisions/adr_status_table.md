@@ -62,6 +62,7 @@ are used as active architecture anchors.
 | ADR-032 | Accepted | Current | Keep; Jinja2 is the current Control Center presentation layer. | `docs/reference/documentation/design_rules.md` |
 | ADR-033 | Accepted | Current | Keep; Search Intelligence safety/security boundary remains active. | `docs/reference/security/safety_security_state_architecture.md` |
 | ADR-034 | Accepted | Current | Keep; one JAP product may coexist across local/offline and cloud runtimes while sharing product semantics and explicit succession evidence. | `docs/current/architecture.md` |
+| ADR-035 | Accepted for implementation | Current | Keep; scale employer-origin execution through portable work items and shared worker runtimes rather than per-employer deployments. | `docs/current/architecture.md`, `src/ingestion/connector_work_item.py` |
 
 ## Immediate follow-up queue
 
