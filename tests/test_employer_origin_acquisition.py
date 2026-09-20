@@ -34,6 +34,23 @@ def job_html(title: str = "Backend Engineer Berlin") -> str:
     )
 
 
+def test_embedded_detail_extraction_does_not_drop_locale_prefix() -> None:
+    localized = "https://jobs.example.invalid/en/job/ai-automation-architect-germany/"
+    html = (
+        "<html><body>"
+        f'<a href="{localized}">AI Automation Architect</a>'
+        "</body></html>"
+    )
+
+    extracted = extract_embedded_detail_urls(
+        html,
+        ROOT,
+        allowed_hosts=HOSTS,
+    )
+
+    assert extracted == (localized.rstrip("/"),)
+
+
 def test_acquisition_uses_one_bounded_listing_hop_without_relevance_gate() -> None:
     calls: list[str] = []
 

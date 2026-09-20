@@ -270,7 +270,7 @@ def extract_embedded_detail_urls(
     decoded = _decode_embedded_url_text(html)
     patterns = (
         r"https?://[^\s\"'<>]+",
-        r"/(?:job|jobs|stellenangebote|offene-stellen|stellen-finden|karriere/jobs|karriere/offene-stellen)/[^\s\"'<>]+",
+        r"(?<![A-Za-z0-9_-])/(?:job|jobs|stellenangebote|offene-stellen|stellen-finden|karriere/jobs|karriere/offene-stellen)/[^\s\"'<>]+",
     )
     result: list[str] = []
     seen: set[str] = set()

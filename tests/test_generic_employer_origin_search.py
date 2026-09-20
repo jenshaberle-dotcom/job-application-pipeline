@@ -142,7 +142,7 @@ def test_finite_inventory_local_filter_finds_title_and_rejects_impossible_contro
 
     assert target.mechanism == "finite_inventory_local_filter"
     assert [job.final_url for job in target.jobs] == [
-        "https://example.test/en/job/ai-automation-architect-germany/"
+        "https://example.test/en/job/ai-automation-architect-germany"
     ]
     assert [job.title for job in target.jobs] == [
         "AI Automation Architect – Software Development Lifecycle – Germany"
