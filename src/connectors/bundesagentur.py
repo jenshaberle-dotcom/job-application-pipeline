@@ -5,6 +5,40 @@ from src.connectors.base import JobSourceConnector, RawJobRecord, SearchProfile,
 from src.connectors.capabilities import SourceCapabilities
 
 
+def _normalize_ba_job(job: dict) -> dict:
+    """Project current BA v6 fields onto the existing canonical Bronze contract."""
+
+    normalized = dict(job)
+    title = job.get("titel") or job.get("stellenangebotsTitel")
+    company = job.get("arbeitgeber") or job.get("firma")
+    locations = job.get("arbeitsort") or job.get("stellenlokationen")
+    source_url = (
+        job.get("externeUrl")
+        or job.get("externeURL")
+        or job.get("url")
+    )
+    publication_date = (
+        job.get("aktuelleVeroeffentlichungsdatum")
+        or job.get("veroeffentlichtAm")
+        or job.get("datum")
+        or job.get("aenderungsdatum")
+        or job.get("datumErsteVeroeffentlichung")
+    )
+
+    if title is not None:
+        normalized["titel"] = title
+    if company is not None:
+        normalized["arbeitgeber"] = company
+    if locations is not None:
+        normalized["arbeitsort"] = locations
+    if source_url is not None:
+        normalized["externeUrl"] = source_url
+    if publication_date is not None:
+        normalized["aktuelleVeroeffentlichungsdatum"] = publication_date
+
+    return normalized
+
+
 class BundesagenturConnector(JobSourceConnector):
     source_name = "bundesagentur_fuer_arbeit"
     base_url = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs"
@@ -54,16 +88,22 @@ class BundesagenturConnector(JobSourceConnector):
                 first_request_url = response.url
 
             data = response.json()
-            jobs = data.get("stellenangebote", [])
+            jobs = data.get("ergebnisliste")
+            if jobs is None:
+                jobs = data.get("stellenangebote", [])
             if not isinstance(jobs, list):
-                raise RuntimeError("Bundesagentur search payload has invalid stellenangebote")
+                raise RuntimeError(
+                    "Bundesagentur search payload has invalid ergebnisliste/stellenangebote"
+                )
 
-            for job in jobs:
-                if not isinstance(job, dict):
+            for provider_job in jobs:
+                if not isinstance(provider_job, dict):
                     continue
+                job = _normalize_ba_job(provider_job)
                 external_job_id = job.get("referenznummer") or job.get("refnr")
                 source_url = (
                     job.get("externeUrl")
+                    or job.get("externeURL")
                     or job.get("url")
                     or f"ba://{external_job_id}"
                 )
@@ -88,6 +128,11 @@ class BundesagenturConnector(JobSourceConnector):
                                 "page": page,
                                 "page_cap": self.max_pages,
                             },
+                            "provider_schema": (
+                                "ba_jobsuche_v6"
+                                if "ergebnisliste" in data
+                                else "ba_jobsuche_legacy"
+                            ),
                             "job": job,
                         },
                     )
