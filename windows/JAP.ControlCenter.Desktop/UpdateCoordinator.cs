@@ -149,7 +149,7 @@ internal sealed class UpdateCoordinator : IDisposable
             };
             startInfo.ArgumentList.Add("-NoProfile");
             startInfo.ArgumentList.Add("-ExecutionPolicy");
-            startInfo.ArgumentList.Add("Bypass");
+            startInfo.ArgumentList.Add("RemoteSigned");
             startInfo.ArgumentList.Add("-WindowStyle");
             startInfo.ArgumentList.Add("Hidden");
             startInfo.ArgumentList.Add("-File");
