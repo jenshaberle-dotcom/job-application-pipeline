@@ -222,7 +222,7 @@ class JobIngestionRepository:
         evidence: dict | None = None,
     ) -> int | None:
         normalized_company_key = normalize_company_key(company_name)
-        if not normalized_company_key or not title.strip():
+        if not normalized_company_key:
             return None
 
         with self.get_connection() as conn:

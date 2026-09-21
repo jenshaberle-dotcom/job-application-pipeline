@@ -144,7 +144,7 @@ def collect_seed_rows(conn: psycopg.Connection[Any], *, limit_per_source: int) -
                     company_key,
                     company_name,
                     source_name,
-                    evidence_url AS seed_url,
+                    NULL::text AS seed_url,
                     search_term
                 FROM aggregator_novelty_items
                 ORDER BY company_name
@@ -164,7 +164,7 @@ def collect_seed_rows(conn: psycopg.Connection[Any], *, limit_per_source: int) -
                     normalized_company_key AS company_key,
                     company_name,
                     source_name,
-                    evidence_url AS seed_url,
+                    NULL::text AS seed_url,
                     search_term
                 FROM market_evidence
                 ORDER BY source_seen_at DESC NULLS LAST, company_name
@@ -186,7 +186,8 @@ def collect_seed_rows(conn: psycopg.Connection[Any], *, limit_per_source: int) -
                     source_name,
                     source_url AS seed_url
                 FROM raw_jobs
-                WHERE source_url IS NOT NULL
+                WHERE source_name LIKE 'generic_origin:%'
+                  AND source_url IS NOT NULL
                   AND btrim(source_url) <> ''
                 ORDER BY source_name, source_url
                 LIMIT %s
@@ -208,7 +209,8 @@ def collect_seed_rows(conn: psycopg.Connection[Any], *, limit_per_source: int) -
                     source_url AS seed_url,
                     COUNT(*) AS silver_job_count
                 FROM silver_jobs
-                WHERE company_name IS NOT NULL
+                WHERE source_name LIKE 'generic_origin:%'
+                  AND company_name IS NOT NULL
                   AND btrim(company_name) <> ''
                 GROUP BY normalized_company_name, company_name, source_name, source_url
                 ORDER BY COUNT(*) DESC, company_name

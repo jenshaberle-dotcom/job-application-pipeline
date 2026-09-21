@@ -26,6 +26,8 @@ SEED_POOL_BOUNDARY = {
     "no_csv_or_export_input": True,
     "company_name_seed_requires_url_discovery": True,
     "aggregator_seeds_not_origin_structure_evidence": True,
+    "market_sensor_urls_discarded": True,
+    "market_sensor_job_identity_discarded": True,
 }
 
 AGGREGATOR_SOURCE_NAMES = {"stepstone", "indeed", "linkedin", "xing", "glassdoor"}
@@ -162,6 +164,9 @@ def classify_seed_row(row: Mapping[str, object]) -> ObservationSeed:
     if source_name.startswith(HISTORICAL_OR_UNDIFFERENTIATED_PREFIXES):
         priority = min(priority, 0.35)
         reason += "; historical undifferentiated source is low-priority learning input"
+
+    if seed_type in {"aggregator_company_seed", "job_text_signal_seed"}:
+        seed_url = None
 
     seed_key_parts = [seed_type, company_key or normalize_company_key(company_name), seed_url or source_name or source_table]
     seed_key = "|".join(part for part in seed_key_parts if part)

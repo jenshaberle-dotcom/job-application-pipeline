@@ -323,6 +323,7 @@ def run_profile(
         repository=repository,
         connector=connector,
         health_repository=health_repository,
+        source_role=profile_source_role(profile),
     )
 
     runner.run(profile_name=profile.profile_name)

@@ -3,10 +3,7 @@ import sys
 from typing import Any
 
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchTerm
-from src.ingestion.aggregator_discovery_filter import (
-    filter_known_employer_origin_candidates,
-    normalize_exclusion_keys,
-)
+from src.connectors.registry import SourceRole
 from src.ingestion.diagnostics import (
     classify_exception,
     format_ingestion_failure,
@@ -24,6 +21,7 @@ from src.ingestion.recurring_lifecycle_health import (
 from src.ingestion.repository import JobIngestionRepository
 from src.ingestion.run_stage_telemetry import record_ingestion_stage_counts
 from src.job_lifecycle_health import JobLifecycleHealthRepository
+from src.search_intelligence.company_vocabulary import extract_vocabulary_terms
 
 
 MISSING_DISPLAY_VALUE = "<missing>"
@@ -74,17 +72,7 @@ def get_record_display_company(record: RawJobRecord) -> str:
     )
 
 
-def load_aggregator_discovery_exclusion_keys(repository: JobIngestionRepository) -> set[str]:
-    loader = getattr(repository, "load_aggregator_discovery_suppression_company_keys", None)
-    if loader is None:
-        loader = getattr(repository, "load_employer_origin_candidate_company_keys", None)
-    if loader is None:
-        return set()
-
-    return normalize_exclusion_keys(loader())
-
-
-def record_market_evidence_for_aggregator_records(
+def record_market_sensor_evidence(
     repository: JobIngestionRepository,
     *,
     source_name: str,
@@ -93,6 +81,13 @@ def record_market_evidence_for_aggregator_records(
     search_term: str | None,
     ingestion_run_id: int,
 ) -> int:
+    """Persist only company identity and optional vocabulary across the sensor boundary.
+
+    Market-sensor job URLs, external job IDs and raw job titles are deliberately
+    discarded here. The title column in the legacy market_evidence schema carries
+    only the derived vocabulary projection until that schema is retired.
+    """
+
     recorder = getattr(repository, "save_market_evidence", None)
     if recorder is None:
         return 0
@@ -100,27 +95,38 @@ def record_market_evidence_for_aggregator_records(
     written = 0
     for record in records:
         company_name = get_record_display_company(record)
-        title = get_record_display_title(record)
-        if company_name == MISSING_DISPLAY_VALUE or title == MISSING_DISPLAY_VALUE:
+        if company_name == MISSING_DISPLAY_VALUE:
             continue
+
+        display_title = get_record_display_title(record)
+        vocabulary_terms = (
+            extract_vocabulary_terms(display_title)
+            if display_title != MISSING_DISPLAY_VALUE
+            else ()
+        )
         evidence_id = recorder(
-            evidence_source="aggregator_ingestion",
-            evidence_kind="aggregator_sighting",
+            evidence_source="market_sensor_ingestion",
+            evidence_kind="market_sensor_company_sighting",
             source_name=source_name,
             company_name=company_name,
-            title=title,
-            evidence_url=record.source_url,
+            title=" ".join(vocabulary_terms),
+            evidence_url=None,
             search_profile_name=profile_name,
             search_term=search_term,
             ingestion_run_id=ingestion_run_id,
-            raw_job_external_id=record.external_job_id,
+            raw_job_external_id=None,
             evidence={
                 "boundary": {
-                    "market_evidence_only": True,
+                    "company_identity_only": True,
+                    "vocabulary_only": True,
+                    "sensor_url_forwarded": False,
+                    "raw_job_identity_forwarded": False,
                     "bronze_write": False,
+                    "silver_write": False,
                     "source_activation": False,
                     "scheduler_change": False,
-                }
+                },
+                "vocabulary_terms": list(vocabulary_terms),
             },
         )
         if evidence_id is not None:
@@ -128,26 +134,29 @@ def record_market_evidence_for_aggregator_records(
     return written
 
 
-def should_apply_aggregator_discovery_suppression(source_name: str) -> bool:
-    return source_name == "stepstone"
-
-
+class JobIngestionRunner:
 class JobIngestionRunner:
     def __init__(
         self,
         repository: JobIngestionRepository,
         connector: JobSourceConnector,
         health_repository: JobLifecycleHealthRepository | None = None,
+        source_role: SourceRole | None = None,
     ) -> None:
         self.repository = repository
         self.connector = connector
         self.health_repository = health_repository
+        self.source_role = source_role
 
     def run(self, profile_name: str) -> None:
         search_terms = self.repository.load_active_search_terms(profile_name)
 
         if not search_terms:
             raise ValueError(f"No active search terms found for profile: {profile_name}")
+
+        if self.source_role == SourceRole.SENSOR:
+            self.run_market_sensor_observation(search_terms)
+            return
 
         if (
             self.connector.capabilities.supports_full_fetch
@@ -207,34 +216,13 @@ class JobIngestionRunner:
 
             loaded_before_local_filter = len(records)
 
-            market_evidence_written = 0
-            if should_apply_aggregator_discovery_suppression(self.connector.source_name):
-                market_evidence_written = record_market_evidence_for_aggregator_records(
-                    self.repository,
-                    source_name=self.connector.source_name,
-                    records=records,
-                    profile_name=profile.profile_name,
-                    search_term=search_term.search_term,
-                    ingestion_run_id=ingestion_run_id,
-                )
-
             if not self.connector.capabilities.supports_keyword:
                 records = apply_keyword_filter(
                     records=records,
                     search_term=search_term.search_term,
                 )
 
-            suppressed_aggregator_records = []
-            if should_apply_aggregator_discovery_suppression(self.connector.source_name):
-                filter_result = filter_known_employer_origin_candidates(
-                    records=records,
-                    excluded_company_keys=load_aggregator_discovery_exclusion_keys(
-                        self.repository
-                    ),
-                )
-                records = filter_result.kept_records
-                suppressed_aggregator_records = filter_result.suppressed_records
-
+            record_ingestion_stage_counts(
             record_ingestion_stage_counts(
                 self.repository,
                 ingestion_run_id=ingestion_run_id,
@@ -251,24 +239,7 @@ class JobIngestionRunner:
             print(f"Final URL: {requested_url}")
             print(f"{loaded_before_local_filter} Jobs geladen vor lokaler Filterung")
 
-            if market_evidence_written:
-                print(f"Market Evidence Beobachtungen gespeichert: {market_evidence_written}")
-
-            if not self.connector.capabilities.supports_keyword:
-                print(f"{len(records)} Jobs nach lokaler Keyword-Filterung")
-
-            if suppressed_aggregator_records:
-                print(
-                    f"{len(suppressed_aggregator_records)} StepStone-Ergebnisse "
-                    "wegen bekannter Employer-Origin-Kandidaten unterdrückt"
-                )
-                for suppressed_record in suppressed_aggregator_records:
-                    print(
-                        "Unterdrückt: "
-                        f"{suppressed_record.title or MISSING_DISPLAY_VALUE} | "
-                        f"{suppressed_record.company_name}"
-                    )
-
+            for record in records:
             for record in records:
                 new_id = self.repository.save_raw_job(
                     record=record,
@@ -322,6 +293,131 @@ class JobIngestionRunner:
             print(f"Ingestion Run ID: {ingestion_run_id}")
             print(f"Neue Jobs gespeichert: {inserted_count}")
             print(f"Bereits vorhandene Jobs übersprungen: {duplicate_count}")
+
+    def run_market_sensor_observation(
+        self,
+        search_terms: list[tuple[Any, SearchTerm]],
+    ) -> None:
+        """Run one source-role SENSOR without creating Product job records."""
+
+        if (
+            self.connector.capabilities.supports_full_fetch
+            and not self.connector.capabilities.supports_keyword
+        ):
+            profile = search_terms[0][0]
+            active_terms = [search_term for _, search_term in search_terms]
+            ingestion_run_id = self.repository.create_ingestion_run(
+                source_name=self.connector.source_name,
+                search_profile_id=profile.id,
+                search_term_id=None,
+                search_term=None,
+            )
+            try:
+                records, requested_url = self.connector.fetch_jobs(
+                    profile,
+                    SearchTerm(search_term="*", id=None),
+                )
+            except Exception as exc:
+                diagnostic = classify_exception(exc=exc, error_stage="source_request")
+                self.repository.fail_ingestion_run(
+                    ingestion_run_id=ingestion_run_id,
+                    error_message=diagnostic.error_message,
+                    error_type=diagnostic.error_type,
+                    error_stage=diagnostic.error_stage,
+                )
+                raise
+
+            self.repository.update_ingestion_run_requested_url(
+                ingestion_run_id=ingestion_run_id,
+                requested_url=requested_url,
+            )
+            loaded_before_local_filter = len(records)
+            records = apply_multi_term_keyword_filter(
+                records=records,
+                search_terms=active_terms,
+            )
+            record_ingestion_stage_counts(
+                self.repository,
+                ingestion_run_id=ingestion_run_id,
+                connector_record_count=loaded_before_local_filter,
+                post_filter_count=len(records),
+            )
+            written = record_market_sensor_evidence(
+                self.repository,
+                source_name=self.connector.source_name,
+                records=records,
+                profile_name=profile.profile_name,
+                search_term=None,
+                ingestion_run_id=ingestion_run_id,
+            )
+            self.repository.finish_ingestion_run(
+                ingestion_run_id=ingestion_run_id,
+                total_loaded=len(records),
+                inserted_count=0,
+                duplicate_count=0,
+            )
+            print("---")
+            print(f"Market sensor profile: {profile.profile_name}")
+            print(f"Observed records: {len(records)}")
+            print(f"Company/vocabulary evidence written: {written}")
+            print("Product job writes: 0")
+            return
+
+        for profile, search_term in search_terms:
+            ingestion_run_id = self.repository.create_ingestion_run(
+                source_name=self.connector.source_name,
+                search_profile_id=profile.id,
+                search_term_id=search_term.id,
+                search_term=search_term.search_term,
+            )
+            try:
+                records, requested_url = self.connector.fetch_jobs(profile, search_term)
+            except Exception as exc:
+                diagnostic = classify_exception(exc=exc, error_stage="source_request")
+                self.repository.fail_ingestion_run(
+                    ingestion_run_id=ingestion_run_id,
+                    error_message=diagnostic.error_message,
+                    error_type=diagnostic.error_type,
+                    error_stage=diagnostic.error_stage,
+                )
+                raise
+
+            self.repository.update_ingestion_run_requested_url(
+                ingestion_run_id=ingestion_run_id,
+                requested_url=requested_url,
+            )
+            loaded_before_local_filter = len(records)
+            if not self.connector.capabilities.supports_keyword:
+                records = apply_keyword_filter(
+                    records=records,
+                    search_term=search_term.search_term,
+                )
+            record_ingestion_stage_counts(
+                self.repository,
+                ingestion_run_id=ingestion_run_id,
+                connector_record_count=loaded_before_local_filter,
+                post_filter_count=len(records),
+            )
+            written = record_market_sensor_evidence(
+                self.repository,
+                source_name=self.connector.source_name,
+                records=records,
+                profile_name=profile.profile_name,
+                search_term=search_term.search_term,
+                ingestion_run_id=ingestion_run_id,
+            )
+            self.repository.finish_ingestion_run(
+                ingestion_run_id=ingestion_run_id,
+                total_loaded=len(records),
+                inserted_count=0,
+                duplicate_count=0,
+            )
+            print("---")
+            print(f"Market sensor profile: {profile.profile_name}")
+            print(f"Search term: {search_term.search_term}")
+            print(f"Observed records: {len(records)}")
+            print(f"Company/vocabulary evidence written: {written}")
+            print("Product job writes: 0")
 
     def run_full_fetch_with_local_matching(
         self,
