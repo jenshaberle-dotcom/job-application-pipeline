@@ -80,6 +80,8 @@ def test_update_applier_uses_only_installed_control_plane_and_payload_files() ->
     assert "Expand-Archive -Path $archive -DestinationPath $stagedHost -Force" in applier
     assert 'Write-UpdateLog "desktop_cutover_start"' in applier
     assert 'Write-UpdateLog "desktop_cutover_rollback"' in applier
+    assert "$previousCurrent = Read-Json $CurrentPath" in applier
+    assert "Write-JsonAtomic $CurrentPath $previousCurrent" in applier
     assert "Assert-PathUnderUpdates" in applier
     assert "desktop_sha256" in applier
     assert "source_root" not in applier
