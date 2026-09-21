@@ -173,3 +173,32 @@ def test_optional_operator_reference_is_preserved_as_note_not_authority() -> Non
 
     assert request.authority_reference == LOCAL_OPERATOR_AUTHORITY_REFERENCE
     assert request.operator_reference == "noch keine E-Mail-Eingangsbestätigung erhalten"
+
+
+def test_manual_submission_uses_only_canonical_silver_schema_columns() -> None:
+    source = MODULE.read_text(encoding="utf-8")
+    loader = source.split("def _load_silver_identity", 1)[1].split(
+        "def record_operator_confirmed_submission", 1
+    )[0]
+
+    for column in (
+        "source_name",
+        "external_job_id",
+        "source_url",
+        "title",
+        "company_name",
+        "city",
+        "postal_code",
+        "country",
+        "publication_date",
+    ):
+        assert column in loader
+
+    for phantom in (
+        "canonical_job_key",
+        "source_system",
+        "source_job_id",
+        "company_key",
+        "location_raw",
+    ):
+        assert phantom not in loader
