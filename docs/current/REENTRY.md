@@ -6,9 +6,9 @@ Read this file from canonical `refs/heads/main` before continuing Product work. 
 
 ## Live repository checkpoint — 2026-09-21
 
-Canonical public repository before the active final F5 operator-linkage correction:
+Canonical public repository after the v1.0.48 startup recovery and installed-runtime smoke hardening:
 
-`main@52657f4a4844367f20bfaaf9b6fcf2b665ec2bc3`
+`main@1bb7d32a2d1275c3509c4e176cfdef51c944ebca`
 
 Current private runtime main:
 
@@ -114,9 +114,29 @@ The normal WSL `start` path then owns all existing source, frontend, Python,
 environment, local-OSS and DB readiness checks. PowerShell retains the same
 75-second exact-source endpoint readiness proof.
 
-F5 itself is **not yet operator complete**. The active final correction slice is
-`agent/f5-final-linkage-operator-correction`, target desktop `v1.0.48`. It
-closes the remaining operator feedback without reopening mailbox authority:
+The v1.0.48 recovery is now **operator accepted and closed**. Exact released source
+`88945bb7eda3e64df9d4b236b9300360c8438754` was installed as desktop
+`1.0.48`. Local deploy run `35602078710` then executed the newly permanent
+installed-runtime smoke through the real installed
+`JAP-Control-Center.ps1 -NoBrowser` path and proved:
+
+- `JAP_WINDOWS_APP_DETACHED_HANDOFF=PASS`;
+- loopback Product runtime became ready on `127.0.0.1:8780`;
+- `/app-info.json.source_revision` exactly matched `88945bb7…`;
+- `JAP_INSTALLED_RUNTIME_SMOKE=PASS`;
+- managed runtime shutdown completed with `JAP_INSTALLED_RUNTIME_STOP=PASS`;
+- port 8780 was closed again after cleanup.
+
+The subsequent real operator launch also succeeded. The native JAP Control Center
+opened normally and About displayed desktop `v1.0.48`, source revision
+`88945bb7eda3...`, WebView2 WinForms, WSL-backed local runtime and PostgreSQL /
+DB-backed truth. The updater/startup incident therefore has no remaining
+sequencing authority.
+
+F5 itself is **not yet operator complete**. PR #951 already merged the final
+application-linkage/correction implementation; v1.0.48 carries it together with
+the now-accepted startup recovery. The remaining operator feedback is therefore
+purely the final Product interaction gate, without reopening mailbox authority:
 
 1. a mistaken local operator submission can be explicitly undone;
 2. only the operator-owned submission confirmation is removed;
@@ -128,15 +148,11 @@ closes the remaining operator feedback without reopening mailbox authority:
    of the ordinary blue selection treatment, while closed applications remain
    visually distinct.
 
-Before returning v1.0.48 to the operator, the local deploy control plane must
-also execute the installed `JAP-Control-Center.ps1 -NoBrowser` path, require
-`/app-info.json.source_revision` to equal the exact released SHA, and stop the
-managed runtime cleanly. This is the regression gate for the Windows -> WSL
-detached handoff that escaped the earlier static/headless checks.
+The installed-runtime smoke is now a permanent pre-operator regression gate and
+has passed on v1.0.48. The final F5 operator gate is therefore reduced to Product
+behavior only:
 
-The final F5 operator gate is therefore the installed v1.0.48 check:
-
-`installed-runtime smoke PASS -> manual application -> All jobs green linked Beworben state -> Applications drilldown -> safe mistaken-entry removal -> All jobs link/count removed after shared Product-truth refresh`
+`All jobs green linked Beworben state -> click linked Beworben -> same Applications record -> safe correction control visible -> bounded mistaken-entry removal proof -> All jobs link/count removed after shared Product-truth refresh`
 
 Only after that bidirectional/visual linkage and correction loop is accepted may
 F5 be marked complete and sequencing advance to F6.
