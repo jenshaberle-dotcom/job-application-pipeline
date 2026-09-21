@@ -31,13 +31,13 @@ class ApplicationActionError(RuntimeError):
 @dataclass(frozen=True)
 class SubmissionRecordRequest:
     silver_job_id: int | None
-    employer_name: str | None
-    job_title: str | None
-    source_url: str | None
     submitted_at: datetime
-    submitted_precision: str
     submission_channel: str
     authority_reference: str
+    employer_name: str | None = None
+    job_title: str | None = None
+    source_url: str | None = None
+    submitted_precision: str = "datetime"
     confirmed_by: str = "local_operator"
 
     @property
