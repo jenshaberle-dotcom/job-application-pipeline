@@ -184,11 +184,24 @@ $stdoutLog = Join-Path $LogRoot "runtime.stdout.log"
 $stderrLog = Join-Path $LogRoot "runtime.stderr.log"
 Remove-Item -Force $stdoutLog, $stderrLog -ErrorAction SilentlyContinue
 
-# The native desktop host redirects this PowerShell process' stdout/stderr. A
-# long-lived WSL child must therefore never be launched through PowerShell's own
-# redirected Start-Process streams: PowerShell can keep those child-owned handles
-# alive after the readiness probe already passed. Use a short-lived cmd/start
-# handoff instead; the long-lived WSL process writes directly to bounded log files.
+# Keep the Windows side short-lived and tokenized. The actual long-lived
+# Product runtime is detached inside WSL with nohup+setsid, where Linux owns the
+# stdout/stderr redirection and process lifetime. This avoids cmd.exe/start quoting
+# and prevents the desktop host's redirected PowerShell pipes from being inherited.
+$stdoutLinuxOutput = & $wsl.Source -d $distro --exec wslpath -u $stdoutLog
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not map JAP runtime stdout log into WSL."
+}
+$stderrLinuxOutput = & $wsl.Source -d $distro --exec wslpath -u $stderrLog
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not map JAP runtime stderr log into WSL."
+}
+$stdoutLinux = (($stdoutLinuxOutput | Select-Object -First 1) -as [string]).Trim()
+$stderrLinux = (($stderrLinuxOutput | Select-Object -First 1) -as [string]).Trim()
+if (-not $stdoutLinux.StartsWith("/") -or -not $stderrLinux.StartsWith("/")) {
+    throw "Mapped JAP runtime log paths are invalid."
+}
+
 $wslArgumentVector = @(
     "-d",
     $distro,
@@ -198,56 +211,23 @@ $wslArgumentVector = @(
     [string]$current.wsl_project_root,
     [string]$current.managed_worktree,
     [string]$current.pinned_sha,
-    [string]$current.wsl_state_root
+    [string]$current.wsl_state_root,
+    "launch",
+    $stdoutLinux,
+    $stderrLinux
 )
-foreach ($argument in $wslArgumentVector) {
-    if ([string]::IsNullOrWhiteSpace($argument) -or $argument -match '[\s&|<>^()%!"]') {
-        throw "Installed JAP WSL launch argument is empty or contains whitespace/unsafe cmd characters; refusing ambiguous native serialization."
-    }
-}
-foreach ($pathValue in @([string]$wsl.Source, $stdoutLog, $stderrLog)) {
-    if ($pathValue.Contains('"') -or $pathValue.Contains("`r") -or $pathValue.Contains("`n") -or $pathValue.Contains('%') -or $pathValue.Contains('!')) {
-        throw "Installed JAP Windows launch path contains characters that are unsafe for the detached cmd handoff."
-    }
-}
-
-$starterName = "jap-runtime-detached.cmd"
-$starterPath = Join-Path $LogRoot $starterName
-$starterCommand = 'start "" /b "{0}" {1} 1>"{2}" 2>"{3}"' -f $wsl.Source, ($wslArgumentVector -join " "), $stdoutLog, $stderrLog
-Set-Content -LiteralPath $starterPath -Encoding OEM -Value @("@echo off", $starterCommand)
-
-# Keep Start-Process tokenized, but only for the short-lived cmd starter. The
-# actual WSL runtime is detached by cmd/start and owns no desktop-host pipe.
-$argumentVector = @(
-    "/d",
-    "/c",
-    $starterName
-)
-$startArguments = @{
-    FilePath = $env:ComSpec
-    ArgumentList = $argumentVector
-    WorkingDirectory = $LogRoot
-    WindowStyle = "Hidden"
-    PassThru = $true
-}
-$process = Start-Process @startArguments
-if (-not $process.WaitForExit(10000)) {
-    try { $process.Kill() } catch { }
-    throw "Detached JAP runtime launch helper did not finish within 10 seconds."
-}
-if ($process.ExitCode -ne 0) {
-    throw "Detached JAP runtime launch helper failed with exit code $($process.ExitCode)."
+& $wsl.Source @wslArgumentVector
+if ($LASTEXITCODE -ne 0) {
+    throw "Detached JAP WSL runtime handoff failed with exit code $LASTEXITCODE."
 }
 
 Write-JsonAtomic $RuntimePath @{
     repository_id = $ExpectedRepositoryId
-    launch_helper_pid = $process.Id
-    launch_mode = "cmd_start_detached"
+    launch_mode = "wsl_nohup_setsid"
     pinned_sha = [string]$current.pinned_sha
     started_at = [DateTime]::UtcNow.ToString("o")
     uri = $uri
 }
-$process.Dispose()
 
 # Keep the launcher readiness deadline comfortably inside the native desktop
 # host's 90-second hard bound. This guarantees that the launcher can surface the
