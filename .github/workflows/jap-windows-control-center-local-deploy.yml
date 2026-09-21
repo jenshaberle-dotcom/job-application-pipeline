@@ -222,7 +222,17 @@ jobs:
             exit "$launch_status"
           fi
 
-          app_info="$(timeout 5s curl -fsS http://127.0.0.1:8780/app-info.json)"
+          app_info=""
+          for _ in $(seq 1 120); do
+            if app_info="$(timeout 2s curl -fsS http://127.0.0.1:8780/app-info.json 2>/dev/null)"; then
+              break
+            fi
+            sleep 0.5
+          done
+          if [[ -z "$app_info" ]]; then
+            echo "JAP_INSTALLED_RUNTIME_SMOKE=FAIL readiness_timeout" >&2
+            exit 1
+          fi
           runtime_sha="$(
             printf '%s' "$app_info" |
               python3 -c 'import json,sys; print(str(json.load(sys.stdin).get("source_revision", "")).strip().lower())'
