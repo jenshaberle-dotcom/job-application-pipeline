@@ -238,8 +238,8 @@ jobs:
                   ).fetchone()
                   silver = conn.execute(
                       """
-                      SELECT id, canonical_job_key, source_system, source_job_id,
-                             source_url, title, company_name, company_key, location_raw
+                      SELECT id, source_name, external_job_id, source_url, title,
+                             company_name, city, postal_code, country, publication_date
                       FROM silver_jobs
                       WHERE id = 646
                       """
