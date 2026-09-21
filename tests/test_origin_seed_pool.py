@@ -58,6 +58,7 @@ def test_classifies_ba_as_text_signal_seed_not_origin_structure() -> None:
     assert seed.seed_type == "job_text_signal_seed"
     assert seed.observation_role == "text_signal_learning"
     assert seed.url_allowed_for_observation is False
+    assert seed.seed_url is None
 
 
 def test_classifies_greenhouse_and_personio_as_bounded_ats_structure_seed() -> None:
@@ -96,6 +97,7 @@ def test_classifies_stepstone_as_company_discovery_only() -> None:
     assert seed.seed_type == "aggregator_company_seed"
     assert seed.observation_role == "company_discovery_only"
     assert seed.url_allowed_for_observation is False
+    assert seed.seed_url is None
 
 
 def test_deduplicate_seeds_keeps_highest_priority_for_same_seed_key() -> None:

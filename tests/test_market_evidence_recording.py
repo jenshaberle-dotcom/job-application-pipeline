@@ -1,5 +1,5 @@
 from src.connectors.base import RawJobRecord
-from src.ingestion.runner import record_market_evidence_for_aggregator_records
+from src.ingestion.runner import record_market_sensor_evidence
 
 
 class FakeRepository:
@@ -11,7 +11,7 @@ class FakeRepository:
         return len(self.calls)
 
 
-def test_stepstone_records_are_recorded_as_market_evidence_before_suppression() -> None:
+def test_sensor_records_cross_boundary_as_company_and_vocabulary_only() -> None:
     repo = FakeRepository()
     records = [
         RawJobRecord(
@@ -27,7 +27,7 @@ def test_stepstone_records_are_recorded_as_market_evidence_before_suppression() 
         )
     ]
 
-    written = record_market_evidence_for_aggregator_records(
+    written = record_market_sensor_evidence(
         repo,
         source_name="stepstone",
         records=records,
@@ -38,5 +38,9 @@ def test_stepstone_records_are_recorded_as_market_evidence_before_suppression() 
 
     assert written == 1
     assert repo.calls[0]["company_name"] == "HDI AG"
-    assert repo.calls[0]["title"] == "Data & Analytics Engineer"
-    assert repo.calls[0]["evidence_kind"] == "aggregator_sighting"
+    assert repo.calls[0]["title"] == "analytics"
+    assert repo.calls[0]["evidence_kind"] == "market_sensor_company_sighting"
+    assert repo.calls[0]["evidence_url"] is None
+    assert repo.calls[0]["raw_job_external_id"] is None
+    assert repo.calls[0]["evidence"]["vocabulary_terms"] == ["analytics"]
+    assert repo.calls[0]["evidence"]["boundary"]["sensor_url_forwarded"] is False
