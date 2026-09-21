@@ -14,7 +14,14 @@ def _text(path: Path) -> str:
 def test_runtime_launcher_is_unbuffered_and_uses_installed_fast_start() -> None:
     runner = _text(WSL_RUNNER)
     assert "export PYTHONUNBUFFERED=1" in runner
-    assert "launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime)" in runner
+    assert (
+        "launcher=(python -u scripts/run_product_v1_live_demo.py "
+        "--installed-runtime --reuse-frontend)" in runner
+    )
+    start = runner.split("# Reuse the canonical private runtime environment.", 1)[1]
+    assert "--prepare-frontend-only" not in start
+    assert "npm install" not in start
+    assert "npm ci" not in start
     assert 'export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"' in runner
     assert "JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1" in runner
     assert "JAP_WINDOWS_APP_PINNED_SHA=" in runner
