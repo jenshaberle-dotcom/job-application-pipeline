@@ -177,7 +177,7 @@ def test_managed_runner_has_https_recovery_for_missing_pinned_commit() -> None:
     assert "github_https_fetch_failed" in text
 
 
-def test_managed_runner_selects_native_linux_node22_not_windows_npm() -> None:
+def test_managed_runner_uses_native_node22_only_during_preparation() -> None:
     text = _text(WSL_RUNNER)
     assert "activate_native_node_runtime" in text
     assert 'export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"' in text
@@ -185,30 +185,47 @@ def test_managed_runner_selects_native_linux_node22_not_windows_npm() -> None:
     assert "nvm use --silent 22" in text
     assert '[[ "$node_path" != /mnt/* && "$npm_path" != /mnt/* ]]' in text
     assert "native_node22_runtime_unavailable" in text
-    assert "JAP_WINDOWS_APP_NODE_VERSION=" in text
-    assert "JAP_WINDOWS_APP_NPM=" in text
+    prepare = text.split('if [[ "$ACTION" == "prepare" ]]', 1)[1].split(
+        '# Reuse the canonical private runtime environment.', 1
+    )[0]
+    start = text.split('# Reuse the canonical private runtime environment.', 1)[1]
+    assert "activate_native_node_runtime" in prepare
+    assert "JAP_WINDOWS_APP_PREPARE_NODE_VERSION=" in prepare
+    assert "JAP_WINDOWS_APP_PREPARE_NPM=" in prepare
+    assert "activate_native_node_runtime" not in start
 
 
-def test_generated_frontend_state_is_source_bound_before_reuse() -> None:
+def test_generated_frontend_state_is_prewarmed_and_source_bound_before_start() -> None:
     ignore = _text(GITIGNORE)
     runner = _text(WSL_RUNNER)
     dependency_reset = 'rm -rf -- "$FRONTEND_NODE_MODULES"'
     dist_reset = 'rm -rf -- "$FRONTEND_DIST"'
-    cleanliness = 'git -C "$MANAGED_WORKTREE" status --porcelain'
 
     assert "frontend/control-center/node_modules/" in ignore
     assert (
         'FRONTEND_NODE_MODULES="${FRONTEND_ROOT}/node_modules"' in runner
     )
     assert 'FRONTEND_BUILD_SHA_FILE="${FRONTEND_DIST}/.jap-source-sha"' in runner
+    assert '[[ "$ACTION" == "start" || "$ACTION" == "prepare" ]]' in runner
+    assert 'if [[ "$ACTION" == "prepare" ]]' in runner
     assert dependency_reset in runner
     assert "JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET" in runner
-    assert runner.index(dependency_reset) < runner.index(cleanliness)
+    assert "--prepare-frontend-only" in runner
+    assert "JAP_WINDOWS_APP_FRONTEND_PREPARED=" in runner
     assert dist_reset in runner
     assert "JAP_WINDOWS_APP_FRONTEND_DIST=RESET" in runner
-    assert 'frontend_build_sha" == "$PINNED_SHA"' in runner
-    assert "launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime)" in runner
-    assert "launcher+=(--reuse-frontend)" in runner
+    assert "frontend_not_prepared_for_pin" in runner
+    assert "frontend_source_marker_mismatch" in runner
+    assert (
+        "launcher=(python -u scripts/run_product_v1_live_demo.py "
+        "--installed-runtime --reuse-frontend)" in runner
+    )
+    interactive = runner.split(
+        "# Reuse the canonical private runtime environment.", 1
+    )[1]
+    assert "--prepare-frontend-only" not in interactive
+    assert "npm install" not in interactive
+    assert "npm ci" not in interactive
 
 
 def test_desktop_host_is_self_contained_webview2_window() -> None:
