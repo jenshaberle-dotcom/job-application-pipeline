@@ -29,13 +29,15 @@ def test_attention_banner_is_bound_to_real_review_required_count() -> None:
     assert "Mindestens ein Mail-Signal ist nicht eindeutig genug" not in tracking
 
 
-def test_evidence_summary_distinguishes_qualified_from_review_required() -> None:
+def test_evidence_stays_compact_without_operator_debug_panel() -> None:
     tracking = _text(TRACKING)
     styles = _text(STYLES)
 
-    assert 'candidate.requires_review ? "Prüfung nötig" : "qualifiziert"' in tracking
-    assert "qualified-evidence" in tracking
-    assert "review-required" in tracking
+    assert "totalEvidence" in tracking
+    assert '${totalEvidence} qualifiziert' in tracking
+    assert "Details & Evidence" not in tracking
+    assert "f5-evidence-details" not in tracking
+    assert ".f5-evidence-details" not in styles
     assert ".f5-status-group-head" in styles
 
 
@@ -45,7 +47,7 @@ def test_application_cards_surface_bounded_job_identity_metadata() -> None:
     assert "Arbeitgeber-Hinweis" in tracking
     assert "Kommunikations-Domain" in tracking
     assert "Job-/Bewerbungsquelle" in tracking
-    assert "Jobtitel noch nicht ableitbar" in tracking
+    assert "Jobtitel fehlt" in tracking
     assert "Arbeitgeber noch nicht ableitbar" in tracking
     assert "application.counterparty_domain || application.sender_domain" in tracking
     assert "application.source_url" in tracking
@@ -161,3 +163,16 @@ def test_manual_application_can_be_safely_undone_without_mail_truth_deletion() -
     assert "application.authoritative_event_count === 0" in tracking
     assert "await refreshProductTruth()" in tracking
     assert ".f5-manual-correction" in styles
+
+
+def test_mailbox_application_with_missing_title_has_bounded_operator_correction() -> None:
+    tracking = _text(TRACKING)
+    styles = _text(STYLES)
+
+    assert 'action: "correct_application_job_title"' in tracking
+    assert "expected_employer_name: employer" in tracking
+    assert "Jobtitel fehlt" in tracking
+    assert "Titel speichern" in tracking
+    assert "Die Mailbox-Bestätigung enthält keinen Titel." in tracking
+    assert "await refreshProductTruth()" in tracking
+    assert ".f5-title-correction" in styles
