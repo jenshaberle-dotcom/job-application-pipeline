@@ -40,7 +40,7 @@ QUERY_CONTROL_TERM = "qzxvplmn847362951"
 QUERY_CONTROL_JOB_CAP = 5
 PRODUCT_MAX_REQUESTS = 250
 MAX_BODY_BYTES = 5_000_000
-MAX_TARGET_TERMS = 12
+MAX_TARGET_TERMS = 20
 
 
 @dataclass(frozen=True)
@@ -87,6 +87,10 @@ class ProductSearchExecutor:
 
         method = request.method.upper()
         fields = dict(request.fields)
+        if method == "GET" and not fields:
+            cached = self._plain_get_responses.get(canonical_url(request.url))
+            if cached is not None:
+                return cached
         if method == "GET":
             response = self.session.get(
                 request.url,

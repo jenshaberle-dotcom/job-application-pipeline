@@ -7,6 +7,9 @@ on:
       - ".github/workflows/p1-generic-origin-product-activate.yml"
       - "requirements.txt"
       - "db/migrations/107_create_generic_employer_origin_active_sources.sql"
+      - "db/migrations/115_expand_ai_automation_market_coverage.sql"
+      - "scripts/run_known_public_vacancy_parity.py"
+      - "tests/test_known_public_vacancy_parity.py"
       - "scripts/run_generic_employer_origin_product.py"
       - "scripts/qualify_generic_employer_origin_connectors.py"
       - "scripts/apply_generic_employer_origin_activation.py"
@@ -18,6 +21,7 @@ on:
       - "scripts/run_f4c_source_health_reconciliation.py"
       - "scripts/run_product_v1_demo_control_center.py"
       - "src/connectors/generic_employer_origin.py"
+      - "src/connectors/bundesagentur.py"
       - "src/connectors/generic_employer_origin_product.py"
       - "src/connectors/generic_job_detail_evidence.py"
       - "src/ingestion/generic_origin_bronze_admission.py"
@@ -38,6 +42,7 @@ on:
       - "tests/test_generic_origin_product_activation_contract.py"
       - "tests/test_generic_origin_source_overview_truth.py"
       - "tests/test_connector_registry.py"
+      - "tests/test_bundesagentur_connector.py"
 
 permissions:
   contents: read
@@ -144,6 +149,7 @@ jobs:
             scripts/run_generic_employer_origin_product.py \
             scripts/qualify_generic_employer_origin_connectors.py \
             scripts/apply_generic_employer_origin_activation.py \
+            scripts/run_known_public_vacancy_parity.py \
             src/connectors/generic_employer_origin.py \
             src/connectors/generic_employer_origin_product.py \
             src/connectors/generic_job_detail_evidence.py \
@@ -161,7 +167,27 @@ jobs:
             tests/test_generic_origin_bronze_admission.py \
             tests/test_generic_origin_product_activation_contract.py \
             tests/test_generic_origin_source_overview_truth.py \
-            tests/test_connector_registry.py
+            tests/test_connector_registry.py \
+            tests/test_bundesagentur_connector.py \
+            tests/test_known_public_vacancy_parity.py
+
+      - name: Diagnose current persisted and live market path read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_known_public_vacancy_parity \
+            --company-key hornetsecurity \
+            --expected-company "Hornetsecurity" \
+            --expected-title "AI Automation Architect Software Development Lifecycle" \
+            --ba-profile-name ba_data_engineer_30629_50km \
+            --ba-search-term "AI Automation Architect" \
+            --ba-external-job-id "10001-1003339347-S" \
+            --live-ba
 
       - name: Run generic product proof read-only
         shell: bash

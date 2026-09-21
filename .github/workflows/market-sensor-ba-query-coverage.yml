@@ -1,0 +1,133 @@
+name: Market sensor BA query coverage diagnostic
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/market-sensor-ba-query-coverage.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-sensor-ba-query-coverage-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Read-only BA query coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: ""
+
+      - name: Install minimal connector dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --no-input             requests python-dotenv
+
+      - name: Probe normal BA keyword families read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from src.connectors.base import SearchProfile, SearchTerm
+          from src.connectors.bundesagentur import BundesagenturConnector
+
+          profile = SearchProfile(
+              id=0,
+              profile_name="ba_data_engineer_30629_50km",
+              source_name="bundesagentur_fuer_arbeit",
+              search_location="30629",
+              search_radius_km=50,
+              offer_type=1,
+              page_size=10,
+          )
+          expected = "10001-1003339347-S"
+          terms = (
+              "AI Automation Architect",
+              "AI Automation",
+              "AI Architect",
+              "Automation Architect",
+              "SDLC",
+              "Software Development Lifecycle",
+              "AI",
+              "Automation",
+          )
+
+          import requests
+          from src.config import BA_API_KEY
+
+          raw = requests.get(
+              BundesagenturConnector.base_url,
+              params={
+                  "was": "AI",
+                  "wo": profile.search_location,
+                  "umkreis": profile.search_radius_km,
+                  "page": 1,
+                  "size": profile.page_size,
+                  "angebotsart": profile.offer_type,
+              },
+              headers={"X-API-Key": BA_API_KEY},
+              timeout=30,
+          )
+          raw.raise_for_status()
+          raw_payload = raw.json()
+          print("BA_RAW_TOP_LEVEL_KEYS=" + ",".join(sorted(raw_payload.keys())))
+          for key, value in raw_payload.items():
+              if isinstance(value, list):
+                  first_keys = (
+                      ",".join(sorted(value[0].keys()))
+                      if value and isinstance(value[0], dict)
+                      else "-"
+                  )
+                  print(
+                      f"BA_RAW_LIST={key}|count={len(value)}|first_keys={first_keys}"
+                  )
+              elif isinstance(value, dict):
+                  nested_lists = [
+                      f"{nested_key}:{len(nested_value)}"
+                      for nested_key, nested_value in value.items()
+                      if isinstance(nested_value, list)
+                  ]
+                  if nested_lists:
+                      print(
+                          f"BA_RAW_DICT_LISTS={key}|"
+                          + ",".join(nested_lists)
+                      )
+
+          found = None
+          for term in terms:
+              records, request_url = BundesagenturConnector().fetch_jobs(
+                  profile,
+                  SearchTerm(term),
+              )
+              ids = {str(record.external_job_id or "") for record in records}
+              hit = expected in ids
+              print(
+                  "BA_QUERY_FAMILY="
+                  f"{term}|records={len(records)}|target={str(hit).lower()}|"
+                  f"request={request_url}"
+              )
+              if hit:
+                  found = term
+                  break
+
+          print("GMAIL_WRITES=0")
+          print("DATABASE_WRITES=0")
+          if found is None:
+              print("BA_QUERY_COVERAGE=MISSING")
+              raise SystemExit(3)
+          print(f"BA_QUERY_COVERAGE=FOUND|term={found}")
+          PY

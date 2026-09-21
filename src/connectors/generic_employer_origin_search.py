@@ -38,6 +38,7 @@ MAX_BODY_BYTES = 5_000_000
 DEFAULT_PAGE_SIZE = 20
 DEFAULT_PAGE_CAP = 3
 DEFAULT_JOB_CAP = 30
+DEFAULT_FINITE_INVENTORY_DETAIL_CAP = 60
 
 _KEYWORD_FIELD_EXACT = frozenset({"q", "query", "keyword", "keywords", "search", "searchtext"})
 _KEYWORD_FIELD_MARKERS = ("keyword", "search", "query", "job", "position", "vacan", "stellen")
@@ -386,6 +387,33 @@ def _next_page_url(
     return None
 
 
+def _normalized_match_text(value: str) -> str:
+    value = value.casefold()
+    value = (
+        value.replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+    )
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", value).split())
+
+
+def _query_matches_detail(
+    *,
+    query: str,
+    title: str,
+    anchor_text: str,
+    detail_url: str,
+) -> bool:
+    needle = _normalized_match_text(query)
+    if not needle:
+        return False
+    haystack = _normalized_match_text(
+        " ".join((title or "", anchor_text or "", urlparse(detail_url).path))
+    )
+    return f" {needle} " in f" {haystack} "
+
+
 def _detail_candidates(
     page: PageSnapshot,
     *,
@@ -431,6 +459,91 @@ def _prove_html_detail(
         proof_kind=proof,
         discovery_source=f"targeted_search:{discovery_source}",
         anchor_text="",
+    )
+
+
+def search_finite_inventory_surface(
+    *,
+    root: PageSnapshot,
+    query: str,
+    allowed_hosts: tuple[str, ...],
+    execute: RequestExecutor,
+    detail_cap: int = DEFAULT_FINITE_INVENTORY_DETAIL_CAP,
+    job_cap: int = DEFAULT_JOB_CAP,
+) -> GenericSearchOutcome | None:
+    """Search a bounded first-party finite inventory by proven detail title.
+
+    This is a local-filter mechanism, not a claim that the employer exposes
+    server-side keyword search. The same bounded detail cohort is evaluated for
+    target and impossible-control queries, preserving query discrimination.
+    """
+
+    if detail_cap < 1:
+        raise ValueError("detail_cap must be positive")
+
+    candidates = _detail_candidates(root, allowed_hosts=allowed_hosts)
+    if not candidates:
+        return None
+
+    unique_candidates: list[tuple[str, str, bool]] = []
+    seen_urls: set[str] = set()
+    for detail_url, discovery_source, known_detail in candidates:
+        clean = canonical_url(detail_url)
+        if not clean or clean in seen_urls:
+            continue
+        seen_urls.add(clean)
+        unique_candidates.append((detail_url, discovery_source, known_detail))
+
+    selected = unique_candidates[:detail_cap]
+    jobs: list[AcquiredJobPage] = []
+    seen_job_urls: set[str] = set()
+    candidates_seen = 0
+
+    for detail_url, discovery_source, known_detail in selected:
+        candidates_seen += 1
+        job = _prove_html_detail(
+            detail_url=detail_url,
+            discovery_source=discovery_source,
+            known_detail=known_detail,
+            allowed_hosts=allowed_hosts,
+            execute=execute,
+        )
+        if job is None:
+            continue
+        job_key = canonical_url(job.final_url)
+        if not job_key or job_key in seen_job_urls:
+            continue
+        seen_job_urls.add(job_key)
+        if not _query_matches_detail(
+            query=query,
+            title=job.title,
+            anchor_text=job.anchor_text,
+            detail_url=job.final_url,
+        ):
+            continue
+        jobs.append(job)
+        if len(jobs) >= job_cap:
+            return GenericSearchOutcome(
+                "finite_inventory_local_filter",
+                query,
+                1,
+                candidates_seen,
+                tuple(jobs),
+                False,
+                "job_cap",
+                root.final_url,
+            )
+
+    exhausted = len(unique_candidates) <= detail_cap
+    return GenericSearchOutcome(
+        "finite_inventory_local_filter",
+        query,
+        1,
+        candidates_seen,
+        tuple(jobs),
+        exhausted,
+        "finite_inventory_exhausted" if exhausted else "detail_cap",
+        root.final_url,
     )
 
 
@@ -643,6 +756,16 @@ def search_generic_origin(
     if outcome is not None:
         return outcome
 
+    outcome = search_finite_inventory_surface(
+        root=root,
+        query=query,
+        allowed_hosts=allowed_hosts,
+        execute=execute,
+        job_cap=job_cap,
+    )
+    if outcome is not None:
+        return outcome
+
     listing_url = _single_listing_surface(root, allowed_hosts=allowed_hosts)
     if listing_url:
         listing_host = _host(listing_url)
@@ -676,6 +799,15 @@ def search_generic_origin(
             )
             if outcome is not None:
                 return outcome
+            outcome = search_finite_inventory_surface(
+                root=listing,
+                query=query,
+                allowed_hosts=effective_hosts,
+                execute=execute,
+                job_cap=job_cap,
+            )
+            if outcome is not None:
+                return outcome
 
     return GenericSearchOutcome(
         "none",
@@ -696,6 +828,7 @@ __all__ = [
     "GenericSearchOutcome",
     "SearchRequest",
     "bind_search_form",
+    "search_finite_inventory_surface",
     "search_generic_origin",
     "search_workday",
 ]

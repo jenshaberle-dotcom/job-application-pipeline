@@ -102,6 +102,92 @@ def test_form_search_follows_explicit_next_page_and_collects_multiple_jobs(
     assert len(calls) == 2
 
 
+def test_finite_inventory_local_filter_finds_title_and_rejects_impossible_control(
+    monkeypatch,
+) -> None:
+    root_html = """
+    <html><title>Careers</title><body>
+      <a href="/en/job/software-engineer-germany/">Software Engineer</a>
+      <a href="/en/job/ai-automation-architect-germany/">Apply now</a>
+      <a href="/en/job/recruiter-germany/">Recruiter</a>
+    </body></html>
+    """
+
+    def execute(request: search.SearchRequest) -> tuple[str, str, int]:
+        return root_html, request.url, 200
+
+    def prove(**kwargs):
+        url = kwargs["detail_url"]
+        if "ai-automation-architect" in url:
+            return _job(
+                url,
+                "AI Automation Architect – Software Development Lifecycle – Germany",
+            )
+        if "software-engineer" in url:
+            return _job(url, "Software Engineer – Germany")
+        return _job(url, "Recruiter – Germany")
+
+    monkeypatch.setattr(search, "_prove_html_detail", prove)
+
+    target = search.search_generic_origin(
+        origin_url="https://example.test/en/career/",
+        query="AI Automation Architect",
+        execute=execute,
+    )
+    control = search.search_generic_origin(
+        origin_url="https://example.test/en/career/",
+        query="qzxvplmn847362951",
+        execute=execute,
+    )
+
+    assert target.mechanism == "finite_inventory_local_filter"
+    assert [job.final_url for job in target.jobs] == [
+        "https://example.test/en/job/ai-automation-architect-germany"
+    ]
+    assert [job.title for job in target.jobs] == [
+        "AI Automation Architect – Software Development Lifecycle – Germany"
+    ]
+    assert target.exhausted is True
+    assert control.mechanism == "finite_inventory_local_filter"
+    assert control.jobs == ()
+    assert control.exhausted is True
+
+
+def test_finite_inventory_local_filter_is_bounded(monkeypatch) -> None:
+    links = "".join(
+        f'<a href="/job/example-role-{index}/">Role {index}</a>'
+        for index in range(30)
+    )
+    root = parse_page(
+        requested_url="https://example.test/careers",
+        final_url="https://example.test/careers",
+        status_code=200,
+        html=f"<html><body>{links}</body></html>",
+    )
+    proved: list[str] = []
+
+    def prove(**kwargs):
+        proved.append(kwargs["detail_url"])
+        return _job(kwargs["detail_url"], "Example Role")
+
+    monkeypatch.setattr(search, "_prove_html_detail", prove)
+    outcome = search.search_finite_inventory_surface(
+        root=root,
+        query="Example Role",
+        allowed_hosts=("example.test",),
+        execute=lambda request: ("", request.url, 200),
+        detail_cap=7,
+        job_cap=30,
+    )
+
+    assert outcome is not None
+    assert outcome.mechanism == "finite_inventory_local_filter"
+    assert outcome.detail_candidates_seen == 7
+    assert len(proved) == 7
+    assert outcome.exhausted is False
+    assert outcome.stop_reason == "detail_cap"
+
+
 def test_search_reports_no_targeted_surface_instead_of_falling_back_to_proof_job() -> None:
     def execute(request: search.SearchRequest) -> tuple[str, str, int]:
         return (

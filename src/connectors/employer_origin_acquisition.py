@@ -258,6 +258,7 @@ def _decode_embedded_url_text(value: str) -> str:
     return decoded.replace(r"\/", "/").replace(r"\u002F", "/").replace(r"\u002f", "/")
 
 
+
 def extract_embedded_detail_urls(
     html: str,
     base_url: str,
@@ -265,29 +266,62 @@ def extract_embedded_detail_urls(
     allowed_hosts: tuple[str, ...] | set[str],
     limit: int = 12,
 ) -> tuple[str, ...]:
-    """Reuse bounded deterministic detail URL extraction for JS/JSON-backed portals."""
+    """Reuse bounded deterministic detail URL extraction for JS/JSON-backed portals.
+
+    External absolute URLs may contribute only their detail-shaped path as a
+    same-host fallback. Relative extraction must start at a real path boundary,
+    so a localized path such as /en/job/... is never truncated to /job/....
+    """
 
     decoded = _decode_embedded_url_text(html)
-    patterns = (
-        r"https?://[^\s\"'<>]+",
-        r"/(?:job|jobs|stellenangebote|offene-stellen|stellen-finden|karriere/jobs|karriere/offene-stellen)/[^\s\"'<>]+",
-    )
     result: list[str] = []
     seen: set[str] = set()
-    for pattern in patterns:
-        for match in re.finditer(pattern, decoded, flags=re.IGNORECASE):
-            raw = match.group(0).strip().strip("\"'`),;")
-            candidate = canonical_url(urljoin(base_url, raw.replace("&amp;", "&")))
-            if not candidate or candidate in seen:
-                continue
-            if not allowed_host(candidate, allowed_hosts) or non_job_url(candidate):
-                continue
-            if not job_detail_url_shape(candidate):
-                continue
-            seen.add(candidate)
-            result.append(candidate)
-            if len(result) >= limit:
+
+    def append_candidate(candidate: str) -> bool:
+        clean = canonical_url(candidate)
+        if (
+            not clean
+            or clean in seen
+            or not allowed_host(clean, allowed_hosts)
+            or non_job_url(clean)
+            or not job_detail_url_shape(clean)
+        ):
+            return False
+        seen.add(clean)
+        result.append(clean)
+        return len(result) >= limit
+
+    for match in re.finditer(
+        r"""https?://[^\s"'<>]+""",
+        decoded,
+        flags=re.IGNORECASE,
+    ):
+        raw = match.group(0).strip().strip(chr(34) + chr(39) + "),;")
+        candidate = canonical_url(raw.replace("&amp;", "&"))
+        if allowed_host(candidate, allowed_hosts):
+            if append_candidate(candidate):
                 return tuple(result)
+            continue
+
+        parsed = urlparse(candidate)
+        suffix = parsed.path or "/"
+        if parsed.query:
+            suffix += f"?{parsed.query}"
+        fallback = canonical_url(urljoin(base_url, suffix))
+        if append_candidate(fallback):
+            return tuple(result)
+
+    relative_pattern = (
+        r"""(?<![A-Za-z0-9_-])/"""
+        r"""(?:job|jobs|stellenangebote|offene-stellen|stellen-finden|"""
+        r"""karriere/jobs|karriere/offene-stellen)/[^\s"'<>]+"""
+    )
+    for match in re.finditer(relative_pattern, decoded, flags=re.IGNORECASE):
+        raw = match.group(0).strip().strip(chr(34) + chr(39) + "),;")
+        candidate = canonical_url(urljoin(base_url, raw.replace("&amp;", "&")))
+        if append_candidate(candidate):
+            return tuple(result)
+
     return tuple(result)
 
 
