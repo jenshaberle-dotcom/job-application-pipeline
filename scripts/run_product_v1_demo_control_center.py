@@ -30,9 +30,13 @@ from scripts.product_v1_f4c_source_health_runtime import (
     project_current_source_health,
 )
 from scripts.product_v1_f5_application_actions import (
+    ACTION_NAME,
+    REMOVE_ACTION_NAME,
     ApplicationActionError,
     parse_submission_record_request,
+    parse_submission_removal_request,
     record_operator_confirmed_submission,
+    remove_operator_submission_confirmation,
 )
 from scripts.product_v1_f5_application_tracking_runtime import (
     load_application_tracking_payload,
@@ -286,8 +290,15 @@ class ProductV1DemoHandler(ProductV1Handler):
             raw = self._read_demo_action_payload()
             if not isinstance(raw, Mapping):
                 raise ApplicationActionError("action_payload_must_be_object")
-            request = parse_submission_record_request(raw)
-            result = record_operator_confirmed_submission(request)
+            action = str(raw.get("action") or "")
+            if action == ACTION_NAME:
+                request = parse_submission_record_request(raw)
+                result = record_operator_confirmed_submission(request)
+            elif action == REMOVE_ACTION_NAME:
+                request = parse_submission_removal_request(raw)
+                result = remove_operator_submission_confirmation(request)
+            else:
+                raise ApplicationActionError("unsupported_application_action")
             self._send_json(
                 {
                     **result,
