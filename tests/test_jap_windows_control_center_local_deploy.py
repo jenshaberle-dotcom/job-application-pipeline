@@ -72,7 +72,8 @@ def test_deploy_must_prove_exact_release_installed_not_merely_deferred() -> None
     deploy = workflow.index("Prove local Windows interop and stage update fail-closed")
     installed = workflow.index("Require exact released version to be installed")
     headless = workflow.index("Prove installed desktop rejects headless runner launch")
-    assert deploy < installed < headless
+    runtime_smoke = workflow.index("Prove installed runtime handoff without GUI")
+    assert deploy < installed < headless < runtime_smoke
     assert 'test "${installed[0]}" = "$EXPECTED_SOURCE_SHA"' in workflow
     assert 'test "${installed[1]}" = "$expected_version"' in workflow
     assert "JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS" in workflow
@@ -155,3 +156,18 @@ def test_desktop_host_probe_uses_output_count_not_cross_boundary_exit_codes() ->
     assert "if (( process_count > 0 )); then" in script
     assert "exit 10" not in script
     assert 'process_status" -ne 10' not in script
+
+
+def test_local_deploy_proves_exact_installed_runtime_handoff_and_cleanup() -> None:
+    workflow = _text(LOCAL_DEPLOY_WORKFLOW)
+
+    assert "Prove installed runtime handoff without GUI" in workflow
+    assert '-File "$launcher_windows"' in workflow
+    assert "-NoBrowser" in workflow
+    assert "timeout 90s powershell.exe" in workflow
+    assert "http://127.0.0.1:8780/app-info.json" in workflow
+    assert 'test "$runtime_sha" = "$EXPECTED_SOURCE_SHA"' in workflow
+    assert "JAP_INSTALLED_RUNTIME_SMOKE=PASS" in workflow
+    assert '-File "$stopper_windows"' in workflow
+    assert "JAP_INSTALLED_RUNTIME_STOP=PASS" in workflow
+    assert "trap cleanup_runtime EXIT" in workflow
