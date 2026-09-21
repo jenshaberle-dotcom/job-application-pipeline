@@ -41,8 +41,10 @@ type TrackedApplication = {
   identity_source?: string | null;
   application_kind?: string | null;
   prepared_at?: string | null;
+  prepared_by?: string | null;
   submitted_at?: string | null;
   submission_channel?: string | null;
+  submission_authority_kind?: string | null;
   authoritative_stage: Stage;
   observed_stage?: Stage | null;
   observed_event_class?: string | null;
@@ -319,6 +321,11 @@ export default function F5ApplicationTracking({
   const tracking = payload.application_tracking;
   const [filter, setFilter] = useState<Filter>("all");
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
+  const [correctionState, setCorrectionState] = useState<{
+    applicationId: number | null;
+    status: "idle" | "saving" | "saved" | "error";
+    message: string;
+  }>({ applicationId: null, status: "idle", message: "" });
   const applications = tracking?.applications || [];
   const projectedJobByApplicationId = useMemo(() => {
     const projected = new Map<number, number>();
@@ -385,6 +392,62 @@ export default function F5ApplicationTracking({
     });
   }
 
+  async function removeMistakenManualSubmission(applicationId: number) {
+    const confirmed = window.confirm(
+      "Diesen manuellen Bewerbungseintrag zurücknehmen? Mail- oder Lifecycle-Evidence wird dabei niemals gelöscht.",
+    );
+    if (!confirmed) return;
+
+    setCorrectionState({ applicationId, status: "saving", message: "" });
+    try {
+      const response = await fetch("/api/v1/product-v1/application-submission-record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "remove_operator_submission_confirmation",
+          application_id: applicationId,
+        }),
+      });
+      const payload = await response.json() as {
+        status?: string;
+        reason?: string;
+        message?: string;
+        error_type?: string;
+        application_deleted?: boolean;
+        candidate_evidence_retained?: number;
+      };
+      if (!response.ok) {
+        const detail = payload.reason || payload.message;
+        throw new Error(
+          detail
+            ? `${payload.error_type ? payload.error_type + ": " : ""}${detail}`
+            : `HTTP ${response.status}`,
+        );
+      }
+      setCorrectionState({
+        applicationId,
+        status: "saved",
+        message: payload.application_deleted
+          ? "Fehleintrag entfernt."
+          : payload.candidate_evidence_retained
+            ? "Manuelle Bestätigung entfernt; vorhandene Mail-Evidence bleibt erhalten."
+            : "Manuelle Bestätigung entfernt.",
+      });
+      setExpandedIds((current) => {
+        const next = new Set(current);
+        next.delete(applicationId);
+        return next;
+      });
+      await refreshProductTruth();
+    } catch (error) {
+      setCorrectionState({
+        applicationId,
+        status: "error",
+        message: error instanceof Error ? error.message : "Korrektur fehlgeschlagen.",
+      });
+    }
+  }
+
   function toggleAllFiltered() {
     setExpandedIds((current) => {
       const next = new Set(current);
@@ -426,6 +489,16 @@ export default function F5ApplicationTracking({
         const linkedJobVisible = linkedJobId != null && visibleJobIds.has(linkedJobId);
         const applicationKindLabel = application.application_kind === "unsolicited" ? "Initiativbewerbung" : null;
         const jobTitle = application.title || applicationKindLabel || (linkedJobId ? `Job ${linkedJobId}` : "Jobtitel noch nicht ableitbar");
+        const canUndoManualSubmission =
+          application.submission_authority_kind === "operator_confirmation" &&
+          application.authoritative_event_count === 0 &&
+          (
+            application.discovery_kind === "manual_external" ||
+            application.prepared_by === "local_operator"
+          );
+        const correction = correctionState.applicationId === application.application_id
+          ? correctionState
+          : null;
         return <article
           key={application.application_id}
           id={`f5-application-${application.application_id}`}
@@ -458,6 +531,20 @@ export default function F5ApplicationTracking({
                 ? <div className="f5-linked-job-outside-view">Silver #{linkedJobId} ist verknüpft, liegt aber außerhalb der aktuellen All-jobs-Sicht.</div>
                 : null}
             {warning && <div className="f5-attention-note">{warning}</div>}
+            {canUndoManualSubmission && <div className="f5-manual-correction">
+              <div>
+                <b>Manuellen Fehleintrag korrigieren</b>
+                <small>Entfernt deine manuelle Bewerbungsbestätigung. Mail-Evidence oder spätere Lifecycle-Wahrheit wird nicht gelöscht.</small>
+              </div>
+              <button
+                type="button"
+                disabled={correction?.status === "saving"}
+                onClick={() => void removeMistakenManualSubmission(application.application_id)}
+              >
+                {correction?.status === "saving" ? "Entferne …" : "Fehleintrag entfernen"}
+              </button>
+            </div>}
+            {correction?.message && <p className={`f5-correction-message ${correction.status}`}>{correction.message}</p>}
             <details className="f5-evidence-details"><summary>Details & Evidence</summary><div><p><b>Beobachteter Status:</b> {stageLabel[application.effective_stage]} · {application.effective_stage_basis || "—"}</p><p><b>Autoritative Korrektur:</b> {stageLabel[application.authoritative_stage]}</p><p><b>Autoritative Events:</b> {application.authoritative_event_count}</p>{application.evidence_candidates.length === 0 ? <p>Keine Kommunikations-Evidence hinterlegt.</p> : application.evidence_candidates.map((candidate) => <p key={candidate.candidate_id || `${candidate.candidate_class}-${candidate.created_at}`} className={candidate.requires_review ? "review-required" : "qualified-evidence"}><b>{candidate.candidate_class || "ambiguous"}</b> · {candidate.requires_review ? "Prüfung nötig" : "qualifiziert"}{candidate.confidence != null ? ` · ${Math.round(candidate.confidence * 100)} %` : ""} · {formatDate(candidate.observed_at)}</p>)}</div></details>
           </div>}
         </article>;
