@@ -6,6 +6,8 @@ MANAGED_WORKTREE="${2:-}"
 PINNED_SHA="${3:-}"
 STATE_ROOT="${4:-}"
 ACTION="${5:-start}"
+DETACHED_STDOUT="${6:-}"
+DETACHED_STDERR="${7:-}"
 EXPECTED_ORIGIN='jenshaberle-dotcom/job-application-pipeline'
 READ_ONLY_FETCH_URL='https://github.com/jenshaberle-dotcom/job-application-pipeline.git'
 PID_FILE="${STATE_ROOT}/runtime.pid"
@@ -103,7 +105,37 @@ if [[ "$ACTION" == "--stop" ]]; then
   stop_managed
   exit 0
 fi
-[[ "$ACTION" == "start" || "$ACTION" == "prepare" ]] || fail invalid_action
+[[ "$ACTION" == "start" || "$ACTION" == "prepare" || "$ACTION" == "launch" ]] || fail invalid_action
+
+if [[ "$ACTION" == "launch" ]]; then
+  require_nonempty detached_stdout "$DETACHED_STDOUT"
+  require_nonempty detached_stderr "$DETACHED_STDERR"
+  [[ "$DETACHED_STDOUT" == /* ]] || fail detached_stdout_not_absolute
+  [[ "$DETACHED_STDERR" == /* ]] || fail detached_stderr_not_absolute
+  command -v nohup >/dev/null 2>&1 || fail nohup_unavailable
+  command -v setsid >/dev/null 2>&1 || fail setsid_unavailable
+  mkdir -p "$(dirname "$DETACHED_STDOUT")" "$(dirname "$DETACHED_STDERR")"
+  : > "$DETACHED_STDOUT"
+  : > "$DETACHED_STDERR"
+  nohup setsid bash "$0" \
+    "$PROJECT_ROOT" \
+    "$MANAGED_WORKTREE" \
+    "$PINNED_SHA" \
+    "$STATE_ROOT" \
+    start \
+    >"$DETACHED_STDOUT" \
+    2>"$DETACHED_STDERR" \
+    </dev/null &
+  detached_pid=$!
+  sleep 0.25
+  if ! kill -0 "$detached_pid" 2>/dev/null; then
+    detached_status=0
+    wait "$detached_pid" || detached_status=$?
+    fail "detached_runtime_handoff_failed_${detached_status}"
+  fi
+  printf 'JAP_WINDOWS_APP_DETACHED_HANDOFF=PASS pid=%s\n' "$detached_pid"
+  exit 0
+fi
 
 [[ -d "$PROJECT_ROOT/.git" ]] || fail canonical_checkout_missing
 
