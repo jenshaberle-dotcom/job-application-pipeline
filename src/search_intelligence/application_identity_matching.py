@@ -6,6 +6,7 @@ prefix-family match. Short generic role names therefore remain review-only.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
 import unicodedata
 from urllib.parse import urlsplit, urlunsplit
@@ -110,3 +111,54 @@ def strong_title_family_match(left: object, right: object) -> bool:
     if len(shorter) / len(longer) < 0.45:
         return False
     return longer[: len(shorter)] == shorter
+
+
+@dataclass(frozen=True)
+class ExistingApplicationIdentity:
+    application_key: str
+    employer_name: str | None
+    job_title: str | None
+    source_url: str | None
+
+
+def match_existing_application_identity(
+    *,
+    employer_name: object,
+    job_title: object,
+    source_url: object,
+    applications: list[ExistingApplicationIdentity],
+) -> tuple[str | None, bool, str | None]:
+    """Resolve a unique existing application conservatively.
+
+    Returns (application_key, ambiguous, basis). URL identity wins. Otherwise
+    company must be exact after legal-form normalization and the title must pass
+    the strong title-family rule. Ambiguity never selects a record.
+    """
+
+    url_norm = normalize_url(source_url)
+    if url_norm:
+        url_matches = [
+            item
+            for item in applications
+            if item.source_url and normalize_url(item.source_url) == url_norm
+        ]
+        if len(url_matches) == 1:
+            return url_matches[0].application_key, False, "exact_source_url"
+        if len(url_matches) > 1:
+            return None, True, "ambiguous_exact_source_url"
+
+    employer_norm = normalize_company(employer_name)
+    if not employer_norm or not normalize_title(job_title):
+        return None, False, None
+
+    title_matches = [
+        item
+        for item in applications
+        if normalize_company(item.employer_name) == employer_norm
+        and strong_title_family_match(item.job_title, job_title)
+    ]
+    if len(title_matches) == 1:
+        return title_matches[0].application_key, False, "exact_company_title_family"
+    if len(title_matches) > 1:
+        return None, True, "ambiguous_company_title_family"
+    return None, False, None
