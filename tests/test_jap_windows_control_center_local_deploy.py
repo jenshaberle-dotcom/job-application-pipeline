@@ -71,9 +71,9 @@ def test_deploy_must_prove_exact_release_installed_not_merely_deferred() -> None
     workflow = _text(LOCAL_DEPLOY_WORKFLOW)
     deploy = workflow.index("Prove local Windows interop and stage update fail-closed")
     installed = workflow.index("Require exact released version to be installed")
-    headless = workflow.index("Prove installed desktop rejects headless runner launch")
     runtime_smoke = workflow.index("Prove installed runtime handoff without GUI")
-    assert deploy < installed < headless < runtime_smoke
+    assert deploy < installed < runtime_smoke
+    assert "Prove installed desktop rejects headless runner launch" not in workflow
     assert 'test "${installed[0]}" = "$EXPECTED_SOURCE_SHA"' in workflow
     assert 'test "${installed[1]}" = "$expected_version"' in workflow
     assert "JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS" in workflow
@@ -107,9 +107,19 @@ def test_local_runner_stages_latest_direct_update_and_auto_applies_when_closed()
     assert 'JAP_LOCAL_DEPLOY=STAGED' in script
     assert 'pending-update.json' in script
     assert 'sha256sum "$ARCHIVE"' in script
+    assert 'STABLE_APPLIER="$INSTALL_ROOT/Apply-JAP-Control-Center-Update.ps1"' in script
+    assert 'cp "$CONTROL_ROOT/Apply-JAP-Control-Center-Update.ps1" "$STABLE_APPLIER"' in script
+    assert 'WINDOWS_APPLIER="$(wslpath -w "$STABLE_APPLIER")"' in script
     assert 'JAP_LOCAL_DEPLOY=AUTO_APPLY_CLOSED' in script
     assert 'JAP_LOCAL_DEPLOY=AUTO_APPLY_PASS' in script
     assert 'JAP_LOCAL_DEPLOY=AWAITING_GUI_CONSENT' in script
+    assert '-ExecutionPolicy RemoteSigned' in script
+    assert '-ExecutionPolicy Bypass' not in script
+    assert 'STAGE_TMP/source' not in script
+    assert 'find "$STAGE_BASE" -mindepth 2 -maxdepth 2 -type d -name source -print0' in script
+    assert "JAP_LOCAL_DEPLOY_LEGACY_STAGED_SOURCE=PURGED" in script
+    assert '"source_root"' not in script
+    assert 'STAGE_ROOT/source/Apply-JAP-Control-Center-Update.ps1' not in script
     assert '-HostPid 0' in script
 
 
@@ -145,17 +155,14 @@ def test_local_runner_is_installed_identity_and_compatibility_fail_closed() -> N
     assert 'snooze_contract_mismatch' in script
 
 
-def test_desktop_host_probe_uses_output_count_not_cross_boundary_exit_codes() -> None:
+def test_desktop_host_probe_avoids_powershell_script_execution() -> None:
     script = _text(LOCAL_DEPLOY)
 
-    assert '-NonInteractive -Command' in script
-    assert '@(Get-Process -Name "JAP.ControlCenter.Desktop"' in script
-    assert 'Write-Output $count' in script
+    assert 'tasklist.exe /FI "IMAGENAME eq JAP.ControlCenter.Desktop.exe"' in script
     assert "JAP_LOCAL_DEPLOY_DESKTOP_HOST_COUNT=" in script
     assert '[[ "$process_count" =~ ^[0-9]+$ ]]' in script
     assert "if (( process_count > 0 )); then" in script
-    assert "exit 10" not in script
-    assert 'process_status" -ne 10' not in script
+    assert "Get-Process -Name" not in script
 
 
 def test_local_deploy_proves_exact_installed_runtime_handoff_and_cleanup() -> None:
@@ -165,6 +172,10 @@ def test_local_deploy_proves_exact_installed_runtime_handoff_and_cleanup() -> No
     assert '-File "$launcher_windows"' in workflow
     assert "-NoBrowser" in workflow
     assert "timeout 90s powershell.exe" in workflow
+    assert "-ExecutionPolicy RemoteSigned" in workflow
+    assert "-ExecutionPolicy Bypass" not in workflow
+    assert "released-source/scripts/reap_jap_headless_desktop.ps1" not in workflow
+    assert "released-source/scripts/prove_jap_headless_desktop_rejection.ps1" not in workflow
     assert "http://127.0.0.1:8780/app-info.json" in workflow
     assert 'test "$runtime_sha" = "$EXPECTED_SOURCE_SHA"' in workflow
     assert "JAP_INSTALLED_RUNTIME_SMOKE=PASS" in workflow

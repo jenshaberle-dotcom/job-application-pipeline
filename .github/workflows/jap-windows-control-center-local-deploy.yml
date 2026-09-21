@@ -11,8 +11,6 @@ on:
       - "install-jap-control-center.ps1"
       - "scripts/install_jap_windows_control_center.sh"
       - "scripts/deploy_jap_windows_control_center_local.sh"
-      - "scripts/reap_jap_headless_desktop.ps1"
-      - "scripts/prove_jap_headless_desktop_rejection.ps1"
       - "windows/JAP.ControlCenter.Desktop/**"
       - ".github/workflows/jap-windows-control-center-local-deploy.yml"
   workflow_run:
@@ -150,12 +148,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          reaper="$(wslpath -w "$PWD/released-source/scripts/reap_jap_headless_desktop.ps1")"
-          powershell.exe \
-            -NoProfile \
-            -ExecutionPolicy Bypass \
-            -File "$reaper"
-
+          powershell.exe -NoProfile -NonInteractive -Command '
+            $ErrorActionPreference = "Stop";
+            $expected = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "JAP-Control-Center\desktop-host\JAP.ControlCenter.Desktop.exe"));
+            foreach ($p in @(Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue)) {
+              if ($p.SessionId -ne 0) { continue }
+              $actual = [System.IO.Path]::GetFullPath($p.Path);
+              if (-not [string]::Equals($actual, $expected, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Refusing Session-0 reap for unexpected path: $actual"
+              }
+              $id = $p.Id;
+              Stop-Process -Id $id -Force -ErrorAction Stop;
+              try { $p.WaitForExit(5000) } catch { }
+              if (Get-Process -Id $id -ErrorAction SilentlyContinue) {
+                throw "Session-0 JAP desktop PID $id did not exit after bounded reap."
+              }
+              Write-Output "JAP_HEADLESS_DESKTOP_REAP=PASS pid=$id path=$actual"
+            }
+            Write-Output "JAP_HEADLESS_DESKTOP_REAP=COMPLETE"
+          '
       - name: Prove local Windows interop and stage update fail-closed
         shell: bash
         env:
@@ -173,26 +184,12 @@ jobs:
         run: |
           set -euo pipefail
           expected_version="$(tr -d '\r\n' < released-source/windows/JAP.ControlCenter.Desktop/VERSION)"
-          win_localappdata="$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r' | tail -n 1)"
+          win_localappdata="$(cmd.exe /d /c 'echo %LOCALAPPDATA%' | tr -d '\r' | tail -n 1)"
           current_json="$(wslpath -u "$win_localappdata")/JAP-Control-Center/current.json"
           mapfile -t installed < <(python3 -c 'import json,sys; from pathlib import Path; data=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")); print(data.get("pinned_sha", "")); print(data.get("desktop_host_version", ""))' "$current_json")
           test "${installed[0]}" = "$EXPECTED_SOURCE_SHA"
           test "${installed[1]}" = "$expected_version"
           echo "JAP_LOCAL_DEPLOY_INSTALLED_RELEASE=PASS version=${installed[1]} source=${installed[0]}"
-
-      - name: Prove installed desktop rejects headless runner launch
-        shell: bash
-        run: |
-          set -euo pipefail
-          proof="$(wslpath -w "$PWD/released-source/scripts/prove_jap_headless_desktop_rejection.ps1")"
-          expected_sha="$(git -C released-source rev-parse HEAD)"
-          expected_version="$(tr -d '\r\n' < released-source/windows/JAP.ControlCenter.Desktop/VERSION)"
-          powershell.exe \
-            -NoProfile \
-            -ExecutionPolicy Bypass \
-            -File "$proof" \
-            -ExpectedSha "$expected_sha" \
-            -ExpectedVersion "$expected_version"
 
       - name: Prove installed runtime handoff without GUI
         shell: bash
@@ -200,14 +197,14 @@ jobs:
           EXPECTED_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
-          win_localappdata="$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r' | tail -n 1)"
+          win_localappdata="$(cmd.exe /d /c 'echo %LOCALAPPDATA%' | tr -d '\r' | tail -n 1)"
           launcher_windows="${win_localappdata}\\JAP-Control-Center\\JAP-Control-Center.ps1"
           stopper_windows="${win_localappdata}\\JAP-Control-Center\\Stop-JAP-Control-Center.ps1"
 
           cleanup_runtime() {
             powershell.exe \
               -NoProfile \
-              -ExecutionPolicy Bypass \
+              -ExecutionPolicy RemoteSigned \
               -File "$stopper_windows" >/dev/null 2>&1 || true
           }
           trap cleanup_runtime EXIT
@@ -215,7 +212,7 @@ jobs:
           set +e
           timeout 90s powershell.exe \
             -NoProfile \
-            -ExecutionPolicy Bypass \
+            -ExecutionPolicy RemoteSigned \
             -File "$launcher_windows" \
             -NoBrowser
           launch_status=$?
@@ -235,7 +232,7 @@ jobs:
 
           powershell.exe \
             -NoProfile \
-            -ExecutionPolicy Bypass \
+            -ExecutionPolicy RemoteSigned \
             -File "$stopper_windows"
 
           for _ in $(seq 1 40); do

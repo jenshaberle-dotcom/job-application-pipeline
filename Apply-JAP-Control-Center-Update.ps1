@@ -19,7 +19,9 @@ $PendingPath = Join-Path $InstallRoot "state\pending-update.json"
 $SnoozePath = Join-Path $InstallRoot "state\update-snooze.json"
 $ResultPath = Join-Path $InstallRoot "state\update-result.json"
 $UpdateLog = Join-Path $InstallRoot "logs\update-apply.log"
-$DesktopHostExe = Join-Path $InstallRoot "desktop-host\JAP.ControlCenter.Desktop.exe"
+$DesktopHostRoot = Join-Path $InstallRoot "desktop-host"
+$DesktopHostExe = Join-Path $DesktopHostRoot "JAP.ControlCenter.Desktop.exe"
+$UpdatesRoot = [System.IO.Path]::GetFullPath((Join-Path $InstallRoot "updates"))
 
 function Write-JsonAtomic([string]$Path, [object]$Value) {
     $parent = Split-Path -Parent $Path
@@ -31,7 +33,8 @@ function Write-JsonAtomic([string]$Path, [object]$Value) {
 
 function Write-UpdateLog([string]$Phase, [string]$Detail = "") {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $UpdateLog) | Out-Null
-    $line = "{0}`t{1}`t{2}" -f [DateTime]::UtcNow.ToString("o"), $Phase, ($Detail -replace "[`r`n]", " ")
+    $tab = [char]9
+    $line = "{0}{1}{2}{1}{3}" -f [DateTime]::UtcNow.ToString("o"), $tab, $Phase, ($Detail -replace "[\r\n]", " ")
     Add-Content -Encoding UTF8 -Path $UpdateLog -Value $line
 }
 
@@ -40,6 +43,47 @@ function Read-Json([string]$Path) {
         throw "Required update metadata is missing: $Path"
     }
     return Get-Content -Raw -Encoding UTF8 $Path | ConvertFrom-Json
+}
+
+function Assert-PathUnderUpdates([string]$Path) {
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $prefix = $UpdatesRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $fullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Update payload escaped the managed staging root: $fullPath"
+    }
+    return $fullPath
+}
+
+function Invoke-InstalledRunner(
+    [object]$Current,
+    [string]$PinnedSha,
+    [string]$Action
+) {
+    $linuxRunner = ([string]$Current.wsl_installed_runner_path).Trim()
+    if ([string]::IsNullOrWhiteSpace($linuxRunner) -or -not $linuxRunner.StartsWith("/")) {
+        throw "Installed JAP WSL runner path is invalid."
+    }
+    $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
+    if (-not $wsl) {
+        throw "WSL is required to apply JAP Control Center updates."
+    }
+
+    $arguments = @(
+        "-d",
+        [string]$Current.wsl_distro,
+        "--exec",
+        "bash",
+        $linuxRunner,
+        [string]$Current.wsl_project_root,
+        [string]$Current.managed_worktree,
+        $PinnedSha,
+        [string]$Current.wsl_state_root,
+        $Action
+    )
+    & $wsl.Source @arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Installed JAP runner action '$Action' failed with exit code $LASTEXITCODE."
+    }
 }
 
 function Restart-JapIfPresent {
@@ -63,6 +107,11 @@ function Remove-AcceptedManifest {
 
 $targetVersion = "unknown"
 $targetSha = "unknown"
+$backupHost = Join-Path $InstallRoot ("desktop-host.previous." + $PID)
+$stagedHost = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
+$desktopSwapped = $false
+$previousCurrent = $null
+
 try {
     Write-UpdateLog "update_begin" "manifest=$ManifestPath host_pid=$HostPid"
 
@@ -79,13 +128,18 @@ try {
 
     $targetVersion = [string]$manifest.target_desktop_version
     $targetSha = [string]$manifest.target_main_sha
+    $targetRelease = [string]$manifest.target_release_tag
     if ($targetVersion -notmatch '^1\.\d+\.\d+$') {
         throw "Target desktop host is outside direct-upgrade compatibility line 1: $targetVersion"
     }
     if ($targetSha -notmatch '^[0-9a-f]{40}$') {
         throw "Target main SHA is invalid: $targetSha"
     }
+    if ($targetRelease -ne "jap-winapp-desktop-v$targetVersion") {
+        throw "Target release identity does not match desktop version."
+    }
 
+    $previousCurrent = Read-Json $CurrentPath
     $current = Read-Json $CurrentPath
     if ($current.repository_id -ne $ExpectedRepositoryId -or $current.repository -ne $ExpectedRepository) {
         throw "Installed JAP repository identity does not match update authority."
@@ -97,21 +151,23 @@ try {
         throw "Installed JAP desktop version is outside compatibility line 1: $($current.desktop_host_version)"
     }
 
-    $sourceRoot = [System.IO.Path]::GetFullPath([string]$manifest.source_root)
-    $archive = [System.IO.Path]::GetFullPath([string]$manifest.desktop_archive)
-    $checksum = [System.IO.Path]::GetFullPath([string]$manifest.desktop_checksum)
-    $installer = Join-Path $sourceRoot "install-jap-control-center.ps1"
-    foreach ($required in @($sourceRoot, $archive, $checksum, $installer)) {
-        if (-not (Test-Path $required)) {
+    $archive = Assert-PathUnderUpdates ([string]$manifest.desktop_archive)
+    $checksum = Assert-PathUnderUpdates ([string]$manifest.desktop_checksum)
+    foreach ($required in @($archive, $checksum)) {
+        if (-not (Test-Path $required -PathType Leaf)) {
             throw "Staged update payload is incomplete: $required"
         }
     }
 
     $checksumLine = (Get-Content -Raw $checksum).Trim()
     $expectedHash = ($checksumLine -split '\s+')[0].ToLowerInvariant()
+    $manifestHash = ([string]$manifest.desktop_sha256).Trim().ToLowerInvariant()
     $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($expectedHash -notmatch '^[0-9a-f]{64}$' -or $expectedHash -ne $actualHash) {
         throw "Staged desktop host checksum verification failed."
+    }
+    if ($manifestHash -ne $expectedHash) {
+        throw "Pending update hash identity does not match the staged checksum."
     }
 
     if ($HostPid -gt 0) {
@@ -124,61 +180,48 @@ try {
         }
     }
 
-    $stopper = Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"
-    if (Test-Path $stopper) {
-        Write-UpdateLog "runtime_stop"
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stopper | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Managed JAP runtime stop failed with exit code $LASTEXITCODE."
-        }
-    }
-
-    $sourceRunnerWindows = Join-Path $sourceRoot "scripts\run_jap_windows_control_center.sh"
-    if (-not (Test-Path $sourceRunnerWindows)) {
-        throw "Staged update is missing the WSL runtime runner."
-    }
-    $sourceRunnerLinuxOutput = & wsl.exe `
-        -d ([string]$current.wsl_distro) `
-        --exec wslpath -u $sourceRunnerWindows
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not map staged runtime runner into WSL."
-    }
-    $sourceRunnerLinux = (($sourceRunnerLinuxOutput | Select-Object -First 1) -as [string]).Trim()
-    if ([string]::IsNullOrWhiteSpace($sourceRunnerLinux) -or -not $sourceRunnerLinux.StartsWith("/")) {
-        throw "Mapped staged runtime runner path is invalid."
-    }
+    Write-UpdateLog "runtime_stop"
+    Invoke-InstalledRunner $current ([string]$current.pinned_sha) "--stop"
+    Remove-Item -Force (Join-Path $InstallRoot "state\runtime.json") -ErrorAction SilentlyContinue
 
     Write-UpdateLog "frontend_prepare_start" "target=$targetVersion sha=$targetSha"
-    & wsl.exe `
-        -d ([string]$current.wsl_distro) `
-        --exec bash `
-        $sourceRunnerLinux `
-        ([string]$current.wsl_project_root) `
-        ([string]$current.managed_worktree) `
-        $targetSha `
-        ([string]$current.wsl_state_root) `
-        prepare
-    if ($LASTEXITCODE -ne 0) {
-        throw "JAP frontend prewarm failed with exit code $LASTEXITCODE."
-    }
+    Invoke-InstalledRunner $current $targetSha "prepare"
     Write-UpdateLog "frontend_prepare_pass" "target=$targetVersion sha=$targetSha"
 
-    Write-UpdateLog "installer_start" "target=$targetVersion sha=$targetSha"
-    & powershell.exe `
-        -NoProfile `
-        -ExecutionPolicy Bypass `
-        -File $installer `
-        -InstallRoot $InstallRoot `
-        -WslDistro ([string]$current.wsl_distro) `
-        -WslProjectRoot ([string]$current.wsl_project_root) `
-        -WslInstalledRunnerPath ([string]$current.wsl_installed_runner_path) `
-        -PinnedSha $targetSha `
-        -DesktopHostArchivePath $archive `
-        -DesktopHostChecksumPath $checksum `
-        -NoStart
-    if ($LASTEXITCODE -ne 0) {
-        throw "JAP installer failed with exit code $LASTEXITCODE."
+    Remove-Item -Recurse -Force $stagedHost -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force $backupHost -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $stagedHost | Out-Null
+    Expand-Archive -Path $archive -DestinationPath $stagedHost -Force
+    $stagedExe = Join-Path $stagedHost "JAP.ControlCenter.Desktop.exe"
+    if (-not (Test-Path $stagedExe -PathType Leaf)) {
+        throw "Staged desktop host release is missing JAP.ControlCenter.Desktop.exe."
     }
+
+    Write-UpdateLog "desktop_cutover_start" "target=$targetVersion sha=$targetSha"
+    if (Test-Path $DesktopHostRoot) {
+        Move-Item -Path $DesktopHostRoot -Destination $backupHost
+    }
+    try {
+        Move-Item -Path $stagedHost -Destination $DesktopHostRoot
+        $desktopSwapped = $true
+    }
+    catch {
+        if (Test-Path $DesktopHostRoot) {
+            Remove-Item -Recurse -Force $DesktopHostRoot -ErrorAction SilentlyContinue
+        }
+        if (Test-Path $backupHost) {
+            Move-Item -Path $backupHost -Destination $DesktopHostRoot
+        }
+        throw
+    }
+
+    $current.pinned_sha = $targetSha
+    $current.desktop_host_version = $targetVersion
+    $current.desktop_host_sha256 = $actualHash
+    $current.desktop_host_release = $targetRelease
+    $current.desktop_host_exe = $DesktopHostExe
+    $current.installed_at = [DateTime]::UtcNow.ToString("o")
+    Write-JsonAtomic $CurrentPath $current
 
     $deployed = Read-Json $CurrentPath
     if ($deployed.pinned_sha -ne $targetSha) {
@@ -187,6 +230,12 @@ try {
     if ($deployed.desktop_host_version -ne $targetVersion) {
         throw "Update verification failed: desktop host is $($deployed.desktop_host_version), expected $targetVersion."
     }
+    if (-not (Test-Path $DesktopHostExe -PathType Leaf)) {
+        throw "Update verification failed: installed desktop host executable is missing."
+    }
+
+    Remove-Item -Recurse -Force $backupHost -ErrorAction SilentlyContinue
+    $desktopSwapped = $false
 
     if (Test-Path $PendingPath) {
         try {
@@ -216,6 +265,23 @@ try {
 }
 catch {
     $detail = $_.Exception.Message
+
+    if ($desktopSwapped -and (Test-Path $backupHost)) {
+        try {
+            if (Test-Path $DesktopHostRoot) {
+                Remove-Item -Recurse -Force $DesktopHostRoot -ErrorAction SilentlyContinue
+            }
+            Move-Item -Path $backupHost -Destination $DesktopHostRoot
+            if ($null -ne $previousCurrent) {
+                Write-JsonAtomic $CurrentPath $previousCurrent
+            }
+            Write-UpdateLog "desktop_cutover_rollback" "target=$targetVersion sha=$targetSha"
+        }
+        catch {
+            Write-UpdateLog "desktop_cutover_rollback_failed" $_.Exception.Message
+        }
+    }
+    Remove-Item -Recurse -Force $stagedHost -ErrorAction SilentlyContinue
     Remove-AcceptedManifest
     try {
         Write-JsonAtomic $ResultPath @{

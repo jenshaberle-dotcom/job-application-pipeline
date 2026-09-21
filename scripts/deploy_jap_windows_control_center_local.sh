@@ -33,7 +33,7 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   printf 'JAP_LOCAL_DEPLOY_RUNNER_ADMISSION=PASS runner=%s routing_label=%s\n' "$RUNNER_NAME" "$ROUTING_LABEL"
 fi
 
-for command_name in git python3 powershell.exe wslpath curl sha256sum; do
+for command_name in git python3 powershell.exe cmd.exe tasklist.exe wslpath curl sha256sum; do
   command -v "$command_name" >/dev/null 2>&1 || blocked "missing_command:${command_name}"
 done
 
@@ -94,7 +94,7 @@ if ! curl -fsSIL --connect-timeout 5 --max-time 20 "$RELEASE_ASSET_URL" >/dev/nu
   deferred "desktop_release_asset_unavailable:${DESKTOP_TAG}"
 fi
 
-WINDOWS_LOCALAPPDATA="$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r' | tail -n 1)"
+WINDOWS_LOCALAPPDATA="$(cmd.exe /d /c 'echo %LOCALAPPDATA%' | tr -d '\r' | tail -n 1)"
 [[ -n "$WINDOWS_LOCALAPPDATA" ]] || blocked "localappdata_unavailable"
 WSL_LOCALAPPDATA="$(wslpath -u "$WINDOWS_LOCALAPPDATA")"
 [[ -n "$WSL_LOCALAPPDATA" ]] || blocked "localappdata_mapping_failed"
@@ -137,11 +137,7 @@ fi
 
 process_probe_stderr="$(mktemp)"
 set +e
-process_count="$(
-  timeout 10s powershell.exe -NoProfile -NonInteractive -Command \
-    '$ErrorActionPreference = "Stop"; $count = @(Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue).Count; Write-Output $count' \
-    2>"$process_probe_stderr" | tr -d '\r[:space:]'
-)"
+process_output="$(timeout 10s tasklist.exe /FI "IMAGENAME eq JAP.ControlCenter.Desktop.exe" /FO CSV /NH 2>"$process_probe_stderr" | tr -d '\r')"
 process_status=$?
 set -e
 if [[ "$process_status" -ne 0 ]]; then
@@ -150,6 +146,7 @@ if [[ "$process_status" -ne 0 ]]; then
   blocked "desktop_host_process_probe_failed:${process_status}:${process_error:-no_detail}"
 fi
 rm -f "$process_probe_stderr"
+process_count="$(printf '%s\n' "$process_output" | grep -Fic '"JAP.ControlCenter.Desktop.exe"' || true)"
 [[ "$process_count" =~ ^[0-9]+$ ]] || blocked "desktop_host_process_probe_invalid:${process_count:-empty}"
 HOST_RUNNING=0
 if (( process_count > 0 )); then
@@ -196,26 +193,23 @@ PY
   exit 0
 fi
 
+STABLE_APPLIER="$INSTALL_ROOT/Apply-JAP-Control-Center-Update.ps1"
+STABLE_RUNNER="$INSTALL_ROOT/run-jap-control-center-wsl.sh"
+cp "$CONTROL_ROOT/Apply-JAP-Control-Center-Update.ps1" "$STABLE_APPLIER"
+cp "$CONTROL_ROOT/scripts/run_jap_windows_control_center.sh" "$STABLE_RUNNER"
+printf 'JAP_LOCAL_DEPLOY_STABLE_CONTROL_PLANE=REFRESHED\n'
+
 STAGE_BASE="$INSTALL_ROOT/updates"
+mkdir -p "$STAGE_BASE"
+while IFS= read -r -d '' legacy_source; do
+  rm -rf -- "$legacy_source"
+  printf 'JAP_LOCAL_DEPLOY_LEGACY_STAGED_SOURCE=PURGED path=%s\n' "$legacy_source"
+done < <(find "$STAGE_BASE" -mindepth 2 -maxdepth 2 -type d -name source -print0)
 STAGE_ROOT="$STAGE_BASE/$SOURCE_SHA"
 STAGE_TMP="$STAGE_BASE/.staging.$SOURCE_SHA.$$"
-SOURCE_ROOT="$STAGE_TMP/source"
 PAYLOAD_ROOT="$STAGE_TMP/payload"
 rm -rf "$STAGE_TMP"
-mkdir -p "$SOURCE_ROOT/scripts" "$SOURCE_ROOT/windows/JAP.ControlCenter.Desktop" "$PAYLOAD_ROOT" "$INSTALL_ROOT/state"
-
-for file in \
-  JAP-Control-Center.ps1 \
-  Update-JAP-Control-Center.ps1 \
-  Stop-JAP-Control-Center.ps1 \
-  Apply-JAP-Control-Center-Update.ps1 \
-  install-jap-control-center.ps1; do
-  cp "$ROOT/$file" "$SOURCE_ROOT/$file"
-done
-cp "$ROOT/scripts/run_jap_windows_control_center.sh" "$SOURCE_ROOT/scripts/run_jap_windows_control_center.sh"
-cp "$ROOT/windows/JAP.ControlCenter.Desktop/VERSION" "$SOURCE_ROOT/windows/JAP.ControlCenter.Desktop/VERSION"
-cp "$ROOT/windows/JAP.ControlCenter.Desktop/UPDATE_COMPATIBILITY.json" "$SOURCE_ROOT/windows/JAP.ControlCenter.Desktop/UPDATE_COMPATIBILITY.json"
-
+mkdir -p "$PAYLOAD_ROOT" "$INSTALL_ROOT/state"
 ARCHIVE="$PAYLOAD_ROOT/$DESKTOP_ASSET"
 CHECKSUM="$ARCHIVE.sha256"
 curl -fsSL --connect-timeout 5 --max-time 120 "$RELEASE_ASSET_URL" -o "$ARCHIVE"
@@ -228,7 +222,6 @@ ACTUAL_HASH="$(sha256sum "$ARCHIVE" | awk '{print tolower($1)}')"
 rm -rf "$STAGE_ROOT"
 mv "$STAGE_TMP" "$STAGE_ROOT"
 
-WINDOWS_SOURCE_ROOT="$(wslpath -w "$STAGE_ROOT/source")"
 WINDOWS_ARCHIVE="$(wslpath -w "$STAGE_ROOT/payload/$DESKTOP_ASSET")"
 WINDOWS_CHECKSUM="$(wslpath -w "$STAGE_ROOT/payload/$DESKTOP_ASSET.sha256")"
 PENDING_JSON="$INSTALL_ROOT/state/pending-update.json"
@@ -238,7 +231,6 @@ python3 - "$PENDING_TMP" \
   "$SOURCE_SHA" \
   "$DESKTOP_VERSION" \
   "$DESKTOP_TAG" \
-  "$WINDOWS_SOURCE_ROOT" \
   "$WINDOWS_ARCHIVE" \
   "$WINDOWS_CHECKSUM" \
   "$EXPECTED_HASH" <<'PY'
@@ -247,7 +239,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-(output, target_sha, version, tag, source_root, archive, checksum, sha256) = sys.argv[1:]
+(output, target_sha, version, tag, archive, checksum, sha256) = sys.argv[1:]
 value = {
     "schema": "job_application_pipeline.windows_pending_update.v1",
     "target_main_sha": target_sha,
@@ -256,7 +248,6 @@ value = {
     "compatibility_line": "1",
     "installer_schema": "job_application_pipeline.windows_control_center_install.v2",
     "policy": "latest_direct",
-    "source_root": source_root,
     "desktop_archive": archive,
     "desktop_checksum": checksum,
     "desktop_sha256": sha256,
@@ -278,13 +269,13 @@ if ((HOST_RUNNING)); then
   exit 0
 fi
 
-WINDOWS_APPLIER="$(wslpath -w "$STAGE_ROOT/source/Apply-JAP-Control-Center-Update.ps1")"
+WINDOWS_APPLIER="$(wslpath -w "$STABLE_APPLIER")"
 WINDOWS_PENDING="$(wslpath -w "$PENDING_JSON")"
 printf 'JAP_LOCAL_DEPLOY=AUTO_APPLY_CLOSED\n'
 set +e
 powershell.exe \
   -NoProfile \
-  -ExecutionPolicy Bypass \
+  -ExecutionPolicy RemoteSigned \
   -File "$WINDOWS_APPLIER" \
   -ManifestPath "$WINDOWS_PENDING" \
   -HostPid 0
