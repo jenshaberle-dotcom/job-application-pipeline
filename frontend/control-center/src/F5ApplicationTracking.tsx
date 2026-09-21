@@ -194,15 +194,14 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
     const external = mode === "external";
     if (
       !submittedOn ||
-      !reference.trim() ||
       (!external && (!employer || !jobId)) ||
       (external && (!externalEmployer.trim() || !externalTitle.trim()))
     ) {
       setState("error");
       setMessage(
         external
-          ? "Arbeitgeber, Jobtitel, Bewerbungsdatum und eigene Referenz sind erforderlich."
-          : "Arbeitgeber, Job, Bewerbungsdatum und eigene Referenz sind erforderlich.",
+          ? "Arbeitgeber, Jobtitel und Bewerbungsdatum sind erforderlich."
+          : "Arbeitgeber, Job und Bewerbungsdatum sind erforderlich.",
       );
       return;
     }
@@ -215,7 +214,7 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
             action: "record_operator_confirmed_submission",
             submitted_on: submittedOn,
             submission_channel: channel,
-            authority_reference: reference.trim(),
+            authority_reference: reference.trim() || undefined,
             employer_name: externalEmployer.trim(),
             job_title: externalTitle.trim(),
             source_url: externalUrl.trim() || undefined,
@@ -225,7 +224,7 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
             silver_job_id: Number(jobId),
             submitted_on: submittedOn,
             submission_channel: channel,
-            authority_reference: reference.trim(),
+            authority_reference: reference.trim() || undefined,
           };
 
       const response = await fetch("/api/v1/product-v1/application-submission-record", {
@@ -233,8 +232,11 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
-      const payload = await response.json() as { status?: string; reason?: string };
-      if (!response.ok) throw new Error(payload.reason || `HTTP ${response.status}`);
+      const payload = await response.json() as { status?: string; reason?: string; message?: string; error_type?: string };
+      if (!response.ok) {
+        const detail = payload.reason || payload.message;
+        throw new Error(detail ? `${payload.error_type ? payload.error_type + ": " : ""}${detail}` : `HTTP ${response.status}`);
+      }
       setState("saved");
       setMessage(
         payload.status === "already_recorded"
@@ -293,8 +295,8 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
           {Object.entries(channelLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
-      <label>Eigene Referenz
-        <input value={reference} maxLength={240} onChange={(event) => setReference(event.target.value)} placeholder="z. B. Portal-Bestätigung / Notiz" />
+      <label>Notiz / Referenz · optional
+        <input value={reference} maxLength={240} onChange={(event) => setReference(event.target.value)} placeholder="z. B. Portal-Bestätigung oder eigene Notiz" />
       </label>
       <button type="button" disabled={state === "saving"} onClick={() => void record()}>{state === "saving" ? "Erfasse …" : "Manuell erfassen"}</button>
       {message && <p className={`f5-record-message ${state}`}>{message}</p>}

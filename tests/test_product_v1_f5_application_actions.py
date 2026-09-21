@@ -5,6 +5,7 @@ import pytest
 
 from scripts.product_v1_f5_application_actions import (
     ACTION_NAME,
+    LOCAL_OPERATOR_AUTHORITY_REFERENCE,
     ApplicationActionError,
     SubmissionRecordRequest,
     application_key_for_job,
@@ -59,14 +60,15 @@ def test_parse_requires_explicit_record_action_and_timezone() -> None:
 def test_job_identity_snapshot_and_hash_are_stable() -> None:
     source = {
         "id": 42,
-        "canonical_job_key": "example:42",
-        "source_system": "employer_origin",
-        "source_job_id": "42",
+        "source_name": "employer_origin",
+        "external_job_id": "42",
         "source_url": "https://example.test/jobs/42",
         "title": "ML Engineer",
         "company_name": "Example GmbH",
-        "company_key": "example",
-        "location_raw": "Hannover",
+        "city": "Hannover",
+        "postal_code": "30159",
+        "country": "DE",
+        "publication_date": "2026-09-20",
         "description_text": "not part of the bounded identity snapshot",
     }
     first = build_job_identity_snapshot(source)
@@ -74,6 +76,9 @@ def test_job_identity_snapshot_and_hash_are_stable() -> None:
 
     assert first == second
     assert "description_text" not in first
+    assert "canonical_job_key" not in first
+    assert first["source_name"] == "employer_origin"
+    assert first["city"] == "Hannover"
     assert len(canonical_sha256(first)) == 64
     assert canonical_sha256(first) == canonical_sha256(second)
 
@@ -139,3 +144,61 @@ def test_manual_external_job_requires_employer_and_title_but_no_silver_job() -> 
     assert request.is_external_job is True
     assert request.employer_name == "CARIAD"
     assert request.job_title == "A.I. Reporting Specialist"
+
+
+def test_operator_reference_is_optional_but_internal_authority_stays_explicit() -> None:
+    request = parse_submission_record_request(
+        {
+            "action": ACTION_NAME,
+            "silver_job_id": 42,
+            "submitted_on": "2026-09-20",
+            "submission_channel": "employer_portal",
+        }
+    )
+
+    assert request.authority_reference == LOCAL_OPERATOR_AUTHORITY_REFERENCE
+    assert request.operator_reference is None
+
+
+def test_optional_operator_reference_is_preserved_as_note_not_authority() -> None:
+    request = parse_submission_record_request(
+        {
+            "action": ACTION_NAME,
+            "silver_job_id": 42,
+            "submitted_on": "2026-09-20",
+            "submission_channel": "employer_portal",
+            "authority_reference": "noch keine E-Mail-Eingangsbestätigung erhalten",
+        }
+    )
+
+    assert request.authority_reference == LOCAL_OPERATOR_AUTHORITY_REFERENCE
+    assert request.operator_reference == "noch keine E-Mail-Eingangsbestätigung erhalten"
+
+
+def test_manual_submission_uses_only_canonical_silver_schema_columns() -> None:
+    source = MODULE.read_text(encoding="utf-8")
+    loader = source.split("def _load_silver_identity", 1)[1].split(
+        "def record_operator_confirmed_submission", 1
+    )[0]
+
+    for column in (
+        "source_name",
+        "external_job_id",
+        "source_url",
+        "title",
+        "company_name",
+        "city",
+        "postal_code",
+        "country",
+        "publication_date",
+    ):
+        assert column in loader
+
+    for phantom in (
+        "canonical_job_key",
+        "source_system",
+        "source_job_id",
+        "company_key",
+        "location_raw",
+    ):
+        assert phantom not in loader

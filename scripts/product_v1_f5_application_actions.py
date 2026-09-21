@@ -22,6 +22,7 @@ ALLOWED_SUBMISSION_CHANNELS = frozenset(
     {"employer_portal", "email", "external_platform", "manual_other"}
 )
 ACTION_NAME = "record_operator_confirmed_submission"
+LOCAL_OPERATOR_AUTHORITY_REFERENCE = "operator_confirmation:local_ui"
 
 
 class ApplicationActionError(RuntimeError):
@@ -39,6 +40,7 @@ class SubmissionRecordRequest:
     source_url: str | None = None
     submitted_precision: str = "datetime"
     confirmed_by: str = "local_operator"
+    operator_reference: str | None = None
 
     @property
     def is_external_job(self) -> bool:
@@ -159,9 +161,12 @@ def parse_submission_record_request(
     if channel not in ALLOWED_SUBMISSION_CHANNELS:
         raise ApplicationActionError("invalid_submission_channel")
 
-    authority_reference = str(payload.get("authority_reference") or "").strip()
-    if not authority_reference or len(authority_reference) > 240:
-        raise ApplicationActionError("invalid_authority_reference")
+    operator_reference = _bounded_text(
+        payload.get("authority_reference"),
+        name="authority_reference",
+        limit=240,
+    )
+    authority_reference = LOCAL_OPERATOR_AUTHORITY_REFERENCE
 
     confirmed_by = str(payload.get("confirmed_by") or "local_operator").strip()
     if confirmed_by != "local_operator":
@@ -177,20 +182,22 @@ def parse_submission_record_request(
         submission_channel=channel,
         authority_reference=authority_reference,
         confirmed_by=confirmed_by,
+        operator_reference=operator_reference,
     )
 
 
 def build_job_identity_snapshot(row: Mapping[str, object]) -> dict[str, object]:
     return {
         "silver_job_id": int(row["id"]),
-        "canonical_job_key": row.get("canonical_job_key"),
-        "source_system": row.get("source_system"),
-        "source_job_id": row.get("source_job_id"),
+        "source_name": row.get("source_name"),
+        "external_job_id": row.get("external_job_id"),
         "source_url": row.get("source_url"),
         "title": row.get("title"),
         "company_name": row.get("company_name"),
-        "company_key": row.get("company_key"),
-        "location_raw": row.get("location_raw"),
+        "city": row.get("city"),
+        "postal_code": row.get("postal_code"),
+        "country": row.get("country"),
+        "publication_date": row.get("publication_date"),
         "identity_source": "silver_job",
     }
 
@@ -274,8 +281,8 @@ def _load_silver_identity(cur: object, silver_job_id: int) -> Mapping[str, objec
     cur.execute(
         """
         SELECT
-            id, canonical_job_key, source_system, source_job_id,
-            source_url, title, company_name, company_key, location_raw
+            id, source_name, external_job_id, source_url, title, company_name,
+            city, postal_code, country, publication_date
         FROM silver_jobs
         WHERE id = %s
         FOR SHARE
@@ -331,6 +338,7 @@ def record_operator_confirmed_submission(
                     "external_submission_action": False,
                     "submitted_precision": request.submitted_precision,
                     "manual_external_job": request.is_external_job,
+                    "operator_reference_present": request.operator_reference is not None,
                 }
 
                 cur.execute(
@@ -400,6 +408,7 @@ def record_operator_confirmed_submission(
                     "submitted_precision": request.submitted_precision,
                     "submission_channel": request.submission_channel,
                     "authority_reference": request.authority_reference,
+                    "operator_reference": request.operator_reference,
                     "authority_kind": "operator_confirmation",
                 }
 
