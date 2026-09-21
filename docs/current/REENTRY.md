@@ -293,7 +293,7 @@ The current live reconciliation still has exactly one deterministic HDI -> Silve
 
 No DB link persistence, Gmail action, automatic submission, authoritative lifecycle mutation, or second application-status heuristic is introduced.
 
-### v1.0.43 manual-application convergence — PR #949
+### v1.0.44 manual-application convergence — PR #949
 
 PR #949 is the F5 corrective Product slice discovered through the real
 Hornetsecurity case. It keeps manual operator truth and later mailbox evidence in
@@ -322,7 +322,7 @@ converge onto the already tracked
 `AI Automation Architect Software Development Lifecycle` application without a
 second application insert.
 
-Desktop release target: `v1.0.43`.
+Desktop release target: `v1.0.44`.
 
 Runtime automation truth: the private F5 Gmail workflow has a daily schedule, but
 that schedule currently runs only compile/tests/contract and boundary checks. It
@@ -333,7 +333,7 @@ identity convergence is accepted.
 ## Sole next action
 
 After PR #949 is exact-head qualified, merge and release/install desktop
-`v1.0.43`. Then run the canonical F5 lifecycle workflow in
+`v1.0.44`. Then run the canonical F5 lifecycle workflow in
 `v5_resume_preflight` mode on exact current `main`. It must consume the already-generated private v5 JSONL only on
 the verified runtime host, run the public batch preflight with findings suppressed
 from logs/artifacts, derive the current live persistence plan under a read-only
