@@ -368,6 +368,41 @@ jobs:
           print("VALUNY_DIAGNOSTIC=PASS")
           PY
 
+      - name: TEMP diagnose normalized Valuny mailbox identity read-only
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          input="$HOME/.local/state/jap/f5-gmail-preview-v5.jsonl"
+          test -f "$input"
+          "$RUNTIME_PYTHON" - "$input" <<'PY'
+          import json
+          import sys
+
+          path = sys.argv[1]
+          matches = []
+          with open(path, encoding="utf-8") as handle:
+              for raw in handle:
+                  row = json.loads(raw)
+                  employer = str(row.get("employer_name") or "").casefold()
+                  domain = str(row.get("counterparty_domain") or row.get("sender_domain") or "").casefold()
+                  if "valuny" not in employer and "valuny" not in domain:
+                      continue
+                  matches.append({
+                      "observed_at": row.get("observed_at"),
+                      "subject": row.get("subject"),
+                      "text_excerpt": row.get("text_excerpt"),
+                      "employer_name": row.get("employer_name"),
+                      "job_title": row.get("job_title"),
+                      "counterparty_domain": row.get("counterparty_domain"),
+                      "mail_direction": row.get("mail_direction"),
+                      "source_url": row.get("source_url"),
+                      "gmail_search_signals": row.get("gmail_search_signals"),
+                  })
+          print("VALUNY_NORMALIZED_MAIL=" + json.dumps(matches, ensure_ascii=False, sort_keys=True))
+          print(f"VALUNY_NORMALIZED_MAIL_COUNT={len(matches)}")
+          PY
+
       - name: Run exact-head real DB migration 113 preflight read-only
         if: ${{ env.MODE == 'preflight' }}
         shell: bash
