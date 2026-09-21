@@ -42,8 +42,8 @@ def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() ->
     launcher = _text(LAUNCHER)
     assert "$readinessDeadline = [DateTime]::UtcNow.AddSeconds(75)" in launcher
     assert "while ([DateTime]::UtcNow -lt $readinessDeadline)" in launcher
-    assert "Get-Content $stdoutLog -Tail 12" in launcher
-    assert "Get-Content $stderrLog -Tail 12" in launcher
+    assert "--exec tail -n 12 $stdoutLinux" in launcher
+    assert "--exec tail -n 12 $stderrLinux" in launcher
     assert "Last endpoint error" in launcher
     assert "attempt -lt 240" not in launcher
 
@@ -64,7 +64,7 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -
 
     assert '$stdoutLinux = "$stateRootLinux/runtime.stdout.log"' in launcher
     assert '$stderrLinux = "$stateRootLinux/runtime.stderr.log"' in launcher
-    assert "wslpath" not in launcher
+    assert "--exec wslpath" not in launcher
     assert '"launch"' in launcher
     assert '& $wsl.Source @wslArgumentVector' in launcher
     assert 'launch_mode = "wsl_nohup_setsid"' in launcher
