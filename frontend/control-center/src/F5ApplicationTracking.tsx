@@ -326,6 +326,12 @@ export default function F5ApplicationTracking({
     status: "idle" | "saving" | "saved" | "error";
     message: string;
   }>({ applicationId: null, status: "idle", message: "" });
+  const [titleDrafts, setTitleDrafts] = useState<Record<number, string>>({});
+  const [titleCorrectionState, setTitleCorrectionState] = useState<{
+    applicationId: number | null;
+    status: "idle" | "saving" | "saved" | "error";
+    message: string;
+  }>({ applicationId: null, status: "idle", message: "" });
   const applications = tracking?.applications || [];
   const projectedJobByApplicationId = useMemo(() => {
     const projected = new Map<number, number>();
@@ -390,6 +396,61 @@ export default function F5ApplicationTracking({
       else next.add(applicationId);
       return next;
     });
+  }
+
+  async function correctMissingJobTitle(
+    applicationId: number,
+    employerName: string,
+  ) {
+    const jobTitle = (titleDrafts[applicationId] || "").trim();
+    if (!jobTitle) {
+      setTitleCorrectionState({
+        applicationId,
+        status: "error",
+        message: "Bitte einen Jobtitel eintragen.",
+      });
+      return;
+    }
+
+    setTitleCorrectionState({ applicationId, status: "saving", message: "" });
+    try {
+      const response = await fetch("/api/v1/product-v1/application-submission-record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "correct_application_job_title",
+          application_id: applicationId,
+          job_title: jobTitle,
+          expected_employer_name: employerName,
+        }),
+      });
+      const payload = await response.json() as {
+        status?: string;
+        reason?: string;
+        message?: string;
+        error_type?: string;
+      };
+      if (!response.ok) {
+        const detail = payload.reason || payload.message;
+        throw new Error(
+          detail
+            ? `${payload.error_type ? payload.error_type + ": " : ""}${detail}`
+            : `HTTP ${response.status}`,
+        );
+      }
+      setTitleCorrectionState({
+        applicationId,
+        status: "saved",
+        message: "Jobtitel gespeichert.",
+      });
+      await refreshProductTruth();
+    } catch (error) {
+      setTitleCorrectionState({
+        applicationId,
+        status: "error",
+        message: error instanceof Error ? error.message : "Jobtitel konnte nicht gespeichert werden.",
+      });
+    }
   }
 
   async function removeMistakenManualSubmission(applicationId: number) {
@@ -488,7 +549,8 @@ export default function F5ApplicationTracking({
         const projectedLink = application.silver_job_id == null && linkedJobId != null;
         const linkedJobVisible = linkedJobId != null && visibleJobIds.has(linkedJobId);
         const applicationKindLabel = application.application_kind === "unsolicited" ? "Initiativbewerbung" : null;
-        const jobTitle = application.title || applicationKindLabel || (linkedJobId ? `Job ${linkedJobId}` : "Jobtitel noch nicht ableitbar");
+        const missingJobTitle = !application.title && !applicationKindLabel;
+        const jobTitle = application.title || applicationKindLabel || (linkedJobId ? `Job ${linkedJobId}` : "Jobtitel fehlt");
         const canUndoManualSubmission =
           application.submission_authority_kind === "operator_confirmation" &&
           application.authoritative_event_count === 0 &&
@@ -498,6 +560,9 @@ export default function F5ApplicationTracking({
           );
         const correction = correctionState.applicationId === application.application_id
           ? correctionState
+          : null;
+        const titleCorrection = titleCorrectionState.applicationId === application.application_id
+          ? titleCorrectionState
           : null;
         return <article
           key={application.application_id}
@@ -531,6 +596,29 @@ export default function F5ApplicationTracking({
                 ? <div className="f5-linked-job-outside-view">Silver #{linkedJobId} ist verknüpft, liegt aber außerhalb der aktuellen All-jobs-Sicht.</div>
                 : null}
             {warning && <div className="f5-attention-note">{warning}</div>}
+            {missingJobTitle && application.discovery_kind === "mailbox_observed" && <div className="f5-title-correction">
+              <div>
+                <b>Jobtitel fehlt</b>
+                <small>Die Mailbox-Bestätigung enthält keinen Titel. Ergänze nur den tatsächlich beworbenen Jobtitel.</small>
+              </div>
+              <input
+                value={titleDrafts[application.application_id] || ""}
+                maxLength={500}
+                onChange={(event) => setTitleDrafts((current) => ({
+                  ...current,
+                  [application.application_id]: event.target.value,
+                }))}
+                placeholder="Jobtitel"
+              />
+              <button
+                type="button"
+                disabled={titleCorrection?.status === "saving"}
+                onClick={() => void correctMissingJobTitle(application.application_id, employer)}
+              >
+                {titleCorrection?.status === "saving" ? "Speichere …" : "Titel speichern"}
+              </button>
+            </div>}
+            {titleCorrection?.message && <p className={`f5-title-correction-message ${titleCorrection.status}`}>{titleCorrection.message}</p>}
             {canUndoManualSubmission && <div className="f5-manual-correction">
               <div>
                 <b>Manuellen Fehleintrag korrigieren</b>
@@ -545,7 +633,6 @@ export default function F5ApplicationTracking({
               </button>
             </div>}
             {correction?.message && <p className={`f5-correction-message ${correction.status}`}>{correction.message}</p>}
-            <details className="f5-evidence-details"><summary>Details & Evidence</summary><div><p><b>Beobachteter Status:</b> {stageLabel[application.effective_stage]} · {application.effective_stage_basis || "—"}</p><p><b>Autoritative Korrektur:</b> {stageLabel[application.authoritative_stage]}</p><p><b>Autoritative Events:</b> {application.authoritative_event_count}</p>{application.evidence_candidates.length === 0 ? <p>Keine Kommunikations-Evidence hinterlegt.</p> : application.evidence_candidates.map((candidate) => <p key={candidate.candidate_id || `${candidate.candidate_class}-${candidate.created_at}`} className={candidate.requires_review ? "review-required" : "qualified-evidence"}><b>{candidate.candidate_class || "ambiguous"}</b> · {candidate.requires_review ? "Prüfung nötig" : "qualifiziert"}{candidate.confidence != null ? ` · ${Math.round(candidate.confidence * 100)} %` : ""} · {formatDate(candidate.observed_at)}</p>)}</div></details>
           </div>}
         </article>;
       })}</div>

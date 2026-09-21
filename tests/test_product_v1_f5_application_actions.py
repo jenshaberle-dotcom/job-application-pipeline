@@ -5,6 +5,7 @@ import pytest
 
 from scripts.product_v1_f5_application_actions import (
     ACTION_NAME,
+    CORRECT_TITLE_ACTION_NAME,
     REMOVE_ACTION_NAME,
     LOCAL_OPERATOR_AUTHORITY_REFERENCE,
     ApplicationActionError,
@@ -13,6 +14,7 @@ from scripts.product_v1_f5_application_actions import (
     build_job_identity_snapshot,
     canonical_sha256,
     parse_submission_record_request,
+    parse_application_title_correction_request,
     parse_submission_removal_request,
     submission_idempotency_key,
 )
@@ -239,3 +241,51 @@ def test_manual_submission_removal_never_deletes_mail_or_lifecycle_truth() -> No
     assert "DELETE FROM applications" in removal
     assert "DELETE FROM application_event_candidates" not in removal
     assert "DELETE FROM application_lifecycle_events" not in removal
+
+
+def test_missing_title_correction_request_is_explicit_and_bounded() -> None:
+    request = parse_application_title_correction_request(
+        {
+            "action": CORRECT_TITLE_ACTION_NAME,
+            "application_id": 2,
+            "job_title": "Machine Learning Engineer / Data Scientist (m/w/d)",
+            "expected_employer_name": "Valuny",
+        }
+    )
+
+    assert request.application_id == 2
+    assert request.job_title == "Machine Learning Engineer / Data Scientist (m/w/d)"
+    assert request.expected_employer_name == "Valuny"
+    assert request.confirmed_by == "local_operator"
+
+    with pytest.raises(
+        ApplicationActionError,
+        match="unexpected_application_title_correction_fields",
+    ):
+        parse_application_title_correction_request(
+            {
+                "action": CORRECT_TITLE_ACTION_NAME,
+                "application_id": 2,
+                "job_title": "Data Scientist",
+                "expected_employer_name": "Valuny",
+                "silver_job_id": 613,
+            }
+        )
+
+
+def test_missing_title_correction_cannot_rewrite_lifecycle_or_linkage_truth() -> None:
+    source = MODULE.read_text(encoding="utf-8")
+    correction = source.split(
+        "def correct_application_job_title", 1
+    )[1].split("def remove_operator_submission_confirmation", 1)[0]
+
+    assert "title_correction_requires_mailbox_observed_application" in correction
+    assert "application_employer_mismatch" in correction
+    assert "application_job_title_already_present" in correction
+    assert "job_identity_snapshot = %s" in correction
+    assert "job_identity_sha256 = %s" in correction
+    assert "identity_corrections" in correction
+    assert "silver_job_id =" not in correction
+    assert "application_submissions" not in correction
+    assert "application_lifecycle_events" not in correction
+    assert "application_event_candidates" not in correction
