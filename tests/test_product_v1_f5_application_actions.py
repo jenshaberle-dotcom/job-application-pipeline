@@ -60,14 +60,15 @@ def test_parse_requires_explicit_record_action_and_timezone() -> None:
 def test_job_identity_snapshot_and_hash_are_stable() -> None:
     source = {
         "id": 42,
-        "canonical_job_key": "example:42",
-        "source_system": "employer_origin",
-        "source_job_id": "42",
+        "source_name": "employer_origin",
+        "external_job_id": "42",
         "source_url": "https://example.test/jobs/42",
         "title": "ML Engineer",
         "company_name": "Example GmbH",
-        "company_key": "example",
-        "location_raw": "Hannover",
+        "city": "Hannover",
+        "postal_code": "30159",
+        "country": "DE",
+        "publication_date": "2026-09-20",
         "description_text": "not part of the bounded identity snapshot",
     }
     first = build_job_identity_snapshot(source)
@@ -75,6 +76,9 @@ def test_job_identity_snapshot_and_hash_are_stable() -> None:
 
     assert first == second
     assert "description_text" not in first
+    assert "canonical_job_key" not in first
+    assert first["source_name"] == "employer_origin"
+    assert first["city"] == "Hannover"
     assert len(canonical_sha256(first)) == 64
     assert canonical_sha256(first) == canonical_sha256(second)
 
