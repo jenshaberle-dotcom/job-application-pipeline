@@ -110,6 +110,7 @@ $targetSha = "unknown"
 $backupHost = Join-Path $InstallRoot ("desktop-host.previous." + $PID)
 $stagedHost = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
 $desktopSwapped = $false
+$previousCurrent = $null
 
 try {
     Write-UpdateLog "update_begin" "manifest=$ManifestPath host_pid=$HostPid"
@@ -138,6 +139,7 @@ try {
         throw "Target release identity does not match desktop version."
     }
 
+    $previousCurrent = Read-Json $CurrentPath
     $current = Read-Json $CurrentPath
     if ($current.repository_id -ne $ExpectedRepositoryId -or $current.repository -ne $ExpectedRepository) {
         throw "Installed JAP repository identity does not match update authority."
@@ -270,6 +272,9 @@ catch {
                 Remove-Item -Recurse -Force $DesktopHostRoot -ErrorAction SilentlyContinue
             }
             Move-Item -Path $backupHost -Destination $DesktopHostRoot
+            if ($null -ne $previousCurrent) {
+                Write-JsonAtomic $CurrentPath $previousCurrent
+            }
             Write-UpdateLog "desktop_cutover_rollback" "target=$targetVersion sha=$targetSha"
         }
         catch {
