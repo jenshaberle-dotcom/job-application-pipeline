@@ -119,11 +119,11 @@ def test_installer_precomputes_linux_runner_path_inside_wsl() -> None:
     assert 'WSL_INSTALLED_RUNNER=$WslInstalledRunnerPath' in installer
 
 
-def test_windows_runtime_never_translates_windows_path_with_wslpath() -> None:
+def test_windows_runtime_uses_only_persisted_linux_paths() -> None:
     launcher = _text(LAUNCHER)
     stopper = _text(STOPPER)
     for text in (launcher, stopper):
-        assert "wslpath" not in text
+        assert "--exec wslpath" not in text
         assert "wsl_installed_runner_path" in text
         assert "StartsWith('/')" in text
     assert '"--exec",' in launcher
@@ -142,7 +142,8 @@ def test_launcher_uses_direct_tokenized_wsl_arguments_without_shell_serializatio
     assert "& $wsl.Source @wslArgumentVector" in text
     assert "$argumentLine = (" not in text
     assert "'-d \"{0}\" --exec bash" not in text
-    assert "cmd.exe" not in text
+    assert 'FilePath = $env:ComSpec' not in text
+    assert "$starterCommand =" not in text
     assert "start \"\" /b" not in text
 
 
