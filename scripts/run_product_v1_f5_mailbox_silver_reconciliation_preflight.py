@@ -11,10 +11,7 @@ import argparse
 from collections import Counter
 import json
 from pathlib import Path
-import re
 import sys
-import unicodedata
-from urllib.parse import urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -26,75 +23,15 @@ from scripts.run_product_v1_f5_mailbox_persistence_apply import (  # noqa: E402
     _validate_source_sha,
 )
 
-LEGAL_COMPANY_TOKENS = frozenset(
-    {
-        "ag",
-        "gmbh",
-        "mbh",
-        "kg",
-        "kgaa",
-        "se",
-        "inc",
-        "ltd",
-        "llc",
-        "co",
-        "company",
-        "holding",
-        "holdings",
-    }
+from src.search_intelligence.application_identity_matching import (  # noqa: E402
+    normalize_company,
+    normalize_title,
+    normalize_url,
+    strong_title_family_match,
 )
-TITLE_NOISE_TOKENS = frozenset(
-    {
-        "m",
-        "w",
-        "d",
-        "f",
-        "x",
-        "all",
-        "genders",
-        "gender",
-        "divers",
-        "diverse",
-    }
-)
-
 
 class ReconciliationPreflightError(RuntimeError):
     pass
-
-
-def _ascii_words(value: object) -> list[str]:
-    text = unicodedata.normalize("NFKD", str(value or "").casefold())
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    return re.findall(r"[a-z0-9]+", text)
-
-
-def normalize_company(value: object) -> str:
-    tokens = [token for token in _ascii_words(value) if token not in LEGAL_COMPANY_TOKENS]
-    return " ".join(tokens)
-
-
-def normalize_title(value: object) -> str:
-    tokens = [token for token in _ascii_words(value) if token not in TITLE_NOISE_TOKENS]
-    return " ".join(tokens)
-
-
-def normalize_url(value: object) -> str:
-    raw = str(value or "").strip()
-    if not raw:
-        return ""
-    try:
-        parts = urlsplit(raw)
-    except ValueError:
-        return raw.rstrip("/").casefold()
-    if not parts.scheme or not parts.netloc:
-        return raw.rstrip("/").casefold()
-    host = parts.netloc.casefold()
-    if host.startswith("www."):
-        host = host[4:]
-    path = parts.path.rstrip("/") or "/"
-    # Keep the query because many ATS job identities live there; only fragment is noise.
-    return urlunsplit((parts.scheme.casefold(), host, path, parts.query, ""))
 
 
 def _snapshot_text(snapshot: object, key: str) -> str:
@@ -175,7 +112,7 @@ def classify_application(
             if employer_norm
             and title_norm
             and normalize_company(row.get("company_name")) == employer_norm
-            and normalize_title(row.get("title")) == title_norm
+            and strong_title_family_match(row.get("title"), title)
         ]
     )
     if len(exact_company_title) == 1:
@@ -205,7 +142,7 @@ def classify_application(
             if employer_tokens
             and title_norm
             and employer_tokens.issubset(set(normalize_company(row.get("company_name")).split()))
-            and normalize_title(row.get("title")) == title_norm
+            and strong_title_family_match(row.get("title"), title)
         ]
     )
     if len(alias_title) == 1:

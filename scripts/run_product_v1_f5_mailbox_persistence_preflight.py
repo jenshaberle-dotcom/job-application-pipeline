@@ -34,6 +34,10 @@ from scripts.product_v1_f5_mailbox_ingest import (  # noqa: E402
 from src.search_intelligence.application_event_classifier import (  # noqa: E402
     classify_application_evidence,
 )
+from src.search_intelligence.application_identity_matching import (  # noqa: E402
+    ExistingApplicationIdentity,
+    match_existing_application_identity,
+)
 
 
 class PersistencePreflightError(RuntimeError):
@@ -140,6 +144,7 @@ def plan_rows(
     rows: list[dict[str, object]],
     *,
     existing_application_keys: set[str] | None = None,
+    existing_application_identities: list[ExistingApplicationIdentity] | None = None,
     active_candidates: Mapping[str, ActiveCandidate] | None = None,
     since: date | None = None,
     until: date | None = None,
@@ -148,6 +153,7 @@ def plan_rows(
         raise PersistencePreflightError("until_before_since")
 
     applications = set(existing_application_keys or set())
+    application_identities = list(existing_application_identities or [])
     active = dict(active_candidates or {})
     initial_applications = set(applications)
     window_rows = 0
@@ -203,8 +209,19 @@ def plan_rows(
             and application_key is None
             and should_discover_application(classification)
         ):
-            application_key = mailbox_application_key(observation)
-            applications.add(application_key)
+            matched_key, ambiguous_existing, _match_basis = (
+                match_existing_application_identity(
+                    employer_name=observation.employer_name,
+                    job_title=observation.job_title,
+                    source_url=observation.source_url,
+                    applications=application_identities,
+                )
+            )
+            if matched_key is not None:
+                application_key = matched_key
+            elif not ambiguous_existing:
+                application_key = mailbox_application_key(observation)
+                applications.add(application_key)
 
         if (
             existing is not None

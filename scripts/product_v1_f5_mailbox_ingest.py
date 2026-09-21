@@ -20,6 +20,10 @@ from src.search_intelligence.application_event_classifier import (
     ClassificationResult,
     classify_application_evidence,
 )
+from src.search_intelligence.application_identity_matching import (
+    ExistingApplicationIdentity,
+    match_existing_application_identity,
+)
 
 
 _DISCOVERY_CLASSES = frozenset(
@@ -295,6 +299,58 @@ def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, o
     return snapshot
 
 
+def _operator_confirmed_application_identities(
+    cur: object,
+) -> list[ExistingApplicationIdentity]:
+    cur.execute(
+        """
+        SELECT
+            application.application_key,
+            coalesce(
+                silver.company_name,
+                application.job_identity_snapshot->>'company_name',
+                application.job_identity_snapshot->>'employer_name',
+                application.job_identity_snapshot->>'company'
+            ) AS employer_name,
+            coalesce(
+                silver.title,
+                application.job_identity_snapshot->>'title',
+                application.job_identity_snapshot->>'job_title',
+                application.job_identity_snapshot->>'position'
+            ) AS job_title,
+            coalesce(
+                silver.source_url,
+                application.job_identity_snapshot->>'source_url',
+                application.job_identity_snapshot->>'job_url',
+                application.job_identity_snapshot->>'application_url'
+            ) AS source_url
+        FROM applications application
+        JOIN application_submissions submission
+          ON submission.application_id = application.id
+        LEFT JOIN silver_jobs silver
+          ON silver.id = application.silver_job_id
+        WHERE application.discovery_kind IN ('jap_prepared', 'manual_external')
+          AND submission.authority_kind = 'operator_confirmation'
+        ORDER BY application.id
+        """
+    )
+    return [
+        ExistingApplicationIdentity(
+            application_key=str(row["application_key"]),
+            employer_name=(
+                str(row["employer_name"]) if row["employer_name"] is not None else None
+            ),
+            job_title=(
+                str(row["job_title"]) if row["job_title"] is not None else None
+            ),
+            source_url=(
+                str(row["source_url"]) if row["source_url"] is not None else None
+            ),
+        )
+        for row in cur.fetchall()
+    ]
+
+
 def _skipped_result(
     *,
     observation: NormalizedMailboxObservation,
@@ -318,6 +374,7 @@ def _skipped_result(
         "mail_direction": observation.mail_direction,
         "counterparty_domain": observation.counterparty_domain,
         "application_kind": application_kind_for_observation(observation),
+        "application_match_basis": None,
         "authoritative_state_mutation": False,
         "application_submission_action": False,
         "email_action": False,
@@ -354,6 +411,8 @@ def ingest_normalized_mailbox_observation(
     candidate_noop = False
     superseded_candidate_id: int | None = None
     resolved_application_key: str | None = None
+    existing_application_match_basis: str | None = None
+    existing_application_match_ambiguous = False
 
     connection_context = (
         psycopg.connect(
@@ -417,64 +476,105 @@ def ingest_normalized_mailbox_observation(
                         raise MailboxIngestError("matched_application_key_missing")
                     resolved_application_key = str(matched_key)
                 elif discovery_allowed:
-                    provenance = {
-                        "discovery": "mailbox_observed",
-                        "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
-                        "thread_reference": observation.thread_reference,
-                        "mail_direction": observation.mail_direction,
-                        "counterparty_domain": observation.counterparty_domain,
-                        "employer_evidence_source": observation.employer_evidence_source,
-                        "email_action": False,
-                        "application_submission_action": False,
-                    }
-                    cur.execute(
-                        """
-                        INSERT INTO applications (
-                            application_key,
-                            silver_job_id,
-                            draft_request_id,
-                            discovery_kind,
-                            discovered_at,
-                            prepared_at,
-                            prepared_by,
-                            job_identity_snapshot,
-                            job_identity_sha256,
-                            provenance
-                        )
-                        VALUES (%s, NULL, NULL, 'mailbox_observed', %s, NULL, NULL,
-                                %s::jsonb, %s, %s::jsonb)
-                        ON CONFLICT (application_key) DO NOTHING
-                        RETURNING id
-                        """,
-                        (
-                            generated_application_key,
-                            observation.observed_at,
-                            json.dumps(snapshot, ensure_ascii=False, sort_keys=True),
-                            snapshot_sha,
-                            json.dumps(provenance, ensure_ascii=False, sort_keys=True),
-                        ),
+                    (
+                        matched_application_key,
+                        existing_application_match_ambiguous,
+                        existing_application_match_basis,
+                    ) = match_existing_application_identity(
+                        employer_name=observation.employer_name,
+                        job_title=observation.job_title,
+                        source_url=observation.source_url,
+                        applications=_operator_confirmed_application_identities(cur),
                     )
-                    inserted = cur.fetchone()
-                    if inserted is not None:
-                        application_id = int(inserted["id"])
-                        application_created = True
-                    else:
-                        cur.execute(
-                            "SELECT id FROM applications WHERE application_key = %s FOR SHARE",
-                            (generated_application_key,),
-                        )
-                        existing = cur.fetchone()
-                        if existing is None:
-                            raise MailboxIngestError("application_missing_after_conflict")
-                        application_id = int(existing["id"])
-                    resolved_application_key = generated_application_key
 
-                match_status = "exact" if application_id is not None else "unmatched"
+                    if matched_application_key is not None:
+                        cur.execute(
+                            """
+                            SELECT id, application_key
+                            FROM applications
+                            WHERE application_key = %s
+                            FOR SHARE
+                            """,
+                            (matched_application_key,),
+                        )
+                        existing_application = cur.fetchone()
+                        if existing_application is None:
+                            raise MailboxIngestError(
+                                "matched_existing_application_missing"
+                            )
+                        application_id = int(existing_application["id"])
+                        resolved_application_key = str(
+                            existing_application["application_key"]
+                        )
+                    elif not existing_application_match_ambiguous:
+                        provenance = {
+                            "discovery": "mailbox_observed",
+                            "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
+                            "thread_reference": observation.thread_reference,
+                            "mail_direction": observation.mail_direction,
+                            "counterparty_domain": observation.counterparty_domain,
+                            "employer_evidence_source": observation.employer_evidence_source,
+                            "email_action": False,
+                            "application_submission_action": False,
+                        }
+                        cur.execute(
+                            """
+                            INSERT INTO applications (
+                                application_key,
+                                silver_job_id,
+                                draft_request_id,
+                                discovery_kind,
+                                discovered_at,
+                                prepared_at,
+                                prepared_by,
+                                job_identity_snapshot,
+                                job_identity_sha256,
+                                provenance
+                            )
+                            VALUES (%s, NULL, NULL, 'mailbox_observed', %s, NULL, NULL,
+                                    %s::jsonb, %s, %s::jsonb)
+                            ON CONFLICT (application_key) DO NOTHING
+                            RETURNING id
+                            """,
+                            (
+                                generated_application_key,
+                                observation.observed_at,
+                                json.dumps(snapshot, ensure_ascii=False, sort_keys=True),
+                                snapshot_sha,
+                                json.dumps(provenance, ensure_ascii=False, sort_keys=True),
+                            ),
+                        )
+                        inserted = cur.fetchone()
+                        if inserted is not None:
+                            application_id = int(inserted["id"])
+                            application_created = True
+                        else:
+                            cur.execute(
+                                "SELECT id FROM applications WHERE application_key = %s FOR SHARE",
+                                (generated_application_key,),
+                            )
+                            existing = cur.fetchone()
+                            if existing is None:
+                                raise MailboxIngestError(
+                                    "application_missing_after_conflict"
+                                )
+                            application_id = int(existing["id"])
+                        resolved_application_key = generated_application_key
+
+                match_status = (
+                    "exact"
+                    if application_id is not None
+                    else "ambiguous"
+                    if existing_application_match_ambiguous
+                    else "unmatched"
+                )
                 ambiguity_reason = (
                     None
                     if application_id is not None
                     else (
-                        "classification_ambiguous"
+                        "multiple_existing_application_candidates"
+                        if existing_application_match_ambiguous
+                        else "classification_ambiguous"
                         if classification.candidate_class == "ambiguous"
                         else "no_safe_application_identity"
                     )
@@ -522,9 +622,12 @@ def ingest_normalized_mailbox_observation(
                                 {"subject": _normalized(observation.subject)}
                             ),
                             "thread_match_reason": (
-                                "mailbox_application_identity"
-                                if application_id is not None
-                                else "not_discovered"
+                                existing_application_match_basis
+                                or (
+                                    "mailbox_application_identity"
+                                    if application_id is not None
+                                    else "not_discovered"
+                                )
                             ),
                         }
                     )

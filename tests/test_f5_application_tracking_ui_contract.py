@@ -122,3 +122,18 @@ def test_unsolicited_application_uses_truthful_kind_instead_of_missing_title_err
     assert "application_kind?: string | null" in tracking
     assert 'application.application_kind === "unsolicited" ? "Initiativbewerbung" : null' in tracking
     assert "<small>Bewerbungsart</small>{applicationKindLabel}" in tracking
+
+
+def test_manual_application_entry_uses_date_only_and_staged_employer_job_selection() -> None:
+    tracking = _text(TRACKING)
+
+    assert 'type="date"' in tracking
+    assert 'type="datetime-local"' not in tracking
+    assert "Arbeitgeber auswählen …" in tracking
+    assert "Zuerst Arbeitgeber auswählen" in tracking
+    assert 'disabled={!employer}' in tracking
+    assert 'mode === "external"' in tracking
+    assert "Job nicht in JAP" in tracking
+    assert "externalEmployer" in tracking
+    assert "externalTitle" in tracking
+    assert "submitted_on: submittedOn" in tracking

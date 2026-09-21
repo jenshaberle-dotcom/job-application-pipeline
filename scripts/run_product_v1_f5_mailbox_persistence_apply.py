@@ -44,6 +44,9 @@ from scripts.run_product_v1_f5_mailbox_persistence_preflight import (  # noqa: E
 from src.search_intelligence.application_event_classifier import (  # noqa: E402
     classify_application_evidence,
 )
+from src.search_intelligence.application_identity_matching import (  # noqa: E402
+    ExistingApplicationIdentity,
+)
 
 APPROVAL_TOKEN = "F5-GMAIL-BATCH-PERSISTENCE-V1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -148,6 +151,59 @@ def _load_live_state(conn: object) -> tuple[set[str], dict[str, ActiveCandidate]
                 ),
             )
     return application_keys, active
+
+
+def _load_existing_application_identities(
+    conn: object,
+) -> list[ExistingApplicationIdentity]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                application.application_key,
+                coalesce(
+                    silver.company_name,
+                    application.job_identity_snapshot->>'company_name',
+                    application.job_identity_snapshot->>'employer_name',
+                    application.job_identity_snapshot->>'company'
+                ) AS employer_name,
+                coalesce(
+                    silver.title,
+                    application.job_identity_snapshot->>'title',
+                    application.job_identity_snapshot->>'job_title',
+                    application.job_identity_snapshot->>'position'
+                ) AS job_title,
+                coalesce(
+                    silver.source_url,
+                    application.job_identity_snapshot->>'source_url',
+                    application.job_identity_snapshot->>'job_url',
+                    application.job_identity_snapshot->>'application_url'
+                ) AS source_url
+            FROM applications application
+            JOIN application_submissions submission
+              ON submission.application_id = application.id
+            LEFT JOIN silver_jobs silver
+              ON silver.id = application.silver_job_id
+            WHERE application.discovery_kind IN ('jap_prepared', 'manual_external')
+              AND submission.authority_kind = 'operator_confirmation'
+            ORDER BY application.id
+            """
+        )
+        return [
+            ExistingApplicationIdentity(
+                application_key=str(row["application_key"]),
+                employer_name=(
+                    str(row["employer_name"]) if row["employer_name"] is not None else None
+                ),
+                job_title=(
+                    str(row["job_title"]) if row["job_title"] is not None else None
+                ),
+                source_url=(
+                    str(row["source_url"]) if row["source_url"] is not None else None
+                ),
+            )
+            for row in cur.fetchall()
+        ]
 
 
 def _authority_counts(conn: object) -> dict[str, int]:
@@ -284,9 +340,11 @@ def apply_batch(
             conn.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
             before = _authority_counts(conn)
             application_keys, active = _load_live_state(conn)
+            application_identities = _load_existing_application_identities(conn)
             plan = plan_rows(
                 rows,
                 existing_application_keys=application_keys,
+                existing_application_identities=application_identities,
                 active_candidates=active,
                 since=since,
                 until=until,

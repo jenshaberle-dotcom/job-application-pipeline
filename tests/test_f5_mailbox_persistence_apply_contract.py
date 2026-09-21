@@ -17,6 +17,10 @@ from scripts.run_product_v1_f5_mailbox_persistence_apply import (
 from scripts.run_product_v1_f5_mailbox_persistence_preflight import (
     ActiveCandidate,
     PersistencePlan,
+    plan_rows,
+)
+from src.search_intelligence.application_identity_matching import (
+    ExistingApplicationIdentity,
 )
 from src.search_intelligence.application_event_classifier import (
     classify_application_evidence,
@@ -197,3 +201,33 @@ def test_source_sha_validator_rejects_non_git_object_identity() -> None:
 
     with pytest.raises(PersistenceApplyError, match="invalid_expected_input_sha256"):
         _validate_sha256("d" * 40, name="expected_input_sha256")
+
+
+def test_plan_converges_later_mail_onto_existing_operator_confirmed_application() -> None:
+    plan = plan_rows(
+        [
+            _row(
+                employer_name="Hornetsecurity",
+                job_title=(
+                    "AI Automation Architect Software Development Lifecycle "
+                    "Germany Europe"
+                ),
+            )
+        ],
+        existing_application_keys={"silver-job:99"},
+        existing_application_identities=[
+            ExistingApplicationIdentity(
+                application_key="silver-job:99",
+                employer_name="Hornetsecurity GmbH",
+                job_title="AI Automation Architect Software Development Lifecycle",
+                source_url=None,
+            )
+        ],
+        active_candidates={},
+        since=date(2026, 1, 1),
+        until=date(2026, 9, 21),
+    )
+
+    assert plan.application_inserts == 0
+    assert plan.candidate_inserts == 1
+    assert plan.persistence_candidate_rows == 1

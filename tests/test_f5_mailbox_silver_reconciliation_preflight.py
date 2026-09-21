@@ -162,3 +162,18 @@ def test_tracking_projection_surfaces_only_automatic_exact_matches() -> None:
             "database_link_persisted": False,
         }
     ]
+
+
+def test_specific_title_family_allows_embedded_location_suffix_but_short_generic_title_does_not() -> None:
+    from src.search_intelligence.application_identity_matching import (
+        strong_title_family_match,
+    )
+
+    assert strong_title_family_match(
+        "AI Automation Architect Software Development Lifecycle",
+        "AI Automation Architect Software Development Lifecycle Germany Europe",
+    )
+    assert not strong_title_family_match(
+        "Data Engineer",
+        "Senior Data Engineer Platform Germany",
+    )
