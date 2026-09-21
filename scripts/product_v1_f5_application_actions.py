@@ -125,7 +125,9 @@ def _parse_submission_time(payload: Mapping[str, object]) -> tuple[datetime, str
 
 def parse_submission_record_request(
     payload: Mapping[str, object],
-) -> SubmissionRecordRequest:
+) -> SubmissionRecordRequest | SubmissionRemovalRequest:
+    if str(payload.get("action") or "") == REMOVE_ACTION_NAME:
+        return parse_submission_removal_request(payload)
     if str(payload.get("action") or "") != ACTION_NAME:
         raise ApplicationActionError("unsupported_application_action")
 
@@ -451,9 +453,16 @@ def remove_operator_submission_confirmation(
 
 
 def record_operator_confirmed_submission(
-    request: SubmissionRecordRequest,
+    request: SubmissionRecordRequest | SubmissionRemovalRequest,
 ) -> dict[str, object]:
-    """Record an already-submitted application after explicit operator confirmation."""
+    """Apply one bounded local operator application action.
+
+    The legacy public entrypoint name remains stable so the Control Center HTTP
+    surface does not need a second write path.
+    """
+
+    if isinstance(request, SubmissionRemovalRequest):
+        return remove_operator_submission_confirmation(request)
 
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
