@@ -142,3 +142,16 @@ def test_local_runner_is_installed_identity_and_compatibility_fail_closed() -> N
     assert 'compatibility_policy_mismatch' in script
     assert 'installer_schema_mismatch' in script
     assert 'snooze_contract_mismatch' in script
+
+
+def test_desktop_host_probe_uses_output_count_not_cross_boundary_exit_codes() -> None:
+    script = _text(LOCAL_DEPLOY)
+
+    assert '-NonInteractive -Command' in script
+    assert '@(Get-Process -Name "JAP.ControlCenter.Desktop"' in script
+    assert 'Write-Output $count' in script
+    assert "JAP_LOCAL_DEPLOY_DESKTOP_HOST_COUNT=" in script
+    assert '[[ "$process_count" =~ ^[0-9]+$ ]]' in script
+    assert "if (( process_count > 0 )); then" in script
+    assert "exit 10" not in script
+    assert 'process_status" -ne 10' not in script
