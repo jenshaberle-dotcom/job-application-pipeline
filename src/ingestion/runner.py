@@ -3,7 +3,7 @@ import sys
 from typing import Any
 
 from src.connectors.base import JobSourceConnector, RawJobRecord, SearchTerm
-from src.connectors.registry import SourceRole
+from src.connectors.registry import SourceRole, source_role as registry_source_role
 from src.ingestion.diagnostics import (
     classify_exception,
     format_ingestion_failure,
@@ -145,7 +145,13 @@ class JobIngestionRunner:
         self.repository = repository
         self.connector = connector
         self.health_repository = health_repository
-        self.source_role = source_role
+        if source_role is not None:
+            self.source_role = source_role
+        else:
+            try:
+                self.source_role = registry_source_role(connector.source_name)
+            except ValueError:
+                self.source_role = None
 
     def run(self, profile_name: str) -> None:
         search_terms = self.repository.load_active_search_terms(profile_name)
