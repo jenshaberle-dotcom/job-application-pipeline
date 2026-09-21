@@ -57,9 +57,9 @@ jobs:
           started="$(date +%s%3N)"
           printf 'RCC_CANARY_STARTED_MS=%s\n' "$started" >> "$GITHUB_ENV"
           test -n "$RCC_RESERVATION_ID"
-          test "$RCC_PHYSICAL_RUNNER" = "rcc-general-linux-01"
+          [[ "$RCC_PHYSICAL_RUNNER" =~ ^rcc-general-linux-0[1-5]$ ]]
           test "$RUNNER_NAME" = "$RCC_FACADE_RUNNER"
-          test "$RCC_FACADE_RUNNER" = "rcc-general-linux-01--jap"
+          test "$RCC_FACADE_RUNNER" = "$RCC_PHYSICAL_RUNNER--jap"
           echo "RCC_EXACT_RUNNER_HANDOFF=PASS physical=$RCC_PHYSICAL_RUNNER facade=$RUNNER_NAME reservation=$RCC_RESERVATION_ID"
 
       - name: Materialize ephemeral exact source
