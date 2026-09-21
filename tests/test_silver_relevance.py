@@ -101,3 +101,17 @@ def test_ai_reliability_engineer_is_relevant_for_silver() -> None:
     assert "ai reliability engineer" in get_role_matches(raw_job)
     assert {"observability", "model drift"}.issubset(set(get_skill_matches(raw_job)))
     assert is_relevant_for_silver(raw_job)
+
+
+
+def test_ai_automation_architect_is_relevant_for_silver() -> None:
+    raw_job = make_finanz_raw_job(
+        title="AI Automation Architect - Software Development Lifecycle",
+        profile_terms=["ai", "automation"],
+    )
+    raw_job["raw_data"]["job"]["location"] = "Hannover, Deutschland"
+    raw_job["raw_data"]["result_card"]["location"] = "Hannover, Deutschland"
+
+    assert "ai automation architect" in get_role_matches(raw_job)
+    assert "hannover" in get_accessibility_matches(raw_job)
+    assert is_relevant_for_silver(raw_job)

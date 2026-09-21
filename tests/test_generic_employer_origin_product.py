@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import Mock
 
+from src.connectors.generic_employer_origin_product import ProductSearchExecutor
+from src.connectors.generic_employer_origin_search import SearchRequest
 from src.search_intelligence.deterministic_connector_builder import (
     ConnectorBuilderAssessment,
     LayerState,
@@ -44,3 +47,22 @@ def test_proof_pass_is_the_source_validity_gate() -> None:
     )
     assert assessment.layers[7].state == LayerState.PASS
     assert proof_passed(assessment) is True
+
+
+
+def test_product_search_executor_cache_hits_do_not_consume_request_budget(monkeypatch) -> None:
+    response = Mock()
+    response.content = b"<html><title>Example</title></html>"
+    response.encoding = "utf-8"
+    response.url = "https://example.test/job/1"
+    response.status_code = 200
+
+    executor = ProductSearchExecutor(max_requests=1)
+    monkeypatch.setattr(executor.session, "get", Mock(return_value=response))
+
+    first = executor(SearchRequest("https://example.test/job/1"))
+    second = executor(SearchRequest("https://example.test/job/1"))
+
+    assert first == second
+    assert executor.calls == 1
+    executor.session.get.assert_called_once()
