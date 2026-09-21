@@ -33,8 +33,36 @@ then supplied the missing real operator proof:
 The Hornet excursion therefore has no remaining sequencing authority. JAP is back
 on the frozen Product path `F5 -> F6`.
 
+### v1.0.45 startup regression / v1.0.46 hardening
+
+The v1.0.45 Product/F5 code itself qualified, but the first real post-update desktop
+startup exposed a Windows/WSL runtime bootstrap regression. The GUI updater did
+successfully install v1.0.45 and pin `630e550dd3cb516fa7723b9dc79caf21cd765776`.
+The failure occurred after cutover while starting the managed WSL runtime.
+
+Local diagnostics proved:
+
+- `current.json` was already v1.0.45 / `630e550d…`;
+- the managed worktree switched to the correct new source;
+- the interactive startup deleted stale generated frontend state and entered
+  `npm install` because no exact source-bound frontend bundle existed yet;
+- the desktop startup deadline then expired, and the detached launch handoff did
+  not provide a reliable first-start recovery;
+- no DB, Gmail, application submission or lifecycle mutation was involved.
+
+v1.0.46 therefore moves frontend installation/build **before update cutover**.
+The update applier runs the exact target runner in a bounded `prepare` mode while
+the old runtime is stopped and before the installer changes the active desktop
+pin. That mode builds the React bundle, writes the exact `.jap-source-sha`
+marker and exits. Normal interactive startup is now forbidden from invoking npm
+or building frontend assets; it accepts only an already prepared bundle matching
+the installed SHA and otherwise fails closed.
+
+This is a startup/update-path hardening only. It does not reopen Hornet,
+MARKET-PARITY-001 or the F5 product semantics.
+
 F5 itself is **not yet operator complete**. The active final correction slice is
-`agent/f5-final-linkage-operator-correction`, target desktop `v1.0.45`. It
+`agent/f5-final-linkage-operator-correction`, target desktop `v1.0.46`. It
 closes the remaining operator feedback without reopening mailbox authority:
 
 1. a mistaken local operator submission can be explicitly undone;
@@ -47,7 +75,7 @@ closes the remaining operator feedback without reopening mailbox authority:
    of the ordinary blue selection treatment, while closed applications remain
    visually distinct.
 
-The final F5 operator gate is therefore the installed v1.0.45 check:
+The final F5 operator gate is therefore the installed v1.0.46 check:
 
 `manual application -> All jobs green linked Beworben state -> Applications drilldown -> safe mistaken-entry removal -> All jobs link/count removed after shared Product-truth refresh`
 
