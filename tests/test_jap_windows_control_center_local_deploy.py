@@ -116,6 +116,8 @@ def test_local_runner_stages_latest_direct_update_and_auto_applies_when_closed()
     assert '-ExecutionPolicy RemoteSigned' in script
     assert '-ExecutionPolicy Bypass' not in script
     assert 'STAGE_TMP/source' not in script
+    assert 'find "$STAGE_BASE" -mindepth 2 -maxdepth 2 -type d -name source -print0' in script
+    assert "JAP_LOCAL_DEPLOY_LEGACY_STAGED_SOURCE=PURGED" in script
     assert '"source_root"' not in script
     assert 'STAGE_ROOT/source/Apply-JAP-Control-Center-Update.ps1' not in script
     assert '-HostPid 0' in script
