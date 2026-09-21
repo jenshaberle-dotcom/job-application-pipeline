@@ -206,7 +206,7 @@ def test_generated_frontend_state_is_prewarmed_directly_and_source_bound_before_
         'FRONTEND_NODE_MODULES="${FRONTEND_ROOT}/node_modules"' in runner
     )
     assert 'FRONTEND_BUILD_SHA_FILE="${FRONTEND_DIST}/.jap-source-sha"' in runner
-    assert '[[ "$ACTION" == "start" || "$ACTION" == "prepare" ]]' in runner
+    assert '[[ "$ACTION" == "start" || "$ACTION" == "prepare" || "$ACTION" == "launch" ]]' in runner
     prepare = runner.split('if [[ "$ACTION" == "prepare" ]]', 1)[1].split(
         '[[ -x "$PROJECT_ROOT/.venv/bin/python" ]]', 1
     )[0]
