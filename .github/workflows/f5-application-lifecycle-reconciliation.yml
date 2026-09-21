@@ -350,18 +350,17 @@ jobs:
                   silver = conn.execute(
                       """
                       SELECT
-                          silver_job_id,
+                          id AS silver_job_id,
                           title,
                           company_name,
                           source_name,
-                          lifecycle_status,
                           source_url,
                           publication_date,
                           created_at,
                           updated_at
-                      FROM gold_product_v1_job_readiness
+                      FROM silver_jobs
                       WHERE lower(coalesce(company_name, '')) LIKE '%valuny%'
-                      ORDER BY silver_job_id
+                      ORDER BY id
                       """
                   ).fetchall()
 
