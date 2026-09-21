@@ -180,15 +180,22 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
-$stdoutLog = Join-Path $LogRoot "runtime.stdout.log"
-$stderrLog = Join-Path $LogRoot "runtime.stderr.log"
-Remove-Item -Force $stdoutLog, $stderrLog -ErrorAction SilentlyContinue
 
-# The native desktop host redirects this PowerShell process' stdout/stderr. A
-# long-lived WSL child must therefore never be launched through PowerShell's own
-# redirected Start-Process streams: PowerShell can keep those child-owned handles
-# alive after the readiness probe already passed. Use a short-lived cmd/start
-# handoff instead; the long-lived WSL process writes directly to bounded log files.
+# Keep runtime logs entirely inside the already-persisted Linux state root.
+# Windows never performs runtime-log path translation; that cross-boundary path
+# conversion previously proved fragile during interactive startup.
+$stateRootLinux = ([string]$current.wsl_state_root).Trim().TrimEnd("/")
+if (-not $stateRootLinux.StartsWith("/")) {
+    throw "Installed JAP WSL state root is not an absolute Linux path."
+}
+$stdoutLinux = "$stateRootLinux/runtime.stdout.log"
+$stderrLinux = "$stateRootLinux/runtime.stderr.log"
+
+# Keep the Windows side short-lived and tokenized. The actual long-lived
+# Product runtime is detached inside WSL with nohup+setsid, where Linux owns the
+# stdout/stderr redirection and process lifetime. This avoids an extra Windows shell
+# quoting layer and prevents the desktop host's redirected PowerShell pipes from being inherited.
+
 $wslArgumentVector = @(
     "-d",
     $distro,
@@ -198,56 +205,23 @@ $wslArgumentVector = @(
     [string]$current.wsl_project_root,
     [string]$current.managed_worktree,
     [string]$current.pinned_sha,
-    [string]$current.wsl_state_root
+    [string]$current.wsl_state_root,
+    "launch",
+    $stdoutLinux,
+    $stderrLinux
 )
-foreach ($argument in $wslArgumentVector) {
-    if ([string]::IsNullOrWhiteSpace($argument) -or $argument -match '[\s&|<>^()%!"]') {
-        throw "Installed JAP WSL launch argument is empty or contains whitespace/unsafe cmd characters; refusing ambiguous native serialization."
-    }
-}
-foreach ($pathValue in @([string]$wsl.Source, $stdoutLog, $stderrLog)) {
-    if ($pathValue.Contains('"') -or $pathValue.Contains("`r") -or $pathValue.Contains("`n") -or $pathValue.Contains('%') -or $pathValue.Contains('!')) {
-        throw "Installed JAP Windows launch path contains characters that are unsafe for the detached cmd handoff."
-    }
-}
-
-$starterName = "jap-runtime-detached.cmd"
-$starterPath = Join-Path $LogRoot $starterName
-$starterCommand = 'start "" /b "{0}" {1} 1>"{2}" 2>"{3}"' -f $wsl.Source, ($wslArgumentVector -join " "), $stdoutLog, $stderrLog
-Set-Content -LiteralPath $starterPath -Encoding OEM -Value @("@echo off", $starterCommand)
-
-# Keep Start-Process tokenized, but only for the short-lived cmd starter. The
-# actual WSL runtime is detached by cmd/start and owns no desktop-host pipe.
-$argumentVector = @(
-    "/d",
-    "/c",
-    $starterName
-)
-$startArguments = @{
-    FilePath = $env:ComSpec
-    ArgumentList = $argumentVector
-    WorkingDirectory = $LogRoot
-    WindowStyle = "Hidden"
-    PassThru = $true
-}
-$process = Start-Process @startArguments
-if (-not $process.WaitForExit(10000)) {
-    try { $process.Kill() } catch { }
-    throw "Detached JAP runtime launch helper did not finish within 10 seconds."
-}
-if ($process.ExitCode -ne 0) {
-    throw "Detached JAP runtime launch helper failed with exit code $($process.ExitCode)."
+& $wsl.Source @wslArgumentVector
+if ($LASTEXITCODE -ne 0) {
+    throw "Detached JAP WSL runtime handoff failed with exit code $LASTEXITCODE."
 }
 
 Write-JsonAtomic $RuntimePath @{
     repository_id = $ExpectedRepositoryId
-    launch_helper_pid = $process.Id
-    launch_mode = "cmd_start_detached"
+    launch_mode = "wsl_nohup_setsid"
     pinned_sha = [string]$current.pinned_sha
     started_at = [DateTime]::UtcNow.ToString("o")
     uri = $uri
 }
-$process.Dispose()
 
 # Keep the launcher readiness deadline comfortably inside the native desktop
 # host's 90-second hard bound. This guarantees that the launcher can surface the
@@ -269,12 +243,14 @@ while ([DateTime]::UtcNow -lt $readinessDeadline) {
 }
 
 $stdoutTail = ""
-if (Test-Path $stdoutLog) {
-    $stdoutTail = ((Get-Content $stdoutLog -Tail 12 -ErrorAction SilentlyContinue) -join " | ")
+$stdoutTailOutput = & $wsl.Source -d $distro --exec tail -n 12 $stdoutLinux 2>$null
+if ($LASTEXITCODE -eq 0) {
+    $stdoutTail = (($stdoutTailOutput | ForEach-Object { [string]$_ }) -join " | ")
 }
 $stderrTail = ""
-if (Test-Path $stderrLog) {
-    $stderrTail = ((Get-Content $stderrLog -Tail 12 -ErrorAction SilentlyContinue) -join " | ")
+$stderrTailOutput = & $wsl.Source -d $distro --exec tail -n 12 $stderrLinux 2>$null
+if ($LASTEXITCODE -eq 0) {
+    $stderrTail = (($stderrTailOutput | ForEach-Object { [string]$_ }) -join " | ")
 }
 if (-not [string]::IsNullOrWhiteSpace($stderrTail)) {
     throw "JAP Control Center did not become ready: $stderrTail"
@@ -285,4 +261,4 @@ if (-not [string]::IsNullOrWhiteSpace($stdoutTail)) {
 if (-not [string]::IsNullOrWhiteSpace($lastEndpointError)) {
     throw "JAP Control Center did not become ready. Last endpoint error: $lastEndpointError"
 }
-throw "JAP Control Center did not become ready. See $stdoutLog and $stderrLog."
+throw "JAP Control Center did not become ready. See WSL state logs $stdoutLinux and $stderrLinux."

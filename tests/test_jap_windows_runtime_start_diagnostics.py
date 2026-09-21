@@ -42,8 +42,8 @@ def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() ->
     launcher = _text(LAUNCHER)
     assert "$readinessDeadline = [DateTime]::UtcNow.AddSeconds(75)" in launcher
     assert "while ([DateTime]::UtcNow -lt $readinessDeadline)" in launcher
-    assert "Get-Content $stdoutLog -Tail 12" in launcher
-    assert "Get-Content $stderrLog -Tail 12" in launcher
+    assert "--exec tail -n 12 $stdoutLinux" in launcher
+    assert "--exec tail -n 12 $stderrLinux" in launcher
     assert "Last endpoint error" in launcher
     assert "attempt -lt 240" not in launcher
 
@@ -58,17 +58,33 @@ def test_existing_runtime_is_reused_only_for_exact_installed_source_revision() -
     assert "The stale managed JAP runtime did not release port" in launcher
 
 
-def test_long_lived_wsl_runtime_is_detached_from_powershell_redirected_pipes() -> None:
+def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -> None:
     launcher = _text(LAUNCHER)
-    assert '$starterName = "jap-runtime-detached.cmd"' in launcher
-    assert 'start "" /b "{0}" {1} 1>"{2}" 2>"{3}"' in launcher
-    assert 'FilePath = $env:ComSpec' in launcher
-    assert 'WorkingDirectory = $LogRoot' in launcher
-    assert 'launch_mode = "cmd_start_detached"' in launcher
+    runner = _text(WSL_RUNNER)
+
+    assert '$stdoutLinux = "$stateRootLinux/runtime.stdout.log"' in launcher
+    assert '$stderrLinux = "$stateRootLinux/runtime.stderr.log"' in launcher
+    assert "--exec wslpath" not in launcher
+    assert '"launch"' in launcher
+    assert '& $wsl.Source @wslArgumentVector' in launcher
+    assert 'launch_mode = "wsl_nohup_setsid"' in launcher
+    assert "jap-runtime-detached.cmd" not in launcher
+    assert 'FilePath = $env:ComSpec' not in launcher
+    assert 'start "" /b' not in launcher
     assert 'RedirectStandardOutput = $stdoutLog' not in launcher
     assert 'RedirectStandardError = $stderrLog' not in launcher
-    assert "$process.WaitForExit(10000)" in launcher
+
+    assert '[[ "$ACTION" == "start" || "$ACTION" == "prepare" || "$ACTION" == "launch" ]]' in runner
+    launch = runner.split('if [[ "$ACTION" == "launch" ]]', 1)[1].split(
+        '[[ -d "$PROJECT_ROOT/.git" ]]', 1
+    )[0]
+    assert 'command -v nohup' in launch
+    assert 'command -v setsid' in launch
+    assert 'nohup setsid bash "$0"' in launch
+    assert '>"$DETACHED_STDOUT"' in launch
+    assert '2>"$DETACHED_STDERR"' in launch
+    assert 'JAP_WINDOWS_APP_DETACHED_HANDOFF=PASS' in launch
 
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.47"
+    assert _text(VERSION).strip() == "1.0.48"
