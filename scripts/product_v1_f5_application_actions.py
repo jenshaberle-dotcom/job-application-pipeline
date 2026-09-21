@@ -189,14 +189,15 @@ def parse_submission_record_request(
 def build_job_identity_snapshot(row: Mapping[str, object]) -> dict[str, object]:
     return {
         "silver_job_id": int(row["id"]),
-        "canonical_job_key": row.get("canonical_job_key"),
-        "source_system": row.get("source_system"),
-        "source_job_id": row.get("source_job_id"),
+        "source_name": row.get("source_name"),
+        "external_job_id": row.get("external_job_id"),
         "source_url": row.get("source_url"),
         "title": row.get("title"),
         "company_name": row.get("company_name"),
-        "company_key": row.get("company_key"),
-        "location_raw": row.get("location_raw"),
+        "city": row.get("city"),
+        "postal_code": row.get("postal_code"),
+        "country": row.get("country"),
+        "publication_date": row.get("publication_date"),
         "identity_source": "silver_job",
     }
 
@@ -280,8 +281,8 @@ def _load_silver_identity(cur: object, silver_job_id: int) -> Mapping[str, objec
     cur.execute(
         """
         SELECT
-            id, canonical_job_key, source_system, source_job_id,
-            source_url, title, company_name, company_key, location_raw
+            id, source_name, external_job_id, source_url, title, company_name,
+            city, postal_code, country, publication_date
         FROM silver_jobs
         WHERE id = %s
         FOR SHARE
