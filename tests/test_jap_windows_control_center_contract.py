@@ -186,16 +186,16 @@ def test_managed_runner_uses_native_node22_only_during_preparation() -> None:
     assert '[[ "$node_path" != /mnt/* && "$npm_path" != /mnt/* ]]' in text
     assert "native_node22_runtime_unavailable" in text
     prepare = text.split('if [[ "$ACTION" == "prepare" ]]', 1)[1].split(
-        '# Reuse the canonical private runtime environment.', 1
+        '[[ -x "$PROJECT_ROOT/.venv/bin/python" ]]', 1
     )[0]
-    start = text.split('# Reuse the canonical private runtime environment.', 1)[1]
+    start = text.split('[[ -x "$PROJECT_ROOT/.venv/bin/python" ]]', 1)[1]
     assert "activate_native_node_runtime" in prepare
     assert "JAP_WINDOWS_APP_PREPARE_NODE_VERSION=" in prepare
     assert "JAP_WINDOWS_APP_PREPARE_NPM=" in prepare
     assert "activate_native_node_runtime" not in start
 
 
-def test_generated_frontend_state_is_prewarmed_and_source_bound_before_start() -> None:
+def test_generated_frontend_state_is_prewarmed_directly_and_source_bound_before_start() -> None:
     ignore = _text(GITIGNORE)
     runner = _text(WSL_RUNNER)
     dependency_reset = 'rm -rf -- "$FRONTEND_NODE_MODULES"'
@@ -207,11 +207,19 @@ def test_generated_frontend_state_is_prewarmed_and_source_bound_before_start() -
     )
     assert 'FRONTEND_BUILD_SHA_FILE="${FRONTEND_DIST}/.jap-source-sha"' in runner
     assert '[[ "$ACTION" == "start" || "$ACTION" == "prepare" ]]' in runner
-    assert 'if [[ "$ACTION" == "prepare" ]]' in runner
+    prepare = runner.split('if [[ "$ACTION" == "prepare" ]]', 1)[1].split(
+        '[[ -x "$PROJECT_ROOT/.venv/bin/python" ]]', 1
+    )[0]
     assert dependency_reset in runner
     assert "JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET" in runner
-    assert "--prepare-frontend-only" in runner
-    assert "JAP_WINDOWS_APP_FRONTEND_PREPARED=" in runner
+    assert "npm ci" in prepare
+    assert "npm install --package-lock=false --no-audit --no-fund" in prepare
+    assert "npm run build" in prepare
+    assert 'printf \'%s\\n\' "$PINNED_SHA" > "$FRONTEND_BUILD_SHA_FILE"' in prepare
+    assert "JAP_WINDOWS_APP_FRONTEND_PREPARED=" in prepare
+    assert "$PROJECT_ROOT/.venv/bin/python" not in prepare
+    assert "run_product_v1_live_demo.py" not in prepare
+    assert "source \"$PROJECT_ROOT/.env\"" not in prepare
     assert dist_reset in runner
     assert "JAP_WINDOWS_APP_FRONTEND_DIST=RESET" in runner
     assert "frontend_not_prepared_for_pin" in runner
@@ -220,12 +228,10 @@ def test_generated_frontend_state_is_prewarmed_and_source_bound_before_start() -
         "launcher=(python -u scripts/run_product_v1_live_demo.py "
         "--installed-runtime --reuse-frontend)" in runner
     )
-    interactive = runner.split(
-        "# Reuse the canonical private runtime environment.", 1
-    )[1]
-    assert "--prepare-frontend-only" not in interactive
+    interactive = runner.split('[[ -x "$PROJECT_ROOT/.venv/bin/python" ]]', 1)[1]
     assert "npm install" not in interactive
     assert "npm ci" not in interactive
+    assert "npm run build" not in interactive
 
 
 def test_desktop_host_is_self_contained_webview2_window() -> None:
