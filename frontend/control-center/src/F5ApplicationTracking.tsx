@@ -109,10 +109,10 @@ const channelLabel: Record<string, string> = {
   manual_other: "Anderer manueller Weg",
 };
 
-function localDateTimeNow() {
+function localDateToday() {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
 function formatDate(value?: string | null) {
@@ -142,38 +142,107 @@ function StageStrip({ stage }: { stage: Stage }) {
 }
 
 function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJob[]; trackedIds: Set<number>; onRecorded: () => Promise<void> }) {
-  const available = jobs.filter((job) => !trackedIds.has(job.silver_job_id));
-  const [jobId, setJobId] = useState(available[0]?.silver_job_id ? String(available[0].silver_job_id) : "");
-  const [submittedAt, setSubmittedAt] = useState(localDateTimeNow());
+  const available = useMemo(
+    () => jobs.filter((job) => !trackedIds.has(job.silver_job_id)),
+    [jobs, trackedIds],
+  );
+  const employers = useMemo(() => Array.from(new Set(
+    available
+      .map((job) => (job.company_name || "").trim())
+      .filter(Boolean),
+  )).sort((left, right) => left.localeCompare(right, "de")), [available]);
+
+  const [mode, setMode] = useState<"jap" | "external">("jap");
+  const [employer, setEmployer] = useState("");
+  const [jobId, setJobId] = useState("");
+  const [externalEmployer, setExternalEmployer] = useState("");
+  const [externalTitle, setExternalTitle] = useState("");
+  const [externalUrl, setExternalUrl] = useState("");
+  const [submittedOn, setSubmittedOn] = useState(localDateToday());
   const [channel, setChannel] = useState("employer_portal");
   const [reference, setReference] = useState("");
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [message, setMessage] = useState("");
 
+  const employerJobs = useMemo(
+    () => employer
+      ? available
+          .filter((job) => (job.company_name || "").trim() === employer)
+          .sort((left, right) => (left.title || "").localeCompare(right.title || "", "de"))
+      : [],
+    [available, employer],
+  );
+
+  useEffect(() => {
+    setJobId("");
+  }, [employer]);
+
+  useEffect(() => {
+    if (mode === "jap") {
+      setExternalEmployer("");
+      setExternalTitle("");
+      setExternalUrl("");
+    } else {
+      setEmployer("");
+      setJobId("");
+    }
+    setState("idle");
+    setMessage("");
+  }, [mode]);
+
   async function record() {
-    if (!jobId || !submittedAt || !reference.trim()) {
+    const external = mode === "external";
+    if (
+      !submittedOn ||
+      !reference.trim() ||
+      (!external && (!employer || !jobId)) ||
+      (external && (!externalEmployer.trim() || !externalTitle.trim()))
+    ) {
       setState("error");
-      setMessage("Job, Zeitpunkt und eigene Referenz sind erforderlich.");
+      setMessage(
+        external
+          ? "Arbeitgeber, Jobtitel, Bewerbungsdatum und eigene Referenz sind erforderlich."
+          : "Arbeitgeber, Job, Bewerbungsdatum und eigene Referenz sind erforderlich.",
+      );
       return;
     }
+
     setState("saving");
     setMessage("");
     try {
+      const requestBody = external
+        ? {
+            action: "record_operator_confirmed_submission",
+            submitted_on: submittedOn,
+            submission_channel: channel,
+            authority_reference: reference.trim(),
+            employer_name: externalEmployer.trim(),
+            job_title: externalTitle.trim(),
+            source_url: externalUrl.trim() || undefined,
+          }
+        : {
+            action: "record_operator_confirmed_submission",
+            silver_job_id: Number(jobId),
+            submitted_on: submittedOn,
+            submission_channel: channel,
+            authority_reference: reference.trim(),
+          };
+
       const response = await fetch("/api/v1/product-v1/application-submission-record", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "record_operator_confirmed_submission",
-          silver_job_id: Number(jobId),
-          submitted_at: new Date(submittedAt).toISOString(),
-          submission_channel: channel,
-          authority_reference: reference.trim(),
-        }),
+        body: JSON.stringify(requestBody),
       });
       const payload = await response.json() as { status?: string; reason?: string };
       if (!response.ok) throw new Error(payload.reason || `HTTP ${response.status}`);
       setState("saved");
-      setMessage(payload.status === "already_recorded" ? "War bereits identisch erfasst." : "Als bereits versendet erfasst.");
+      setMessage(
+        payload.status === "already_recorded"
+          ? "War bereits identisch erfasst."
+          : external
+            ? "Externe Bewerbung wurde in JAP aufgenommen."
+            : "Als bereits beworben erfasst.",
+      );
       await onRecorded();
     } catch (error) {
       setState("error");
@@ -183,18 +252,55 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
 
   return <details className="f5-record-submission">
     <summary>Manuell ergänzen · Fallback</summary>
-    <div className="f5-record-boundary"><b>Nur falls die Mailbox etwas nicht erkennt.</b> JAP sendet hier keine Bewerbung und keine E-Mail.</div>
-    {available.length === 0 ? <p>Kein aktuell sichtbarer JAP-Job ist für eine manuelle Ergänzung übrig.</p> : <div className="f5-record-grid">
-      <label>Job<select value={jobId} onChange={(event) => setJobId(event.target.value)}>{available.map((job) => <option key={job.silver_job_id} value={job.silver_job_id}>{job.company_name || "Unbekannt"} · {job.title || `Job ${job.silver_job_id}`}</option>)}</select></label>
-      <label>Versendet am<input type="datetime-local" value={submittedAt} onChange={(event) => setSubmittedAt(event.target.value)} /></label>
-      <label>Weg<select value={channel} onChange={(event) => setChannel(event.target.value)}>{Object.entries(channelLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      <label>Eigene Referenz<input value={reference} maxLength={240} onChange={(event) => setReference(event.target.value)} placeholder="z. B. Portal-Bestätigung / Notiz" /></label>
+    <div className="f5-record-boundary"><b>Nur vorhandene Wahrheit erfassen.</b> JAP sendet hier keine Bewerbung und keine E-Mail. Spätere Mail-Evidence soll mit diesem Eintrag zusammengeführt werden.</div>
+
+    <div className="f5-record-mode" role="group" aria-label="Quelle des manuellen Bewerbungseintrags">
+      <button type="button" className={mode === "jap" ? "active" : ""} onClick={() => setMode("jap")}>JAP-Job</button>
+      <button type="button" className={mode === "external" ? "active" : ""} onClick={() => setMode("external")}>Job nicht in JAP</button>
+    </div>
+
+    <div className="f5-record-grid">
+      {mode === "jap" ? <>
+        <label>Arbeitgeber
+          <select value={employer} onChange={(event) => setEmployer(event.target.value)}>
+            <option value="">Arbeitgeber auswählen …</option>
+            {employers.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+        <label>Job
+          <select value={jobId} disabled={!employer} onChange={(event) => setJobId(event.target.value)}>
+            <option value="">{employer ? "Job auswählen …" : "Zuerst Arbeitgeber auswählen"}</option>
+            {employerJobs.map((job) => <option key={job.silver_job_id} value={job.silver_job_id}>{job.title || `Job ${job.silver_job_id}`}</option>)}
+          </select>
+        </label>
+      </> : <>
+        <label>Arbeitgeber
+          <input value={externalEmployer} maxLength={300} onChange={(event) => setExternalEmployer(event.target.value)} placeholder="z. B. CARIAD" />
+        </label>
+        <label>Jobtitel
+          <input value={externalTitle} maxLength={500} onChange={(event) => setExternalTitle(event.target.value)} placeholder="z. B. A.I. Reporting Specialist" />
+        </label>
+        <label>Job-Link · optional
+          <input type="url" value={externalUrl} maxLength={1200} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://…" />
+        </label>
+      </>}
+
+      <label>Beworben am
+        <input type="date" value={submittedOn} max={localDateToday()} onChange={(event) => setSubmittedOn(event.target.value)} />
+      </label>
+      <label>Weg
+        <select value={channel} onChange={(event) => setChannel(event.target.value)}>
+          {Object.entries(channelLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      <label>Eigene Referenz
+        <input value={reference} maxLength={240} onChange={(event) => setReference(event.target.value)} placeholder="z. B. Portal-Bestätigung / Notiz" />
+      </label>
       <button type="button" disabled={state === "saving"} onClick={() => void record()}>{state === "saving" ? "Erfasse …" : "Manuell erfassen"}</button>
       {message && <p className={`f5-record-message ${state}`}>{message}</p>}
-    </div>}
+    </div>
   </details>;
 }
-
 export default function F5ApplicationTracking({
   payload,
   focusApplicationId = null,
