@@ -29,7 +29,7 @@ def test_update_compatibility_contract_is_latest_direct_v1_with_six_hour_snooze(
     assert contract["direct_upgrade_from"] == "1.x"
     assert contract["installer_schema"] == "job_application_pipeline.windows_control_center_install.v2"
     assert contract["snooze_hours"] == 6
-    assert _text(VERSION).strip() == "1.0.45"
+    assert _text(VERSION).strip() == "1.0.46"
 
 
 def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:
@@ -71,6 +71,23 @@ def test_update_applier_restarts_only_an_interactive_host_initiated_update() -> 
     assert "Start-Process -FilePath $DesktopHostExe" in applier
     assert "target_main_sha" in applier
     assert "target_desktop_version" in applier
+
+
+def test_update_prewarms_exact_frontend_before_installer_cutover() -> None:
+    applier = _text(APPLIER)
+
+    assert 'Join-Path $sourceRoot "scripts\\run_jap_windows_control_center.sh"' in applier
+    assert "--exec wslpath -u $sourceRunnerWindows" in applier
+    assert 'Write-UpdateLog "frontend_prepare_start"' in applier
+    assert 'Write-UpdateLog "frontend_prepare_pass"' in applier
+    assert "([string]$current.wsl_project_root)" in applier
+    assert "([string]$current.managed_worktree)" in applier
+    assert "([string]$current.wsl_state_root)" in applier
+    assert "\n        prepare\n" in applier
+    assert "JAP frontend prewarm failed" in applier
+    assert applier.index('Write-UpdateLog "frontend_prepare_start"') < applier.index(
+        'Write-UpdateLog "installer_start"'
+    )
 
 
 def test_installer_supports_exact_staged_payload_without_losing_main_ancestry_proof() -> None:
