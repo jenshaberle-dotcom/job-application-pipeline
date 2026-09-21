@@ -182,8 +182,8 @@ if ($LASTEXITCODE -ne 0) {
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 
 # Keep runtime logs entirely inside the already-persisted Linux state root.
-# Windows never translates runtime log paths with wslpath; that translation boundary
-# previously proved fragile during interactive startup.
+# Windows never performs runtime-log path translation; that cross-boundary path
+# conversion previously proved fragile during interactive startup.
 $stateRootLinux = ([string]$current.wsl_state_root).Trim().TrimEnd("/")
 if (-not $stateRootLinux.StartsWith("/")) {
     throw "Installed JAP WSL state root is not an absolute Linux path."
@@ -193,8 +193,8 @@ $stderrLinux = "$stateRootLinux/runtime.stderr.log"
 
 # Keep the Windows side short-lived and tokenized. The actual long-lived
 # Product runtime is detached inside WSL with nohup+setsid, where Linux owns the
-# stdout/stderr redirection and process lifetime. This avoids cmd.exe/start quoting
-# and prevents the desktop host's redirected PowerShell pipes from being inherited.
+# stdout/stderr redirection and process lifetime. This avoids an extra Windows shell
+# quoting layer and prevents the desktop host's redirected PowerShell pipes from being inherited.
 
 $wslArgumentVector = @(
     "-d",
