@@ -135,15 +135,27 @@ else
 fi
 [[ "$INSTALLED_MAJOR" == "$COMPATIBILITY_LINE" ]] || blocked "installed_compatibility_line_unsupported:${installed[3]}"
 
+process_probe_stderr="$(mktemp)"
 set +e
-powershell.exe -NoProfile -Command '$p = Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue; if ($null -ne $p) { exit 10 }; exit 0' >/dev/null 2>&1
+process_count="$(
+  timeout 10s powershell.exe -NoProfile -NonInteractive -Command \
+    '$ErrorActionPreference = "Stop"; $count = @(Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue).Count; Write-Output $count' \
+    2>"$process_probe_stderr" | tr -d '\r[:space:]'
+)"
 process_status=$?
 set -e
-if [[ "$process_status" -ne 0 && "$process_status" -ne 10 ]]; then
-  blocked "desktop_host_process_probe_failed:${process_status}"
+if [[ "$process_status" -ne 0 ]]; then
+  process_error="$(tr '\r\n' '  ' < "$process_probe_stderr" | head -c 400)"
+  rm -f "$process_probe_stderr"
+  blocked "desktop_host_process_probe_failed:${process_status}:${process_error:-no_detail}"
 fi
+rm -f "$process_probe_stderr"
+[[ "$process_count" =~ ^[0-9]+$ ]] || blocked "desktop_host_process_probe_invalid:${process_count:-empty}"
 HOST_RUNNING=0
-[[ "$process_status" -eq 10 ]] && HOST_RUNNING=1
+if (( process_count > 0 )); then
+  HOST_RUNNING=1
+fi
+printf 'JAP_LOCAL_DEPLOY_DESKTOP_HOST_COUNT=%s\n' "$process_count"
 
 if [[ "${installed[2]}" == "$SOURCE_SHA" && "${installed[3]}" == "$DESKTOP_VERSION" && "${installed[6]}" == "$UPDATE_MODE" ]]; then
   rm -f "$INSTALL_ROOT/state/pending-update.json"
