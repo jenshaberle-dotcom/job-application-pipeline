@@ -24,6 +24,7 @@ on:
       - "scripts/run_product_v1_f5_mailbox_silver_reconciliation_preflight.py"
       - "scripts/run_product_v1_demo_control_center.py"
       - "src/search_intelligence/application_event_classifier.py"
+      - "src/search_intelligence/application_identity_matching.py"
       - "tests/test_f5_application_lifecycle_reconciliation.py"
       - "tests/test_f5_application_lifecycle_schema_qualification.py"
       - "tests/test_f5_authoritative_application_lifecycle_contract.py"
@@ -215,7 +216,8 @@ jobs:
             scripts/run_product_v1_f5_mailbox_persistence_postwrite_proof.py \
             scripts/run_product_v1_f5_mailbox_identity_enrichment_preflight.py \
             scripts/run_product_v1_f5_mailbox_silver_reconciliation_preflight.py \
-            src/search_intelligence/application_event_classifier.py
+            src/search_intelligence/application_event_classifier.py \
+            src/search_intelligence/application_identity_matching.py
           "$RUNTIME_PYTHON" -m pytest -q \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
@@ -250,6 +252,7 @@ jobs:
             scripts/run_product_v1_f5_mailbox_persistence_live_preflight.py \
             scripts/run_product_v1_f5_mailbox_persistence_postwrite_proof.py \
             src/search_intelligence/application_event_classifier.py \
+            src/search_intelligence/application_identity_matching.py \
             tests/test_f5_application_lifecycle_reconciliation.py \
             tests/test_f5_application_lifecycle_schema_qualification.py \
             tests/test_f5_authoritative_application_lifecycle_contract.py \
