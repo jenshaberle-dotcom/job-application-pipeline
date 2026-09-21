@@ -222,7 +222,6 @@ class JobIngestionRunner:
                 )
 
             record_ingestion_stage_counts(
-            record_ingestion_stage_counts(
                 self.repository,
                 ingestion_run_id=ingestion_run_id,
                 connector_record_count=loaded_before_local_filter,
@@ -238,7 +237,6 @@ class JobIngestionRunner:
             print(f"Final URL: {requested_url}")
             print(f"{loaded_before_local_filter} Jobs geladen vor lokaler Filterung")
 
-            for record in records:
             for record in records:
                 new_id = self.repository.save_raw_job(
                     record=record,
