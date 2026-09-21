@@ -289,6 +289,85 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --output "$RECONCILIATION_OUTPUT"
 
+      - name: TEMP diagnose Valuny application identity read-only
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" - <<'PY'
+          import json
+          import psycopg
+          from psycopg.rows import dict_row
+
+          from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+
+          with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+              with conn.transaction():
+                  conn.execute("SET TRANSACTION READ ONLY")
+                  applications = conn.execute(
+                      """
+                      SELECT
+                          id,
+                          application_key,
+                          silver_job_id,
+                          discovery_kind,
+                          job_identity_snapshot
+                      FROM applications
+                      WHERE lower(coalesce(
+                          job_identity_snapshot->>'employer_name',
+                          job_identity_snapshot->>'company_name',
+                          job_identity_snapshot->>'company',
+                          ''
+                      )) LIKE '%valuny%'
+                      ORDER BY id
+                      """
+                  ).fetchall()
+                  app_ids = [int(row["id"]) for row in applications]
+                  candidates = []
+                  if app_ids:
+                      candidates = conn.execute(
+                          """
+                          SELECT
+                              id,
+                              matched_application_id,
+                              candidate_class,
+                              review_status,
+                              match_status,
+                              confidence,
+                              evidence_payload,
+                              observed_at
+                          FROM application_event_candidates
+                          WHERE matched_application_id = ANY(%s)
+                            AND coalesce(is_active, true)
+                          ORDER BY matched_application_id, observed_at, id
+                          """,
+                          (app_ids,),
+                      ).fetchall()
+                  silver = conn.execute(
+                      """
+                      SELECT
+                          silver_job_id,
+                          title,
+                          company_name,
+                          source_name,
+                          lifecycle_status,
+                          source_url
+                      FROM gold_product_v1_job_readiness
+                      WHERE lower(coalesce(company_name, '')) LIKE '%valuny%'
+                      ORDER BY silver_job_id
+                      """
+                  ).fetchall()
+
+          print("VALUNY_APPLICATIONS=" + json.dumps(applications, default=str, sort_keys=True))
+          print("VALUNY_CANDIDATES=" + json.dumps(candidates, default=str, sort_keys=True))
+          print("VALUNY_SILVER=" + json.dumps(silver, default=str, sort_keys=True))
+          print("VALUNY_DIAGNOSTIC=PASS")
+          PY
+
       - name: Run exact-head real DB migration 113 preflight read-only
         if: ${{ env.MODE == 'preflight' }}
         shell: bash
