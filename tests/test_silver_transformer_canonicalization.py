@@ -130,62 +130,34 @@ def test_supported_source_patterns_include_personio() -> None:
     assert "personio:%" in get_supported_source_patterns()
 
 
-def test_transform_stepstone_raw_job_uses_result_card_fields() -> None:
-    raw_job = {
-        "id": 6001,
-        "source_name": "stepstone",
-        "external_job_id": "123456",
-        "source_url": "https://www.stepstone.de/jobs/data-engineer/in-hannover",
-        "raw_data": {
-            "result_card": {
-                "title": "Senior Data Engineer (m/w/d)",
-                "company_name": "Example GmbH",
-                "location": "Hannover",
-                "detail_url": (
-                    "https://www.stepstone.de/stellenangebote--"
-                    "Senior-Data-Engineer-Hannover-Example-GmbH--123456-inline.html"
-                ),
-                "external_job_id_candidate": "123456",
-            },
-            "source_specific": {
-                "raw_card_text": "Evidence only. Silver must not parse this field.",
-            },
-            "extraction": {
-                "extracted_from": "search_result_page",
-                "detail_page_fetched": False,
-                "pagination_used": False,
-                "connector_mode": "limited_result_card",
-            },
-        },
-    }
+def test_market_sensor_rows_are_not_silver_product_inputs() -> None:
+    import pytest
 
-    result = transform_raw_job_to_silver(raw_job)
-
-    assert result["raw_job_id"] == 6001
-    assert result["source_name"] == "stepstone"
-    assert result["external_job_id"] == "123456"
-    assert result["source_url"] == (
-        "https://www.stepstone.de/stellenangebote--"
-        "Senior-Data-Engineer-Hannover-Example-GmbH--123456-inline.html"
-    )
-    assert result["title"] == "Senior Data Engineer (m/w/d)"
-    assert result["company_name"] == "Example GmbH"
-    assert result["city"] == "Hannover"
-    assert result["postal_code"] is None
-    assert result["country"] is None
-    assert result["publication_date"] is None
-    assert result["normalized_title"] == "senior data engineer (m/w/d)"
-    assert result["normalized_company_name"] == "example gmbh"
-    assert result["normalized_location"] == "hannover"
-    assert result["canonical_status"] == "discovery_only"
-    assert result["canonical_source_type"] == "unknown"
-    assert result["canonical_key_candidate"] == (
-        "example gmbh :: senior data engineer (m/w/d) :: hannover"
-    )
+    for source_name in ("stepstone", "bundesagentur_fuer_arbeit"):
+        with pytest.raises(
+            ValueError,
+            match="Market sensor source cannot produce Silver jobs",
+        ):
+            transform_raw_job_to_silver(
+                {
+                    "id": 6001,
+                    "source_name": source_name,
+                    "external_job_id": "sensor-1",
+                    "source_url": "https://sensor.example/item",
+                    "raw_data": {
+                        "result_card": {
+                            "title": "Data Engineer",
+                            "company_name": "Example GmbH",
+                        }
+                    },
+                }
+            )
 
 
-def test_supported_source_patterns_include_stepstone() -> None:
-    assert "stepstone" in get_supported_source_patterns()
+def test_supported_source_patterns_exclude_market_sensors() -> None:
+    supported = get_supported_source_patterns()
+    assert "stepstone" not in supported
+    assert "bundesagentur_fuer_arbeit" not in supported
 
 
 def test_transform_finanz_informatik_raw_job_uses_bounded_connector_fields() -> None:
