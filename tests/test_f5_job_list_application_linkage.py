@@ -98,3 +98,15 @@ def test_application_status_cell_is_a_direct_read_only_drilldown() -> None:
     assert "Klicken, um die Bewerbung zu öffnen." in source
     assert ".ow-application-status.linked" in styles
     assert "record_operator_confirmed_submission" not in source
+
+
+def test_applied_job_row_has_distinct_green_application_state() -> None:
+    source = _text(WORKSPACE)
+    styles = _text(STYLES)
+
+    assert "application-active" in source
+    assert '[\"applied\", \"reply\", \"interview\", \"offer\"]' in source
+    assert "application-closed" in source
+    assert ".ow-job-list > button.application-active" in styles
+    assert ".ow-job-list > button.application-active.selected" in styles
+    assert "var(--ow-green)" in styles

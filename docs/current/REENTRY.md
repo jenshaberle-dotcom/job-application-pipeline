@@ -6,42 +6,58 @@ Read this file from canonical `refs/heads/main` before continuing Product work. 
 
 ## Live repository checkpoint — 2026-09-21
 
-Canonical public repository state after the bounded MARKET-PARITY-001 excursion:
+Canonical public repository before the active final F5 operator-linkage correction:
 
-`main@523a04ce5dac19229235a1d564f25f37278f943b`
+`main@52657f4a4844367f20bfaaf9b6fcf2b665ec2bc3`
 
 Current private runtime main:
 
 `jenshaberle-dotcom/job-pipeline-runtime@4506f82bb1708b61c827ca39b3ecea0b048b8892`
 
-The F5 mailbox-semantics continuous guard remains established by runtime
-`3b443fb6ed5c5562393024eabd7ba10899cac52f`; the later runtime head adds portable
-Origin work-item execution and does not reopen F5 mailbox semantics.
+MARKET-PARITY-001 / the bounded Hornetsecurity excursion is **operator accepted and
+closed**. Productive main run `35578519791` proved the corrected company-only
+sensor -> Employer-Origin authority chain and emitted
+`HORNET_TARGET_CONTROL_CENTER_PROJECTION=PASS`. The installed v1.0.44 Product
+then supplied the missing real operator proof:
 
-MARKET-PARITY-001 is terminally complete. Productive main run `35578519791`
-proved the corrected authority chain from BA company-only sensor evidence through
-independent Hornetsecurity Employer-Origin Raw/Silver/Gold to the exact Control
-Center vacancy and emitted
-`HORNET_TARGET_CONTROL_CENTER_PROJECTION=PASS`.
+- Hornetsecurity can be selected through the staged employer -> job manual fallback;
+- the application date is date-only and operator-editable;
+- the note/reference is optional;
+- the canonical Silver schema write path works against the live DB;
+- the Hornet Data Engineer appears immediately in All jobs as `Beworben`;
+- the All-jobs `Beworben` count moved to `1`;
+- re-recording the same Silver job does not create a duplicate application;
+- `Job nicht in JAP` manual tracking is also operator-proven with the CARIAD
+  external/manual path.
 
-The bounded excursion therefore has no remaining sequencing authority. JAP is
-back on the frozen Product path `F5 -> F6`.
+The Hornet excursion therefore has no remaining sequencing authority. JAP is back
+on the frozen Product path `F5 -> F6`.
 
-Installed operator evidence is from desktop v1.0.42. The v1.0.42 shared Product
-truth/linkage architecture is qualified; F5 remained open only because mailbox
-recall/identity acceptance exposed the enercity, ROSSMANN and
-Initiativbewerbung cases. Public PRs #942/#943 plus runtime #383-#386 hardened
-those semantics, and the accepted private v5 audit now finds all three anchors.
+F5 itself is **not yet operator complete**. The active final correction slice is
+`agent/f5-final-linkage-operator-correction`, target desktop `v1.0.45`. It
+closes the remaining operator feedback without reopening mailbox authority:
 
-The **sole current F5 gate** is read-only reconciliation of the already-generated
-private `f5-gmail-preview-v5.jsonl` against current public classification and
-current live DB state:
+1. a mistaken local operator submission can be explicitly undone;
+2. only the operator-owned submission confirmation is removed;
+3. an application identity is physically deleted only when that identity was
+   created by the same local manual action and has no mailbox/evidence attachment;
+4. Gmail/evidence rows are never deleted by this correction;
+5. any authoritative lifecycle history blocks the correction;
+6. All jobs gives active linked applications an explicit green row state instead
+   of the ordinary blue selection treatment, while closed applications remain
+   visually distinct.
 
-`v5 JSONL -> public batch preflight -> read-only live DB persistence plan`
+The final F5 operator gate is therefore the installed v1.0.45 check:
 
-No DB apply is authorized by this checkpoint. Any predicted inserts,
-supersessions or other persistence effects require a separate explicit operator
-decision after the read-only report is known.
+`manual application -> All jobs green linked Beworben state -> Applications drilldown -> safe mistaken-entry removal -> All jobs link/count removed after shared Product-truth refresh`
+
+Only after that bidirectional/visual linkage and correction loop is accepted may
+F5 be marked complete and sequencing advance to F6.
+
+The accepted v5 Gmail read-only freeze-resume preflight remains evidence only. It
+predicted a bounded delta but did not authorize or perform a new mailbox
+persistence apply. No Gmail write, email send, automatic application submission or
+authoritative lifecycle mutation is introduced by this final UI/correction slice.
 
 ## Retained repository checkpoint — 2026-09-18
 

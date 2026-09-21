@@ -22,11 +22,18 @@ ALLOWED_SUBMISSION_CHANNELS = frozenset(
     {"employer_portal", "email", "external_platform", "manual_other"}
 )
 ACTION_NAME = "record_operator_confirmed_submission"
+REMOVE_ACTION_NAME = "remove_operator_submission_confirmation"
 LOCAL_OPERATOR_AUTHORITY_REFERENCE = "operator_confirmation:local_ui"
 
 
 class ApplicationActionError(RuntimeError):
     """Fail-closed operator-action validation error."""
+
+
+@dataclass(frozen=True)
+class SubmissionRemovalRequest:
+    application_id: int
+    confirmed_by: str = "local_operator"
 
 
 @dataclass(frozen=True)
@@ -118,7 +125,9 @@ def _parse_submission_time(payload: Mapping[str, object]) -> tuple[datetime, str
 
 def parse_submission_record_request(
     payload: Mapping[str, object],
-) -> SubmissionRecordRequest:
+) -> SubmissionRecordRequest | SubmissionRemovalRequest:
+    if str(payload.get("action") or "") == REMOVE_ACTION_NAME:
+        return parse_submission_removal_request(payload)
     if str(payload.get("action") or "") != ACTION_NAME:
         raise ApplicationActionError("unsupported_application_action")
 
@@ -183,6 +192,28 @@ def parse_submission_record_request(
         authority_reference=authority_reference,
         confirmed_by=confirmed_by,
         operator_reference=operator_reference,
+    )
+
+
+def parse_submission_removal_request(
+    payload: Mapping[str, object],
+) -> SubmissionRemovalRequest:
+    if str(payload.get("action") or "") != REMOVE_ACTION_NAME:
+        raise ApplicationActionError("unsupported_application_action")
+    if set(payload) - {"action", "application_id", "confirmed_by"}:
+        raise ApplicationActionError("unexpected_application_removal_fields")
+    try:
+        application_id = int(payload.get("application_id") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ApplicationActionError("invalid_application_id") from exc
+    if application_id < 1:
+        raise ApplicationActionError("invalid_application_id")
+    confirmed_by = str(payload.get("confirmed_by") or "local_operator").strip()
+    if confirmed_by != "local_operator":
+        raise ApplicationActionError("confirmed_by_must_be_local_operator")
+    return SubmissionRemovalRequest(
+        application_id=application_id,
+        confirmed_by=confirmed_by,
     )
 
 
@@ -295,10 +326,143 @@ def _load_silver_identity(cur: object, silver_job_id: int) -> Mapping[str, objec
     return silver
 
 
-def record_operator_confirmed_submission(
-    request: SubmissionRecordRequest,
+def remove_operator_submission_confirmation(
+    request: SubmissionRemovalRequest,
 ) -> dict[str, object]:
-    """Record an already-submitted application after explicit operator confirmation."""
+    """Undo a mistaken local operator submission without deleting external truth.
+
+    The operator-owned submission row may be removed only while no authoritative
+    lifecycle event depends on it. The application identity itself is deleted
+    only when that identity was created by this same local manual action and no
+    communication evidence is attached. Mailbox/evidence truth is never deleted.
+    """
+
+    with psycopg.connect(
+        DatabaseConfig.from_environment().dsn(), row_factory=dict_row
+    ) as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        application.id,
+                        application.discovery_kind,
+                        application.provenance,
+                        submission.id AS submission_id,
+                        submission.authority_kind,
+                        submission.confirmed_by
+                    FROM applications application
+                    LEFT JOIN application_submissions submission
+                      ON submission.application_id = application.id
+                    WHERE application.id = %s
+                    FOR UPDATE OF application
+                    """,
+                    (request.application_id,),
+                )
+                application = cur.fetchone()
+                if application is None:
+                    return {
+                        "status": "already_removed",
+                        "application_id": request.application_id,
+                        "submission_removed": False,
+                        "application_deleted": False,
+                        "candidate_evidence_retained": 0,
+                        "authoritative_lifecycle_mutations": 0,
+                    }
+
+                submission_id = application.get("submission_id")
+                if submission_id is None:
+                    raise ApplicationActionError(
+                        "operator_submission_confirmation_not_present"
+                    )
+                if application.get("authority_kind") != "operator_confirmation":
+                    raise ApplicationActionError(
+                        "submission_not_operator_confirmation"
+                    )
+                if application.get("confirmed_by") != request.confirmed_by:
+                    raise ApplicationActionError(
+                        "submission_confirmation_owner_mismatch"
+                    )
+
+                cur.execute(
+                    """
+                    SELECT count(*)::integer AS count
+                    FROM application_lifecycle_events
+                    WHERE submission_id = %s
+                    """,
+                    (submission_id,),
+                )
+                lifecycle_count = int(cur.fetchone()["count"])
+                if lifecycle_count:
+                    raise ApplicationActionError(
+                        "authoritative_lifecycle_history_present"
+                    )
+
+                cur.execute(
+                    """
+                    SELECT count(*)::integer AS count
+                    FROM application_event_candidates
+                    WHERE matched_application_id = %s
+                    """,
+                    (request.application_id,),
+                )
+                candidate_count = int(cur.fetchone()["count"])
+
+                provenance = application.get("provenance")
+                provenance_map = provenance if isinstance(provenance, Mapping) else {}
+                manual_identity_owned = (
+                    provenance_map.get("action") == ACTION_NAME
+                    and provenance_map.get("recorded_locally") is True
+                )
+
+                cur.execute(
+                    "DELETE FROM application_submissions WHERE id = %s",
+                    (submission_id,),
+                )
+                submission_removed = cur.rowcount == 1
+                if not submission_removed:
+                    raise ApplicationActionError(
+                        "operator_submission_removal_failed"
+                    )
+
+                application_deleted = False
+                if manual_identity_owned and candidate_count == 0:
+                    cur.execute(
+                        "DELETE FROM applications WHERE id = %s",
+                        (request.application_id,),
+                    )
+                    application_deleted = cur.rowcount == 1
+                    if not application_deleted:
+                        raise ApplicationActionError(
+                            "manual_application_identity_removal_failed"
+                        )
+
+    return {
+        "status": (
+            "removed"
+            if application_deleted
+            else "submission_removed_application_retained"
+        ),
+        "application_id": request.application_id,
+        "submission_removed": True,
+        "application_deleted": application_deleted,
+        "candidate_evidence_retained": candidate_count,
+        "authoritative_lifecycle_mutations": 0,
+        "external_submission_action": False,
+    }
+
+
+def record_operator_confirmed_submission(
+    request: SubmissionRecordRequest | SubmissionRemovalRequest,
+) -> dict[str, object]:
+    """Apply one bounded local operator application action.
+
+    The legacy public entrypoint name remains stable so the Control Center HTTP
+    surface does not need a second write path.
+    """
+
+    if isinstance(request, SubmissionRemovalRequest):
+        return remove_operator_submission_confirmation(request)
 
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row

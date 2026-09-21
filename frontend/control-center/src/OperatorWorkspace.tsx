@@ -577,13 +577,21 @@ function Jobs({
           <span>Application</span>
         </div>
 
-        {filtered.map((job) =>
-          <button
+        {filtered.map((job) => {
+          const linkedApplication = applicationByJobId.get(job.silver_job_id);
+          const applicationActive = Boolean(
+            linkedApplication &&
+            ["applied", "reply", "interview", "offer"].includes(linkedApplication.effective_stage),
+          );
+          const applicationClosed = linkedApplication?.effective_stage === "closed";
+          return <button
             type="button"
             key={job.silver_job_id}
-            className={
-              selected?.silver_job_id === job.silver_job_id ? "selected" : ""
-            }
+            className={[
+              selected?.silver_job_id === job.silver_job_id ? "selected" : "",
+              applicationActive ? "application-active" : "",
+              applicationClosed ? "application-closed" : "",
+            ].filter(Boolean).join(" ")}
             onClick={() => onSelectJob(job.silver_job_id)}
           >
             <strong title={isRankable(job) ? "Authoritative Product score" : "Preliminary role affinity · detail check required"}>{scoreText(job.overall_quality_score)}</strong>
@@ -609,25 +617,25 @@ function Jobs({
 
             <span className="ow-gate-state"><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /><Status value={job.product_readiness_status} /></span>
 
-            {applicationByJobId.get(job.silver_job_id)
+            {linkedApplication
               ? <span
-                  className={`ow-application-status linked ${applicationByJobId.get(job.silver_job_id)?.effective_stage}`}
+                  className={`ow-application-status linked ${linkedApplication.effective_stage}`}
                   onClick={(event) => {
                     event.stopPropagation();
-                    onOpenApplication(applicationByJobId.get(job.silver_job_id)?.application_id ?? null);
+                    onOpenApplication(linkedApplication.application_id ?? null);
                   }}
-                  title={applicationByJobId.get(job.silver_job_id)?.linkage_status === "exact_projected"
+                  title={linkedApplication.linkage_status === "exact_projected"
                     ? "Exakt aus Mailbox-Evidence zu diesem JAP-Job zugeordnet; DB-Link noch nicht persistiert. Klicken, um die Bewerbung zu öffnen."
                     : "Persistierte Application-Verknüpfung. Klicken, um die Bewerbung zu öffnen."}
                 >
-                  {applicationStageLabel[applicationByJobId.get(job.silver_job_id)!.effective_stage]}
+                  {applicationStageLabel[linkedApplication.effective_stage]}
                 </span>
               : <span
                   className="ow-application-status none"
                   title="Keine sichere Zuordnung zwischen diesem JAP-Job und einer bekannten Bewerbung. Das ist nicht gleichbedeutend mit 'nicht beworben'."
                 >Ungeklärt</span>}
-          </button>
-        )}
+          </button>;
+        })}
 
         {filtered.length === 0 &&
           <p className="ow-empty">No jobs match this filter.</p>}

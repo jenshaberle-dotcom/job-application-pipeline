@@ -147,3 +147,17 @@ def test_manual_reference_is_optional_and_backend_error_detail_is_visible() -> N
     assert "reference.trim() || undefined" in tracking
     assert "payload.message" in tracking
     assert "payload.error_type" in tracking
+
+
+def test_manual_application_can_be_safely_undone_without_mail_truth_deletion() -> None:
+    tracking = _text(TRACKING)
+    styles = _text(STYLES)
+
+    assert "remove_operator_submission_confirmation" in tracking
+    assert "Fehleintrag entfernen" in tracking
+    assert "window.confirm" in tracking
+    assert "Mail- oder Lifecycle-Evidence wird dabei niemals gelöscht" in tracking
+    assert "application.submission_authority_kind === \"operator_confirmation\"" in tracking
+    assert "application.authoritative_event_count === 0" in tracking
+    assert "await refreshProductTruth()" in tracking
+    assert ".f5-manual-correction" in styles
