@@ -293,10 +293,48 @@ The current live reconciliation still has exactly one deterministic HDI -> Silve
 
 No DB link persistence, Gmail action, automatic submission, authoritative lifecycle mutation, or second application-status heuristic is introduced.
 
+### v1.0.43 manual-application convergence — PR #949
+
+PR #949 is the F5 corrective Product slice discovered through the real
+Hornetsecurity case. It keeps manual operator truth and later mailbox evidence in
+one application identity instead of producing duplicate visible applications.
+
+The operator-facing manual fallback now:
+
+- records a date only; no irrelevant application time input is required;
+- requires employer selection before offering only that employer's untracked JAP
+  jobs;
+- supports an explicit `Job nicht in JAP` path with bounded employer, title and
+  optional source URL;
+- refreshes the shared Product truth after the write so a known Silver job is
+  immediately eligible for the All-jobs `Beworben` marker.
+
+Later deterministic Gmail evidence first attempts conservative convergence onto an
+existing operator-confirmed application. Exact source URL wins; otherwise company
+identity must be exact after legal-form normalization and the title must be exact
+or a sufficiently specific prefix-family match. Short generic role names do not
+auto-link. Ambiguity fails closed. The operator submission record remains audit
+provenance; the Product shows one application record with added mailbox evidence.
+
+The Hornet title family is a regression fixture: a later title such as
+`AI Automation Architect Software Development Lifecycle Germany Europe` must
+converge onto the already tracked
+`AI Automation Architect Software Development Lifecycle` application without a
+second application insert.
+
+Desktop release target: `v1.0.43`.
+
+Runtime automation truth: the private F5 Gmail workflow has a daily schedule, but
+that schedule currently runs only compile/tests/contract and boundary checks. It
+does **not** execute a real Gmail scan or persist mailbox evidence. A recurring
+read-only Gmail scan remains an F5 follow-up after the current manual/mailbox
+identity convergence is accepted.
+
 ## Sole next action
 
-Run the canonical F5 lifecycle workflow in `v5_resume_preflight` mode on exact
-current `main`. It must consume the already-generated private v5 JSONL only on
+After PR #949 is exact-head qualified, merge and release/install desktop
+`v1.0.43`. Then run the canonical F5 lifecycle workflow in
+`v5_resume_preflight` mode on exact current `main`. It must consume the already-generated private v5 JSONL only on
 the verified runtime host, run the public batch preflight with findings suppressed
 from logs/artifacts, derive the current live persistence plan under a read-only
 PostgreSQL transaction, and independently re-run the existing hash-bound live
