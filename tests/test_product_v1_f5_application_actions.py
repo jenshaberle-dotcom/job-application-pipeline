@@ -104,3 +104,38 @@ def test_action_source_has_no_external_submission_or_email_path() -> None:
     assert "'operator_confirmation'" in source
     assert "external_submission_action" in source
     assert "record_operator_confirmed_submission" in source
+
+
+def test_date_only_manual_capture_is_first_class_and_time_is_not_required() -> None:
+    request = parse_submission_record_request(
+        {
+            "action": ACTION_NAME,
+            "silver_job_id": 42,
+            "submitted_on": "2026-09-20",
+            "submission_channel": "employer_portal",
+            "authority_reference": "operator:portal",
+        }
+    )
+
+    assert request.submitted_precision == "date"
+    assert request.submitted_at.date().isoformat() == "2026-09-20"
+    assert request.submitted_at.tzinfo == timezone.utc
+
+
+def test_manual_external_job_requires_employer_and_title_but_no_silver_job() -> None:
+    request = parse_submission_record_request(
+        {
+            "action": ACTION_NAME,
+            "submitted_on": "2026-09-20",
+            "submission_channel": "external_platform",
+            "authority_reference": "operator:internal-portal",
+            "employer_name": "CARIAD",
+            "job_title": "A.I. Reporting Specialist",
+            "source_url": "https://example.test/jobs/ai-reporting",
+        }
+    )
+
+    assert request.silver_job_id is None
+    assert request.is_external_job is True
+    assert request.employer_name == "CARIAD"
+    assert request.job_title == "A.I. Reporting Specialist"
