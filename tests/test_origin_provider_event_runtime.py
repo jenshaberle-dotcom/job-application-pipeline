@@ -38,12 +38,12 @@ def test_projection_fingerprint_is_canonical_and_change_sensitive() -> None:
         {
             "company_key": "hannover_ruck",
             "candidate_url": "",
-            "market_evidence_urls": ["https://example.test/job"],
+            "status": "discovery",
         }
     ]
     same = [
         {
-            "market_evidence_urls": ["https://example.test/job"],
+            "status": "discovery",
             "candidate_url": "",
             "company_key": "hannover_ruck",
         }
@@ -52,7 +52,7 @@ def test_projection_fingerprint_is_canonical_and_change_sensitive() -> None:
         {
             "company_key": "hannover_ruck",
             "candidate_url": "",
-            "market_evidence_urls": ["https://example.test/other-job"],
+            "status": "manual_review_required",
         }
     ]
 
