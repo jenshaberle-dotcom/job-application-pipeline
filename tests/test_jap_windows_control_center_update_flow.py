@@ -46,6 +46,8 @@ def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:
     assert "für 6 Stunden zurückgestellt" in coordinator
     assert "Während des Aufschubs wurde ein neuerer kompatibler Stand bereitgestellt." in coordinator
     assert "Apply-JAP-Control-Center-Update.ps1" in coordinator
+    assert 'startInfo.ArgumentList.Add("RemoteSigned")' in coordinator
+    assert 'startInfo.ArgumentList.Add("Bypass")' not in coordinator
     assert "WriteAcceptedManifest(pending.ManifestJson)" in coordinator
     assert "_owner.BeginInvoke(new Action(() => _owner.Close()))" in coordinator
     assert "_updates.StartPolling()" in context
@@ -59,10 +61,6 @@ def test_update_applier_restarts_only_an_interactive_host_initiated_update() -> 
     assert 'Write-UpdateLog "restart_deferred" "reason=headless_apply_requires_interactive_launch"' in applier
     assert "if ($HostPid -gt 0)" in applier
     assert "$hostProcess.WaitForExit(60000)" in applier
-    assert 'Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"' in applier
-    assert "-PinnedSha $targetSha" in applier
-    assert "-DesktopHostArchivePath $archive" in applier
-    assert "-DesktopHostChecksumPath $checksum" in applier
     assert "Get-FileHash $archive -Algorithm SHA256" in applier
     assert "Remove-AcceptedManifest" in applier
     assert 'status = "success"' in applier
@@ -73,20 +71,31 @@ def test_update_applier_restarts_only_an_interactive_host_initiated_update() -> 
     assert "target_desktop_version" in applier
 
 
-def test_update_prewarms_exact_frontend_before_installer_cutover() -> None:
+def test_update_applier_uses_only_installed_control_plane_and_payload_files() -> None:
     applier = _text(APPLIER)
 
-    assert 'Join-Path $sourceRoot "scripts\\run_jap_windows_control_center.sh"' in applier
-    assert "--exec wslpath -u $sourceRunnerWindows" in applier
+    assert "Invoke-InstalledRunner" in applier
+    assert 'Invoke-InstalledRunner $current ([string]$current.pinned_sha) "--stop"' in applier
+    assert 'Invoke-InstalledRunner $current $targetSha "prepare"' in applier
+    assert "Expand-Archive -Path $archive -DestinationPath $stagedHost -Force" in applier
+    assert 'Write-UpdateLog "desktop_cutover_start"' in applier
+    assert 'Write-UpdateLog "desktop_cutover_rollback"' in applier
+    assert "Assert-PathUnderUpdates" in applier
+    assert "desktop_sha256" in applier
+    assert "source_root" not in applier
+    assert "install-jap-control-center.ps1" not in applier
+    assert "powershell.exe" not in applier
+    assert "-ExecutionPolicy" not in applier
+
+
+def test_update_prewarms_exact_frontend_before_direct_desktop_cutover() -> None:
+    applier = _text(APPLIER)
+
     assert 'Write-UpdateLog "frontend_prepare_start"' in applier
     assert 'Write-UpdateLog "frontend_prepare_pass"' in applier
-    assert "([string]$current.wsl_project_root)" in applier
-    assert "([string]$current.managed_worktree)" in applier
-    assert "([string]$current.wsl_state_root)" in applier
-    assert "\n        prepare\n" in applier
-    assert "JAP frontend prewarm failed" in applier
+    assert 'Invoke-InstalledRunner $current $targetSha "prepare"' in applier
     assert applier.index('Write-UpdateLog "frontend_prepare_start"') < applier.index(
-        'Write-UpdateLog "installer_start"'
+        'Write-UpdateLog "desktop_cutover_start"'
     )
 
 
