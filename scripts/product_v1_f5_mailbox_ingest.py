@@ -374,7 +374,7 @@ def _skipped_result(
         "mail_direction": observation.mail_direction,
         "counterparty_domain": observation.counterparty_domain,
         "application_kind": application_kind_for_observation(observation),
-        "application_match_basis": existing_application_match_basis,
+        "application_match_basis": None,
         "authoritative_state_mutation": False,
         "application_submission_action": False,
         "email_action": False,
