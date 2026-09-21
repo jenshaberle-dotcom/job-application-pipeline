@@ -99,21 +99,22 @@ def test_discovery_requires_manual_review_when_only_weak_company_page_exists() -
     assert result.selected_url is None
 
 
-def test_aggregator_market_evidence_is_never_selected() -> None:
-    result = discover_origin_source(
-        company_key="hdi",
-        company_name="HDI Group",
-        market_evidence_urls=(
-            "https://www.stepstone.de/stellenangebote--Platform-Engineer-Azure-Hannover-HDI-AG--14025074-inline.html",
-        ),
-        probe=accepted_probe,
-        max_generated_candidates=0,
-    )
+def test_market_evidence_url_is_rejected_at_origin_authority_boundary() -> None:
+    import pytest
 
-    assert result.decision == "not_found"
-    assert result.selected_url is None
-    assert result.rejected
-    assert any("known aggregator domain" in reason for item in result.rejected for reason in item.reasons)
+    with pytest.raises(
+        ValueError,
+        match="market evidence URLs are not valid Employer-Origin discovery inputs",
+    ):
+        discover_origin_source(
+            company_key="hdi",
+            company_name="HDI Group",
+            market_evidence_urls=(
+                "https://www.stepstone.de/stellenangebote--Platform-Engineer-Azure-Hannover-HDI-AG--14025074-inline.html",
+            ),
+            probe=accepted_probe,
+            max_generated_candidates=0,
+        )
 
 
 def test_search_result_context_can_select_known_ats_provider_url() -> None:
