@@ -211,10 +211,18 @@ jobs:
             echo "=== $relative ==="
             if [[ -f "$path" ]]; then sed -n '1,160p' "$path"; else echo "MISSING"; fi
           done
-          for relative in logs/desktop-host-startup.log logs/desktop-host-update.log logs/desktop-host-lifecycle.log logs/runtime.stdout.log logs/runtime.stderr.log; do
+          for relative in logs/desktop-host-startup.log logs/desktop-host-update.log logs/desktop-host-lifecycle.log; do
             path="$install_root/$relative"
             echo "=== tail:$relative ==="
             if [[ -f "$path" ]]; then tail -n 120 "$path"; else echo "MISSING"; fi
+          done
+          wsl_state_root="$(
+            python3 -c 'import json,sys; from pathlib import Path; data=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")); print(data.get("wsl_state_root", ""))'               "$install_root/current.json" 2>/dev/null || true
+          )"
+          for relative in runtime.stdout.log runtime.stderr.log; do
+            path="$wsl_state_root/$relative"
+            echo "=== tail:wsl-state/$relative ==="
+            if [[ -n "$wsl_state_root" && -f "$path" ]]; then tail -n 120 "$path"; else echo "MISSING"; fi
           done
           echo "=== runtime-processes ==="
           ps -ef | grep -E 'run_product_v1_live_demo|run_jap_windows_control_center|python.*8780' | grep -v grep || true
