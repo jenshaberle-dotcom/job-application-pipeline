@@ -177,6 +177,8 @@ def test_local_deploy_proves_exact_installed_runtime_handoff_and_cleanup() -> No
     assert "released-source/scripts/reap_jap_headless_desktop.ps1" not in workflow
     assert "released-source/scripts/prove_jap_headless_desktop_rejection.ps1" not in workflow
     assert "http://127.0.0.1:8780/app-info.json" in workflow
+    assert "for _ in $(seq 1 120); do" in workflow
+    assert 'JAP_INSTALLED_RUNTIME_SMOKE=FAIL readiness_timeout' in workflow
     assert 'test "$runtime_sha" = "$EXPECTED_SOURCE_SHA"' in workflow
     assert "JAP_INSTALLED_RUNTIME_SMOKE=PASS" in workflow
     assert '-File "$stopper_windows"' in workflow
