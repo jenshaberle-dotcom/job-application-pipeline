@@ -103,7 +103,7 @@ if [[ "$ACTION" == "--stop" ]]; then
   stop_managed
   exit 0
 fi
-[[ "$ACTION" == "start" ]] || fail invalid_action
+[[ "$ACTION" == "start" || "$ACTION" == "prepare" ]] || fail invalid_action
 
 [[ -d "$PROJECT_ROOT/.git" ]] || fail canonical_checkout_missing
 [[ -x "$PROJECT_ROOT/.venv/bin/python" ]] || fail canonical_venv_missing
@@ -123,10 +123,9 @@ fi
 git -C "$PROJECT_ROOT" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null || fail pinned_sha_unavailable
 
 if [[ -e "$MANAGED_WORKTREE/.git" ]]; then
-  # node_modules is generated runtime state. A previous Windows-npm invocation can
-  # leave non-executable .bin shims in this WSL worktree. Remove that generated tree
-  # before the cleanliness gate.
-  if [[ -e "$FRONTEND_NODE_MODULES" || -L "$FRONTEND_NODE_MODULES" ]]; then
+  # Dependency state is needed only while preparing a new source-bound frontend.
+  # Interactive startup must never perform npm installation/build work.
+  if [[ "$ACTION" == "prepare" && ( -e "$FRONTEND_NODE_MODULES" || -L "$FRONTEND_NODE_MODULES" ) ]]; then
     rm -rf -- "$FRONTEND_NODE_MODULES"
     printf 'JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET\n'
   fi
@@ -166,6 +165,28 @@ if pid="$(managed_pid 2>/dev/null)"; then
 fi
 rm -f "$PID_FILE"
 
+if [[ "$ACTION" == "prepare" ]]; then
+  activate_native_node_runtime
+  printf 'JAP_WINDOWS_APP_PREPARE_NODE=%s\n' "$(command -v node)"
+  printf 'JAP_WINDOWS_APP_PREPARE_NODE_VERSION=%s\n' "$(node --version)"
+  printf 'JAP_WINDOWS_APP_PREPARE_NPM=%s\n' "$(command -v npm)"
+  export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"
+  cd "$MANAGED_WORKTREE"
+  "$PROJECT_ROOT/.venv/bin/python" -u scripts/run_product_v1_live_demo.py --prepare-frontend-only
+  rm -rf -- "$FRONTEND_NODE_MODULES"
+  [[ -f "$FRONTEND_DIST/index.html" ]] || fail frontend_prepare_missing_index
+  [[ -f "$FRONTEND_BUILD_SHA_FILE" ]] || fail frontend_prepare_missing_source_marker
+  prepared_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
+  [[ "$prepared_sha" == "$PINNED_SHA" ]] || fail frontend_prepare_source_mismatch
+  printf 'JAP_WINDOWS_APP_FRONTEND_PREPARED=%s\n' "$PINNED_SHA"
+  exit 0
+fi
+
+[[ -f "$FRONTEND_DIST/index.html" ]] || fail frontend_not_prepared_for_pin
+[[ -f "$FRONTEND_BUILD_SHA_FILE" ]] || fail frontend_source_marker_missing
+frontend_build_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
+[[ "$frontend_build_sha" == "$PINNED_SHA" ]] || fail frontend_source_marker_mismatch
+
 # Reuse the canonical private runtime environment. Secrets and private documents are
 # never copied into the Windows installation or the managed code worktree.
 # shellcheck disable=SC1091
@@ -193,11 +214,6 @@ if ! python -c 'import extruct, trafilatura'; then
   fail pinned_local_oss_runtime_import_failed
 fi
 
-# WSL inherits the Windows PATH, while NVM is normally initialized only by an
-# interactive Linux shell. Select a native Linux Node 22 runtime explicitly so npm
-# never falls through to /mnt/c/Program Files/nodejs/npm and CMD.EXE/UNC semantics.
-activate_native_node_runtime
-
 for key in POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
   [[ -n "${!key:-}" ]] || fail "missing_${key}"
 done
@@ -209,21 +225,12 @@ export PYTHONUNBUFFERED=1
 export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"
 
 cd "$MANAGED_WORKTREE"
-launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime)
-if [[ -f frontend/control-center/dist/index.html && -f frontend/control-center/dist/.jap-source-sha ]]; then
-  frontend_build_sha="$(tr -d '\r\n[:space:]' < frontend/control-center/dist/.jap-source-sha)"
-  if [[ "$frontend_build_sha" == "$PINNED_SHA" ]]; then
-    launcher+=(--reuse-frontend)
-  fi
-fi
+launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime --reuse-frontend)
 
 printf 'JAP_WINDOWS_APP_HEAD=%s\n' "$(git rev-parse HEAD)"
 printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
 printf 'JAP_WINDOWS_APP_FETCH_TRANSPORT=https\n'
 printf 'JAP_WINDOWS_APP_LOCAL_OSS_SITE=%s\n' "$LOCAL_OSS_SITE"
-printf 'JAP_WINDOWS_APP_NODE=%s\n' "$(command -v node)"
-printf 'JAP_WINDOWS_APP_NODE_VERSION=%s\n' "$(node --version)"
-printf 'JAP_WINDOWS_APP_NPM=%s\n' "$(command -v npm)"
 printf 'JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1\n'
 printf 'JAP_WINDOWS_APP_PINNED_SHA=%s\n' "$JAP_CONTROL_CENTER_PINNED_SHA"
 printf 'JAP_WINDOWS_APP_URI=http://127.0.0.1:8780/\n'

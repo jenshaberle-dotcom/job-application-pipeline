@@ -133,6 +133,36 @@ try {
         }
     }
 
+    $sourceRunnerWindows = Join-Path $sourceRoot "scripts\run_jap_windows_control_center.sh"
+    if (-not (Test-Path $sourceRunnerWindows)) {
+        throw "Staged update is missing the WSL runtime runner."
+    }
+    $sourceRunnerLinuxOutput = & wsl.exe `
+        -d ([string]$current.wsl_distro) `
+        --exec wslpath -u $sourceRunnerWindows
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not map staged runtime runner into WSL."
+    }
+    $sourceRunnerLinux = (($sourceRunnerLinuxOutput | Select-Object -First 1) -as [string]).Trim()
+    if ([string]::IsNullOrWhiteSpace($sourceRunnerLinux) -or -not $sourceRunnerLinux.StartsWith("/")) {
+        throw "Mapped staged runtime runner path is invalid."
+    }
+
+    Write-UpdateLog "frontend_prepare_start" "target=$targetVersion sha=$targetSha"
+    & wsl.exe `
+        -d ([string]$current.wsl_distro) `
+        --exec bash `
+        $sourceRunnerLinux `
+        ([string]$current.wsl_project_root) `
+        ([string]$current.managed_worktree) `
+        $targetSha `
+        ([string]$current.wsl_state_root) `
+        prepare
+    if ($LASTEXITCODE -ne 0) {
+        throw "JAP frontend prewarm failed with exit code $LASTEXITCODE."
+    }
+    Write-UpdateLog "frontend_prepare_pass" "target=$targetVersion sha=$targetSha"
+
     Write-UpdateLog "installer_start" "target=$targetVersion sha=$targetSha"
     & powershell.exe `
         -NoProfile `
