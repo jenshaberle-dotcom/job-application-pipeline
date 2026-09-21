@@ -23,6 +23,7 @@ ALLOWED_SUBMISSION_CHANNELS = frozenset(
 )
 ACTION_NAME = "record_operator_confirmed_submission"
 REMOVE_ACTION_NAME = "remove_operator_submission_confirmation"
+CORRECT_TITLE_ACTION_NAME = "correct_application_job_title"
 LOCAL_OPERATOR_AUTHORITY_REFERENCE = "operator_confirmation:local_ui"
 
 
@@ -33,6 +34,14 @@ class ApplicationActionError(RuntimeError):
 @dataclass(frozen=True)
 class SubmissionRemovalRequest:
     application_id: int
+    confirmed_by: str = "local_operator"
+
+
+@dataclass(frozen=True)
+class ApplicationTitleCorrectionRequest:
+    application_id: int
+    job_title: str
+    expected_employer_name: str
     confirmed_by: str = "local_operator"
 
 
@@ -125,10 +134,13 @@ def _parse_submission_time(payload: Mapping[str, object]) -> tuple[datetime, str
 
 def parse_submission_record_request(
     payload: Mapping[str, object],
-) -> SubmissionRecordRequest | SubmissionRemovalRequest:
-    if str(payload.get("action") or "") == REMOVE_ACTION_NAME:
+) -> SubmissionRecordRequest | SubmissionRemovalRequest | ApplicationTitleCorrectionRequest:
+    action = str(payload.get("action") or "")
+    if action == REMOVE_ACTION_NAME:
         return parse_submission_removal_request(payload)
-    if str(payload.get("action") or "") != ACTION_NAME:
+    if action == CORRECT_TITLE_ACTION_NAME:
+        return parse_application_title_correction_request(payload)
+    if action != ACTION_NAME:
         raise ApplicationActionError("unsupported_application_action")
 
     raw_silver_job_id = payload.get("silver_job_id")
@@ -215,6 +227,52 @@ def parse_submission_removal_request(
         application_id=application_id,
         confirmed_by=confirmed_by,
     )
+
+
+def parse_application_title_correction_request(
+    payload: Mapping[str, object],
+) -> ApplicationTitleCorrectionRequest:
+    if str(payload.get("action") or "") != CORRECT_TITLE_ACTION_NAME:
+        raise ApplicationActionError("unsupported_application_action")
+    if set(payload) - {
+        "action",
+        "application_id",
+        "job_title",
+        "expected_employer_name",
+        "confirmed_by",
+    }:
+        raise ApplicationActionError("unexpected_application_title_correction_fields")
+    try:
+        application_id = int(payload.get("application_id") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ApplicationActionError("invalid_application_id") from exc
+    if application_id < 1:
+        raise ApplicationActionError("invalid_application_id")
+    job_title = _bounded_text(
+        payload.get("job_title"),
+        name="job_title",
+        limit=500,
+        required=True,
+    )
+    expected_employer_name = _bounded_text(
+        payload.get("expected_employer_name"),
+        name="expected_employer_name",
+        limit=300,
+        required=True,
+    )
+    confirmed_by = str(payload.get("confirmed_by") or "local_operator").strip()
+    if confirmed_by != "local_operator":
+        raise ApplicationActionError("confirmed_by_must_be_local_operator")
+    return ApplicationTitleCorrectionRequest(
+        application_id=application_id,
+        job_title=str(job_title),
+        expected_employer_name=str(expected_employer_name),
+        confirmed_by=confirmed_by,
+    )
+
+
+def _normalized_identity_text(value: object) -> str:
+    return " ".join(str(value or "").casefold().split())
 
 
 def build_job_identity_snapshot(row: Mapping[str, object]) -> dict[str, object]:
@@ -324,6 +382,128 @@ def _load_silver_identity(cur: object, silver_job_id: int) -> Mapping[str, objec
     if silver is None:
         raise ApplicationActionError("silver_job_not_found")
     return silver
+
+
+def correct_application_job_title(
+    request: ApplicationTitleCorrectionRequest,
+) -> dict[str, object]:
+    """Fill one missing mailbox application title under explicit operator authority.
+
+    This action never links a Silver job and never changes submission/lifecycle/evidence
+    truth. It only fills a previously missing title and records the correction in
+    application provenance.
+    """
+
+    with psycopg.connect(
+        DatabaseConfig.from_environment().dsn(), row_factory=dict_row
+    ) as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        discovery_kind,
+                        job_identity_snapshot,
+                        job_identity_sha256,
+                        provenance
+                    FROM applications
+                    WHERE id = %s
+                    FOR UPDATE
+                    """,
+                    (request.application_id,),
+                )
+                application = cur.fetchone()
+                if application is None:
+                    raise ApplicationActionError("application_not_found")
+                if application.get("discovery_kind") != "mailbox_observed":
+                    raise ApplicationActionError(
+                        "title_correction_requires_mailbox_observed_application"
+                    )
+
+                snapshot = application.get("job_identity_snapshot")
+                if not isinstance(snapshot, Mapping):
+                    raise ApplicationActionError("application_identity_snapshot_invalid")
+                current_snapshot = dict(snapshot)
+                employer = (
+                    current_snapshot.get("employer_name")
+                    or current_snapshot.get("company_name")
+                    or current_snapshot.get("company")
+                )
+                if _normalized_identity_text(employer) != _normalized_identity_text(
+                    request.expected_employer_name
+                ):
+                    raise ApplicationActionError("application_employer_mismatch")
+
+                existing_title = (
+                    current_snapshot.get("job_title")
+                    or current_snapshot.get("title")
+                    or current_snapshot.get("position")
+                )
+                if str(existing_title or "").strip():
+                    if _normalized_identity_text(existing_title) == _normalized_identity_text(
+                        request.job_title
+                    ):
+                        return {
+                            "status": "already_correct",
+                            "application_id": request.application_id,
+                            "job_title": str(existing_title).strip(),
+                            "database_writes": 0,
+                            "authoritative_lifecycle_mutations": 0,
+                            "external_submission_action": False,
+                        }
+                    raise ApplicationActionError("application_job_title_already_present")
+
+                new_snapshot = dict(current_snapshot)
+                new_snapshot["job_title"] = request.job_title
+                new_sha = canonical_sha256(new_snapshot)
+
+                provenance = application.get("provenance")
+                provenance_map = dict(provenance) if isinstance(provenance, Mapping) else {}
+                history_raw = provenance_map.get("identity_corrections")
+                history = list(history_raw) if isinstance(history_raw, list) else []
+                history.append(
+                    {
+                        "field": "job_title",
+                        "authority": "explicit_operator_confirmation",
+                        "confirmed_by": request.confirmed_by,
+                        "previous_job_identity_sha256": application.get(
+                            "job_identity_sha256"
+                        ),
+                        "new_job_identity_sha256": new_sha,
+                        "new_value": request.job_title,
+                        "recorded_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                provenance_map["identity_corrections"] = history
+
+                cur.execute(
+                    """
+                    UPDATE applications
+                    SET
+                        job_identity_snapshot = %s,
+                        job_identity_sha256 = %s,
+                        provenance = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        json.dumps(new_snapshot, ensure_ascii=False),
+                        new_sha,
+                        json.dumps(provenance_map, ensure_ascii=False),
+                        request.application_id,
+                    ),
+                )
+                if cur.rowcount != 1:
+                    raise ApplicationActionError("application_title_correction_failed")
+
+    return {
+        "status": "corrected",
+        "application_id": request.application_id,
+        "job_title": request.job_title,
+        "database_writes": 1,
+        "authoritative_lifecycle_mutations": 0,
+        "external_submission_action": False,
+    }
 
 
 def remove_operator_submission_confirmation(
@@ -453,7 +633,9 @@ def remove_operator_submission_confirmation(
 
 
 def record_operator_confirmed_submission(
-    request: SubmissionRecordRequest | SubmissionRemovalRequest,
+    request: SubmissionRecordRequest
+    | SubmissionRemovalRequest
+    | ApplicationTitleCorrectionRequest,
 ) -> dict[str, object]:
     """Apply one bounded local operator application action.
 
@@ -463,6 +645,8 @@ def record_operator_confirmed_submission(
 
     if isinstance(request, SubmissionRemovalRequest):
         return remove_operator_submission_confirmation(request)
+    if isinstance(request, ApplicationTitleCorrectionRequest):
+        return correct_application_job_title(request)
 
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(), row_factory=dict_row
