@@ -135,7 +135,6 @@ def record_market_sensor_evidence(
 
 
 class JobIngestionRunner:
-class JobIngestionRunner:
     def __init__(
         self,
         repository: JobIngestionRepository,
