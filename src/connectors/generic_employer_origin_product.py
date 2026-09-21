@@ -81,16 +81,16 @@ class ProductSearchExecutor:
         return self._plain_get_responses.get(canonical_url(url))
 
     def __call__(self, request: SearchRequest) -> tuple[str, str, int]:
-        if self.calls >= self.max_requests:
-            raise RuntimeError("generic product search absolute request cap exceeded")
-        self.calls += 1
-
         method = request.method.upper()
         fields = dict(request.fields)
         if method == "GET" and not fields:
             cached = self._plain_get_responses.get(canonical_url(request.url))
             if cached is not None:
                 return cached
+
+        if self.calls >= self.max_requests:
+            raise RuntimeError("generic product search absolute request cap exceeded")
+        self.calls += 1
         if method == "GET":
             response = self.session.get(
                 request.url,
