@@ -48,10 +48,12 @@ def test_local_deploy_reaps_only_exact_session_zero_managed_desktop() -> None:
     assert "$hostProcess.WaitForExit(5000)" in reaper
     assert 'JAP_HEADLESS_DESKTOP_REAP=PASS' in reaper
     assert "Reap exact stale Session-0 JAP desktop host" in workflow
-    assert "scripts/reap_jap_headless_desktop.ps1" in workflow
+    assert 'Get-Process -Name "JAP.ControlCenter.Desktop"' in workflow
+    assert 'JAP-Control-Center\\desktop-host\\JAP.ControlCenter.Desktop.exe' in workflow
+    assert "scripts/reap_jap_headless_desktop.ps1" not in workflow
 
 
-def test_local_deploy_proves_exact_installed_host_rejects_headless_launch() -> None:
+def test_headless_rejection_proof_is_static_only_not_executed_on_workstation() -> None:
     proof = _text(PROOF)
     workflow = _text(LOCAL_DEPLOY_WORKFLOW)
     assert "$current.pinned_sha -ne $ExpectedSha" in proof
@@ -63,8 +65,9 @@ def test_local_deploy_proves_exact_installed_host_rejects_headless_launch() -> N
     assert "$process.WaitForExit(10_000)" not in proof
     assert 'noninteractive_start_rejected`tpid=$pidUnderTest' in proof
     assert 'JAP_HEADLESS_DESKTOP_PROOF=PASS' in proof
-    assert "Prove installed desktop rejects headless runner launch" in workflow
-    assert "scripts/prove_jap_headless_desktop_rejection.ps1" in workflow
+    assert "Prove installed desktop rejects headless runner launch" not in workflow
+    assert "scripts/prove_jap_headless_desktop_rejection.ps1" not in workflow
+    assert "-ExecutionPolicy Bypass" not in workflow
 
 
 def test_zombie_prevention_bumps_immutable_desktop_release() -> None:
