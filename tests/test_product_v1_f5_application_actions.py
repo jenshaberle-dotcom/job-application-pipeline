@@ -5,6 +5,7 @@ import pytest
 
 from scripts.product_v1_f5_application_actions import (
     ACTION_NAME,
+    LOCAL_OPERATOR_AUTHORITY_REFERENCE,
     ApplicationActionError,
     SubmissionRecordRequest,
     application_key_for_job,
@@ -139,3 +140,32 @@ def test_manual_external_job_requires_employer_and_title_but_no_silver_job() -> 
     assert request.is_external_job is True
     assert request.employer_name == "CARIAD"
     assert request.job_title == "A.I. Reporting Specialist"
+
+
+def test_operator_reference_is_optional_but_internal_authority_stays_explicit() -> None:
+    request = parse_submission_record_request(
+        {
+            "action": ACTION_NAME,
+            "silver_job_id": 42,
+            "submitted_on": "2026-09-20",
+            "submission_channel": "employer_portal",
+        }
+    )
+
+    assert request.authority_reference == LOCAL_OPERATOR_AUTHORITY_REFERENCE
+    assert request.operator_reference is None
+
+
+def test_optional_operator_reference_is_preserved_as_note_not_authority() -> None:
+    request = parse_submission_record_request(
+        {
+            "action": ACTION_NAME,
+            "silver_job_id": 42,
+            "submitted_on": "2026-09-20",
+            "submission_channel": "employer_portal",
+            "authority_reference": "noch keine E-Mail-Eingangsbestätigung erhalten",
+        }
+    )
+
+    assert request.authority_reference == LOCAL_OPERATOR_AUTHORITY_REFERENCE
+    assert request.operator_reference == "noch keine E-Mail-Eingangsbestätigung erhalten"
