@@ -136,19 +136,22 @@ def test_launcher_proves_direct_wsl_identity_before_background_start() -> None:
     assert "Installed JAP WSL distribution/runner proof failed" in text
 
 
-def test_launcher_uses_tokenized_startprocess_arguments_without_embedded_quotes() -> None:
+def test_launcher_uses_direct_tokenized_wsl_arguments_without_shell_serialization() -> None:
     text = _text(LAUNCHER)
-    assert "$argumentVector = @(" in text
-    assert "ArgumentList = $argumentVector" in text
+    assert "$wslArgumentVector = @(" in text
+    assert "& $wsl.Source @wslArgumentVector" in text
     assert "$argumentLine = (" not in text
     assert "'-d \"{0}\" --exec bash" not in text
-    assert "contains whitespace" in text
+    assert "cmd.exe" not in text
+    assert "start \"\" /b" not in text
 
 
-def test_launcher_surfaces_stdout_when_wsl_reports_runtime_failure_there() -> None:
+def test_launcher_surfaces_wsl_state_stdout_when_runtime_fails() -> None:
     text = _text(LAUNCHER)
-    assert '$stdoutTail = ""' in text
-    assert "Get-Content $stdoutLog -Tail 12" in text
+    assert '$stdoutLinux = "$stateRootLinux/runtime.stdout.log"' in text
+    assert '$stderrLinux = "$stateRootLinux/runtime.stderr.log"' in text
+    assert "--exec tail -n 12 $stdoutLinux" in text
+    assert "--exec tail -n 12 $stderrLinux" in text
     assert "did not become ready: $stdoutTail" in text
 
 
