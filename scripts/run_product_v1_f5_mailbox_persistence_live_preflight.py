@@ -20,6 +20,7 @@ from scripts.run_product_v1_f5_mailbox_persistence_apply import (  # noqa: E402
     PersistenceApplyError,
     _assert_plan_is_safe,
     _checkout_sha,
+    _load_existing_application_identities,
     _load_live_state,
     _plan_sha256,
     _sha256_file,
@@ -84,9 +85,11 @@ def live_preflight(
         with conn.transaction():
             conn.execute("SET TRANSACTION READ ONLY")
             application_keys, active = _load_live_state(conn)
+            application_identities = _load_existing_application_identities(conn)
             plan = plan_rows(
                 rows,
                 existing_application_keys=application_keys,
+                existing_application_identities=application_identities,
                 active_candidates=active,
                 since=since,
                 until=until,
