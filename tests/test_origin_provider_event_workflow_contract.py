@@ -143,7 +143,7 @@ def test_windows_watcher_tailscale_recovery_is_bounded_and_fail_closed() -> None
 def test_database_role_is_read_only_and_table_scoped() -> None:
     assert "default_transaction_read_only = 'on'" in SQL
     assert "employer_origin_source_candidates" in SQL
-    assert "market_evidence" in SQL
+    assert "market_evidence" not in SQL
     assert "GRANT SELECT ON TABLE" in SQL
     assert "GRANT INSERT" not in SQL
     assert "GRANT UPDATE" not in SQL
