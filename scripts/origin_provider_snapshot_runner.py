@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Callable, Iterable, Mapping
+from typing import Callable, Mapping
 
 from scripts.run_origin_source_discovery_agent import (
     http_probe,
@@ -24,13 +24,6 @@ from src.search_intelligence.origin_source_discovery_agent import (
 )
 
 RequestAttemptObserver = Callable[[str, str], None]
-
-
-def _market_evidence_urls(row: Mapping[str, object]) -> list[str]:
-    raw = row.get("market_evidence_urls")
-    if not isinstance(raw, Iterable) or isinstance(raw, (str, bytes)):
-        return []
-    return [str(item).strip() for item in raw if str(item).strip()]
 
 
 def collect_snapshot_search_results(
@@ -86,7 +79,6 @@ def run_for_projection_row(
 
     company_key = str(row["company_key"])
     company_name = str(row.get("company_name") or "")
-    market_urls = _market_evidence_urls(row)
     search_results = collect_snapshot_search_results(
         args,
         company_key=company_key,
@@ -98,7 +90,6 @@ def run_for_projection_row(
         company_key=company_key,
         company_name=company_name,
         source_family_candidate=str(row.get("source_family_candidate") or ""),
-        market_evidence_urls=market_urls,
         search_results=search_results,
         target_location=args.target_location,
         probe=None
@@ -112,7 +103,7 @@ def run_for_projection_row(
     payload["candidate_status"] = row.get("status")
     payload["candidate_risk_level"] = row.get("risk_level")
     payload["candidate_url_before"] = row.get("candidate_url")
-    payload["market_evidence_url_count"] = len(market_urls)
+    payload["market_evidence_url_count"] = 0
     payload["search_result_count"] = len(search_results)
     payload["search_provider"] = (
         ",".join(provider for provider in args.search_provider if provider != "none")
