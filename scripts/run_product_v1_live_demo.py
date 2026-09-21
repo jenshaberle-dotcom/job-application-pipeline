@@ -288,14 +288,6 @@ def build_parser() -> argparse.ArgumentParser:
             "without rerunning the external demo workspace readiness probe."
         ),
     )
-    parser.add_argument(
-        "--prepare-frontend-only",
-        action="store_true",
-        help=(
-            "Install/build the source-bound React bundle for an upcoming installed-runtime "
-            "pin, publish app-info, and exit without touching DB/provider readiness."
-        ),
-    )
     parser.add_argument("--preflight-output", type=Path, default=DEFAULT_PREFLIGHT)
     parser.add_argument("--workspace-probe-output", type=Path, default=DEFAULT_WORKSPACE_PROBE)
     parser.add_argument("--draft-probe-output", type=Path, default=DEFAULT_DRAFT_PROBE)
@@ -309,22 +301,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-
-    if args.prepare_frontend_only:
-        if args.reuse_frontend or args.installed_runtime or args.preflight_only:
-            print(
-                "DEMO_START_BLOCKED=arguments:--prepare-frontend-only is exclusive",
-                file=sys.stderr,
-            )
-            return 2
-        try:
-            frontend_dist = prepare_frontend(reuse_frontend=False)
-            _publish_app_info(frontend_dist)
-        except (OSError, RuntimeError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
-            print(f"DEMO_START_BLOCKED=frontend_prepare:{exc}", file=sys.stderr)
-            return 2
-        print("JAP_FRONTEND_PREPARE=PASS")
-        return 0
 
     try:
         private_document_root = _configure_launcher_private_document_root()
