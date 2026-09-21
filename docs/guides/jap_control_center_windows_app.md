@@ -73,8 +73,8 @@ JAP-Control-Center\
 │   ├── build-info.json
 │   └── self-contained .NET/WebView2 host files
 ├── logs\
-│   ├── runtime.stdout.log
-│   ├── runtime.stderr.log
+│   ├── desktop-host-startup.log
+│   ├── desktop-host-lifecycle.log
 │   └── desktop-host-update.log
 └── state\
     ├── runtime.json
@@ -93,6 +93,11 @@ The installed launcher keeps two distinct WSL paths:
 
 1. canonical private/runtime checkout, normally `~/projects/job-application-pipeline`;
 2. managed detached code worktree, normally `~/.local/share/jap-control-center/runtime`.
+
+Runtime stdout/stderr are kept in the managed WSL state root (normally
+`~/.local/state/jap-control-center/runtime.stdout.log` and
+`runtime.stderr.log`). The Windows launcher performs only a short tokenized WSL
+handoff; the long-lived runtime is detached inside Linux with `nohup + setsid`.
 
 The managed worktree is pinned to the exact `main` SHA recorded by the installer/updater. The launcher refuses a dirty managed worktree, resets generated frontend dependency state when necessary, activates the canonical checkout's `.venv`, sources the canonical `.env`, selects native WSL Node 22/npm, binds `PRODUCT_V1_PRIVATE_DOCUMENT_ROOT` to the canonical `private_application_sources/`, and then invokes the existing fail-closed `scripts/run_product_v1_live_demo.py` path.
 
