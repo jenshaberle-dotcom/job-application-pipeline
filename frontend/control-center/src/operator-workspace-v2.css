@@ -110,6 +110,11 @@ button, input { font: inherit; }
 .ow-job-list > button { width: 100%; border: 0; border-bottom: 1px solid #133347; background: transparent; color: white; padding: 9px 10px; text-align: left; cursor: pointer; }
 .ow-job-list > button:hover { background: #0d293a; }
 .ow-job-list > button.selected { background: #11364a; box-shadow: inset 2px 0 0 var(--ow-cyan); }
+.ow-job-list > button.application-active { background: #102f29; box-shadow: inset 3px 0 0 var(--ow-green); }
+.ow-job-list > button.application-active:hover { background: #143a32; }
+.ow-job-list > button.application-active.selected { background: #174438; box-shadow: inset 3px 0 0 var(--ow-green), inset 0 0 0 1px rgba(96,213,155,.18); }
+.ow-job-list > button.application-closed { box-shadow: inset 3px 0 0 #667985; }
+
 .ow-job-list > button > strong { color: var(--ow-cyan); }
 .ow-job-name, .ow-location { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ow-job-name b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
