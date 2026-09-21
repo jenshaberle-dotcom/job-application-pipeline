@@ -128,9 +128,15 @@ closes the remaining operator feedback without reopening mailbox authority:
    of the ordinary blue selection treatment, while closed applications remain
    visually distinct.
 
+Before returning v1.0.48 to the operator, the local deploy control plane must
+also execute the installed `JAP-Control-Center.ps1 -NoBrowser` path, require
+`/app-info.json.source_revision` to equal the exact released SHA, and stop the
+managed runtime cleanly. This is the regression gate for the Windows -> WSL
+detached handoff that escaped the earlier static/headless checks.
+
 The final F5 operator gate is therefore the installed v1.0.48 check:
 
-`manual application -> All jobs green linked Beworben state -> Applications drilldown -> safe mistaken-entry removal -> All jobs link/count removed after shared Product-truth refresh`
+`installed-runtime smoke PASS -> manual application -> All jobs green linked Beworben state -> Applications drilldown -> safe mistaken-entry removal -> All jobs link/count removed after shared Product-truth refresh`
 
 Only after that bidirectional/visual linkage and correction loop is accepted may
 F5 be marked complete and sequencing advance to F6.

@@ -194,6 +194,63 @@ jobs:
             -ExpectedSha "$expected_sha" \
             -ExpectedVersion "$expected_version"
 
+      - name: Prove installed runtime handoff without GUI
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          win_localappdata="$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r' | tail -n 1)"
+          launcher_windows="${win_localappdata}\\JAP-Control-Center\\JAP-Control-Center.ps1"
+          stopper_windows="${win_localappdata}\\JAP-Control-Center\\Stop-JAP-Control-Center.ps1"
+
+          cleanup_runtime() {
+            powershell.exe \
+              -NoProfile \
+              -ExecutionPolicy Bypass \
+              -File "$stopper_windows" >/dev/null 2>&1 || true
+          }
+          trap cleanup_runtime EXIT
+
+          set +e
+          timeout 90s powershell.exe \
+            -NoProfile \
+            -ExecutionPolicy Bypass \
+            -File "$launcher_windows" \
+            -NoBrowser
+          launch_status=$?
+          set -e
+          if [[ "$launch_status" -ne 0 ]]; then
+            echo "JAP_INSTALLED_RUNTIME_SMOKE=FAIL launch_status=$launch_status" >&2
+            exit "$launch_status"
+          fi
+
+          app_info="$(timeout 5s curl -fsS http://127.0.0.1:8780/app-info.json)"
+          runtime_sha="$(
+            printf '%s' "$app_info" |
+              python3 -c 'import json,sys; print(str(json.load(sys.stdin).get("source_revision", "")).strip().lower())'
+          )"
+          test "$runtime_sha" = "$EXPECTED_SOURCE_SHA"
+          echo "JAP_INSTALLED_RUNTIME_SMOKE=PASS source=$runtime_sha"
+
+          powershell.exe \
+            -NoProfile \
+            -ExecutionPolicy Bypass \
+            -File "$stopper_windows"
+
+          for _ in $(seq 1 40); do
+            if ! ss -ltn 2>/dev/null | grep -q ':8780 '; then
+              break
+            fi
+            sleep 0.25
+          done
+          if ss -ltn 2>/dev/null | grep -q ':8780 '; then
+            echo "JAP_INSTALLED_RUNTIME_STOP=FAIL listener_still_present" >&2
+            exit 1
+          fi
+          echo "JAP_INSTALLED_RUNTIME_STOP=PASS"
+          trap - EXIT
+
       - name: Capture bounded installed startup diagnostics
         if: always()
         shell: bash
