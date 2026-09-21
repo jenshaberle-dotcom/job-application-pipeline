@@ -137,3 +137,13 @@ def test_manual_application_entry_uses_date_only_and_staged_employer_job_selecti
     assert "externalEmployer" in tracking
     assert "externalTitle" in tracking
     assert "submitted_on: submittedOn" in tracking
+
+
+def test_manual_reference_is_optional_and_backend_error_detail_is_visible() -> None:
+    tracking = _text(TRACKING)
+
+    assert "Notiz / Referenz · optional" in tracking
+    assert "!reference.trim()" not in tracking
+    assert "reference.trim() || undefined" in tracking
+    assert "payload.message" in tracking
+    assert "payload.error_type" in tracking
