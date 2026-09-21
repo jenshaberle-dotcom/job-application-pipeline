@@ -200,6 +200,11 @@ cp "$CONTROL_ROOT/scripts/run_jap_windows_control_center.sh" "$STABLE_RUNNER"
 printf 'JAP_LOCAL_DEPLOY_STABLE_CONTROL_PLANE=REFRESHED\n'
 
 STAGE_BASE="$INSTALL_ROOT/updates"
+mkdir -p "$STAGE_BASE"
+while IFS= read -r -d '' legacy_source; do
+  rm -rf -- "$legacy_source"
+  printf 'JAP_LOCAL_DEPLOY_LEGACY_STAGED_SOURCE=PURGED path=%s\n' "$legacy_source"
+done < <(find "$STAGE_BASE" -mindepth 2 -maxdepth 2 -type d -name source -print0)
 STAGE_ROOT="$STAGE_BASE/$SOURCE_SHA"
 STAGE_TMP="$STAGE_BASE/.staging.$SOURCE_SHA.$$"
 PAYLOAD_ROOT="$STAGE_TMP/payload"
