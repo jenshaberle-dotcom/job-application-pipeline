@@ -167,6 +167,9 @@ rm -f "$PID_FILE"
 
 if [[ "$ACTION" == "prepare" ]]; then
   activate_native_node_runtime
+  printf 'JAP_WINDOWS_APP_PREPARE_NODE=%s\n' "$(command -v node)"
+  printf 'JAP_WINDOWS_APP_PREPARE_NODE_VERSION=%s\n' "$(node --version)"
+  printf 'JAP_WINDOWS_APP_PREPARE_NPM=%s\n' "$(command -v npm)"
   export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"
   cd "$MANAGED_WORKTREE"
   "$PROJECT_ROOT/.venv/bin/python" -u scripts/run_product_v1_live_demo.py --prepare-frontend-only
@@ -228,9 +231,6 @@ printf 'JAP_WINDOWS_APP_HEAD=%s\n' "$(git rev-parse HEAD)"
 printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
 printf 'JAP_WINDOWS_APP_FETCH_TRANSPORT=https\n'
 printf 'JAP_WINDOWS_APP_LOCAL_OSS_SITE=%s\n' "$LOCAL_OSS_SITE"
-printf 'JAP_WINDOWS_APP_NODE=%s\n' "$(command -v node)"
-printf 'JAP_WINDOWS_APP_NODE_VERSION=%s\n' "$(node --version)"
-printf 'JAP_WINDOWS_APP_NPM=%s\n' "$(command -v npm)"
 printf 'JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1\n'
 printf 'JAP_WINDOWS_APP_PINNED_SHA=%s\n' "$JAP_CONTROL_CENTER_PINNED_SHA"
 printf 'JAP_WINDOWS_APP_URI=http://127.0.0.1:8780/\n'
