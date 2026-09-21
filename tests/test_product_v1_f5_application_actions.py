@@ -5,6 +5,7 @@ import pytest
 
 from scripts.product_v1_f5_application_actions import (
     ACTION_NAME,
+    REMOVE_ACTION_NAME,
     LOCAL_OPERATOR_AUTHORITY_REFERENCE,
     ApplicationActionError,
     SubmissionRecordRequest,
@@ -12,6 +13,7 @@ from scripts.product_v1_f5_application_actions import (
     build_job_identity_snapshot,
     canonical_sha256,
     parse_submission_record_request,
+    parse_submission_removal_request,
     submission_idempotency_key,
 )
 
@@ -202,3 +204,38 @@ def test_manual_submission_uses_only_canonical_silver_schema_columns() -> None:
         "location_raw",
     ):
         assert phantom not in loader
+
+
+def test_manual_submission_removal_request_is_explicit_and_bounded() -> None:
+    request = parse_submission_removal_request(
+        {
+            "action": REMOVE_ACTION_NAME,
+            "application_id": 17,
+        }
+    )
+
+    assert request.application_id == 17
+    assert request.confirmed_by == "local_operator"
+
+    with pytest.raises(ApplicationActionError, match="unexpected_application_removal_fields"):
+        parse_submission_removal_request(
+            {
+                "action": REMOVE_ACTION_NAME,
+                "application_id": 17,
+                "delete_mail": True,
+            }
+        )
+
+
+def test_manual_submission_removal_never_deletes_mail_or_lifecycle_truth() -> None:
+    source = MODULE.read_text(encoding="utf-8")
+    removal = source.split(
+        "def remove_operator_submission_confirmation", 1
+    )[1].split("def record_operator_confirmed_submission", 1)[0]
+
+    assert "authoritative_lifecycle_history_present" in removal
+    assert "candidate_count == 0" in removal
+    assert "DELETE FROM application_submissions" in removal
+    assert "DELETE FROM applications" in removal
+    assert "DELETE FROM application_event_candidates" not in removal
+    assert "DELETE FROM application_lifecycle_events" not in removal
