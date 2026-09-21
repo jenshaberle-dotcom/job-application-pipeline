@@ -970,14 +970,9 @@ def discover_origin_source(
                 evidence=dict(item.evidence),
             )
         )
-    for url in market_evidence_urls:
-        _append_url(
-            candidates,
-            seen,
-            url,
-            provider=MARKET_EVIDENCE_PROVIDER_KIND,
-            reason="existing market evidence URL; expected to be rejected when aggregator-backed",
-            priority=80,
+    if market_evidence_urls:
+        raise ValueError(
+            "market evidence URLs are not valid Employer-Origin discovery inputs"
         )
     for item in generate_company_url_candidates(
         company_key=company_key,

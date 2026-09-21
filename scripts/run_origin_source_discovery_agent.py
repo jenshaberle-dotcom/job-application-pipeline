@@ -484,7 +484,8 @@ def collect_official_domain_evidence(
 def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, object]:
     with connect() as conn:
         candidate = load_candidate(conn, company_key)
-        market_urls = load_market_evidence_urls(conn, company_key, limit=args.market_evidence_limit)
+
+    market_urls: list[str] = []
 
     company_name = str(candidate["company_name"])
     search_results = collect_search_results(
@@ -507,7 +508,6 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         company_key=str(candidate["company_key"]),
         company_name=company_name,
         source_family_candidate=str(candidate.get("source_family_candidate") or ""),
-        market_evidence_urls=market_urls,
         search_results=search_results,
         official_domain_urls=[item.url for item in official_evidence],
         target_location=args.target_location,

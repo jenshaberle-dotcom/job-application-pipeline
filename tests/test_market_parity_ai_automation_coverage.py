@@ -31,22 +31,26 @@ def test_market_parity_seed_uses_first_party_origin_and_generic_authority_path()
     assert "active_controlled" not in text
 
 
-def test_activation_workflow_runs_normal_ba_ingestion_and_stage_probe() -> None:
+def test_activation_workflow_keeps_sensor_and_origin_authority_separate() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
     assert "--profile ba_data_engineer_30629_50km" in text
     assert "run_known_public_vacancy_parity" in text
     assert '--ba-search-term "AI Automation Architect"' in text
-    assert '--ba-external-job-id "10001-1003339347-S"' in text
+    assert "--ba-external-job-id" not in text
     for stage in (
         "ba_live",
-        "ba_raw",
-        "ba_silver",
+        "sensor_company_evidence",
         "gold_canonical",
         "origin_candidate",
         "origin_active",
         "origin_raw",
         "origin_silver",
+        "origin_gold",
     ):
         assert f"--require-stage {stage}" in text
+    assert "--require-stage ba_raw" not in text
+    assert "--require-stage ba_silver" not in text
+    assert "--require-stage ba_gold" not in text
+    assert "HORNET_TARGET_CONTROL_CENTER_PROJECTION=PASS" in text
     assert "MARKET_PARITY_REQUIRED_SOURCE_NOT_PROOF_PASS" not in text

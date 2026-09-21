@@ -21,6 +21,12 @@ on:
       - "src/connectors/generic_job_detail_evidence.py"
       - "src/connectors/registry.py"
       - "src/ingestion/generic_origin_bronze_admission.py"
+      - "src/ingestion/runner.py"
+      - "src/ingestion/repository.py"
+      - "src/ingest_jobs.py"
+      - "src/silver/transformer.py"
+      - "src/search_intelligence/origin_seed_pool.py"
+      - "scripts/product_v1_control_center_base.py"
       - "src/connectors/employer_origin_**"
       - "src/search_intelligence/deterministic_connector_builder.py"
 
@@ -206,7 +212,7 @@ jobs:
             --source generic_origin \
             --log-level INFO
 
-      - name: Run configured BA market-sensor profile through normal Bronze ingestion
+      - name: Run configured BA market sensor through company evidence boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -214,13 +220,13 @@ jobs:
             --profile ba_data_engineer_30629_50km \
             --log-level INFO
 
-      - name: Run unchanged normal Silver transformation
+      - name: Run normal Employer-Origin Silver transformation
         shell: bash
         run: |
           set -euo pipefail
           "$RUNTIME_PYTHON" -m src.run_silver_jobs
 
-      - name: Verify target vacancy traversed the normal BA and Employer-Origin paths
+      - name: Verify sensor discovery and authoritative Employer-Origin vacancy path
         shell: bash
         run: |
           set -euo pipefail
@@ -230,16 +236,15 @@ jobs:
             --expected-title "AI Automation Architect Software Development Lifecycle" \
             --ba-profile-name ba_data_engineer_30629_50km \
             --ba-search-term "AI Automation Architect" \
-            --ba-external-job-id "10001-1003339347-S" \
             --live-ba \
             --require-stage ba_live \
-            --require-stage ba_raw \
-            --require-stage ba_silver \
+            --require-stage sensor_company_evidence \
             --require-stage gold_canonical \
             --require-stage origin_candidate \
             --require-stage origin_active \
             --require-stage origin_raw \
-            --require-stage origin_silver
+            --require-stage origin_silver \
+            --require-stage origin_gold
 
       - name: Verify Bronze Silver Gold and canonical Control Center projection
         shell: bash
@@ -395,6 +400,15 @@ jobs:
           if not cc_rows:
               raise SystemExit("GENERIC_CONTROL_CENTER_PROJECTION_EMPTY")
 
+          target_cc_rows = [
+              row
+              for row in cc_rows
+              if str(row.get("source_name") or "") == "generic_origin:hornetsecurity"
+              and "ai automation architect" in str(row.get("title") or "").casefold()
+          ]
+          if not target_cc_rows:
+              raise SystemExit("HORNET_TARGET_CONTROL_CENTER_PROJECTION_MISSING")
+
           print(f"GENERIC_ACTIVE_SOURCES={len(projection)}")
           print("LEGACY_ACTIVE_EMPLOYER_SOURCES=0")
           print(f"GENERIC_SUCCESSFUL_LATEST_INGESTION_RUNS={len(latest_runs)}")
@@ -405,12 +419,13 @@ jobs:
           print(f"GENERIC_SILVER_ROWS={len(silver_rows)}")
           print(f"GENERIC_GOLD_PRODUCT_READINESS_ROWS={len(gold_rows)}")
           print(f"GENERIC_CONTROL_CENTER_ROWS={len(cc_rows)}")
-          first = cc_rows[0]
+          first = target_cc_rows[0]
           print(
               "GENERIC_E2E_JOB="
               f"{first['silver_job_id']}|{first.get('source_name')}|"
               f"{first.get('title')}|{first.get('product_readiness_status')}"
           )
+          print("HORNET_TARGET_CONTROL_CENTER_PROJECTION=PASS")
           for source in sorted(latest_runs):
               row = latest_runs[source]
               print(

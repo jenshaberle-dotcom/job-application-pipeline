@@ -2,6 +2,7 @@ from datetime import date
 
 
 EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE = "employer_origin_career_site"
+MARKET_SENSOR_SOURCE_NAMES = {"bundesagentur_fuer_arbeit", "stepstone"}
 
 
 def parse_date(value: object) -> date | None:
@@ -384,8 +385,10 @@ def transform_stepstone_raw_job(raw_job: dict) -> dict:
 def transform_raw_job_to_silver(raw_job: dict) -> dict:
     source_name = raw_job["source_name"]
 
-    if source_name == "bundesagentur_fuer_arbeit":
-        return transform_bundesagentur_raw_job(raw_job)
+    if source_name in MARKET_SENSOR_SOURCE_NAMES:
+        raise ValueError(
+            f"Market sensor source cannot produce Silver jobs: {source_name}"
+        )
 
     if source_name.startswith("greenhouse:"):
         return transform_greenhouse_raw_job(raw_job)
@@ -408,9 +411,6 @@ def transform_raw_job_to_silver(raw_job: dict) -> dict:
     if source_name.startswith("successfactors:"):
         return transform_employer_origin_raw_job(raw_job)
 
-    if source_name == "stepstone":
-        return transform_stepstone_raw_job(raw_job)
-
     bronze_source_type = supported_bronze_source_type(raw_job)
     if bronze_source_type == EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE:
         return transform_employer_origin_raw_job(
@@ -424,7 +424,6 @@ def transform_raw_job_to_silver(raw_job: dict) -> dict:
 
 def get_supported_source_patterns() -> list[str]:
     return [
-        "bundesagentur_fuer_arbeit",
         "greenhouse:%",
         "personio:%",
         "finanz_informatik:%",
@@ -432,5 +431,4 @@ def get_supported_source_patterns() -> list[str]:
         "hdi:%",
         "successfactors:%",
         "generic_origin:%",
-        "stepstone",
     ]

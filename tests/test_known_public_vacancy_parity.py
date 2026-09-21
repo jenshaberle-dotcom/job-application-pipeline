@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from scripts.run_known_public_vacancy_parity import ba_matches, normalize, text_matches
+from scripts.run_known_public_vacancy_parity import ba_company_matches, ba_matches, normalize, text_matches
 
 
 def _record(*, title: str, employer: str, external_job_id: str = "10001-example-S"):
@@ -64,3 +64,18 @@ def test_ba_match_can_bind_exact_external_job_identity() -> None:
     )
 
     assert [record.external_job_id for record in matches] == ["10001-1003339347-S"]
+
+
+
+def test_ba_company_match_does_not_require_sensor_job_identity() -> None:
+    records = [
+        _record(
+            title="Different but relevant AI role",
+            employer="Hornetsecurity GmbH",
+            external_job_id="different-id",
+        )
+    ]
+
+    matches = ba_company_matches(records, expected_company="Hornetsecurity")
+
+    assert len(matches) == 1

@@ -32,8 +32,7 @@ REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM origin_benchmark_reade
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM origin_benchmark_reader;
 
 GRANT SELECT ON TABLE
-    employer_origin_source_candidates,
-    market_evidence
+    employer_origin_source_candidates
 TO origin_benchmark_reader;
 
-\echo 'origin_benchmark_reader configured with read-only access to two tables.'
+\echo 'origin_benchmark_reader configured with read-only access to employer-origin candidates only.'

@@ -40,7 +40,6 @@ def _projection_row() -> dict[str, object]:
         "status": "discovery",
         "risk_level": "low",
         "candidate_url": "",
-        "market_evidence_urls": ["https://example.test/jobs"],
     }
 
 
@@ -78,7 +77,7 @@ def test_snapshot_runner_counts_actual_provider_attempts(monkeypatch: pytest.Mon
     assert len(observed) == 2
     assert all(provider == "tavily" for provider, _ in observed)
     assert payload["candidate_id"] == 42
-    assert payload["market_evidence_url_count"] == 1
+    assert payload["market_evidence_url_count"] == 0
     assert payload["projection_snapshot_used"] is True
 
 

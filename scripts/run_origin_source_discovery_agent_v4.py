@@ -7,7 +7,6 @@ from scripts.run_origin_source_discovery_agent import (
     connect,
     http_probe,
     load_candidate,
-    load_market_evidence_urls,
 )
 from src.search_intelligence.origin_candidate_plan_v2 import generate_company_url_candidates_v2
 from src.search_intelligence.origin_source_discovery_agent import (
@@ -21,11 +20,8 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
 
     with connect() as conn:
         candidate = load_candidate(conn, company_key)
-        market_urls = load_market_evidence_urls(
-            conn,
-            company_key,
-            limit=args.market_evidence_limit,
-        )
+
+    market_urls: list[str] = []
 
     search_results = collect_search_results(
         args,
@@ -44,7 +40,6 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         company_key=str(candidate["company_key"]),
         company_name=str(candidate["company_name"]),
         source_family_candidate=str(candidate.get("source_family_candidate") or ""),
-        market_evidence_urls=market_urls,
         search_result_candidates=generated,
         search_results=search_results,
         target_location=args.target_location,

@@ -1,5 +1,6 @@
 from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.capabilities import SourceCapabilities
+from src.connectors.registry import SourceRole
 from src.ingestion.runner import JobIngestionRunner
 
 
@@ -19,34 +20,24 @@ class FakeStepStoneConnector:
         return [
             RawJobRecord(
                 source_name="stepstone",
-                source_url="https://example.com/hdi",
+                source_url="https://example.com/hdi/job/123",
                 external_job_id="1",
                 raw_data={
                     "result_card": {
-                        "title": "Data Engineer",
+                        "title": "Data & Analytics Engineer",
                         "company_name": "HDI AG",
                     }
                 },
-            ),
-            RawJobRecord(
-                source_name="stepstone",
-                source_url="https://example.com/adesso",
-                external_job_id="2",
-                raw_data={
-                    "result_card": {
-                        "title": "Analytics Engineer",
-                        "company_name": "Adesso SE",
-                    }
-                },
-            ),
+            )
         ], "https://www.stepstone.de/jobs/data-engineer/in-hannover"
 
 
 class FakeRepository:
     def __init__(self) -> None:
-        self.saved_records = []
+        self.market_evidence = []
+        self.raw_job_calls = 0
+        self.observation_calls = 0
         self.finished_runs = []
-        self.excluded_company_keys = {"HDI AG"}
 
     def load_active_search_terms(self, profile_name):
         return [
@@ -64,15 +55,6 @@ class FakeRepository:
             )
         ]
 
-    def load_aggregator_discovery_suppression_company_keys(self):
-        return self.excluded_company_keys
-
-    def load_employer_origin_candidate_company_keys(self):
-        return {"HDI AG"}
-
-    def save_market_evidence(self, **kwargs):
-        return 1
-
     def create_ingestion_run(
         self,
         source_name,
@@ -86,12 +68,17 @@ class FakeRepository:
     def update_ingestion_run_requested_url(self, ingestion_run_id, requested_url):
         return None
 
-    def save_raw_job(self, record, ingestion_run_id, search_profile_id):
-        self.saved_records.append(record)
-        return len(self.saved_records)
+    def save_market_evidence(self, **kwargs):
+        self.market_evidence.append(kwargs)
+        return len(self.market_evidence)
 
-    def save_job_observation(self, record, ingestion_run_id, raw_job_id):
-        return None
+    def save_raw_job(self, *args, **kwargs):
+        self.raw_job_calls += 1
+        raise AssertionError("market sensors must not write raw_jobs")
+
+    def save_job_observation(self, *args, **kwargs):
+        self.observation_calls += 1
+        raise AssertionError("market sensors must not write job_observations")
 
     def finish_ingestion_run(
         self,
@@ -110,28 +97,33 @@ class FakeRepository:
         )
 
 
-def test_stepstone_runner_suppresses_known_employer_origin_candidates(capsys) -> None:
+def test_stepstone_sensor_writes_no_product_job_records(capsys) -> None:
     repository = FakeRepository()
     runner = JobIngestionRunner(
         repository=repository,
         connector=FakeStepStoneConnector(),
+        source_role=SourceRole.SENSOR,
     )
 
     runner.run("stepstone_data_engineer_hannover")
 
-    assert [
-        record.raw_data["result_card"]["company_name"]
-        for record in repository.saved_records
-    ] == ["Adesso SE"]
+    assert repository.raw_job_calls == 0
+    assert repository.observation_calls == 0
+    assert len(repository.market_evidence) == 1
+    evidence = repository.market_evidence[0]
+    assert evidence["company_name"] == "HDI AG"
+    assert evidence["title"] == "analytics"
+    assert evidence["evidence_url"] is None
+    assert evidence["raw_job_external_id"] is None
     assert repository.finished_runs == [
         {
             "ingestion_run_id": 100,
             "total_loaded": 1,
-            "inserted_count": 1,
+            "inserted_count": 0,
             "duplicate_count": 0,
         }
     ]
 
     output = capsys.readouterr().out
-    assert "1 StepStone-Ergebnisse wegen bekannter Employer-Origin-Kandidaten unterdrückt" in output
-    assert "Unterdrückt: Data Engineer | HDI AG" in output
+    assert "Company/vocabulary evidence written: 1" in output
+    assert "Product job writes: 0" in output

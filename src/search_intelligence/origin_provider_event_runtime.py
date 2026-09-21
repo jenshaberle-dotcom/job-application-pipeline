@@ -116,6 +116,8 @@ def load_origin_benchmark_projection(
         raise OriginProviderRuntimeError("projection limit must be at least 1")
     if market_evidence_limit < 0:
         raise OriginProviderRuntimeError("market_evidence_limit must not be negative")
+    # Retained as a compatibility argument only. Market evidence URLs are not
+    # part of the Employer-Origin discovery projection.
 
     guest_list = normalize_company_keys(company_keys)
     statuses = list(IN_PROCESS_STATUSES)
@@ -179,36 +181,6 @@ def load_origin_benchmark_projection(
                 reverse=True,
             )[:limit]
 
-        selected_keys = [str(row["company_key"]) for row in candidate_rows]
-        evidence_by_key: dict[str, list[str]] = {key: [] for key in selected_keys}
-        if selected_keys and market_evidence_limit:
-            cur.execute(
-                """
-                WITH ranked AS (
-                    SELECT
-                        normalized_company_key,
-                        evidence_url,
-                        row_number() OVER (
-                            PARTITION BY normalized_company_key
-                            ORDER BY observed_at DESC NULLS LAST, created_at DESC
-                        ) AS evidence_rank
-                    FROM market_evidence
-                    WHERE normalized_company_key = ANY(%s::text[])
-                      AND evidence_url IS NOT NULL
-                )
-                SELECT normalized_company_key, evidence_url
-                FROM ranked
-                WHERE evidence_rank <= %s
-                ORDER BY normalized_company_key, evidence_rank
-                """,
-                (selected_keys, market_evidence_limit),
-            )
-            for row in cur.fetchall():
-                key = str(row["normalized_company_key"])
-                url = str(row.get("evidence_url") or "").strip()
-                if key in evidence_by_key and url:
-                    evidence_by_key[key].append(url)
-
     return [
         {
             "candidate_id": int(row["id"]),
@@ -219,7 +191,6 @@ def load_origin_benchmark_projection(
             "risk_level": str(row.get("risk_level") or ""),
             "candidate_url": str(row.get("candidate_url") or ""),
             "updated_at": _timestamp(row.get("updated_at")),
-            "market_evidence_urls": evidence_by_key.get(str(row["company_key"]), []),
         }
         for row in candidate_rows
     ]

@@ -530,6 +530,10 @@ def load_product_v1_payload(
             LEFT JOIN product_v1_capability_fit_reviews capability_review
               ON capability_review.silver_job_id = readiness.silver_job_id
              AND capability_review.status = 'active'
+            WHERE readiness.source_name NOT IN (
+                'bundesagentur_fuer_arbeit',
+                'stepstone'
+            )
             ORDER BY
                 CASE product_readiness_status
                     WHEN 'rankable' THEN 0

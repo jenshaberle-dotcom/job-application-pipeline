@@ -16,15 +16,13 @@ from src.connectors.bundesagentur import BundesagenturConnector
 BA_SOURCE = "bundesagentur_fuer_arbeit"
 STAGES = (
     "ba_live",
-    "ba_raw",
-    "ba_silver",
-    "ba_gold",
-    "gold_canonical",
+    "sensor_company_evidence",
     "origin_candidate",
     "origin_active",
     "origin_raw",
     "origin_silver",
     "origin_gold",
+    "gold_canonical",
 )
 
 
@@ -124,6 +122,7 @@ def load_database_state(
     ba_profile_name: str,
     ba_external_job_id: str | None = None,
 ) -> tuple[dict[str, Any], SearchProfile]:
+    del ba_external_job_id
     origin_source = f"generic_origin:{company_key}"
     with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
         conn.execute("SET TRANSACTION READ ONLY")
@@ -142,6 +141,23 @@ def load_database_state(
             profile_row = cur.fetchone()
             if profile_row is None:
                 raise RuntimeError("configured BA market-sensor profile is not active")
+
+            sensor_company_evidence: list[dict[str, Any]] = []
+            if _relation_exists(cur, "market_evidence"):
+                cur.execute(
+                    """
+                    SELECT id, source_name, normalized_company_key, company_name,
+                           title, search_term, evidence
+                    FROM market_evidence
+                    WHERE source_name = %s
+                      AND company_name ILIKE %s
+                      AND evidence_kind = 'market_sensor_company_sighting'
+                    ORDER BY observed_at DESC, id DESC
+                    LIMIT 200
+                    """,
+                    (BA_SOURCE, f"%{expected_company}%"),
+                )
+                sensor_company_evidence = [dict(row) for row in cur.fetchall()]
 
             cur.execute(
                 """
@@ -170,25 +186,25 @@ def load_database_state(
                 """
                 SELECT id, source_name, source_url, external_job_id, raw_data
                 FROM raw_jobs
-                WHERE source_name IN (%s, %s)
+                WHERE source_name = %s
                 ORDER BY id DESC
                 LIMIT 2000
                 """,
-                (BA_SOURCE, origin_source),
+                (origin_source,),
             )
-            raw_rows = [dict(row) for row in cur.fetchall()]
+            origin_raw_rows = [dict(row) for row in cur.fetchall()]
 
             cur.execute(
                 """
                 SELECT id, source_name, source_url, external_job_id, title, company_name
                 FROM silver_jobs
-                WHERE source_name IN (%s, %s)
+                WHERE source_name = %s
                 ORDER BY id DESC
                 LIMIT 2000
                 """,
-                (BA_SOURCE, origin_source),
+                (origin_source,),
             )
-            silver_rows = [dict(row) for row in cur.fetchall()]
+            origin_silver_rows = [dict(row) for row in cur.fetchall()]
 
             gold_rows: list[dict[str, Any]] = []
             if _relation_exists(cur, "gold_product_v1_job_readiness"):
@@ -197,73 +213,34 @@ def load_database_state(
                     SELECT silver_job_id, source_name, source_url, title, company_name,
                            product_readiness_status
                     FROM gold_product_v1_job_readiness
-                    WHERE company_name ILIKE %s
+                    WHERE source_name = %s
+                      AND company_name ILIKE %s
                     ORDER BY silver_job_id DESC
                     LIMIT 2000
                     """,
-                    (f"%{expected_company}%",),
+                    (origin_source, f"%{expected_company}%"),
                 )
                 gold_rows = [dict(row) for row in cur.fetchall()]
 
         conn.rollback()
 
-    ba_raw_rows = [row for row in raw_rows if row["source_name"] == BA_SOURCE]
-    if ba_external_job_id:
-        ba_raw_rows = [
-            row
-            for row in ba_raw_rows
-            if str(row.get("external_job_id") or "") == ba_external_job_id
-        ]
-    ba_raw = _raw_matches(
-        ba_raw_rows,
-        expected_company=expected_company,
-        expected_title=expected_title,
-        require_company=True,
-    )
     origin_raw = _raw_matches(
-        [row for row in raw_rows if row["source_name"] == origin_source],
+        origin_raw_rows,
         expected_company=expected_company,
         expected_title=expected_title,
         require_company=False,
-    )
-    ba_silver_rows = [
-        row for row in silver_rows if row["source_name"] == BA_SOURCE
-    ]
-    if ba_external_job_id:
-        ba_silver_rows = [
-            row
-            for row in ba_silver_rows
-            if str(row.get("external_job_id") or "") == ba_external_job_id
-        ]
-    ba_silver = _flat_matches(
-        ba_silver_rows,
-        expected_company=expected_company,
-        expected_title=expected_title,
-        require_company=True,
     )
     origin_silver = _flat_matches(
-        [row for row in silver_rows if row["source_name"] == origin_source],
+        origin_silver_rows,
         expected_company=expected_company,
         expected_title=expected_title,
         require_company=False,
-    )
-    ba_gold = _flat_matches(
-        [row for row in gold_rows if row["source_name"] == BA_SOURCE],
-        expected_company=expected_company,
-        expected_title=expected_title,
-        require_company=True,
     )
     origin_gold = _flat_matches(
-        [row for row in gold_rows if row["source_name"] == origin_source],
-        expected_company=expected_company,
-        expected_title=expected_title,
-        require_company=False,
-    )
-    gold_canonical = _flat_matches(
         gold_rows,
         expected_company=expected_company,
         expected_title=expected_title,
-        require_company=True,
+        require_company=False,
     )
 
     profile = SearchProfile(
@@ -289,16 +266,29 @@ def load_database_state(
     )
 
     return {
+        "sensor_company_evidence": sensor_company_evidence,
         "origin_candidate": candidates,
         "origin_active": active,
-        "ba_raw": ba_raw,
         "origin_raw": origin_raw,
-        "ba_silver": ba_silver,
         "origin_silver": origin_silver,
-        "ba_gold": ba_gold,
-        "gold_canonical": gold_canonical,
         "origin_gold": origin_gold,
+        "gold_canonical": origin_gold,
     }, profile
+
+
+def ba_company_matches(
+    records: list[Any],
+    *,
+    expected_company: str,
+) -> list[Any]:
+    result = []
+    for record in records:
+        job = record.raw_data.get("job")
+        if not isinstance(job, dict):
+            continue
+        if text_matches(expected_company, job.get("arbeitgeber")):
+            result.append(record)
+    return result
 
 
 def ba_matches(
@@ -376,11 +366,9 @@ def main() -> int:
             ba_profile,
             SearchTerm(args.ba_search_term),
         )
-        live_matches = ba_matches(
+        live_matches = ba_company_matches(
             records,
             expected_company=args.expected_company,
-            expected_title=args.expected_title,
-            expected_external_job_id=args.ba_external_job_id,
         )
 
     stages: dict[str, list[Any]] = {

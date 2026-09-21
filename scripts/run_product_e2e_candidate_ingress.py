@@ -79,7 +79,7 @@ def collect_manual_observation_seeds(
                 normalized_company_key AS company_key,
                 company_name,
                 source_name,
-                evidence_url AS seed_url
+                NULL::text AS seed_url
             FROM market_evidence
             WHERE evidence_kind = 'manual_market_observation'
                OR evidence_source = 'manual_market_observation'
