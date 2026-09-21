@@ -62,8 +62,9 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -
     launcher = _text(LAUNCHER)
     runner = _text(WSL_RUNNER)
 
-    assert '--exec wslpath -u $stdoutLog' in launcher
-    assert '--exec wslpath -u $stderrLog' in launcher
+    assert '$stdoutLinux = "$stateRootLinux/runtime.stdout.log"' in launcher
+    assert '$stderrLinux = "$stateRootLinux/runtime.stderr.log"' in launcher
+    assert "wslpath" not in launcher
     assert '"launch"' in launcher
     assert '& $wsl.Source @wslArgumentVector' in launcher
     assert 'launch_mode = "wsl_nohup_setsid"' in launcher
