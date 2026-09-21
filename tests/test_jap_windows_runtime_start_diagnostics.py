@@ -87,4 +87,4 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -
 
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.48"
+    assert _text(VERSION).strip() == "1.0.49"
