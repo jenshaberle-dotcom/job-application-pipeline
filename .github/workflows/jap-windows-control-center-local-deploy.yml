@@ -11,8 +11,6 @@ on:
       - "install-jap-control-center.ps1"
       - "scripts/install_jap_windows_control_center.sh"
       - "scripts/deploy_jap_windows_control_center_local.sh"
-      - "scripts/reap_jap_headless_desktop.ps1"
-      - "scripts/prove_jap_headless_desktop_rejection.ps1"
       - "windows/JAP.ControlCenter.Desktop/**"
       - ".github/workflows/jap-windows-control-center-local-deploy.yml"
   workflow_run:
@@ -161,6 +159,10 @@ jobs:
               }
               $id = $p.Id;
               Stop-Process -Id $id -Force -ErrorAction Stop;
+              try { $p.WaitForExit(5000) } catch { }
+              if (Get-Process -Id $id -ErrorAction SilentlyContinue) {
+                throw "Session-0 JAP desktop PID $id did not exit after bounded reap."
+              }
               Write-Output "JAP_HEADLESS_DESKTOP_REAP=PASS pid=$id path=$actual"
             }
             Write-Output "JAP_HEADLESS_DESKTOP_REAP=COMPLETE"
