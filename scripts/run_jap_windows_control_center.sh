@@ -106,8 +106,6 @@ fi
 [[ "$ACTION" == "start" || "$ACTION" == "prepare" ]] || fail invalid_action
 
 [[ -d "$PROJECT_ROOT/.git" ]] || fail canonical_checkout_missing
-[[ -x "$PROJECT_ROOT/.venv/bin/python" ]] || fail canonical_venv_missing
-[[ -f "$PROJECT_ROOT/.env" ]] || fail canonical_env_missing
 
 origin="$(git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null || true)"
 case "$origin" in
@@ -142,9 +140,7 @@ else
 fi
 
 [[ "$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)" == "$PINNED_SHA" ]] || fail managed_worktree_sha_mismatch
-[[ -f "$MANAGED_WORKTREE/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
-[[ -f "$MANAGED_WORKTREE/scripts/ensure_pinned_local_oss_runtime.sh" ]] || fail local_oss_provisioner_missing
-[[ -f "$MANAGED_WORKTREE/requirements.txt" ]] || fail pinned_requirements_missing
+[[ -f "$FRONTEND_ROOT/package.json" ]] || fail frontend_package_missing
 
 # dist is ignored generated state. It must never survive a source update unless it
 # carries an exact marker proving that the bundle was built from the installed pin.
@@ -170,17 +166,29 @@ if [[ "$ACTION" == "prepare" ]]; then
   printf 'JAP_WINDOWS_APP_PREPARE_NODE=%s\n' "$(command -v node)"
   printf 'JAP_WINDOWS_APP_PREPARE_NODE_VERSION=%s\n' "$(node --version)"
   printf 'JAP_WINDOWS_APP_PREPARE_NPM=%s\n' "$(command -v npm)"
-  export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"
-  cd "$MANAGED_WORKTREE"
-  "$PROJECT_ROOT/.venv/bin/python" -u scripts/run_product_v1_live_demo.py --prepare-frontend-only
-  rm -rf -- "$FRONTEND_NODE_MODULES"
+  cd "$FRONTEND_ROOT"
+  if [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
+    printf 'JAP_WINDOWS_APP_FRONTEND_INSTALL_MODE=LOCKFILE_CI\n'
+    npm ci
+  else
+    printf 'JAP_WINDOWS_APP_FRONTEND_INSTALL_MODE=LOCKFILE_ABSENT_INSTALL\n'
+    npm install --package-lock=false --no-audit --no-fund
+  fi
+  npm run build
   [[ -f "$FRONTEND_DIST/index.html" ]] || fail frontend_prepare_missing_index
-  [[ -f "$FRONTEND_BUILD_SHA_FILE" ]] || fail frontend_prepare_missing_source_marker
+  printf '%s\n' "$PINNED_SHA" > "$FRONTEND_BUILD_SHA_FILE"
+  rm -rf -- "$FRONTEND_NODE_MODULES"
   prepared_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
   [[ "$prepared_sha" == "$PINNED_SHA" ]] || fail frontend_prepare_source_mismatch
   printf 'JAP_WINDOWS_APP_FRONTEND_PREPARED=%s\n' "$PINNED_SHA"
   exit 0
 fi
+
+[[ -x "$PROJECT_ROOT/.venv/bin/python" ]] || fail canonical_venv_missing
+[[ -f "$PROJECT_ROOT/.env" ]] || fail canonical_env_missing
+[[ -f "$MANAGED_WORKTREE/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
+[[ -f "$MANAGED_WORKTREE/scripts/ensure_pinned_local_oss_runtime.sh" ]] || fail local_oss_provisioner_missing
+[[ -f "$MANAGED_WORKTREE/requirements.txt" ]] || fail pinned_requirements_missing
 
 [[ -f "$FRONTEND_DIST/index.html" ]] || fail frontend_not_prepared_for_pin
 [[ -f "$FRONTEND_BUILD_SHA_FILE" ]] || fail frontend_source_marker_missing

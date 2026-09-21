@@ -61,8 +61,35 @@ the installed SHA and otherwise fails closed.
 This is a startup/update-path hardening only. It does not reopen Hornet,
 MARKET-PARITY-001 or the F5 product semantics.
 
+### v1.0.46 prewarm regression / v1.0.47 direct frontend preparation
+
+The first real v1.0.46 rollout proved the process-detection correction and reached
+the intended closed-app auto-apply path, but its new frontend prewarm still called
+the full Python Product launcher. That launcher imports runtime modules before
+argument dispatch, so the frontend-only preparation failed with
+`ModuleNotFoundError: extruct` before the installer cutover. The installed
+product therefore correctly remained on v1.0.45.
+
+v1.0.47 removes that failed Python prewarm surface instead of compensating for it.
+The exact target WSL runner now prepares the frontend directly:
+
+- select already-installed native Linux Node 22/npm;
+- run the normal lockfile-aware npm dependency install;
+- build the React Control Center;
+- write the exact target SHA to `dist/.jap-source-sha`;
+- remove generated `node_modules`;
+- exit before Python venv, `.env`, DB, provider or Product runtime setup.
+
+Interactive startup remains the inverse: it never runs npm/build work and accepts
+only an exact source-bound prepared bundle. The deleted
+`--prepare-frontend-only` Python path is regression-tested as absent.
+
+The local deploy control plane also no longer encodes Windows process state as a
+special PowerShell exit code. It reads a neutral process count, reserving non-zero
+exit status for actual probe failure.
+
 F5 itself is **not yet operator complete**. The active final correction slice is
-`agent/f5-final-linkage-operator-correction`, target desktop `v1.0.46`. It
+`agent/f5-final-linkage-operator-correction`, target desktop `v1.0.47`. It
 closes the remaining operator feedback without reopening mailbox authority:
 
 1. a mistaken local operator submission can be explicitly undone;
@@ -75,7 +102,7 @@ closes the remaining operator feedback without reopening mailbox authority:
    of the ordinary blue selection treatment, while closed applications remain
    visually distinct.
 
-The final F5 operator gate is therefore the installed v1.0.46 check:
+The final F5 operator gate is therefore the installed v1.0.47 check:
 
 `manual application -> All jobs green linked Beworben state -> Applications drilldown -> safe mistaken-entry removal -> All jobs link/count removed after shared Product-truth refresh`
 

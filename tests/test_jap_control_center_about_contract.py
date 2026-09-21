@@ -91,19 +91,12 @@ def test_operator_surface_drops_preview_button_but_keeps_internal_preview_runtim
 
 
 def test_bugfix_round_bumps_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.46"
+    assert _text(VERSION).strip() == "1.0.47"
 
 
-def test_frontend_prepare_only_mode_builds_without_entering_runtime_or_db_path() -> None:
+def test_failed_python_frontend_prewarm_surface_is_removed() -> None:
     launcher = _text(LIVE_LAUNCHER)
 
-    assert '"--prepare-frontend-only"' in launcher
-    prepare = launcher.split("if args.prepare_frontend_only:", 1)[1].split(
-        "try:\n        private_document_root", 1
-    )[0]
-    assert "prepare_frontend(reuse_frontend=False)" in prepare
-    assert "_publish_app_info(frontend_dist)" in prepare
-    assert 'print("JAP_FRONTEND_PREPARE=PASS")' in prepare
-    assert "_configure_launcher_private_document_root()" not in prepare
-    assert "run_server(" not in prepare
-    assert "run_preflight(" not in prepare
+    assert '"--prepare-frontend-only"' not in launcher
+    assert "args.prepare_frontend_only" not in launcher
+    assert "JAP_FRONTEND_PREPARE=PASS" not in launcher
