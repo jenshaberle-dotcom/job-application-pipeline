@@ -4,7 +4,46 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.
 
-## Live repository checkpoint — 2026-09-18
+## Live repository checkpoint — 2026-09-21
+
+Canonical public repository state after the bounded MARKET-PARITY-001 excursion:
+
+`main@523a04ce5dac19229235a1d564f25f37278f943b`
+
+Current private runtime main:
+
+`jenshaberle-dotcom/job-pipeline-runtime@4506f82bb1708b61c827ca39b3ecea0b048b8892`
+
+The F5 mailbox-semantics continuous guard remains established by runtime
+`3b443fb6ed5c5562393024eabd7ba10899cac52f`; the later runtime head adds portable
+Origin work-item execution and does not reopen F5 mailbox semantics.
+
+MARKET-PARITY-001 is terminally complete. Productive main run `35578519791`
+proved the corrected authority chain from BA company-only sensor evidence through
+independent Hornetsecurity Employer-Origin Raw/Silver/Gold to the exact Control
+Center vacancy and emitted
+`HORNET_TARGET_CONTROL_CENTER_PROJECTION=PASS`.
+
+The bounded excursion therefore has no remaining sequencing authority. JAP is
+back on the frozen Product path `F5 -> F6`.
+
+Installed operator evidence is from desktop v1.0.42. The v1.0.42 shared Product
+truth/linkage architecture is qualified; F5 remained open only because mailbox
+recall/identity acceptance exposed the enercity, ROSSMANN and
+Initiativbewerbung cases. Public PRs #942/#943 plus runtime #383-#386 hardened
+those semantics, and the accepted private v5 audit now finds all three anchors.
+
+The **sole current F5 gate** is read-only reconciliation of the already-generated
+private `f5-gmail-preview-v5.jsonl` against current public classification and
+current live DB state:
+
+`v5 JSONL -> public batch preflight -> read-only live DB persistence plan`
+
+No DB apply is authorized by this checkpoint. Any predicted inserts,
+supersessions or other persistence effects require a separate explicit operator
+decision after the read-only report is known.
+
+## Retained repository checkpoint — 2026-09-18
 
 Canonical public repository state before this re-entry refresh:
 
@@ -22,7 +61,7 @@ The current operator-visible Product is `jap-winapp-desktop-v1.0.40` from exact 
 
 `F5 -> F6`
 
-Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 schema, mailbox-first correction, real Gmail re-preview, source-message supersession, first bounded persistence write and independent post-write proof are complete. F5 is now at the **compact portfolio + All-jobs application linkage delivery gate**. The underlying Gmail persistence and lifecycle truth are already terminally proven.
+Completed current-campaign packages are F0, F1 capability delivery, F2, F3, F4A, F4B and F4C. F5 schema, mailbox-first correction, first bounded persistence write, shared Product-truth/linkage architecture and the v1.0.42 operator surface are complete. The later mailbox recall findings reopened only the **evidence cohort**, not the F5 authority model. After cross-layer semantics hardening and accepted v5 anchor audit, F5 is now at the **read-only v5 batch + live-DB persistence-plan gate**. No persistence apply is authorized until that plan is inspected.
 
 ## Product authority that remains invariant
 
@@ -256,7 +295,21 @@ No DB link persistence, Gmail action, automatic submission, authoritative lifecy
 
 ## Sole next action
 
-Exact-head qualify PR #941, merge, release and install v1.0.42, then perform one interactive operator acceptance of the shared-snapshot behavior, warning density, Applications portfolio, and bidirectional Jobs <-> Applications navigation. No application/lifecycle mutation is part of this gate.
+Run the canonical F5 lifecycle workflow in `v5_resume_preflight` mode on exact
+current `main`. It must consume the already-generated private v5 JSONL only on
+the verified runtime host, run the public batch preflight with findings suppressed
+from logs/artifacts, derive the current live persistence plan under a read-only
+PostgreSQL transaction, and independently re-run the existing hash-bound live
+preflight.
+
+Only safe aggregate/hash reports may be uploaded. The private JSONL must not be
+uploaded or committed. Expected side effects remain exactly zero: Gmail writes,
+DB writes, email actions, application submissions and authoritative lifecycle
+mutations.
+
+If that read-only gate passes, inspect its exact predicted delta. Any subsequent
+persistence apply is a separate operator gate; F6 remains queued until F5 data
+truth is accepted.
 
 ## F6 — queued
 
