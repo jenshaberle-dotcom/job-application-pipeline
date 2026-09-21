@@ -355,7 +355,10 @@ jobs:
                           company_name,
                           source_name,
                           lifecycle_status,
-                          source_url
+                          source_url,
+                          publication_date,
+                          created_at,
+                          updated_at
                       FROM gold_product_v1_job_readiness
                       WHERE lower(coalesce(company_name, '')) LIKE '%valuny%'
                       ORDER BY silver_job_id
@@ -364,7 +367,26 @@ jobs:
 
           print("VALUNY_APPLICATIONS=" + json.dumps(applications, default=str, sort_keys=True))
           print("VALUNY_CANDIDATES=" + json.dumps(candidates, default=str, sort_keys=True))
+          with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+              with conn.transaction():
+                  conn.execute("SET TRANSACTION READ ONLY")
+                  drafts = conn.execute(
+                      """
+                      SELECT
+                          draft.id,
+                          draft.silver_job_id,
+                          draft.status,
+                          draft.created_at,
+                          silver.title,
+                          silver.company_name
+                      FROM application_draft_requests draft
+                      JOIN silver_jobs silver ON silver.id = draft.silver_job_id
+                      WHERE lower(coalesce(silver.company_name, '')) LIKE '%valuny%'
+                      ORDER BY draft.created_at, draft.id
+                      """
+                  ).fetchall()
           print("VALUNY_SILVER=" + json.dumps(silver, default=str, sort_keys=True))
+          print("VALUNY_DRAFTS=" + json.dumps(drafts, default=str, sort_keys=True))
           print("VALUNY_DIAGNOSTIC=PASS")
           PY
 
