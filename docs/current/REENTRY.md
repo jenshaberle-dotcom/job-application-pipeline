@@ -88,8 +88,34 @@ The local deploy control plane also no longer encodes Windows process state as a
 special PowerShell exit code. It reads a neutral process count, reserving non-zero
 exit status for actual probe failure.
 
+### v1.0.47 runtime-handoff regression / v1.0.48 WSL-native detach
+
+The real v1.0.47 rollout then proved the direct frontend prewarm itself:
+`JAP_WINDOWS_APP_FRONTEND_PREPARED=9d5ba134...`,
+`AUTO_APPLY_PASS`, installed release `1.0.47`, and exact
+`current.json@9d5ba134...`. However, the subsequent interactive operator start
+still failed before any fresh runtime stdout/stderr was created. The popup came
+from `JAP-Control-Center.ps1` at the custom Windows
+`cmd.exe -> start /b -> wsl.exe` handoff with helper exit code 1.
+
+That evidence separates update/install from runtime launch:
+
+- v1.0.47 installation and source pin are correct;
+- the exact frontend bundle is already prepared;
+- no managed Product runtime process reaches its own logging on the failed click;
+- the remaining defect is the Windows detached-launch helper, not npm, DB, Gmail,
+  Product truth or the updater payload.
+
+v1.0.48 removes the custom generated `.cmd`/quoting layer completely. Windows now
+performs only one short, tokenized WSL call. The WSL runner's bounded `launch`
+action uses Linux `nohup + setsid` with explicit stdout/stderr files to detach the
+long-lived Product runtime, verifies the detached helper remains alive, and exits.
+The normal WSL `start` path then owns all existing source, frontend, Python,
+environment, local-OSS and DB readiness checks. PowerShell retains the same
+75-second exact-source endpoint readiness proof.
+
 F5 itself is **not yet operator complete**. The active final correction slice is
-`agent/f5-final-linkage-operator-correction`, target desktop `v1.0.47`. It
+`agent/f5-final-linkage-operator-correction`, target desktop `v1.0.48`. It
 closes the remaining operator feedback without reopening mailbox authority:
 
 1. a mistaken local operator submission can be explicitly undone;
@@ -102,7 +128,7 @@ closes the remaining operator feedback without reopening mailbox authority:
    of the ordinary blue selection treatment, while closed applications remain
    visually distinct.
 
-The final F5 operator gate is therefore the installed v1.0.47 check:
+The final F5 operator gate is therefore the installed v1.0.48 check:
 
 `manual application -> All jobs green linked Beworben state -> Applications drilldown -> safe mistaken-entry removal -> All jobs link/count removed after shared Product-truth refresh`
 
