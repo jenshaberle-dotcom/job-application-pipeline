@@ -92,6 +92,9 @@ def test_update_applier_restarts_only_an_interactive_host_initiated_update() -> 
     assert "Start-Process -FilePath $DesktopHostExe" in applier
     assert "target_main_sha" in applier
     assert "target_desktop_version" in applier
+    assert "Move-DirectoryWithRetry" in applier
+    assert "$attempt -le 40" in applier
+    assert "Start-Sleep -Milliseconds 250" in applier
 
 
 def test_update_applier_uses_only_installed_control_plane_and_payload_files() -> None:
@@ -122,6 +125,10 @@ def test_update_prewarms_exact_frontend_before_direct_desktop_cutover() -> None:
     assert applier.index('Write-UpdateLog "frontend_prepare_start"') < applier.index(
         'Write-UpdateLog "desktop_cutover_start"'
     )
+    assert "$frontendPreparedTarget = $true" in applier
+    assert 'Write-UpdateLog "frontend_rollback_prepare_start"' in applier
+    assert 'Invoke-InstalledRunner $previousCurrent $previousSha "prepare"' in applier
+    assert 'Write-UpdateLog "frontend_rollback_prepare_pass"' in applier
 
 
 def test_installer_supports_exact_staged_payload_without_losing_main_ancestry_proof() -> None:
