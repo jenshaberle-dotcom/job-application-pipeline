@@ -46,4 +46,22 @@ jobs:
                       if isinstance(j,dict):
                           print("JOB|surface={}|{}".format(key,json.dumps({k:j.get(k) for k in ["silver_job_id","job_id","id","title","job_title","company_name","employer_name","application_stage","application_id","application_key","review_scope"]},ensure_ascii=False,sort_keys=True)))
           PY
+          python3 - "$tmp" <<'PY'
+          import json, sys
+          d=json.load(open(sys.argv[1]))
+          at=d.get("application_tracking") or {}
+          print("JOB_LINKAGE="+json.dumps(at.get("job_linkage"),ensure_ascii=False,sort_keys=True))
+          for a in at.get("applications") or []:
+              if isinstance(a,dict):
+                  print("APP_FULL|"+json.dumps(a,ensure_ascii=False,sort_keys=True))
+          for j in d.get("job_readiness") or []:
+              if isinstance(j,dict) and (
+                  "finanz" in str(j).lower()
+                  or "hornet" in str(j).lower()
+                  or j.get("application_stage")
+                  or j.get("application_id")
+                  or j.get("application_key")
+              ):
+                  print("CURRENT_JOB_FULL|"+json.dumps(j,ensure_ascii=False,sort_keys=True))
+          PY
           rm -f "$tmp"
