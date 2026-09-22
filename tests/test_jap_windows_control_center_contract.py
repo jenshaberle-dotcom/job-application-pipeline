@@ -14,6 +14,7 @@ ICON_GENERATOR = ROOT / "scripts" / "generate_jap_control_center_icon.py"
 DESKTOP_ROOT = ROOT / "windows" / "JAP.ControlCenter.Desktop"
 DESKTOP_PROJECT = DESKTOP_ROOT / "JAP.ControlCenter.Desktop.csproj"
 DESKTOP_PROGRAM = DESKTOP_ROOT / "Program.cs"
+DESKTOP_RUNTIME = DESKTOP_ROOT / "ManagedRuntimeController.cs"
 DESKTOP_VERSION = DESKTOP_ROOT / "VERSION"
 DESKTOP_COMPATIBILITY = DESKTOP_ROOT / "UPDATE_COMPATIBILITY.json"
 DESKTOP_RELEASE_WORKFLOW = (
@@ -37,6 +38,7 @@ def test_windows_app_entrypoints_are_present() -> None:
         ICON_GENERATOR,
         DESKTOP_PROJECT,
         DESKTOP_PROGRAM,
+        DESKTOP_RUNTIME,
         DESKTOP_VERSION,
         DESKTOP_COMPATIBILITY,
         DESKTOP_RELEASE_WORKFLOW,
@@ -241,6 +243,7 @@ def test_generated_frontend_state_is_prewarmed_directly_and_source_bound_before_
 def test_desktop_host_is_self_contained_webview2_window() -> None:
     project = _text(DESKTOP_PROJECT)
     program = _text(DESKTOP_PROGRAM)
+    runtime = _text(DESKTOP_RUNTIME)
     assert "<OutputType>WinExe</OutputType>" in project
     assert "<UseWindowsForms>true</UseWindowsForms>" in project
     assert "<SelfContained>true</SelfContained>" in project
@@ -250,9 +253,14 @@ def test_desktop_host_is_self_contained_webview2_window() -> None:
     assert "MutexName" in program
     assert "Width = 1440" in program
     assert "MinimumSize = new Size(1180, 720)" in program
-    assert '"-NoBrowser"' in program
     assert "RuntimeStartTimeout" in program
-    assert 'Path.Combine(_installRoot, "Stop-JAP-Control-Center.ps1")' in program
+    assert "_runtime.EnsureStartedAsync(RuntimeStartTimeout)" in program
+    assert '"--exec"' in runtime
+    assert '"bash"' in runtime
+    assert '"launch"' in runtime
+    assert "JAP-Control-Center.ps1" not in program
+    assert "Stop-JAP-Control-Center.ps1" not in program
+    assert "powershell.exe" not in program.lower()
 
 
 def test_desktop_host_keeps_product_navigation_local_and_externalizes_links() -> None:

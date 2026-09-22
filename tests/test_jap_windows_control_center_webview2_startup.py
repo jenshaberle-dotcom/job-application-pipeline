@@ -3,6 +3,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PROGRAM = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "Program.cs"
+RUNTIME_CONTROLLER = (
+    ROOT / "windows" / "JAP.ControlCenter.Desktop" / "ManagedRuntimeController.cs"
+)
 VERSION = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "VERSION"
 
 
@@ -12,15 +15,16 @@ def _program() -> str:
 
 def test_webview2_startup_is_bounded_and_phase_visible() -> None:
     program = _program()
+    controller = RUNTIME_CONTROLLER.read_text(encoding="utf-8")
     assert "RuntimeStartTimeout = TimeSpan.FromSeconds(90)" in program
     assert "WebViewEnvironmentTimeout = TimeSpan.FromSeconds(20)" in program
     assert "WebViewControlTimeout = TimeSpan.FromSeconds(20)" in program
     assert "WebViewNavigationTimeout = TimeSpan.FromSeconds(15)" in program
-    assert "RuntimeStartTimeout," in program
+    assert "_runtime.EnsureStartedAsync(RuntimeStartTimeout)" in program
     assert ".WaitAsync(WebViewEnvironmentTimeout)" in program
     assert ".WaitAsync(WebViewControlTimeout)" in program
     assert "navigation.Task.WaitAsync(WebViewNavigationTimeout)" in program
-    assert "process.Kill(entireProcessTree: true)" in program
+    assert "process.Kill(entireProcessTree: true)" in controller
     for phase in (
         "runtime_start",
         "runtime_ready",
@@ -51,17 +55,21 @@ def test_startup_screen_shows_phase_progress_and_elapsed_time() -> None:
     assert "UpdateElapsedLabel()" in program
 
 
-def test_redirected_powershell_io_cannot_outlive_parent_unbounded() -> None:
+def test_redirected_native_wsl_io_cannot_outlive_parent_unbounded() -> None:
+    controller = RUNTIME_CONTROLLER.read_text(encoding="utf-8")
     program = _program()
-    assert "ConcurrentQueue<string>" in program
-    assert "process.BeginOutputReadLine()" in program
-    assert "process.BeginErrorReadLine()" in program
-    assert "TryCancelRedirectedRead(process)" in program
-    assert "process.CancelOutputRead()" in program
-    assert "process.CancelErrorRead()" in program
-    assert "ReadToEndAsync" not in program
-    assert ".WaitAsync(timeoutValue)" in program
-    assert ".WaitAsync(TimeSpan.FromSeconds(5))" in program
+    assert "ConcurrentQueue<string>" in controller
+    assert "process.BeginOutputReadLine()" in controller
+    assert "process.BeginErrorReadLine()" in controller
+    assert "TryCancelRedirectedRead(process)" in controller
+    assert "process.CancelOutputRead()" in controller
+    assert "process.CancelErrorRead()" in controller
+    assert "ReadToEndAsync" not in controller
+    assert "WaitForExitAsync().WaitAsync(timeout)" in controller
+    assert "WaitAsync(TimeSpan.FromSeconds(5))" in controller
+    assert "process.Kill(entireProcessTree: true)" in controller
+    assert "powershell.exe" not in program.lower()
+    assert "-ExecutionPolicy" not in program
 
 
 def test_webview2_profile_is_isolated_by_desktop_host_version() -> None:
@@ -87,4 +95,4 @@ def test_webview2_navigation_is_proven_before_splash_is_hidden() -> None:
 
 
 def test_webview2_hardening_bumps_immutable_host_version() -> None:
-    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.52"
+    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.53"

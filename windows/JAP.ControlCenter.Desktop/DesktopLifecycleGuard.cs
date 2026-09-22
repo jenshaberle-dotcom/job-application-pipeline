@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace JAP.ControlCenter.Desktop;
@@ -50,47 +49,9 @@ internal static class DesktopLifecycleGuard
                 return;
             }
 
-            var stopper = Path.Combine(installRoot, "Stop-JAP-Control-Center.ps1");
-            if (!File.Exists(stopper))
-            {
-                return;
-            }
-
-            var powershell = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                "System32",
-                "WindowsPowerShell",
-                "v1.0",
-                "powershell.exe");
-            if (!File.Exists(powershell))
-            {
-                return;
-            }
-
-            using var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = powershell,
-                WorkingDirectory = installRoot,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{stopper}\""
-            });
-            if (process is null)
-            {
-                return;
-            }
-
-            if (!process.WaitForExit(20_000))
-            {
-                try
-                {
-                    process.Kill(entireProcessTree: true);
-                }
-                catch
-                {
-                    // Fail-closed termination remains the authority.
-                }
-            }
+            ManagedRuntimeController.StopBestEffortSynchronously(
+                installRoot,
+                TimeSpan.FromSeconds(20));
         }
         catch (Exception cleanupException)
         {

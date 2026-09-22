@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
@@ -47,6 +46,7 @@ internal sealed class MainWindow : Form
 
     private readonly string _installRoot;
     private readonly string _startupLog;
+    private readonly ManagedRuntimeController _runtime;
     private readonly WebView2 _webView;
     private readonly Panel _startupPanel;
     private readonly Label _phaseLabel;
@@ -70,6 +70,7 @@ internal sealed class MainWindow : Form
             _installRoot,
             "logs",
             "desktop-host-startup.log");
+        _runtime = new ManagedRuntimeController(_installRoot);
 
         Text = "JAP Control Center";
         StartPosition = FormStartPosition.CenterScreen;
@@ -223,32 +224,14 @@ internal sealed class MainWindow : Form
 
     private async Task StartManagedRuntimeAsync()
     {
-        var launcher = Path.Combine(_installRoot, "JAP-Control-Center.ps1");
-        if (!File.Exists(launcher))
-        {
-            throw new FileNotFoundException(
-                "Der installierte JAP Runtime-Launcher fehlt.",
-                launcher);
-        }
-
-        ProcessResult result;
         try
         {
-            result = await RunPowerShellAsync(
-                launcher,
-                RuntimeStartTimeout,
-                "-NoBrowser");
+            await _runtime.EnsureStartedAsync(RuntimeStartTimeout);
         }
         catch (TimeoutException)
         {
             throw new TimeoutException(
                 $"JAP Runtime-Start wurde innerhalb von {RuntimeStartTimeout.TotalSeconds:0} Sekunden nicht abgeschlossen.");
-        }
-
-        if (result.ExitCode != 0)
-        {
-            throw new InvalidOperationException(
-                "Managed Runtime-Start fehlgeschlagen. " + CompactDiagnostics(result));
         }
     }
 
@@ -536,19 +519,15 @@ internal sealed class MainWindow : Form
         Hide();
         try
         {
-            var stopper = Path.Combine(_installRoot, "Stop-JAP-Control-Center.ps1");
-            if (File.Exists(stopper))
+            var result = await _runtime.StopAsync(StopTimeout);
+            if (result.ExitCode != 0)
             {
-                var result = await RunPowerShellAsync(stopper, StopTimeout);
-                if (result.ExitCode != 0)
-                {
-                    MessageBox.Show(
-                        "Das Fenster wird geschlossen, aber die verwaltete JAP Runtime konnte nicht sauber gestoppt werden.\n\n"
-                        + CompactDiagnostics(result),
-                        "JAP Control Center",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                }
+                MessageBox.Show(
+                    "Das Fenster wird geschlossen, aber die verwaltete JAP Runtime konnte nicht sauber gestoppt werden.\n\n"
+                    + ManagedRuntimeController.CompactDiagnostics(result),
+                    "JAP Control Center",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
             }
         }
         catch (Exception exc)
@@ -566,161 +545,14 @@ internal sealed class MainWindow : Form
         }
     }
 
-    private async Task<ProcessResult> RunPowerShellAsync(
-        string script,
-        TimeSpan? timeout = null,
-        params string[] arguments)
+    protected override void Dispose(bool disposing)
     {
-        var powershell = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-            "System32",
-            "WindowsPowerShell",
-            "v1.0",
-            "powershell.exe");
-        if (!File.Exists(powershell))
+        if (disposing)
         {
-            throw new FileNotFoundException(
-                "Windows PowerShell wurde nicht gefunden.",
-                powershell);
+            _runtime.Dispose();
         }
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = powershell,
-            WorkingDirectory = _installRoot,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        startInfo.ArgumentList.Add("-NoProfile");
-        startInfo.ArgumentList.Add("-ExecutionPolicy");
-        startInfo.ArgumentList.Add("Bypass");
-        startInfo.ArgumentList.Add("-WindowStyle");
-        startInfo.ArgumentList.Add("Hidden");
-        startInfo.ArgumentList.Add("-File");
-        startInfo.ArgumentList.Add(script);
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        var stdout = new ConcurrentQueue<string>();
-        var stderr = new ConcurrentQueue<string>();
-        using var process = new Process
-        {
-            StartInfo = startInfo
-        };
-        process.OutputDataReceived += (_, eventArgs) =>
-        {
-            if (eventArgs.Data is { } line)
-            {
-                stdout.Enqueue(line);
-            }
-        };
-        process.ErrorDataReceived += (_, eventArgs) =>
-        {
-            if (eventArgs.Data is { } line)
-            {
-                stderr.Enqueue(line);
-            }
-        };
-
-        if (!process.Start())
-        {
-            throw new InvalidOperationException(
-                "Windows PowerShell process could not be created.");
-        }
-
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-        try
-        {
-            var exitTask = process.WaitForExitAsync();
-            if (timeout is { } timeoutValue)
-            {
-                await exitTask.WaitAsync(timeoutValue);
-            }
-            else
-            {
-                await exitTask;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(100));
-        }
-        catch (TimeoutException)
-        {
-            try
-            {
-                process.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                // Best-effort cleanup only; the caller receives the timeout truth.
-            }
-
-            try
-            {
-                await process.WaitForExitAsync()
-                    .WaitAsync(TimeSpan.FromSeconds(5));
-            }
-            catch
-            {
-                // Do not turn cleanup into another unbounded wait.
-            }
-
-            throw;
-        }
-        finally
-        {
-            TryCancelRedirectedRead(process);
-        }
-
-        return new ProcessResult(
-            process.ExitCode,
-            string.Join(Environment.NewLine, stdout),
-            string.Join(Environment.NewLine, stderr));
+        base.Dispose(disposing);
     }
 
-    private static void TryCancelRedirectedRead(Process process)
-    {
-        try
-        {
-            process.CancelOutputRead();
-        }
-        catch
-        {
-            // The process may have closed the stream itself.
-        }
-
-        try
-        {
-            process.CancelErrorRead();
-        }
-        catch
-        {
-            // The process may have closed the stream itself.
-        }
-    }
-
-    private static string CompactDiagnostics(ProcessResult result)
-    {
-        var raw = string.Join(
-            " | ",
-            new[] { result.StandardError, result.StandardOutput }
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value.Trim().Replace("\r", " ").Replace("\n", " | ")));
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return $"ExitCode={result.ExitCode}";
-        }
-
-        const int limit = 1600;
-        return raw.Length <= limit ? raw : raw[^limit..];
-    }
-
-    private sealed record ProcessResult(
-        int ExitCode,
-        string StandardOutput,
-        string StandardError);
 }
