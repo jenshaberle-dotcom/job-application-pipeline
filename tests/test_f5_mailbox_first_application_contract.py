@@ -177,3 +177,44 @@ def test_explicit_application_acknowledgement_remains_mailbox_first_discovery_au
         matched_terms=("application received",),
     )
     assert should_create_application(classification) is True
+
+
+def test_product_projection_hides_mailbox_identity_without_employer_or_job() -> None:
+    from scripts.product_v1_f5_application_tracking_runtime import build_application_tracking_payload
+
+    unsafe = {
+        "application_id": 9001,
+        "application_key": "mailbox-application:unsafe",
+        "discovery_kind": "mailbox_observed",
+        "job_identity_snapshot": {"sender_domain": "calendar.example"},
+        "silver_job_id": None,
+        "submission_id": None,
+        "authoritative_stage": "prepared",
+        "observed_stage": "interview",
+        "effective_stage": "interview",
+    }
+    payload = build_application_tracking_payload(applications=[unsafe], candidates=[])
+    assert payload["summary"]["application_count"] == 0
+    assert payload["applications"] == []
+
+
+def test_product_projection_keeps_mailbox_identity_with_bounded_employer_and_job() -> None:
+    from scripts.product_v1_f5_application_tracking_runtime import build_application_tracking_payload
+
+    safe = {
+        "application_id": 18,
+        "application_key": "mailbox-application:fi",
+        "discovery_kind": "mailbox_observed",
+        "job_identity_snapshot": {
+            "job_title": "E362/B - AI Engineer / KI-Entwickler (m/w/d)",
+            "employer_name": "f-i.de",
+        },
+        "silver_job_id": None,
+        "submission_id": None,
+        "authoritative_stage": "prepared",
+        "observed_stage": "interview",
+        "effective_stage": "interview",
+    }
+    payload = build_application_tracking_payload(applications=[safe], candidates=[])
+    assert payload["summary"]["application_count"] == 1
+    assert payload["applications"][0]["application_id"] == 18
