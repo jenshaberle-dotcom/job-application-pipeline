@@ -1,0 +1,50 @@
+name: JAP startup handoff diagnostic
+
+on:
+  push:
+    branches: [diag/986-startup-handoff]
+    paths:
+      - ".github/workflows/jap-startup-handoff-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 5
+    steps:
+      - name: Read bounded installed startup state
+        shell: bash
+        run: |
+          set -uo pipefail
+          win_localappdata="$(timeout 10s cmd.exe /d /c 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
+          if [[ -z "$win_localappdata" ]]; then
+            echo "JAP_DIAG=UNAVAILABLE localappdata"
+            exit 1
+          fi
+          install_root="$(wslpath -u "$win_localappdata")/JAP-Control-Center"
+          current="$install_root/current.json"
+          echo "=== current identity ==="
+          python3 - "$current" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          d=json.loads(p.read_text(encoding="utf-8-sig"))
+          for k in ("repository_id","repository","pinned_sha","desktop_host_version","wsl_distro","wsl_project_root","managed_worktree","wsl_state_root","wsl_installed_runner_path"):
+              print(f"{k}={d.get(k,'')}")
+          PY
+          state_root="$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")).get("wsl_state_root",""))' "$current")"
+          runner="$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")).get("wsl_installed_runner_path",""))' "$current")"
+          echo "=== runtime stderr ==="
+          tail -n 80 "$state_root/runtime.stderr.log" 2>/dev/null || echo MISSING
+          echo "=== runtime stdout ==="
+          tail -n 80 "$state_root/runtime.stdout.log" 2>/dev/null || echo MISSING
+          echo "=== update apply ==="
+          tail -n 80 "$install_root/logs/update-apply.log" 2>/dev/null || echo MISSING
+          echo "=== installed runner identity ==="
+          sha256sum "$runner" 2>/dev/null || true
+          grep -nE 'ACTION.*launch|nohup setsid|detached_runtime_handoff|LOCAL_OSS_SITE|frontend_not_prepared' "$runner" 2>/dev/null || true
+          echo "=== runtime process / port ==="
+          ps -ef | grep -E 'run_product_v1_live_demo|run_jap_windows_control_center|python.*8780' | grep -v grep || true
+          ss -ltnp 2>/dev/null | grep ':8780' || echo NO_LISTENER
