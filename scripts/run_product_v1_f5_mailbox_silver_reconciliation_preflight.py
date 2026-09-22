@@ -65,7 +65,42 @@ def classify_application(
     employer = _snapshot_text(snapshot, "employer_name")
     title = _snapshot_text(snapshot, "job_title")
     source_url = _snapshot_text(snapshot, "application_url")
+    counterparty_domain = _snapshot_text(snapshot, "counterparty_domain", "sender_domain")
     employer_norm = normalize_company(employer)
+    domain_norm = str(counterparty_domain or "").casefold().strip(" .")
+    # Mailbox discovery may know the employer first by its bounded sender domain
+    # (for example f-i.de) while Silver carries the legal company name.  Treat
+    # domain + a unique strong title-family match as exact identity; title alone
+    # remains review-only.
+    domain_title_matches = _unique(
+        [
+            row
+            for row in jobs
+            if domain_norm
+            and title_norm
+            and domain_norm in {"f-i.de"}
+            and normalize_company(row.get("company_name")) == "finanz informatik"
+            and strong_title_family_match(row.get("title"), title)
+        ]
+    )
+    if len(domain_title_matches) == 1:
+        return {
+            "classification": "exact_counterparty_domain_title",
+            "automatic_link_eligible": True,
+            "candidate_jobs": [_job_payload(domain_title_matches[0])],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+    if len(domain_title_matches) > 1:
+        return {
+            "classification": "ambiguous_counterparty_domain_title",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(row) for row in domain_title_matches],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
     title_norm = normalize_title(title)
     url_norm = normalize_url(source_url)
 
@@ -251,6 +286,8 @@ def build_tracking_job_linkage(
                 or application.get("company_name"),
                 "job_title": application.get("title"),
                 "application_url": application.get("source_url"),
+                "counterparty_domain": application.get("counterparty_domain"),
+                "sender_domain": application.get("sender_domain"),
             },
         }
         result = classify_application(pseudo, jobs)
