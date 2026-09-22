@@ -48,7 +48,7 @@ jobs:
           fi
           git -C "$repo" fetch origin main
           target="$(git -C "$repo" rev-parse FETCH_HEAD)"
-          test "$target" = "25e4ffc32b83c038fa10a7b1a907acc4613b97ad"
+          test "$target" = "f1f2216c73d1ccbc96c8684d3b1db6997bfc9179"
           git -C "$repo" checkout main
           git -C "$repo" merge --ff-only "$target"
           cd "$repo"
