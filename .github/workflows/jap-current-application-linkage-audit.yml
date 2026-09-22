@@ -35,6 +35,13 @@ jobs:
           git -C "$repo" merge --ff-only "$target"
           echo "PRIVATE_RUNTIME_UPDATE=PASS before=$before after=$(git -C "$repo" rev-parse HEAD)"
 
+      - name: Read application DB truth directly
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "select ''APPLICATION_COUNT='' || count(*) from gold_product_v1_application_tracking;"'
+          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select ''FI_ROW'', application_id, coalesce(authoritative_stage::text,''''), coalesce(observed_stage::text,''''), coalesce(effective_stage::text,''''), left(job_identity_snapshot::text,500) from gold_product_v1_application_tracking where lower(job_identity_snapshot::text) like ''%finanz informatik%'' or lower(job_identity_snapshot::text) like ''%f-i.de%'' or lower(job_identity_snapshot::text) like ''%e362%'' or lower(job_identity_snapshot::text) like ''%ki-entwickler%'';"'
+
       - name: Read mailbox sync runtime status
         shell: bash
         run: |
