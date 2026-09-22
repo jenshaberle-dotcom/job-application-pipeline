@@ -35,6 +35,27 @@ jobs:
           git -C "$repo" merge --ff-only "$target"
           echo "PRIVATE_RUNTIME_UPDATE=PASS before=$before after=$(git -C "$repo" rev-parse HEAD)"
 
+      - name: Apply qualified mailbox identity reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$HOME/projects/job-application-pipeline"
+          test -d "$repo/.git"
+          if [ -n "$(git -C "$repo" status --porcelain)" ]; then
+            echo "PIPELINE_CHECKOUT=STOP_DIRTY"
+            git -C "$repo" status --short
+            exit 1
+          fi
+          git -C "$repo" fetch origin main
+          target="$(git -C "$repo" rev-parse FETCH_HEAD)"
+          test "$target" = "25e4ffc32b83c038fa10a7b1a907acc4613b97ad"
+          git -C "$repo" checkout main
+          git -C "$repo" merge --ff-only "$target"
+          cd "$repo"
+          .venv/bin/python scripts/run_f5_mailbox_identity_reconciliation.py
+          .venv/bin/python scripts/run_f5_mailbox_identity_reconciliation.py --apply --approval-token F5-MAILBOX-IDENTITY-RECONCILE-V1
+          echo "F5_IDENTITY_RECONCILIATION_LIVE=PASS"
+
       - name: Read application DB truth directly
         shell: bash
         run: |
