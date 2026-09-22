@@ -55,8 +55,11 @@ def plan(conn: object) -> list[Merge]:
                     WHERE s.application_id = a.id
                 ) AS has_submission,
                 EXISTS (
-                    SELECT 1 FROM application_lifecycle_events e
-                    WHERE e.application_id = a.id
+                    SELECT 1
+                    FROM application_lifecycle_events e
+                    JOIN application_submissions lifecycle_submission
+                      ON lifecycle_submission.id = e.submission_id
+                    WHERE lifecycle_submission.application_id = a.id
                 ) AS has_lifecycle
             FROM applications a
             WHERE a.discovery_kind = 'mailbox_observed'
@@ -118,8 +121,11 @@ def apply(conn: object, merges: list[Merge]) -> dict[str, int]:
                       WHERE s.application_id = applications.id
                   )
                   AND NOT EXISTS (
-                      SELECT 1 FROM application_lifecycle_events e
-                      WHERE e.application_id = applications.id
+                      SELECT 1
+                      FROM application_lifecycle_events e
+                      JOIN application_submissions lifecycle_submission
+                        ON lifecycle_submission.id = e.submission_id
+                      WHERE lifecycle_submission.application_id = applications.id
                   )
                 """,
                 (merge.duplicate_id,),
