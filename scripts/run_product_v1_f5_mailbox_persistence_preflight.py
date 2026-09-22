@@ -27,6 +27,7 @@ from scripts.product_v1_f5_mailbox_ingest import (  # noqa: E402
     evidence_fingerprint,
     mailbox_application_key,
     parse_normalized_mailbox_observation,
+    should_create_application,
     should_discover_application,
     should_persist_candidate,
     source_message_identity_key,
@@ -221,7 +222,7 @@ def plan_rows(
             )
             if matched_key is not None:
                 application_key = matched_key
-            elif not ambiguous_existing:
+            elif not ambiguous_existing and should_create_application(classification):
                 application_key = mailbox_application_key(observation)
                 applications.add(application_key)
 
