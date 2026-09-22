@@ -1,0 +1,71 @@
+name: JAP current application-job linkage audit
+
+on:
+  push:
+    branches:
+      - diag/962-workstation-update
+    paths:
+      - ".github/workflows/jap-current-application-linkage-audit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Read-only current application/job linkage audit
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 8
+    steps:
+      - name: Read current Product truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          curl --fail --silent --show-error --max-time 20             http://127.0.0.1:8780/api/v1/product-v1 > "$tmp"
+
+          python3 - "$tmp" <<'PY'
+import json, sys
+from pathlib import Path
+
+payload=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+jobs=payload.get("jobs") or payload.get("all_jobs") or payload.get("operator_review_jobs") or []
+apps=((payload.get("f5_application_tracking") or {}).get("applications")
+      or payload.get("applications")
+      or payload.get("application_tracking")
+      or [])
+
+print(f"JOBS_COUNT={len(jobs)}")
+print(f"APPLICATIONS_COUNT={len(apps)}")
+
+job_ids=set()
+job_by_id={}
+for job in jobs:
+    if not isinstance(job, dict):
+        continue
+    jid=job.get("silver_job_id") or job.get("job_id") or job.get("id")
+    if jid is not None:
+        job_ids.add(jid)
+        job_by_id[jid]=job
+
+linked_current=[]
+for app in apps:
+    if not isinstance(app, dict):
+        continue
+    aid=app.get("application_id")
+    employer=app.get("employer_name")
+    title=app.get("job_title")
+    stage=app.get("effective_stage")
+    sid=app.get("silver_job_id")
+    status=app.get("job_link_status")
+    in_current=sid in job_ids if sid is not None else False
+    print("APP|id={}|employer={}|title={}|stage={}|silver_job_id={}|link_status={}|in_current_all_jobs={}".format(
+        aid, employer, title, stage, sid, status, in_current
+    ))
+    if in_current:
+        linked_current.append((aid, employer, title, stage, sid))
+
+print(f"CURRENT_LINKED_APPLICATIONS={len(linked_current)}")
+for row in linked_current:
+    print("CURRENT_LINK|id={}|employer={}|title={}|stage={}|silver_job_id={}".format(*row))
+PY
+          rm -f "$tmp"
