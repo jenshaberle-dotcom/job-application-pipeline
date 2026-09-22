@@ -178,14 +178,15 @@ def _load_existing_application_identities(
                     application.job_identity_snapshot->>'source_url',
                     application.job_identity_snapshot->>'job_url',
                     application.job_identity_snapshot->>'application_url'
-                ) AS source_url
+                ) AS source_url,
+                coalesce(
+                    application.job_identity_snapshot->>'counterparty_domain',
+                    application.provenance->>'counterparty_domain'
+                ) AS counterparty_domain,
+                application.provenance->>'thread_reference' AS thread_reference
             FROM applications application
-            JOIN application_submissions submission
-              ON submission.application_id = application.id
             LEFT JOIN silver_jobs silver
               ON silver.id = application.silver_job_id
-            WHERE application.discovery_kind IN ('jap_prepared', 'manual_external')
-              AND submission.authority_kind = 'operator_confirmation'
             ORDER BY application.id
             """
         )
@@ -200,6 +201,16 @@ def _load_existing_application_identities(
                 ),
                 source_url=(
                     str(row["source_url"]) if row["source_url"] is not None else None
+                ),
+                counterparty_domain=(
+                    str(row["counterparty_domain"])
+                    if row["counterparty_domain"] is not None
+                    else None
+                ),
+                thread_reference=(
+                    str(row["thread_reference"])
+                    if row["thread_reference"] is not None
+                    else None
                 ),
             )
             for row in cur.fetchall()
