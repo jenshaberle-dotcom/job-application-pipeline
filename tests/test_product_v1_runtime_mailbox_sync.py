@@ -53,3 +53,26 @@ def test_existing_refresh_button_triggers_mailbox_sync_before_truth_reload() -> 
     truth = source.index("readProductTruth<unknown>({ fresh: true })")
     assert sync < truth
     assert "Mailbox sync returned" in source
+
+
+def test_operator_refresh_waits_for_inflight_startup_sync_before_truth_reload() -> None:
+    source = (
+        __import__("pathlib").Path(__file__).parents[1]
+        / "scripts"
+        / "product_v1_runtime_mailbox_sync.py"
+    ).read_text(encoding="utf-8")
+    assert 'blocking = reason == "operator_refresh"' in source
+    assert "_LOCK.acquire(blocking=blocking)" in source
+
+
+def test_control_center_refreshes_truth_after_startup_and_every_30_minutes() -> None:
+    source = (
+        __import__("pathlib").Path(__file__).parents[1]
+        / "frontend"
+        / "control-center"
+        / "src"
+        / "ProductTruthContext.tsx"
+    ).read_text(encoding="utf-8")
+    assert "void refreshProductTruth().catch(() => undefined);" in source
+    assert "30 * 60 * 1000" in source
+    assert "window.clearInterval(interval)" in source
