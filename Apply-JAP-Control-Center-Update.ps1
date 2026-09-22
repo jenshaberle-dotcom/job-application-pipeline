@@ -134,6 +134,9 @@ $backupHost = Join-Path $InstallRoot ("desktop-host.previous." + $PID)
 $stagedHost = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
 $desktopSwapped = $false
 $frontendPreparedTarget = $false
+$controlPlaneRefreshed = $false
+$stableRunnerBackup = Join-Path $InstallRoot ("run-jap-control-center-wsl.previous." + $PID)
+$stableApplierBackup = Join-Path $InstallRoot ("Apply-JAP-Control-Center-Update.previous." + $PID + ".ps1")
 $previousCurrent = $null
 
 try {
@@ -272,10 +275,15 @@ try {
     $nextRunner = Join-Path $installedControlPlane "run-jap-control-center-wsl.sh"
     $stableRunnerWindows = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
     $stableApplierWindows = Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1"
+    Copy-Item -Force $stableRunnerWindows $stableRunnerBackup
+    Copy-Item -Force $stableApplierWindows $stableApplierBackup
     Copy-Item -Force $nextRunner $stableRunnerWindows
     Copy-Item -Force $nextApplier $stableApplierWindows
+    $controlPlaneRefreshed = $true
     Write-UpdateLog "control_plane_refresh_pass" "target=$targetVersion"
 
+    Remove-Item -Force $stableRunnerBackup -ErrorAction SilentlyContinue
+    Remove-Item -Force $stableApplierBackup -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force $backupHost -ErrorAction SilentlyContinue
     $desktopSwapped = $false
 
@@ -307,6 +315,23 @@ try {
 }
 catch {
     $detail = $_.Exception.Message
+
+    if ((Test-Path $stableRunnerBackup) -or (Test-Path $stableApplierBackup)) {
+        try {
+            if (Test-Path $stableRunnerBackup) {
+                Copy-Item -Force $stableRunnerBackup (Join-Path $InstallRoot "run-jap-control-center-wsl.sh")
+            }
+            if (Test-Path $stableApplierBackup) {
+                Copy-Item -Force $stableApplierBackup (Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1")
+            }
+            Write-UpdateLog "control_plane_refresh_rollback" "target=$targetVersion"
+        }
+        catch {
+            Write-UpdateLog "control_plane_refresh_rollback_failed" $_.Exception.Message
+        }
+    }
+    Remove-Item -Force $stableRunnerBackup -ErrorAction SilentlyContinue
+    Remove-Item -Force $stableApplierBackup -ErrorAction SilentlyContinue
 
     if ($desktopSwapped -and (Test-Path $backupHost)) {
         try {
