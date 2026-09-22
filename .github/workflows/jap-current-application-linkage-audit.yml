@@ -57,7 +57,7 @@ jobs:
           repo="$HOME/projects/job-application-pipeline"
           test -d "$repo/.git"
           git -C "$repo" fetch origin main
-          test "$(git -C "$repo" rev-parse FETCH_HEAD)" = "f7bbced2a2487aff01fbc7b38bb0c199fbfa4e31"
+          test "$(git -C "$repo" rev-parse FETCH_HEAD)" = "765183ce200407318ff0ec85d01739937e2d0f92"
           git -C "$repo" checkout --detach FETCH_HEAD
           cd "$repo"
           count="$(
