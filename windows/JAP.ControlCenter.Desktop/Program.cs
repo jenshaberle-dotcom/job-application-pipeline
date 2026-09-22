@@ -11,8 +11,14 @@ internal static class Program
     private const string MutexName = @"Local\JAP.ControlCenter.Desktop";
 
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        if (args.Any(argument => string.Equals(argument, "--stage-update", StringComparison.OrdinalIgnoreCase)))
+        {
+            Environment.ExitCode = ProductUpdateAgent.RunFromCommandLineAsync(args).GetAwaiter().GetResult();
+            return;
+        }
+
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
         if (!createdNew)
         {

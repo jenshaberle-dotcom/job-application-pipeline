@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "install-jap-control-center.ps1"
 APPLIER = ROOT / "Apply-JAP-Control-Center-Update.ps1"
 UPDATE_COORDINATOR = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "UpdateCoordinator.cs"
+PRODUCT_UPDATE_AGENT = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "ProductUpdateAgent.cs"
 UPDATE_CONTEXT = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "UpdateAwareApplicationContext.cs"
 PROGRAM = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "Program.cs"
 VERSION = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "VERSION"
@@ -29,7 +30,29 @@ def test_update_compatibility_contract_is_latest_direct_v1_with_six_hour_snooze(
     assert contract["direct_upgrade_from"] == "1.x"
     assert contract["installer_schema"] == "job_application_pipeline.windows_control_center_install.v2"
     assert contract["snooze_hours"] == 6
-    assert _text(VERSION).strip() == "1.0.50"
+    assert _text(VERSION).strip() == "1.0.51"
+
+
+def test_product_local_agent_owns_release_discovery_download_and_staging() -> None:
+    agent = _text(PRODUCT_UPDATE_AGENT)
+    coordinator = _text(UPDATE_COORDINATOR)
+    program = _text(PROGRAM)
+
+    assert "api.github.com/repos/jenshaberle-dotcom/job-application-pipeline" in agent
+    assert "releases?per_page=100" in agent
+    assert "browser_download_url" in agent
+    assert "JAP-Control-Center-Desktop-win-x64.zip" in agent
+    assert "SHA256.Create()" in agent
+    assert "pending-update.json" in agent
+    assert "product_local_update_agent_v1" in agent
+    assert "repository_id" in agent
+    assert "target_commitish" in agent
+    assert "wsl.exe" not in agent
+    assert "powershell.exe" not in agent
+    assert "GITHUB_TOKEN" not in agent
+    assert '"--stage-update"' in program
+    assert '"--stage-update"' in coordinator
+    assert "DiscoveryInterval = TimeSpan.FromMinutes(10)" in coordinator
 
 
 def test_desktop_host_polls_pending_update_and_prompts_for_consent() -> None:

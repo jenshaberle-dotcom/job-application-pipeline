@@ -71,4 +71,4 @@ def test_headless_rejection_proof_is_static_only_not_executed_on_workstation() -
 
 
 def test_zombie_prevention_bumps_immutable_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.50"
+    assert _text(VERSION).strip() == "1.0.51"
