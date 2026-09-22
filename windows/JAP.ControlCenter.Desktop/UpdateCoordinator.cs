@@ -11,6 +11,7 @@ internal sealed class UpdateCoordinator : IDisposable
     private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v2";
     private const string CompatibilityLine = "1";
     private static readonly TimeSpan SnoozeDuration = TimeSpan.FromHours(6);
+    private static readonly TimeSpan DiscoveryInterval = TimeSpan.FromMinutes(10);
 
     private readonly Form _owner;
     private readonly string _installRoot;
@@ -23,6 +24,8 @@ internal sealed class UpdateCoordinator : IDisposable
     private bool _promptOpen;
     private bool _resultChecked;
     private bool _applyingUpdate;
+    private bool _stagingInFlight;
+    private DateTimeOffset _nextDiscoveryUtc = DateTimeOffset.MinValue;
 
     public UpdateCoordinator(Form owner, string installRoot)
     {
@@ -38,7 +41,11 @@ internal sealed class UpdateCoordinator : IDisposable
         {
             Interval = 60_000
         };
-        _pollTimer.Tick += (_, _) => PromptIfAvailable();
+        _pollTimer.Tick += (_, _) =>
+        {
+            PromptIfAvailable();
+            TriggerStageLatest();
+        };
     }
 
     public bool IsApplyingUpdate => _applyingUpdate;
@@ -47,6 +54,66 @@ internal sealed class UpdateCoordinator : IDisposable
     {
         _pollTimer.Start();
         PromptIfAvailable();
+        TriggerStageLatest();
+    }
+
+    private void TriggerStageLatest()
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (_applyingUpdate || _stagingInFlight || now < _nextDiscoveryUtc)
+        {
+            return;
+        }
+
+        _nextDiscoveryUtc = now.Add(DiscoveryInterval);
+        _stagingInFlight = true;
+        _ = StageLatestAsync();
+    }
+
+    private async Task StageLatestAsync()
+    {
+        try
+        {
+            var executable = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
+            {
+                WriteEvent("product_update_agent_unavailable", "desktop executable path could not be resolved");
+                return;
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = executable,
+                WorkingDirectory = _installRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("--stage-update");
+            startInfo.ArgumentList.Add("--install-root");
+            startInfo.ArgumentList.Add(_installRoot);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("JAP product update agent could not be started.");
+            await process.WaitForExitAsync();
+            if (process.ExitCode != 0)
+            {
+                WriteEvent("product_update_agent_failed", $"exit_code={process.ExitCode}");
+                return;
+            }
+
+            if (!_owner.IsDisposed && _owner.IsHandleCreated)
+            {
+                _owner.BeginInvoke(new Action(() => PromptIfAvailable()));
+            }
+        }
+        catch (Exception exc)
+        {
+            WriteEvent("product_update_agent_start_failed", exc.ToString());
+        }
+        finally
+        {
+            _stagingInFlight = false;
+        }
     }
 
     public bool PromptIfAvailable()
