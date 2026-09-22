@@ -1,0 +1,68 @@
+name: JAP superseded pending recovery
+
+on:
+  push:
+    branches:
+      - diag/962-workstation-update
+    paths:
+      - ".github/workflows/jap-superseded-pending-recovery.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    name: Clear only superseded v1.0.52 pending state
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 5
+    steps:
+      - name: Clear exact superseded pending state fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -Command '
+            $ErrorActionPreference = "Stop"
+            $root = Join-Path $env:LOCALAPPDATA "JAP-Control-Center"
+            $currentPath = Join-Path $root "current.json"
+            $pendingPath = Join-Path $root "state\pending-update.json"
+            $snoozePath = Join-Path $root "state\update-snooze.json"
+
+            if (-not (Test-Path $currentPath -PathType Leaf)) {
+              throw "Installed JAP current.json is missing."
+            }
+            $current = Get-Content -Raw -Encoding UTF8 $currentPath | ConvertFrom-Json
+            if ($current.repository_id -ne 1230805345 -or $current.repository -ne "jenshaberle-dotcom/job-application-pipeline") {
+              throw "Installed JAP repository identity mismatch."
+            }
+            if ($current.desktop_host_version -ne "1.0.51" -or $current.pinned_sha -ne "ac5b5040f448045593ffae269938efcfb2b2e6fe") {
+              Write-Output "JAP_SUPERSEDED_PENDING_RECOVERY=NOOP installed=$($current.desktop_host_version) source=$($current.pinned_sha)"
+              exit 0
+            }
+
+            if (-not (Test-Path $pendingPath -PathType Leaf)) {
+              Write-Output "JAP_SUPERSEDED_PENDING_RECOVERY=NOOP reason=no_pending"
+              exit 0
+            }
+            $pending = Get-Content -Raw -Encoding UTF8 $pendingPath | ConvertFrom-Json
+            if ($pending.target_desktop_version -eq "1.0.53" -and $pending.target_main_sha -eq "0b762aa064d2769741ebd72d961072bd4f64b336") {
+              Write-Output "JAP_SUPERSEDED_PENDING_RECOVERY=NOOP reason=latest_already_staged"
+              exit 0
+            }
+            if ($pending.target_desktop_version -ne "1.0.52" -or $pending.target_main_sha -ne "901e51dce957c692d36cd6b64665cb2e9049c6af") {
+              throw "Refusing to clear unexpected pending target: $($pending.target_desktop_version) / $($pending.target_main_sha)"
+            }
+
+            Remove-Item -Force $pendingPath
+            if (Test-Path $snoozePath -PathType Leaf) {
+              try {
+                $snooze = Get-Content -Raw -Encoding UTF8 $snoozePath | ConvertFrom-Json
+                if ($snooze.target_desktop_version -eq "1.0.52" -and $snooze.target_main_sha -eq "901e51dce957c692d36cd6b64665cb2e9049c6af") {
+                  Remove-Item -Force $snoozePath
+                }
+              } catch {
+                throw "Refusing ambiguous snooze cleanup: $($_.Exception.Message)"
+              }
+            }
+
+            Write-Output "JAP_SUPERSEDED_PENDING_RECOVERY=PASS cleared=1.0.52 installed=1.0.51"
+          '
