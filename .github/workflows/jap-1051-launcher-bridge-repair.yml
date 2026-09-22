@@ -1,0 +1,91 @@
+name: JAP v1.0.51 exact launcher bridge repair
+
+on:
+  push:
+    branches:
+      - diag/962-workstation-update
+    paths:
+      - ".github/workflows/jap-1051-launcher-bridge-repair.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    name: Restore exact v1.0.51 launcher only
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 5
+
+    steps:
+      - name: Restore exact installed-source launcher fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          EXPECTED_REPO='jenshaberle-dotcom/job-application-pipeline'
+          EXPECTED_REPO_ID='1230805345'
+          EXPECTED_VERSION='1.0.51'
+          EXPECTED_SHA='ac5b5040f448045593ffae269938efcfb2b2e6fe'
+          PROJECT_ROOT="$HOME/projects/job-application-pipeline"
+
+          localappdata_win="$(powershell.exe -NoProfile -NonInteractive -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r')"
+          install_root="$(wslpath "$localappdata_win/JAP-Control-Center")"
+          current="$install_root/current.json"
+          launcher="$install_root/JAP-Control-Center.ps1"
+
+          [[ -f "$current" ]] || { echo "JAP_1051_BRIDGE=BLOCK current_missing"; exit 2; }
+
+          readarray -t identity < <(
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -Command '
+              $c = Get-Content -Raw -Encoding UTF8 "'"$(wslpath -w "$current")"'" | ConvertFrom-Json
+              Write-Output ([string]$c.repository_id)
+              Write-Output ([string]$c.repository)
+              Write-Output ([string]$c.desktop_host_version)
+              Write-Output ([string]$c.pinned_sha)
+            ' | tr -d '\r'
+          )
+
+          [[ "${identity[0]:-}" == "$EXPECTED_REPO_ID" ]] || { echo "JAP_1051_BRIDGE=BLOCK repository_id"; exit 2; }
+          [[ "${identity[1]:-}" == "$EXPECTED_REPO" ]] || { echo "JAP_1051_BRIDGE=BLOCK repository"; exit 2; }
+          [[ "${identity[2]:-}" == "$EXPECTED_VERSION" ]] || {
+            echo "JAP_1051_BRIDGE=NOOP installed=${identity[2]:-unknown}"
+            exit 0
+          }
+          [[ "${identity[3]:-}" == "$EXPECTED_SHA" ]] || { echo "JAP_1051_BRIDGE=BLOCK source"; exit 2; }
+
+          [[ -d "$PROJECT_ROOT/.git" ]] || { echo "JAP_1051_BRIDGE=BLOCK project_checkout_missing"; exit 2; }
+          origin="$(git -C "$PROJECT_ROOT" remote get-url origin)"
+          [[ "$origin" == *"$EXPECTED_REPO"* ]] || { echo "JAP_1051_BRIDGE=BLOCK origin"; exit 2; }
+          git -C "$PROJECT_ROOT" cat-file -e "$EXPECTED_SHA^{commit}"
+
+          expected_blob="$(git -C "$PROJECT_ROOT" rev-parse "$EXPECTED_SHA:JAP-Control-Center.ps1")"
+          existing_blob=""
+          if [[ -f "$launcher" ]]; then
+            existing_blob="$(git hash-object "$launcher" 2>/dev/null || true)"
+          fi
+
+          if [[ "$existing_blob" == "$expected_blob" ]]; then
+            echo "JAP_1051_BRIDGE=NOOP launcher_exact"
+            exit 0
+          fi
+
+          tmp="$launcher.bridge.$$.tmp"
+          trap 'rm -f "$tmp"' EXIT
+          git -C "$PROJECT_ROOT" show "$EXPECTED_SHA:JAP-Control-Center.ps1" > "$tmp"
+          [[ "$(git hash-object "$tmp")" == "$expected_blob" ]] || {
+            echo "JAP_1051_BRIDGE=BLOCK materialization_hash"
+            exit 2
+          }
+
+          chmod 0644 "$tmp" || true
+          mv -f "$tmp" "$launcher"
+          trap - EXIT
+
+          actual_blob="$(git hash-object "$launcher")"
+          [[ "$actual_blob" == "$expected_blob" ]] || {
+            echo "JAP_1051_BRIDGE=BLOCK installed_hash"
+            exit 2
+          }
+
+          echo "JAP_1051_BRIDGE=PASS version=$EXPECTED_VERSION source=$EXPECTED_SHA blob=$expected_blob"
+          echo "JAP_1051_BRIDGE_SCOPE=ONLY_JAP-Control-Center.ps1"
