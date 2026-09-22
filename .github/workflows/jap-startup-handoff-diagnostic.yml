@@ -67,37 +67,10 @@ jobs:
             echo "JAP_RECOVERY_PREPARE=BLOCKED"
             exit 1
           fi
-          echo "=== update bridge readiness ==="
-          pending="$install_root/state/pending-update.json"
-          if [[ -f "$pending" ]]; then
-            python3 - "$pending" <<'PY'
-import json,sys
-from pathlib import Path
-d=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig"))
-print("PENDING_VERSION="+str(d.get("target_desktop_version","")))
-print("PENDING_SHA="+str(d.get("target_main_sha","")))
-print("PENDING_PROVIDER="+str(d.get("staging_provider","")))
-PY
-          fi
+          echo "=== staged bridge ==="
+          sed -n '1,120p' "$install_root/state/pending-update.json" 2>/dev/null || echo MISSING
           rm -f "$install_root/state/update-snooze.json"
           echo "JAP_UPDATE_BRIDGE_SNOOZE=CLEARED"
-          echo "=== FI product-truth diagnostic ==="
-          project_root="$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")).get("wsl_project_root",""))' "$current")"
-          cd "$project_root"
-          set -a
-          source .env
-          set +a
-          source .venv/bin/activate
-          python scripts/run_product_v1_f5_mailbox_silver_reconciliation_preflight.py --json-out /tmp/jap-fi-linkage.json
-          python3 - <<'PY'
-import json
-from pathlib import Path
-p=Path("/tmp/jap-fi-linkage.json")
-d=json.loads(p.read_text())
-for key in ("exact_matches","unresolved_applications","review_required"):
-    vals=d.get("job_linkage",d).get(key,[])
-    print(key, [x for x in vals if x.get("application_id")==18 or x.get("silver_job_id") in (577,611,630)])
-PY
           echo "=== runtime process / port ==="
           ps -ef | grep -E 'run_product_v1_live_demo|run_jap_windows_control_center|python.*8780' | grep -v grep || true
           ss -ltnp 2>/dev/null | grep ':8780' || echo NO_LISTENER
