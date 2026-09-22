@@ -42,19 +42,7 @@ jobs:
             [[ -f "$current" ]] || continue
             found=$((found+1))
             echo "=== $current ==="
-            python3 - "$current" <<'PY'
-import json, sys
-from pathlib import Path
-p = Path(sys.argv[1])
-data = json.loads(p.read_text(encoding="utf-8-sig"))
-keys = [
-    "repository_id","repository","desktop_host_version","desktop_host_release",
-    "pinned_sha","managed_worktree","wsl_state_root","wsl_project_root",
-    "wsl_installed_runner_path","update_authority","update_mode"
-]
-for key in keys:
-    print(f"{key}={data.get(key)}")
-PY
+            python3 -c 'import json,sys; from pathlib import Path; d=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")); keys=["repository_id","repository","desktop_host_version","desktop_host_release","pinned_sha","managed_worktree","wsl_state_root","wsl_project_root","wsl_installed_runner_path","update_authority","update_mode"]; [print(f"{k}={d.get(k)}") for k in keys]' "$current"
           done
           echo "INSTALL_COUNT=$found"
           [[ "$found" -eq 1 ]]
