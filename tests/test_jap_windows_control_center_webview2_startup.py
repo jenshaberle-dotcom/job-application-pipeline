@@ -15,15 +15,16 @@ def _program() -> str:
 
 def test_webview2_startup_is_bounded_and_phase_visible() -> None:
     program = _program()
+    controller = RUNTIME_CONTROLLER.read_text(encoding="utf-8")
     assert "RuntimeStartTimeout = TimeSpan.FromSeconds(90)" in program
     assert "WebViewEnvironmentTimeout = TimeSpan.FromSeconds(20)" in program
     assert "WebViewControlTimeout = TimeSpan.FromSeconds(20)" in program
     assert "WebViewNavigationTimeout = TimeSpan.FromSeconds(15)" in program
-    assert "RuntimeStartTimeout," in program
+    assert "_runtime.EnsureStartedAsync(RuntimeStartTimeout)" in program
     assert ".WaitAsync(WebViewEnvironmentTimeout)" in program
     assert ".WaitAsync(WebViewControlTimeout)" in program
     assert "navigation.Task.WaitAsync(WebViewNavigationTimeout)" in program
-    assert "process.Kill(entireProcessTree: true)" in program
+    assert "process.Kill(entireProcessTree: true)" in controller
     for phase in (
         "runtime_start",
         "runtime_ready",
