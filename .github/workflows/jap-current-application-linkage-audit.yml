@@ -46,6 +46,10 @@ jobs:
         shell: bash
         run: |
           docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select a.id,a.created_at,coalesce(a.job_identity_snapshot->>chr(106)||chr(111)||chr(98)||chr(95)||chr(116)||chr(105)||chr(116)||chr(108)||chr(101),chr(45)),coalesce(a.job_identity_snapshot->>chr(101)||chr(109)||chr(112)||chr(108)||chr(111)||chr(121)||chr(101)||chr(114)||chr(95)||chr(110)||chr(97)||chr(109)||chr(101),chr(45)),coalesce(a.job_identity_snapshot->>chr(99)||chr(111)||chr(117)||chr(110)||chr(116)||chr(101)||chr(114)||chr(112)||chr(97)||chr(114)||chr(116)||chr(121)||chr(95)||chr(100)||chr(111)||chr(109)||chr(97)||chr(105)||chr(110),chr(45)),coalesce(v.observed_stage::text,chr(45)),(select count(*) from application_event_candidates c where c.matched_application_id=a.id and c.is_active),(select count(*) from application_submissions s where s.application_id=a.id) from applications a join gold_product_v1_application_tracking v on v.application_id=a.id where a.id>=19 order by a.id;"' | sed 's/^/NEW_MAILBOX_APP|/'
+      - name: Audit false-positive candidate classes and domains
+        shell: bash
+        run: |
+          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select a.id,c.candidate_class,coalesce(c.evidence_payload->>chr(99)||chr(111)||chr(117)||chr(110)||chr(116)||chr(101)||chr(114)||chr(112)||chr(97)||chr(114)||chr(116)||chr(121)||chr(95)||chr(100)||chr(111)||chr(109)||chr(97)||chr(105)||chr(110),chr(45)),coalesce(c.evidence_payload->>chr(114)||chr(101)||chr(97)||chr(115)||chr(111)||chr(95)||chr(99)||chr(111)||chr(100)||chr(101),chr(45)),c.observed_at from applications a join application_event_candidates c on c.matched_application_id=a.id and c.is_active where a.id>=19 order by a.id,c.observed_at;"' | sed 's/^/FP_EVIDENCE|/'
       - name: Inspect FI identity and evidence split
         shell: bash
         run: |
