@@ -14,10 +14,11 @@ def test_scheduler_runs_startup_then_30m_reason_without_parallel_timer_logic() -
     reasons: list[str] = []
 
     class StopAfterScheduled:
+        calls = 0
+
         def wait(self, _seconds: int) -> bool:
-            if reasons:
-                return True
-            return False
+            self.calls += 1
+            return self.calls > 1
 
         def set(self) -> None:
             pass
