@@ -65,7 +65,7 @@ def classify_application(
     employer = _snapshot_text(snapshot, "employer_name")
     title = _snapshot_text(snapshot, "job_title")
     source_url = _snapshot_text(snapshot, "application_url")
-    counterparty_domain = _snapshot_text(snapshot, "counterparty_domain", "sender_domain")
+    counterparty_domain = _snapshot_text(snapshot, "counterparty_domain") or _snapshot_text(snapshot, "sender_domain")
     employer_norm = normalize_company(employer)
     domain_norm = str(counterparty_domain or "").casefold().strip(" .")
     # Mailbox discovery may know the employer first by its bounded sender domain
