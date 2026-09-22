@@ -60,8 +60,14 @@ jobs:
           test "$(git -C "$repo" rev-parse FETCH_HEAD)" = "f7bbced2a2487aff01fbc7b38bb0c199fbfa4e31"
           git -C "$repo" checkout --detach FETCH_HEAD
           cd "$repo"
-          .venv/bin/python scripts/run_f5_mailbox_false_positive_cleanup.py
+          count="$(
+            docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "select count(*) from applications a where a.discovery_kind=chr(109)||chr(97)||chr(105)||chr(108)||chr(98)||chr(111)||chr(120)||chr(95)||chr(111)||chr(98)||chr(115)||chr(101)||chr(114)||chr(118)||chr(101)||chr(100) and a.created_at=TIMESTAMPTZ chr(39)||chr(50)||chr(48)||chr(50)||chr(54)||chr(45)||chr(48)||chr(57)||chr(45)||chr(50)||chr(50)||chr(32)||chr(49)||chr(48)||chr(58)||chr(49)||chr(52)||chr(58)||chr(49)||chr(50)||chr(46)||chr(57)||chr(49)||chr(49)||chr(53)||chr(48)||chr(55)||chr(43)||chr(48)||chr(48)||chr(39) and a.id>=19 and a.silver_job_id is null and coalesce(a.job_identity_snapshot->>chr(106)||chr(111)||chr(98)||chr(95)||chr(116)||chr(105)||chr(116)||chr(108)||chr(101),chr(39)||chr(39))=chr(39)||chr(39) and coalesce(a.job_identity_snapshot->>chr(101)||chr(109)||chr(112)||chr(108)||chr(111)||chr(121)||chr(101)||chr(114)||chr(95)||chr(110)||chr(97)||chr(109)||chr(101),chr(39)||chr(39))=chr(39)||chr(39) and not exists (select 1 from application_submissions s where s.application_id=a.id);"' 
+          )"
+          echo "UNSAFE_MAILBOX_APPLICATIONS=$count"
+          test "$count" = "19"
           .venv/bin/python scripts/run_f5_mailbox_false_positive_cleanup.py --apply --approval-token F5-MAILBOX-FALSE-POSITIVE-CLEANUP-V1
+          echo "F5_FALSE_POSITIVE_CLEANUP=PASS"
+
       - name: Inspect FI identity and evidence split
         shell: bash
         run: |
