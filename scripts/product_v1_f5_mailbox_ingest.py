@@ -299,7 +299,7 @@ def _identity_snapshot(observation: NormalizedMailboxObservation) -> dict[str, o
     return snapshot
 
 
-def _operator_confirmed_application_identities(
+def _existing_application_identities(
     cur: object,
 ) -> list[ExistingApplicationIdentity]:
     cur.execute(
@@ -323,14 +323,15 @@ def _operator_confirmed_application_identities(
                 application.job_identity_snapshot->>'source_url',
                 application.job_identity_snapshot->>'job_url',
                 application.job_identity_snapshot->>'application_url'
-            ) AS source_url
+            ) AS source_url,
+            coalesce(
+                application.job_identity_snapshot->>'counterparty_domain',
+                application.provenance->>'counterparty_domain'
+            ) AS counterparty_domain,
+            application.provenance->>'thread_reference' AS thread_reference
         FROM applications application
-        JOIN application_submissions submission
-          ON submission.application_id = application.id
         LEFT JOIN silver_jobs silver
           ON silver.id = application.silver_job_id
-        WHERE application.discovery_kind IN ('jap_prepared', 'manual_external')
-          AND submission.authority_kind = 'operator_confirmation'
         ORDER BY application.id
         """
     )
@@ -484,7 +485,9 @@ def ingest_normalized_mailbox_observation(
                         employer_name=observation.employer_name,
                         job_title=observation.job_title,
                         source_url=observation.source_url,
-                        applications=_operator_confirmed_application_identities(cur),
+                        applications=_existing_application_identities(cur),
+                        counterparty_domain=observation.counterparty_domain,
+                        thread_reference=observation.thread_reference,
                     )
 
                     if matched_application_key is not None:

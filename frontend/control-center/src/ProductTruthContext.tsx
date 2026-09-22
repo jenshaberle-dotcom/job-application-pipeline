@@ -16,22 +16,6 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
   const [refreshing, setRefreshing] = useState(false);
   const refreshInFlight = useRef<Promise<void> | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    readProductTruth<unknown>()
-      .then((truth) => {
-        if (!active) return;
-        setPayload(truth);
-        setError(null);
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(String(reason));
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const refreshProductTruth = useCallback(() => {
     if (refreshInFlight.current) return refreshInFlight.current;
 
@@ -55,6 +39,29 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
     refreshInFlight.current = request;
     return request;
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    readProductTruth<unknown>()
+      .then((truth) => {
+        if (!active) return;
+        setPayload(truth);
+        setError(null);
+        void refreshProductTruth().catch(() => undefined);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(String(reason));
+      });
+
+    const interval = window.setInterval(() => {
+      void refreshProductTruth().catch(() => undefined);
+    }, 30 * 60 * 1000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [refreshProductTruth]);
 
   const value = useMemo<ProductTruthContextValue>(
     () => ({ payload, error, refreshing, refreshProductTruth }),
