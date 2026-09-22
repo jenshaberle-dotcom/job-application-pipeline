@@ -75,11 +75,7 @@ jobs:
           WHERE c.matched_application_id = ANY(ARRAY[19,20,21,22,27,28,29,30,31,32,33,34,35,37,38,39,40,41,42])
             AND c.is_active;
           DELETE FROM applications a
-          WHERE a.id = ANY(ARRAY[19,20,21,22,27,28,29,30,31,32,33,34,35,37,38,39,40,41,42])
-            AND a.silver_job_id IS NULL
-            AND coalesce(a.job_identity_snapshot->>'job_title','')=''
-            AND coalesce(a.job_identity_snapshot->>'employer_name','')=''
-            AND NOT EXISTS (SELECT 1 FROM application_submissions s WHERE s.application_id=a.id);
+          WHERE a.id = ANY(ARRAY[19,20,21,22,27,28,29,30,31,32,33,34,35,37,38,39,40,41,42]);
           COMMIT;
           SQL
           docker exec -i job_pipeline_postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /tmp/f5-fp-cleanup.sql
