@@ -118,4 +118,4 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -
     assert 'JAP_WINDOWS_APP_DETACHED_HANDOFF=PASS' in launch
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.57"
+    assert _text(VERSION).strip() == "1.0.58"
