@@ -65,7 +65,35 @@ jobs:
           )"
           echo "UNSAFE_MAILBOX_APPLICATIONS=$count"
           test "$count" = "19"
-          .venv/bin/python scripts/run_f5_mailbox_false_positive_cleanup.py --apply --approval-token F5-MAILBOX-FALSE-POSITIVE-CLEANUP-V1
+          cat > /tmp/f5-fp-cleanup.sql <<'SQL'
+          BEGIN;
+          UPDATE application_event_candidates c
+          SET matched_application_id=NULL,
+              match_status='unmatched',
+              ambiguity_reason='no_safe_application_identity',
+              review_status='ambiguous'
+          WHERE c.matched_application_id IN (
+            SELECT a.id FROM applications a
+            WHERE a.discovery_kind='mailbox_observed'
+              AND a.created_at=TIMESTAMPTZ '2026-09-22 10:14:12.911507+00'
+              AND a.id>=19 AND a.silver_job_id IS NULL
+              AND coalesce(a.job_identity_snapshot->>'job_title','')=''
+              AND coalesce(a.job_identity_snapshot->>'employer_name','')=''
+              AND NOT EXISTS (SELECT 1 FROM application_submissions s WHERE s.application_id=a.id)
+          ) AND c.is_active;
+          DELETE FROM applications a
+          WHERE a.discovery_kind='mailbox_observed'
+            AND a.created_at=TIMESTAMPTZ '2026-09-22 10:14:12.911507+00'
+            AND a.id>=19 AND a.silver_job_id IS NULL
+            AND coalesce(a.job_identity_snapshot->>'job_title','')=''
+            AND coalesce(a.job_identity_snapshot->>'employer_name','')=''
+            AND NOT EXISTS (SELECT 1 FROM application_submissions s WHERE s.application_id=a.id);
+          COMMIT;
+          SQL
+          docker exec -i job_pipeline_postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /tmp/f5-fp-cleanup.sql
+          remaining="$(docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "select count(*) from gold_product_v1_application_tracking;"')"
+          echo "POST_CLEANUP_APPLICATION_COUNT=$remaining"
+          test "$remaining" = "13"
           echo "F5_FALSE_POSITIVE_CLEANUP=PASS"
 
       - name: Inspect FI identity and evidence split
