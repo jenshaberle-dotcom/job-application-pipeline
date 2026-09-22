@@ -18,13 +18,12 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          win_localappdata="$(timeout 10s cmd.exe /d /c 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
-          if [[ -z "$win_localappdata" ]]; then
-            echo "JAP_DIAG=UNAVAILABLE localappdata"
+          current="$(find /mnt/c/Users -maxdepth 5 -type f -path '*/AppData/Local/JAP-Control-Center/current.json' -print -quit 2>/dev/null || true)"
+          if [[ -z "$current" ]]; then
+            echo "JAP_DIAG=UNAVAILABLE current_json"
             exit 1
           fi
-          install_root="$(wslpath -u "$win_localappdata")/JAP-Control-Center"
-          current="$install_root/current.json"
+          install_root="$(dirname "$current")"
           echo "=== current identity ==="
           python3 - "$current" <<'PY'
           import json,sys
