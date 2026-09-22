@@ -16,6 +16,28 @@ jobs:
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 8
     steps:
+      - name: Read mailbox sync runtime status
+        shell: bash
+        run: |
+          set -u
+          echo "HOME=$HOME"
+          echo "RUNTIME_ROOT=${JAP_PRIVATE_RUNTIME_ROOT:-$HOME/projects/job-pipeline-runtime}"
+          for p in "$HOME/.local/state/jap/mailbox-sync/status.json" "$HOME/.config/DeepOceanInfrastructure/JAP/gmail-oauth-client.json" "$HOME/.config/DeepOceanInfrastructure/JAP/gmail-readonly-token.json" "$HOME/projects/job-pipeline-runtime/scripts/f5_gmail_readonly_bridge.py"; do
+            if [ -f "$p" ]; then echo "EXISTS=$p"; else echo "MISSING=$p"; fi
+          done
+          if [ -f "$HOME/.local/state/jap/mailbox-sync/status.json" ]; then
+            python3 - "$HOME/.local/state/jap/mailbox-sync/status.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          keep={k:d.get(k) for k in ("schema","status","reason","started_at","finished_at","normalized_rows","error_type","message","gmail_scope")}
+          print("MAILBOX_SYNC_STATUS="+json.dumps(keep,ensure_ascii=False,sort_keys=True))
+          print("PLAN="+json.dumps(d.get("plan"),ensure_ascii=False,sort_keys=True))
+          print("ACTUAL="+json.dumps(d.get("actual"),ensure_ascii=False,sort_keys=True))
+          PY
+          fi
+          echo "RUNTIME_HEAD=$(git -C "$HOME/projects/job-pipeline-runtime" rev-parse HEAD 2>/dev/null || echo unavailable)"
+          echo "RUNTIME_MAIN=$(git -C "$HOME/projects/job-pipeline-runtime" rev-parse origin/main 2>/dev/null || echo unavailable)"
+
       - name: Read current Product truth
         shell: bash
         run: |
