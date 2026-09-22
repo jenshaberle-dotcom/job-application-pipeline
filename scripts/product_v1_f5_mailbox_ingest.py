@@ -276,6 +276,18 @@ def should_discover_application(classification: ClassificationResult) -> bool:
     )
 
 
+def should_create_application(classification: ClassificationResult) -> bool:
+    """Create mailbox-first applications only from explicit application evidence.
+
+    High-impact outcome/search signals may update an existing application, but they
+    must not manufacture a new application identity on their own.
+    """
+    return (
+        should_discover_application(classification)
+        and classification.candidate_class == "application_acknowledgement"
+    )
+
+
 def should_persist_candidate(classification: ClassificationResult) -> bool:
     """Persist lifecycle/review evidence; first-seen deterministic noise stays out."""
 
@@ -404,7 +416,8 @@ def ingest_normalized_mailbox_observation(
 
     from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 
-    discovery_allowed = should_discover_application(classification)
+    identity_matching_allowed = should_discover_application(classification)
+    application_creation_allowed = should_create_application(classification)
     default_persistence_allowed = should_persist_candidate(classification)
     snapshot = _identity_snapshot(observation)
     snapshot_sha = canonical_sha256(snapshot)
@@ -476,7 +489,7 @@ def ingest_normalized_mailbox_observation(
                     if matched_key is None:
                         raise MailboxIngestError("matched_application_key_missing")
                     resolved_application_key = str(matched_key)
-                elif discovery_allowed:
+                elif identity_matching_allowed:
                     (
                         matched_application_key,
                         existing_application_match_ambiguous,
@@ -509,7 +522,10 @@ def ingest_normalized_mailbox_observation(
                         resolved_application_key = str(
                             existing_application["application_key"]
                         )
-                    elif not existing_application_match_ambiguous:
+                    elif (
+                        not existing_application_match_ambiguous
+                        and application_creation_allowed
+                    ):
                         provenance = {
                             "discovery": "mailbox_observed",
                             "mailbox_account_fingerprint": observation.mailbox_account_fingerprint,
