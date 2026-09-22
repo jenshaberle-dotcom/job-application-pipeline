@@ -12,6 +12,10 @@ internal sealed class ManagedRuntimeController : IDisposable
     private const long ExpectedRepositoryId = 1230805345;
     private const string ExpectedRepository = "jenshaberle-dotcom/job-application-pipeline";
     private const int Port = 8780;
+    private const int DatabasePort = 5432;
+    private const string DockerContainerName = "job_pipeline_postgres";
+    private static readonly TimeSpan DockerDesktopStartupTimeout = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan DatabaseStartupTimeout = TimeSpan.FromSeconds(30);
     private static readonly Regex ShaPattern =
         new("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private readonly string _installRoot;
@@ -28,6 +32,8 @@ internal sealed class ManagedRuntimeController : IDisposable
     public async Task EnsureStartedAsync(TimeSpan timeout)
     {
         var config = ReadConfig(_installRoot);
+        await EnsureDatabaseRuntimeAsync(config);
+
         var endpoint = await ProbeEndpointAsync(config.PinnedSha);
         if (endpoint.Healthy)
         {
@@ -45,18 +51,18 @@ internal sealed class ManagedRuntimeController : IDisposable
             }
 
             var releaseDeadline = DateTimeOffset.UtcNow.AddSeconds(10);
-            while (DateTimeOffset.UtcNow < releaseDeadline && await IsPortOpenAsync())
+            while (DateTimeOffset.UtcNow < releaseDeadline && await IsPortOpenAsync(Port))
             {
                 await Task.Delay(250);
             }
 
-            if (await IsPortOpenAsync())
+            if (await IsPortOpenAsync(Port))
             {
                 throw new InvalidOperationException(
                     $"Die veraltete JAP Runtime hat Port {Port} nicht freigegeben.");
             }
         }
-        else if (await IsPortOpenAsync())
+        else if (await IsPortOpenAsync(Port))
         {
             throw new InvalidOperationException(
                 $"Port {Port} ist bereits durch einen anderen Dienst belegt.");
@@ -217,6 +223,119 @@ internal sealed class ManagedRuntimeController : IDisposable
         return raw.Length <= limit ? raw : raw[^limit..];
     }
 
+    private async Task EnsureDatabaseRuntimeAsync(RuntimeConfig config)
+    {
+        if (await IsPortOpenAsync(DatabasePort))
+        {
+            return;
+        }
+
+        var wsl = ResolveWsl();
+        var dockerReady = await DockerDaemonReadyAsync(wsl, config.WslDistro);
+        if (!dockerReady)
+        {
+            StartDockerDesktop();
+            var dockerDeadline = DateTimeOffset.UtcNow.Add(DockerDesktopStartupTimeout);
+            while (DateTimeOffset.UtcNow < dockerDeadline)
+            {
+                await Task.Delay(1000);
+                if (await DockerDaemonReadyAsync(wsl, config.WslDistro))
+                {
+                    dockerReady = true;
+                    break;
+                }
+            }
+        }
+
+        if (!dockerReady)
+        {
+            throw new InvalidOperationException(
+                "Docker Desktop wurde nicht rechtzeitig bereit. "
+                + "JAP benötigt den lokalen PostgreSQL-Container job_pipeline_postgres.");
+        }
+
+        var startResult = await RunProcessAsync(
+            wsl,
+            TimeSpan.FromSeconds(15),
+            "-d",
+            config.WslDistro,
+            "--exec",
+            "docker",
+            "start",
+            DockerContainerName);
+        if (startResult.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                "Der kanonische JAP PostgreSQL-Container konnte nicht gestartet werden. "
+                + CompactDiagnostics(startResult));
+        }
+
+        var databaseDeadline = DateTimeOffset.UtcNow.Add(DatabaseStartupTimeout);
+        while (DateTimeOffset.UtcNow < databaseDeadline)
+        {
+            if (await IsPortOpenAsync(DatabasePort))
+            {
+                return;
+            }
+
+            await Task.Delay(500);
+        }
+
+        throw new InvalidOperationException(
+            $"JAP PostgreSQL wurde auf Port {DatabasePort} nicht bereit.");
+    }
+
+    private static async Task<bool> DockerDaemonReadyAsync(string wsl, string distro)
+    {
+        try
+        {
+            var result = await RunProcessAsync(
+                wsl,
+                TimeSpan.FromSeconds(5),
+                "-d",
+                distro,
+                "--exec",
+                "docker",
+                "info");
+            return result.ExitCode == 0;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+    }
+
+    private static void StartDockerDesktop()
+    {
+        var dockerDesktop = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            "Docker",
+            "Docker",
+            "Docker Desktop.exe");
+        if (!File.Exists(dockerDesktop))
+        {
+            throw new FileNotFoundException(
+                "Docker Desktop ist für die lokale JAP PostgreSQL-Runtime erforderlich.",
+                dockerDesktop);
+        }
+
+        try
+        {
+            _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = dockerDesktop,
+                WorkingDirectory = Path.GetDirectoryName(dockerDesktop)!,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exc)
+        {
+            throw new InvalidOperationException(
+                "Docker Desktop konnte aus JAP nicht gestartet werden.",
+                exc);
+        }
+    }
+
     private async Task<EndpointState> ProbeEndpointAsync(string expectedSha)
     {
         try
@@ -248,13 +367,13 @@ internal sealed class ManagedRuntimeController : IDisposable
         }
     }
 
-    private static async Task<bool> IsPortOpenAsync()
+    private static async Task<bool> IsPortOpenAsync(int port)
     {
         using var client = new TcpClient();
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
         try
         {
-            await client.ConnectAsync(IPAddress.Loopback, Port, cts.Token);
+            await client.ConnectAsync(IPAddress.Loopback, port, cts.Token);
             return true;
         }
         catch (Exception exc) when (
