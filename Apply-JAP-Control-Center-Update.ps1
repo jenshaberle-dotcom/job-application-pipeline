@@ -381,32 +381,3 @@ catch {
     Restart-JapIfPresent
     exit 1
 }
- -and $previousSha -ne $targetSha) {
-                Write-UpdateLog "frontend_rollback_prepare_start" "sha=$previousSha"
-                Invoke-InstalledRunner $previousCurrent $previousSha "prepare"
-                Write-UpdateLog "frontend_rollback_prepare_pass" "sha=$previousSha"
-            }
-        }
-        catch {
-            Write-UpdateLog "frontend_rollback_prepare_failed" $_.Exception.Message
-        }
-    }
-    Remove-Item -Recurse -Force $stagedHost -ErrorAction SilentlyContinue
-    Remove-AcceptedManifest
-    try {
-        Write-JsonAtomic $ResultPath @{
-            schema = $ResultSchema
-            status = "failed"
-            target_main_sha = $targetSha
-            target_desktop_version = $targetVersion
-            completed_at = [DateTime]::UtcNow.ToString("o")
-            detail = $detail
-        }
-        Write-UpdateLog "update_failed" $detail
-    }
-    catch {
-        # Preserve the original failure even if diagnostics cannot be written.
-    }
-    Restart-JapIfPresent
-    exit 1
-}
