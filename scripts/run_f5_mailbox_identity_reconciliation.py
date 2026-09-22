@@ -159,7 +159,6 @@ def main() -> int:
                     f"{merge.canonical_id}|duplicate_id={merge.duplicate_id}|domain={merge.domain}"
                 )
             if not args.apply:
-                conn.rollback()
                 print("DATABASE_WRITES=0")
                 return 0
             if args.approval_token != APPROVAL_TOKEN:
