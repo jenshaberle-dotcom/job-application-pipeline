@@ -35,20 +35,7 @@ jobs:
 
           [[ -f "$current" ]] || { echo "JAP_1051_BRIDGE=BLOCK current_missing"; exit 2; }
 
-          identity_json="$(python3 - "$current" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-print(json.dumps({
-    "repository_id": str(current.get("repository_id", "")),
-    "repository": str(current.get("repository", "")),
-    "desktop_host_version": str(current.get("desktop_host_version", "")),
-    "pinned_sha": str(current.get("pinned_sha", "")),
-}))
-PY
-          )"
+          identity_json="$(python3 -c 'import json,sys; from pathlib import Path; current=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")); print(json.dumps({"repository_id":str(current.get("repository_id","")),"repository":str(current.get("repository","")),"desktop_host_version":str(current.get("desktop_host_version","")),"pinned_sha":str(current.get("pinned_sha",""))}))' "$current")"
 
           repository_id="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["repository_id"])' <<<"$identity_json")"
           repository_name="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["repository"])' <<<"$identity_json")"
