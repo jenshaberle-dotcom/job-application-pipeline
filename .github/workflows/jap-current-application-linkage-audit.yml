@@ -64,4 +64,24 @@ jobs:
               ):
                   print("CURRENT_JOB_FULL|"+json.dumps(j,ensure_ascii=False,sort_keys=True))
           PY
+          python3 - "$tmp" <<'PY'
+          import json, sys
+          d=json.load(open(sys.argv[1]))
+          at=d.get("application_tracking") or {}
+          apps=at.get("applications") or []
+          print("LIVE_APPLICATION_COUNT="+str(len(apps)))
+          for a in apps:
+              if not isinstance(a,dict):
+                  continue
+              blob=json.dumps(a,ensure_ascii=False).lower()
+              if any(term in blob for term in ("finanz informatik","f-i.de","e362","ki-entwickler")):
+                  print("FI_APPLICATION|"+json.dumps(a,ensure_ascii=False,sort_keys=True))
+          for key,val in d.items():
+              if isinstance(val,list):
+                  for row in val:
+                      if isinstance(row,dict):
+                          blob=json.dumps(row,ensure_ascii=False).lower()
+                          if any(term in blob for term in ("finanz informatik","e362","ki-entwickler")):
+                              print("FI_PRODUCT_ROW|surface="+key+"|"+json.dumps(row,ensure_ascii=False,sort_keys=True))
+          PY
           rm -f "$tmp"
