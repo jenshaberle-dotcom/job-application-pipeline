@@ -115,7 +115,7 @@ function Move-DirectoryWithRetry(
         try {
             Move-Item -Path $Source -Destination $Destination -ErrorAction Stop
             if ($attempt -gt 1) {
-                Write-UpdateLog "${Phase}_retry_pass" "attempt=$attempt"
+                Write-UpdateLog "$($Phase)_retry_pass" "attempt=$attempt"
             }
             return
         }
