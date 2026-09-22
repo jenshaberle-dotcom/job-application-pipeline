@@ -125,7 +125,7 @@ function Move-DirectoryWithRetry(
             Start-Sleep -Milliseconds 250
         }
     }
-    throw "$Phase failed after bounded retry: $lastError"
+    throw "${Phase} failed after bounded retry: $lastError"
 }
 
 $targetVersion = "unknown"
