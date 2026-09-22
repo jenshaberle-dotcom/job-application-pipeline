@@ -204,20 +204,33 @@ def build_application_tracking_payload(
             row.get("effective_stage"),
             fallback=observed_stage or authoritative_stage,
         )
-        stage_counts[effective_stage] += 1
 
         discovery_kind = str(row.get("discovery_kind") or "jap_prepared")
-        if discovery_kind == "mailbox_observed":
-            mailbox_discovered_count += 1
-        if observed_stage is not None:
-            observed_count += 1
-
         snapshot = row.get("job_identity_snapshot")
         silver_job_id = row.get("silver_job_id")
         title = row.get("title") or _snapshot_text(snapshot, "title", "job_title", "position")
         company_name = row.get("company_name") or _snapshot_text(
             snapshot, "company_name", "employer_name", "company"
         )
+
+        # Mailbox outcome/search evidence without a bounded employer or vacancy
+        # identity is review evidence, not an application Product identity.
+        if (
+            discovery_kind == "mailbox_observed"
+            and silver_job_id is None
+            and row.get("submission_id") is None
+            and not title
+            and not company_name
+        ):
+            continue
+
+        stage_counts[effective_stage] += 1
+
+        if discovery_kind == "mailbox_observed":
+            mailbox_discovered_count += 1
+        if observed_stage is not None:
+            observed_count += 1
+
         display_company_name = row.get("display_company_name") or company_name
         source_url = row.get("source_url") or _snapshot_text(
             snapshot, "source_url", "job_url", "application_url"
