@@ -1,0 +1,89 @@
+name: JAP product API 500 diagnostics
+
+on:
+  push:
+    branches:
+      - diag/962-workstation-update
+    paths:
+      - ".github/workflows/jap-product-api-500-diagnostics.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Read-only product API 500 diagnostics
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 8
+
+    steps:
+      - name: Probe exact local JAP endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "JAP_API_500_DIAG=READ_ONLY"
+          for path in /app-info.json /api/v1/product-v1 /api/v1/product-v1/data-layers; do
+            echo "=== GET $path ==="
+            tmp="$(mktemp)"
+            code="$(curl --silent --show-error --max-time 10 -o "$tmp" -w '%{http_code}' "http://127.0.0.1:8780$path" || true)"
+            echo "HTTP_STATUS=$code"
+            head -c 12000 "$tmp" || true
+            echo
+            rm -f "$tmp"
+          done
+
+      - name: Read installed runtime identity and state
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidates=(/mnt/c/Users/*/AppData/Local/JAP-Control-Center/current.json)
+          found=0
+          for current in "${candidates[@]}"; do
+            [[ -f "$current" ]] || continue
+            found=$((found+1))
+            echo "=== $current ==="
+            python3 - "$current" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8-sig"))
+keys = [
+    "repository_id","repository","desktop_host_version","desktop_host_release",
+    "pinned_sha","managed_worktree","wsl_state_root","wsl_project_root",
+    "wsl_installed_runner_path","update_authority","update_mode"
+]
+for key in keys:
+    print(f"{key}={data.get(key)}")
+PY
+          done
+          echo "INSTALL_COUNT=$found"
+          [[ "$found" -eq 1 ]]
+
+      - name: Tail managed runtime logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="$HOME/.local/state/jap-control-center"
+          echo "=== runtime stdout ==="
+          if [[ -f "$state/runtime.stdout.log" ]]; then
+            tail -n 180 "$state/runtime.stdout.log"
+          else
+            echo "MISSING"
+          fi
+          echo "=== runtime stderr ==="
+          if [[ -f "$state/runtime.stderr.log" ]]; then
+            tail -n 220 "$state/runtime.stderr.log"
+          else
+            echo "MISSING"
+          fi
+          echo "=== state files ==="
+          find "$state" -maxdepth 2 -type f -printf '%TY-%Tm-%TdT%TH:%TM:%TS %s %p\n' 2>/dev/null | sort | tail -n 80 || true
+
+      - name: Show managed runtime process and port owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== port 8780 ==="
+          ss -ltnp 2>/dev/null | grep ':8780' || true
+          echo "=== likely runtime processes ==="
+          ps -eo pid,ppid,lstart,args | grep -E 'run_product_v1_live_demo|run_product_v1_control_center|python.*8780|JAP_CONTROL_CENTER_PINNED_SHA' | grep -v grep || true
