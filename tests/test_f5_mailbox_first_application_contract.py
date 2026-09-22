@@ -148,3 +148,32 @@ def test_v5_freeze_resume_reuses_existing_f5_paths_without_exporting_private_mai
     assert "f5-gmail-preview-v5.jsonl" not in upload_section
     assert "V5_PLAN_OUTPUT" in upload_section
     assert "V5_PREFLIGHT_OUTPUT" in upload_section
+
+
+def test_high_impact_outcomes_do_not_create_mailbox_application_without_existing_identity() -> None:
+    from src.search_intelligence.application_event_classifier import ClassificationResult
+    from scripts.product_v1_f5_mailbox_ingest import should_create_application
+
+    for candidate_class in ("interview_invitation", "offer_signal", "rejection", "assessment_request", "withdrawal_confirmation"):
+        classification = ClassificationResult(
+            candidate_class=candidate_class,
+            confidence=0.97,
+            reason_code=f"deterministic_{candidate_class}",
+            evidence_span="bounded",
+            matched_terms=("bounded",),
+        )
+        assert should_create_application(classification) is False
+
+
+def test_explicit_application_acknowledgement_remains_mailbox_first_discovery_authority() -> None:
+    from src.search_intelligence.application_event_classifier import ClassificationResult
+    from scripts.product_v1_f5_mailbox_ingest import should_create_application
+
+    classification = ClassificationResult(
+        candidate_class="application_acknowledgement",
+        confidence=0.95,
+        reason_code="deterministic_application_acknowledgement",
+        evidence_span="Bewerbung eingegangen",
+        matched_terms=("application received",),
+    )
+    assert should_create_application(classification) is True
