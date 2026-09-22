@@ -28,9 +28,17 @@ jobs:
           EXPECTED_SHA='ac5b5040f448045593ffae269938efcfb2b2e6fe'
           PROJECT_ROOT="$HOME/projects/job-application-pipeline"
 
-          localappdata_win="$(powershell.exe -NoProfile -NonInteractive -Command '[Environment]::GetFolderPath("LocalApplicationData")' | tr -d '\r')"
-          install_root="$(wslpath "$localappdata_win/JAP-Control-Center")"
-          current="$install_root/current.json"
+          mapfile -t install_candidates < <(
+            find /mnt/c/Users -mindepth 4 -maxdepth 4 -type f \
+              -path '*/AppData/Local/JAP-Control-Center/current.json' \
+              -print 2>/dev/null
+          )
+          [[ "${#install_candidates[@]}" -eq 1 ]] || {
+            echo "JAP_1051_BRIDGE=BLOCK install_candidate_count=${#install_candidates[@]}"
+            exit 2
+          }
+          current="${install_candidates[0]}"
+          install_root="$(dirname "$current")"
           launcher="$install_root/JAP-Control-Center.ps1"
 
           [[ -f "$current" ]] || { echo "JAP_1051_BRIDGE=BLOCK current_missing"; exit 2; }
