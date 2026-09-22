@@ -72,19 +72,11 @@ jobs:
               match_status='unmatched',
               ambiguity_reason='no_safe_application_identity',
               review_status='ambiguous'
-          WHERE c.matched_application_id IN (
-            SELECT a.id FROM applications a
-            WHERE a.discovery_kind='mailbox_observed'
-              AND a.created_at=TIMESTAMPTZ '2026-09-22 10:14:12.911507+00'
-              AND a.id>=19 AND a.silver_job_id IS NULL
-              AND coalesce(a.job_identity_snapshot->>'job_title','')=''
-              AND coalesce(a.job_identity_snapshot->>'employer_name','')=''
-              AND NOT EXISTS (SELECT 1 FROM application_submissions s WHERE s.application_id=a.id)
-          ) AND c.is_active;
+          WHERE c.matched_application_id = ANY(ARRAY[19,20,21,22,27,28,29,30,31,32,33,34,35,37,38,39,40,41,42])
+            AND c.is_active;
           DELETE FROM applications a
-          WHERE a.discovery_kind='mailbox_observed'
-            AND a.created_at=TIMESTAMPTZ '2026-09-22 10:14:12.911507+00'
-            AND a.id>=19 AND a.silver_job_id IS NULL
+          WHERE a.id = ANY(ARRAY[19,20,21,22,27,28,29,30,31,32,33,34,35,37,38,39,40,41,42])
+            AND a.silver_job_id IS NULL
             AND coalesce(a.job_identity_snapshot->>'job_title','')=''
             AND coalesce(a.job_identity_snapshot->>'employer_name','')=''
             AND NOT EXISTS (SELECT 1 FROM application_submissions s WHERE s.application_id=a.id);
