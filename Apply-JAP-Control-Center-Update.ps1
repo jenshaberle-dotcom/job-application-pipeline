@@ -218,8 +218,16 @@ try {
     New-Item -ItemType Directory -Force -Path $stagedHost | Out-Null
     Expand-Archive -Path $archive -DestinationPath $stagedHost -Force
     $stagedExe = Join-Path $stagedHost "JAP.ControlCenter.Desktop.exe"
+    $stagedControlPlane = Join-Path $stagedHost "control-plane"
+    $stagedApplier = Join-Path $stagedControlPlane "Apply-JAP-Control-Center-Update.ps1"
+    $stagedRunner = Join-Path $stagedControlPlane "run-jap-control-center-wsl.sh"
     if (-not (Test-Path $stagedExe -PathType Leaf)) {
         throw "Staged desktop host release is missing JAP.ControlCenter.Desktop.exe."
+    }
+    foreach ($requiredControlPlane in @($stagedApplier, $stagedRunner)) {
+        if (-not (Test-Path $requiredControlPlane -PathType Leaf)) {
+            throw "Staged desktop release is missing update control plane: $requiredControlPlane"
+        }
     }
 
     Write-UpdateLog "desktop_cutover_start" "target=$targetVersion sha=$targetSha"
@@ -258,6 +266,15 @@ try {
     if (-not (Test-Path $DesktopHostExe -PathType Leaf)) {
         throw "Update verification failed: installed desktop host executable is missing."
     }
+
+    $installedControlPlane = Join-Path $DesktopHostRoot "control-plane"
+    $nextApplier = Join-Path $installedControlPlane "Apply-JAP-Control-Center-Update.ps1"
+    $nextRunner = Join-Path $installedControlPlane "run-jap-control-center-wsl.sh"
+    $stableRunnerWindows = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
+    $stableApplierWindows = Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1"
+    Copy-Item -Force $nextRunner $stableRunnerWindows
+    Copy-Item -Force $nextApplier $stableApplierWindows
+    Write-UpdateLog "control_plane_refresh_pass" "target=$targetVersion"
 
     Remove-Item -Recurse -Force $backupHost -ErrorAction SilentlyContinue
     $desktopSwapped = $false
