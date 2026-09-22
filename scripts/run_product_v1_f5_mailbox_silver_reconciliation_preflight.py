@@ -67,6 +67,7 @@ def classify_application(
     source_url = _snapshot_text(snapshot, "application_url")
     counterparty_domain = _snapshot_text(snapshot, "counterparty_domain") or _snapshot_text(snapshot, "sender_domain")
     employer_norm = normalize_company(employer)
+    title_norm = normalize_title(title)
     domain_norm = str(counterparty_domain or "").casefold().strip(" .")
     # Mailbox discovery may know the employer first by its bounded sender domain
     # (for example f-i.de) while Silver carries the legal company name.  Treat
@@ -101,7 +102,6 @@ def classify_application(
             "mailbox_job_title": title or None,
             "mailbox_source_url_present": bool(source_url),
         }
-    title_norm = normalize_title(title)
     url_norm = normalize_url(source_url)
 
     if linked is not None:
