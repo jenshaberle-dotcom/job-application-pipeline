@@ -42,6 +42,10 @@ jobs:
           docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "select count(*) from gold_product_v1_application_tracking;"' | sed 's/^/APPLICATION_COUNT=/'
           docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select application_id, coalesce(authoritative_stage::text,chr(45)), coalesce(observed_stage::text,chr(45)), coalesce(effective_stage::text,chr(45)), left(job_identity_snapshot::text,500) from gold_product_v1_application_tracking where lower(job_identity_snapshot::text) like chr(37)||chr(102)||chr(105)||chr(110)||chr(97)||chr(110)||chr(122)||chr(37) or lower(job_identity_snapshot::text) like chr(37)||chr(102)||chr(45)||chr(105)||chr(46)||chr(100)||chr(101)||chr(37) or lower(job_identity_snapshot::text) like chr(37)||chr(101)||chr(51)||chr(54)||chr(50)||chr(37);"' | sed 's/^/FI_ROW|/'
 
+      - name: Audit newly discovered mailbox applications for false positives
+        shell: bash
+        run: |
+          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select a.id,a.created_at,coalesce(a.job_identity_snapshot->>chr(106)||chr(111)||chr(98)||chr(95)||chr(116)||chr(105)||chr(116)||chr(108)||chr(101),chr(45)),coalesce(a.job_identity_snapshot->>chr(101)||chr(109)||chr(112)||chr(108)||chr(111)||chr(121)||chr(101)||chr(114)||chr(95)||chr(110)||chr(97)||chr(109)||chr(101),chr(45)),coalesce(a.job_identity_snapshot->>chr(99)||chr(111)||chr(117)||chr(110)||chr(116)||chr(101)||chr(114)||chr(112)||chr(97)||chr(114)||chr(116)||chr(121)||chr(95)||chr(100)||chr(111)||chr(109)||chr(97)||chr(105)||chr(110),chr(45)),coalesce(v.observed_stage::text,chr(45)),(select count(*) from application_event_candidates c where c.matched_application_id=a.id and c.is_active),(select count(*) from application_submissions s where s.application_id=a.id) from applications a join gold_product_v1_application_tracking v on v.application_id=a.id where a.id>=19 order by a.id;"' | sed 's/^/NEW_MAILBOX_APP|/'
       - name: Inspect FI identity and evidence split
         shell: bash
         run: |
