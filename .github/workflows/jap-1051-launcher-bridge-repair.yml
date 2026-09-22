@@ -35,23 +35,33 @@ jobs:
 
           [[ -f "$current" ]] || { echo "JAP_1051_BRIDGE=BLOCK current_missing"; exit 2; }
 
-          readarray -t identity < <(
-            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -Command '
-              $c = Get-Content -Raw -Encoding UTF8 "'"$(wslpath -w "$current")"'" | ConvertFrom-Json
-              Write-Output ([string]$c.repository_id)
-              Write-Output ([string]$c.repository)
-              Write-Output ([string]$c.desktop_host_version)
-              Write-Output ([string]$c.pinned_sha)
-            ' | tr -d '\r'
-          )
+          identity_json="$(python3 - "$current" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-          [[ "${identity[0]:-}" == "$EXPECTED_REPO_ID" ]] || { echo "JAP_1051_BRIDGE=BLOCK repository_id"; exit 2; }
-          [[ "${identity[1]:-}" == "$EXPECTED_REPO" ]] || { echo "JAP_1051_BRIDGE=BLOCK repository"; exit 2; }
-          [[ "${identity[2]:-}" == "$EXPECTED_VERSION" ]] || {
-            echo "JAP_1051_BRIDGE=NOOP installed=${identity[2]:-unknown}"
+current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(json.dumps({
+    "repository_id": str(current.get("repository_id", "")),
+    "repository": str(current.get("repository", "")),
+    "desktop_host_version": str(current.get("desktop_host_version", "")),
+    "pinned_sha": str(current.get("pinned_sha", "")),
+}))
+PY
+          )"
+
+          repository_id="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["repository_id"])' <<<"$identity_json")"
+          repository_name="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["repository"])' <<<"$identity_json")"
+          installed_version="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["desktop_host_version"])' <<<"$identity_json")"
+          installed_sha="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["pinned_sha"])' <<<"$identity_json")"
+
+          [[ "$repository_id" == "$EXPECTED_REPO_ID" ]] || { echo "JAP_1051_BRIDGE=BLOCK repository_id"; exit 2; }
+          [[ "$repository_name" == "$EXPECTED_REPO" ]] || { echo "JAP_1051_BRIDGE=BLOCK repository"; exit 2; }
+          [[ "$installed_version" == "$EXPECTED_VERSION" ]] || {
+            echo "JAP_1051_BRIDGE=NOOP installed=$installed_version"
             exit 0
           }
-          [[ "${identity[3]:-}" == "$EXPECTED_SHA" ]] || { echo "JAP_1051_BRIDGE=BLOCK source"; exit 2; }
+          [[ "$installed_sha" == "$EXPECTED_SHA" ]] || { echo "JAP_1051_BRIDGE=BLOCK source"; exit 2; }
 
           [[ -d "$PROJECT_ROOT/.git" ]] || { echo "JAP_1051_BRIDGE=BLOCK project_checkout_missing"; exit 2; }
           origin="$(git -C "$PROJECT_ROOT" remote get-url origin)"
