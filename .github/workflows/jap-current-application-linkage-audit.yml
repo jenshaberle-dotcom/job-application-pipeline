@@ -39,8 +39,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "select ''APPLICATION_COUNT='' || count(*) from gold_product_v1_application_tracking;"'
-          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select ''FI_ROW'', application_id, coalesce(authoritative_stage::text,''''), coalesce(observed_stage::text,''''), coalesce(effective_stage::text,''''), left(job_identity_snapshot::text,500) from gold_product_v1_application_tracking where lower(job_identity_snapshot::text) like ''%finanz informatik%'' or lower(job_identity_snapshot::text) like ''%f-i.de%'' or lower(job_identity_snapshot::text) like ''%e362%'' or lower(job_identity_snapshot::text) like ''%ki-entwickler%'';"'
+          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "select count(*) from gold_product_v1_application_tracking;"' | sed 's/^/APPLICATION_COUNT=/'
+          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select application_id, coalesce(authoritative_stage::text,chr(45)), coalesce(observed_stage::text,chr(45)), coalesce(effective_stage::text,chr(45)), left(job_identity_snapshot::text,500) from gold_product_v1_application_tracking where lower(job_identity_snapshot::text) like chr(37)||chr(102)||chr(105)||chr(110)||chr(97)||chr(110)||chr(122)||chr(37) or lower(job_identity_snapshot::text) like chr(37)||chr(102)||chr(45)||chr(105)||chr(46)||chr(100)||chr(101)||chr(37) or lower(job_identity_snapshot::text) like chr(37)||chr(101)||chr(51)||chr(54)||chr(50)||chr(37);"' | sed 's/^/FI_ROW|/'
 
       - name: Read mailbox sync runtime status
         shell: bash
