@@ -50,6 +50,8 @@ def test_native_runtime_readiness_finishes_inside_desktop_hard_timeout() -> None
     assert '"tail",' in controller
     assert '"12",' in controller
     assert "Letzter Endpoint-Fehler" in controller
+    assert "detachedDiagnostics" in controller
+    assert '" | Runtime: " + detachedDiagnostics' in controller
 
 
 def test_existing_runtime_is_reused_only_for_exact_installed_source_revision() -> None:
