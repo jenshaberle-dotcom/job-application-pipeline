@@ -299,6 +299,16 @@ def test_desktop_host_release_is_built_in_ci_and_immutable() -> None:
     assert "--target $env:GITHUB_SHA" in workflow
     assert "bump VERSION before changing the host" in workflow
     assert "latest_direct" in workflow
+    for release_relevant_path in (
+        '"frontend/control-center/**"',
+        '"scripts/**"',
+        '"src/**"',
+        '"requirements.txt"',
+    ):
+        assert release_relevant_path in workflow
+    assert "ALREADY_PUBLISHED_EXACT_SOURCE" in workflow
+    assert "Release-relevant source changed after" in workflow
+    assert "Bump windows/JAP.ControlCenter.Desktop/VERSION" in workflow
 
 
 def test_desktop_build_products_are_ignored() -> None:
