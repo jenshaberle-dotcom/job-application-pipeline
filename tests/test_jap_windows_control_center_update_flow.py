@@ -110,6 +110,10 @@ def test_update_applier_uses_only_installed_control_plane_and_payload_files() ->
     assert "Write-JsonAtomic $CurrentPath $previousCurrent" in applier
     assert "Assert-PathUnderUpdates" in applier
     assert "desktop_sha256" in applier
+    assert '"control-plane"' in applier
+    assert '"run-jap-control-center-wsl.sh"' in applier
+    assert '"control_plane_refresh_pass"' in applier
+    assert '"control_plane_refresh_rollback"' in applier
     assert "source_root" not in applier
     assert "install-jap-control-center.ps1" not in applier
     assert "powershell.exe" not in applier
@@ -168,3 +172,5 @@ def test_release_workflow_enforces_direct_v1_compatibility_before_publish() -> N
     assert "snooze_hours" in workflow
     assert "A breaking desktop update requires a new compatibility bridge" in workflow
     assert "Direct v1 latest-state upgrade" in workflow
+    assert 'Copy-Item -Force "Apply-JAP-Control-Center-Update.ps1"' in workflow
+    assert 'Copy-Item -Force "scripts/run_jap_windows_control_center.sh"' in workflow
