@@ -67,6 +67,20 @@ jobs:
             echo "JAP_RECOVERY_PREPARE=BLOCKED"
             exit 1
           fi
+          echo "=== update bridge readiness ==="
+          pending="$install_root/state/pending-update.json"
+          if [[ -f "$pending" ]]; then
+            python3 - "$pending" <<'PY'
+import json,sys
+from pathlib import Path
+d=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig"))
+print("PENDING_VERSION="+str(d.get("target_desktop_version","")))
+print("PENDING_SHA="+str(d.get("target_main_sha","")))
+print("PENDING_PROVIDER="+str(d.get("staging_provider","")))
+PY
+          fi
+          rm -f "$install_root/state/update-snooze.json"
+          echo "JAP_UPDATE_BRIDGE_SNOOZE=CLEARED"
           echo "=== FI product-truth diagnostic ==="
           project_root="$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")).get("wsl_project_root",""))' "$current")"
           cd "$project_root"
