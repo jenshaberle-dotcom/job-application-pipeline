@@ -71,6 +71,33 @@ jobs:
           docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select c.id,c.matched_application_id,c.candidate_class,c.match_status,c.review_status,c.source_thread_reference,c.observed_at,left(c.evidence_payload::text,900) from application_event_candidates c where c.matched_application_id in (15,18) and c.is_active order by c.observed_at;"' | sed 's/^/FI_CANDIDATE|/'
           docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select a.id,coalesce(a.job_identity_snapshot->>chr(106)||chr(111)||chr(98)||chr(95)||chr(116)||chr(105)||chr(116)||chr(108)||chr(101),chr(45)),coalesce(a.job_identity_snapshot->>chr(101)||chr(109)||chr(112)||chr(108)||chr(111)||chr(121)||chr(101)||chr(114)||chr(95)||chr(110)||chr(97)||chr(109)||chr(101),chr(45)),coalesce(v.observed_stage::text,chr(45)),coalesce(v.effective_stage::text,chr(45)) from applications a join gold_product_v1_application_tracking v on v.application_id=a.id order by a.id;"' | sed 's/^/APP_SUMMARY|/'
 
+      - name: Diagnose v1.0.56 mailbox 503
+        shell: bash
+        run: |
+          set -u
+          echo "=== MAILBOX STATUS ==="
+          cat "$HOME/.local/state/jap/mailbox-sync/status.json" 2>/dev/null || true
+          echo
+          echo "=== DIRECT SYNC RESPONSE ==="
+          curl -sS -i -X POST -H 'Accept: application/json' http://127.0.0.1:8780/api/v1/product-v1/mailbox-sync || true
+          echo
+          echo "=== STATUS AFTER DIRECT SYNC ==="
+          cat "$HOME/.local/state/jap/mailbox-sync/status.json" 2>/dev/null || true
+          echo
+          echo "=== PRODUCT TRUTH STILL AVAILABLE ==="
+          curl -sS -o /tmp/product-after-mailbox-failure.json -w 'HTTP=%{http_code}\n' http://127.0.0.1:8780/api/v1/product-v1 || true
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/product-after-mailbox-failure.json')
+          if p.exists():
+              try:
+                  d=json.loads(p.read_text())
+                  print("PRODUCT_APPLICATIONS="+str(len((d.get("application_tracking") or {}).get("applications") or [])))
+              except Exception as exc:
+                  print("PRODUCT_PARSE_ERROR="+type(exc).__name__)
+          PY
+
       - name: Read mailbox sync runtime status
         shell: bash
         run: |
