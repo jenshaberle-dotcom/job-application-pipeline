@@ -351,7 +351,19 @@ catch {
     if ($frontendPreparedTarget -and $null -ne $previousCurrent) {
         try {
             $previousSha = [string]$previousCurrent.pinned_sha
-            if ($previousSha -match '^[0-9a-f]{40}
+            if ($previousSha -match '^[0-9a-f]{40}$' -and $previousSha -ne $targetSha) {
+                Write-UpdateLog "frontend_rollback_prepare_start" "sha=$previousSha"
+                Invoke-InstalledRunner $previousCurrent $previousSha "prepare"
+                Write-UpdateLog "frontend_rollback_prepare_pass" "sha=$previousSha"
+            }
+        }
+        catch {
+            Write-UpdateLog "frontend_rollback_prepare_failed" $_.Exception.Message
+        }
+    }
+    Remove-Item -Recurse -Force $stagedHost -ErrorAction SilentlyContinue
+    Remove-AcceptedManifest
+
     try {
         Write-JsonAtomic $ResultPath @{
             schema = $ResultSchema
