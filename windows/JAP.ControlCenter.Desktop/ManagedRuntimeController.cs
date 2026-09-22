@@ -105,11 +105,11 @@ internal sealed class ManagedRuntimeController : IDisposable
             stderr);
         if (launch.ExitCode != 0)
         {
-            var stderrTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stderr);
-            var stdoutTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stdout);
+            var launchStderrTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stderr);
+            var launchStdoutTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stdout);
             var detachedDiagnostics = string.Join(
                 " | ",
-                new[] { stderrTail, stdoutTail }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                new[] { launchStderrTail, launchStdoutTail }.Where(value => !string.IsNullOrWhiteSpace(value)));
             throw new InvalidOperationException(
                 "Direkter JAP WSL-Runtime-Handoff fehlgeschlagen. "
                 + CompactDiagnostics(launch)
@@ -134,14 +134,14 @@ internal sealed class ManagedRuntimeController : IDisposable
             }
         }
 
-        var stderrTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stderr);
+        var launchStderrTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stderr);
         if (!string.IsNullOrWhiteSpace(stderrTail))
         {
             throw new InvalidOperationException(
                 "JAP Runtime wurde nicht bereit: " + stderrTail);
         }
 
-        var stdoutTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stdout);
+        var launchStdoutTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stdout);
         if (!string.IsNullOrWhiteSpace(stdoutTail))
         {
             throw new InvalidOperationException(
