@@ -37,6 +37,16 @@ def test_unhandled_ui_failure_is_fail_closed_and_cleans_runtime_bounded() -> Non
     assert '"desktop-host-lifecycle.log"' in guard
 
 
+def test_local_runner_deploy_is_manual_recovery_only_after_product_agent_cutover() -> None:
+    workflow = _text(LOCAL_DEPLOY_WORKFLOW)
+    trigger_block = workflow.split("permissions:", 1)[0]
+    assert "workflow_dispatch:" in trigger_block
+    assert "push:" not in trigger_block
+    assert "workflow_run:" not in trigger_block
+    assert "schedule:" not in trigger_block
+    assert "Manual recovery/bootstrap JAP Control Center" in workflow
+
+
 def test_local_deploy_reaps_only_exact_session_zero_managed_desktop() -> None:
     reaper = _text(REAPER)
     workflow = _text(LOCAL_DEPLOY_WORKFLOW)
