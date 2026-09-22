@@ -177,3 +177,45 @@ def test_specific_title_family_allows_embedded_location_suffix_but_short_generic
         "Data Engineer",
         "Senior Data Engineer Platform Germany",
     )
+
+
+def test_finanz_informatik_mailbox_domain_plus_exact_vacancy_title_links_safely() -> None:
+    tracking = [
+        {
+            "application_id": 18,
+            "silver_job_id": None,
+            "company_name": "f-i.de",
+            "display_company_name": "f-i.de",
+            "counterparty_domain": "f-i.de",
+            "sender_domain": "f-i.de",
+            "title": "E362/B - AI Engineer / KI-Entwickler (m/w/d)",
+            "source_url": None,
+            "effective_stage": "interview",
+        }
+    ]
+    jobs = [
+        _job(
+            611,
+            company_name="Finanz Informatik GmbH & Co. KG",
+            title="AI Engineer / KI-Entwickler (m/w/d)",
+        ),
+        _job(
+            630,
+            company_name="Finanz Informatik GmbH & Co. KG",
+            title="E362/B - AI Engineer / KI-Entwickler (m/w/d)",
+        ),
+    ]
+
+    linkage = build_tracking_job_linkage(tracking, jobs)
+
+    assert linkage["exact_matches"] == [
+        {
+            "application_id": 18,
+            "silver_job_id": 630,
+            "effective_stage": "interview",
+            "linkage_status": "exact_projected",
+            "linkage_basis": "exact_counterparty_domain_title",
+            "database_link_persisted": False,
+        }
+    ]
+    assert linkage["unresolved_count"] == 0
