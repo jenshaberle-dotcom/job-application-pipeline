@@ -21,21 +21,20 @@ def test_install_wrapper_supports_noninteractive_no_start_mode() -> None:
     assert "unknown_argument" in text
 
 
-def test_local_deploy_preserves_automatic_compatibility_path_until_rcc_cutover() -> None:
+def test_local_deploy_is_manual_recovery_only_after_product_agent_cutover() -> None:
     workflow = _text(LOCAL_DEPLOY_WORKFLOW)
+    trigger_block = workflow.split("permissions:", 1)[0]
+    assert "workflow_dispatch:" in trigger_block
+    assert "push:" not in trigger_block
+    assert "workflow_run:" not in trigger_block
+    assert "schedule:" not in trigger_block
     assert "runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]" in workflow
-    assert 'workflows: ["JAP Windows Desktop Host release"]' in workflow
-    assert 'cron: "17 * * * *"' in workflow
-    assert "pull_request:" not in workflow
+    assert "Manual recovery/bootstrap JAP Control Center on local workstation" in workflow
     assert "cancel-in-progress: false" in workflow
-    assert "github.event_name != 'workflow_run'" in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
-    assert "Resolve exact released deploy source" in workflow
-    assert "getLatestRelease" in workflow
-    assert "release_workflow_run" in workflow
-    assert "latest_published_release" in workflow
-    assert "JAP_LOCAL_DEPLOY_ADMISSION=BLUE_FACADE" in workflow
-    assert "JAP_LOCAL_DEPLOY_RCC_CUTOVER_PENDING=FALSE" in workflow
+    assert "reservation_id:" in workflow
+    assert "expected_runner:" in workflow
+    assert "source_sha:" in workflow
+    assert "rcc_reserved_dispatch" in workflow
 
 
 def test_reserved_dispatch_keeps_exact_rcc_handoff_contract() -> None:
