@@ -50,6 +50,8 @@ def test_native_runtime_readiness_finishes_inside_desktop_hard_timeout() -> None
     assert '"tail",' in controller
     assert '"12",' in controller
     assert "Letzter Endpoint-Fehler" in controller
+    assert "detachedDiagnostics" in controller
+    assert '" | Runtime: " + detachedDiagnostics' in controller
 
 
 def test_existing_runtime_is_reused_only_for_exact_installed_source_revision() -> None:
@@ -118,4 +120,4 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -
     assert 'JAP_WINDOWS_APP_DETACHED_HANDOFF=PASS' in launch
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.60"
+    assert _text(VERSION).strip() == "1.0.61"

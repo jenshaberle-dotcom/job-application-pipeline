@@ -30,7 +30,7 @@ def test_update_compatibility_contract_is_latest_direct_v1_with_six_hour_snooze(
     assert contract["direct_upgrade_from"] == "1.x"
     assert contract["installer_schema"] == "job_application_pipeline.windows_control_center_install.v2"
     assert contract["snooze_hours"] == 6
-    assert _text(VERSION).strip() == "1.0.60"
+    assert _text(VERSION).strip() == "1.0.61"
 
 
 def test_product_local_agent_owns_release_discovery_download_and_staging() -> None:
@@ -92,6 +92,9 @@ def test_update_applier_restarts_only_an_interactive_host_initiated_update() -> 
     assert "Start-Process -FilePath $DesktopHostExe" in applier
     assert "target_main_sha" in applier
     assert "target_desktop_version" in applier
+    assert "Move-DirectoryWithRetry" in applier
+    assert "$attempt -le 40" in applier
+    assert "Start-Sleep -Milliseconds 250" in applier
 
 
 def test_update_applier_uses_only_installed_control_plane_and_payload_files() -> None:
@@ -107,6 +110,10 @@ def test_update_applier_uses_only_installed_control_plane_and_payload_files() ->
     assert "Write-JsonAtomic $CurrentPath $previousCurrent" in applier
     assert "Assert-PathUnderUpdates" in applier
     assert "desktop_sha256" in applier
+    assert '"control-plane"' in applier
+    assert '"run-jap-control-center-wsl.sh"' in applier
+    assert '"control_plane_refresh_pass"' in applier
+    assert '"control_plane_refresh_rollback"' in applier
     assert "source_root" not in applier
     assert "install-jap-control-center.ps1" not in applier
     assert "powershell.exe" not in applier
@@ -122,6 +129,10 @@ def test_update_prewarms_exact_frontend_before_direct_desktop_cutover() -> None:
     assert applier.index('Write-UpdateLog "frontend_prepare_start"') < applier.index(
         'Write-UpdateLog "desktop_cutover_start"'
     )
+    assert "$frontendPreparedTarget = $true" in applier
+    assert 'Write-UpdateLog "frontend_rollback_prepare_start"' in applier
+    assert 'Invoke-InstalledRunner $previousCurrent $previousSha "prepare"' in applier
+    assert 'Write-UpdateLog "frontend_rollback_prepare_pass"' in applier
 
 
 def test_installer_supports_exact_staged_payload_without_losing_main_ancestry_proof() -> None:
@@ -161,3 +172,5 @@ def test_release_workflow_enforces_direct_v1_compatibility_before_publish() -> N
     assert "snooze_hours" in workflow
     assert "A breaking desktop update requires a new compatibility bridge" in workflow
     assert "Direct v1 latest-state upgrade" in workflow
+    assert 'Copy-Item -Force "Apply-JAP-Control-Center-Update.ps1"' in workflow
+    assert 'Copy-Item -Force "scripts/run_jap_windows_control_center.sh"' in workflow

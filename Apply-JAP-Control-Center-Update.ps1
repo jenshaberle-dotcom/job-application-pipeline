@@ -105,11 +105,38 @@ function Remove-AcceptedManifest {
     }
 }
 
+function Move-DirectoryWithRetry(
+    [string]$Source,
+    [string]$Destination,
+    [string]$Phase
+) {
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 40; $attempt++) {
+        try {
+            Move-Item -Path $Source -Destination $Destination -ErrorAction Stop
+            if ($attempt -gt 1) {
+                Write-UpdateLog "$($Phase)_retry_pass" "attempt=$attempt"
+            }
+            return
+        }
+        catch {
+            $lastError = $_.Exception.Message
+            if ($attempt -ge 40) { break }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+    throw "${Phase} failed after bounded retry: $lastError"
+}
+
 $targetVersion = "unknown"
 $targetSha = "unknown"
 $backupHost = Join-Path $InstallRoot ("desktop-host.previous." + $PID)
 $stagedHost = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
 $desktopSwapped = $false
+$frontendPreparedTarget = $false
+$controlPlaneRefreshed = $false
+$stableRunnerBackup = Join-Path $InstallRoot ("run-jap-control-center-wsl.previous." + $PID)
+$stableApplierBackup = Join-Path $InstallRoot ("Apply-JAP-Control-Center-Update.previous." + $PID + ".ps1")
 $previousCurrent = $null
 
 try {
@@ -186,6 +213,7 @@ try {
 
     Write-UpdateLog "frontend_prepare_start" "target=$targetVersion sha=$targetSha"
     Invoke-InstalledRunner $current $targetSha "prepare"
+    $frontendPreparedTarget = $true
     Write-UpdateLog "frontend_prepare_pass" "target=$targetVersion sha=$targetSha"
 
     Remove-Item -Recurse -Force $stagedHost -ErrorAction SilentlyContinue
@@ -193,16 +221,24 @@ try {
     New-Item -ItemType Directory -Force -Path $stagedHost | Out-Null
     Expand-Archive -Path $archive -DestinationPath $stagedHost -Force
     $stagedExe = Join-Path $stagedHost "JAP.ControlCenter.Desktop.exe"
+    $stagedControlPlane = Join-Path $stagedHost "control-plane"
+    $stagedApplier = Join-Path $stagedControlPlane "Apply-JAP-Control-Center-Update.ps1"
+    $stagedRunner = Join-Path $stagedControlPlane "run-jap-control-center-wsl.sh"
     if (-not (Test-Path $stagedExe -PathType Leaf)) {
         throw "Staged desktop host release is missing JAP.ControlCenter.Desktop.exe."
+    }
+    foreach ($requiredControlPlane in @($stagedApplier, $stagedRunner)) {
+        if (-not (Test-Path $requiredControlPlane -PathType Leaf)) {
+            throw "Staged desktop release is missing update control plane: $requiredControlPlane"
+        }
     }
 
     Write-UpdateLog "desktop_cutover_start" "target=$targetVersion sha=$targetSha"
     if (Test-Path $DesktopHostRoot) {
-        Move-Item -Path $DesktopHostRoot -Destination $backupHost
+        Move-DirectoryWithRetry $DesktopHostRoot $backupHost "desktop_backup_move"
     }
     try {
-        Move-Item -Path $stagedHost -Destination $DesktopHostRoot
+        Move-DirectoryWithRetry $stagedHost $DesktopHostRoot "desktop_staged_move"
         $desktopSwapped = $true
     }
     catch {
@@ -210,7 +246,7 @@ try {
             Remove-Item -Recurse -Force $DesktopHostRoot -ErrorAction SilentlyContinue
         }
         if (Test-Path $backupHost) {
-            Move-Item -Path $backupHost -Destination $DesktopHostRoot
+            Move-DirectoryWithRetry $backupHost $DesktopHostRoot "desktop_inline_rollback_move"
         }
         throw
     }
@@ -234,6 +270,20 @@ try {
         throw "Update verification failed: installed desktop host executable is missing."
     }
 
+    $installedControlPlane = Join-Path $DesktopHostRoot "control-plane"
+    $nextApplier = Join-Path $installedControlPlane "Apply-JAP-Control-Center-Update.ps1"
+    $nextRunner = Join-Path $installedControlPlane "run-jap-control-center-wsl.sh"
+    $stableRunnerWindows = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
+    $stableApplierWindows = Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1"
+    Copy-Item -Force $stableRunnerWindows $stableRunnerBackup
+    Copy-Item -Force $stableApplierWindows $stableApplierBackup
+    Copy-Item -Force $nextRunner $stableRunnerWindows
+    Copy-Item -Force $nextApplier $stableApplierWindows
+    $controlPlaneRefreshed = $true
+    Write-UpdateLog "control_plane_refresh_pass" "target=$targetVersion"
+
+    Remove-Item -Force $stableRunnerBackup -ErrorAction SilentlyContinue
+    Remove-Item -Force $stableApplierBackup -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force $backupHost -ErrorAction SilentlyContinue
     $desktopSwapped = $false
 
@@ -266,6 +316,23 @@ try {
 catch {
     $detail = $_.Exception.Message
 
+    if ((Test-Path $stableRunnerBackup) -or (Test-Path $stableApplierBackup)) {
+        try {
+            if (Test-Path $stableRunnerBackup) {
+                Copy-Item -Force $stableRunnerBackup (Join-Path $InstallRoot "run-jap-control-center-wsl.sh")
+            }
+            if (Test-Path $stableApplierBackup) {
+                Copy-Item -Force $stableApplierBackup (Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1")
+            }
+            Write-UpdateLog "control_plane_refresh_rollback" "target=$targetVersion"
+        }
+        catch {
+            Write-UpdateLog "control_plane_refresh_rollback_failed" $_.Exception.Message
+        }
+    }
+    Remove-Item -Force $stableRunnerBackup -ErrorAction SilentlyContinue
+    Remove-Item -Force $stableApplierBackup -ErrorAction SilentlyContinue
+
     if ($desktopSwapped -and (Test-Path $backupHost)) {
         try {
             if (Test-Path $DesktopHostRoot) {
@@ -281,8 +348,22 @@ catch {
             Write-UpdateLog "desktop_cutover_rollback_failed" $_.Exception.Message
         }
     }
+    if ($frontendPreparedTarget -and $null -ne $previousCurrent) {
+        try {
+            $previousSha = [string]$previousCurrent.pinned_sha
+            if ($previousSha -match '^[0-9a-f]{40}$' -and $previousSha -ne $targetSha) {
+                Write-UpdateLog "frontend_rollback_prepare_start" "sha=$previousSha"
+                Invoke-InstalledRunner $previousCurrent $previousSha "prepare"
+                Write-UpdateLog "frontend_rollback_prepare_pass" "sha=$previousSha"
+            }
+        }
+        catch {
+            Write-UpdateLog "frontend_rollback_prepare_failed" $_.Exception.Message
+        }
+    }
     Remove-Item -Recurse -Force $stagedHost -ErrorAction SilentlyContinue
     Remove-AcceptedManifest
+
     try {
         Write-JsonAtomic $ResultPath @{
             schema = $ResultSchema
