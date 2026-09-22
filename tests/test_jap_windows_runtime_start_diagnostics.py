@@ -2,7 +2,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LAUNCHER = ROOT / "JAP-Control-Center.ps1"
+RUNTIME_CONTROLLER = (
+    ROOT / "windows" / "JAP.ControlCenter.Desktop" / "ManagedRuntimeController.cs"
+)
+PROGRAM = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "Program.cs"
 WSL_RUNNER = ROOT / "scripts" / "run_jap_windows_control_center.sh"
 VERSION = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "VERSION"
 
@@ -38,41 +41,52 @@ def test_runtime_launcher_binds_to_requirements_pinned_local_oss_site() -> None:
     assert "JAP_WINDOWS_APP_LOCAL_OSS_SITE=" in runner
 
 
-def test_powershell_readiness_deadline_finishes_inside_desktop_hard_timeout() -> None:
-    launcher = _text(LAUNCHER)
-    assert "$readinessDeadline = [DateTime]::UtcNow.AddSeconds(75)" in launcher
-    assert "while ([DateTime]::UtcNow -lt $readinessDeadline)" in launcher
-    assert "--exec tail -n 12 $stdoutLinux" in launcher
-    assert "--exec tail -n 12 $stderrLinux" in launcher
-    assert "Last endpoint error" in launcher
-    assert "attempt -lt 240" not in launcher
+def test_native_runtime_readiness_finishes_inside_desktop_hard_timeout() -> None:
+    controller = _text(RUNTIME_CONTROLLER)
+    assert "Math.Clamp(timeout.TotalSeconds - 10, 5, 75)" in controller
+    assert "DateTimeOffset.UtcNow.AddSeconds(readinessBudgetSeconds)" in controller
+    assert '/app-info.json' in controller
+    assert "ReadLinuxTailAsync" in controller
+    assert '"tail",' in controller
+    assert '"12",' in controller
+    assert "Letzter Endpoint-Fehler" in controller
 
 
 def test_existing_runtime_is_reused_only_for_exact_installed_source_revision() -> None:
-    launcher = _text(LAUNCHER)
-    assert "/app-info.json" in launcher
-    assert "source_revision" in launcher
-    assert "$sourceRevision -eq $expected" in launcher
-    assert "JAP_CONTROL_CENTER_RUNTIME=STALE" in launcher
-    assert "& $StopperPath -InstallRoot $InstallRoot" in launcher
-    assert "The stale managed JAP runtime did not release port" in launcher
+    controller = _text(RUNTIME_CONTROLLER)
+    assert '"source_revision"' in controller
+    assert "sourceRevision == expectedSha" in controller
+    assert "if (endpoint.IsJap)" in controller
+    assert "await StopAsync(TimeSpan.FromSeconds(20))" in controller
+    assert "Die veraltete JAP Runtime hat Port" in controller
+
+
+def test_desktop_runtime_control_no_longer_depends_on_powershell_launchers() -> None:
+    controller = _text(RUNTIME_CONTROLLER)
+    program = _text(PROGRAM)
+    assert "wsl.exe" in controller
+    assert '"--exec"' in controller
+    assert '"bash"' in controller
+    assert "config.WslRunner" in controller
+    assert '"launch"' in controller
+    assert '"--stop"' in controller
+    assert 'launch_mode = "desktop_native_wsl_v1"' in controller
+    assert "powershell.exe" not in controller.lower()
+    assert "JAP-Control-Center.ps1" not in program
+    assert "Stop-JAP-Control-Center.ps1" not in program
+    assert "-ExecutionPolicy" not in program
+    assert "Bypass" not in program
 
 
 def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -> None:
-    launcher = _text(LAUNCHER)
+    controller = _text(RUNTIME_CONTROLLER)
     runner = _text(WSL_RUNNER)
 
-    assert '$stdoutLinux = "$stateRootLinux/runtime.stdout.log"' in launcher
-    assert '$stderrLinux = "$stateRootLinux/runtime.stderr.log"' in launcher
-    assert "--exec wslpath" not in launcher
-    assert '"launch"' in launcher
-    assert '& $wsl.Source @wslArgumentVector' in launcher
-    assert 'launch_mode = "wsl_nohup_setsid"' in launcher
-    assert "jap-runtime-detached.cmd" not in launcher
-    assert 'FilePath = $env:ComSpec' not in launcher
-    assert 'start "" /b' not in launcher
-    assert 'RedirectStandardOutput = $stdoutLog' not in launcher
-    assert 'RedirectStandardError = $stderrLog' not in launcher
+    assert '"launch"' in controller
+    assert "runtime.stdout.log" in controller
+    assert "runtime.stderr.log" in controller
+    assert "cmd.exe" not in controller
+    assert "FileName = $env:ComSpec" not in controller
 
     assert '[[ "$ACTION" == "start" || "$ACTION" == "prepare" || "$ACTION" == "launch" ]]' in runner
     launch = runner.split('if [[ "$ACTION" == "launch" ]]', 1)[1].split(
@@ -85,6 +99,5 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -
     assert '2>"$DETACHED_STDERR"' in launch
     assert 'JAP_WINDOWS_APP_DETACHED_HANDOFF=PASS' in launch
 
-
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.52"
+    assert _text(VERSION).strip() == "1.0.53"
