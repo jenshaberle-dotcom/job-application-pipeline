@@ -56,6 +56,15 @@ jobs:
           echo "=== installed runner identity ==="
           sha256sum "$runner" 2>/dev/null || true
           grep -nE 'ACTION.*launch|nohup setsid|detached_runtime_handoff|LOCAL_OSS_SITE|frontend_not_prepared' "$runner" 2>/dev/null || true
+          echo "=== bounded recovery to installed identity ==="
+          installed_sha="$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")).get("pinned_sha",""))' "$current")"
+          if [[ "$installed_sha" =~ ^[0-9a-f]{40}$ && -x "$runner" ]]; then
+            bash "$runner" --action prepare --pinned-sha "$installed_sha" --distro Ubuntu --project-root /home/jens_h/projects/job-application-pipeline --managed-worktree /home/jens_h/.local/share/jap-control-center/runtime --state-root /home/jens_h/.local/state/jap-control-center --port 8780
+            echo "JAP_RECOVERY_PREPARE=PASS sha=$installed_sha"
+          else
+            echo "JAP_RECOVERY_PREPARE=BLOCKED"
+            exit 1
+          fi
           echo "=== runtime process / port ==="
           ps -ef | grep -E 'run_product_v1_live_demo|run_jap_windows_control_center|python.*8780' | grep -v grep || true
           ss -ltnp 2>/dev/null | grep ':8780' || echo NO_LISTENER
