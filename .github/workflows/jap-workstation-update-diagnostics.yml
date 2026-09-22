@@ -33,6 +33,7 @@ jobs:
 
       - name: Inspect managed JAP install and update state
         shell: bash
+        continue-on-error: true
         run: |
           set -euo pipefail
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -Command '
@@ -95,6 +96,7 @@ jobs:
             Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue |
               Select-Object Id,SessionId,Path,StartTime |
               Format-Table -AutoSize | Out-String -Width 300 | Write-Output
+            exit 0
           '
 
       - name: Inspect Windows antivirus registration and recent AVG evidence
