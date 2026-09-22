@@ -1,0 +1,110 @@
+name: JAP PostgreSQL runtime recovery
+
+on:
+  push:
+    branches:
+      - diag/962-workstation-update
+    paths:
+      - ".github/workflows/jap-postgres-runtime-recovery.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    name: Recover exact local JAP PostgreSQL runtime
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 8
+
+    steps:
+      - name: Validate exact local DB contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_ROOT="$HOME/projects/job-application-pipeline"
+          COMPOSE="$PROJECT_ROOT/docker-compose.yml"
+          [[ -f "$COMPOSE" ]]
+          grep -Fq 'container_name: job_pipeline_postgres' "$COMPOSE"
+          grep -Fq '"5432:5432"' "$COMPOSE"
+          grep -Fq 'postgres_data:/var/lib/postgresql/data' "$COMPOSE"
+          echo "JAP_DB_RECOVERY_CONTRACT=PASS"
+
+      - name: Ensure Docker daemon is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if docker info >/dev/null 2>&1; then
+            echo "JAP_DOCKER=ALREADY_READY"
+            exit 0
+          fi
+
+          echo "JAP_DOCKER=START_REQUIRED"
+          if command -v systemctl >/dev/null 2>&1; then
+            sudo -n systemctl start docker
+          else
+            echo "JAP_DB_RECOVERY=BLOCK no_systemctl" >&2
+            exit 2
+          fi
+
+          for _ in $(seq 1 30); do
+            if docker info >/dev/null 2>&1; then
+              echo "JAP_DOCKER=READY"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "JAP_DB_RECOVERY=BLOCK docker_not_ready" >&2
+          exit 2
+
+      - name: Start only canonical JAP PostgreSQL container
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_ROOT="$HOME/projects/job-application-pipeline"
+          name="job_pipeline_postgres"
+
+          if docker inspect "$name" >/dev/null 2>&1; then
+            running="$(docker inspect -f '{{.State.Running}}' "$name")"
+            if [[ "$running" == "true" ]]; then
+              echo "JAP_POSTGRES=ALREADY_RUNNING"
+            else
+              docker start "$name" >/dev/null
+              echo "JAP_POSTGRES=STARTED_EXISTING"
+            fi
+          else
+            docker compose -f "$PROJECT_ROOT/docker-compose.yml" up -d --no-build --no-recreate postgres
+            echo "JAP_POSTGRES=STARTED_CANONICAL_COMPOSE"
+          fi
+
+          for _ in $(seq 1 45); do
+            if docker exec "$name" pg_isready -U job_user -d job_pipeline >/dev/null 2>&1; then
+              echo "JAP_POSTGRES_READY=PASS"
+              docker inspect -f 'container={{.Name}} status={{.State.Status}} restart={{.HostConfig.RestartPolicy.Name}}' "$name"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs --tail 80 "$name" || true
+          echo "JAP_DB_RECOVERY=BLOCK postgres_not_ready" >&2
+          exit 2
+
+      - name: Prove JAP product API recovered
+        shell: bash
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 20); do
+            code="$(curl --silent --show-error --max-time 10 -o /tmp/jap-product.json -w '%{http_code}' http://127.0.0.1:8780/api/v1/product-v1 || true)"
+            if [[ "$code" == "200" ]]; then
+              echo "JAP_PRODUCT_API_RECOVERY=PASS"
+              python3 -c 'import json; d=json.load(open("/tmp/jap-product.json")); print("JAP_PRODUCT_PAYLOAD_TYPE="+type(d).__name__)'
+              rm -f /tmp/jap-product.json
+              exit 0
+            fi
+            echo "JAP_PRODUCT_API_WAIT status=$code"
+            sleep 1
+          done
+          cat /tmp/jap-product.json 2>/dev/null || true
+          rm -f /tmp/jap-product.json
+          echo "JAP_PRODUCT_API_RECOVERY=FAIL" >&2
+          exit 2
