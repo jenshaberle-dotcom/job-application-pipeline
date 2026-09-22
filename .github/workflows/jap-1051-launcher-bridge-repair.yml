@@ -29,7 +29,7 @@ jobs:
           PROJECT_ROOT="$HOME/projects/job-application-pipeline"
 
           mapfile -t install_candidates < <(
-            find /mnt/c/Users -mindepth 4 -maxdepth 4 -type f \
+            find /mnt/c/Users -mindepth 5 -maxdepth 5 -type f \
               -path '*/AppData/Local/JAP-Control-Center/current.json' \
               -print 2>/dev/null
           )
