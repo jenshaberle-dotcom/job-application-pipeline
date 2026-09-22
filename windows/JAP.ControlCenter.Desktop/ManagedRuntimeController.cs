@@ -105,9 +105,17 @@ internal sealed class ManagedRuntimeController : IDisposable
             stderr);
         if (launch.ExitCode != 0)
         {
+            var stderrTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stderr);
+            var stdoutTail = await ReadLinuxTailAsync(wsl, config.WslDistro, stdout);
+            var detachedDiagnostics = string.Join(
+                " | ",
+                new[] { stderrTail, stdoutTail }.Where(value => !string.IsNullOrWhiteSpace(value)));
             throw new InvalidOperationException(
                 "Direkter JAP WSL-Runtime-Handoff fehlgeschlagen. "
-                + CompactDiagnostics(launch));
+                + CompactDiagnostics(launch)
+                + (string.IsNullOrWhiteSpace(detachedDiagnostics)
+                    ? string.Empty
+                    : " | Runtime: " + detachedDiagnostics));
         }
 
         WriteRuntimeState(config);
