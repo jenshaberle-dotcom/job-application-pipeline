@@ -30,7 +30,7 @@ def test_update_compatibility_contract_is_latest_direct_v1_with_six_hour_snooze(
     assert contract["direct_upgrade_from"] == "1.x"
     assert contract["installer_schema"] == "job_application_pipeline.windows_control_center_install.v2"
     assert contract["snooze_hours"] == 6
-    assert _text(VERSION).strip() == "1.0.55"
+    assert _text(VERSION).strip() == "1.0.56"
 
 
 def test_product_local_agent_owns_release_discovery_download_and_staging() -> None:
