@@ -22,7 +22,28 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp)"
           curl --fail --silent --show-error --max-time 20 http://127.0.0.1:8780/api/v1/product-v1 > "$tmp"
-          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("TOP_KEYS="+",".join(sorted(d.keys()))); [print(f"FIELD|{k}|type={type(v).__name__}|count={len(v) if hasattr(v,\"__len__\") else \"na\"}") for k,v in d.items()]; at=d.get("application_tracking") or {}; print("APP_TRACKING_KEYS="+",".join(sorted(at.keys())) if isinstance(at,dict) else "APP_TRACKING_NOT_DICT"); [print(f"APP_FIELD|{k}|type={type(v).__name__}|count={len(v) if hasattr(v,\"__len__\") else \"na\"}") for k,v in at.items()] if isinstance(at,dict) else None' "$tmp"
-          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); at=d.get("application_tracking") or {}; apps=(at.get("applications") or at.get("rows") or at.get("items") or []) if isinstance(at,dict) else []; print(f"APPLICATIONS_COUNT={len(apps)}"); [print("APP|"+json.dumps({k:a.get(k) for k in ["application_id","employer_name","job_title","effective_stage","silver_job_id","job_link_status"]},ensure_ascii=False,sort_keys=True)) for a in apps if isinstance(a,dict)]' "$tmp"
-          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); candidates=[]; [candidates.extend(v) for k,v in d.items() if isinstance(v,list) and v and isinstance(v[0],dict) and any(x in v[0] for x in ["silver_job_id","job_id","title","job_title"])]; print(f"JOBLIKE_ROWS={len(candidates)}"); [print("JOB|"+json.dumps({k:j.get(k) for k in ["silver_job_id","job_id","id","title","job_title","company_name","employer_name","lifecycle","review_scope"]},ensure_ascii=False,sort_keys=True)) for j in candidates[:140]]' "$tmp"
+          python3 - "$tmp" <<'PY'
+          import json, sys
+          d=json.load(open(sys.argv[1]))
+          print("TOP_KEYS="+",".join(sorted(d.keys())))
+          for k,v in d.items():
+              n=len(v) if hasattr(v,"__len__") else "na"
+              print("FIELD|{}|type={}|count={}".format(k,type(v).__name__,n))
+          at=d.get("application_tracking") or {}
+          if isinstance(at,dict):
+              print("APP_TRACKING_KEYS="+",".join(sorted(at.keys())))
+              for k,v in at.items():
+                  n=len(v) if hasattr(v,"__len__") else "na"
+                  print("APP_FIELD|{}|type={}|count={}".format(k,type(v).__name__,n))
+              apps=at.get("applications") or at.get("rows") or at.get("items") or []
+              for a in apps:
+                  if isinstance(a,dict):
+                      print("APP|"+json.dumps({k:a.get(k) for k in ["application_id","application_key","employer_name","job_title","effective_stage","silver_job_id","job_link_status"]},ensure_ascii=False,sort_keys=True))
+          for key in ("observed_opportunities","discovery_source_jobs","historical_jobs","top_jobs"):
+              rows=d.get(key) or []
+              if isinstance(rows,list):
+                  for j in rows:
+                      if isinstance(j,dict):
+                          print("JOB|surface={}|{}".format(key,json.dumps({k:j.get(k) for k in ["silver_job_id","job_id","id","title","job_title","company_name","employer_name","application_stage","application_id","application_key","review_scope"]},ensure_ascii=False,sort_keys=True)))
+          PY
           rm -f "$tmp"
