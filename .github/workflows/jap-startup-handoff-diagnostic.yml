@@ -39,8 +39,20 @@ jobs:
           tail -n 80 "$state_root/runtime.stderr.log" 2>/dev/null || echo MISSING
           echo "=== runtime stdout ==="
           tail -n 80 "$state_root/runtime.stdout.log" 2>/dev/null || echo MISSING
-          echo "=== update apply ==="
-          tail -n 80 "$install_root/logs/update-apply.log" 2>/dev/null || echo MISSING
+          echo "=== update state ==="
+          for rel in state/pending-update.json state/accepted-update.json state/update-result.json state/update-snooze.json state/runtime.json; do
+            echo "--- $rel"
+            sed -n '1,160p' "$install_root/$rel" 2>/dev/null || echo MISSING
+          done
+          echo "=== update logs ==="
+          for rel in logs/product-update-agent.log logs/desktop-host-update.log logs/desktop-host-startup.log logs/desktop-host-lifecycle.log logs/update-apply.log; do
+            echo "--- $rel"
+            tail -n 120 "$install_root/$rel" 2>/dev/null || echo MISSING
+          done
+          echo "=== installed desktop ==="
+          find "$install_root/desktop-host" -maxdepth 2 -type f -printf '%P %s\n' 2>/dev/null | sort | head -n 120
+          echo "=== staged updates ==="
+          find "$install_root/updates" -maxdepth 4 -type f -printf '%P %s\n' 2>/dev/null | sort | tail -n 160
           echo "=== installed runner identity ==="
           sha256sum "$runner" 2>/dev/null || true
           grep -nE 'ACTION.*launch|nohup setsid|detached_runtime_handoff|LOCAL_OSS_SITE|frontend_not_prepared' "$runner" 2>/dev/null || true
