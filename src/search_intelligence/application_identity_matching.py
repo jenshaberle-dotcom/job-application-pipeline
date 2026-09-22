@@ -119,6 +119,8 @@ class ExistingApplicationIdentity:
     employer_name: str | None
     job_title: str | None
     source_url: str | None
+    counterparty_domain: str | None = None
+    thread_reference: str | None = None
 
 
 def match_existing_application_identity(
@@ -127,6 +129,8 @@ def match_existing_application_identity(
     job_title: object,
     source_url: object,
     applications: list[ExistingApplicationIdentity],
+    counterparty_domain: object = None,
+    thread_reference: object = None,
 ) -> tuple[str | None, bool, str | None]:
     """Resolve a unique existing application conservatively.
 
@@ -146,6 +150,29 @@ def match_existing_application_identity(
             return url_matches[0].application_key, False, "exact_source_url"
         if len(url_matches) > 1:
             return None, True, "ambiguous_exact_source_url"
+
+    thread = str(thread_reference or "").strip()
+    if thread:
+        thread_matches = [
+            item for item in applications
+            if item.thread_reference and item.thread_reference == thread
+        ]
+        if len(thread_matches) == 1:
+            return thread_matches[0].application_key, False, "exact_mailbox_thread"
+        if len(thread_matches) > 1:
+            return None, True, "ambiguous_mailbox_thread"
+
+    domain = str(counterparty_domain or "").casefold().strip(" .")
+    if domain:
+        domain_matches = [
+            item for item in applications
+            if item.counterparty_domain
+            and item.counterparty_domain.casefold().strip(" .") == domain
+        ]
+        if len(domain_matches) == 1:
+            return domain_matches[0].application_key, False, "unique_counterparty_domain"
+        if len(domain_matches) > 1 and not normalize_title(job_title):
+            return None, True, "ambiguous_counterparty_domain"
 
     employer_norm = normalize_company(employer_name)
     if not employer_norm or not normalize_title(job_title):
