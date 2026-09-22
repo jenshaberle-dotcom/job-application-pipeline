@@ -21,51 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           tmp="$(mktemp)"
-          curl --fail --silent --show-error --max-time 20             http://127.0.0.1:8780/api/v1/product-v1 > "$tmp"
-
-          python3 - "$tmp" <<'PY'
-import json, sys
-from pathlib import Path
-
-payload=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-jobs=payload.get("jobs") or payload.get("all_jobs") or payload.get("operator_review_jobs") or []
-apps=((payload.get("f5_application_tracking") or {}).get("applications")
-      or payload.get("applications")
-      or payload.get("application_tracking")
-      or [])
-
-print(f"JOBS_COUNT={len(jobs)}")
-print(f"APPLICATIONS_COUNT={len(apps)}")
-
-job_ids=set()
-job_by_id={}
-for job in jobs:
-    if not isinstance(job, dict):
-        continue
-    jid=job.get("silver_job_id") or job.get("job_id") or job.get("id")
-    if jid is not None:
-        job_ids.add(jid)
-        job_by_id[jid]=job
-
-linked_current=[]
-for app in apps:
-    if not isinstance(app, dict):
-        continue
-    aid=app.get("application_id")
-    employer=app.get("employer_name")
-    title=app.get("job_title")
-    stage=app.get("effective_stage")
-    sid=app.get("silver_job_id")
-    status=app.get("job_link_status")
-    in_current=sid in job_ids if sid is not None else False
-    print("APP|id={}|employer={}|title={}|stage={}|silver_job_id={}|link_status={}|in_current_all_jobs={}".format(
-        aid, employer, title, stage, sid, status, in_current
-    ))
-    if in_current:
-        linked_current.append((aid, employer, title, stage, sid))
-
-print(f"CURRENT_LINKED_APPLICATIONS={len(linked_current)}")
-for row in linked_current:
-    print("CURRENT_LINK|id={}|employer={}|title={}|stage={}|silver_job_id={}".format(*row))
-PY
+          curl --fail --silent --show-error --max-time 20 http://127.0.0.1:8780/api/v1/product-v1 > "$tmp"
+          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("TOP_KEYS="+",".join(sorted(d.keys()))); [print(f"{k}_TYPE={type(d.get(k)).__name__}") for k in ["jobs","all_jobs","operator_review_jobs","applications","application_tracking","f5_application_tracking"] if k in d]' "$tmp"
+          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); jobs=d.get("jobs") or d.get("all_jobs") or d.get("operator_review_jobs") or []; apps=((d.get("f5_application_tracking") or {}).get("applications") if isinstance(d.get("f5_application_tracking"),dict) else None) or d.get("applications") or (d.get("application_tracking") if isinstance(d.get("application_tracking"),list) else []) or []; print(f"JOBS_COUNT={len(jobs)}"); print(f"APPLICATIONS_COUNT={len(apps)}"); ids={}; [ids.setdefault((j.get("silver_job_id") or j.get("job_id") or j.get("id")),j) for j in jobs if isinstance(j,dict) and (j.get("silver_job_id") or j.get("job_id") or j.get("id")) is not None]; current=[]; [(print("APP|id={}|employer={}|title={}|stage={}|silver_job_id={}|link_status={}|in_current_all_jobs={}".format(a.get("application_id"),a.get("employer_name"),a.get("job_title"),a.get("effective_stage"),a.get("silver_job_id"),a.get("job_link_status"),a.get("silver_job_id") in ids if a.get("silver_job_id") is not None else False)), current.append(a) if a.get("silver_job_id") in ids else None) for a in apps if isinstance(a,dict)]; print(f"CURRENT_LINKED_APPLICATIONS={len(current)}"); [print("CURRENT_LINK|id={}|employer={}|title={}|stage={}|silver_job_id={}".format(a.get("application_id"),a.get("employer_name"),a.get("job_title"),a.get("effective_stage"),a.get("silver_job_id"))) for a in current]' "$tmp"
           rm -f "$tmp"
