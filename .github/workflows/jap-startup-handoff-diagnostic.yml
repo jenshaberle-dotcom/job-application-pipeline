@@ -59,7 +59,9 @@ jobs:
           echo "=== bounded recovery to installed identity ==="
           installed_sha="$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")).get("pinned_sha",""))' "$current")"
           if [[ "$installed_sha" =~ ^[0-9a-f]{40}$ && -x "$runner" ]]; then
-            bash "$runner" --action prepare --pinned-sha "$installed_sha" --distro Ubuntu --project-root /home/jens_h/projects/job-application-pipeline --managed-worktree /home/jens_h/.local/share/jap-control-center/runtime --state-root /home/jens_h/.local/state/jap-control-center --port 8780
+            project_root="$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")).get("wsl_project_root",""))' "$current")"
+            managed_worktree="$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig")).get("managed_worktree",""))' "$current")"
+            bash "$runner" "$project_root" "$managed_worktree" "$installed_sha" "$state_root" prepare
             echo "JAP_RECOVERY_PREPARE=PASS sha=$installed_sha"
           else
             echo "JAP_RECOVERY_PREPARE=BLOCKED"
