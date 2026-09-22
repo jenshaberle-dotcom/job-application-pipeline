@@ -3,8 +3,19 @@ name: JAP Windows Desktop Host release
 on:
   push:
     branches: [main]
+    # The desktop release pins the complete product source SHA, not only the
+    # WinForms host. Release-relevant product changes must never be silent.
     paths:
+      - "VERSION"
       - "windows/JAP.ControlCenter.Desktop/**"
+      - "frontend/control-center/**"
+      - "scripts/**"
+      - "src/**"
+      - "JAP-Control-Center.ps1"
+      - "install-jap-control-center.ps1"
+      - "Apply-JAP-Control-Center-Update.ps1"
+      - "Stop-JAP-Control-Center.ps1"
+      - "requirements.txt"
       - ".github/workflows/jap-windows-desktop-host-release.yml"
   workflow_dispatch:
 
@@ -121,7 +132,14 @@ jobs:
           $Releases = $ReleaseJson | ConvertFrom-Json
           $Existing = $Releases | Where-Object { $_.tagName -eq $env:DESKTOP_TAG } | Select-Object -First 1
           if ($null -ne $Existing) {
-            Write-Host "DESKTOP_HOST_RELEASE=ALREADY_PUBLISHED tag=$env:DESKTOP_TAG"
+            # Immutable means an already-published version may only represent the exact same source.
+            # A new release-relevant SHA with the same VERSION must fail loudly instead of disappearing.
+            $ExistingTarget = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:DESKTOP_TAG" --jq '.target_commitish'
+            if ($LASTEXITCODE -ne 0) { throw "Existing desktop release target lookup failed." }
+            if ($ExistingTarget -ne $env:GITHUB_SHA) {
+              throw "Release-relevant source changed after $env:DESKTOP_TAG was published. Bump windows/JAP.ControlCenter.Desktop/VERSION before merge/release."
+            }
+            Write-Host "DESKTOP_HOST_RELEASE=ALREADY_PUBLISHED_EXACT_SOURCE tag=$env:DESKTOP_TAG"
             exit 0
           }
 
