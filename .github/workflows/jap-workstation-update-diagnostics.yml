@@ -1,0 +1,136 @@
+name: JAP workstation update diagnostics
+
+on:
+  push:
+    branches:
+      - diag/962-workstation-update
+    paths:
+      - ".github/workflows/jap-workstation-update-diagnostics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jap-workstation-update-diagnostics
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    name: Read-only JAP update/runtime workstation diagnostics
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 10
+
+    steps:
+      - name: Prove read-only Windows interop
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v powershell.exe >/dev/null
+          command -v cmd.exe >/dev/null
+          echo "JAP_UPDATE_DIAG_RUNNER=$RUNNER_NAME"
+          echo "JAP_UPDATE_DIAG_MODE=READ_ONLY"
+
+      - name: Inspect managed JAP install and update state
+        shell: bash
+        run: |
+          set -euo pipefail
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -Command '
+            $ErrorActionPreference = "Stop"
+            $root = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "JAP-Control-Center"))
+            Write-Output "INSTALL_ROOT=$root"
+
+            $paths = @(
+              "current.json",
+              "JAP-Control-Center.ps1",
+              "Stop-JAP-Control-Center.ps1",
+              "Apply-JAP-Control-Center-Update.ps1",
+              "run-jap-control-center-wsl.sh",
+              "desktop-host\JAP.ControlCenter.Desktop.exe",
+              "desktop-host\build-info.json",
+              "state\pending-update.json",
+              "state\accepted-update.json",
+              "state\update-result.json",
+              "logs\product-update-agent.log",
+              "logs\desktop-host-update.log",
+              "logs\desktop-host-startup.log"
+            )
+
+            foreach ($relative in $paths) {
+              $path = Join-Path $root $relative
+              if (Test-Path $path -PathType Leaf) {
+                $item = Get-Item $path
+                $hash = ""
+                try { $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() } catch { }
+                Write-Output ("FILE=PASS relative={0} bytes={1} sha256={2} mtime={3:o}" -f $relative,$item.Length,$hash,$item.LastWriteTimeUtc)
+              }
+              else {
+                Write-Output "FILE=MISSING relative=$relative"
+              }
+            }
+
+            foreach ($relative in @("current.json","state\pending-update.json","state\accepted-update.json","state\update-result.json","desktop-host\build-info.json")) {
+              $path = Join-Path $root $relative
+              Write-Output "=== $relative ==="
+              if (Test-Path $path -PathType Leaf) {
+                Get-Content -Raw -Encoding UTF8 $path
+              }
+              else {
+                Write-Output "MISSING"
+              }
+            }
+
+            Write-Output "=== managed updates ==="
+            $updates = Join-Path $root "updates"
+            if (Test-Path $updates) {
+              Get-ChildItem -Path $updates -File -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 80 FullName,Length,LastWriteTimeUtc |
+                Format-Table -AutoSize | Out-String -Width 300 | Write-Output
+            }
+            else {
+              Write-Output "MISSING"
+            }
+
+            Write-Output "=== JAP desktop processes ==="
+            Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue |
+              Select-Object Id,SessionId,Path,StartTime |
+              Format-Table -AutoSize | Out-String -Width 300 | Write-Output
+          '
+
+      - name: Inspect Windows antivirus registration and recent AVG evidence
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -Command '
+            $ErrorActionPreference = "Continue"
+            Write-Output "=== SecurityCenter2 antivirus products ==="
+            try {
+              Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct |
+                Select-Object displayName,pathToSignedProductExe,pathToSignedReportingExe,productState |
+                Format-Table -AutoSize | Out-String -Width 300 | Write-Output
+            } catch {
+              Write-Output "SECURITY_CENTER_QUERY_FAILED=$($_.Exception.Message)"
+            }
+
+            Write-Output "=== AVG/Avast event providers ==="
+            try {
+              Get-WinEvent -ListProvider * -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match "AVG|Avast" } |
+                Select-Object -First 40 Name |
+                Format-Table -AutoSize | Out-String -Width 300 | Write-Output
+            } catch {
+              Write-Output "EVENT_PROVIDER_QUERY_FAILED=$($_.Exception.Message)"
+            }
+
+            Write-Output "=== Recent event messages mentioning JAP path ==="
+            try {
+              $start = (Get-Date).AddDays(-3)
+              Get-WinEvent -FilterHashtable @{LogName="Application"; StartTime=$start} -ErrorAction SilentlyContinue |
+                Where-Object { $_.Message -match "JAP-Control-Center|JAP\.ControlCenter|AVG|Avast" } |
+                Select-Object -First 40 TimeCreated,ProviderName,Id,LevelDisplayName,Message |
+                Format-List | Out-String -Width 300 | Write-Output
+            } catch {
+              Write-Output "APPLICATION_EVENT_QUERY_FAILED=$($_.Exception.Message)"
+            }
+          '
