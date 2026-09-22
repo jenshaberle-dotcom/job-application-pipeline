@@ -22,11 +22,23 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
     const request = (async () => {
       setRefreshing(true);
       try {
-        const sync = await window.fetch("/api/v1/product-v1/mailbox-sync", { method: "POST", headers: { Accept: "application/json" } });
-        if (!sync.ok) throw new Error(`Mailbox sync returned ${sync.status}`);
+        let mailboxSyncWarning: string | null = null;
+        try {
+          const sync = await window.fetch("/api/v1/product-v1/mailbox-sync", {
+            method: "POST",
+            headers: { Accept: "application/json" },
+          });
+          if (!sync.ok) mailboxSyncWarning = `Mailbox sync returned ${sync.status}`;
+        } catch (reason: unknown) {
+          mailboxSyncWarning = `Mailbox sync unavailable: ${String(reason)}`;
+        }
+
+        // Mailbox freshness enriches Product Truth; it is not availability authority.
+        // Gmail quota/network failures must not take the Control Center down.
         const truth = await readProductTruth<unknown>({ fresh: true });
         setPayload(truth);
         setError(null);
+        if (mailboxSyncWarning) console.warn(mailboxSyncWarning);
       } catch (reason: unknown) {
         setError(String(reason));
         throw reason;
