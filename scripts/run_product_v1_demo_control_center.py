@@ -37,6 +37,10 @@ from scripts.product_v1_f5_application_actions import (
 from scripts.product_v1_f5_application_tracking_runtime import (
     load_application_tracking_payload,
 )
+from scripts.product_v1_runtime_mailbox_sync import (
+    MailboxSyncScheduler,
+    sync_mailbox,
+)
 from scripts.run_product_v1_f5_mailbox_silver_reconciliation_preflight import (
     build_tracking_job_linkage,
 )
@@ -66,6 +70,7 @@ APPLICATION_WORKSPACE_PATH = "/api/v1/product-v1/application-workspace"
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
 APPLICATION_SUBMISSION_RECORD_PATH = "/api/v1/product-v1/application-submission-record"
+MAILBOX_SYNC_PATH = "/api/v1/product-v1/mailbox-sync"
 _MAX_ACTION_BODY_BYTES = 4_096
 _MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
 _DEFAULT_PRIVATE_DOCUMENT_ROOT = Path("private_application_sources")
@@ -323,6 +328,11 @@ class ProductV1DemoHandler(ProductV1Handler):
 
     def do_POST(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
+        if parsed.path == MAILBOX_SYNC_PATH:
+            result = sync_mailbox(reason="operator_refresh")
+            status = HTTPStatus.OK if result.get("status") in {"pass", "already_running"} else HTTPStatus.SERVICE_UNAVAILABLE
+            self._send_json(result, status=status)
+            return
         if parsed.path == APPLICATION_SOURCE_UPLOAD_PATH:
             self._post_document_upload()
             return
@@ -375,6 +385,8 @@ def run_server(args: argparse.Namespace) -> None:
     private_root = configure_demo_private_document_root()
     server = ThreadingHTTPServer((args.host, args.port), ProductV1DemoHandler)
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
+    mailbox_scheduler = MailboxSyncScheduler()
+    mailbox_scheduler.start()
     print(f"Deep Ocean Product V1 DEMO-001: http://{args.host}:{args.port}/")
     print(f"Private application documents: {private_root}")
     print(
@@ -388,6 +400,7 @@ def run_server(args: argparse.Namespace) -> None:
     except KeyboardInterrupt:
         print("\nProduct V1 DEMO-001 stopped by operator.")
     finally:
+        mailbox_scheduler.stop()
         server.server_close()
 
 
