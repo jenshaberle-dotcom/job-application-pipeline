@@ -188,7 +188,10 @@ def _apply_idempotent(rows: list[dict[str, object]]) -> dict[str, object]:
 
 def sync_mailbox(*, reason: str) -> dict[str, object]:
     started = datetime.now(timezone.utc)
-    if not _LOCK.acquire(blocking=False):
+    # Explicit UI refresh must not race the startup/scheduled writer. Waiting here
+    # guarantees that the subsequent Product Truth GET observes the completed sync.
+    blocking = reason == "operator_refresh"
+    if not _LOCK.acquire(blocking=blocking):
         return {
             "schema": "jap.runtime.mailbox_sync.v1",
             "status": "already_running",
