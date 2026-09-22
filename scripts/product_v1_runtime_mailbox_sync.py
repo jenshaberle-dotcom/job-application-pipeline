@@ -18,7 +18,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 from typing import Callable
 
 from scripts.run_product_v1_f5_mailbox_persistence_apply import (
