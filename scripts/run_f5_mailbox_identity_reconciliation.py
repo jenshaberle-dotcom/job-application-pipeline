@@ -10,10 +10,17 @@ never deleted or rewritten. The empty duplicate application identity is then rem
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from collections import defaultdict
+from pathlib import Path
+import sys
 
-from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from dataclasses import dataclass  # noqa: E402
+from collections import defaultdict  # noqa: E402
+
+from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig  # noqa: E402
 
 APPROVAL_TOKEN = "F5-MAILBOX-IDENTITY-RECONCILE-V1"
 
