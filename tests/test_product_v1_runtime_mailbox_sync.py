@@ -76,3 +76,17 @@ def test_control_center_refreshes_truth_after_startup_and_every_30_minutes() -> 
     assert "void refreshProductTruth().catch(() => undefined);" in source
     assert "30 * 60 * 1000" in source
     assert "window.clearInterval(interval)" in source
+
+
+def test_mailbox_failure_does_not_fail_closed_product_truth() -> None:
+    source = (
+        __import__("pathlib").Path(__file__).parents[1]
+        / "frontend"
+        / "control-center"
+        / "src"
+        / "ProductTruthContext.tsx"
+    ).read_text(encoding="utf-8")
+    assert 'if (!sync.ok) mailboxSyncWarning = `Mailbox sync returned ${sync.status}`;' in source
+    assert "const truth = await readProductTruth<unknown>({ fresh: true });" in source
+    assert "if (mailboxSyncWarning) console.warn(mailboxSyncWarning);" in source
+    assert 'if (!sync.ok) throw new Error(`Mailbox sync returned ${sync.status}`);' not in source
