@@ -105,11 +105,35 @@ function Remove-AcceptedManifest {
     }
 }
 
+function Move-DirectoryWithRetry(
+    [string]$Source,
+    [string]$Destination,
+    [string]$Phase
+) {
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 40; $attempt++) {
+        try {
+            Move-Item -Path $Source -Destination $Destination -ErrorAction Stop
+            if ($attempt -gt 1) {
+                Write-UpdateLog "${Phase}_retry_pass" "attempt=$attempt"
+            }
+            return
+        }
+        catch {
+            $lastError = $_.Exception.Message
+            if ($attempt -ge 40) { break }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+    throw "$Phase failed after bounded retry: $lastError"
+}
+
 $targetVersion = "unknown"
 $targetSha = "unknown"
 $backupHost = Join-Path $InstallRoot ("desktop-host.previous." + $PID)
 $stagedHost = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
 $desktopSwapped = $false
+$frontendPreparedTarget = $false
 $previousCurrent = $null
 
 try {
@@ -186,6 +210,7 @@ try {
 
     Write-UpdateLog "frontend_prepare_start" "target=$targetVersion sha=$targetSha"
     Invoke-InstalledRunner $current $targetSha "prepare"
+    $frontendPreparedTarget = $true
     Write-UpdateLog "frontend_prepare_pass" "target=$targetVersion sha=$targetSha"
 
     Remove-Item -Recurse -Force $stagedHost -ErrorAction SilentlyContinue
@@ -199,10 +224,10 @@ try {
 
     Write-UpdateLog "desktop_cutover_start" "target=$targetVersion sha=$targetSha"
     if (Test-Path $DesktopHostRoot) {
-        Move-Item -Path $DesktopHostRoot -Destination $backupHost
+        Move-DirectoryWithRetry $DesktopHostRoot $backupHost "desktop_backup_move"
     }
     try {
-        Move-Item -Path $stagedHost -Destination $DesktopHostRoot
+        Move-DirectoryWithRetry $stagedHost $DesktopHostRoot "desktop_staged_move"
         $desktopSwapped = $true
     }
     catch {
@@ -210,7 +235,7 @@ try {
             Remove-Item -Recurse -Force $DesktopHostRoot -ErrorAction SilentlyContinue
         }
         if (Test-Path $backupHost) {
-            Move-Item -Path $backupHost -Destination $DesktopHostRoot
+            Move-DirectoryWithRetry $backupHost $DesktopHostRoot "desktop_inline_rollback_move"
         }
         throw
     }
@@ -279,6 +304,37 @@ catch {
         }
         catch {
             Write-UpdateLog "desktop_cutover_rollback_failed" $_.Exception.Message
+        }
+    }
+    if ($frontendPreparedTarget -and $null -ne $previousCurrent) {
+        try {
+            $previousSha = [string]$previousCurrent.pinned_sha
+            if ($previousSha -match '^[0-9a-f]{40}
+    try {
+        Write-JsonAtomic $ResultPath @{
+            schema = $ResultSchema
+            status = "failed"
+            target_main_sha = $targetSha
+            target_desktop_version = $targetVersion
+            completed_at = [DateTime]::UtcNow.ToString("o")
+            detail = $detail
+        }
+        Write-UpdateLog "update_failed" $detail
+    }
+    catch {
+        # Preserve the original failure even if diagnostics cannot be written.
+    }
+    Restart-JapIfPresent
+    exit 1
+}
+ -and $previousSha -ne $targetSha) {
+                Write-UpdateLog "frontend_rollback_prepare_start" "sha=$previousSha"
+                Invoke-InstalledRunner $previousCurrent $previousSha "prepare"
+                Write-UpdateLog "frontend_rollback_prepare_pass" "sha=$previousSha"
+            }
+        }
+        catch {
+            Write-UpdateLog "frontend_rollback_prepare_failed" $_.Exception.Message
         }
     }
     Remove-Item -Recurse -Force $stagedHost -ErrorAction SilentlyContinue
