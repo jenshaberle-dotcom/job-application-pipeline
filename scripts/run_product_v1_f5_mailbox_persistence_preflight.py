@@ -215,6 +215,8 @@ def plan_rows(
                     job_title=observation.job_title,
                     source_url=observation.source_url,
                     applications=application_identities,
+                    counterparty_domain=observation.counterparty_domain,
+                    thread_reference=observation.thread_reference,
                 )
             )
             if matched_key is not None:
