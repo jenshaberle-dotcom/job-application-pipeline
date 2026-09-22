@@ -50,6 +50,41 @@ jobs:
         shell: bash
         run: |
           docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|" -c "select a.id,c.candidate_class,coalesce(c.evidence_payload->>chr(99)||chr(111)||chr(117)||chr(110)||chr(116)||chr(101)||chr(114)||chr(112)||chr(97)||chr(114)||chr(116)||chr(121)||chr(95)||chr(100)||chr(111)||chr(109)||chr(97)||chr(105)||chr(110),chr(45)),coalesce(c.evidence_payload->>chr(114)||chr(101)||chr(97)||chr(115)||chr(111)||chr(95)||chr(99)||chr(111)||chr(100)||chr(101),chr(45)),c.observed_at from applications a join application_event_candidates c on c.matched_application_id=a.id and c.is_active where a.id>=19 order by a.id,c.observed_at;"' | sed 's/^/FP_EVIDENCE|/'
+      - name: Remove unsafe mailbox-discovered application identities from failed broad scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec job_pipeline_postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'"'"'SQL'"'"'
+          BEGIN;
+          CREATE TEMP TABLE unsafe_mailbox_apps AS
+          SELECT a.id
+          FROM applications a
+          WHERE a.discovery_kind = '"'"'mailbox_observed'"'"'
+            AND a.created_at = TIMESTAMPTZ '"'"'2026-09-22 10:14:12.911507+00'"'"'
+            AND a.id >= 19
+            AND a.silver_job_id IS NULL
+            AND coalesce(a.job_identity_snapshot->>'"'"'job_title'"'"','"'"''"'"') = '"'"''"'"'
+            AND coalesce(a.job_identity_snapshot->>'"'"'employer_name'"'"','"'"''"'"') = '"'"''"'"'
+            AND NOT EXISTS (SELECT 1 FROM application_submissions s WHERE s.application_id=a.id);
+          DO $
+          DECLARE n integer;
+          BEGIN
+            SELECT count(*) INTO n FROM unsafe_mailbox_apps;
+            IF n <> 19 THEN
+              RAISE EXCEPTION '"'"'unsafe mailbox cleanup expected 19 candidates, got %'"'"', n;
+            END IF;
+          END $;
+          UPDATE application_event_candidates c
+          SET matched_application_id=NULL,
+              match_status='"'"'unmatched'"'"',
+              ambiguity_reason='"'"'no_safe_application_identity'"'"',
+              review_status='"'"'ambiguous'"'"'
+          WHERE c.matched_application_id IN (SELECT id FROM unsafe_mailbox_apps)
+            AND c.is_active;
+          DELETE FROM applications a WHERE a.id IN (SELECT id FROM unsafe_mailbox_apps);
+          COMMIT;
+          SQL'
+          docker exec job_pipeline_postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "select count(*) from gold_product_v1_application_tracking;"' | sed 's/^/POST_CLEANUP_APPLICATION_COUNT=/'
       - name: Inspect FI identity and evidence split
         shell: bash
         run: |
