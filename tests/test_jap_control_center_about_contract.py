@@ -90,8 +90,8 @@ def test_operator_surface_drops_preview_button_but_keeps_internal_preview_runtim
     assert "load_downstream_evidence_preview_payload" in server
 
 
-def test_bugfix_round_bumps_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.62"
+def test_current_product_local_release_version() -> None:
+    assert _text(VERSION).strip() == "1.0.63"
 
 
 def test_failed_python_frontend_prewarm_surface_is_removed() -> None:
