@@ -19,7 +19,7 @@ internal static class ProductUpdateAgent
     private const string RuntimeArchiveName = "JAP-Control-Center-Runtime.zip";
     private const string RuntimeChecksumName = "JAP-Control-Center-Runtime.zip.sha256";
     private const string StagingProvider = "product_local_update_agent_v2";
-    private static readonly Version MinimumDirectVersion = new(1, 0, 63);
+    private static readonly Version MinimumDirectVersion = new(1, 0, 65);
     private static readonly Regex ShaPattern = new("^[0-9a-fA-F]{40}$", RegexOptions.CultureInvariant);
     private static readonly Regex DigestPattern = new("^[0-9a-fA-F]{64}$", RegexOptions.CultureInvariant);
 
@@ -228,18 +228,7 @@ internal static class ProductUpdateAgent
             try
             {
                 if (File.Exists(temporaryArchive)) File.Delete(temporaryArchive);
-                using var response = await client.GetAsync(archiveUrl, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-                await using var source = await response.Content.ReadAsStreamAsync();
-                await using var destination = new FileStream(
-                    temporaryArchive,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    bufferSize: 1024 * 128,
-                    useAsync: true);
-                await source.CopyToAsync(destination);
-                await destination.FlushAsync();
+                await DownloadArchiveAsync(client, archiveUrl, temporaryArchive);
                 Require(
                     string.Equals(
                         ProductUpdateIntegrity.ComputeFileSha256(temporaryArchive),
@@ -261,6 +250,30 @@ internal static class ProductUpdateAgent
                 StringComparison.OrdinalIgnoreCase),
             "Staged JAP release checksum verification failed.");
         return expectedHash;
+    }
+
+    private static async Task DownloadArchiveAsync(
+        HttpClient client,
+        string archiveUrl,
+        string temporaryArchive)
+    {
+        using var response = await client.GetAsync(
+            archiveUrl,
+            HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        await using var source = await response.Content.ReadAsStreamAsync();
+        await using (var destination = new FileStream(
+            temporaryArchive,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 1024 * 128,
+            useAsync: true))
+        {
+            await source.CopyToAsync(destination);
+            await destination.FlushAsync();
+        }
     }
 
     private static void ExtractFresh(string archivePath, string destination)
