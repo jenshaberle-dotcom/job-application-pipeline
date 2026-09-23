@@ -5,6 +5,7 @@ from hashlib import sha256
 from types import SimpleNamespace
 
 from scripts import product_v1_application_workspace_runtime as runtime
+from src.search_intelligence.f6_template_authority import template_spec
 from src.search_intelligence.product_v1_application_context import (
     ApplicationSourceDocumentSnapshot,
     ApplicationTargetSnapshot,
@@ -22,9 +23,10 @@ def _document(kind: str) -> ApplicationSourceDocumentSnapshot:
         document_type=kind,
         source_label=kind,
         source_reference=f"local://{kind}",
-        content_sha256=sha256(content.encode()).hexdigest(),
+        content_sha256=template_spec(kind).sha256,
         content=content,
         status="approved",
+        source_hash_verified=True,
     )
 
 
