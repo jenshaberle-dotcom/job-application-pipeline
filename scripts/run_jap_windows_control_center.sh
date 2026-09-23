@@ -162,7 +162,7 @@ LOCAL_OSS_SITE="$(
 )" || fail pinned_local_oss_runtime_unavailable
 [[ -n "$LOCAL_OSS_SITE" && -d "$LOCAL_OSS_SITE" ]] || fail pinned_local_oss_runtime_invalid
 export PYTHONPATH="$LOCAL_OSS_SITE${PYTHONPATH:+:$PYTHONPATH}"
-if ! python -c 'import extruct, trafilatura'; then
+if ! python -c 'import extruct, trafilatura, pymupdf'; then
   fail pinned_local_oss_runtime_import_failed
 fi
 

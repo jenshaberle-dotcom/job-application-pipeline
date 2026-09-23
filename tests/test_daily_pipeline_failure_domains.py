@@ -27,7 +27,7 @@ def _prepare_fake_home(tmp_path: Path) -> tuple[Path, Path, Path]:
         encoding="utf-8",
     )
     (project / "requirements.txt").write_text(
-        "extruct==0.18.0\ntrafilatura==2.2.0\n",
+        "extruct==0.18.0\ntrafilatura==2.2.0\npymupdf==1.28.2\n",
         encoding="utf-8",
     )
 
@@ -39,7 +39,7 @@ set -u
 printf '%s\\n' \"$*\" >> \"$CALL_LOG\"
 if [ \"${1:-}\" = \"-\" ] && [ \"$#\" -gt 1 ]; then
   cat >/dev/null
-  printf '%s\\n' 'extruct==0.18.0' 'trafilatura==2.2.0'
+  printf '%s\\n' 'extruct==0.18.0' 'trafilatura==2.2.0' 'pymupdf==1.28.2'
   exit 0
 fi
 if [ \"${1:-}\" = \"-\" ]; then
@@ -252,7 +252,7 @@ def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     assert ".runtime/local-oss-sites" in daily
     assert "scripts.reconcile_reviewed_personio_detail_health" in daily
 
-    assert 'required = ("extruct", "trafilatura")' in provisioner
+    assert 'required = ("extruct", "trafilatura", "pymupdf")' in provisioner
     assert "sha256sum" in provisioner
     assert "--target" in provisioner
 

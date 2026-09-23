@@ -39,7 +39,7 @@ def test_runtime_launcher_binds_to_requirements_pinned_local_oss_site() -> None:
     assert '"$RUNTIME_ROOT/requirements.txt"' in runner
     assert '"$PROJECT_ROOT/.runtime/local-oss-sites"' in runner
     assert 'export PYTHONPATH="$LOCAL_OSS_SITE${PYTHONPATH:+:$PYTHONPATH}"' in runner
-    assert "python -c 'import extruct, trafilatura'" in runner
+    assert "python -c 'import extruct, trafilatura, pymupdf'" in runner
     assert "pinned_local_oss_runtime_import_failed" in runner
     assert "JAP_WINDOWS_APP_LOCAL_OSS_SITE=" in runner
 
@@ -120,7 +120,7 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_prepare_path() 
 
 
 def test_current_runtime_release_version() -> None:
-    assert _text(VERSION).strip() == "1.0.70"
+    assert _text(VERSION).strip() == "1.0.71"
 
 
 
