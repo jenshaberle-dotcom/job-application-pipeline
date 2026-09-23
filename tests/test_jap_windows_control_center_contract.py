@@ -125,7 +125,8 @@ def test_product_release_builds_immutable_desktop_and_runtime_assets() -> None:
     assert "JAP-Control-Center-Desktop-win-x64.zip" in workflow
     assert "JAP-Control-Center-Runtime.zip" in workflow
     assert "runtime-info.json" in workflow
-    assert 'Set-Content -Encoding ASCII -NoNewline (Join-Path $Frontend ".jap-source-sha") $env:GITHUB_SHA' in workflow
+    assert 'Get-ChildItem -Force "frontend\control-center\dist" | Copy-Item -Destination $Frontend -Recurse -Force' in workflow
+    assert 'Set-Content -Path (Join-Path $Frontend ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline' in workflow
     assert "gh release create $env:PRODUCT_TAG" in workflow
     assert "--target $env:GITHUB_SHA" in workflow
     assert '"schema": "job_application_pipeline.windows_update_compatibility.v2"' in compatibility
