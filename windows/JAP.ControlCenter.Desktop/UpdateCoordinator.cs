@@ -259,7 +259,7 @@ internal sealed class UpdateCoordinator : IDisposable
             return false;
         }
 
-        return installedVersion >= new Version(1, 0, 63)
+        return installedVersion >= new Version(1, 0, 65)
             && targetVersion > installedVersion;
     }
 
