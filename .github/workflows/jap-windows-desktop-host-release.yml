@@ -87,7 +87,7 @@ jobs:
           if (-not (Test-Path (Join-Path $Dist "index.html"))) {
             throw "React Control Center build did not produce dist/index.html."
           }
-          Set-Content -Encoding ASCII -NoNewline (Join-Path $Dist ".jap-source-sha") $env:GITHUB_SHA
+          Set-Content -Path (Join-Path $Dist ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline
 
       - name: Publish self-contained Windows x64 host
         shell: powershell
@@ -135,8 +135,8 @@ jobs:
           Copy-Item -Force "windows\JAP.ControlCenter.Desktop\UPDATE_COMPATIBILITY.json" (Join-Path $DesktopMetadata "UPDATE_COMPATIBILITY.json")
           $Frontend = Join-Path $Runtime "frontend\control-center\dist"
           New-Item -ItemType Directory -Force -Path $Frontend | Out-Null
-          Copy-Item -Recurse -Force "frontend\control-center\dist\*" $Frontend
-          Set-Content -Encoding ASCII -NoNewline (Join-Path $Frontend ".jap-source-sha") $env:GITHUB_SHA
+          Get-ChildItem -Force "frontend\control-center\dist" | Copy-Item -Destination $Frontend -Recurse -Force
+          Set-Content -Path (Join-Path $Frontend ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline
           @{
             schema = "job_application_pipeline.runtime_bundle.v1"
             version = $env:PRODUCT_VERSION
