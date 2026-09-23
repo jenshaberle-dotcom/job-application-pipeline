@@ -218,8 +218,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $Api = "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:PRODUCT_TAG"
-          gh release view $env:PRODUCT_TAG --repo $env:GITHUB_REPOSITORY *> $null
-          $Exists = $LASTEXITCODE -eq 0
+          $ReleaseJson = gh release list `
+            --repo $env:GITHUB_REPOSITORY `
+            --limit 1000 `
+            --json tagName
+          if ($LASTEXITCODE -ne 0) {
+            throw "Product release inventory failed."
+          }
+          $Releases = @($ReleaseJson | ConvertFrom-Json)
+          $Exists = $null -ne ($Releases | Where-Object { $_.tagName -eq $env:PRODUCT_TAG } | Select-Object -First 1)
           if ($Exists) {
             $ExistingTarget = gh api $Api --jq '.target_commitish'
             if ($LASTEXITCODE -ne 0) { throw "Existing product release target lookup failed." }

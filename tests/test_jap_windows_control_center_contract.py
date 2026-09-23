@@ -130,6 +130,9 @@ def test_product_release_builds_immutable_desktop_and_runtime_assets() -> None:
     assert "[System.IO.Compression.ZipFile]::CreateFromDirectory(" in workflow
     assert '"frontend/control-center/dist/.jap-source-sha"' in workflow
     assert "Compress-Archive" not in workflow
+    assert "gh release list" in workflow
+    assert "--json tagName" in workflow
+    assert "gh release view $env:PRODUCT_TAG" not in workflow
     assert "gh release create $env:PRODUCT_TAG" in workflow
     assert "--target $env:GITHUB_SHA" in workflow
     assert '"schema": "job_application_pipeline.windows_update_compatibility.v2"' in compatibility
