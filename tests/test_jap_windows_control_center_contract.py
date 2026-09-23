@@ -53,6 +53,7 @@ def test_bootstrap_bridge_is_per_user_and_installs_product_local_generation() ->
     assert 'update_authority = "product_local_update_agent_v2"' in text
     assert 'New-AppShortcut (Join-Path $programs "Update JAP Control Center.lnk")' not in text
     assert 'JAP_CONTROL_CENTER_BOOTSTRAP_BRIDGE=PASS' in text
+    assert 'Product runtime shell script contains CR bytes' in text
 
 
 def test_bootstrap_bridge_does_not_assign_powershell_home_automatic_variable() -> None:
@@ -146,6 +147,9 @@ def test_product_release_builds_immutable_desktop_and_runtime_assets() -> None:
     assert '"schema": "job_application_pipeline.windows_update_compatibility.v2"' in compatibility
     assert '"policy": "product_local_latest_direct"' in compatibility
     assert '"installer_schema": "job_application_pipeline.windows_control_center_install.v3"' in compatibility
+    assert '$Body = $Body.Replace("`r`n", "`n").Replace("`r", "`n")' in workflow
+    assert "Runtime shell script still contains CR bytes" in workflow
+    assert "Runtime release ZIP contains CR bytes" in workflow
 
 
 def test_stop_path_is_managed_pid_only() -> None:
