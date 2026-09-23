@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from scripts.import_private_application_source_documents import build_document
+from scripts import import_private_application_source_documents as importer
+
+build_document = importer.build_document
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
     LoadedApplicationSource,
@@ -73,7 +75,11 @@ def _fact() -> dict[str, object]:
     }
 
 
-def test_importer_accepts_text_bearing_pdf_without_persisting_content(tmp_path: Path) -> None:
+def test_importer_keeps_verified_pdf_private_without_persisting_content(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(importer, "validate_template_pdf", lambda **_kwargs: None)
     root = tmp_path / "private_application_sources"
     root.mkdir()
     source = root / "base_cv.pdf"
@@ -145,8 +151,9 @@ def test_pdf_raw_hash_binds_workspace_after_text_extraction(tmp_path: Path) -> N
         employer_origin_authorized=True,
     )
 
-    assert context.generation_ready is True
-    assert context.blocked_reasons == ()
+    assert context.generation_ready is False
+    assert "base_cv_not_f6_template_authority" in context.blocked_reasons
+    assert "base_application_letter_not_f6_template_authority" in context.blocked_reasons
     assert all(document.source_hash_verified is True for document in context.source_documents)
 
 
