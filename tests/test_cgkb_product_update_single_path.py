@@ -7,49 +7,97 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_routine_update_is_product_local_and_has_single_authority():
+def test_routine_update_is_product_local_and_has_single_authority() -> None:
     agent = read("windows/JAP.ControlCenter.Desktop/ProductUpdateAgent.cs")
     coordinator = read("windows/JAP.ControlCenter.Desktop/UpdateCoordinator.cs")
-    assert "product_local_update_agent_v1" in agent
-    assert "pending-update.json" in agent
+    assert "product_local_update_agent_v2" in agent
+    assert "job_application_pipeline.windows_product_update.v2" in agent
+    assert "jap-winapp-product-v" in agent
+    assert "JAP-Control-Center-Runtime.zip" in agent
+    assert "desktop-staged" in agent
+    assert "runtime-staged" in agent
+    assert "apply-helper" in agent
+    assert "ZipFile.ExtractToDirectory" in agent
+    assert "pending_published" in agent
+
     assert "accepted-update.json" in coordinator
-    assert "Apply-JAP-Control-Center-Update.ps1" not in coordinator
-    assert "update_accepted" in coordinator
+    assert "pending.ApplyHelperExecutable" in coordinator
     assert "--apply-update" in coordinator
-    assert "powershell.exe" not in coordinator
+    assert "CopyDirectory(" not in coordinator
+    assert "powershell.exe" not in coordinator.lower()
     assert "wsl.exe" not in coordinator.lower()
     assert "git " not in coordinator.lower()
 
 
-def test_release_payload_does_not_ship_legacy_update_control_plane():
+def test_post_consent_applier_has_no_discovery_download_or_extraction_authority() -> None:
+    applier = read("windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs")
+    assert "desktop_stage" in applier
+    assert "runtime_stage" in applier
+    assert "ComputeDirectorySha256" in applier
+    assert "Directory.Move(desktopStage, desktopLive)" in applier
+    assert "Directory.Move(runtimeStage, runtimeLive)" in applier
+    assert "VerifyRestartedProduct" in applier
+    assert "source_revision" in applier
+    assert "runtime_verified" in applier
+    assert "desktopBackup" in applier
+    assert "runtimeBackup" in applier
+    assert "previousCurrentJson" in applier
+    for forbidden in (
+        "ZipFile.ExtractToDirectory",
+        "HttpClient.GetAsync",
+        "github.com/repos",
+        "git fetch",
+        "git checkout",
+        "powershell.exe",
+        "wsl.exe",
+        "npm ",
+    ):
+        assert forbidden.lower() not in applier.lower()
+
+
+def test_release_generation_contains_both_immutable_product_assets() -> None:
     workflow = read(".github/workflows/jap-windows-desktop-host-release.yml")
-    assert 'Copy-Item -Force "Apply-JAP-Control-Center-Update.ps1"' not in workflow
-    assert 'Copy-Item -Force "scripts/run_jap_windows_control_center.sh"' not in workflow
+    assert "jap-winapp-product-v$Version" in workflow
+    assert "JAP-Control-Center-Desktop-win-x64.zip" in workflow
+    assert "JAP-Control-Center-Runtime.zip" in workflow
+    assert "runtime-info.json" in workflow
+    assert "cgkb_product_local_v1" in workflow
+    assert "--target $env:GITHUB_SHA" in workflow
+    assert "jap-winapp-desktop-v$Version" not in workflow
 
 
-def test_legacy_routine_update_surfaces_are_physically_absent():
+def test_legacy_routine_update_surfaces_are_physically_absent() -> None:
     forbidden = [
-        "Update-JAP-Control-Center.ps1",
-        "Apply-JAP-Control-Center-Update.ps1",
-        "scripts/deploy_jap_windows_control_center_local.sh",
-        ".github/workflows/jap-windows-control-center-local-deploy.yml",
-        "tests/test_jap_windows_control_center_local_deploy.py",
+        "Update-" + "JAP-Control-Center.ps1",
+        "Apply-" + "JAP-Control-Center-Update.ps1",
+        "scripts/deploy_" + "jap_windows_control_center_local.sh",
+        ".github/workflows/jap-windows-control-center-" + "local-deploy.yml",
+        "tests/test_jap_windows_control_center_" + "local_deploy.py",
+        "tests/test_jap_windows_control_center_" + "update_flow.py",
+        "JAP-" + "Control-Center.ps1",
     ]
     for relative in forbidden:
-        assert not (ROOT / relative).exists(), f"legacy update surface returned: {relative}"
+        assert not (ROOT / relative).exists(), f"legacy authority surface returned: {relative}"
 
 
-def test_no_legacy_authority_references_remain_in_active_update_surfaces():
+def test_active_update_authority_does_not_reference_retired_routine_paths() -> None:
     active = [
-        "install-jap-control-center.ps1",
+        ".github/workflows/jap-windows-control-center-contract.yml",
         ".github/workflows/jap-windows-desktop-host-release.yml",
+        "windows/JAP.ControlCenter.Desktop/ProductUpdateAgent.cs",
+        "windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs",
         "windows/JAP.ControlCenter.Desktop/UpdateCoordinator.cs",
+        "windows/JAP.ControlCenter.Desktop/ManagedRuntimeController.cs",
+        "scripts/run_jap_windows_control_center.sh",
     ]
     forbidden = [
-        "Apply-JAP-Control-Center-Update.ps1",
-        "Update-JAP-Control-Center.ps1",
-        "deploy_jap_windows_control_center_local.sh",
-        "jap-windows-control-center-local-deploy.yml",
+        "Apply-" + "JAP-Control-Center-Update.ps1",
+        "Update-" + "JAP-Control-Center.ps1",
+        "deploy_" + "jap_windows_control_center_local.sh",
+        "jap-windows-control-center-" + "local-deploy.yml",
+        "managed_worktree",
+        "wsl_installed_runner_path",
+        "local_runner_staged_gui_prompt",
     ]
     for relative in active:
         body = read(relative)
@@ -57,25 +105,13 @@ def test_no_legacy_authority_references_remain_in_active_update_surfaces():
             assert token not in body, f"{token} returned in {relative}"
 
 
-def test_new_authority_is_product_local_verified_and_rollback_capable():
-    coordinator = read("windows/JAP.ControlCenter.Desktop/UpdateCoordinator.cs")
-    applier = read("windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs")
-    program = read("windows/JAP.ControlCenter.Desktop/Program.cs")
-    assert "WriteAcceptedManifest(pending.ManifestJson)" in coordinator
-    assert "--apply-update" in coordinator
-    assert "apply-helper" in coordinator
-    assert "powershell.exe" not in coordinator.lower()
-    assert "wsl.exe" not in coordinator.lower()
-    assert "--apply-update" in program
-    assert "Accepted staged archive checksum mismatch." in applier
-    assert "Staged source identity mismatch." in applier
-    assert "Directory.Move(desktop, backup)" in applier
-    assert "Directory.Move(stage, desktop)" in applier
-    assert "Directory.Move(backup, desktop)" in applier
-    assert "previousCurrentJson = File.ReadAllText(currentPath)" in applier
-    assert "File.Move(currentTmp, currentPath, true)" in applier
-    assert 'WriteResult(resultPath, "success"' in applier
-    assert 'WriteResult(resultPath, "failed"' in applier
-    assert "CleanupOldUpdates(installRoot, targetSha)" in applier
-    for forbidden in ("git fetch", "git checkout", "powershell.exe", "wsl.exe", "github.workspace"):
-        assert forbidden not in applier.lower()
+def test_bootstrap_is_explicit_bridge_not_routine_update_authority() -> None:
+    installer = read("install-jap-control-center.ps1")
+    compatibility = read("windows/JAP.ControlCenter.Desktop/UPDATE_COMPATIBILITY.json")
+    assert "JAP_CONTROL_CENTER_BOOTSTRAP_BRIDGE=PASS" in installer
+    assert "CGKB product-local bootstrap requires version 1.0.62 or newer." in installer
+    assert 'update_authority = "product_local_update_agent_v2"' in installer
+    assert 'update_generation = $UpdateGeneration' in installer
+    assert '"bootstrap_bridge_from": "pre-1.0.62"' in compatibility
+    assert '"minimum_direct_version": "1.0.62"' in compatibility
+    assert '"installer_schema": "job_application_pipeline.windows_control_center_install.v3"' in compatibility
