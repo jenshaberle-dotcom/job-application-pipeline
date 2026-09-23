@@ -251,7 +251,7 @@ $runtimeStage = Join-Path $InstallRoot ("runtime.staged." + $PID)
 $rollbackRoot = Join-Path $InstallRoot ("rollback\bootstrap-" + $PID)
 $desktopBackup = Join-Path $rollbackRoot "desktop-host"
 $runtimeBackup = Join-Path $rollbackRoot "runtime"
-$previousCurrent = if (Test-Path $CurrentPath { Get-Content -Raw $CurrentPath } else { $null }
+$previousCurrent = if (Test-Path $CurrentPath) { Get-Content -Raw $CurrentPath } else { $null }
 
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot "state") | Out-Null
