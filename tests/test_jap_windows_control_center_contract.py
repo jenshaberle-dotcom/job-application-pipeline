@@ -5,9 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GITIGNORE = ROOT / ".gitignore"
 LAUNCHER = ROOT / "JAP-Control-Center.ps1"
 INSTALLER = ROOT / "install-jap-control-center.ps1"
-UPDATER = ROOT / "Update-JAP-Control-Center.ps1"
 STOPPER = ROOT / "Stop-JAP-Control-Center.ps1"
-APPLIER = ROOT / "Apply-JAP-Control-Center-Update.ps1"
 WSL_INSTALLER = ROOT / "scripts" / "install_jap_windows_control_center.sh"
 WSL_RUNNER = ROOT / "scripts" / "run_jap_windows_control_center.sh"
 ICON_GENERATOR = ROOT / "scripts" / "generate_jap_control_center_icon.py"
@@ -30,9 +28,7 @@ def test_windows_app_entrypoints_are_present() -> None:
     for path in (
         LAUNCHER,
         INSTALLER,
-        UPDATER,
         STOPPER,
-        APPLIER,
         WSL_INSTALLER,
         WSL_RUNNER,
         ICON_GENERATOR,
@@ -156,20 +152,6 @@ def test_launcher_surfaces_wsl_state_stdout_when_runtime_fails() -> None:
     assert "--exec tail -n 12 $stdoutLinux" in text
     assert "--exec tail -n 12 $stderrLinux" in text
     assert "did not become ready: $stdoutTail" in text
-
-
-def test_installer_fetches_main_over_https_and_legacy_manual_updater_cannot_bypass_release() -> None:
-    installer = _text(INSTALLER)
-    updater = _text(UPDATER)
-    assert "https://github.com/$ExpectedOrigin.git" in installer
-    assert '"fetch", "--no-tags", $ReadOnlyFetchUrl, "main"' in installer
-    assert '"rev-parse", "FETCH_HEAD"' in installer
-    assert '"fetch", "origin", "main"' not in installer
-    assert 'update_authority = "local_runner_staged_gui_prompt"' in installer
-    assert "FETCH_TRANSPORT=https" in installer
-    assert "git fetch" not in updater
-    assert "pinned_sha =" not in updater
-    assert 'ExpectedUpdateMode = "gui_prompt_latest_direct_v1"' in updater
 
 
 def test_managed_runner_has_https_recovery_for_missing_pinned_commit() -> None:
@@ -331,6 +313,6 @@ def test_stop_path_is_managed_pid_only() -> None:
 
 
 def test_powershell_does_not_use_bash_line_continuations() -> None:
-    for path in (LAUNCHER, INSTALLER, UPDATER, STOPPER, APPLIER):
+    for path in (LAUNCHER, INSTALLER, STOPPER):
         lines = _text(path).splitlines()
         assert not any(line.rstrip().endswith("\\") for line in lines), path
