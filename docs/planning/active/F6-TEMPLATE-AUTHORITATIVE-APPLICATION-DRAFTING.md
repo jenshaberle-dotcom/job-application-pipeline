@@ -1,6 +1,6 @@
 # F6 — Template-Authoritative Application Drafting
 
-Status: ACTIVE — Slice A template authority hard cut in qualification
+Status: ACTIVE — Slice A operator accepted; Slice B template-bound renderer in qualification
 
 ## Outcome
 
@@ -62,6 +62,8 @@ The browser/CLI intake also no longer accepts arbitrary replacement PDFs. It acc
 
 ## Slice A — Template Authority
 
+Status: **COMPLETE / OPERATOR ACCEPTED** on installed 1.0.68. The later 1.0.69 runtime LF hardening did not change F6 template authority.
+
 Acceptance criteria:
 
 - exactly two canonical templates;
@@ -75,22 +77,30 @@ Acceptance criteria:
 - generation can still produce grounded review text, but rendering remains `template_bound_renderer_pending`;
 - database/application/submission/send authority remains unchanged.
 
+### Slice A operator evidence
+
+Installed 1.0.68 successfully verified both exact private templates through the Product surface. The generic DOCX/A4 path remained absent. This closes Slice A and authorizes Slice B only; it grants no final PDF export or submission/send authority.
+
+## Slice B — Template-Bound Renderer — IN QUALIFICATION
+
+PR #999 introduces a new F6-only renderer authority. It is not a revival of the retired generic exporter.
+
+Acceptance criteria:
+
+- exact F6 hash/geometry validation remains the entry gate;
+- only manifest-declared text-zone IDs are accepted;
+- redaction removes text only and preserves images/vector graphics;
+- no automatic font/page scaling is permitted; overflow fails closed;
+- every page is raster-compared against its exact source template and all pixels outside declared zones must remain identical;
+- evidence contains source/output hashes and per-page outside-zone pixel hashes/counts;
+- rendered bytes remain review-only and grant no application/submission/send authority;
+- CI uses synthetic PDFs only; private template bytes remain local.
+
 ### Next operator gate
 
-After exact-head qualification, merge and immutable Windows release:
+After PR #999 exact-head qualification and merge/release, run the local F6-B qualification against the already-installed exact private CV and application-letter PDFs. The proof renders one short marker into one declared zone per document, requires zero changed pixels outside all declared zones, persists no rendered PDF, exposes no private path/bytes, performs no DB/provider/network/application action, and must end with `F6_TEMPLATE_RENDERER_QUALIFICATION=PASS`.
 
-1. update the installed JAP Control Center through the integrated updater;
-2. open **Application**;
-3. install/verify the exact private CV and application-letter PDFs;
-4. confirm both show exact F6 authority/ready;
-5. confirm an arbitrary/older PDF is rejected if a negative check is needed;
-6. open one current Top-5 target and verify the workspace reaches grounded review-text readiness while **no generic DOCX/A4 download path exists**.
-
-No provider-generated final PDF is required for Slice A.
-
-## Slice B — queued after Slice A operator acceptance
-
-Build the template-bound renderer that edits only declared text zones and preserves the frozen pages pixel-for-pixel outside those zones. It must produce visual-diff evidence against the source templates and fail closed on text overflow.
+Only after that real two-template proof may Slice B be marked complete and Slice C begin.
 
 ## Slice C — queued
 

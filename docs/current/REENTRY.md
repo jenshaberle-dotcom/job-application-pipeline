@@ -6,14 +6,14 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical product baseline before F6 candidate work: `main@5b7abe952bb4a4deada053dd0ed4415b50bc85c6`, installed desktop **1.0.67**;
-- integrated updater proof is complete: 1.0.66 -> 1.0.67 completed discovery, pre-stage, consent, cutover and automatic restart without bootstrap;
+- canonical Product baseline before current F6-B candidate work: `main@65670ebf2647e0b1b699778edaf6467201a6397b`, desktop **1.0.69**;
+- integrated updater is accepted and routine; 1.0.69 adds only live-runtime LF/integrity hardening after the successful F6-A 1.0.68 operator verification;
 - F5 is **operator accepted / COMPLETE**: Finanz Informatik application linkage reaches the All-jobs surface as the green application-active row; Sources counted tabs are accepted; lifecycle/evidence authority boundaries remain intact;
 - updater hardening and the F5 functional excursion have no remaining sequencing authority;
 - current frozen campaign authority is now **F6 — Template-Authoritative Application Drafting**;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
-F6 starts with a hard template-authority cut. The two operator-supplied private PDFs are the only authorized layouts. Their bytes remain private; exact SHA-256, page geometry and editable text zones are public repo truth. Old generic A4/DOCX rendering and arbitrary base-PDF replacement are forbidden and physically removed in the active F6 candidate.
+F6 Slice A is operator accepted. The two operator-supplied private PDFs are the only authorized layouts. Their bytes remain private; exact SHA-256, page geometry and editable text zones are public repo truth. Old generic A4/DOCX rendering and arbitrary base-PDF replacement are forbidden and physically removed. Slice B is active on PR #999: a new F6-only renderer must mutate text only inside declared zones, fail closed on overflow, and prove zero changed raster pixels outside all declared zones before Slice C may begin.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.
@@ -501,7 +501,7 @@ truth is accepted.
 
 ## F6 — ACTIVE
 
-Template-Authoritative Application Drafting is the active final frozen package. Exactly two private PDF layouts are hash- and geometry-bound; only manifest-declared text zones may change from approved Candidate Facts and exact current Origin evidence. Human review remains mandatory; no automatic submit/send.
+Template-Authoritative Application Drafting is the active final frozen package. Slice A is **COMPLETE / OPERATOR ACCEPTED**. Current Slice B candidate is PR #999 on `feature/f6-b-template-bound-renderer`: exact-template entry validation, declared-zone-only text mutation, overflow fail-closed, and strict raster outside-zone identity proof. A local qualification command uses both already-installed private templates, persists no rendered output, and is the next operator gate after exact-head qualification/merge/release. Slice C review/edit + final local PDF export remains queued. Human review remains mandatory; no automatic submit/send.
 
 ## Cascading residual rule
 
