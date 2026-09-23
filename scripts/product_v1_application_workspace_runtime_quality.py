@@ -19,9 +19,6 @@ from src.search_intelligence.product_v1_application_drafter_quality import (
 from src.search_intelligence.product_v1_application_quality_campaign import (
     execute_quality_application_drafter,
 )
-from src.search_intelligence.product_v1_evidence_first_draft import (
-    build_evidence_first_review_draft,
-)
 
 
 def _fallback_with_template_authority(
@@ -36,7 +33,6 @@ def _fallback_with_template_authority(
     estimated_model_cost_usd: float = 0.0,
     stages: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
-    package = build_evidence_first_review_draft(context)  # type: ignore[arg-type]
     payload = _evidence_first_draft_payload(
         context=context,
         final_url=final_url,
