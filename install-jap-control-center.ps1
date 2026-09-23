@@ -22,9 +22,7 @@ $Port = 8780
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $CurrentPath = Join-Path $InstallRoot "current.json"
 $StableLauncher = Join-Path $InstallRoot "JAP-Control-Center.ps1"
-$LegacyStableUpdater = Join-Path $InstallRoot "Update-JAP-Control-Center.ps1"
 $StableStopper = Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"
-$StableApplier = Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1"
 $StableRunner = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
 $DesktopHostRoot = Join-Path $InstallRoot "desktop-host"
 $DesktopHostExe = Join-Path $DesktopHostRoot "JAP.ControlCenter.Desktop.exe"
@@ -226,7 +224,6 @@ $wslStateRoot = "$wslHome/.local/state/jap-control-center"
 
 $sourceLauncher = Join-Path $PSScriptRoot "JAP-Control-Center.ps1"
 $sourceStopper = Join-Path $PSScriptRoot "Stop-JAP-Control-Center.ps1"
-$sourceApplier = Join-Path $PSScriptRoot "Apply-JAP-Control-Center-Update.ps1"
 $sourceRunner = Join-Path $PSScriptRoot "scripts\run_jap_windows_control_center.sh"
 $desktopVersionPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\VERSION"
 $compatibilityPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\UPDATE_COMPATIBILITY.json"
@@ -250,7 +247,6 @@ New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot "logs") | Out-
 
 # WINAPP-018 removes the old separately launchable updater surface. The product
 # update coordinator in JAP.ControlCenter.Desktop remains the only user-facing
-# update entrypoint; Apply-JAP-Control-Center-Update.ps1 is an internal helper
 # invoked only after explicit consent from the main application.
 Remove-Item -Force $LegacyStableUpdater -ErrorAction SilentlyContinue
 Copy-Item -Force $sourceLauncher $StableLauncher
