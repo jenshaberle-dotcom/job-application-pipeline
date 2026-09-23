@@ -6,6 +6,6 @@
   "release_namespace": "jap-winapp-product-v",
   "minimum_direct_version": "1.0.62",
   "bootstrap_bridge_from": "pre-1.0.62",
-  "installer_schema": "job_application_pipeline.windows_control_center_install.v2",
+  "installer_schema": "job_application_pipeline.windows_control_center_install.v3",
   "snooze_hours": 6
 }
