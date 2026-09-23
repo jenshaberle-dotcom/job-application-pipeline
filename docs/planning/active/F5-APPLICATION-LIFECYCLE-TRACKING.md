@@ -1,8 +1,23 @@
 # F5 — Application Lifecycle + Outcome Tracking
 
-Status: ACTIVE — first real Gmail persistence terminally proven; immutable Windows delivery/operator acceptance next
+Status: COMPLETE — persistence, Product linkage and final operator acceptance proven
 
 Canonical issue: `#737 / APP-TRACK-001`
+
+## Terminal operator acceptance — COMPLETE
+
+F5 is closed. The final installed Product proof established:
+
+- mailbox/Application truth is visible in the Applications surface;
+- bidirectional linkage reaches All jobs without a second DB-truth path;
+- the real Finanz Informatik `AI Engineer / KI-Entwickler (m/w/d)` application maps into the large job list with full green application-active row treatment;
+- the independent review label remains separate from application lifecycle state;
+- Sources inventory is clustered into counted tabs without changing source authority;
+- no automatic Gmail send/reply or application submission was introduced.
+
+The updater hardening excursion required to deliver the accepted Product is also closed; 1.0.66 -> 1.0.67 is the canonical clean integrated-update proof.
+
+F5 grants no sequencing authority after this point. The frozen campaign has advanced to F6.
 
 ## Outcome
 
@@ -244,16 +259,7 @@ v1.0.40 is operator-visible and accepted as a substantial improvement. The next 
 
 ## Sole next action
 
-Qualify and merge the v1.0.41 compact/linkage package, publish/install its immutable desktop release, then perform one interactive operator acceptance. The separate read-only identity-enrichment preflight remains available for missing job metadata but does not block this UI linkage and grants no metadata repair authority.
-
-The operator test must verify at least:
-
-1. the F5 Application Tracking surface shows the real mailbox-discovered applications rather than an empty/demo projection;
-2. observed/effective lifecycle status is visible;
-3. authoritative status remains separately labelled and is not silently advanced by Gmail evidence;
-4. evidence detail remains bounded and contains no raw mail body;
-5. there is no automatic email send/reply or automatic application submission;
-6. About/release metadata binds the running product to v1.0.39 and its exact release source.
+None inside F5. Continue only through the active F6 template-authoritative drafting plan.
 
 ## Next slices after persistence qualification
 
@@ -271,8 +277,8 @@ Only after measured precision and explicit operator policy approval. False autho
 
 ## Sequencing
 
-Current frozen campaign order remains:
+Current frozen campaign state:
 
-`F5 -> F6`
+`F5 COMPLETE -> F6 ACTIVE`
 
-F4C is operator accepted and complete. F6 remains blocked until F5 reaches its package-completion authority.
+F4C and F5 are operator accepted and complete. F6 now owns sequencing authority.
