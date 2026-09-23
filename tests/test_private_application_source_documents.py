@@ -5,14 +5,18 @@ from pathlib import Path
 
 import pytest
 
-from scripts.import_private_application_source_documents import (
-    build_document,
-    build_documents,
-    build_plan,
-)
+from scripts import import_private_application_source_documents as importer
+
+build_document = importer.build_document
+build_documents = importer.build_documents
+build_plan = importer.build_plan
 
 
-def test_build_documents_keeps_content_private_and_uses_local_references(tmp_path: Path) -> None:
+def test_build_documents_keeps_content_private_and_uses_local_references(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(importer, "validate_template_pdf", lambda **_kwargs: None)
     root = tmp_path / "private_application_sources"
     root.mkdir()
     cv = root / "base_cv.txt"
@@ -68,7 +72,11 @@ def test_build_document_requires_utf8_text(tmp_path: Path) -> None:
         )
 
 
-def test_plan_reports_only_hash_change_and_no_content(tmp_path: Path) -> None:
+def test_plan_reports_only_hash_change_and_no_content(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(importer, "validate_template_pdf", lambda **_kwargs: None)
     root = tmp_path / "private_application_sources"
     root.mkdir()
     cv = root / "base_cv.txt"
