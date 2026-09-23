@@ -64,14 +64,22 @@ def normalize_company(value: object) -> str:
 
 
 def normalize_title(value: object) -> str:
-    raw = str(value or "").strip()
-    # Employer mail and ATS subjects often prepend a vacancy/reference code
-    # (for example "E362/B -").  A digit-bearing reference before a clear
-    # separator is transport metadata, not role identity.  Strip only that
-    # bounded shape; normal title prefixes such as "Senior -" remain intact.
-    raw = VACANCY_REFERENCE_PREFIX.sub("", raw, count=1)
+    return " ".join(
+        token for token in _ascii_words(value) if token not in TITLE_NOISE_TOKENS
+    )
+
+
+def normalize_title_without_reference(value: object) -> str:
+    raw = VACANCY_REFERENCE_PREFIX.sub("", str(value or "").strip(), count=1)
     return " ".join(
         token for token in _ascii_words(raw) if token not in TITLE_NOISE_TOKENS
+    )
+
+
+def strong_title_family_match_without_reference(left: object, right: object) -> bool:
+    return strong_title_family_match(
+        normalize_title_without_reference(left),
+        normalize_title_without_reference(right),
     )
 
 
