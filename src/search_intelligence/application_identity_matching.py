@@ -45,6 +45,12 @@ TITLE_NOISE_TOKENS = frozenset(
 )
 
 
+VACANCY_REFERENCE_PREFIX = re.compile(
+    r"^\s*(?=[A-Za-z0-9/_-]*\d)[A-Za-z0-9]+(?:[/-][A-Za-z0-9]+)*\s*[-–—:]\s*",
+    re.IGNORECASE,
+)
+
+
 def _ascii_words(value: object) -> list[str]:
     text = unicodedata.normalize("NFKD", str(value or "").casefold())
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
@@ -58,8 +64,14 @@ def normalize_company(value: object) -> str:
 
 
 def normalize_title(value: object) -> str:
+    raw = str(value or "").strip()
+    # Employer mail and ATS subjects often prepend a vacancy/reference code
+    # (for example "E362/B -").  A digit-bearing reference before a clear
+    # separator is transport metadata, not role identity.  Strip only that
+    # bounded shape; normal title prefixes such as "Senior -" remain intact.
+    raw = VACANCY_REFERENCE_PREFIX.sub("", raw, count=1)
     return " ".join(
-        token for token in _ascii_words(value) if token not in TITLE_NOISE_TOKENS
+        token for token in _ascii_words(raw) if token not in TITLE_NOISE_TOKENS
     )
 
 
