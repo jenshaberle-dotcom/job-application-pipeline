@@ -24,6 +24,10 @@ from scripts.import_private_application_source_documents import (
     ensure_schema,
     load_current_approved,
 )
+from src.search_intelligence.f6_template_authority import (
+    F6TemplateAuthorityStop,
+    validate_template_pdf,
+)
 from src.search_intelligence.private_application_source_text import (
     extract_private_application_source_text,
 )
@@ -55,8 +59,8 @@ def parse_upload_payload(payload: object) -> tuple[str, str, bytes]:
     expected = {"action", "document_type", "filename", "content_base64"}
     if set(payload) != expected:
         raise LocalDocumentIntakeStop("upload payload contains unexpected fields")
-    if payload.get("action") != "use_as_base_document":
-        raise LocalDocumentIntakeStop("action must be use_as_base_document")
+    if payload.get("action") != "install_f6_authority_template":
+        raise LocalDocumentIntakeStop("action must be install_f6_authority_template")
 
     document_type = _required_text(payload, "document_type")
     if document_type not in DOCUMENT_TYPES:
@@ -77,6 +81,10 @@ def parse_upload_payload(payload: object) -> tuple[str, str, bytes]:
         raise LocalDocumentIntakeStop("uploaded PDF exceeds the 8 MiB local limit")
     if not content.startswith(b"%PDF"):
         raise LocalDocumentIntakeStop("uploaded content is not a PDF")
+    try:
+        validate_template_pdf(document_type=document_type, content=content)
+    except F6TemplateAuthorityStop as exc:
+        raise LocalDocumentIntakeStop(str(exc)) from exc
     return document_type, filename, content
 
 
@@ -86,8 +94,9 @@ def ingest_local_base_document(payload: object) -> dict[str, object]:
     upload_root = root / "uploads"
     upload_root.mkdir(parents=True, exist_ok=True)
 
+    spec = validate_template_pdf(document_type=document_type, content=content)
     content_sha256 = sha256(content).hexdigest()
-    safe_name = _FILENAME_RE.sub("_", filename).strip("._") or "document.pdf"
+    safe_name = _FILENAME_RE.sub("_", spec.canonical_filename).strip("._")
     stored_path = upload_root / f"{document_type}-{content_sha256[:12]}-{safe_name}"
     temporary_path = upload_root / f".{document_type}-{content_sha256[:12]}.uploading.pdf"
 
@@ -104,9 +113,9 @@ def ingest_local_base_document(payload: object) -> dict[str, object]:
         path=stored_path,
         private_root=root,
         source_label=(
-            "Current approved base CV"
+            "F6 canonical CV template"
             if document_type == "base_cv"
-            else "Current approved base application letter"
+            else "F6 canonical application-letter template"
         ),
     )
 
@@ -123,8 +132,15 @@ def ingest_local_base_document(payload: object) -> dict[str, object]:
     finally:
         conn.close()
 
+    for stale in upload_root.glob(f"{document_type}-*.pdf"):
+        if stale.resolve() != stored_path.resolve():
+            stale.unlink(missing_ok=True)
+
     return {
         "status": "approved",
+        "template_id": spec.template_id,
+        "canonical_filename": spec.canonical_filename,
+        "template_authority": "f6_exact_hash_and_geometry",
         "document_type": document_type,
         "filename": filename,
         "source_reference": document.source_reference,
@@ -142,6 +158,7 @@ def ingest_local_base_document(payload: object) -> dict[str, object]:
         "boundaries": {
             "document_content_persisted_to_database": False,
             "private_file_stored_locally": True,
+            "legacy_template_bytes_retained": False,
             "database_writes": bool(changed),
             "provider_or_llm_requests": 0,
             "network_requests": 0,
