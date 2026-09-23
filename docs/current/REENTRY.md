@@ -4,6 +4,23 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.
 
+## Updater hard cut — candidate truth on PR #987
+
+The current updater migration is intentionally a hard generation boundary.
+
+- installed stable anchor before migration: **1.0.59**;
+- first CGKB product-local generation: **1.0.62**;
+- pre-1.0.62 -> 1.0.62 is an explicit bootstrap bridge, not a routine direct update;
+- new release namespace: `jap-winapp-product-v<version>`;
+- immutable release contains both the self-contained Windows desktop and a source-bound runtime bundle with prebuilt frontend;
+- the product-local agent performs discovery, download, checksum verification, extraction, runtime/desktop identity proof and helper staging **before consent**;
+- after consent the isolated helper performs only frozen local integrity proof, desktop/runtime cutover, `current.json` adoption, restart identity proof and transactional rollback;
+- routine apply has no PowerShell updater, WSL mutation, Git/checkout, CI-runner, npm build, release discovery, download or archive extraction authority;
+- the retired local-deploy/updater files are physically absent and regression-gated against return.
+
+Historical updater descriptions later in this document are retained only as incident evidence. They do not define current updater authority. The active architecture is `docs/guides/jap_control_center_windows_app.md` plus the executable contracts under `windows/JAP.ControlCenter.Desktop/`.
+
+
 ## Live repository checkpoint — 2026-09-21
 
 Canonical public repository after the v1.0.48 startup recovery and installed-runtime smoke hardening:
