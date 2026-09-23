@@ -7,14 +7,14 @@ from pathlib import Path
 import pytest
 
 from scripts import import_private_application_source_documents as importer
-
-build_document = importer.build_document
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
     LoadedApplicationSource,
     build_application_workspace_context,
     local_document_loader,
 )
+
+build_document = importer.build_document
 
 
 def _write_text_pdf(path: Path, text: str) -> bytes:
