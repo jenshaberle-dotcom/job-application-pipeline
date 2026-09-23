@@ -22,7 +22,7 @@ from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
-required = ("extruct", "trafilatura")
+required = ("extruct", "trafilatura", "pymupdf")
 found: dict[str, str] = {}
 for raw_line in path.read_text(encoding="utf-8").splitlines():
     line = raw_line.strip()
@@ -41,7 +41,7 @@ for name in required:
 PY
 )
 
-if [ "${#SPECS[@]}" -ne 2 ]; then
+if [ "${#SPECS[@]}" -ne 3 ]; then
   echo "LOCAL_OSS_RUNTIME_PIN_SET_INVALID" >&2
   exit 1
 fi
@@ -55,8 +55,10 @@ verify_site() {
   PYTHONPATH="$site${PYTHONPATH:+:$PYTHONPATH}" "$RUNTIME_PYTHON" - <<'PY' >/dev/null
 import extruct
 import trafilatura
+import pymupdf
 assert extruct is not None
 assert trafilatura is not None
+assert pymupdf is not None
 PY
 }
 
