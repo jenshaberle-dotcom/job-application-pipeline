@@ -129,8 +129,8 @@ def test_payload_exposes_operator_blockers_instead_of_fake_top5() -> None:
     blocker_codes = {item["code"] for item in payload["operator_blockers"]}
     assert blocker_codes == {
         "ranking_policy_required",
-        "base_cv_required",
-        "base_application_letter_required",
+        "f6_base_cv_template_required",
+        "f6_base_application_letter_template_required",
     }
     assert payload["top_jobs"] == []
     assert payload["boundaries"]["no_provider_call"] is True
