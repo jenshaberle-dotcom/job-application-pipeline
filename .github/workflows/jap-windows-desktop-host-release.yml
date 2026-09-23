@@ -173,10 +173,40 @@ jobs:
           foreach ($Asset in @($DesktopAsset, $RuntimeAsset, "$DesktopAsset.sha256", "$RuntimeAsset.sha256")) {
             Remove-Item -Force $Asset -ErrorAction SilentlyContinue
           }
-          Compress-Archive -Path (Join-Path $DesktopOut "*") -DestinationPath $DesktopAsset -CompressionLevel Optimal
-          Compress-Archive -Path (Join-Path $RuntimeOut "*") -DestinationPath $RuntimeAsset -CompressionLevel Optimal
-          $DesktopHash = (Get-FileHash $DesktopAsset -Algorithm SHA256).Hash.ToLowerInvariant()
-          $RuntimeHash = (Get-FileHash $RuntimeAsset -Algorithm SHA256).Hash.ToLowerInvariant()
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $DesktopAssetPath = Join-Path (Get-Location) $DesktopAsset
+          $RuntimeAssetPath = Join-Path (Get-Location) $RuntimeAsset
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $DesktopOut,
+            $DesktopAssetPath,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+          )
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $RuntimeOut,
+            $RuntimeAssetPath,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+          )
+          $RuntimeZip = [System.IO.Compression.ZipFile]::OpenRead($RuntimeAssetPath)
+          try {
+            $EntryNames = @($RuntimeZip.Entries | ForEach-Object { $_.FullName.Replace("\", "/") })
+            foreach ($RequiredEntry in @(
+              "runtime-info.json",
+              "scripts/run_product_v1_live_demo.py",
+              "frontend/control-center/dist/index.html",
+              "frontend/control-center/dist/.jap-source-sha"
+            )) {
+              if ($EntryNames -notcontains $RequiredEntry) {
+                throw "Runtime release ZIP is missing required entry: $RequiredEntry"
+              }
+            }
+          }
+          finally {
+            $RuntimeZip.Dispose()
+          }
+          $DesktopHash = (Get-FileHash $DesktopAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $RuntimeHash = (Get-FileHash $RuntimeAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$DesktopHash  $DesktopAsset" | Set-Content -Encoding ASCII "$DesktopAsset.sha256"
           "$RuntimeHash  $RuntimeAsset" | Set-Content -Encoding ASCII "$RuntimeAsset.sha256"
           Write-Host "JAP_DESKTOP_SHA256=$DesktopHash"
