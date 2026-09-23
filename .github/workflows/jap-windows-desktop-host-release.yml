@@ -13,7 +13,6 @@ on:
       - "src/**"
       - "JAP-Control-Center.ps1"
       - "install-jap-control-center.ps1"
-      - "Apply-JAP-Control-Center-Update.ps1"
       - "Stop-JAP-Control-Center.ps1"
       - "requirements.txt"
       - ".github/workflows/jap-windows-desktop-host-release.yml"
@@ -96,8 +95,6 @@ jobs:
           }
           $ControlPlane = Join-Path $Out "control-plane"
           New-Item -ItemType Directory -Force -Path $ControlPlane | Out-Null
-          Copy-Item -Force "Apply-JAP-Control-Center-Update.ps1" (Join-Path $ControlPlane "Apply-JAP-Control-Center-Update.ps1")
-          Copy-Item -Force "scripts/run_jap_windows_control_center.sh" (Join-Path $ControlPlane "run-jap-control-center-wsl.sh")
 
           @{
             schema = "job_application_pipeline.desktop_host_build.v1"
