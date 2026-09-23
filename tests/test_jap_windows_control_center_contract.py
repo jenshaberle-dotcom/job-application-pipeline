@@ -134,7 +134,7 @@ def test_product_release_builds_immutable_desktop_and_runtime_assets() -> None:
     assert "JAP-Control-Center-Desktop-win-x64.zip" in workflow
     assert "JAP-Control-Center-Runtime.zip" in workflow
     assert "runtime-info.json" in workflow
-    assert 'Get-ChildItem -Force "frontend\control-center\dist" | Copy-Item -Destination $Frontend -Recurse -Force' in workflow
+    assert r'Get-ChildItem -Force "frontend\control-center\dist" | Copy-Item -Destination $Frontend -Recurse -Force' in workflow
     assert 'Set-Content -Path (Join-Path $Frontend ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline' in workflow
     assert "[System.IO.Compression.ZipFile]::CreateFromDirectory(" in workflow
     assert '"frontend/control-center/dist/.jap-source-sha"' in workflow
