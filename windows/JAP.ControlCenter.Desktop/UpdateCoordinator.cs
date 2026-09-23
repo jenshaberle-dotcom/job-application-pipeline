@@ -188,14 +188,44 @@ internal sealed class UpdateCoordinator : IDisposable
                 return false;
             }
 
-            WriteEvent("update_accept_blocked", "CGKB replacement in progress; no legacy apply authority exists");
-            MessageBox.Show(
-                _owner,
-                "Das Update wurde noch nicht gestartet. Der alte Update-Pfad wurde entfernt; der neue CGKB-Pfad wird erst nach vollständigem Proof freigeschaltet.",
-                "JAP Control Center Update",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            return false;
+            WriteAcceptedManifest(pending.ManifestJson);
+            TryDelete(_snoozePath);
+            WriteEvent(
+                "update_accepted",
+                $"target={pending.TargetDesktopVersion} sha={pending.TargetMainSha}");
+            _applyingUpdate = true;
+
+            var executable = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
+            {
+                throw new InvalidOperationException("JAP product-local update executable is unavailable.");
+            }
+
+            var helperRoot = Path.Combine(_installRoot, "updates", "apply-helper");
+            if (Directory.Exists(helperRoot))
+            {
+                Directory.Delete(helperRoot, recursive: true);
+            }
+            CopyDirectory(AppContext.BaseDirectory, helperRoot);
+            var helperExecutable = Path.Combine(helperRoot, Path.GetFileName(executable));
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = helperExecutable,
+                WorkingDirectory = _installRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("--apply-update");
+            startInfo.ArgumentList.Add("--install-root");
+            startInfo.ArgumentList.Add(_installRoot);
+            startInfo.ArgumentList.Add("--host-pid");
+            startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
+
+            _ = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("JAP product-local update applier could not be started.");
+            WriteEvent("update_apply_handoff", $"helper={helperExecutable}");
+            _owner.Close();
+            return true;
         }
         catch (Exception exc)
         {
@@ -212,6 +242,19 @@ internal sealed class UpdateCoordinator : IDisposable
         finally
         {
             _promptOpen = false;
+        }
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var file in Directory.EnumerateFiles(source))
+        {
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+        }
+        foreach (var directory in Directory.EnumerateDirectories(source))
+        {
+            CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
         }
     }
 
