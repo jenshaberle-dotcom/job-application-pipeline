@@ -14,26 +14,29 @@ def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_runtime_launcher_is_unbuffered_and_uses_installed_fast_start() -> None:
+def test_runtime_launcher_is_unbuffered_and_uses_immutable_runtime_bundle() -> None:
     runner = _text(WSL_RUNNER)
     assert "export PYTHONUNBUFFERED=1" in runner
+    assert "runtime-info.json" in runner
+    assert "frontend/control-center/dist" in runner
     assert (
         "launcher=(python -u scripts/run_product_v1_live_demo.py "
         "--installed-runtime --reuse-frontend)" in runner
     )
-    start = runner.split("# Reuse the canonical private runtime environment.", 1)[1]
-    assert "--prepare-frontend-only" not in start
-    assert "npm install" not in start
-    assert "npm ci" not in start
     assert 'export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"' in runner
-    assert "JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1" in runner
+    assert "JAP_WINDOWS_APP_RUNTIME_BUNDLE=" in runner
     assert "JAP_WINDOWS_APP_PINNED_SHA=" in runner
+    assert "git fetch" not in runner
+    assert "git checkout" not in runner
+    assert "npm install" not in runner
+    assert "npm ci" not in runner
+    assert "npm run build" not in runner
 
 
 def test_runtime_launcher_binds_to_requirements_pinned_local_oss_site() -> None:
     runner = _text(WSL_RUNNER)
     assert "scripts/ensure_pinned_local_oss_runtime.sh" in runner
-    assert '"$MANAGED_WORKTREE/requirements.txt"' in runner
+    assert '"$RUNTIME_ROOT/requirements.txt"' in runner
     assert '"$PROJECT_ROOT/.runtime/local-oss-sites"' in runner
     assert 'export PYTHONPATH="$LOCAL_OSS_SITE${PYTHONPATH:+:$PYTHONPATH}"' in runner
     assert "python -c 'import extruct, trafilatura'" in runner
@@ -63,26 +66,24 @@ def test_existing_runtime_is_reused_only_for_exact_installed_source_revision() -
     assert "Die veraltete JAP Runtime hat Port" in controller
 
 
-def test_desktop_runtime_control_no_longer_depends_on_powershell_launchers() -> None:
+def test_desktop_runtime_control_uses_runtime_bundle_paths_not_update_authority() -> None:
     controller = _text(RUNTIME_CONTROLLER)
     program = _text(PROGRAM)
     assert "wsl.exe" in controller
     assert '"--exec"' in controller
     assert '"bash"' in controller
     assert "config.WslRunner" in controller
+    assert "config.RuntimeRoot" in controller
     assert '"launch"' in controller
     assert '"--stop"' in controller
-    assert 'launch_mode = "desktop_native_wsl_v1"' in controller
+    assert 'launch_mode = "desktop_native_wsl_runtime_bundle_v1"' in controller
     assert "powershell.exe" not in controller.lower()
-    assert "JAP-Control-Center.ps1" not in program
-    assert "Stop-JAP-Control-Center.ps1" not in program
     assert "-ExecutionPolicy" not in program
     assert "Bypass" not in program
 
 
 def test_desktop_recovers_docker_desktop_and_exact_postgres_container_before_product_runtime() -> None:
     controller = _text(RUNTIME_CONTROLLER)
-
     assert "DatabasePort = 5432" in controller
     assert 'DockerContainerName = "job_pipeline_postgres"' in controller
     assert "EnsureDatabaseRuntimeAsync(config)" in controller
@@ -98,19 +99,16 @@ def test_desktop_recovers_docker_desktop_and_exact_postgres_container_before_pro
     assert "sudo" not in controller.lower()
 
 
-def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -> None:
+def test_long_lived_wsl_runtime_is_detached_inside_linux_without_prepare_path() -> None:
     controller = _text(RUNTIME_CONTROLLER)
     runner = _text(WSL_RUNNER)
-
     assert '"launch"' in controller
     assert "runtime.stdout.log" in controller
     assert "runtime.stderr.log" in controller
     assert "cmd.exe" not in controller
-    assert "FileName = $env:ComSpec" not in controller
-
-    assert '[[ "$ACTION" == "start" || "$ACTION" == "prepare" || "$ACTION" == "launch" ]]' in runner
+    assert '[[ "$ACTION" == "start" || "$ACTION" == "launch" ]]' in runner
     launch = runner.split('if [[ "$ACTION" == "launch" ]]', 1)[1].split(
-        '[[ -d "$PROJECT_ROOT/.git" ]]', 1
+        '[[ -x "$PROJECT_ROOT/.venv/bin/python" ]]', 1
     )[0]
     assert 'command -v nohup' in launch
     assert 'command -v setsid' in launch
@@ -118,6 +116,8 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_cmd_handoff() -
     assert '>"$DETACHED_STDOUT"' in launch
     assert '2>"$DETACHED_STDERR"' in launch
     assert 'JAP_WINDOWS_APP_DETACHED_HANDOFF=PASS' in launch
+    assert '"prepare"' not in runner
+
 
 def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
     assert _text(VERSION).strip() == "1.0.62"
