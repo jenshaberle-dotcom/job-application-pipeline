@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -38,14 +39,27 @@ def _text_pdf(text: str) -> bytes:
 
 def _payload(document_type: str = "base_cv", filename: str = "cv.pdf") -> dict[str, object]:
     return {
-        "action": "use_as_base_document",
+        "action": "install_f6_authority_template",
         "document_type": document_type,
         "filename": filename,
         "content_base64": base64.b64encode(_text_pdf("Current application source")).decode("ascii"),
     }
 
 
-def test_parse_upload_payload_accepts_bounded_pdf() -> None:
+def _accept_authority(document_type: str, content: bytes):
+    return SimpleNamespace(
+        template_id=f"f6-{document_type}",
+        canonical_filename=(
+            "Hornetsecurity_Jens_Haberle_Lebenslauf.pdf"
+            if document_type == "base_cv"
+            else "Hornetsecurity_Jens_Haberle_Anschreiben.pdf"
+        ),
+        sha256="a" * 64,
+    )
+
+
+def test_parse_upload_payload_accepts_bounded_exact_authority_pdf(monkeypatch) -> None:
+    monkeypatch.setattr(intake, "validate_template_pdf", _accept_authority)
     document_type, filename, content = intake.parse_upload_payload(_payload())
     assert document_type == "base_cv"
     assert filename == "cv.pdf"
@@ -62,11 +76,12 @@ def test_parse_upload_payload_rejects_non_pdf_and_unknown_type() -> None:
         intake.parse_upload_payload(bad)
 
 
-def test_ingest_keeps_content_local_and_reuses_application_source_contract(
+def test_ingest_keeps_only_current_authority_bytes_local_and_reuses_source_contract(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "private"
+    monkeypatch.setattr(intake, "validate_template_pdf", _accept_authority)
     monkeypatch.setenv("PRODUCT_V1_PRIVATE_DOCUMENT_ROOT", str(root))
 
     class FakeConnection:
@@ -91,11 +106,27 @@ def test_ingest_keeps_content_local_and_reuses_application_source_contract(
 
     assert result["status"] == "approved"
     assert result["document_type"] == "base_cv"
+    assert result["template_id"] == "f6-base_cv"
+    assert result["canonical_filename"] == "Hornetsecurity_Jens_Haberle_Lebenslauf.pdf"
+    assert result["template_authority"] == "f6_exact_hash_and_geometry"
     assert result["analysis"]["provider_or_llm_requests"] == 0
     assert result["analysis"]["extractable_text"] is True
     assert result["boundaries"]["document_content_persisted_to_database"] is False
     assert result["boundaries"]["private_file_stored_locally"] is True
+    assert result["boundaries"]["legacy_template_bytes_retained"] is False
     assert len(applied) == 1
     stored = root / str(applied[0].source_reference).removeprefix("local://")
     assert stored.is_file()
     assert stored.read_bytes().startswith(b"%PDF")
+
+
+
+def test_parse_upload_payload_rejects_visually_similar_but_non_authority_pdf(monkeypatch) -> None:
+    def reject(*, document_type: str, content: bytes):
+        raise intake.F6TemplateAuthorityStop(
+            f"{document_type} is not the frozen F6 template"
+        )
+
+    monkeypatch.setattr(intake, "validate_template_pdf", reject)
+    with pytest.raises(intake.LocalDocumentIntakeStop, match="not the frozen F6 template"):
+        intake.parse_upload_payload(_payload())
