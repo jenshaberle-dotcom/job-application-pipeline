@@ -12,6 +12,7 @@ on:
       - "tests/test_jap_windows_control_center_webview2_startup.py"
       - ".github/workflows/jap-windows-control-center-contract.yml"
       - ".github/workflows/jap-windows-desktop-host-release.yml"
+      - ".gitattributes"
   push:
     branches: [main]
     paths:
@@ -24,6 +25,7 @@ on:
       - "tests/test_jap_windows_control_center_webview2_startup.py"
       - ".github/workflows/jap-windows-control-center-contract.yml"
       - ".github/workflows/jap-windows-desktop-host-release.yml"
+      - ".gitattributes"
   workflow_dispatch:
 
 permissions:
@@ -111,6 +113,70 @@ jobs:
             $Archive.Dispose()
           }
           Write-Host "JAP_RUNTIME_HIDDEN_MARKER_PACKAGING=PASS"
+
+      - name: Prove runtime shell scripts are LF-only inside Windows ZIP
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $Runtime = Join-Path $env:RUNNER_TEMP "jap-lf-runtime"
+          $Scripts = Join-Path $Runtime "scripts"
+          $Zip = Join-Path $env:RUNNER_TEMP "jap-lf-runtime.zip"
+          Remove-Item -Recurse -Force $Runtime -ErrorAction SilentlyContinue
+          Remove-Item -Force $Zip -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $Scripts | Out-Null
+
+          $CrLfBody = "#!/usr/bin/env bash`r`nset -euo pipefail`r
+printf 'ok\\n'`r`n"
+          [System.IO.File]::WriteAllText(
+            (Join-Path $Scripts "probe.sh"),
+            $CrLfBody,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+          $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $RuntimeShellScripts = @(Get-ChildItem -Path $Scripts -Filter "*.sh" -File -Recurse)
+          if ($RuntimeShellScripts.Count -eq 0) {
+            throw "Runtime bundle contains no shell scripts to normalize."
+          }
+          foreach ($ShellScript in $RuntimeShellScripts) {
+            $Body = [System.IO.File]::ReadAllText($ShellScript.FullName)
+            $Body = $Body.Replace("`r`n", "`n").Replace("`r", "`n")
+            [System.IO.File]::WriteAllText($ShellScript.FullName, $Body, $Utf8NoBom)
+            $Bytes = [System.IO.File]::ReadAllBytes($ShellScript.FullName)
+            if ($Bytes -contains 13) {
+              throw "Runtime shell script still contains CR bytes: $($ShellScript.FullName)"
+            }
+          }
+
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $Runtime,
+            $Zip,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+          )
+          $RuntimeZip = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+          try {
+            $ShellEntries = @($RuntimeZip.Entries | Where-Object { $_.FullName.Replace("\\", "/") -like "scripts/*.sh" })
+            if ($ShellEntries.Count -eq 0) {
+              throw "Runtime release ZIP contains no shell scripts."
+            }
+            foreach ($ShellEntry in $ShellEntries) {
+              $Reader = [System.IO.StreamReader]::new($ShellEntry.Open(), [System.Text.Encoding]::UTF8, $true)
+              try {
+                $ShellBody = $Reader.ReadToEnd()
+                if ($ShellBody.Contains("`r")) {
+                  throw "Runtime release ZIP contains CR bytes in $($ShellEntry.FullName)"
+                }
+              }
+              finally {
+                $Reader.Dispose()
+              }
+            }
+          }
+          finally {
+            $RuntimeZip.Dispose()
+          }
+          Write-Host "JAP_RUNTIME_LF_PACKAGING=PASS"
 
       - name: Publish Windows x64 host
         shell: powershell
