@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from hashlib import sha256
 
 import pytest
 
