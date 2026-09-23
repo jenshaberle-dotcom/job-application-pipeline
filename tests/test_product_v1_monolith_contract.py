@@ -151,8 +151,8 @@ def test_approved_policies_leave_only_application_source_blockers() -> None:
 
     blocker_codes = {item["code"] for item in payload["operator_blockers"]}
     assert blocker_codes == {
-        "base_cv_required",
-        "base_application_letter_required",
+        "f6_base_cv_template_required",
+        "f6_base_application_letter_template_required",
     }
     assert payload["hard_filter_policy"]["status"] == "approved"
     assert (
