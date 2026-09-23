@@ -44,4 +44,4 @@ def test_unhandled_ui_failure_is_fail_closed_and_cleans_runtime_bounded() -> Non
 
 
 def test_zombie_prevention_bumps_immutable_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.61"
+    assert _text(VERSION).strip() == "1.0.62"
