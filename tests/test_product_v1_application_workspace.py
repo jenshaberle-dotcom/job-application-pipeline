@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from datetime import date
-from hashlib import sha256
 from pathlib import Path
 
 import pytest
 
+from src.search_intelligence.f6_template_authority import template_spec
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
+    LoadedApplicationSource,
     build_application_workspace_context,
     local_document_loader,
 )
@@ -55,11 +56,23 @@ def _documents(root: Path) -> list[dict[str, object]]:
                 "document_type": document_type,
                 "source_label": document_type,
                 "source_reference": f"local://{path.name}",
-                "content_sha256": sha256(content.encode("utf-8")).hexdigest(),
+                "content_sha256": template_spec(document_type).sha256,
                 "status": "approved",
             }
         )
     return result
+
+
+def _verified_loader(source_reference: str) -> LoadedApplicationSource:
+    document_type = (
+        "base_application_letter"
+        if "base_application_letter" in source_reference
+        else "base_cv"
+    )
+    return LoadedApplicationSource(
+        content=f"verified {document_type} text",
+        source_sha256=template_spec(document_type).sha256,
+    )
 
 
 def test_ready_workspace_binds_top5_facts_documents_and_job_evidence(
@@ -71,7 +84,7 @@ def test_ready_workspace_binds_top5_facts_documents_and_job_evidence(
         profile_row={"status": "approved", "payload_sha256": "a" * 64},
         fact_rows=[_fact()],
         document_rows=_documents(tmp_path),
-        load_document=local_document_loader(private_root=tmp_path),
+        load_document=_verified_loader,
         as_of_date=date(2026, 9, 2),
     )
 
@@ -97,7 +110,7 @@ def test_explicit_recurring_employer_origin_authority_accepts_unknown_silver_pro
         profile_row={"status": "approved", "payload_sha256": "a" * 64},
         fact_rows=[_fact()],
         document_rows=_documents(tmp_path),
-        load_document=local_document_loader(private_root=tmp_path),
+        load_document=_verified_loader,
         as_of_date=date(2026, 9, 2),
         employer_origin_authorized=True,
     )
@@ -119,7 +132,7 @@ def test_explicit_missing_profile_authority_rejects_origin_like_projection(
         profile_row={"status": "approved", "payload_sha256": "a" * 64},
         fact_rows=[_fact()],
         document_rows=_documents(tmp_path),
-        load_document=local_document_loader(private_root=tmp_path),
+        load_document=_verified_loader,
         as_of_date=date(2026, 9, 2),
         employer_origin_authorized=False,
     )
@@ -156,7 +169,7 @@ def test_non_authoritative_job_remains_blocked_even_with_valid_private_sources(
         profile_row={"status": "approved", "payload_sha256": "a" * 64},
         fact_rows=[_fact()],
         document_rows=_documents(tmp_path),
-        load_document=local_document_loader(private_root=tmp_path),
+        load_document=_verified_loader,
         as_of_date=date(2026, 9, 2),
     )
 
