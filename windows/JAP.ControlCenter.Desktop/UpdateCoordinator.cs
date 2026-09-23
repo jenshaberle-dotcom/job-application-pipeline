@@ -188,53 +188,14 @@ internal sealed class UpdateCoordinator : IDisposable
                 return false;
             }
 
-            var applier = Path.Combine(_installRoot, "Apply-JAP-Control-Center-Update.ps1");
-            if (!File.Exists(applier))
-            {
-                MessageBox.Show(
-                    _owner,
-                    "Das Update ist bereit, aber der installierte JAP-Updater fehlt. Das Update wurde nicht gestartet.",
-                    "JAP Control Center Update",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return false;
-            }
-
-            WriteAcceptedManifest(pending.ManifestJson);
-            var powershell = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                "System32",
-                "WindowsPowerShell",
-                "v1.0",
-                "powershell.exe");
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = powershell,
-                WorkingDirectory = _installRoot,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add("-NoProfile");
-            startInfo.ArgumentList.Add("-ExecutionPolicy");
-            startInfo.ArgumentList.Add("RemoteSigned");
-            startInfo.ArgumentList.Add("-WindowStyle");
-            startInfo.ArgumentList.Add("Hidden");
-            startInfo.ArgumentList.Add("-File");
-            startInfo.ArgumentList.Add(applier);
-            startInfo.ArgumentList.Add("-ManifestPath");
-            startInfo.ArgumentList.Add(_acceptedPath);
-            startInfo.ArgumentList.Add("-HostPid");
-            startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
-
-            _ = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("JAP update process could not be started.");
-            _applyingUpdate = true;
-            _pollTimer.Stop();
-            TryDelete(_snoozePath);
-            WriteEvent("update_accepted", $"target={pending.TargetDesktopVersion}");
-            _owner.BeginInvoke(new Action(() => _owner.Close()));
-            return true;
-        }
+            WriteEvent("update_accept_blocked", "CGKB replacement in progress; no legacy apply authority exists");
+            MessageBox.Show(
+                _owner,
+                "Das Update wurde noch nicht gestartet. Der alte Update-Pfad wurde entfernt; der neue CGKB-Pfad wird erst nach vollständigem Proof freigeschaltet.",
+                "JAP Control Center Update",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return false;
         catch (Exception exc)
         {
             TryDelete(_acceptedPath);
