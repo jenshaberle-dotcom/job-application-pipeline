@@ -51,9 +51,9 @@ Missing evidence remains missing/unknown. Template text is not independent fact 
 
 F6 removes the previous generic document-generation authority. The following legacy paths are physically absent and regression-gated against return:
 
-- `src/search_intelligence/product_v1_application_document_export.py`;
-- `src/search_intelligence/product_v1_application_document_package.py`;
-- `frontend/control-center/src/application-package-downloads.css`;
+- retired module basename `product_v1_application_document_export.py`;
+- retired module basename `product_v1_application_document_package.py`;
+- retired stylesheet basename `application-package-downloads.css`;
 - their dedicated generic renderer/package tests.
 
 The retired path created new A4/DOCX documents independent of the approved layouts. It is incompatible with F6 and has no fallback authority.
