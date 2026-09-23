@@ -120,4 +120,19 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_prepare_path() 
 
 
 def test_current_runtime_release_version() -> None:
-    assert _text(VERSION).strip() == "1.0.68"
+    assert _text(VERSION).strip() == "1.0.69"
+
+
+
+def test_installed_runtime_shell_scripts_are_repaired_to_lf_before_every_wsl_handoff() -> None:
+    controller = _text(RUNTIME_CONTROLLER)
+    assert "NormalizeInstalledRuntimeShellScripts(_installRoot, config)" in controller
+    assert "NormalizeInstalledRuntimeShellScripts(installRoot, config)" in controller
+    assert 'Directory.EnumerateFiles(' in controller
+    assert '"*.sh"' in controller
+    assert "SearchOption.AllDirectories" in controller
+    assert "bytes.Contains((byte)'\\r')" in controller
+    assert '.Replace("\\r\\n", "\\n", StringComparison.Ordinal)' in controller
+    assert '.Replace("\\r", "\\n", StringComparison.Ordinal)' in controller
+    assert "runtime-info.json" in controller
+    assert "config.PinnedSha" in controller

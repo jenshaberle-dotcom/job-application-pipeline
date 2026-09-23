@@ -69,6 +69,10 @@ def test_post_consent_applier_has_no_discovery_download_or_extraction_authority(
     assert '"move_retry_recovered"' in applier
     assert '"host_exit_wait_complete"' in applier
     assert '"restart_verify_complete"' in applier
+    assert '"cutover_live_verified"' in applier
+    assert "Live desktop tree integrity mismatch after cutover." in applier
+    assert "Live runtime tree integrity mismatch after cutover." in applier
+    assert "Staged runtime shell script contains CR bytes:" in applier
     assert "VerifyRestartedProduct" in applier
     assert "source_revision" in applier
     assert "runtime_verified" in applier

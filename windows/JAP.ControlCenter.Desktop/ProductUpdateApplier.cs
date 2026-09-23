@@ -117,6 +117,16 @@ internal static class ProductUpdateApplier
             }
             MoveDirectoryWithRetry(runtimeStage, runtimeLive, logPath, "runtime_stage_to_live");
             runtimeMoved = true;
+
+            VerifyDesktopStage(desktopLive, targetSha, targetVersion);
+            VerifyRuntimeStage(runtimeLive, targetSha, targetVersion);
+            Require(
+                ProductUpdateIntegrity.ComputeDirectorySha256(desktopLive) == desktopTreeSha,
+                "Live desktop tree integrity mismatch after cutover.");
+            Require(
+                ProductUpdateIntegrity.ComputeDirectorySha256(runtimeLive) == runtimeTreeSha,
+                "Live runtime tree integrity mismatch after cutover.");
+            WriteLog(logPath, "cutover_live_verified", $"target={targetVersion} sha={targetSha}");
             WriteLog(logPath, "cutover_complete", $"target={targetVersion} sha={targetSha}");
 
             using (var currentDoc = JsonDocument.Parse(previousCurrentJson))
@@ -365,6 +375,17 @@ internal static class ProductUpdateApplier
         Require(Get(root, "version") == version, "Staged runtime version identity mismatch.");
         Require(Get(root, "compatibility_line") == CompatibilityLine, "Staged runtime compatibility identity mismatch.");
         Require(Get(root, "update_generation") == UpdateGeneration, "Staged runtime generation identity mismatch.");
+        var scriptsRoot = Path.Combine(stage, "scripts");
+        Require(Directory.Exists(scriptsRoot), "Staged runtime scripts directory is missing.");
+        foreach (var shellScript in Directory.EnumerateFiles(
+                     scriptsRoot,
+                     "*.sh",
+                     SearchOption.AllDirectories))
+        {
+            Require(
+                !File.ReadAllBytes(shellScript).Contains((byte)'\r'),
+                $"Staged runtime shell script contains CR bytes: {shellScript}");
+        }
         var marker = Path.Combine(stage, "frontend", "control-center", "dist", ".jap-source-sha");
         Require(File.Exists(marker), "Staged frontend source marker is missing.");
         Require(File.ReadAllText(marker).Trim().Equals(sourceSha, StringComparison.OrdinalIgnoreCase), "Staged frontend source marker mismatch.");
