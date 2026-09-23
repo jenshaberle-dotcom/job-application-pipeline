@@ -19,7 +19,7 @@ def test_routine_update_is_product_local_and_has_single_authority() -> None:
     assert "apply-helper" in agent
     assert "ZipFile.ExtractToDirectory" in agent
     assert "pending_published" in agent
-    assert "MinimumDirectVersion = new(1, 0, 63)" in agent
+    assert "MinimumDirectVersion = new(1, 0, 65)" in agent
     assert "Staged WSL runtime bridge contains CR bytes." in agent
     assert "Staged local OSS provisioner contains CR bytes." in agent
 
@@ -30,7 +30,28 @@ def test_routine_update_is_product_local_and_has_single_authority() -> None:
     assert "powershell.exe" not in coordinator.lower()
     assert "wsl.exe" not in coordinator.lower()
     assert "git " not in coordinator.lower()
-    assert "installedVersion >= new Version(1, 0, 63)" in coordinator
+    assert "installedVersion >= new Version(1, 0, 65)" in coordinator
+
+
+
+def test_download_stream_is_closed_before_checksum_reopens_temporary_archive() -> None:
+    agent = read("windows/JAP.ControlCenter.Desktop/ProductUpdateAgent.cs")
+
+    assert "await DownloadArchiveAsync(client, archiveUrl, temporaryArchive);" in agent
+    helper_start = agent.index("private static async Task DownloadArchiveAsync(")
+    helper_end = agent.index("private static void ExtractFresh", helper_start)
+    helper = agent[helper_start:helper_end]
+
+    assert "FileShare.None" in helper
+    assert "await using (var destination = new FileStream(" in helper
+    assert "ComputeFileSha256" not in helper
+
+    prepare_start = agent.index("private static async Task<string> PrepareArchiveAsync(")
+    prepare_end = agent.index("private static async Task DownloadArchiveAsync(", prepare_start)
+    prepare = agent[prepare_start:prepare_end]
+    assert prepare.index(
+        "await DownloadArchiveAsync(client, archiveUrl, temporaryArchive);"
+    ) < prepare.index("ProductUpdateIntegrity.ComputeFileSha256(temporaryArchive)")
 
 
 def test_post_consent_applier_has_no_discovery_download_or_extraction_authority() -> None:
@@ -116,9 +137,9 @@ def test_bootstrap_is_explicit_bridge_not_routine_update_authority() -> None:
     installer = read("install-jap-control-center.ps1")
     compatibility = read("windows/JAP.ControlCenter.Desktop/UPDATE_COMPATIBILITY.json")
     assert "JAP_CONTROL_CENTER_BOOTSTRAP_BRIDGE=PASS" in installer
-    assert "CGKB product-local bootstrap requires version 1.0.63 or newer." in installer
+    assert "CGKB product-local bootstrap requires version 1.0.65 or newer." in installer
     assert 'update_authority = "product_local_update_agent_v2"' in installer
     assert 'update_generation = $UpdateGeneration' in installer
-    assert '"bootstrap_bridge_from": "pre-1.0.63"' in compatibility
-    assert '"minimum_direct_version": "1.0.63"' in compatibility
+    assert '"bootstrap_bridge_from": "pre-1.0.65"' in compatibility
+    assert '"minimum_direct_version": "1.0.65"' in compatibility
     assert '"installer_schema": "job_application_pipeline.windows_control_center_install.v3"' in compatibility
