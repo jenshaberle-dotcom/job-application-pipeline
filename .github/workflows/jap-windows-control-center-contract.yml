@@ -125,8 +125,7 @@ jobs:
           Remove-Item -Force $Zip -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path $Scripts | Out-Null
 
-          $CrLfBody = "#!/usr/bin/env bash`r`nset -euo pipefail`r
-printf 'ok\\n'`r`n"
+          $CrLfBody = "#!/usr/bin/env bash`r`nset -euo pipefail`r`nprintf 'ok\\n'`r`n"
           [System.IO.File]::WriteAllText(
             (Join-Path $Scripts "probe.sh"),
             $CrLfBody,
@@ -156,7 +155,7 @@ printf 'ok\\n'`r`n"
           )
           $RuntimeZip = [System.IO.Compression.ZipFile]::OpenRead($Zip)
           try {
-            $ShellEntries = @($RuntimeZip.Entries | Where-Object { $_.FullName.Replace("\\", "/") -like "scripts/*.sh" })
+            $ShellEntries = @($RuntimeZip.Entries | Where-Object { $_.FullName.Replace("\", "/") -like "scripts/*.sh" })
             if ($ShellEntries.Count -eq 0) {
               throw "Runtime release ZIP contains no shell scripts."
             }
