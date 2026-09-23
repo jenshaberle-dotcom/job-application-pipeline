@@ -158,6 +158,17 @@ function Assert-BundleIdentity(
     if ($marker -ne $SourceSha) {
         throw "Runtime frontend source marker mismatch."
     }
+
+    $runtimeShellScripts = @(Get-ChildItem -Path (Join-Path $RuntimeStage "scripts") -Filter "*.sh" -File -Recurse)
+    if ($runtimeShellScripts.Count -eq 0) {
+        throw "Product runtime contains no shell scripts."
+    }
+    foreach ($shellScript in $runtimeShellScripts) {
+        $bytes = [System.IO.File]::ReadAllBytes($shellScript.FullName)
+        if ($bytes -contains 13) {
+            throw "Product runtime shell script contains CR bytes: $($shellScript.FullName)"
+        }
+    }
 }
 
 $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
@@ -221,8 +232,8 @@ foreach ($required in @($versionPath, $compatibilityPath, $sourceStopper)) {
 }
 
 $Version = (Get-Content -Raw $versionPath).Trim()
-if ([version]$Version -lt [version]"1.0.62") {
-    throw "CGKB product-local bootstrap requires version 1.0.62 or newer."
+if ([version]$Version -lt [version]"1.0.63") {
+    throw "CGKB product-local bootstrap requires version 1.0.63 or newer."
 }
 $compatibility = Get-Content -Raw $compatibilityPath | ConvertFrom-Json
 if ($compatibility.schema -ne "job_application_pipeline.windows_update_compatibility.v2" -or
@@ -275,8 +286,8 @@ try {
     }
     $wslRuntimeRoot = "$($wslInstallRoot.TrimEnd('/'))/runtime"
     $wslRuntimeRunner = "$wslRuntimeRoot/scripts/run_jap_windows_control_center.sh"
-    $home = Invoke-Wsl @("-d", $WslDistro, "--exec", "bash", "-lc", 'printf "%s" "$HOME"')
-    $wslHome = (($home | Select-Object -First 1) -as [string]).Trim()
+    $wslHomeOutput = Invoke-Wsl @("-d", $WslDistro, "--exec", "bash", "-lc", 'printf "%s" "$HOME"')
+    $wslHome = (($wslHomeOutput | Select-Object -First 1) -as [string]).Trim()
     $wslStateRoot = "$wslHome/.local/state/jap-control-center"
 
     if (Test-Path $DesktopHostRoot) { Move-Item $DesktopHostRoot $desktopBackup }

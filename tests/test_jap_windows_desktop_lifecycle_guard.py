@@ -43,5 +43,5 @@ def test_unhandled_ui_failure_is_fail_closed_and_cleans_runtime_bounded() -> Non
     assert '"desktop-host-lifecycle.log"' in guard
 
 
-def test_zombie_prevention_bumps_immutable_desktop_release() -> None:
-    assert _text(VERSION).strip() == "1.0.62"
+def test_current_desktop_lifecycle_release_version() -> None:
+    assert _text(VERSION).strip() == "1.0.63"

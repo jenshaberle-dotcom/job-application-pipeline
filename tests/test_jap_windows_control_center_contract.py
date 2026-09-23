@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -52,6 +53,14 @@ def test_bootstrap_bridge_is_per_user_and_installs_product_local_generation() ->
     assert 'update_authority = "product_local_update_agent_v2"' in text
     assert 'New-AppShortcut (Join-Path $programs "Update JAP Control Center.lnk")' not in text
     assert 'JAP_CONTROL_CENTER_BOOTSTRAP_BRIDGE=PASS' in text
+    assert 'Product runtime shell script contains CR bytes' in text
+
+
+def test_bootstrap_bridge_does_not_assign_powershell_home_automatic_variable() -> None:
+    text = _text(INSTALLER)
+    assert not re.search(r"(?im)^\\s*\\$home\\s*=", text)
+    assert '$wslHomeOutput = Invoke-Wsl @("-d", $WslDistro, "--exec", "bash", "-lc", \'printf "%s" "$HOME"\')' in text
+    assert '$wslHome = (($wslHomeOutput | Select-Object -First 1) -as [string]).Trim()' in text
 
 
 def test_bootstrap_bridge_does_not_copy_private_runtime_state() -> None:
@@ -125,7 +134,7 @@ def test_product_release_builds_immutable_desktop_and_runtime_assets() -> None:
     assert "JAP-Control-Center-Desktop-win-x64.zip" in workflow
     assert "JAP-Control-Center-Runtime.zip" in workflow
     assert "runtime-info.json" in workflow
-    assert 'Get-ChildItem -Force "frontend\control-center\dist" | Copy-Item -Destination $Frontend -Recurse -Force' in workflow
+    assert r'Get-ChildItem -Force "frontend\control-center\dist" | Copy-Item -Destination $Frontend -Recurse -Force' in workflow
     assert 'Set-Content -Path (Join-Path $Frontend ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline' in workflow
     assert "[System.IO.Compression.ZipFile]::CreateFromDirectory(" in workflow
     assert '"frontend/control-center/dist/.jap-source-sha"' in workflow
@@ -138,6 +147,9 @@ def test_product_release_builds_immutable_desktop_and_runtime_assets() -> None:
     assert '"schema": "job_application_pipeline.windows_update_compatibility.v2"' in compatibility
     assert '"policy": "product_local_latest_direct"' in compatibility
     assert '"installer_schema": "job_application_pipeline.windows_control_center_install.v3"' in compatibility
+    assert '$Body = $Body.Replace("`r`n", "`n").Replace("`r", "`n")' in workflow
+    assert "Runtime shell script still contains CR bytes" in workflow
+    assert "Runtime release ZIP contains CR bytes" in workflow
 
 
 def test_stop_path_is_managed_pid_only() -> None:

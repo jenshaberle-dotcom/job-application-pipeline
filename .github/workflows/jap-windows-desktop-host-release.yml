@@ -43,8 +43,8 @@ jobs:
           if ($Version -notmatch '^\d+\.\d+\.\d+$') {
             throw "Invalid JAP product VERSION: $Version"
           }
-          if ([version]$Version -lt [version]"1.0.62") {
-            throw "CGKB product-local generation starts at 1.0.62."
+          if ([version]$Version -lt [version]"1.0.63") {
+            throw "Supported CGKB product-local release baseline starts at 1.0.63."
           }
           "PRODUCT_VERSION=$Version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PRODUCT_TAG=jap-winapp-product-v$Version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -129,6 +129,20 @@ jobs:
               Copy-Item -Force $File (Join-Path $Runtime $File)
             }
           }
+          $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $RuntimeShellScripts = @(Get-ChildItem -Path (Join-Path $Runtime "scripts") -Filter "*.sh" -File -Recurse)
+          if ($RuntimeShellScripts.Count -eq 0) {
+            throw "Runtime bundle contains no shell scripts to normalize."
+          }
+          foreach ($ShellScript in $RuntimeShellScripts) {
+            $Body = [System.IO.File]::ReadAllText($ShellScript.FullName)
+            $Body = $Body.Replace("`r`n", "`n").Replace("`r", "`n")
+            [System.IO.File]::WriteAllText($ShellScript.FullName, $Body, $Utf8NoBom)
+            $Bytes = [System.IO.File]::ReadAllBytes($ShellScript.FullName)
+            if ($Bytes -contains 13) {
+              throw "Runtime shell script still contains CR bytes: $($ShellScript.FullName)"
+            }
+          }
           $DesktopMetadata = Join-Path $Runtime "windows\JAP.ControlCenter.Desktop"
           New-Item -ItemType Directory -Force -Path $DesktopMetadata | Out-Null
           Copy-Item -Force "windows\JAP.ControlCenter.Desktop\VERSION" (Join-Path $DesktopMetadata "VERSION")
@@ -201,6 +215,22 @@ jobs:
                 throw "Runtime release ZIP is missing required entry: $RequiredEntry"
               }
             }
+            $ShellEntries = @($RuntimeZip.Entries | Where-Object { $_.FullName.Replace("\", "/") -like "scripts/*.sh" })
+            if ($ShellEntries.Count -eq 0) {
+              throw "Runtime release ZIP contains no shell scripts."
+            }
+            foreach ($ShellEntry in $ShellEntries) {
+              $Reader = [System.IO.StreamReader]::new($ShellEntry.Open(), [System.Text.Encoding]::UTF8, $true)
+              try {
+                $ShellBody = $Reader.ReadToEnd()
+                if ($ShellBody.Contains("`r")) {
+                  throw "Runtime release ZIP contains CR bytes in $($ShellEntry.FullName)"
+                }
+              }
+              finally {
+                $Reader.Dispose()
+              }
+            }
           }
           finally {
             $RuntimeZip.Dispose()
@@ -256,7 +286,7 @@ jobs:
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
             --title "JAP Control Center Product v$env:PRODUCT_VERSION" `
-            --notes "CGKB product-local generation. Desktop and runtime are immutable exact-source assets. Bootstrap bridge is required from pre-1.0.62 installations. Source: $env:GITHUB_SHA"
+            --notes "CGKB product-local generation. Desktop and runtime are immutable exact-source assets. Bootstrap bridge is required from pre-1.0.63 installations. Source: $env:GITHUB_SHA"
           if ($LASTEXITCODE -ne 0) { throw "JAP product release creation failed." }
 
           $PublishedTarget = gh api $Api --jq '.target_commitish'

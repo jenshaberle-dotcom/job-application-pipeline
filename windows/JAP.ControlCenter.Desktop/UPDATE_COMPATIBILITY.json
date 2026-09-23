@@ -4,8 +4,8 @@
   "policy": "product_local_latest_direct",
   "update_generation": "cgkb_product_local_v1",
   "release_namespace": "jap-winapp-product-v",
-  "minimum_direct_version": "1.0.62",
-  "bootstrap_bridge_from": "pre-1.0.62",
+  "minimum_direct_version": "1.0.63",
+  "bootstrap_bridge_from": "pre-1.0.63",
   "installer_schema": "job_application_pipeline.windows_control_center_install.v3",
   "snooze_hours": 6
 }

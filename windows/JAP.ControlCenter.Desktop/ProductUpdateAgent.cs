@@ -19,7 +19,7 @@ internal static class ProductUpdateAgent
     private const string RuntimeArchiveName = "JAP-Control-Center-Runtime.zip";
     private const string RuntimeChecksumName = "JAP-Control-Center-Runtime.zip.sha256";
     private const string StagingProvider = "product_local_update_agent_v2";
-    private static readonly Version MinimumDirectVersion = new(1, 0, 62);
+    private static readonly Version MinimumDirectVersion = new(1, 0, 63);
     private static readonly Regex ShaPattern = new("^[0-9a-fA-F]{40}$", RegexOptions.CultureInvariant);
     private static readonly Regex DigestPattern = new("^[0-9a-fA-F]{64}$", RegexOptions.CultureInvariant);
 
@@ -296,7 +296,12 @@ internal static class ProductUpdateAgent
         Require(GetString(root, "compatibility_line") == CompatibilityLine, "Staged runtime compatibility identity mismatch.");
         Require(GetString(root, "update_generation") == UpdateGeneration, "Staged runtime generation identity mismatch.");
         Require(File.Exists(Path.Combine(stage, "scripts", "run_product_v1_live_demo.py")), "Staged runtime launcher is missing.");
-        Require(File.Exists(Path.Combine(stage, "scripts", "run_jap_windows_control_center.sh")), "Staged WSL runtime bridge is missing.");
+        var runtimeBridge = Path.Combine(stage, "scripts", "run_jap_windows_control_center.sh");
+        Require(File.Exists(runtimeBridge), "Staged WSL runtime bridge is missing.");
+        Require(!File.ReadAllBytes(runtimeBridge).Contains((byte)'\r'), "Staged WSL runtime bridge contains CR bytes.");
+        var localOssProvisioner = Path.Combine(stage, "scripts", "ensure_pinned_local_oss_runtime.sh");
+        Require(File.Exists(localOssProvisioner), "Staged local OSS provisioner is missing.");
+        Require(!File.ReadAllBytes(localOssProvisioner).Contains((byte)'\r'), "Staged local OSS provisioner contains CR bytes.");
         Require(File.Exists(Path.Combine(stage, "frontend", "control-center", "dist", "index.html")), "Staged frontend bundle is missing.");
         var marker = Path.Combine(stage, "frontend", "control-center", "dist", ".jap-source-sha");
         Require(File.Exists(marker), "Staged frontend source marker is missing.");

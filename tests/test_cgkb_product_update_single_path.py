@@ -19,6 +19,9 @@ def test_routine_update_is_product_local_and_has_single_authority() -> None:
     assert "apply-helper" in agent
     assert "ZipFile.ExtractToDirectory" in agent
     assert "pending_published" in agent
+    assert "MinimumDirectVersion = new(1, 0, 63)" in agent
+    assert "Staged WSL runtime bridge contains CR bytes." in agent
+    assert "Staged local OSS provisioner contains CR bytes." in agent
 
     assert "accepted-update.json" in coordinator
     assert "pending.ApplyHelperExecutable" in coordinator
@@ -27,6 +30,7 @@ def test_routine_update_is_product_local_and_has_single_authority() -> None:
     assert "powershell.exe" not in coordinator.lower()
     assert "wsl.exe" not in coordinator.lower()
     assert "git " not in coordinator.lower()
+    assert "installedVersion >= new Version(1, 0, 63)" in coordinator
 
 
 def test_post_consent_applier_has_no_discovery_download_or_extraction_authority() -> None:
@@ -64,6 +68,9 @@ def test_release_generation_contains_both_immutable_product_assets() -> None:
     assert "cgkb_product_local_v1" in workflow
     assert "--target $env:GITHUB_SHA" in workflow
     assert "jap-winapp-desktop-v$Version" not in workflow
+    assert '$Body = $Body.Replace("`r`n", "`n").Replace("`r", "`n")' in workflow
+    assert "Runtime shell script still contains CR bytes" in workflow
+    assert "Runtime release ZIP contains CR bytes" in workflow
 
 
 def test_legacy_routine_update_surfaces_are_physically_absent() -> None:
@@ -109,9 +116,9 @@ def test_bootstrap_is_explicit_bridge_not_routine_update_authority() -> None:
     installer = read("install-jap-control-center.ps1")
     compatibility = read("windows/JAP.ControlCenter.Desktop/UPDATE_COMPATIBILITY.json")
     assert "JAP_CONTROL_CENTER_BOOTSTRAP_BRIDGE=PASS" in installer
-    assert "CGKB product-local bootstrap requires version 1.0.62 or newer." in installer
+    assert "CGKB product-local bootstrap requires version 1.0.63 or newer." in installer
     assert 'update_authority = "product_local_update_agent_v2"' in installer
     assert 'update_generation = $UpdateGeneration' in installer
-    assert '"bootstrap_bridge_from": "pre-1.0.62"' in compatibility
-    assert '"minimum_direct_version": "1.0.62"' in compatibility
+    assert '"bootstrap_bridge_from": "pre-1.0.63"' in compatibility
+    assert '"minimum_direct_version": "1.0.63"' in compatibility
     assert '"installer_schema": "job_application_pipeline.windows_control_center_install.v3"' in compatibility
