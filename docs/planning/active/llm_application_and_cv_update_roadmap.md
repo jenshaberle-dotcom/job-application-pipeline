@@ -150,7 +150,7 @@ Governance requirements:
 - No automatic sending.
 - No fabricated skills, degrees, employers, dates, or project claims.
 - Every generated claim should be traceable to profile/CV/project evidence.
-- Separate ATS-friendly content from design/layout generation.
+- F6 template authority is absolute: text may adapt only inside declared zones of the two hash-bound private PDFs; design/layout generation is forbidden.
 
 Recommended sequencing:
 After job-fit scoring and profile/CV fact grounding. It is useful, but should not be the first LLM capability because it depends on upstream relevance and evidence.
@@ -189,7 +189,7 @@ Governance requirements:
 - Project claims must reflect real repository state.
 - The MCP project may be used as a necessary and valuable part of Jens development story where relevant.
 - Suggestions require human approval before being used in CV documents.
-- No automatic modification of canonical CV files.
+- No automatic replacement or layout mutation of the canonical CV PDF; only reviewed text-zone adaptation is permitted under F6 authority.
 
 Recommended sequencing:
 After a CV/profile fact model exists and before or alongside application letter generation.
