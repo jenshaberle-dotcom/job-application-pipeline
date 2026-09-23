@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -52,6 +53,13 @@ def test_bootstrap_bridge_is_per_user_and_installs_product_local_generation() ->
     assert 'update_authority = "product_local_update_agent_v2"' in text
     assert 'New-AppShortcut (Join-Path $programs "Update JAP Control Center.lnk")' not in text
     assert 'JAP_CONTROL_CENTER_BOOTSTRAP_BRIDGE=PASS' in text
+
+
+def test_bootstrap_bridge_does_not_assign_powershell_home_automatic_variable() -> None:
+    text = _text(INSTALLER)
+    assert not re.search(r"(?im)^\\s*\\$home\\s*=", text)
+    assert '$wslHomeOutput = Invoke-Wsl @("-d", $WslDistro, "--exec", "bash", "-lc", \'printf "%s" "$HOME"\')' in text
+    assert '$wslHome = (($wslHomeOutput | Select-Object -First 1) -as [string]).Trim()' in text
 
 
 def test_bootstrap_bridge_does_not_copy_private_runtime_state() -> None:
