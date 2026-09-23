@@ -2,18 +2,16 @@
 set -euo pipefail
 
 PROJECT_ROOT="${1:-}"
-MANAGED_WORKTREE="${2:-}"
+RUNTIME_ROOT="${2:-}"
 PINNED_SHA="${3:-}"
 STATE_ROOT="${4:-}"
 ACTION="${5:-start}"
 DETACHED_STDOUT="${6:-}"
 DETACHED_STDERR="${7:-}"
-EXPECTED_ORIGIN='jenshaberle-dotcom/job-application-pipeline'
-READ_ONLY_FETCH_URL='https://github.com/jenshaberle-dotcom/job-application-pipeline.git'
+EXPECTED_REPOSITORY_ID='1230805345'
 PID_FILE="${STATE_ROOT}/runtime.pid"
-FRONTEND_ROOT="${MANAGED_WORKTREE}/frontend/control-center"
-FRONTEND_NODE_MODULES="${FRONTEND_ROOT}/node_modules"
-FRONTEND_DIST="${FRONTEND_ROOT}/dist"
+RUNTIME_INFO="${RUNTIME_ROOT}/runtime-info.json"
+FRONTEND_DIST="${RUNTIME_ROOT}/frontend/control-center/dist"
 FRONTEND_BUILD_SHA_FILE="${FRONTEND_DIST}/.jap-source-sha"
 
 fail() {
@@ -27,44 +25,13 @@ require_nonempty() {
   [[ -n "$value" ]] || fail "missing_${name}"
 }
 
-native_node_ready() {
-  local node_path npm_path major
-  node_path="$(command -v node 2>/dev/null || true)"
-  npm_path="$(command -v npm 2>/dev/null || true)"
-  [[ -n "$node_path" && -n "$npm_path" ]] || return 1
-  [[ "$node_path" != /mnt/* && "$npm_path" != /mnt/* ]] || return 1
-  major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
-  [[ "$major" =~ ^[0-9]+$ ]] || return 1
-  (( major >= 22 ))
-}
-
-activate_native_node_runtime() {
-  if native_node_ready; then
-    return 0
-  fi
-
-  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-  [[ -s "$NVM_DIR/nvm.sh" ]] || fail native_node22_runtime_unavailable
-
-  # nvm is normally loaded by an interactive shell. The installed Windows app
-  # starts WSL non-interactively, so load it explicitly and select an already
-  # installed Node 22 runtime without performing any network installation.
-  set +u
-  # shellcheck disable=SC1090
-  source "$NVM_DIR/nvm.sh"
-  if ! nvm use --silent 22 >/dev/null; then
-    set -u
-    fail native_node22_runtime_unavailable
-  fi
-  set -u
-
-  native_node_ready || fail native_node22_runtime_unavailable
-}
-
 require_nonempty project_root "$PROJECT_ROOT"
-require_nonempty managed_worktree "$MANAGED_WORKTREE"
+require_nonempty runtime_root "$RUNTIME_ROOT"
 require_nonempty pinned_sha "$PINNED_SHA"
 require_nonempty state_root "$STATE_ROOT"
+[[ "$PROJECT_ROOT" == /* ]] || fail project_root_not_absolute
+[[ "$RUNTIME_ROOT" == /* ]] || fail runtime_root_not_absolute
+[[ "$STATE_ROOT" == /* ]] || fail state_root_not_absolute
 [[ "$PINNED_SHA" =~ ^[0-9a-f]{40}$ ]] || fail invalid_pinned_sha
 
 mkdir -p "$STATE_ROOT"
@@ -77,7 +44,7 @@ managed_pid() {
   cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
   [[ "$cmdline" == *"scripts/run_product_v1_live_demo.py"* ]] || return 1
   cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
-  expected_cwd="$(readlink -f "$MANAGED_WORKTREE" 2>/dev/null || true)"
+  expected_cwd="$(readlink -f "$RUNTIME_ROOT" 2>/dev/null || true)"
   [[ -n "$expected_cwd" && "$cwd" == "$expected_cwd" ]] || return 1
   printf '%s' "$pid"
 }
@@ -105,7 +72,7 @@ if [[ "$ACTION" == "--stop" ]]; then
   stop_managed
   exit 0
 fi
-[[ "$ACTION" == "start" || "$ACTION" == "prepare" || "$ACTION" == "launch" ]] || fail invalid_action
+[[ "$ACTION" == "start" || "$ACTION" == "launch" ]] || fail invalid_action
 
 if [[ "$ACTION" == "launch" ]]; then
   require_nonempty detached_stdout "$DETACHED_STDOUT"
@@ -119,7 +86,7 @@ if [[ "$ACTION" == "launch" ]]; then
   : > "$DETACHED_STDERR"
   nohup setsid bash "$0" \
     "$PROJECT_ROOT" \
-    "$MANAGED_WORKTREE" \
+    "$RUNTIME_ROOT" \
     "$PINNED_SHA" \
     "$STATE_ROOT" \
     start \
@@ -137,98 +104,47 @@ if [[ "$ACTION" == "launch" ]]; then
   exit 0
 fi
 
-[[ -d "$PROJECT_ROOT/.git" ]] || fail canonical_checkout_missing
+[[ -x "$PROJECT_ROOT/.venv/bin/python" ]] || fail canonical_venv_missing
+[[ -f "$PROJECT_ROOT/.env" ]] || fail canonical_env_missing
+[[ -f "$RUNTIME_INFO" ]] || fail runtime_info_missing
+[[ -f "$RUNTIME_ROOT/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
+[[ -f "$RUNTIME_ROOT/scripts/ensure_pinned_local_oss_runtime.sh" ]] || fail local_oss_provisioner_missing
+[[ -f "$RUNTIME_ROOT/requirements.txt" ]] || fail pinned_requirements_missing
+[[ -f "$FRONTEND_DIST/index.html" ]] || fail frontend_bundle_missing
+[[ -f "$FRONTEND_BUILD_SHA_FILE" ]] || fail frontend_source_marker_missing
 
-origin="$(git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null || true)"
-case "$origin" in
-  *"$EXPECTED_ORIGIN"|*"$EXPECTED_ORIGIN.git") ;;
-  *) fail repository_origin_mismatch ;;
-esac
+runtime_identity="$(
+  "$PROJECT_ROOT/.venv/bin/python" - "$RUNTIME_INFO" <<'PY'
+import json
+import sys
 
-# A pinned main commit normally already exists locally from install/update. If it does
-# not, recover it over HTTPS; the managed app must not depend on GitHub SSH port 22.
-if ! git -C "$PROJECT_ROOT" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null; then
-  git -C "$PROJECT_ROOT" fetch --no-tags "$READ_ONLY_FETCH_URL" main || fail github_https_fetch_failed
-fi
-git -C "$PROJECT_ROOT" cat-file -e "${PINNED_SHA}^{commit}" 2>/dev/null || fail pinned_sha_unavailable
+path = sys.argv[1]
+with open(path, encoding="utf-8-sig") as handle:
+    payload = json.load(handle)
+print(
+    f"{payload.get('repository_id', '')}|"
+    f"{payload.get('source_sha', '')}|"
+    f"{payload.get('schema', '')}"
+)
+PY
+)" || fail runtime_info_invalid
 
-if [[ -e "$MANAGED_WORKTREE/.git" ]]; then
-  # Dependency state is needed only while preparing a new source-bound frontend.
-  # Interactive startup must never perform npm installation/build work.
-  if [[ "$ACTION" == "prepare" && ( -e "$FRONTEND_NODE_MODULES" || -L "$FRONTEND_NODE_MODULES" ) ]]; then
-    rm -rf -- "$FRONTEND_NODE_MODULES"
-    printf 'JAP_WINDOWS_APP_FRONTEND_DEPENDENCIES=RESET\n'
-  fi
+IFS='|' read -r runtime_repository_id runtime_source_sha runtime_schema <<<"$runtime_identity"
+[[ "$runtime_repository_id" == "$EXPECTED_REPOSITORY_ID" ]] || fail runtime_repository_identity_mismatch
+[[ "$runtime_source_sha" == "$PINNED_SHA" ]] || fail runtime_source_identity_mismatch
+[[ "$runtime_schema" == "job_application_pipeline.runtime_bundle.v1" ]] || fail runtime_schema_mismatch
 
-  [[ -z "$(git -C "$MANAGED_WORKTREE" status --porcelain)" ]] || fail managed_worktree_dirty
-  current_sha="$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)"
-  if [[ "$current_sha" != "$PINNED_SHA" ]]; then
-    git -C "$MANAGED_WORKTREE" checkout --detach "$PINNED_SHA"
-  fi
-else
-  mkdir -p "$(dirname "$MANAGED_WORKTREE")"
-  git -C "$PROJECT_ROOT" worktree prune
-  git -C "$PROJECT_ROOT" worktree add --detach "$MANAGED_WORKTREE" "$PINNED_SHA"
-fi
-
-[[ "$(git -C "$MANAGED_WORKTREE" rev-parse HEAD)" == "$PINNED_SHA" ]] || fail managed_worktree_sha_mismatch
-[[ -f "$FRONTEND_ROOT/package.json" ]] || fail frontend_package_missing
-
-# dist is ignored generated state. It must never survive a source update unless it
-# carries an exact marker proving that the bundle was built from the installed pin.
-frontend_build_sha=""
-if [[ -f "$FRONTEND_BUILD_SHA_FILE" ]]; then
-  frontend_build_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
-fi
-if [[ -e "$FRONTEND_DIST" || -L "$FRONTEND_DIST" ]]; then
-  if [[ ! -f "$FRONTEND_DIST/index.html" || "$frontend_build_sha" != "$PINNED_SHA" ]]; then
-    rm -rf -- "$FRONTEND_DIST"
-    printf 'JAP_WINDOWS_APP_FRONTEND_DIST=RESET previous=%s target=%s\n' "${frontend_build_sha:-unbound}" "$PINNED_SHA"
-    frontend_build_sha=""
-  fi
-fi
+frontend_build_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
+[[ "$frontend_build_sha" == "$PINNED_SHA" ]] || fail frontend_source_marker_mismatch
 
 if pid="$(managed_pid 2>/dev/null)"; then
   fail "managed_runtime_already_running_pid_${pid}"
 fi
 rm -f "$PID_FILE"
 
-if [[ "$ACTION" == "prepare" ]]; then
-  activate_native_node_runtime
-  printf 'JAP_WINDOWS_APP_PREPARE_NODE=%s\n' "$(command -v node)"
-  printf 'JAP_WINDOWS_APP_PREPARE_NODE_VERSION=%s\n' "$(node --version)"
-  printf 'JAP_WINDOWS_APP_PREPARE_NPM=%s\n' "$(command -v npm)"
-  cd "$FRONTEND_ROOT"
-  if [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
-    printf 'JAP_WINDOWS_APP_FRONTEND_INSTALL_MODE=LOCKFILE_CI\n'
-    npm ci
-  else
-    printf 'JAP_WINDOWS_APP_FRONTEND_INSTALL_MODE=LOCKFILE_ABSENT_INSTALL\n'
-    npm install --package-lock=false --no-audit --no-fund
-  fi
-  npm run build
-  [[ -f "$FRONTEND_DIST/index.html" ]] || fail frontend_prepare_missing_index
-  printf '%s\n' "$PINNED_SHA" > "$FRONTEND_BUILD_SHA_FILE"
-  rm -rf -- "$FRONTEND_NODE_MODULES"
-  prepared_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
-  [[ "$prepared_sha" == "$PINNED_SHA" ]] || fail frontend_prepare_source_mismatch
-  printf 'JAP_WINDOWS_APP_FRONTEND_PREPARED=%s\n' "$PINNED_SHA"
-  exit 0
-fi
-
-[[ -x "$PROJECT_ROOT/.venv/bin/python" ]] || fail canonical_venv_missing
-[[ -f "$PROJECT_ROOT/.env" ]] || fail canonical_env_missing
-[[ -f "$MANAGED_WORKTREE/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
-[[ -f "$MANAGED_WORKTREE/scripts/ensure_pinned_local_oss_runtime.sh" ]] || fail local_oss_provisioner_missing
-[[ -f "$MANAGED_WORKTREE/requirements.txt" ]] || fail pinned_requirements_missing
-
-[[ -f "$FRONTEND_DIST/index.html" ]] || fail frontend_not_prepared_for_pin
-[[ -f "$FRONTEND_BUILD_SHA_FILE" ]] || fail frontend_source_marker_missing
-frontend_build_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
-[[ "$frontend_build_sha" == "$PINNED_SHA" ]] || fail frontend_source_marker_mismatch
-
-# Reuse the canonical private runtime environment. Secrets and private documents are
-# never copied into the Windows installation or the managed code worktree.
+# Reuse only the private local environment from the canonical WSL project.
+# Executable product code and the prebuilt frontend come exclusively from the
+# immutable runtime bundle installed under the JAP product root.
 # shellcheck disable=SC1091
 source "$PROJECT_ROOT/.venv/bin/activate"
 set -a
@@ -238,14 +154,10 @@ source "$PROJECT_ROOT/.env"
 set -u
 set +a
 
-# Keep the Windows-managed Product runtime on the same requirements-bound local OSS
-# layer as the scheduled pipeline. The canonical venv is intentionally long-lived;
-# extruct/trafilatura therefore live in a digest-addressed side site that is reused
-# when already valid and provisioned from the exact pinned requirements otherwise.
 LOCAL_OSS_SITE="$(
-  bash "$MANAGED_WORKTREE/scripts/ensure_pinned_local_oss_runtime.sh" \
+  bash "$RUNTIME_ROOT/scripts/ensure_pinned_local_oss_runtime.sh" \
     "$PROJECT_ROOT/.venv/bin/python" \
-    "$MANAGED_WORKTREE/requirements.txt" \
+    "$RUNTIME_ROOT/requirements.txt" \
     "$PROJECT_ROOT/.runtime/local-oss-sites"
 )" || fail pinned_local_oss_runtime_unavailable
 [[ -n "$LOCAL_OSS_SITE" && -d "$LOCAL_OSS_SITE" ]] || fail pinned_local_oss_runtime_invalid
@@ -264,12 +176,11 @@ export PRODUCT_V1_UI_PORT="8780"
 export PYTHONUNBUFFERED=1
 export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"
 
-cd "$MANAGED_WORKTREE"
+cd "$RUNTIME_ROOT"
 launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime --reuse-frontend)
 
-printf 'JAP_WINDOWS_APP_HEAD=%s\n' "$(git rev-parse HEAD)"
+printf 'JAP_WINDOWS_APP_RUNTIME_BUNDLE=%s\n' "$RUNTIME_ROOT"
 printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
-printf 'JAP_WINDOWS_APP_FETCH_TRANSPORT=https\n'
 printf 'JAP_WINDOWS_APP_LOCAL_OSS_SITE=%s\n' "$LOCAL_OSS_SITE"
 printf 'JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1\n'
 printf 'JAP_WINDOWS_APP_PINNED_SHA=%s\n' "$JAP_CONTROL_CENTER_PINNED_SHA"

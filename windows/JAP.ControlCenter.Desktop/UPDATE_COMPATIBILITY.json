@@ -1,8 +1,11 @@
 {
-  "schema": "job_application_pipeline.windows_update_compatibility.v1",
-  "compatibility_line": "1",
-  "policy": "latest_direct",
-  "direct_upgrade_from": "1.x",
+  "schema": "job_application_pipeline.windows_update_compatibility.v2",
+  "compatibility_line": "cgkb-product-local-1",
+  "policy": "product_local_latest_direct",
+  "update_generation": "cgkb_product_local_v1",
+  "release_namespace": "jap-winapp-product-v",
+  "minimum_direct_version": "1.0.62",
+  "bootstrap_bridge_from": "pre-1.0.62",
   "installer_schema": "job_application_pipeline.windows_control_center_install.v2",
   "snooze_hours": 6
 }
