@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from hashlib import sha256
 
 from scripts import run_product_v1_demo_workspace_probe as workspace_probe
 from scripts.run_product_v1_demo_draft_handoff import evaluate_handoff
@@ -23,7 +22,7 @@ def _document(kind: str) -> ApplicationSourceDocumentSnapshot:
         document_type=kind,
         source_label=kind,
         source_reference=f"local://{kind}",
-        content_sha256=template_spec(document_type).sha256,
+        content_sha256=template_spec(kind).sha256,
         content=content,
         status="approved",
         source_hash_verified=True,
