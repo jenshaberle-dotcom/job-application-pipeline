@@ -5,11 +5,11 @@ namespace JAP.ControlCenter.Desktop;
 
 internal sealed class UpdateCoordinator : IDisposable
 {
-    private const string PendingSchema = "job_application_pipeline.windows_pending_update.v1";
+    private const string PendingSchema = "job_application_pipeline.windows_product_update.v2";
     private const string SnoozeSchema = "job_application_pipeline.windows_update_snooze.v1";
-    private const string ResultSchema = "job_application_pipeline.windows_update_result.v1";
-    private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v2";
-    private const string CompatibilityLine = "1";
+    private const string ResultSchema = "job_application_pipeline.windows_update_result.v2";
+    private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v3";
+    private const string CompatibilityLine = "cgkb-product-local-1";
     private static readonly TimeSpan SnoozeDuration = TimeSpan.FromHours(6);
     private static readonly TimeSpan DiscoveryInterval = TimeSpan.FromMinutes(10);
 
@@ -195,19 +195,18 @@ internal sealed class UpdateCoordinator : IDisposable
                 $"target={pending.TargetDesktopVersion} sha={pending.TargetMainSha}");
             _applyingUpdate = true;
 
-            var executable = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
+            var helperExecutable = Path.GetFullPath(pending.ApplyHelperExecutable);
+            var updatesRoot = Path.GetFullPath(Path.Combine(_installRoot, "updates"))
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            if (!helperExecutable.StartsWith(updatesRoot, StringComparison.OrdinalIgnoreCase)
+                || !File.Exists(helperExecutable))
             {
-                throw new InvalidOperationException("JAP product-local update executable is unavailable.");
+                throw new InvalidOperationException(
+                    "The frozen product-local apply helper is missing or outside the managed update root.");
             }
 
-            var helperRoot = Path.Combine(_installRoot, "updates", "apply-helper");
-            if (Directory.Exists(helperRoot))
-            {
-                Directory.Delete(helperRoot, recursive: true);
-            }
-            CopyDirectory(AppContext.BaseDirectory, helperRoot);
-            var helperExecutable = Path.Combine(helperRoot, Path.GetFileName(executable));
+            _pollTimer.Stop();
             var startInfo = new ProcessStartInfo
             {
                 FileName = helperExecutable,
@@ -245,19 +244,6 @@ internal sealed class UpdateCoordinator : IDisposable
         }
     }
 
-    private static void CopyDirectory(string source, string destination)
-    {
-        Directory.CreateDirectory(destination);
-        foreach (var file in Directory.EnumerateFiles(source))
-        {
-            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
-        }
-        foreach (var directory in Directory.EnumerateDirectories(source))
-        {
-            CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
-        }
-    }
-
     private bool IsCompatible(CurrentInstall current, PendingUpdate pending)
     {
         if (current.Schema != InstallSchema
@@ -273,8 +259,7 @@ internal sealed class UpdateCoordinator : IDisposable
             return false;
         }
 
-        return installedVersion.Major == 1
-            && targetVersion.Major == 1
+        return installedVersion >= new Version(1, 0, 62)
             && targetVersion > installedVersion;
     }
 
@@ -324,6 +309,7 @@ internal sealed class UpdateCoordinator : IDisposable
                 GetString(root, "target_desktop_version"),
                 GetString(root, "compatibility_line"),
                 GetString(root, "installer_schema"),
+                GetString(root, "apply_helper_executable"),
                 raw);
         }
         catch (Exception exc) when (exc is IOException or JsonException)
@@ -493,6 +479,7 @@ internal sealed class UpdateCoordinator : IDisposable
         string TargetDesktopVersion,
         string CompatibilityLine,
         string InstallerSchema,
+        string ApplyHelperExecutable,
         string ManifestJson);
 
     private sealed record SnoozeState(
