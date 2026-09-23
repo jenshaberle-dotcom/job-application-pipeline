@@ -14,7 +14,8 @@ def test_routine_update_is_product_local_and_has_single_authority():
     assert "pending-update.json" in agent
     assert "accepted-update.json" in coordinator
     assert "Apply-JAP-Control-Center-Update.ps1" not in coordinator
-    assert "update_accept_blocked" in coordinator
+    assert "update_accepted" in coordinator
+    assert "--apply-update" in coordinator
     assert "powershell.exe" not in coordinator
     assert "wsl.exe" not in coordinator.lower()
     assert "git " not in coordinator.lower()
