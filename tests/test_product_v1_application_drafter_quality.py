@@ -2,6 +2,7 @@ from datetime import date
 import hashlib
 import json
 
+from src.search_intelligence.f6_template_authority import template_spec
 from src.search_intelligence.product_v1_application_context import (
     ApplicationSourceDocumentSnapshot,
     ApplicationTargetSnapshot,
@@ -41,7 +42,7 @@ def _context():
             document_type="base_cv",
             source_label="Current CV",
             source_reference="local://cv.pdf",
-            content_sha256=hashlib.sha256(b"cv-bytes").hexdigest(),
+            content_sha256=template_spec("base_cv").sha256,
             content=cv_content,
             status="approved",
             source_hash_verified=True,
@@ -50,7 +51,7 @@ def _context():
             document_type="base_application_letter",
             source_label="Current letter",
             source_reference="local://letter.pdf",
-            content_sha256=hashlib.sha256(b"letter-bytes").hexdigest(),
+            content_sha256=template_spec("base_application_letter").sha256,
             content=letter_content,
             status="approved",
             source_hash_verified=True,
