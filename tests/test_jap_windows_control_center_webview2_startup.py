@@ -94,5 +94,5 @@ def test_webview2_navigation_is_proven_before_splash_is_hidden() -> None:
     assert "completed.IsSuccess" in program
 
 
-def test_webview2_hardening_bumps_immutable_host_version() -> None:
-    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.62"
+def test_current_product_local_release_version() -> None:
+    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.63"
