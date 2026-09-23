@@ -24,20 +24,39 @@ internal static class Program
             return;
         }
 
-        using var mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
-        if (!createdNew)
+        using var mutex = new Mutex(initiallyOwned: false, MutexName);
+        var ownsMutex = false;
+        try
         {
-            MessageBox.Show(
-                "JAP Control Center ist bereits geöffnet.",
-                "JAP Control Center",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            return;
-        }
+            try
+            {
+                ownsMutex = mutex.WaitOne(0, false);
+            }
+            catch (AbandonedMutexException)
+            {
+                ownsMutex = true;
+            }
 
-        ApplicationConfiguration.Initialize();
-        Application.Run(new UpdateAwareApplicationContext());
-        GC.KeepAlive(mutex);
+            if (!ownsMutex)
+            {
+                MessageBox.Show(
+                    "JAP Control Center ist bereits geöffnet.",
+                    "JAP Control Center",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            ApplicationConfiguration.Initialize();
+            Application.Run(new UpdateAwareApplicationContext());
+        }
+        finally
+        {
+            if (ownsMutex)
+            {
+                mutex.ReleaseMutex();
+            }
+        }
     }
 }
 
