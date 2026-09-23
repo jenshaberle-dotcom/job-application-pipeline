@@ -196,6 +196,7 @@ internal sealed class UpdateCoordinator : IDisposable
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
             return false;
+        }
         catch (Exception exc)
         {
             TryDelete(_acceptedPath);
