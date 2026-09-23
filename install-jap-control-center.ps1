@@ -232,8 +232,8 @@ foreach ($required in @($versionPath, $compatibilityPath, $sourceStopper)) {
 }
 
 $Version = (Get-Content -Raw $versionPath).Trim()
-if ([version]$Version -lt [version]"1.0.63") {
-    throw "CGKB product-local bootstrap requires version 1.0.63 or newer."
+if ([version]$Version -lt [version]"1.0.65") {
+    throw "CGKB product-local bootstrap requires version 1.0.65 or newer."
 }
 $compatibility = Get-Content -Raw $compatibilityPath | ConvertFrom-Json
 if ($compatibility.schema -ne "job_application_pipeline.windows_update_compatibility.v2" -or
