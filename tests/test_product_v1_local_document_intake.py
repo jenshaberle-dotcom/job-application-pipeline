@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from scripts import import_private_application_source_documents as importer
 from scripts import product_v1_local_document_intake as intake
 
 
@@ -82,6 +83,7 @@ def test_ingest_keeps_only_current_authority_bytes_local_and_reuses_source_contr
 ) -> None:
     root = tmp_path / "private"
     monkeypatch.setattr(intake, "validate_template_pdf", _accept_authority)
+    monkeypatch.setattr(importer, "validate_template_pdf", _accept_authority)
     monkeypatch.setenv("PRODUCT_V1_PRIVATE_DOCUMENT_ROOT", str(root))
 
     class FakeConnection:
