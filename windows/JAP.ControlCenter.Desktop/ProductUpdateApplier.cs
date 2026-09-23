@@ -25,6 +25,7 @@ internal static class ProductUpdateApplier
         string? backup = null;
         string? targetSha = null;
         string? targetVersion = null;
+        string? previousCurrentJson = null;
         try
         {
             if (int.TryParse(hostPidText, out var hostPid) && hostPid > 0)
@@ -77,7 +78,8 @@ internal static class ProductUpdateApplier
             Directory.Move(stage, desktop);
 
             var currentPath = Path.Combine(installRoot, "current.json");
-            using var currentDoc = JsonDocument.Parse(File.ReadAllText(currentPath));
+            previousCurrentJson = File.ReadAllText(currentPath);
+            using var currentDoc = JsonDocument.Parse(previousCurrentJson);
             var current = new Dictionary<string, object?>();
             foreach (var property in currentDoc.RootElement.EnumerateObject())
             {
@@ -113,6 +115,13 @@ internal static class ProductUpdateApplier
                 {
                     if (Directory.Exists(desktop)) Directory.Delete(desktop, true);
                     Directory.Move(backup, desktop);
+                    if (!string.IsNullOrWhiteSpace(previousCurrentJson))
+                    {
+                        var currentPath = Path.Combine(installRoot, "current.json");
+                        var currentTmp = currentPath + ".rollback.tmp";
+                        File.WriteAllText(currentTmp, previousCurrentJson);
+                        File.Move(currentTmp, currentPath, true);
+                    }
                     var oldExe = Path.Combine(desktop, "JAP.ControlCenter.Desktop.exe");
                     if (File.Exists(oldExe)) Process.Start(new ProcessStartInfo { FileName = oldExe, WorkingDirectory = installRoot, UseShellExecute = true });
                 }
