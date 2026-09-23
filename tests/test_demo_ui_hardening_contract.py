@@ -75,14 +75,13 @@ def test_data_layers_waits_for_workspace_with_mutation_observer() -> None:
     assert "window.setTimeout(bindRoots, 50)" not in source
 
 
-def test_application_workspace_exposes_four_files_plus_zip_download() -> None:
+def test_application_workspace_is_f6_template_authoritative_and_has_no_legacy_download_renderer() -> None:
     source = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
-    assert "draftFiles.length >= 4" in source
-    assert 'key === "cv_docx"' in source
-    assert 'key === "cv_pdf"' in source
-    assert 'key === "letter_docx"' in source
-    assert 'key === "letter_pdf"' in source
-    assert 'key === "application_zip"' in source
-    assert "Everything · ZIP" in source
-    assert "downloadDraftFile" in source
+    assert "F6 template authority" in source
+    assert "Legacy generic DOCX/A4 export has been removed" in source
+    assert "template_bound_renderer_pending" not in source
+    assert "downloadDraftFile" not in source
+    assert 'key === "cv_docx"' not in source
+    assert 'key === "application_zip"' not in source
+    assert "application-package-downloads.css" not in source
