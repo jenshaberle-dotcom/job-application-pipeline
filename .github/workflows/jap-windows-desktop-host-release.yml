@@ -129,6 +129,10 @@ jobs:
               Copy-Item -Force $File (Join-Path $Runtime $File)
             }
           }
+          $DesktopMetadata = Join-Path $Runtime "windows\JAP.ControlCenter.Desktop"
+          New-Item -ItemType Directory -Force -Path $DesktopMetadata | Out-Null
+          Copy-Item -Force "windows\JAP.ControlCenter.Desktop\VERSION" (Join-Path $DesktopMetadata "VERSION")
+          Copy-Item -Force "windows\JAP.ControlCenter.Desktop\UPDATE_COMPATIBILITY.json" (Join-Path $DesktopMetadata "UPDATE_COMPATIBILITY.json")
           $Frontend = Join-Path $Runtime "frontend\control-center\dist"
           New-Item -ItemType Directory -Force -Path $Frontend | Out-Null
           Copy-Item -Recurse -Force "frontend\control-center\dist\*" $Frontend
@@ -150,6 +154,8 @@ jobs:
             "requirements.txt",
             "frontend\control-center\dist\index.html",
             "frontend\control-center\dist\.jap-source-sha",
+            "windows\JAP.ControlCenter.Desktop\VERSION",
+            "windows\JAP.ControlCenter.Desktop\UPDATE_COMPATIBILITY.json",
             "runtime-info.json"
           )) {
             if (-not (Test-Path (Join-Path $Runtime $Required))) {
