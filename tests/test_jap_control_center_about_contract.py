@@ -34,6 +34,8 @@ def test_about_is_operator_tab_with_installed_app_identity() -> None:
     assert "Internal diagnostic only" in about
     assert "Integrated self-update" in about
     assert "Prompted inside this app" in about
+    assert '<div><span>Compatibility line</span><b>{value(info?.compatibility_line, "unknown")}</b></div>' in about
+    assert 'v{value(info?.compatibility_line' not in about
 
 
 def test_dynamic_operator_tabs_wait_for_workspace_without_time_budget() -> None:
@@ -91,7 +93,7 @@ def test_operator_surface_drops_preview_button_but_keeps_internal_preview_runtim
 
 
 def test_current_product_local_release_version() -> None:
-    assert _text(VERSION).strip() == "1.0.63"
+    assert _text(VERSION).strip() == "1.0.64"
 
 
 def test_failed_python_frontend_prewarm_surface_is_removed() -> None:

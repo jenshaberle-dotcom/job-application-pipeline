@@ -44,6 +44,8 @@ def test_normalizers_handle_legal_suffix_and_gender_marker_noise() -> None:
     assert normalize_company("Example GmbH") == "example"
     assert normalize_title("Data Engineer (m/w/d)") == "data engineer"
     assert normalize_title("Data Engineer") == "data engineer"
+    assert normalize_title("E362/B - AI Engineer / KI-Entwickler (m/w/d)") == "e362 b ai engineer ki entwickler"
+    assert normalize_title("Senior - Data Engineer") == "senior data engineer"
 
 
 def test_exact_company_title_is_automatic_link_eligible() -> None:
@@ -215,6 +217,44 @@ def test_finanz_informatik_mailbox_domain_plus_exact_vacancy_title_links_safely(
             "effective_stage": "interview",
             "linkage_status": "exact_projected",
             "linkage_basis": "exact_counterparty_domain_title",
+            "database_link_persisted": False,
+        }
+    ]
+    assert linkage["unresolved_count"] == 0
+
+
+
+def test_finanz_informatik_real_current_title_without_mail_reference_prefix_links_safely() -> None:
+    tracking = [
+        {
+            "application_id": 18,
+            "silver_job_id": None,
+            "company_name": "f-i.de",
+            "display_company_name": "f-i.de",
+            "counterparty_domain": "f-i.de",
+            "sender_domain": "f-i.de",
+            "title": "E362/B - AI Engineer / KI-Entwickler (m/w/d)",
+            "source_url": None,
+            "effective_stage": "interview",
+        }
+    ]
+    jobs = [
+        _job(
+            611,
+            company_name="Finanz Informatik GmbH & Co. KG",
+            title="AI Engineer / KI-Entwickler (m/w/d)",
+        )
+    ]
+
+    linkage = build_tracking_job_linkage(tracking, jobs)
+
+    assert linkage["exact_matches"] == [
+        {
+            "application_id": 18,
+            "silver_job_id": 611,
+            "effective_stage": "interview",
+            "linkage_status": "exact_projected",
+            "linkage_basis": "exact_counterparty_domain_title_reference_normalized",
             "database_link_persisted": False,
         }
     ]

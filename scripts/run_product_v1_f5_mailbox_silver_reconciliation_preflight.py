@@ -28,6 +28,7 @@ from src.search_intelligence.application_identity_matching import (  # noqa: E40
     normalize_title,
     normalize_url,
     strong_title_family_match,
+    strong_title_family_match_without_reference,
 )
 
 class ReconciliationPreflightError(RuntimeError):
@@ -73,20 +74,50 @@ def classify_application(
     # (for example f-i.de) while Silver carries the legal company name.  Treat
     # domain + a unique strong title-family match as exact identity; title alone
     # remains review-only.
+    domain_jobs = [
+        row
+        for row in jobs
+        if domain_norm
+        and title_norm
+        and domain_norm in {"f-i.de"}
+        and normalize_company(row.get("company_name")) == "finanz informatik"
+    ]
+    exact_domain_title_matches = _unique(
+        [
+            row
+            for row in domain_jobs
+            if normalize_title(row.get("title")) == title_norm
+        ]
+    )
+    if len(exact_domain_title_matches) == 1:
+        return {
+            "classification": "exact_counterparty_domain_title",
+            "automatic_link_eligible": True,
+            "candidate_jobs": [_job_payload(exact_domain_title_matches[0])],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+    if len(exact_domain_title_matches) > 1:
+        return {
+            "classification": "ambiguous_counterparty_domain_title",
+            "automatic_link_eligible": False,
+            "candidate_jobs": [_job_payload(row) for row in exact_domain_title_matches],
+            "mailbox_employer_name": employer or None,
+            "mailbox_job_title": title or None,
+            "mailbox_source_url_present": bool(source_url),
+        }
+
     domain_title_matches = _unique(
         [
             row
-            for row in jobs
-            if domain_norm
-            and title_norm
-            and domain_norm in {"f-i.de"}
-            and normalize_company(row.get("company_name")) == "finanz informatik"
-            and strong_title_family_match(row.get("title"), title)
+            for row in domain_jobs
+            if strong_title_family_match_without_reference(row.get("title"), title)
         ]
     )
     if len(domain_title_matches) == 1:
         return {
-            "classification": "exact_counterparty_domain_title",
+            "classification": "exact_counterparty_domain_title_reference_normalized",
             "automatic_link_eligible": True,
             "candidate_jobs": [_job_payload(domain_title_matches[0])],
             "mailbox_employer_name": employer or None,
@@ -95,7 +126,7 @@ def classify_application(
         }
     if len(domain_title_matches) > 1:
         return {
-            "classification": "ambiguous_counterparty_domain_title",
+            "classification": "ambiguous_counterparty_domain_title_reference_normalized",
             "automatic_link_eligible": False,
             "candidate_jobs": [_job_payload(row) for row in domain_title_matches],
             "mailbox_employer_name": employer or None,

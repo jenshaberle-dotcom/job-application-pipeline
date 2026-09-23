@@ -81,7 +81,7 @@ function AboutScreen({ info, error }: { info: AppInfo | null; error: string | nu
         <div className="about-facts">
           <div><span>Surface</span><b>JAP Control Center</b></div>
           <div><span>Policy</span><b>{value(info?.update_policy, "latest-direct")}</b></div>
-          <div><span>Compatibility line</span><b>v{value(info?.compatibility_line, "1")}.x</b></div>
+          <div><span>Compatibility line</span><b>{value(info?.compatibility_line, "unknown")}</b></div>
           <div><span>Consent</span><b>Prompted inside this app</b></div>
           <div><span>Deferral</span><b>6 hour snooze</b></div>
         </div>

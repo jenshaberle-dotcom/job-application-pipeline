@@ -45,6 +45,12 @@ TITLE_NOISE_TOKENS = frozenset(
 )
 
 
+VACANCY_REFERENCE_PREFIX = re.compile(
+    r"^\s*(?=[A-Za-z0-9/_-]*\d)[A-Za-z0-9]+(?:[/-][A-Za-z0-9]+)*\s*[-–—:]\s*",
+    re.IGNORECASE,
+)
+
+
 def _ascii_words(value: object) -> list[str]:
     text = unicodedata.normalize("NFKD", str(value or "").casefold())
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
@@ -60,6 +66,20 @@ def normalize_company(value: object) -> str:
 def normalize_title(value: object) -> str:
     return " ".join(
         token for token in _ascii_words(value) if token not in TITLE_NOISE_TOKENS
+    )
+
+
+def normalize_title_without_reference(value: object) -> str:
+    raw = VACANCY_REFERENCE_PREFIX.sub("", str(value or "").strip(), count=1)
+    return " ".join(
+        token for token in _ascii_words(raw) if token not in TITLE_NOISE_TOKENS
+    )
+
+
+def strong_title_family_match_without_reference(left: object, right: object) -> bool:
+    return strong_title_family_match(
+        normalize_title_without_reference(left),
+        normalize_title_without_reference(right),
     )
 
 
