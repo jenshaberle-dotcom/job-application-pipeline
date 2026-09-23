@@ -6,15 +6,10 @@ only application generation for rank 1. It never submits or sends an application
 """
 from __future__ import annotations
 
-from base64 import b64decode
 import json
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from docx import Document
-from io import BytesIO
-from pypdf import PdfReader
-from zipfile import ZipFile
 
 from src.job_lifecycle_health import OUTCOME_SEEN_ACTIVE, JobLifecycleHealthRepository, classify_exact_detail, fetch_exact_detail
 
@@ -25,7 +20,6 @@ AGGREGATOR_HOSTS = (
     "indeed.com",
     "linkedin.com",
 )
-EXPECTED_FILE_KEYS = {"cv_docx", "cv_pdf", "letter_docx", "letter_pdf", "application_zip"}
 
 
 class DemoOperatorSmokeStop(RuntimeError):
@@ -91,43 +85,22 @@ def main() -> int:
     _require(int(draft.get("submission_writes") or 0) == 0, "application generation wrote submission state")
     _require(int(draft.get("send_actions") or 0) == 0, "application generation performed send action")
 
-    package = draft.get("document_package") or {}
-    _require(package.get("status") == "ready_for_download", "document package not ready")
-    files = package.get("files") or []
-    keys = {str(item.get("key")) for item in files}
-    _require(keys == EXPECTED_FILE_KEYS, f"unexpected application file keys: {sorted(keys)}")
-
-    by_key = {str(item["key"]): b64decode(str(item["content_base64"])) for item in files}
-    _require(by_key["cv_docx"].startswith(b"PK"), "CV DOCX invalid")
-    _require(by_key["letter_docx"].startswith(b"PK"), "letter DOCX invalid")
-    _require(by_key["cv_pdf"].startswith(b"%PDF"), "CV PDF invalid")
-    _require(by_key["letter_pdf"].startswith(b"%PDF"), "letter PDF invalid")
-    _require(by_key["application_zip"].startswith(b"PK"), "application ZIP invalid")
-
-    cv_doc = Document(BytesIO(by_key["cv_docx"]))
-    letter_doc = Document(BytesIO(by_key["letter_docx"]))
-    cv_text = "\n".join(p.text for p in cv_doc.paragraphs)
-    letter_text = "\n".join(p.text for p in letter_doc.paragraphs)
-    _require("BASISLEBENSLAUF" not in cv_text, "legacy BASISLEBENSLAUF marker still present")
-    _require(letter_text.casefold().count("mit freundlichen grüßen") == 1, "letter greeting/signoff duplicated")
-
-    cv_pdf = PdfReader(BytesIO(by_key["cv_pdf"]))
-    letter_pdf = PdfReader(BytesIO(by_key["letter_pdf"]))
-    _require(len(cv_pdf.pages) >= 1, "CV PDF has no pages")
-    _require(len(letter_pdf.pages) >= 1, "letter PDF has no pages")
-    with ZipFile(BytesIO(by_key["application_zip"])) as archive:
-        names = set(archive.namelist())
-        _require("manifest.json" in names, "ZIP manifest missing")
-        _require(len(names) == 5, f"ZIP should contain four documents plus manifest, got {len(names)}")
+    _require(
+        draft.get("render_status") == "template_bound_renderer_pending",
+        "F6 renderer must remain fail-closed until template-bound rendering is qualified",
+    )
+    _require(
+        draft.get("legacy_generic_document_export") is False,
+        "legacy generic application export regained authority",
+    )
+    _require("document_package" not in draft, "legacy document package leaked into F6 draft")
 
     print(f"APPLICATION_JOB={selected_id}|{selected.get('company_name')}|{selected.get('title')}")
     print(f"DRAFT_MODE={draft.get('draft_mode')}")
     print(f"PROVIDER_REQUESTS={draft.get('provider_requests')}")
-    print(f"APPLICATION_FILES={len(files)}")
-    print(f"CV_DOCX_PARAGRAPHS={len(cv_doc.paragraphs)}")
-    print(f"CV_PDF_PAGES={len(cv_pdf.pages)}")
-    print(f"LETTER_DOCX_PARAGRAPHS={len(letter_doc.paragraphs)}")
-    print(f"LETTER_PDF_PAGES={len(letter_pdf.pages)}")
+    print("F6_TEMPLATE_AUTHORITY=READY")
+    print("LEGACY_GENERIC_DOCUMENT_EXPORT=false")
+    print("RENDER_STATUS=template_bound_renderer_pending")
     print("DATABASE_WRITES=0")
     print("SUBMISSION_WRITES=0")
     print("SEND_ACTIONS=0")
