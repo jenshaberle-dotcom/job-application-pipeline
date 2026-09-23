@@ -41,7 +41,10 @@ internal static class ProductUpdateApplier
 
         try
         {
+            WriteLog(logPath, "apply_begin", $"host_pid={hostPidText}");
+            WriteLog(logPath, "host_exit_wait_begin", $"host_pid={hostPidText}");
             WaitForHostExit(hostPidText);
+            WriteLog(logPath, "host_exit_wait_complete", $"host_pid={hostPidText}");
 
             using var accepted = JsonDocument.Parse(File.ReadAllText(acceptedPath));
             var root = accepted.RootElement;
@@ -100,19 +103,21 @@ internal static class ProductUpdateApplier
             runtimeBackup = Path.Combine(rollbackRoot, "runtime");
             Directory.CreateDirectory(rollbackRoot);
 
+            WriteLog(logPath, "cutover_begin", $"target={targetVersion} sha={targetSha}");
             if (Directory.Exists(desktopLive))
             {
-                Directory.Move(desktopLive, desktopBackup);
+                MoveDirectoryWithRetry(desktopLive, desktopBackup, logPath, "desktop_live_to_backup");
             }
-            Directory.Move(desktopStage, desktopLive);
+            MoveDirectoryWithRetry(desktopStage, desktopLive, logPath, "desktop_stage_to_live");
             desktopMoved = true;
 
             if (Directory.Exists(runtimeLive))
             {
-                Directory.Move(runtimeLive, runtimeBackup);
+                MoveDirectoryWithRetry(runtimeLive, runtimeBackup, logPath, "runtime_live_to_backup");
             }
-            Directory.Move(runtimeStage, runtimeLive);
+            MoveDirectoryWithRetry(runtimeStage, runtimeLive, logPath, "runtime_stage_to_live");
             runtimeMoved = true;
+            WriteLog(logPath, "cutover_complete", $"target={targetVersion} sha={targetSha}");
 
             using (var currentDoc = JsonDocument.Parse(previousCurrentJson))
             {
@@ -136,14 +141,18 @@ internal static class ProductUpdateApplier
 
             var exe = Path.Combine(desktopLive, "JAP.ControlCenter.Desktop.exe");
             Require(File.Exists(exe), "Installed desktop executable is missing after cutover.");
+            WriteLog(logPath, "restart_begin", $"exe={exe}");
             restarted = Process.Start(new ProcessStartInfo
             {
                 FileName = exe,
                 WorkingDirectory = installRoot,
                 UseShellExecute = true
             }) ?? throw new InvalidOperationException("Updated JAP host could not be restarted.");
+            WriteLog(logPath, "restart_started", $"pid={restarted.Id} target={targetVersion}");
 
+            WriteLog(logPath, "restart_verify_begin", $"pid={restarted.Id} sha={targetSha}");
             VerifyRestartedProduct(restarted, targetSha, TimeSpan.FromSeconds(105));
+            WriteLog(logPath, "restart_verify_complete", $"pid={restarted.Id} sha={targetSha}");
 
             using (var verified = JsonDocument.Parse(File.ReadAllText(currentPath)))
             {
@@ -183,7 +192,7 @@ internal static class ProductUpdateApplier
                     if (Directory.Exists(runtimeLive)) Directory.Delete(runtimeLive, true);
                     if (!string.IsNullOrWhiteSpace(runtimeBackup) && Directory.Exists(runtimeBackup))
                     {
-                        Directory.Move(runtimeBackup, runtimeLive);
+                        MoveDirectoryWithRetry(runtimeBackup, runtimeLive, logPath, "rollback_runtime_backup_to_live");
                     }
                 }
 
@@ -192,7 +201,7 @@ internal static class ProductUpdateApplier
                     if (Directory.Exists(desktopLive)) Directory.Delete(desktopLive, true);
                     if (!string.IsNullOrWhiteSpace(desktopBackup) && Directory.Exists(desktopBackup))
                     {
-                        Directory.Move(desktopBackup, desktopLive);
+                        MoveDirectoryWithRetry(desktopBackup, desktopLive, logPath, "rollback_desktop_backup_to_live");
                     }
                 }
 
@@ -225,6 +234,48 @@ internal static class ProductUpdateApplier
             }
             return 2;
         }
+    }
+
+    private static void MoveDirectoryWithRetry(
+        string source,
+        string destination,
+        string logPath,
+        string operation)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        var attempt = 0;
+        while (true)
+        {
+            try
+            {
+                Directory.Move(source, destination);
+                if (attempt > 0)
+                {
+                    WriteLog(
+                        logPath,
+                        "move_retry_recovered",
+                        $"operation={operation} attempts={attempt + 1}");
+                }
+                return;
+            }
+            catch (IOException exc) when (
+                IsTransientSharingViolation(exc)
+                && DateTimeOffset.UtcNow < deadline)
+            {
+                attempt += 1;
+                WriteLog(
+                    logPath,
+                    "move_retry",
+                    $"operation={operation} attempt={attempt} hresult=0x{exc.HResult:X8} error={exc.Message}");
+                Thread.Sleep(Math.Min(1000, 150 + (attempt * 100)));
+            }
+        }
+    }
+
+    private static bool IsTransientSharingViolation(IOException exc)
+    {
+        var nativeCode = exc.HResult & 0xFFFF;
+        return nativeCode is 32 or 33;
     }
 
     private static void WaitForHostExit(string hostPidText)
