@@ -275,8 +275,8 @@ try {
     }
     $wslRuntimeRoot = "$($wslInstallRoot.TrimEnd('/'))/runtime"
     $wslRuntimeRunner = "$wslRuntimeRoot/scripts/run_jap_windows_control_center.sh"
-    $home = Invoke-Wsl @("-d", $WslDistro, "--exec", "bash", "-lc", 'printf "%s" "$HOME"')
-    $wslHome = (($home | Select-Object -First 1) -as [string]).Trim()
+    $wslHomeOutput = Invoke-Wsl @("-d", $WslDistro, "--exec", "bash", "-lc", 'printf "%s" "$HOME"')
+    $wslHome = (($wslHomeOutput | Select-Object -First 1) -as [string]).Trim()
     $wslStateRoot = "$wslHome/.local/state/jap-control-center"
 
     if (Test-Path $DesktopHostRoot) { Move-Item $DesktopHostRoot $desktopBackup }
