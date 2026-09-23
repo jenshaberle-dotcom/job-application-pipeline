@@ -72,6 +72,8 @@ def test_new_authority_is_product_local_verified_and_rollback_capable():
     assert "Directory.Move(desktop, backup)" in applier
     assert "Directory.Move(stage, desktop)" in applier
     assert "Directory.Move(backup, desktop)" in applier
+    assert "previousCurrentJson = File.ReadAllText(currentPath)" in applier
+    assert "File.Move(currentTmp, currentPath, true)" in applier
     assert 'WriteResult(resultPath, "success"' in applier
     assert 'WriteResult(resultPath, "failed"' in applier
     assert "CleanupOldUpdates(installRoot, targetSha)" in applier
