@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -32,6 +33,7 @@ internal sealed class ManagedRuntimeController : IDisposable
     public async Task EnsureStartedAsync(TimeSpan timeout)
     {
         var config = ReadConfig(_installRoot);
+        NormalizeInstalledRuntimeShellScripts(_installRoot, config);
         await EnsureDatabaseRuntimeAsync(config);
 
         var endpoint = await ProbeEndpointAsync(config.PinnedSha);
@@ -162,6 +164,7 @@ internal sealed class ManagedRuntimeController : IDisposable
     public async Task<ProcessResult> StopAsync(TimeSpan timeout)
     {
         var config = ReadConfig(_installRoot);
+        NormalizeInstalledRuntimeShellScripts(_installRoot, config);
         var wsl = ResolveWsl();
         return await RunProcessAsync(
             wsl,
@@ -181,6 +184,7 @@ internal sealed class ManagedRuntimeController : IDisposable
     public static void StopBestEffortSynchronously(string installRoot, TimeSpan timeout)
     {
         var config = ReadConfig(installRoot);
+        NormalizeInstalledRuntimeShellScripts(installRoot, config);
         var wsl = ResolveWsl();
         var startInfo = BuildProcessStartInfo(
             wsl,
@@ -390,6 +394,66 @@ internal sealed class ManagedRuntimeController : IDisposable
                 or OperationCanceledException)
         {
             return false;
+        }
+    }
+
+    private static void NormalizeInstalledRuntimeShellScripts(
+        string installRoot,
+        RuntimeConfig config)
+    {
+        var runtimeRoot = Path.Combine(Path.GetFullPath(installRoot), "runtime");
+        var infoPath = Path.Combine(runtimeRoot, "runtime-info.json");
+        if (!File.Exists(infoPath))
+        {
+            throw new FileNotFoundException(
+                "Installierte JAP Runtime-Identität fehlt.",
+                infoPath);
+        }
+
+        using (var info = JsonDocument.Parse(File.ReadAllText(infoPath)))
+        {
+            var root = info.RootElement;
+            if (GetString(root, "schema") != "job_application_pipeline.runtime_bundle.v1"
+                || !GetString(root, "source_sha").Equals(
+                    config.PinnedSha,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Installierte JAP Runtime-Identität stimmt nicht mit current.json überein.");
+            }
+        }
+
+        var scriptsRoot = Path.Combine(runtimeRoot, "scripts");
+        if (!Directory.Exists(scriptsRoot))
+        {
+            throw new DirectoryNotFoundException(
+                "Installierter JAP Runtime-Scriptpfad fehlt.");
+        }
+
+        var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        foreach (var shellScript in Directory.EnumerateFiles(
+                     scriptsRoot,
+                     "*.sh",
+                     SearchOption.AllDirectories))
+        {
+            var bytes = File.ReadAllBytes(shellScript);
+            if (!bytes.Contains((byte)'\r'))
+            {
+                continue;
+            }
+
+            var body = File.ReadAllText(shellScript, Encoding.UTF8)
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace("\r", "\n", StringComparison.Ordinal);
+            var temporary = shellScript + $".lf-repair.{Environment.ProcessId}.tmp";
+            File.WriteAllText(temporary, body, utf8NoBom);
+            File.Move(temporary, shellScript, overwrite: true);
+
+            if (File.ReadAllBytes(shellScript).Contains((byte)'\r'))
+            {
+                throw new InvalidOperationException(
+                    $"Installiertes JAP Runtime-Shellscript enthält weiterhin CR-Bytes: {shellScript}");
+            }
         }
     }
 
