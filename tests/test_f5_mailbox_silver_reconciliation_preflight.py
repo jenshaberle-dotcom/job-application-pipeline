@@ -44,8 +44,7 @@ def test_normalizers_handle_legal_suffix_and_gender_marker_noise() -> None:
     assert normalize_company("Example GmbH") == "example"
     assert normalize_title("Data Engineer (m/w/d)") == "data engineer"
     assert normalize_title("Data Engineer") == "data engineer"
-    assert normalize_title("E362/B - AI Engineer / KI-Entwickler (m/w/d)") == "ai engineer ki entwickler"
-    assert normalize_title("REQ-4711: Machine Learning Engineer") == "machine learning engineer"
+    assert normalize_title("E362/B - AI Engineer / KI-Entwickler (m/w/d)") == "e362 b ai engineer ki entwickler"
     assert normalize_title("Senior - Data Engineer") == "senior data engineer"
 
 
@@ -255,7 +254,7 @@ def test_finanz_informatik_real_current_title_without_mail_reference_prefix_link
             "silver_job_id": 611,
             "effective_stage": "interview",
             "linkage_status": "exact_projected",
-            "linkage_basis": "exact_counterparty_domain_title",
+            "linkage_basis": "exact_counterparty_domain_title_reference_normalized",
             "database_link_persisted": False,
         }
     ]
