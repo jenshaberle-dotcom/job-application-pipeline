@@ -1,5 +1,4 @@
 from datetime import date
-import hashlib
 import json
 
 from src.search_intelligence.f6_template_authority import template_spec
