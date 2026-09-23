@@ -62,7 +62,7 @@ def build_document(
     _require(resolved.is_file(), f"application source file does not exist: {resolved}")
     _require(root in {resolved, *resolved.parents}, "application source escaped private root")
     payload = _read_application_source(resolved)
-    spec = validate_template_pdf(document_type=document_type, content=payload)
+    validate_template_pdf(document_type=document_type, content=payload)
     relative = resolved.relative_to(root).as_posix()
     return ApplicationSourceDocument(
         document_type=document_type,
