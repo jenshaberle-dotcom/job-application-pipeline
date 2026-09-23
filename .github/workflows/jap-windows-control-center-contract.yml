@@ -78,6 +78,40 @@ jobs:
           }
           $Hash = (Get-FileHash $Icon -Algorithm SHA256).Hash.ToLowerInvariant()
           Write-Host "JAP_DESKTOP_ICON_SHA256=$Hash"
+      - name: Prove hidden runtime marker survives Windows packaging
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $Source = Join-Path $env:RUNNER_TEMP "jap-marker-source"
+          $Target = Join-Path $env:RUNNER_TEMP "jap-marker-target"
+          $Zip = Join-Path $env:RUNNER_TEMP "jap-marker-test.zip"
+          Remove-Item -Recurse -Force $Source, $Target -ErrorAction SilentlyContinue
+          Remove-Item -Force $Zip -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $Source, $Target | Out-Null
+          Set-Content -Path (Join-Path $Source "index.html") -Value "ok" -Encoding ASCII -NoNewline
+          Set-Content -Path (Join-Path $Source ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline
+          Get-ChildItem -Force $Source | Copy-Item -Destination $Target -Recurse -Force
+          if (-not (Test-Path (Join-Path $Target ".jap-source-sha"))) {
+            throw "Hidden JAP source marker was lost during runtime staging copy."
+          }
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $Target,
+            $Zip,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+          )
+          $Archive = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+          try {
+            $Names = @($Archive.Entries | ForEach-Object { $_.FullName })
+            if ($Names -notcontains ".jap-source-sha") {
+              throw "Hidden JAP source marker was lost during runtime ZIP packaging."
+            }
+          }
+          finally {
+            $Archive.Dispose()
+          }
+          Write-Host "JAP_RUNTIME_HIDDEN_MARKER_PACKAGING=PASS"
+
       - name: Publish Windows x64 host
         shell: powershell
         run: |

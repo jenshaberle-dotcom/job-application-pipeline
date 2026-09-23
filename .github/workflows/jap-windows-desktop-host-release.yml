@@ -87,7 +87,7 @@ jobs:
           if (-not (Test-Path (Join-Path $Dist "index.html"))) {
             throw "React Control Center build did not produce dist/index.html."
           }
-          Set-Content -Encoding ASCII -NoNewline (Join-Path $Dist ".jap-source-sha") $env:GITHUB_SHA
+          Set-Content -Path (Join-Path $Dist ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline
 
       - name: Publish self-contained Windows x64 host
         shell: powershell
@@ -135,8 +135,8 @@ jobs:
           Copy-Item -Force "windows\JAP.ControlCenter.Desktop\UPDATE_COMPATIBILITY.json" (Join-Path $DesktopMetadata "UPDATE_COMPATIBILITY.json")
           $Frontend = Join-Path $Runtime "frontend\control-center\dist"
           New-Item -ItemType Directory -Force -Path $Frontend | Out-Null
-          Copy-Item -Recurse -Force "frontend\control-center\dist\*" $Frontend
-          Set-Content -Encoding ASCII -NoNewline (Join-Path $Frontend ".jap-source-sha") $env:GITHUB_SHA
+          Get-ChildItem -Force "frontend\control-center\dist" | Copy-Item -Destination $Frontend -Recurse -Force
+          Set-Content -Path (Join-Path $Frontend ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline
           @{
             schema = "job_application_pipeline.runtime_bundle.v1"
             version = $env:PRODUCT_VERSION
@@ -173,10 +173,40 @@ jobs:
           foreach ($Asset in @($DesktopAsset, $RuntimeAsset, "$DesktopAsset.sha256", "$RuntimeAsset.sha256")) {
             Remove-Item -Force $Asset -ErrorAction SilentlyContinue
           }
-          Compress-Archive -Path (Join-Path $DesktopOut "*") -DestinationPath $DesktopAsset -CompressionLevel Optimal
-          Compress-Archive -Path (Join-Path $RuntimeOut "*") -DestinationPath $RuntimeAsset -CompressionLevel Optimal
-          $DesktopHash = (Get-FileHash $DesktopAsset -Algorithm SHA256).Hash.ToLowerInvariant()
-          $RuntimeHash = (Get-FileHash $RuntimeAsset -Algorithm SHA256).Hash.ToLowerInvariant()
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $DesktopAssetPath = Join-Path (Get-Location) $DesktopAsset
+          $RuntimeAssetPath = Join-Path (Get-Location) $RuntimeAsset
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $DesktopOut,
+            $DesktopAssetPath,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+          )
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $RuntimeOut,
+            $RuntimeAssetPath,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+          )
+          $RuntimeZip = [System.IO.Compression.ZipFile]::OpenRead($RuntimeAssetPath)
+          try {
+            $EntryNames = @($RuntimeZip.Entries | ForEach-Object { $_.FullName.Replace("\", "/") })
+            foreach ($RequiredEntry in @(
+              "runtime-info.json",
+              "scripts/run_product_v1_live_demo.py",
+              "frontend/control-center/dist/index.html",
+              "frontend/control-center/dist/.jap-source-sha"
+            )) {
+              if ($EntryNames -notcontains $RequiredEntry) {
+                throw "Runtime release ZIP is missing required entry: $RequiredEntry"
+              }
+            }
+          }
+          finally {
+            $RuntimeZip.Dispose()
+          }
+          $DesktopHash = (Get-FileHash $DesktopAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $RuntimeHash = (Get-FileHash $RuntimeAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$DesktopHash  $DesktopAsset" | Set-Content -Encoding ASCII "$DesktopAsset.sha256"
           "$RuntimeHash  $RuntimeAsset" | Set-Content -Encoding ASCII "$RuntimeAsset.sha256"
           Write-Host "JAP_DESKTOP_SHA256=$DesktopHash"
