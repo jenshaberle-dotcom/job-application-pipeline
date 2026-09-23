@@ -54,3 +54,25 @@ def test_no_legacy_authority_references_remain_in_active_update_surfaces():
         body = read(relative)
         for token in forbidden:
             assert token not in body, f"{token} returned in {relative}"
+
+
+def test_new_authority_is_product_local_verified_and_rollback_capable():
+    coordinator = read("windows/JAP.ControlCenter.Desktop/UpdateCoordinator.cs")
+    applier = read("windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs")
+    program = read("windows/JAP.ControlCenter.Desktop/Program.cs")
+    assert "WriteAcceptedManifest(pending.ManifestJson)" in coordinator
+    assert "--apply-update" in coordinator
+    assert "apply-helper" in coordinator
+    assert "powershell.exe" not in coordinator.lower()
+    assert "wsl.exe" not in coordinator.lower()
+    assert "--apply-update" in program
+    assert "Accepted staged archive checksum mismatch." in applier
+    assert "Staged source identity mismatch." in applier
+    assert "Directory.Move(desktop, backup)" in applier
+    assert "Directory.Move(stage, desktop)" in applier
+    assert "Directory.Move(backup, desktop)" in applier
+    assert 'WriteResult(resultPath, "success"' in applier
+    assert 'WriteResult(resultPath, "failed"' in applier
+    assert "CleanupOldUpdates(installRoot, targetSha)" in applier
+    for forbidden in ("git fetch", "git checkout", "powershell.exe", "wsl.exe", "github.workspace"):
+        assert forbidden not in applier.lower()
