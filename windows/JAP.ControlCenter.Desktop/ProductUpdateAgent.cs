@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -8,13 +8,18 @@ internal static class ProductUpdateAgent
 {
     private const long ExpectedRepositoryId = 1230805345;
     private const string ExpectedRepository = "jenshaberle-dotcom/job-application-pipeline";
-    private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v2";
-    private const string PendingSchema = "job_application_pipeline.windows_pending_update.v1";
-    private const string CompatibilityLine = "1";
-    private const string ReleasePrefix = "jap-winapp-desktop-v";
-    private const string ArchiveName = "JAP-Control-Center-Desktop-win-x64.zip";
-    private const string ChecksumName = "JAP-Control-Center-Desktop-win-x64.zip.sha256";
-    private const string StagingProvider = "product_local_update_agent_v1";
+    private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v3";
+    private const string PendingSchema = "job_application_pipeline.windows_product_update.v2";
+    private const string CompatibilityLine = "cgkb-product-local-1";
+    private const string Policy = "product_local_latest_direct";
+    private const string UpdateGeneration = "cgkb_product_local_v1";
+    private const string ReleasePrefix = "jap-winapp-product-v";
+    private const string DesktopArchiveName = "JAP-Control-Center-Desktop-win-x64.zip";
+    private const string DesktopChecksumName = "JAP-Control-Center-Desktop-win-x64.zip.sha256";
+    private const string RuntimeArchiveName = "JAP-Control-Center-Runtime.zip";
+    private const string RuntimeChecksumName = "JAP-Control-Center-Runtime.zip.sha256";
+    private const string StagingProvider = "product_local_update_agent_v2";
+    private static readonly Version MinimumDirectVersion = new(1, 0, 62);
     private static readonly Regex ShaPattern = new("^[0-9a-fA-F]{40}$", RegexOptions.CultureInvariant);
     private static readonly Regex DigestPattern = new("^[0-9a-fA-F]{64}$", RegexOptions.CultureInvariant);
 
@@ -32,14 +37,7 @@ internal static class ProductUpdateAgent
         }
         catch (Exception exc)
         {
-            try
-            {
-                WriteLog(logPath, "stage_failed", exc.ToString());
-            }
-            catch
-            {
-                // Diagnostics must not hide the original failure.
-            }
+            try { WriteLog(logPath, "stage_failed", exc.ToString()); } catch { }
             return 2;
         }
     }
@@ -54,27 +52,19 @@ internal static class ProductUpdateAgent
 
         using var currentDocument = JsonDocument.Parse(await File.ReadAllTextAsync(currentPath));
         var current = currentDocument.RootElement;
-        if (GetString(current, "schema") != InstallSchema)
-        {
-            throw new InvalidOperationException("Installed JAP schema is not product-update compatible.");
-        }
-        if (!current.TryGetProperty("repository_id", out var repositoryId)
-            || repositoryId.GetInt64() != ExpectedRepositoryId
-            || GetString(current, "repository") != ExpectedRepository)
-        {
-            throw new InvalidOperationException("Installed JAP repository identity does not match update authority.");
-        }
-        if (!Version.TryParse(GetString(current, "desktop_host_version"), out var installedVersion)
-            || installedVersion.Major != 1)
-        {
-            throw new InvalidOperationException("Installed JAP desktop version is outside compatibility line 1.");
-        }
+        Require(GetString(current, "schema") == InstallSchema, "Installed JAP schema is not product-local-update compatible.");
+        Require(current.TryGetProperty("repository_id", out var repositoryId)
+            && repositoryId.GetInt64() == ExpectedRepositoryId
+            && GetString(current, "repository") == ExpectedRepository,
+            "Installed JAP repository identity does not match update authority.");
+        Require(GetString(current, "update_generation") == UpdateGeneration,
+            "Installed JAP update generation does not match product-local authority.");
+        Require(Version.TryParse(GetString(current, "desktop_host_version"), out var installedVersion)
+            && installedVersion >= MinimumDirectVersion,
+            "Installed JAP version requires the explicit bootstrap bridge.");
 
-        using var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromMinutes(3)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("JAP-Product-Update-Agent/1.0");
+        using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("JAP-Product-Update-Agent/2.0");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
 
@@ -84,11 +74,9 @@ internal static class ProductUpdateAgent
             repositoryResponse.EnsureSuccessStatusCode();
             using var repositoryDocument = JsonDocument.Parse(
                 await repositoryResponse.Content.ReadAsStringAsync());
-            if (!repositoryDocument.RootElement.TryGetProperty("id", out var id)
-                || id.GetInt64() != ExpectedRepositoryId)
-            {
-                throw new InvalidOperationException("GitHub repository identity mismatch.");
-            }
+            Require(repositoryDocument.RootElement.TryGetProperty("id", out var id)
+                && id.GetInt64() == ExpectedRepositoryId,
+                "GitHub repository identity mismatch.");
         }
 
         using var releasesResponse = await client.GetAsync(
@@ -99,130 +87,87 @@ internal static class ProductUpdateAgent
         ReleaseCandidate? selected = null;
         foreach (var release in releasesDocument.RootElement.EnumerateArray())
         {
-            if (GetBool(release, "draft") || GetBool(release, "prerelease"))
-            {
-                continue;
-            }
-
+            if (GetBool(release, "draft") || GetBool(release, "prerelease")) continue;
             var tag = GetString(release, "tag_name");
-            if (!tag.StartsWith(ReleasePrefix, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
+            if (!tag.StartsWith(ReleasePrefix, StringComparison.Ordinal)) continue;
             var versionText = tag[ReleasePrefix.Length..];
             if (!Version.TryParse(versionText, out var version)
-                || version.Major != 1
+                || version < MinimumDirectVersion
                 || version <= installedVersion)
             {
                 continue;
             }
 
             var sourceSha = GetString(release, "target_commitish");
-            if (!ShaPattern.IsMatch(sourceSha))
-            {
-                continue;
-            }
+            if (!ShaPattern.IsMatch(sourceSha)) continue;
 
-            string? archiveUrl = null;
-            string? checksumUrl = null;
-            if (release.TryGetProperty("assets", out var assets))
+            var assets = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (release.TryGetProperty("assets", out var assetArray))
             {
-                foreach (var asset in assets.EnumerateArray())
+                foreach (var asset in assetArray.EnumerateArray())
                 {
                     var name = GetString(asset, "name");
                     var url = GetString(asset, "browser_download_url");
-                    if (name == ArchiveName)
+                    if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(url))
                     {
-                        archiveUrl = url;
-                    }
-                    else if (name == ChecksumName)
-                    {
-                        checksumUrl = url;
+                        assets[name] = url;
                     }
                 }
             }
 
-            if (string.IsNullOrWhiteSpace(archiveUrl) || string.IsNullOrWhiteSpace(checksumUrl))
+            if (!assets.ContainsKey(DesktopArchiveName)
+                || !assets.ContainsKey(DesktopChecksumName)
+                || !assets.ContainsKey(RuntimeArchiveName)
+                || !assets.ContainsKey(RuntimeChecksumName))
             {
                 continue;
             }
 
             if (selected is null || version > selected.Version)
             {
-                selected = new ReleaseCandidate(version, tag, sourceSha.ToLowerInvariant(), archiveUrl, checksumUrl);
+                selected = new ReleaseCandidate(
+                    version,
+                    tag,
+                    sourceSha.ToLowerInvariant(),
+                    assets[DesktopArchiveName],
+                    assets[DesktopChecksumName],
+                    assets[RuntimeArchiveName],
+                    assets[RuntimeChecksumName]);
             }
         }
 
-        if (selected is null)
-        {
-            return "no_update";
-        }
+        if (selected is null) return "no_update";
 
-        var stageRoot = Path.Combine(installRoot, "updates", selected.SourceSha, "payload");
-        Directory.CreateDirectory(stageRoot);
-        var archivePath = Path.Combine(stageRoot, ArchiveName);
-        var checksumPath = Path.Combine(stageRoot, ChecksumName);
+        var updateRoot = Path.Combine(installRoot, "updates", selected.SourceSha);
+        var payloadRoot = Path.Combine(updateRoot, "payload");
+        var desktopStage = Path.Combine(updateRoot, "desktop-staged");
+        var runtimeStage = Path.Combine(updateRoot, "runtime-staged");
+        var helperRoot = Path.Combine(updateRoot, "apply-helper");
+        Directory.CreateDirectory(payloadRoot);
 
-        var checksumText = (await client.GetStringAsync(selected.ChecksumUrl)).Trim();
-        var expectedHash = checksumText.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-            .FirstOrDefault()?.Trim().ToLowerInvariant() ?? string.Empty;
-        if (!DigestPattern.IsMatch(expectedHash))
-        {
-            throw new InvalidOperationException("Published JAP release checksum is invalid.");
-        }
+        var desktopArchive = Path.Combine(payloadRoot, DesktopArchiveName);
+        var desktopChecksum = Path.Combine(payloadRoot, DesktopChecksumName);
+        var runtimeArchive = Path.Combine(payloadRoot, RuntimeArchiveName);
+        var runtimeChecksum = Path.Combine(payloadRoot, RuntimeChecksumName);
 
-        await WriteTextAtomicAsync(checksumPath, checksumText + Environment.NewLine);
+        var desktopArchiveSha = await PrepareArchiveAsync(
+            client, selected.DesktopArchiveUrl, selected.DesktopChecksumUrl, desktopArchive, desktopChecksum);
+        var runtimeArchiveSha = await PrepareArchiveAsync(
+            client, selected.RuntimeArchiveUrl, selected.RuntimeChecksumUrl, runtimeArchive, runtimeChecksum);
 
-        var archiveReady = File.Exists(archivePath)
-            && string.Equals(await ComputeSha256Async(archivePath), expectedHash, StringComparison.OrdinalIgnoreCase);
-        if (!archiveReady)
-        {
-            var temporaryArchive = archivePath + $".download.{Environment.ProcessId}";
-            try
-            {
-                if (File.Exists(temporaryArchive))
-                {
-                    File.Delete(temporaryArchive);
-                }
+        ExtractFresh(desktopArchive, desktopStage);
+        ExtractFresh(runtimeArchive, runtimeStage);
+        VerifyDesktopStage(desktopStage, selected.SourceSha, selected.Version.ToString());
+        VerifyRuntimeStage(runtimeStage, selected.SourceSha, selected.Version.ToString());
 
-                using (var response = await client.GetAsync(selected.ArchiveUrl, HttpCompletionOption.ResponseHeadersRead))
-                {
-                    response.EnsureSuccessStatusCode();
-                    await using var source = await response.Content.ReadAsStreamAsync();
-                    await using var destination = new FileStream(
-                        temporaryArchive,
-                        FileMode.CreateNew,
-                        FileAccess.Write,
-                        FileShare.None,
-                        bufferSize: 1024 * 128,
-                        useAsync: true);
-                    await source.CopyToAsync(destination);
-                    await destination.FlushAsync();
-                }
+        DeleteDirectory(helperRoot);
+        CopyDirectory(AppContext.BaseDirectory, helperRoot);
+        var helperExecutable = Path.Combine(helperRoot, "JAP.ControlCenter.Desktop.exe");
+        Require(File.Exists(helperExecutable), "Product-local apply helper executable is missing.");
 
-                var actualHash = await ComputeSha256Async(temporaryArchive);
-                if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException("Downloaded JAP release checksum verification failed.");
-                }
-
-                File.Move(temporaryArchive, archivePath, overwrite: true);
-            }
-            finally
-            {
-                if (File.Exists(temporaryArchive))
-                {
-                    File.Delete(temporaryArchive);
-                }
-            }
-        }
-
-        var finalHash = await ComputeSha256Async(archivePath);
-        if (!string.Equals(finalHash, expectedHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Staged JAP release checksum verification failed.");
-        }
+        var desktopTreeSha = ProductUpdateIntegrity.ComputeDirectorySha256(desktopStage);
+        var runtimeTreeSha = ProductUpdateIntegrity.ComputeDirectorySha256(runtimeStage);
+        var helperTreeSha = ProductUpdateIntegrity.ComputeDirectorySha256(helperRoot);
 
         var pendingPath = Path.Combine(installRoot, "state", "pending-update.json");
         await WriteJsonAtomicAsync(
@@ -235,10 +180,19 @@ internal static class ProductUpdateAgent
                 target_release_tag = selected.Tag,
                 compatibility_line = CompatibilityLine,
                 installer_schema = InstallSchema,
-                policy = "latest_direct",
-                desktop_archive = archivePath,
-                desktop_checksum = checksumPath,
-                desktop_sha256 = expectedHash,
+                policy = Policy,
+                update_generation = UpdateGeneration,
+                desktop_archive = desktopArchive,
+                desktop_archive_sha256 = desktopArchiveSha,
+                runtime_archive = runtimeArchive,
+                runtime_archive_sha256 = runtimeArchiveSha,
+                desktop_stage = desktopStage,
+                desktop_tree_sha256 = desktopTreeSha,
+                runtime_stage = runtimeStage,
+                runtime_tree_sha256 = runtimeTreeSha,
+                apply_helper_root = helperRoot,
+                apply_helper_executable = helperExecutable,
+                apply_helper_tree_sha256 = helperTreeSha,
                 staging_provider = StagingProvider,
                 staged_at = DateTimeOffset.UtcNow.ToString("O")
             });
@@ -248,6 +202,123 @@ internal static class ProductUpdateAgent
             "pending_published",
             $"version={selected.Version} sha={selected.SourceSha} provider={StagingProvider}");
         return $"staged:{selected.Version}";
+    }
+
+    private static async Task<string> PrepareArchiveAsync(
+        HttpClient client,
+        string archiveUrl,
+        string checksumUrl,
+        string archivePath,
+        string checksumPath)
+    {
+        var checksumText = (await client.GetStringAsync(checksumUrl)).Trim();
+        var expectedHash = checksumText.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault()?.Trim().ToLowerInvariant() ?? string.Empty;
+        Require(DigestPattern.IsMatch(expectedHash), "Published JAP release checksum is invalid.");
+        await WriteTextAtomicAsync(checksumPath, checksumText + Environment.NewLine);
+
+        var archiveReady = File.Exists(archivePath)
+            && string.Equals(
+                ProductUpdateIntegrity.ComputeFileSha256(archivePath),
+                expectedHash,
+                StringComparison.OrdinalIgnoreCase);
+        if (!archiveReady)
+        {
+            var temporaryArchive = archivePath + $".download.{Environment.ProcessId}";
+            try
+            {
+                if (File.Exists(temporaryArchive)) File.Delete(temporaryArchive);
+                using var response = await client.GetAsync(archiveUrl, HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
+                await using var source = await response.Content.ReadAsStreamAsync();
+                await using var destination = new FileStream(
+                    temporaryArchive,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 1024 * 128,
+                    useAsync: true);
+                await source.CopyToAsync(destination);
+                await destination.FlushAsync();
+                Require(
+                    string.Equals(
+                        ProductUpdateIntegrity.ComputeFileSha256(temporaryArchive),
+                        expectedHash,
+                        StringComparison.OrdinalIgnoreCase),
+                    "Downloaded JAP release checksum verification failed.");
+                File.Move(temporaryArchive, archivePath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryArchive)) File.Delete(temporaryArchive);
+            }
+        }
+
+        Require(
+            string.Equals(
+                ProductUpdateIntegrity.ComputeFileSha256(archivePath),
+                expectedHash,
+                StringComparison.OrdinalIgnoreCase),
+            "Staged JAP release checksum verification failed.");
+        return expectedHash;
+    }
+
+    private static void ExtractFresh(string archivePath, string destination)
+    {
+        DeleteDirectory(destination);
+        Directory.CreateDirectory(destination);
+        ZipFile.ExtractToDirectory(archivePath, destination);
+    }
+
+    private static void VerifyDesktopStage(string stage, string sourceSha, string version)
+    {
+        var buildInfoPath = Path.Combine(stage, "build-info.json");
+        Require(File.Exists(buildInfoPath), "Staged desktop build identity is missing.");
+        using var build = JsonDocument.Parse(File.ReadAllText(buildInfoPath));
+        var root = build.RootElement;
+        Require(GetString(root, "schema") == "job_application_pipeline.desktop_host_build.v2", "Staged desktop build schema mismatch.");
+        Require(GetString(root, "source_sha").Equals(sourceSha, StringComparison.OrdinalIgnoreCase), "Staged desktop source identity mismatch.");
+        Require(GetString(root, "version") == version, "Staged desktop version identity mismatch.");
+        Require(GetString(root, "compatibility_line") == CompatibilityLine, "Staged desktop compatibility identity mismatch.");
+        Require(GetString(root, "update_generation") == UpdateGeneration, "Staged desktop generation identity mismatch.");
+        Require(File.Exists(Path.Combine(stage, "JAP.ControlCenter.Desktop.exe")), "Staged desktop executable is missing.");
+    }
+
+    private static void VerifyRuntimeStage(string stage, string sourceSha, string version)
+    {
+        var infoPath = Path.Combine(stage, "runtime-info.json");
+        Require(File.Exists(infoPath), "Staged runtime identity is missing.");
+        using var info = JsonDocument.Parse(File.ReadAllText(infoPath));
+        var root = info.RootElement;
+        Require(GetString(root, "schema") == "job_application_pipeline.runtime_bundle.v1", "Staged runtime schema mismatch.");
+        Require(GetString(root, "source_sha").Equals(sourceSha, StringComparison.OrdinalIgnoreCase), "Staged runtime source identity mismatch.");
+        Require(GetString(root, "version") == version, "Staged runtime version identity mismatch.");
+        Require(GetString(root, "compatibility_line") == CompatibilityLine, "Staged runtime compatibility identity mismatch.");
+        Require(GetString(root, "update_generation") == UpdateGeneration, "Staged runtime generation identity mismatch.");
+        Require(File.Exists(Path.Combine(stage, "scripts", "run_product_v1_live_demo.py")), "Staged runtime launcher is missing.");
+        Require(File.Exists(Path.Combine(stage, "scripts", "run_jap_windows_control_center.sh")), "Staged WSL runtime bridge is missing.");
+        Require(File.Exists(Path.Combine(stage, "frontend", "control-center", "dist", "index.html")), "Staged frontend bundle is missing.");
+        var marker = Path.Combine(stage, "frontend", "control-center", "dist", ".jap-source-sha");
+        Require(File.Exists(marker), "Staged frontend source marker is missing.");
+        Require(File.ReadAllText(marker).Trim().Equals(sourceSha, StringComparison.OrdinalIgnoreCase), "Staged frontend source marker mismatch.");
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var file in Directory.EnumerateFiles(source))
+        {
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+        }
+        foreach (var directory in Directory.EnumerateDirectories(source))
+        {
+            CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
+        }
+    }
+
+    private static void DeleteDirectory(string path)
+    {
+        if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
     }
 
     private static string ResolveInstallRoot(string[] args)
@@ -267,32 +338,17 @@ internal static class ProductUpdateAgent
             ?? throw new InvalidOperationException("JAP installation root could not be resolved.");
     }
 
-    private static string GetString(JsonElement root, string property)
-    {
-        return root.TryGetProperty(property, out var value)
-            ? value.GetString() ?? string.Empty
-            : string.Empty;
-    }
+    private static string GetString(JsonElement root, string property) =>
+        root.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
 
-    private static bool GetBool(JsonElement root, string property)
-    {
-        return root.TryGetProperty(property, out var value)
-            && value.ValueKind is JsonValueKind.True or JsonValueKind.False
-            && value.GetBoolean();
-    }
+    private static bool GetBool(JsonElement root, string property) =>
+        root.TryGetProperty(property, out var value)
+        && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+        && value.GetBoolean();
 
-    private static async Task<string> ComputeSha256Async(string path)
+    private static void Require(bool condition, string message)
     {
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 1024 * 128,
-            useAsync: true);
-        using var sha = SHA256.Create();
-        var digest = await sha.ComputeHashAsync(stream);
-        return Convert.ToHexString(digest).ToLowerInvariant();
+        if (!condition) throw new InvalidOperationException(message);
     }
 
     private static async Task WriteTextAtomicAsync(string path, string content)
@@ -325,6 +381,8 @@ internal static class ProductUpdateAgent
         Version Version,
         string Tag,
         string SourceSha,
-        string ArchiveUrl,
-        string ChecksumUrl);
+        string DesktopArchiveUrl,
+        string DesktopChecksumUrl,
+        string RuntimeArchiveUrl,
+        string RuntimeChecksumUrl);
 }

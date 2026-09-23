@@ -6,37 +6,36 @@ $ErrorActionPreference = "Stop"
 $ExpectedRepositoryId = 1230805345
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $CurrentPath = Join-Path $InstallRoot "current.json"
-$RunnerPath = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
 
-function Read-Json([string]$Path) {
-    if (-not (Test-Path $Path)) { return $null }
-    return Get-Content -Raw $Path | ConvertFrom-Json
-}
-
-$current = Read-Json $CurrentPath
+$current = Get-Content -Raw $CurrentPath | ConvertFrom-Json
 if (-not $current) {
     throw "JAP Control Center is not installed."
 }
 if ([int64]$current.repository_id -ne $ExpectedRepositoryId) {
     throw "JAP Control Center repository identity mismatch."
 }
-if (-not (Test-Path $RunnerPath)) {
-    throw "Installed WSL launcher is missing: $RunnerPath"
+if ([string]$current.schema -ne "job_application_pipeline.windows_control_center_install.v3") {
+    throw "JAP Control Center is not on the CGKB product-local install generation."
 }
-if ([string]::IsNullOrWhiteSpace([string]$current.wsl_installed_runner_path)) {
-    throw "Installed JAP configuration has no pretranslated WSL runner path. Re-run the current installer from WSL."
+if ([string]$current.update_generation -ne "cgkb_product_local_v1") {
+    throw "JAP Control Center update generation mismatch."
 }
 
-$linuxRunner = ([string]$current.wsl_installed_runner_path).Trim()
-if (-not $linuxRunner.StartsWith('/')) {
-    throw "Installed JAP WSL runner path is not an absolute Linux path."
+$linuxRunner = ([string]$current.wsl_runtime_runner_path).Trim()
+$runtimeRoot = ([string]$current.wsl_runtime_root).Trim()
+$projectRoot = ([string]$current.wsl_project_root).Trim()
+$stateRoot = ([string]$current.wsl_state_root).Trim()
+$distro = ([string]$current.wsl_distro).Trim()
+foreach ($value in @($linuxRunner, $runtimeRoot, $projectRoot, $stateRoot)) {
+    if ([string]::IsNullOrWhiteSpace($value) -or -not $value.StartsWith('/')) {
+        throw "Installed JAP WSL runtime paths are incomplete or invalid."
+    }
 }
 
 $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
 if (-not $wsl) {
     throw "WSL is required to stop JAP Control Center."
 }
-$distro = [string]$current.wsl_distro
 
 $stopArguments = @(
     "-d",
@@ -44,10 +43,10 @@ $stopArguments = @(
     "--exec",
     "bash",
     $linuxRunner,
-    [string]$current.wsl_project_root,
-    [string]$current.managed_worktree,
+    $projectRoot,
+    $runtimeRoot,
     [string]$current.pinned_sha,
-    [string]$current.wsl_state_root,
+    $stateRoot,
     "--stop"
 )
 & $wsl.Source @stopArguments
@@ -57,4 +56,4 @@ if ($LASTEXITCODE -ne 0) {
 
 Remove-Item -Force (Join-Path $InstallRoot "state\runtime.json") -ErrorAction SilentlyContinue
 Write-Host "JAP_CONTROL_CENTER_STOP=COMPLETE"
-Write-Host "Only the runtime proven by the managed WSL PID contract is eligible for termination."
+Write-Host "Only the runtime proven by the immutable runtime-bundle PID contract is eligible for termination."

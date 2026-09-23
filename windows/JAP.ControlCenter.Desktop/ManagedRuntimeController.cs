@@ -97,7 +97,7 @@ internal sealed class ManagedRuntimeController : IDisposable
             "bash",
             config.WslRunner,
             config.WslProjectRoot,
-            config.ManagedWorktree,
+            config.RuntimeRoot,
             config.PinnedSha,
             config.WslStateRoot,
             "launch",
@@ -172,7 +172,7 @@ internal sealed class ManagedRuntimeController : IDisposable
             "bash",
             config.WslRunner,
             config.WslProjectRoot,
-            config.ManagedWorktree,
+            config.RuntimeRoot,
             config.PinnedSha,
             config.WslStateRoot,
             "--stop");
@@ -190,7 +190,7 @@ internal sealed class ManagedRuntimeController : IDisposable
             "bash",
             config.WslRunner,
             config.WslProjectRoot,
-            config.ManagedWorktree,
+            config.RuntimeRoot,
             config.PinnedSha,
             config.WslStateRoot,
             "--stop");
@@ -410,13 +410,21 @@ internal sealed class ManagedRuntimeController : IDisposable
         var pinnedSha = GetString(root, "pinned_sha").Trim().ToLowerInvariant();
         var wslDistro = GetString(root, "wsl_distro").Trim();
         var projectRoot = GetString(root, "wsl_project_root").Trim();
-        var managedWorktree = GetString(root, "managed_worktree").Trim();
+        var runtimeRoot = GetString(root, "wsl_runtime_root").Trim();
         var stateRoot = GetString(root, "wsl_state_root").Trim();
-        var runner = GetString(root, "wsl_installed_runner_path").Trim();
+        var runner = GetString(root, "wsl_runtime_runner_path").Trim();
         var port = root.TryGetProperty("port", out var portElement)
             ? portElement.GetInt32()
             : 0;
 
+        if (GetString(root, "schema") != "job_application_pipeline.windows_control_center_install.v3")
+        {
+            throw new InvalidOperationException("JAP Installationsschema ist nicht die CGKB product-local Generation.");
+        }
+        if (GetString(root, "update_generation") != "cgkb_product_local_v1")
+        {
+            throw new InvalidOperationException("JAP Update-Generation stimmt nicht.");
+        }
         if (repositoryId != ExpectedRepositoryId || repository != ExpectedRepository)
         {
             throw new InvalidOperationException("JAP Repository-Identität stimmt nicht.");
@@ -429,7 +437,7 @@ internal sealed class ManagedRuntimeController : IDisposable
         {
             throw new InvalidOperationException("Installierte JAP WSL-Distribution fehlt.");
         }
-        foreach (var value in new[] { projectRoot, managedWorktree, stateRoot, runner })
+        foreach (var value in new[] { projectRoot, runtimeRoot, stateRoot, runner })
         {
             if (string.IsNullOrWhiteSpace(value) || !value.StartsWith('/'))
             {
@@ -447,7 +455,7 @@ internal sealed class ManagedRuntimeController : IDisposable
             pinnedSha,
             wslDistro,
             projectRoot,
-            managedWorktree,
+            runtimeRoot,
             stateRoot,
             runner);
     }
@@ -463,7 +471,7 @@ internal sealed class ManagedRuntimeController : IDisposable
                 new
                 {
                     repository_id = ExpectedRepositoryId,
-                    launch_mode = "desktop_native_wsl_v1",
+                    launch_mode = "desktop_native_wsl_runtime_bundle_v1",
                     pinned_sha = config.PinnedSha,
                     started_at = DateTimeOffset.UtcNow.ToString("O"),
                     uri = $"http://127.0.0.1:{Port}/"
@@ -633,7 +641,7 @@ internal sealed class ManagedRuntimeController : IDisposable
         string PinnedSha,
         string WslDistro,
         string WslProjectRoot,
-        string ManagedWorktree,
+        string RuntimeRoot,
         string WslStateRoot,
         string WslRunner);
 

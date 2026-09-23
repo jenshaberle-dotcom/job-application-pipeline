@@ -12,7 +12,6 @@ GREEN_FACADE = "rcc-general-linux-01--jap"
 EXPECTED_ACTIVE_BLUE = {
     "f5-application-lifecycle-reconciliation.yml",
     "f5-candidate-supersession-preflight.yml",
-    "jap-windows-control-center-local-deploy.yml",
     "p1-generic-origin-product-activate.yml",
     "p1-generic-origin-product-proof.yml",
     "p1-generic-origin-systematic-search.yml",
@@ -121,14 +120,3 @@ def test_heartbeat_canary_and_ci_have_no_legacy_blue_assignment() -> None:
     print("JAP_PIPELINE_GREEN_SELECTOR=PASS")
 
 
-def test_local_deploy_admission_tracks_green_facade_not_blue_routing_label() -> None:
-    workflow = _text(WORKFLOWS / "jap-windows-control-center-local-deploy.yml")
-    deploy = _text(ROOT / "scripts" / "deploy_jap_windows_control_center_local.sh")
-
-    assert f"default: {GREEN_FACADE}" in workflow
-    assert f'EXPECTED_RUNNER="{GREEN_FACADE}"' in deploy
-    assert f'ROUTING_LABEL="{BLUE_LABEL}"' in deploy
-    assert 'RUNNER_NAME:-}" != "$EXPECTED_RUNNER"' in deploy
-    assert 'RUNNER_NAME:-}" != "$ROUTING_LABEL"' not in deploy
-
-    print("JAP_LOCAL_DEPLOY_BLUE_FACADE_IDENTITY=PASS")

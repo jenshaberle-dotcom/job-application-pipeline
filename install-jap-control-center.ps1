@@ -2,10 +2,11 @@ param(
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "JAP-Control-Center"),
     [string]$WslDistro,
     [string]$WslProjectRoot,
-    [string]$WslInstalledRunnerPath,
     [string]$PinnedSha,
     [string]$DesktopHostArchivePath,
     [string]$DesktopHostChecksumPath,
+    [string]$RuntimeArchivePath,
+    [string]$RuntimeChecksumPath,
     [switch]$NoStart,
     [switch]$NoShortcuts
 )
@@ -14,20 +15,21 @@ $ErrorActionPreference = "Stop"
 $ExpectedRepositoryId = 1230805345
 $ExpectedOrigin = "jenshaberle-dotcom/job-application-pipeline"
 $ReadOnlyFetchUrl = "https://github.com/$ExpectedOrigin.git"
-$DesktopHostAsset = "JAP-Control-Center-Desktop-win-x64.zip"
-$InstallSchema = "job_application_pipeline.windows_control_center_install.v2"
-$UpdateMode = "gui_prompt_latest_direct_v1"
-$CompatibilityLine = "1"
+$InstallSchema = "job_application_pipeline.windows_control_center_install.v3"
+$CompatibilityLine = "cgkb-product-local-1"
+$UpdateGeneration = "cgkb_product_local_v1"
+$UpdateMode = "product_local_stage_before_consent_v2"
+$ReleaseNamespace = "jap-winapp-product-v"
+$DesktopAsset = "JAP-Control-Center-Desktop-win-x64.zip"
+$RuntimeAsset = "JAP-Control-Center-Runtime.zip"
 $Port = 8780
+
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $CurrentPath = Join-Path $InstallRoot "current.json"
-$StableLauncher = Join-Path $InstallRoot "JAP-Control-Center.ps1"
-$LegacyStableUpdater = Join-Path $InstallRoot "Update-JAP-Control-Center.ps1"
-$StableStopper = Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"
-$StableApplier = Join-Path $InstallRoot "Apply-JAP-Control-Center-Update.ps1"
-$StableRunner = Join-Path $InstallRoot "run-jap-control-center-wsl.sh"
 $DesktopHostRoot = Join-Path $InstallRoot "desktop-host"
 $DesktopHostExe = Join-Path $DesktopHostRoot "JAP.ControlCenter.Desktop.exe"
+$RuntimeRoot = Join-Path $InstallRoot "runtime"
+$StableStopper = Join-Path $InstallRoot "Stop-JAP-Control-Center.ps1"
 
 function Write-JsonAtomic([string]$Path, [object]$Value) {
     $parent = Split-Path -Parent $Path
@@ -67,86 +69,94 @@ function New-AppShortcut(
     $shortcut.Save()
 }
 
-function Install-DesktopHost(
-    [string]$Version,
-    [string]$ArchivePath,
-    [string]$ChecksumPath
+function Get-VerifiedPayload(
+    [string]$ReleaseBase,
+    [string]$AssetName,
+    [string]$ArchiveOverride,
+    [string]$ChecksumOverride,
+    [string]$TempRoot
 ) {
-    if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-        throw "Invalid JAP desktop host version: $Version"
-    }
-
-    $tag = "jap-winapp-desktop-v$Version"
-    $releaseBase = "https://github.com/$ExpectedOrigin/releases/download/$tag"
-    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("jap-desktop-host-" + [guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
-
-    $useLocalPayload = -not [string]::IsNullOrWhiteSpace($ArchivePath) -or -not [string]::IsNullOrWhiteSpace($ChecksumPath)
-    if ($useLocalPayload) {
-        if ([string]::IsNullOrWhiteSpace($ArchivePath) -or [string]::IsNullOrWhiteSpace($ChecksumPath)) {
-            throw "Desktop host archive and checksum must be supplied together."
+    $useOverride = -not [string]::IsNullOrWhiteSpace($ArchiveOverride) -or -not [string]::IsNullOrWhiteSpace($ChecksumOverride)
+    if ($useOverride) {
+        if ([string]::IsNullOrWhiteSpace($ArchiveOverride) -or [string]::IsNullOrWhiteSpace($ChecksumOverride)) {
+            throw "Archive and checksum overrides must be supplied together for $AssetName."
         }
-        $zip = [System.IO.Path]::GetFullPath($ArchivePath)
-        $checksum = [System.IO.Path]::GetFullPath($ChecksumPath)
-        if (-not (Test-Path $zip) -or -not (Test-Path $checksum)) {
-            throw "Staged desktop host payload is incomplete."
-        }
+        $archive = [System.IO.Path]::GetFullPath($ArchiveOverride)
+        $checksum = [System.IO.Path]::GetFullPath($ChecksumOverride)
     }
     else {
-        $zip = Join-Path $tempRoot $DesktopHostAsset
-        $checksum = "$zip.sha256"
-        Invoke-WebRequest -UseBasicParsing -Uri "$releaseBase/$DesktopHostAsset" -OutFile $zip
-        Invoke-WebRequest -UseBasicParsing -Uri "$releaseBase/$DesktopHostAsset.sha256" -OutFile $checksum
+        $archive = Join-Path $TempRoot $AssetName
+        $checksum = "$archive.sha256"
+        Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseBase/$AssetName" -OutFile $archive
+        Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseBase/$AssetName.sha256" -OutFile $checksum
     }
 
-    $staged = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
-    $backup = Join-Path $InstallRoot ("desktop-host.previous." + $PID)
-    try {
-        $checksumLine = (Get-Content -Raw $checksum).Trim()
-        $expectedHash = ($checksumLine -split '\s+')[0].ToLowerInvariant()
-        if ($expectedHash -notmatch '^[0-9a-f]{64}$') {
-            throw "Desktop host release checksum is invalid."
-        }
-        $actualHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-        if ($actualHash -ne $expectedHash) {
-            throw "Desktop host release checksum mismatch."
-        }
+    if (-not (Test-Path $archive -PathType Leaf) -or -not (Test-Path $checksum -PathType Leaf)) {
+        throw "Release payload is incomplete for $AssetName."
+    }
 
-        Remove-Item -Recurse -Force $staged -ErrorAction SilentlyContinue
-        New-Item -ItemType Directory -Force -Path $staged | Out-Null
-        Expand-Archive -Path $zip -DestinationPath $staged -Force
-        $stagedExe = Join-Path $staged "JAP.ControlCenter.Desktop.exe"
-        if (-not (Test-Path $stagedExe)) {
-            throw "Desktop host release is missing JAP.ControlCenter.Desktop.exe."
-        }
+    $expected = ((Get-Content -Raw $checksum).Trim() -split '\s+')[0].ToLowerInvariant()
+    if ($expected -notmatch '^[0-9a-f]{64}$') {
+        throw "Release checksum is invalid for $AssetName."
+    }
+    $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -ne $expected) {
+        throw "Release checksum mismatch for $AssetName."
+    }
 
-        Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue
-        if (Test-Path $DesktopHostRoot) {
-            Move-Item -Path $DesktopHostRoot -Destination $backup
-        }
-        try {
-            Move-Item -Path $staged -Destination $DesktopHostRoot
-        }
-        catch {
-            if (Test-Path $DesktopHostRoot) {
-                Remove-Item -Recurse -Force $DesktopHostRoot -ErrorAction SilentlyContinue
-            }
-            if (Test-Path $backup) {
-                Move-Item -Path $backup -Destination $DesktopHostRoot
-            }
-            throw
-        }
-        Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue
+    return @{
+        archive = $archive
+        checksum = $checksum
+        sha256 = $actual
+    }
+}
 
-        return @{
-            version = $Version
-            sha256 = $actualHash
-            tag = $tag
+function Assert-BundleIdentity(
+    [string]$DesktopStage,
+    [string]$RuntimeStage,
+    [string]$Version,
+    [string]$SourceSha
+) {
+    $buildInfoPath = Join-Path $DesktopStage "build-info.json"
+    $runtimeInfoPath = Join-Path $RuntimeStage "runtime-info.json"
+    if (-not (Test-Path $buildInfoPath) -or -not (Test-Path $runtimeInfoPath)) {
+        throw "Product release identity metadata is incomplete."
+    }
+
+    $build = Get-Content -Raw $buildInfoPath | ConvertFrom-Json
+    if ($build.schema -ne "job_application_pipeline.desktop_host_build.v2" -or
+        $build.version -ne $Version -or
+        ([string]$build.source_sha).ToLowerInvariant() -ne $SourceSha -or
+        $build.compatibility_line -ne $CompatibilityLine -or
+        $build.update_generation -ne $UpdateGeneration) {
+        throw "Desktop product identity mismatch."
+    }
+
+    $runtime = Get-Content -Raw $runtimeInfoPath | ConvertFrom-Json
+    if ($runtime.schema -ne "job_application_pipeline.runtime_bundle.v1" -or
+        $runtime.version -ne $Version -or
+        ([string]$runtime.source_sha).ToLowerInvariant() -ne $SourceSha -or
+        $runtime.compatibility_line -ne $CompatibilityLine -or
+        $runtime.update_generation -ne $UpdateGeneration) {
+        throw "Runtime product identity mismatch."
+    }
+
+    foreach ($required in @(
+        (Join-Path $DesktopStage "JAP.ControlCenter.Desktop.exe"),
+        (Join-Path $RuntimeStage "scripts\run_product_v1_live_demo.py"),
+        (Join-Path $RuntimeStage "scripts\run_jap_windows_control_center.sh"),
+        (Join-Path $RuntimeStage "scripts\ensure_pinned_local_oss_runtime.sh"),
+        (Join-Path $RuntimeStage "frontend\control-center\dist\index.html"),
+        (Join-Path $RuntimeStage "frontend\control-center\dist\.jap-source-sha")
+    )) {
+        if (-not (Test-Path $required -PathType Leaf)) {
+            throw "Product release is missing required file: $required"
         }
     }
-    finally {
-        Remove-Item -Recurse -Force $staged -ErrorAction SilentlyContinue
-        Remove-Item -Recurse -Force $tempRoot -ErrorAction SilentlyContinue
+
+    $marker = (Get-Content -Raw (Join-Path $RuntimeStage "frontend\control-center\dist\.jap-source-sha")).Trim().ToLowerInvariant()
+    if ($marker -ne $SourceSha) {
+        throw "Runtime frontend source marker mismatch."
     }
 }
 
@@ -155,172 +165,213 @@ if (-not $wsl) {
     throw "WSL is required to install JAP Control Center."
 }
 
-if ([string]::IsNullOrWhiteSpace($WslInstalledRunnerPath)) {
-    throw "WSL installed runner path is required. Run scripts/install_jap_windows_control_center.sh from WSL."
-}
-$WslInstalledRunnerPath = $WslInstalledRunnerPath.Trim()
-if (-not $WslInstalledRunnerPath.StartsWith('/')) {
-    throw "WSL installed runner path must be an absolute Linux path."
-}
-
 if ([string]::IsNullOrWhiteSpace($WslDistro)) {
-    $resolved = Invoke-Wsl @("--", "bash", "-lc", 'printf "%s" "$WSL_DISTRO_NAME"')
+    $resolved = Invoke-Wsl @("--exec", "bash", "-lc", 'printf "%s" "$WSL_DISTRO_NAME"')
     $WslDistro = (($resolved | Select-Object -First 1) -as [string]).Trim()
 }
 if ([string]::IsNullOrWhiteSpace($WslDistro)) {
-    throw "Could not resolve the default WSL distribution. Pass -WslDistro explicitly."
+    throw "Could not resolve the WSL distribution."
 }
 
 if ([string]::IsNullOrWhiteSpace($WslProjectRoot)) {
-    $resolved = Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", 'printf "%s" "$HOME/projects/job-application-pipeline"')
+    $resolved = Invoke-Wsl @("-d", $WslDistro, "--exec", "bash", "-lc", 'printf "%s" "$HOME/projects/job-application-pipeline"')
     $WslProjectRoot = (($resolved | Select-Object -First 1) -as [string]).Trim()
 }
-if ([string]::IsNullOrWhiteSpace($WslProjectRoot)) {
-    throw "Could not resolve the canonical JAP project root in WSL."
+if ([string]::IsNullOrWhiteSpace($WslProjectRoot) -or -not $WslProjectRoot.StartsWith('/')) {
+    throw "Could not resolve the canonical JAP WSL project root."
 }
 
-$top = Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "rev-parse", "--show-toplevel")
-$resolvedTop = (($top | Select-Object -First 1) -as [string]).Trim()
-if ($resolvedTop -ne $WslProjectRoot.TrimEnd('/')) {
+$top = Invoke-Wsl @("-d", $WslDistro, "--exec", "git", "-C", $WslProjectRoot, "rev-parse", "--show-toplevel")
+if ((($top | Select-Object -First 1) -as [string]).Trim() -ne $WslProjectRoot.TrimEnd('/')) {
     throw "Configured WSL project root is not the JAP repository top level."
 }
-
-$originOutput = Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "remote", "get-url", "origin")
-$origin = (($originOutput | Select-Object -First 1) -as [string]).Trim()
-if ($origin -notmatch [regex]::Escape($ExpectedOrigin)) {
+$origin = Invoke-Wsl @("-d", $WslDistro, "--exec", "git", "-C", $WslProjectRoot, "remote", "get-url", "origin")
+if (((($origin | Select-Object -First 1) -as [string]).Trim()) -notmatch [regex]::Escape($ExpectedOrigin)) {
     throw "WSL project origin does not match the JAP repository."
 }
 
-# Fetch public product code over HTTPS so installation does not depend on SSH port 22.
-# `origin` remains the repository identity authority and is never rewritten here.
-Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "fetch", "--no-tags", $ReadOnlyFetchUrl, "main") | Out-Null
-$shaOutput = Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "rev-parse", "FETCH_HEAD")
-$fetchedMain = (($shaOutput | Select-Object -First 1) -as [string]).Trim()
+Invoke-Wsl @("-d", $WslDistro, "--exec", "git", "-C", $WslProjectRoot, "fetch", "--no-tags", $ReadOnlyFetchUrl, "main") | Out-Null
+$fetched = Invoke-Wsl @("-d", $WslDistro, "--exec", "git", "-C", $WslProjectRoot, "rev-parse", "FETCH_HEAD")
+$fetchedMain = (($fetched | Select-Object -First 1) -as [string]).Trim().ToLowerInvariant()
 if ($fetchedMain -notmatch '^[0-9a-f]{40}$') {
-    throw "Could not resolve an exact GitHub main SHA for JAP."
+    throw "Could not resolve exact GitHub main source for JAP."
 }
 
 if ([string]::IsNullOrWhiteSpace($PinnedSha)) {
-    $pinnedSha = $fetchedMain
+    $PinnedSha = $fetchedMain
 }
 else {
     $PinnedSha = $PinnedSha.Trim().ToLowerInvariant()
     if ($PinnedSha -notmatch '^[0-9a-f]{40}$') {
-        throw "Requested pinned JAP SHA is invalid: $PinnedSha"
+        throw "Requested pinned JAP SHA is invalid."
     }
-    Invoke-Wsl @("-d", $WslDistro, "--", "git", "-C", $WslProjectRoot, "cat-file", "-e", "$PinnedSha^{commit}") | Out-Null
-    & wsl.exe -d $WslDistro -- git -C $WslProjectRoot merge-base --is-ancestor $PinnedSha $fetchedMain
+    & wsl.exe -d $WslDistro --exec git -C $WslProjectRoot merge-base --is-ancestor $PinnedSha $fetchedMain
     if ($LASTEXITCODE -ne 0) {
-        throw "Requested pinned JAP SHA is not an ancestor of current GitHub main: $PinnedSha"
+        throw "Requested pinned JAP SHA is not an ancestor of current GitHub main."
     }
-    $pinnedSha = $PinnedSha
 }
 
-$homeOutput = Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", 'printf "%s" "$HOME"')
-$wslHome = (($homeOutput | Select-Object -First 1) -as [string]).Trim()
-if ([string]::IsNullOrWhiteSpace($wslHome)) {
-    throw "Could not resolve the WSL home directory."
-}
-$managedWorktree = "$wslHome/.local/share/jap-control-center/runtime"
-$wslStateRoot = "$wslHome/.local/state/jap-control-center"
-
-$sourceLauncher = Join-Path $PSScriptRoot "JAP-Control-Center.ps1"
-$sourceStopper = Join-Path $PSScriptRoot "Stop-JAP-Control-Center.ps1"
-$sourceApplier = Join-Path $PSScriptRoot "Apply-JAP-Control-Center-Update.ps1"
-$sourceRunner = Join-Path $PSScriptRoot "scripts\run_jap_windows_control_center.sh"
-$desktopVersionPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\VERSION"
+$versionPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\VERSION"
 $compatibilityPath = Join-Path $PSScriptRoot "windows\JAP.ControlCenter.Desktop\UPDATE_COMPATIBILITY.json"
-foreach ($required in @($sourceLauncher, $sourceStopper, $sourceApplier, $sourceRunner, $desktopVersionPath, $compatibilityPath)) {
-    if (-not (Test-Path $required)) {
-        throw "Installer source is missing: $required"
+$sourceStopper = Join-Path $PSScriptRoot "Stop-JAP-Control-Center.ps1"
+foreach ($required in @($versionPath, $compatibilityPath, $sourceStopper)) {
+    if (-not (Test-Path $required -PathType Leaf)) {
+        throw "Bootstrap source is missing: $required"
     }
 }
-$desktopHostVersion = (Get-Content -Raw $desktopVersionPath).Trim()
+
+$Version = (Get-Content -Raw $versionPath).Trim()
+if ([version]$Version -lt [version]"1.0.62") {
+    throw "CGKB product-local bootstrap requires version 1.0.62 or newer."
+}
 $compatibility = Get-Content -Raw $compatibilityPath | ConvertFrom-Json
-if ($compatibility.policy -ne "latest_direct" -or $compatibility.compatibility_line -ne $CompatibilityLine -or $compatibility.installer_schema -ne $InstallSchema) {
-    throw "Desktop host update compatibility contract is invalid."
+if ($compatibility.schema -ne "job_application_pipeline.windows_update_compatibility.v2" -or
+    $compatibility.policy -ne "product_local_latest_direct" -or
+    $compatibility.compatibility_line -ne $CompatibilityLine -or
+    $compatibility.update_generation -ne $UpdateGeneration -or
+    $compatibility.release_namespace -ne $ReleaseNamespace -or
+    $compatibility.installer_schema -ne $InstallSchema) {
+    throw "CGKB product-local compatibility contract is invalid."
 }
-if ($desktopHostVersion -notmatch '^1\.\d+\.\d+$') {
-    throw "Desktop host version is outside compatibility line 1: $desktopHostVersion"
+
+foreach ($process in @(Get-Process -Name "JAP.ControlCenter.Desktop" -ErrorAction SilentlyContinue)) {
+    try {
+        if ($process.Path -and ([System.IO.Path]::GetFullPath($process.Path)).StartsWith($InstallRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Close JAP Control Center before running the product-local bootstrap bridge."
+        }
+    }
+    catch [System.ComponentModel.Win32Exception] { }
 }
+
+$tag = "$ReleaseNamespace$Version"
+$releaseBase = "https://github.com/$ExpectedOrigin/releases/download/$tag"
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("jap-product-bootstrap-" + [guid]::NewGuid().ToString("N"))
+$desktopStage = Join-Path $InstallRoot ("desktop-host.staged." + $PID)
+$runtimeStage = Join-Path $InstallRoot ("runtime.staged." + $PID)
+$rollbackRoot = Join-Path $InstallRoot ("rollback\bootstrap-" + $PID)
+$desktopBackup = Join-Path $rollbackRoot "desktop-host"
+$runtimeBackup = Join-Path $rollbackRoot "runtime"
+$previousCurrent = if (Test-Path $CurrentPath) { Get-Content -Raw $CurrentPath } else { $null }
 
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot "state") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot "logs") | Out-Null
+New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
 
-# WINAPP-018 removes the old separately launchable updater surface. The product
-# update coordinator in JAP.ControlCenter.Desktop remains the only user-facing
-# update entrypoint; Apply-JAP-Control-Center-Update.ps1 is an internal helper
-# invoked only after explicit consent from the main application.
-Remove-Item -Force $LegacyStableUpdater -ErrorAction SilentlyContinue
-Copy-Item -Force $sourceLauncher $StableLauncher
-Copy-Item -Force $sourceStopper $StableStopper
-Copy-Item -Force $sourceApplier $StableApplier
-Copy-Item -Force $sourceRunner $StableRunner
+try {
+    $desktopPayload = Get-VerifiedPayload $releaseBase $DesktopAsset $DesktopHostArchivePath $DesktopHostChecksumPath $tempRoot
+    $runtimePayload = Get-VerifiedPayload $releaseBase $RuntimeAsset $RuntimeArchivePath $RuntimeChecksumPath $tempRoot
 
-$desktopHost = Install-DesktopHost $desktopHostVersion $DesktopHostArchivePath $DesktopHostChecksumPath
-if (-not (Test-Path $DesktopHostExe)) {
-    throw "Installed JAP desktop host executable is missing: $DesktopHostExe"
+    Remove-Item -Recurse -Force $desktopStage, $runtimeStage, $rollbackRoot -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $desktopStage, $runtimeStage, $rollbackRoot | Out-Null
+    Expand-Archive -Path $desktopPayload.archive -DestinationPath $desktopStage -Force
+    Expand-Archive -Path $runtimePayload.archive -DestinationPath $runtimeStage -Force
+    Assert-BundleIdentity $desktopStage $runtimeStage $Version $PinnedSha
+
+    $wslInstall = Invoke-Wsl @("-d", $WslDistro, "--exec", "wslpath", "-a", "-u", $InstallRoot)
+    $wslInstallRoot = (($wslInstall | Select-Object -First 1) -as [string]).Trim()
+    if ([string]::IsNullOrWhiteSpace($wslInstallRoot) -or -not $wslInstallRoot.StartsWith('/')) {
+        throw "Could not resolve WSL path for JAP install root."
+    }
+    $wslRuntimeRoot = "$($wslInstallRoot.TrimEnd('/'))/runtime"
+    $wslRuntimeRunner = "$wslRuntimeRoot/scripts/run_jap_windows_control_center.sh"
+    $home = Invoke-Wsl @("-d", $WslDistro, "--exec", "bash", "-lc", 'printf "%s" "$HOME"')
+    $wslHome = (($home | Select-Object -First 1) -as [string]).Trim()
+    $wslStateRoot = "$wslHome/.local/state/jap-control-center"
+
+    if (Test-Path $DesktopHostRoot) { Move-Item $DesktopHostRoot $desktopBackup }
+    if (Test-Path $RuntimeRoot) { Move-Item $RuntimeRoot $runtimeBackup }
+    Move-Item $desktopStage $DesktopHostRoot
+    Move-Item $runtimeStage $RuntimeRoot
+
+    Copy-Item -Force $sourceStopper $StableStopper
+
+    Write-JsonAtomic $CurrentPath @{
+        schema = $InstallSchema
+        repository_id = $ExpectedRepositoryId
+        repository = $ExpectedOrigin
+        pinned_sha = $PinnedSha
+        wsl_distro = $WslDistro
+        wsl_project_root = $WslProjectRoot
+        wsl_runtime_root = $wslRuntimeRoot
+        wsl_runtime_runner_path = $wslRuntimeRunner
+        wsl_state_root = $wslStateRoot
+        port = $Port
+        desktop_host = "webview2_winforms"
+        desktop_host_version = $Version
+        desktop_host_sha256 = $desktopPayload.sha256
+        desktop_host_release = $tag
+        runtime_bundle_sha256 = $runtimePayload.sha256
+        update_authority = "product_local_update_agent_v2"
+        update_mode = $UpdateMode
+        update_surface = "integrated_main_app"
+        update_generation = $UpdateGeneration
+        release_namespace = $ReleaseNamespace
+        compatibility_line = $CompatibilityLine
+        installed_at = [DateTime]::UtcNow.ToString("o")
+        secrets_location = "wsl_project_env_only"
+        private_documents_location = "wsl_project_private_application_sources_only"
+    }
+
+    foreach ($legacy in @(
+        "Update-JAP-Control-Center.ps1",
+        "Apply-JAP-Control-Center-Update.ps1",
+        "run-jap-control-center-wsl.sh",
+        "JAP-Control-Center.ps1"
+    )) {
+        Remove-Item -Force (Join-Path $InstallRoot $legacy) -ErrorAction SilentlyContinue
+    }
+    foreach ($state in @(
+        "pending-update.json",
+        "accepted-update.json",
+        "update-snooze.json",
+        "update-result.json"
+    )) {
+        Remove-Item -Force (Join-Path $InstallRoot "state\$state") -ErrorAction SilentlyContinue
+    }
+
+    $programs = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\JAP Control Center"
+    Remove-Item -Force (Join-Path $programs "Update JAP Control Center.lnk") -ErrorAction SilentlyContinue
+
+    if (-not $NoShortcuts) {
+        $desktop = [Environment]::GetFolderPath("Desktop")
+        New-AppShortcut (Join-Path $desktop "JAP Control Center.lnk") $DesktopHostExe "" "$DesktopHostExe,0"
+        New-AppShortcut (Join-Path $programs "JAP Control Center.lnk") $DesktopHostExe "" "$DesktopHostExe,0"
+        $powershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+        $stopArguments = "-NoProfile -ExecutionPolicy RemoteSigned -File `"$StableStopper`""
+        New-AppShortcut (Join-Path $programs "Stop JAP Control Center.lnk") $powershell $stopArguments
+    }
+
+    Remove-Item -Recurse -Force $rollbackRoot -ErrorAction SilentlyContinue
+
+    Write-Host "JAP_CONTROL_CENTER_BOOTSTRAP_BRIDGE=PASS"
+    Write-Host "DESKTOP_HOST_VERSION=$Version"
+    Write-Host "PINNED_MAIN=$PinnedSha"
+    Write-Host "UPDATE_GENERATION=$UpdateGeneration"
+    Write-Host "RELEASE_NAMESPACE=$ReleaseNamespace"
+    Write-Host "WSL_RUNTIME_ROOT=$wslRuntimeRoot"
+    Write-Host "URI=http://127.0.0.1:$Port/"
+
+    if (-not $NoStart) {
+        Start-Process -FilePath $DesktopHostExe -WorkingDirectory $DesktopHostRoot | Out-Null
+        Write-Host "JAP_CONTROL_CENTER_DESKTOP=STARTED"
+    }
 }
-
-Write-JsonAtomic $CurrentPath @{
-    schema = $InstallSchema
-    repository_id = $ExpectedRepositoryId
-    repository = $ExpectedOrigin
-    pinned_sha = $pinnedSha
-    wsl_distro = $WslDistro
-    wsl_project_root = $WslProjectRoot
-    managed_worktree = $managedWorktree
-    wsl_state_root = $wslStateRoot
-    wsl_installed_runner_path = $WslInstalledRunnerPath
-    port = $Port
-    desktop_host = "webview2_winforms"
-    desktop_host_version = $desktopHost.version
-    desktop_host_sha256 = $desktopHost.sha256
-    desktop_host_release = $desktopHost.tag
-    desktop_host_exe = $DesktopHostExe
-    installed_at = [DateTime]::UtcNow.ToString("o")
-    update_authority = "local_runner_staged_gui_prompt"
-    update_mode = $UpdateMode
-    update_surface = "integrated_main_app"
-    compatibility_line = $CompatibilityLine
-    secrets_location = "wsl_project_env_only"
-    private_documents_location = "wsl_project_private_application_sources_only"
+catch {
+    try {
+        if (Test-Path $DesktopHostRoot) { Remove-Item -Recurse -Force $DesktopHostRoot -ErrorAction SilentlyContinue }
+        if (Test-Path $RuntimeRoot) { Remove-Item -Recurse -Force $RuntimeRoot -ErrorAction SilentlyContinue }
+        if (Test-Path $desktopBackup) { Move-Item $desktopBackup $DesktopHostRoot }
+        if (Test-Path $runtimeBackup) { Move-Item $runtimeBackup $RuntimeRoot }
+        if ($null -ne $previousCurrent) {
+            $tmp = "$CurrentPath.rollback.tmp"
+            Set-Content -Encoding UTF8 -Path $tmp -Value $previousCurrent
+            Move-Item -Force $tmp $CurrentPath
+        }
+    }
+    catch { }
+    throw
 }
-
-$programs = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\JAP Control Center"
-$legacyUpdateShortcut = Join-Path $programs "Update JAP Control Center.lnk"
-Remove-Item -Force $legacyUpdateShortcut -ErrorAction SilentlyContinue
-
-if (-not $NoShortcuts) {
-    $powershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $stopArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$StableStopper`""
-
-    $desktop = [Environment]::GetFolderPath("Desktop")
-    New-AppShortcut (Join-Path $desktop "JAP Control Center.lnk") $DesktopHostExe "" "$DesktopHostExe,0"
-
-    New-AppShortcut (Join-Path $programs "JAP Control Center.lnk") $DesktopHostExe "" "$DesktopHostExe,0"
-    New-AppShortcut (Join-Path $programs "Stop JAP Control Center.lnk") $powershell $stopArguments
-}
-
-Write-Host "JAP_CONTROL_CENTER_INSTALL=PASS"
-Write-Host "INSTALL_ROOT=$InstallRoot"
-Write-Host "WSL_DISTRO=$WslDistro"
-Write-Host "WSL_PROJECT_ROOT=$WslProjectRoot"
-Write-Host "WSL_INSTALLED_RUNNER=$WslInstalledRunnerPath"
-Write-Host "PINNED_MAIN=$pinnedSha"
-Write-Host "FETCH_TRANSPORT=https"
-Write-Host "DESKTOP_HOST=webview2_winforms"
-Write-Host "DESKTOP_HOST_VERSION=$($desktopHost.version)"
-Write-Host "DESKTOP_HOST_SHA256=$($desktopHost.sha256)"
-Write-Host "DESKTOP_HOST_EXE=$DesktopHostExe"
-Write-Host "UPDATE_MODE=$UpdateMode"
-Write-Host "UPDATE_SURFACE=integrated_main_app"
-Write-Host "UPDATE_COMPATIBILITY_LINE=$CompatibilityLine"
-Write-Host "URI=http://127.0.0.1:$Port/"
-Write-Host "Boundary: no .env, credentials, PostgreSQL data, CV or application documents are copied to Windows."
-
-if (-not $NoStart) {
-    Start-Process -FilePath $DesktopHostExe -WorkingDirectory $DesktopHostRoot | Out-Null
-    Write-Host "JAP_CONTROL_CENTER_DESKTOP=STARTED"
+finally {
+    Remove-Item -Recurse -Force $desktopStage, $runtimeStage, $tempRoot -ErrorAction SilentlyContinue
 }

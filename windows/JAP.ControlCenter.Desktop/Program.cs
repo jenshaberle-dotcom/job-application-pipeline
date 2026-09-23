@@ -18,6 +18,12 @@ internal static class Program
             return;
         }
 
+        if (args.Any(argument => string.Equals(argument, "--apply-update", StringComparison.OrdinalIgnoreCase)))
+        {
+            Environment.ExitCode = ProductUpdateApplier.RunFromCommandLine(args);
+            return;
+        }
+
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
         if (!createdNew)
         {
