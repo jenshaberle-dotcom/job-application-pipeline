@@ -80,7 +80,7 @@ jobs:
         shell: powershell
         run: |
           Push-Location frontend/control-center
-          npm ci
+          npm install --no-audit --no-fund
           npm run build
           Pop-Location
           $Dist = "frontend/control-center/dist"
