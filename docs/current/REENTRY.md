@@ -2,6 +2,20 @@
 
 Status: canonical current re-entry projection + frozen product campaign sequencing authority
 
+## CURRENT FREEZE AUTHORITY — F5 COMPLETE / F6 ACTIVE
+
+This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
+
+- canonical product baseline before F6 candidate work: `main@5b7abe952bb4a4deada053dd0ed4415b50bc85c6`, installed desktop **1.0.67**;
+- integrated updater proof is complete: 1.0.66 -> 1.0.67 completed discovery, pre-stage, consent, cutover and automatic restart without bootstrap;
+- F5 is **operator accepted / COMPLETE**: Finanz Informatik application linkage reaches the All-jobs surface as the green application-active row; Sources counted tabs are accepted; lifecycle/evidence authority boundaries remain intact;
+- updater hardening and the F5 functional excursion have no remaining sequencing authority;
+- current frozen campaign authority is now **F6 — Template-Authoritative Application Drafting**;
+- F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
+
+F6 starts with a hard template-authority cut. The two operator-supplied private PDFs are the only authorized layouts. Their bytes remain private; exact SHA-256, page geometry and editable text zones are public repo truth. Old generic A4/DOCX rendering and arbitrary base-PDF replacement are forbidden and physically removed in the active F6 candidate.
+
+
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.
 
 ## Updater hard cut — candidate truth on PR #987
@@ -234,7 +248,7 @@ Canonical item `#898 / F4C Source Health + Operator Surface Consolidation` is cl
 
 Post-freeze operator simplification/Data-Layers truth audit remains isolated in `#910` and is not a blocker for F5/F6.
 
-## F5 — ACTIVE / FIRST REAL PERSISTENCE TERMINAL PASS; WINDOWS DELIVERY NEXT
+## F5 — COMPLETE / OPERATOR ACCEPTED (historical detail retained)
 
 Canonical item: `APP-TRACK-001` / issue `#737` and `docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md`.
 
@@ -485,9 +499,9 @@ If that read-only gate passes, inspect its exact predicted delta. Any subsequent
 persistence apply is a separate operator gate; F6 remains queued until F5 data
 truth is accepted.
 
-## F6 — queued
+## F6 — ACTIVE
 
-Template-Authoritative Application Drafting remains the final frozen package. Approved template/layout stays hash-bound; only explicit editable content zones may be generated from Candidate Facts and exact current Origin evidence. Human review remains mandatory; no automatic submit/send.
+Template-Authoritative Application Drafting is the active final frozen package. Exactly two private PDF layouts are hash- and geometry-bound; only manifest-declared text zones may change from approved Candidate Facts and exact current Origin evidence. Human review remains mandatory; no automatic submit/send.
 
 ## Cascading residual rule
 

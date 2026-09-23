@@ -5,6 +5,8 @@ type DocumentType = "base_cv" | "base_application_letter";
 type UploadResult = {
   status?: string;
   reason?: string;
+  template_id?: string;
+  canonical_filename?: string;
   filename?: string;
   content_sha256?: string;
   byte_count?: number;
@@ -30,11 +32,15 @@ export default function ApplicationSourceUpload({
   documentType,
   title,
   ready,
+  canonicalFilename,
+  canonicalSha256,
   onUploaded,
 }: {
   documentType: DocumentType;
   title: string;
   ready: boolean;
+  canonicalFilename: string;
+  canonicalSha256: string;
   onUploaded: () => Promise<void>;
 }) {
   const [file, setFile] = useState<File | null>(null);
@@ -52,7 +58,7 @@ export default function ApplicationSourceUpload({
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
-          action: "use_as_base_document",
+          action: "install_f6_authority_template",
           document_type: documentType,
           filename: file.name,
           content_base64: contentBase64,
@@ -74,12 +80,16 @@ export default function ApplicationSourceUpload({
 
   return <section className={`ow-document-intake ${ready ? "ready" : "required"}`}>
     <header>
-      <div><span>{title}</span><b>{ready ? "Approved base source" : "Source required"}</b></div>
+      <div><span>{title}</span><b>{ready ? "Exact F6 authority installed" : "Exact template required"}</b></div>
       <i>{ready ? "✓" : "PDF"}</i>
     </header>
     <p>{ready
-      ? "A local approved PDF is bound by hash. You can replace it with a newer version at any time."
-      : "Choose the PDF you want to use as the local base source. The browser sends it only to this local Control Center."}</p>
+      ? "The installed private PDF matches the frozen F6 binary hash and page geometry. Other layouts have no authority."
+      : "Select the exact frozen PDF. Any other file, even a visually similar revision, is rejected before approval."}</p>
+    <div className="ow-template-identity">
+      <span>{canonicalFilename}</span>
+      <code>sha256 {canonicalSha256.slice(0, 16)}…</code>
+    </div>
     <div className="ow-upload-row">
       <label className="ow-file-picker">
         <input
@@ -87,14 +97,14 @@ export default function ApplicationSourceUpload({
           accept="application/pdf,.pdf"
           onChange={(event) => setFile(event.target.files?.[0] || null)}
         />
-        <span>{file ? file.name : ready ? "Replace PDF…" : "Choose PDF…"}</span>
+        <span>{file ? file.name : ready ? "Re-verify exact PDF…" : "Choose exact PDF…"}</span>
       </label>
       <button type="button" className="ow-primary" disabled={!file || uploading} onClick={() => void upload()}>
-        {uploading ? "Analyzing locally…" : `Use as ${title}`}
+        {uploading ? "Verifying F6 authority…" : `Verify ${title}`}
       </button>
     </div>
-    <small className="ow-private-note">Local deterministic PDF text extraction · document bytes stay local · no LLM/provider request.</small>
-    {result && <div className="ow-upload-result"><b>Ready</b><span>{result.filename} · {result.extracted_text_char_count ?? 0} extractable characters · hash {result.content_sha256?.slice(0, 10)}…</span></div>}
-    {error && <div className="ow-upload-error"><b>Not accepted</b><span>{error}</span></div>}
+    <small className="ow-private-note">Private bytes stay local · exact SHA-256 + page geometry required · no alternate template accepted.</small>
+    {result && <div className="ow-upload-result"><b>Authority verified</b><span>{result.canonical_filename || result.filename} · {result.extracted_text_char_count ?? 0} extractable characters · hash {result.content_sha256?.slice(0, 12)}…</span></div>}
+    {error && <div className="ow-upload-error"><b>Rejected by F6 authority</b><span>{error}</span></div>}
   </section>;
 }

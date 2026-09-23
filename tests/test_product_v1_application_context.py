@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from hashlib import sha256
 
+from src.search_intelligence.f6_template_authority import template_spec
 from src.search_intelligence.product_v1_application_context import (
     ApplicationSourceDocumentSnapshot,
     ApplicationTargetSnapshot,
@@ -41,9 +41,10 @@ def _document(document_type: str, content: str):
         document_type=document_type,
         source_label=f"approved {document_type}",
         source_reference=f"local://{document_type}",
-        content_sha256=sha256(content.encode("utf-8")).hexdigest(),
+        content_sha256=template_spec(document_type).sha256,
         content=content,
         status="approved",
+        source_hash_verified=True,
     )
 
 
@@ -129,7 +130,7 @@ def test_non_top5_or_non_rankable_job_is_blocked() -> None:
     assert context.generation_context_authority is False
 
 
-def test_document_hash_mismatch_blocks_generation_and_never_grants_fact_authority() -> None:
+def test_non_authority_document_hash_blocks_generation_and_never_grants_fact_authority() -> None:
     bad_cv = ApplicationSourceDocumentSnapshot(
         document_type="base_cv",
         source_label="CV",
@@ -137,6 +138,33 @@ def test_document_hash_mismatch_blocks_generation_and_never_grants_fact_authorit
         content_sha256="c" * 64,
         content="different content",
         status="approved",
+        source_hash_verified=True,
+    )
+    context = build_product_v1_application_context(
+        target=_target(),
+        candidate_profile_status="approved",
+        candidate_profile_sha256="d" * 64,
+        candidate_facts=(_fact("python", "I use Python professionally.", ("Python",)),),
+        source_documents=(bad_cv, _document("base_application_letter", "Letter")),
+        as_of_date=TODAY,
+    )
+
+    assert context.generation_ready is False
+    assert "base_cv_not_f6_template_authority" in context.blocked_reasons
+    assert "missing_base_cv" in context.blocked_reasons
+    assert context.candidate_fact_authority is False
+    assert context.application_authority is False
+
+
+def test_exact_authority_hash_still_rejects_failed_source_verification() -> None:
+    bad_cv = ApplicationSourceDocumentSnapshot(
+        document_type="base_cv",
+        source_label="CV",
+        source_reference="local://cv",
+        content_sha256=template_spec("base_cv").sha256,
+        content="not the verified private PDF",
+        status="approved",
+        source_hash_verified=False,
     )
     context = build_product_v1_application_context(
         target=_target(),
@@ -150,8 +178,6 @@ def test_document_hash_mismatch_blocks_generation_and_never_grants_fact_authorit
     assert context.generation_ready is False
     assert "base_cv_content_hash_mismatch" in context.blocked_reasons
     assert "missing_base_cv" in context.blocked_reasons
-    assert context.candidate_fact_authority is False
-    assert context.application_authority is False
 
 
 def test_unapproved_future_and_expired_facts_are_not_claim_sources() -> None:

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useProductTruth } from "./ProductTruthContext";
 import "./demo-application-workspace.css";
-import "./application-package-downloads.css";
 
 type TopJob = {
   silver_job_id: number;
@@ -61,6 +60,18 @@ type ApplicationWorkspacePayload = {
     fetched_title?: string;
     detail_sha256?: string;
   };
+  template_authority?: {
+    status?: string;
+    layout_policy?: string;
+    legacy_template_authority?: boolean;
+    templates?: Array<{
+      document_type?: string;
+      canonical_filename?: string;
+      sha256?: string;
+      exact_authority_match?: boolean;
+      editable_text_zone_count?: number;
+    }>;
+  };
   boundaries?: Record<string, boolean | number>;
 };
 
@@ -77,15 +88,6 @@ type DraftMode =
   | "provider_validated_quality_v3"
   | "deterministic_evidence_first";
 
-type DraftFile = {
-  key?: string;
-  filename?: string;
-  media_type?: string;
-  byte_count?: number;
-  content_sha256?: string;
-  content_base64?: string;
-};
-
 type DraftPayload = {
   status?: string;
   reason?: string;
@@ -99,12 +101,8 @@ type DraftPayload = {
     rationale?: string;
     candidate_fact_keys_used?: string[];
   } | null;
-  document_package?: {
-    status?: string;
-    cv_text?: string;
-    letter_text?: string;
-    files?: DraftFile[];
-  } | null;
+  render_status?: string;
+  legacy_generic_document_export?: boolean;
   provider_requests?: number;
   database_writes?: number;
   submission_writes?: number;
@@ -146,34 +144,6 @@ function draftModeLabel(mode: DraftMode | undefined) {
 
 function readinessTone(ready: boolean) {
   return ready ? "ready" : "blocked";
-}
-
-function downloadDraftFile(file: DraftFile) {
-  if (!file.content_base64 || !file.filename) return;
-  const binary = window.atob(file.content_base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  const blob = new Blob([bytes], { type: file.media_type || "application/octet-stream" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = file.filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function downloadLabel(file: DraftFile) {
-  const key = file.key || "";
-  if (key === "cv_docx") return "CV · Word";
-  if (key === "cv_pdf") return "CV · PDF";
-  if (key === "letter_docx") return "Letter · Word";
-  if (key === "letter_pdf") return "Letter · PDF";
-  if (key === "application_zip") return "Everything · ZIP";
-  return file.filename || "Download";
 }
 
 export default function DemoApplicationWorkspace() {
@@ -225,8 +195,7 @@ export default function DemoApplicationWorkspace() {
   const draftFragments = draft?.package?.fragments || [];
   const cvFragments = draftFragments.filter((item) => fragmentGroup(item.kind) === "CV");
   const letterFragments = draftFragments.filter((item) => fragmentGroup(item.kind) === "Application letter");
-  const documentPackage = draft?.document_package || null;
-  const draftFiles = documentPackage?.files || [];
+  const templateAuthority = workspace?.template_authority;
   const generationReady = workspace?.status === "ready" && workspace.workspace?.generation_ready === true && claimPlan.length > 0;
   const vacancyReady = Boolean(workspace?.live_job_evidence?.fetched_title || workspace?.live_job_evidence?.final_url);
   const candidateFactsReady = claimPlan.length > 0;
@@ -270,7 +239,7 @@ export default function DemoApplicationWorkspace() {
         <div>
           <span className="demo-eyebrow">DEMO-001 · final product step</span>
           <h1>Application Workspace</h1>
-          <p>One current job, verified evidence, one reviewable application package.</p>
+          <p>One current job, verified evidence, exact F6 templates, one reviewable text draft.</p>
         </div>
         <button type="button" className="demo-close" onClick={() => setOpen(false)}>×</button>
       </header>
@@ -337,7 +306,7 @@ export default function DemoApplicationWorkspace() {
               <div className="demo-readiness-list">
                 <div className={readinessTone(vacancyReady)}><i /><span>Vacancy</span><b>{vacancyReady ? "Employer-origin verified" : "Evidence required"}</b></div>
                 <div className={readinessTone(candidateFactsReady)}><i /><span>Candidate facts</span><b>{candidateFactsReady ? `${claimPlan.length} matched claims` : "Matches required"}</b></div>
-                <div className={readinessTone(documentsReady)}><i /><span>Source documents</span><b>{documentsReady ? "CV + base letter approved" : `${documents.length}/2 approved`}</b></div>
+                <div className={readinessTone(documentsReady)}><i /><span>F6 templates</span><b>{documentsReady ? "2/2 exact authority" : `${documents.length}/2 exact`}</b></div>
                 <div className="ready"><i /><span>Submission boundary</span><b>Review only · no auto-submit</b></div>
               </div>
 
@@ -353,14 +322,14 @@ export default function DemoApplicationWorkspace() {
               </details>
 
               <button type="button" className="demo-generate-button" disabled={!generationReady || drafting} onClick={() => void generateDraft()}>
-                {drafting ? "Preparing application package…" : draft?.status === "draft_for_review" ? "Regenerate application package" : "Generate application package"}
+                {drafting ? "Preparing review text…" : draft?.status === "draft_for_review" ? "Regenerate review text" : "Generate review text"}
               </button>
             </article>
 
             <article className="demo-workspace-card demo-draft-card">
               <header>
                 <span className="demo-eyebrow">Prepared application</span>
-                <h3>{draft?.status === "draft_for_review" ? "Application package ready for review" : "Waiting for your action"}</h3>
+                <h3>{draft?.status === "draft_for_review" ? "Grounded text ready for review" : "Waiting for your action"}</h3>
               </header>
 
               {draft?.status === "draft_for_review" && draft.package ? <>
@@ -369,25 +338,19 @@ export default function DemoApplicationWorkspace() {
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
                 {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain bound to approved Candidate Facts and exact vacancy evidence.</p>}
 
-                {documentPackage?.status === "ready_for_download" && draftFiles.length >= 4 && <section className="demo-application-downloads">
-                  <header><strong>Ready to download</strong><span>{draftFiles.length} local review downloads · no send action</span></header>
-                  <div className="demo-download-grid">
-                    {draftFiles.map((file) => <button type="button" key={file.key || file.filename} onClick={() => downloadDraftFile(file)}>{downloadLabel(file)}</button>)}
-                  </div>
-                </section>}
+                <section className="demo-application-downloads">
+                  <header><strong>F6 template authority</strong><span>{templateAuthority?.status === "ready" ? "2/2 exact private PDFs verified" : "exact templates required"}</span></header>
+                  <p className="demo-boundary-note">Legacy generic DOCX/A4 export has been removed. The next F6 slice may render only into declared text zones of the two hash-bound PDFs.</p>
+                </section>
 
                 <section className="demo-document">
                   <header><span>CV adaptation</span><small>complete review copy</small></header>
-                  {documentPackage?.cv_text
-                    ? <pre className="demo-package-preview">{documentPackage.cv_text}</pre>
-                    : cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
+                  {cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
                 <section className="demo-document">
                   <header><span>Application letter</span><small>complete review copy</small></header>
-                  {documentPackage?.letter_text
-                    ? <pre className="demo-package-preview">{documentPackage.letter_text}</pre>
-                    : letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
+                  {letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
                 <details className="demo-evidence-details demo-audit-details">
@@ -396,8 +359,8 @@ export default function DemoApplicationWorkspace() {
                   <footer><span>Provider requests: {draft.provider_requests ?? 0}</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
               </> : <div className="demo-empty-draft">
-                <strong>The final demo step is one explicit action.</strong>
-                <p>When the factual context is ready, the system prepares complete CV and letter files for review. It does not submit or send anything.</p>
+                <strong>F6 is review-first and template-authoritative.</strong>
+                <p>When factual context and both exact templates are ready, the system may draft text for review. Rendering into the frozen layouts remains fail-closed until the template-bound renderer is qualified.</p>
               </div>}
             </article>
           </div>}

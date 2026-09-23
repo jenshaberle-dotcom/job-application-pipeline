@@ -98,6 +98,21 @@ type ProductPayload = {
     base_cv: boolean;
     base_application_letter: boolean;
   };
+  f6_template_authority?: {
+    status?: string;
+    layout_policy?: string;
+    legacy_template_authority?: boolean;
+    templates?: Array<{
+      template_id?: string;
+      document_type?: string;
+      canonical_filename?: string;
+      sha256?: string;
+      page_count?: number;
+      page_format?: string[];
+      editable_text_zone_count?: number;
+      exact_authority_match?: boolean;
+    }>;
+  };
   source_connector_overview: {
     summary: {
       source_count: number;
@@ -336,8 +351,8 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
       </article>
 
       <article className="ow-card">
-        <div className="ow-card-title"><div><span>Application</span><h2>{docsReady ? "Source documents ready" : "Source documents still required"}</h2></div></div>
-        <div className="ow-readiness"><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Base CV</span><b>{payload.application_sources_ready.base_cv ? "Approved" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Base letter</span><b>{payload.application_sources_ready.base_application_letter ? "Approved" : "Required"}</b></div></div>
+        <div className="ow-card-title"><div><span>F6 Application</span><h2>{docsReady ? "Template authority ready" : "Exact templates required"}</h2></div></div>
+        <div className="ow-readiness"><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact hash" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact hash" : "Required"}</b></div></div>
         <button type="button" className="ow-text-action" onClick={() => onNavigate("application")}>Open application step →</button>
       </article>
 
@@ -663,19 +678,36 @@ function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () =>
 function Application({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
   const top = payload.top_jobs[0] || null;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
+  const authorityTemplates = payload.f6_template_authority?.templates || [];
+  const cvTemplate = authorityTemplates.find((item) => item.document_type === "base_cv");
+  const letterTemplate = authorityTemplates.find((item) => item.document_type === "base_application_letter");
   return <div className="ow-stack">
-    <header className="ow-page-header"><div><span>Final preparation step</span><h1>Application</h1><p>Verified vacancy + Candidate Facts + approved local base documents → complete review package. Never auto-submit.</p></div></header>
+    <header className="ow-page-header"><div><span>F6 · Template-authoritative drafting</span><h1>Application</h1><p>Verified vacancy + Candidate Facts + the two frozen private PDFs. Layout is immutable; only explicitly approved text zones may change. Never auto-submit.</p></div></header>
     <section className="ow-application-grid">
-      <article className="ow-card"><span className="ow-kicker">Selected target</span><h2>{top?.title || "No authoritative Top-5 job"}</h2>{top && <p>{employerName(top)} · {locationText(top)} · {scoreText(top.overall_quality_score)} authoritative Product score</p>}<div className="ow-readiness"><div className={top ? "ready" : "blocked"}><i /><span>Top-5 target</span><b>{top ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Base CV</span><b>{payload.application_sources_ready.base_cv ? "Approved" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Base letter</span><b>{payload.application_sources_ready.base_application_letter ? "Approved" : "Required"}</b></div></div><OpenApplicationButton disabled={!top || !docsReady} /></article>
-      <article className="ow-card ow-boundary-card"><span className="ow-kicker">Private source model</span><h2>{docsReady ? "Base documents are ready" : "Choose your two local base PDFs"}</h2><p>File bytes stay local. On your explicit Generate action, extracted text from the two approved base documents may be sent to the configured drafting provider as style/structure context. Candidate Facts remain authority for new candidate claims.</p><ul><li>Approved file bytes stay on this machine</li><li>Extracted base text is shared only on explicit Generate</li><li>Local PDF text extraction validates the approved source</li><li>No hidden auto-apply, submit or send</li></ul></article>
+      <article className="ow-card"><span className="ow-kicker">Selected target</span><h2>{top?.title || "No authoritative Top-5 job"}</h2>{top && <p>{employerName(top)} · {locationText(top)} · {scoreText(top.overall_quality_score)} authoritative Product score</p>}<div className="ow-readiness"><div className={top ? "ready" : "blocked"}><i /><span>Top-5 target</span><b>{top ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact authority" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact authority" : "Required"}</b></div></div><OpenApplicationButton disabled={!top || !docsReady} /></article>
+      <article className="ow-card ow-boundary-card"><span className="ow-kicker">F6 layout boundary</span><h2>{docsReady ? "Pixel-bound template authority active" : "Install the two exact F6 PDFs"}</h2><p>The PDF binaries remain private, but their SHA-256 hashes, page geometry and editable text zones are frozen in repo truth. Arbitrary replacement layouts are no longer accepted.</p><ul><li>Layout and graphics are immutable</li><li>Only declared text zones may change</li><li>Candidate Facts and exact Origin evidence are content authority</li><li>No legacy renderer, hidden auto-apply, submit or send</li></ul></article>
     </section>
     <article className="ow-card">
-      <span className="ow-kicker">Your base documents</span>
-      <h2>Local application sources</h2>
-      <p>For the demo, select the current CV and application letter you already use. Replacing either file creates a new hash-bound approved source while preserving the same application contract.</p>
+      <span className="ow-kicker">F6 template authority</span>
+      <h2>Exactly two layouts. No fallback.</h2>
+      <p>These are the only application templates allowed in the freeze campaign. A visually similar or older PDF is rejected by exact hash before it can become active.</p>
       <div className="ow-document-grid">
-        <ApplicationSourceUpload documentType="base_cv" title="Base CV" ready={payload.application_sources_ready.base_cv} onUploaded={refresh} />
-        <ApplicationSourceUpload documentType="base_application_letter" title="Base Letter" ready={payload.application_sources_ready.base_application_letter} onUploaded={refresh} />
+        <ApplicationSourceUpload
+          documentType="base_cv"
+          title="Canonical CV"
+          ready={payload.application_sources_ready.base_cv}
+          canonicalFilename={cvTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Lebenslauf.pdf"}
+          canonicalSha256={cvTemplate?.sha256 || ""}
+          onUploaded={refresh}
+        />
+        <ApplicationSourceUpload
+          documentType="base_application_letter"
+          title="Canonical letter"
+          ready={payload.application_sources_ready.base_application_letter}
+          canonicalFilename={letterTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Anschreiben.pdf"}
+          canonicalSha256={letterTemplate?.sha256 || ""}
+          onUploaded={refresh}
+        />
       </div>
     </article>
   </div>;

@@ -1,0 +1,431 @@
+{
+  "schema_version": "job_application_pipeline.f6_template_authority.v1",
+  "campaign": "F6",
+  "status": "active",
+  "authority_policy": {
+    "binary_storage": "private_local_only",
+    "public_repo_contains_template_bytes": false,
+    "exact_source_sha256_required": true,
+    "layout_mutation_allowed": false,
+    "text_zone_mutation_only": true,
+    "automatic_submit_or_send": false,
+    "human_review_required": true
+  },
+  "templates": [
+    {
+      "template_id": "f6-application-letter-hornetsecurity-2026-09-17-v1",
+      "document_type": "base_application_letter",
+      "canonical_filename": "Hornetsecurity_Jens_Haberle_Anschreiben.pdf",
+      "sha256": "e533e27c8bc4ac04b64e29e8d91dcfd134d23af075f76ec179e0d9d0ab1410c8",
+      "page_count": 1,
+      "page_size_points": [
+        [
+          612,
+          792
+        ]
+      ],
+      "page_format": [
+        "letter"
+      ],
+      "coordinate_system": "pdf_points_top_left",
+      "immutable_graphics": [
+        "portrait",
+        "navy_header_rule",
+        "signature_image"
+      ],
+      "editable_text_zones": [
+        {
+          "id": "header.name",
+          "page": 1,
+          "bbox": [
+            47.9,
+            41.1,
+            257.7,
+            75.8
+          ]
+        },
+        {
+          "id": "header.tagline",
+          "page": 1,
+          "bbox": [
+            47.9,
+            76.8,
+            393.7,
+            88.8
+          ]
+        },
+        {
+          "id": "header.contact",
+          "page": 1,
+          "bbox": [
+            47.9,
+            89.8,
+            389.9,
+            102.7
+          ]
+        },
+        {
+          "id": "recipient.block",
+          "page": 1,
+          "bbox": [
+            47.9,
+            154,
+            203.4,
+            187.4
+          ]
+        },
+        {
+          "id": "date",
+          "page": 1,
+          "bbox": [
+            485.9,
+            152.9,
+            571.1,
+            165.8
+          ]
+        },
+        {
+          "id": "subject",
+          "page": 1,
+          "bbox": [
+            48.2,
+            213.5,
+            419.7,
+            227.5
+          ]
+        },
+        {
+          "id": "salutation",
+          "page": 1,
+          "bbox": [
+            48.2,
+            238.2,
+            169.4,
+            249.8
+          ]
+        },
+        {
+          "id": "body.paragraph_1",
+          "page": 1,
+          "bbox": [
+            48.2,
+            257.4,
+            565.4,
+            302.1
+          ]
+        },
+        {
+          "id": "body.paragraph_2",
+          "page": 1,
+          "bbox": [
+            48.2,
+            312,
+            563.1,
+            367.9
+          ]
+        },
+        {
+          "id": "body.paragraph_3",
+          "page": 1,
+          "bbox": [
+            48.2,
+            378.7,
+            541.2,
+            434.6
+          ]
+        },
+        {
+          "id": "body.paragraph_4",
+          "page": 1,
+          "bbox": [
+            48.2,
+            445.3,
+            570.7,
+            478.8
+          ]
+        },
+        {
+          "id": "body.paragraph_5",
+          "page": 1,
+          "bbox": [
+            48.2,
+            491.1,
+            569.2,
+            535.8
+          ]
+        },
+        {
+          "id": "body.paragraph_6",
+          "page": 1,
+          "bbox": [
+            48.2,
+            542.4,
+            569.6,
+            564.7
+          ]
+        },
+        {
+          "id": "closing.formula",
+          "page": 1,
+          "bbox": [
+            48,
+            567.4,
+            163.8,
+            582.2
+          ]
+        },
+        {
+          "id": "closing.name",
+          "page": 1,
+          "bbox": [
+            48,
+            650,
+            108.1,
+            664
+          ]
+        }
+      ]
+    },
+    {
+      "template_id": "f6-cv-hornetsecurity-2026-09-17-v1",
+      "document_type": "base_cv",
+      "canonical_filename": "Hornetsecurity_Jens_Haberle_Lebenslauf.pdf",
+      "sha256": "8f67040b6ef9248e734a18e46df87fa786f33c3c8f605785baf7ad324432e041",
+      "page_count": 2,
+      "page_size_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "page_format": [
+        "A4",
+        "A4"
+      ],
+      "coordinate_system": "pdf_points_top_left",
+      "immutable_graphics": [
+        "portrait",
+        "navy_header_rule",
+        "signature_image",
+        "section_rules",
+        "knowledge_panel_backgrounds"
+      ],
+      "editable_text_zones": [
+        {
+          "id": "p1.header.name",
+          "page": 1,
+          "bbox": [
+            41.2,
+            61.8,
+            250.7,
+            96.4
+          ]
+        },
+        {
+          "id": "p1.header.tagline",
+          "page": 1,
+          "bbox": [
+            41.2,
+            98.4,
+            386.6,
+            109.3
+          ]
+        },
+        {
+          "id": "p1.header.contact",
+          "page": 1,
+          "bbox": [
+            41.2,
+            110.1,
+            360.4,
+            122.2
+          ]
+        },
+        {
+          "id": "p1.short_profile",
+          "page": 1,
+          "bbox": [
+            41.2,
+            181.7,
+            377.3,
+            273.3
+          ]
+        },
+        {
+          "id": "p1.competency_profile",
+          "page": 1,
+          "bbox": [
+            395.5,
+            183.4,
+            527.2,
+            255.4
+          ]
+        },
+        {
+          "id": "p1.experience.1",
+          "page": 1,
+          "bbox": [
+            43,
+            315.4,
+            522.5,
+            365.8
+          ]
+        },
+        {
+          "id": "p1.experience.2",
+          "page": 1,
+          "bbox": [
+            43,
+            374.8,
+            539.2,
+            425.2
+          ]
+        },
+        {
+          "id": "p1.experience.3",
+          "page": 1,
+          "bbox": [
+            43,
+            434.2,
+            543.5,
+            484.6
+          ]
+        },
+        {
+          "id": "p1.experience.4",
+          "page": 1,
+          "bbox": [
+            43,
+            493.6,
+            546.9,
+            545.5
+          ]
+        },
+        {
+          "id": "p1.experience.5",
+          "page": 1,
+          "bbox": [
+            43,
+            554.6,
+            485.7,
+            614.1
+          ]
+        },
+        {
+          "id": "p2.education.1",
+          "page": 2,
+          "bbox": [
+            43,
+            71.3,
+            519.4,
+            102.9
+          ]
+        },
+        {
+          "id": "p2.education.2",
+          "page": 2,
+          "bbox": [
+            43,
+            111.8,
+            536.4,
+            143.5
+          ]
+        },
+        {
+          "id": "p2.education.3",
+          "page": 2,
+          "bbox": [
+            43,
+            152.4,
+            517.4,
+            193.8
+          ]
+        },
+        {
+          "id": "p2.project.1",
+          "page": 2,
+          "bbox": [
+            43,
+            236.1,
+            513,
+            276
+          ]
+        },
+        {
+          "id": "p2.project.2",
+          "page": 2,
+          "bbox": [
+            43,
+            304.4,
+            504.2,
+            344.1
+          ]
+        },
+        {
+          "id": "p2.skills.data_ai",
+          "page": 2,
+          "bbox": [
+            47.2,
+            394,
+            150,
+            464
+          ]
+        },
+        {
+          "id": "p2.skills.engineering",
+          "page": 2,
+          "bbox": [
+            169,
+            394,
+            272.7,
+            464
+          ]
+        },
+        {
+          "id": "p2.skills.tools",
+          "page": 2,
+          "bbox": [
+            293.8,
+            394,
+            394.5,
+            464
+          ]
+        },
+        {
+          "id": "p2.skills.languages",
+          "page": 2,
+          "bbox": [
+            432.7,
+            394,
+            538.6,
+            464
+          ]
+        },
+        {
+          "id": "p2.footer.date",
+          "page": 2,
+          "bbox": [
+            41.2,
+            488.8,
+            173.4,
+            501.8
+          ]
+        },
+        {
+          "id": "p2.footer.name",
+          "page": 2,
+          "bbox": [
+            41.2,
+            540.7,
+            106.2,
+            555.9
+          ]
+        }
+      ]
+    }
+  ]
+}

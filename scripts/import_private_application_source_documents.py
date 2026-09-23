@@ -12,6 +12,9 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.f6_template_authority import (
+    validate_template_pdf,
+)
 from src.search_intelligence.private_application_source_text import (
     extract_private_application_source_text,
 )
@@ -59,10 +62,15 @@ def build_document(
     _require(resolved.is_file(), f"application source file does not exist: {resolved}")
     _require(root in {resolved, *resolved.parents}, "application source escaped private root")
     payload = _read_application_source(resolved)
+    validate_template_pdf(document_type=document_type, content=payload)
     relative = resolved.relative_to(root).as_posix()
     return ApplicationSourceDocument(
         document_type=document_type,
-        source_label=source_label.strip(),
+        source_label=(
+            "F6 canonical CV template"
+            if document_type == "base_cv"
+            else "F6 canonical application-letter template"
+        ),
         source_reference=f"local://{relative}",
         content_sha256=sha256(payload).hexdigest(),
         byte_count=len(payload),
@@ -80,13 +88,13 @@ def build_documents(
             document_type="base_cv",
             path=base_cv,
             private_root=private_root,
-            source_label="Current approved base CV",
+            source_label="F6 canonical CV template",
         ),
         build_document(
             document_type="base_application_letter",
             path=base_application_letter,
             private_root=private_root,
-            source_label="Current approved base application letter",
+            source_label="F6 canonical application-letter template",
         ),
     )
 
@@ -243,7 +251,7 @@ def write_report(report: Mapping[str, object], output_dir: Path) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Plan or approve local-private base CV and application-letter sources."
+        description="Plan or approve the two exact private F6 template-authority PDFs."
     )
     parser.add_argument(
         "--private-root",

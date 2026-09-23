@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
-from hashlib import sha256
 import json
 
 from src.search_intelligence.llm_booster_policy import BoosterStage
+from src.search_intelligence.f6_template_authority import template_spec
 from src.search_intelligence.product_v1_application_context import (
     ApplicationSourceDocumentSnapshot,
     ApplicationTargetSnapshot,
@@ -30,9 +30,10 @@ def _document(document_type: str, content: str):
         document_type=document_type,
         source_label=document_type,
         source_reference=f"local://{document_type}",
-        content_sha256=sha256(content.encode("utf-8")).hexdigest(),
+        content_sha256=template_spec(document_type).sha256,
         content=content,
         status="approved",
+        source_hash_verified=True,
     )
 
 

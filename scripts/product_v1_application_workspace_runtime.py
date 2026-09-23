@@ -25,6 +25,7 @@ from scripts.run_product_v1_assessment_materialization import (
 )
 from src.config import get_database_config
 from src.ingestion.repository import JobIngestionRepository
+from src.search_intelligence.f6_template_authority import authority_status
 from src.search_intelligence.product_v1_application_drafter import (
     execute_product_v1_application_drafter,
     openai_application_draft_model_callback,
@@ -166,10 +167,15 @@ def load_application_workspace(
 def application_workspace_payload(silver_job_id: int) -> dict[str, object]:
     context, final_url, fetched_title = load_application_workspace(silver_job_id)
     canonical = context.canonical_payload()  # type: ignore[union-attr]
+    approved_hashes = {
+        document.document_type: document.content_sha256
+        for document in context.source_documents  # type: ignore[union-attr]
+    }
     return {
         "schema": "job_application_pipeline.product_v1_application_workspace.v1",
         "status": "ready" if context.generation_ready else "blocked",  # type: ignore[union-attr]
         "workspace": canonical,
+        "template_authority": authority_status(approved_hashes),
         "live_job_evidence": {
             "final_url": final_url,
             "fetched_title": fetched_title,

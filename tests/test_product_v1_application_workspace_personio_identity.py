@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import date
-from hashlib import sha256
 from pathlib import Path
 
+from src.search_intelligence.f6_template_authority import template_spec
 from src.search_intelligence.product_v1_application_workspace import (
+    LoadedApplicationSource,
     build_application_workspace_context,
-    local_document_loader,
 )
 
 
@@ -23,9 +23,20 @@ def test_application_target_uses_reviewed_personio_employer_brand(tmp_path: Path
                 "document_type": document_type,
                 "source_label": document_type,
                 "source_reference": f"local://{path.name}",
-                "content_sha256": sha256(content.encode("utf-8")).hexdigest(),
+                "content_sha256": template_spec(document_type).sha256,
                 "status": "approved",
             }
+        )
+
+    def verified_loader(source_reference: str) -> LoadedApplicationSource:
+        document_type = (
+            "base_application_letter"
+            if "base_application_letter" in source_reference
+            else "base_cv"
+        )
+        return LoadedApplicationSource(
+            content=f"verified {document_type}",
+            source_sha256=template_spec(document_type).sha256,
         )
 
     context = build_application_workspace_context(
@@ -58,7 +69,7 @@ def test_application_target_uses_reviewed_personio_employer_brand(tmp_path: Path
             }
         ],
         document_rows=documents,
-        load_document=local_document_loader(private_root=tmp_path),
+        load_document=verified_loader,
         as_of_date=date(2026, 9, 2),
         employer_origin_authorized=True,
     )

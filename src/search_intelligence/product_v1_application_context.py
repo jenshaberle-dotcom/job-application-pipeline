@@ -1,8 +1,8 @@
 """Source-grounded Product V1 application generation context.
 
 This module binds one authoritative Top-5 job to approved private Candidate Facts
-and approved base CV/application-letter documents. Base documents are structure
-and style sources only; candidate claims must come from approved Candidate Facts.
+and the two exact F6 template-authority PDFs. Template binaries are private,
+hash-bound layout authority only; candidate claims must come from approved Candidate Facts.
 
 The module performs no provider call, draft persistence, operator approval,
 submission or send action. It never grants application/product authority.
@@ -15,6 +15,8 @@ from datetime import date
 from hashlib import sha256
 import re
 from typing import Any, Iterable, Sequence
+
+from src.search_intelligence.f6_template_authority import template_spec
 
 
 TOP5_AUTHORITY_SOURCE = "gold_product_v1_top_jobs"
@@ -254,6 +256,8 @@ def _validate_document(document: ApplicationSourceDocumentSnapshot) -> str | Non
         return f"{document.document_type}_not_approved"
     if not _SHA256_RE.fullmatch(document.content_sha256):
         return f"{document.document_type}_invalid_sha256"
+    if document.content_sha256 != template_spec(document.document_type).sha256:
+        return f"{document.document_type}_not_f6_template_authority"
     if document.source_hash_verified is None:
         actual_sha = sha256(document.content.encode("utf-8")).hexdigest()
         if actual_sha != document.content_sha256:

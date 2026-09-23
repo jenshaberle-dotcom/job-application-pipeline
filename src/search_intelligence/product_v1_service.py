@@ -5,6 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Mapping, Sequence
 
+from src.search_intelligence.f6_template_authority import authority_status
 from src.search_intelligence.product_v1_profile_fit_coverage import (
     INSUFFICIENT_EVIDENCE,
     PROFILE_FIT_COMPLETE,
@@ -133,15 +134,19 @@ def build_product_v1_payload(
             "vacancy_verification_pending",
         }
     )
-    approved_source_types = {
-        str(_value(source, "document_type"))
+    approved_hashes = {
+        str(_value(source, "document_type")): str(_value(source, "content_sha256") or "")
         for source in application_sources
         if _value(source, "status") == "approved"
     }
+    f6_authority = authority_status(approved_hashes)
+    authority_templates = {
+        str(item.get("document_type")): bool(item.get("exact_authority_match"))
+        for item in f6_authority["templates"]  # type: ignore[index]
+    }
     application_sources_ready = {
-        "base_cv": "base_cv" in approved_source_types,
-        "base_application_letter": "base_application_letter"
-        in approved_source_types,
+        "base_cv": authority_templates.get("base_cv") is True,
+        "base_application_letter": authority_templates.get("base_application_letter") is True,
     }
 
     operator_blockers: list[dict[str, str]] = []
@@ -180,17 +185,17 @@ def build_product_v1_payload(
     if not application_sources_ready["base_cv"]:
         operator_blockers.append(
             {
-                "code": "base_cv_required",
-                "title": "Approved base CV required",
-                "detail": "The application assistant remains blocked until an operator-approved base CV is registered.",
+                "code": "f6_base_cv_template_required",
+                "title": "Exact F6 CV template required",
+                "detail": "The application assistant remains blocked until the canonical CV PDF matches the frozen F6 hash and geometry.",
             }
         )
     if not application_sources_ready["base_application_letter"]:
         operator_blockers.append(
             {
-                "code": "base_application_letter_required",
-                "title": "Approved base application letter required",
-                "detail": "The application assistant remains blocked until an operator-approved base letter is registered.",
+                "code": "f6_base_application_letter_template_required",
+                "title": "Exact F6 application-letter template required",
+                "detail": "The application assistant remains blocked until the canonical letter PDF matches the frozen F6 hash and geometry.",
             }
         )
 
@@ -305,6 +310,7 @@ def build_product_v1_payload(
         "application_readiness": safe_application_readiness,
         "application_sources": list(application_sources),
         "application_sources_ready": application_sources_ready,
+        "f6_template_authority": f6_authority,
         "source_connector_overview": dict(
             source_connector_overview or empty_source_connector_overview()
         ),
