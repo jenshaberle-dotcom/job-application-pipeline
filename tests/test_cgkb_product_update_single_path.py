@@ -59,8 +59,16 @@ def test_post_consent_applier_has_no_discovery_download_or_extraction_authority(
     assert "desktop_stage" in applier
     assert "runtime_stage" in applier
     assert "ComputeDirectorySha256" in applier
-    assert "Directory.Move(desktopStage, desktopLive)" in applier
-    assert "Directory.Move(runtimeStage, runtimeLive)" in applier
+    assert 'MoveDirectoryWithRetry(desktopStage, desktopLive, logPath, "desktop_stage_to_live")' in applier
+    assert 'MoveDirectoryWithRetry(runtimeStage, runtimeLive, logPath, "runtime_stage_to_live")' in applier
+    assert 'MoveDirectoryWithRetry(desktopLive, desktopBackup, logPath, "desktop_live_to_backup")' in applier
+    assert 'MoveDirectoryWithRetry(runtimeLive, runtimeBackup, logPath, "runtime_live_to_backup")' in applier
+    assert "IsTransientSharingViolation" in applier
+    assert "nativeCode is 32 or 33" in applier
+    assert '"move_retry"' in applier
+    assert '"move_retry_recovered"' in applier
+    assert '"host_exit_wait_complete"' in applier
+    assert '"restart_verify_complete"' in applier
     assert "VerifyRestartedProduct" in applier
     assert "source_revision" in applier
     assert "runtime_verified" in applier
@@ -143,3 +151,14 @@ def test_bootstrap_is_explicit_bridge_not_routine_update_authority() -> None:
     assert '"bootstrap_bridge_from": "pre-1.0.65"' in compatibility
     assert '"minimum_direct_version": "1.0.65"' in compatibility
     assert '"installer_schema": "job_application_pipeline.windows_control_center_install.v3"' in compatibility
+
+
+
+def test_single_instance_guard_uses_mutex_ownership_not_named_object_existence() -> None:
+    program = read("windows/JAP.ControlCenter.Desktop/Program.cs")
+
+    assert "new Mutex(initiallyOwned: false, MutexName)" in program
+    assert "mutex.WaitOne(0, false)" in program
+    assert "catch (AbandonedMutexException)" in program
+    assert "mutex.ReleaseMutex()" in program
+    assert "out var createdNew" not in program

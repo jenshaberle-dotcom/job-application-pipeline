@@ -118,6 +118,11 @@ def test_desktop_host_is_self_contained_webview2_window() -> None:
     assert 'new("http://127.0.0.1:8780/")' in program
     assert "CoreWebView2" in program
     assert "MutexName" in program
+    assert "new Mutex(initiallyOwned: false, MutexName)" in program
+    assert "mutex.WaitOne(0, false)" in program
+    assert "catch (AbandonedMutexException)" in program
+    assert "mutex.ReleaseMutex()" in program
+    assert "out var createdNew" not in program
     assert "RuntimeStartTimeout" in program
     assert "_runtime.EnsureStartedAsync(RuntimeStartTimeout)" in program
     assert '"--exec"' in runtime
