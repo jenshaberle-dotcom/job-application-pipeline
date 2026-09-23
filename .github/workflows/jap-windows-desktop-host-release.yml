@@ -43,8 +43,8 @@ jobs:
           if ($Version -notmatch '^\d+\.\d+\.\d+$') {
             throw "Invalid JAP product VERSION: $Version"
           }
-          if ([version]$Version -lt [version]"1.0.63") {
-            throw "Supported CGKB product-local release baseline starts at 1.0.63."
+          if ([version]$Version -lt [version]"1.0.65") {
+            throw "Supported CGKB product-local release baseline starts at 1.0.65."
           }
           "PRODUCT_VERSION=$Version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PRODUCT_TAG=jap-winapp-product-v$Version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -286,7 +286,7 @@ jobs:
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
             --title "JAP Control Center Product v$env:PRODUCT_VERSION" `
-            --notes "CGKB product-local generation. Desktop and runtime are immutable exact-source assets. Bootstrap bridge is required from pre-1.0.63 installations. Source: $env:GITHUB_SHA"
+            --notes "CGKB product-local generation. Desktop and runtime are immutable exact-source assets. Bootstrap bridge is required from pre-1.0.65 installations. Source: $env:GITHUB_SHA"
           if ($LASTEXITCODE -ne 0) { throw "JAP product release creation failed." }
 
           $PublishedTarget = gh api $Api --jq '.target_commitish'
