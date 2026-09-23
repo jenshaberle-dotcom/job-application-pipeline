@@ -119,5 +119,5 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_prepare_path() 
     assert '"prepare"' not in runner
 
 
-def test_runtime_diagnostic_release_bumps_immutable_desktop_version() -> None:
-    assert _text(VERSION).strip() == "1.0.62"
+def test_current_runtime_release_version() -> None:
+    assert _text(VERSION).strip() == "1.0.63"
