@@ -14,6 +14,7 @@ def test_routine_update_is_product_local_and_has_single_authority():
     assert "pending-update.json" in agent
     assert "accepted-update.json" in coordinator
     assert "Apply-JAP-Control-Center-Update.ps1" not in coordinator
+    assert "update_accept_blocked" in coordinator
     assert "powershell.exe" not in coordinator
     assert "wsl.exe" not in coordinator.lower()
     assert "git " not in coordinator.lower()
@@ -31,6 +32,25 @@ def test_legacy_routine_update_surfaces_are_physically_absent():
         "Apply-JAP-Control-Center-Update.ps1",
         "scripts/deploy_jap_windows_control_center_local.sh",
         ".github/workflows/jap-windows-control-center-local-deploy.yml",
+        "tests/test_jap_windows_control_center_local_deploy.py",
     ]
     for relative in forbidden:
         assert not (ROOT / relative).exists(), f"legacy update surface returned: {relative}"
+
+
+def test_no_legacy_authority_references_remain_in_active_update_surfaces():
+    active = [
+        "install-jap-control-center.ps1",
+        ".github/workflows/jap-windows-desktop-host-release.yml",
+        "windows/JAP.ControlCenter.Desktop/UpdateCoordinator.cs",
+    ]
+    forbidden = [
+        "Apply-JAP-Control-Center-Update.ps1",
+        "Update-JAP-Control-Center.ps1",
+        "deploy_jap_windows_control_center_local.sh",
+        "jap-windows-control-center-local-deploy.yml",
+    ]
+    for relative in active:
+        body = read(relative)
+        for token in forbidden:
+            assert token not in body, f"{token} returned in {relative}"
