@@ -85,3 +85,24 @@ def test_application_workspace_is_f6_template_authoritative_and_has_no_legacy_do
     assert 'key === "cv_docx"' not in source
     assert 'key === "application_zip"' not in source
     assert "application-package-downloads.css" not in source
+
+
+
+def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> None:
+    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    editor = (FRONTEND / "F6TemplateReviewEditor.tsx").read_text(encoding="utf-8")
+    styles = (FRONTEND / "f6-template-review-editor.css").read_text(encoding="utf-8")
+
+    assert 'import F6TemplateReviewEditor from "./F6TemplateReviewEditor";' in workspace
+    assert "<F6TemplateReviewEditor" in workspace
+    assert "source_manifest_sha256" in workspace
+    assert "/api/v1/product-v1/f6-template-review" in editor
+    assert "/api/v1/product-v1/f6-template-export" in editor
+    assert "render_f6_review_package" in editor
+    assert "Apply draft suggestions to zones" in editor
+    assert "Render local PDFs" in editor
+    assert "Outside-zone identity PASS" in editor
+    assert "HUMAN REVIEW REQUIRED" in editor
+    assert "No automatic submit/send authority" in editor
+    assert "download={item.download_filename}" in editor
+    assert "application-package-downloads.css" not in workspace + editor + styles
