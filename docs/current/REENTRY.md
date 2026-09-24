@@ -6,7 +6,7 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical installed/released Product baseline: desktop **1.0.80**, source `7000ff3e366edda226fa38ce77c2099a62a58481`;
+- canonical installed/released Product baseline: desktop **1.1.0**, source `35021fc743ca3894b71ed6ff376b4545a6411f38`;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
@@ -26,6 +26,8 @@ This section supersedes older F5/updater sequencing statements retained below as
 - design mandate: preserve the approved CV/application-letter layout **maximally** and change content only as much as the concrete vacancy requires. Codex receives no layout coordinates or layout mutation authority; renderer overflow fails closed and outside-zone pixel identity remains mandatory;
 - stale application-letter content is never supplied to Codex. Recipient/date/subject/salutation/body are rebuilt from current target authority, while CV adaptation is restricted to the declared short-profile and competency zones;
 - if Codex is not installed/authenticated, times out, fails validation, or reports exhausted allowance/credits, F6 returns an explicit `draft_unavailable` state and generates **no low-quality deterministic fallback prose**; application/submission/send authority remains zero;
+- release-line authority: remain on **1.1.x patch releases** while embedded-Codex CV/letter creation is still under operator qualification; bugfixes, runtime/auth/capacity handling, content-quality corrections and renderer/layout-preservation fixes increment only the patch component;
+- **1.2.0 is reserved for operator acceptance of the complete automatic document-preparation capability**: vacancy-specific CV adaptation + vacancy-specific application-letter creation + stale-recipient elimination + exact-template/layout preservation + overflow/outside-zone proof + graceful Codex-capacity failure, all review-first and with zero automatic submission/send authority;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
