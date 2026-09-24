@@ -6,6 +6,9 @@ from pathlib import Path
 import pytest
 
 from src.search_intelligence.f6_template_authority import template_spec
+from src.search_intelligence.product_v1_application_context import (
+    OPERATOR_SELECTED_AUTHORITY_SOURCE,
+)
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
     LoadedApplicationSource,
@@ -96,6 +99,65 @@ def test_ready_workspace_binds_top5_facts_documents_and_job_evidence(
     assert all(document.source_hash_verified is True for document in context.source_documents)
     assert context.application_authority is False
     assert context.submission_authority is False
+
+
+def test_operator_selected_current_job_is_review_ready_without_top5_rank(
+    tmp_path: Path,
+) -> None:
+    job = _job()
+    job.update(
+        {
+            "product_rank": None,
+            "product_readiness_status": "hard_filter_evidence_required",
+            "hard_filter_status": "unknown",
+        }
+    )
+
+    context = build_application_workspace_context(
+        top_job_row=job,
+        detail_text="We are looking for a Machine Learning Engineer with strong Python skills.",
+        profile_row={"status": "approved", "payload_sha256": "a" * 64},
+        fact_rows=[_fact()],
+        document_rows=_documents(tmp_path),
+        load_document=_verified_loader,
+        as_of_date=date(2026, 9, 24),
+        authority_source=OPERATOR_SELECTED_AUTHORITY_SOURCE,
+    )
+
+    assert context.generation_ready is True
+    assert context.blocked_reasons == ()
+    assert context.target.product_rank is None
+    assert context.target.authority_source == OPERATOR_SELECTED_AUTHORITY_SOURCE
+    assert context.target.hard_filter_status == "unknown"
+    assert context.application_authority is False
+    assert context.submission_authority is False
+
+
+def test_operator_selected_current_job_cannot_bypass_known_hard_filter_failure(
+    tmp_path: Path,
+) -> None:
+    job = _job()
+    job.update(
+        {
+            "product_rank": None,
+            "product_readiness_status": "blocked_hard_filter",
+            "hard_filter_status": "failed",
+        }
+    )
+
+    context = build_application_workspace_context(
+        top_job_row=job,
+        detail_text="Python",
+        profile_row={"status": "approved", "payload_sha256": "a" * 64},
+        fact_rows=[_fact()],
+        document_rows=_documents(tmp_path),
+        load_document=_verified_loader,
+        as_of_date=date(2026, 9, 24),
+        authority_source=OPERATOR_SELECTED_AUTHORITY_SOURCE,
+    )
+
+    assert context.generation_ready is False
+    assert "known_hard_filter_conflict" in context.blocked_reasons
 
 
 def test_explicit_recurring_employer_origin_authority_accepts_unknown_silver_projection(
