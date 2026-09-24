@@ -110,3 +110,17 @@ def test_applied_job_row_has_distinct_green_application_state() -> None:
     assert ".ow-job-list > button.application-active" in styles
     assert ".ow-job-list > button.application-active.selected" in styles
     assert "var(--ow-green)" in styles
+
+
+
+def test_progressed_application_never_offers_prepare_application_again() -> None:
+    source = _text(WORKSPACE)
+
+    assert "const canPrepareApplication" in source
+    assert 'stage == null || stage === "prepared"' in source
+    assert "canPrepareApplication(applicationStage)" in source
+    assert "buildApplicationByJobId(payload)" in source
+    assert "canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage)" in source
+    assert "isAppliedStage" in source
+    for stage in ("applied", "reply", "interview", "offer", "closed"):
+        assert stage in source
