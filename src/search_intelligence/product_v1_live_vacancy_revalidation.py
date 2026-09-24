@@ -6,9 +6,10 @@ opens/prepares one application, JAP performs one bounded exact-detail lifecycle
 probe for that exact Silver target before any vacancy evidence becomes drafting
 authority.
 
-Authoritative active/closed outcomes are persisted as lifecycle-health evidence so
-the Product read model can converge. Unverifiable network/content outcomes are
-never converted into active or closed truth and perform no write.
+Authoritative closure is persisted as lifecycle-health evidence so the Product
+read model can converge immediately. A successful active probe remains read-only;
+unverifiable network/content outcomes are never converted into active or closed
+truth and perform no write.
 """
 from __future__ import annotations
 
@@ -71,7 +72,17 @@ def revalidate_selected_vacancy(
     probe = fetcher(target.source_url)
     classification = classify_exact_detail(target, probe)
 
-    if classification.outcome not in {OUTCOME_SEEN_ACTIVE, OUTCOME_CLOSED}:
+    if classification.outcome == OUTCOME_SEEN_ACTIVE:
+        return ProductV1VacancyRevalidation(
+            status="active",
+            outcome=classification.outcome,
+            evidence_reason=classification.evidence_reason,
+            observation_id=None,
+            http_requests=1,
+            health_observation_writes=0,
+        )
+
+    if classification.outcome != OUTCOME_CLOSED:
         return ProductV1VacancyRevalidation(
             status="unverifiable",
             outcome=classification.outcome,
@@ -87,7 +98,7 @@ def revalidate_selected_vacancy(
         observed_by=OBSERVED_BY,
     )
     return ProductV1VacancyRevalidation(
-        status="active" if classification.outcome == OUTCOME_SEEN_ACTIVE else "closed",
+        status="closed",
         outcome=classification.outcome,
         evidence_reason=classification.evidence_reason,
         observation_id=observation_id,
