@@ -687,6 +687,7 @@ internal sealed class MainWindow : Form
 
         _stopInProgress = true;
         _elapsedTimer.Stop();
+        WriteStartupPhase("shutdown_begin", "Desktop window hidden; managed runtime stop begins.");
         Hide();
         try
         {
@@ -711,6 +712,7 @@ internal sealed class MainWindow : Form
         }
         finally
         {
+            WriteStartupPhase("shutdown_complete", "Managed runtime stop finished; desktop mutex may now be released.");
             _allowClose = true;
             Close();
         }
