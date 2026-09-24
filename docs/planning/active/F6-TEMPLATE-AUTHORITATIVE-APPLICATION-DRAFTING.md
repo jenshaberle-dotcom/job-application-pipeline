@@ -1,6 +1,6 @@
 # F6 — Template-Authoritative Application Drafting
 
-Status: ACTIVE — Slices A/B operator accepted; Slice C released in 1.0.72, operator-selected target hardening in qualification
+Status: ACTIVE — Slices A/B operator accepted; Slice C operator-selected path proven, finished-document UX in qualification
 
 ## Outcome
 
@@ -135,6 +135,24 @@ F6 drafting and Top-5 recommendation authority are now separated deliberately:
 
 This boundary matches the real operator workflow: a recommendation system may honestly have an empty Top-5 while the operator can still decide to prepare material for a specific current vacancy.
 
+### Installed 1.0.73 operator evidence
+
+The operator-selected target boundary is now product-proven on installed 1.0.73. VALUNY Silver 613 can be opened from All jobs through **Prepare application** while Top-5 remains 0. The Application Workspace labels the target **Operator-selected current job**, shows Affinity rather than Product rank, binds employer-origin vacancy evidence, exposes 3 matched Candidate Facts and verifies both exact F6 templates.
+
+The next operator feedback is a UX correction, not an authority change: the zone-by-zone insertion surface is too granular for the normal workflow. The desired terminal state is **one finished application document**, not manual assembly across many template fields.
+
+Candidate target: **1.0.74** on `feature/f6-c-single-finished-pdf`.
+
+The main F6-C path therefore becomes:
+
+`grounded review draft -> internal deterministic mapping to allowed zones -> exact-template render + pixel proof -> combine letter + CV -> one finished local PDF -> human review`
+
+The individual zone editor remains available only under an Advanced disclosure for targeted corrections. It is no longer the primary operator step.
+
+The same installed operator review exposed a small lifecycle UX defect: a Silver job already linked to an application in `applied`, `reply`, `interview`, `offer` or `closed` still showed **Prepare application**. The 1.0.74 candidate removes preparation from every normal UI surface once the shared F5 effective stage has progressed beyond `prepared`. The existing lifecycle status remains visible and links to **Applications** instead. `prepared` itself remains eligible because it is not submission authority.
+
+The combined PDF is packaging only. Each component first passes the accepted Slice-B renderer; the package then concatenates application letter followed by CV and raster-hash compares every combined page against its rendered source page. Any visual drift fails closed. No new layout, text, ranking, application, submission or send authority is created.
+
 ### Slice-C rendering contract
 
 - Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
@@ -149,17 +167,18 @@ This boundary matches the real operator workflow: a recommendation system may ho
 
 ### Next operator gate
 
-After exact-head CI and immutable **1.0.73** release:
+After exact-head CI and immutable **1.0.74** release:
 
-1. update through the integrated JAP updater and verify the exact 1.0.73 source;
-2. in **All jobs**, select VALUNY `Machine Learning Engineer / Data Scientist (m/w/d)` (Silver 613) or another current non-failed Employer-Origin job;
-3. press **Prepare application** and verify the workspace labels it **Operator-selected current job** rather than inventing a Top-5 rank;
-4. generate grounded review text;
-5. apply/edit only the permitted F6 text zones;
-6. press **Render local PDFs** and require `Outside-zone identity PASS` for each changed document;
-7. open/download both PDFs and visually confirm that approved layouts remain intact and only intended text zones changed.
+1. update through the integrated JAP updater and verify the exact 1.0.74 source;
+2. reuse VALUNY Silver 613 through **Prepare application** and generate grounded review text;
+3. do **not** manually assemble text zones in the normal path;
+4. press **Create finished application PDF**;
+5. require one local PDF containing application letter first and CV after it, with package visual identity verified;
+6. open/download that single PDF and visually confirm that the complete application is usable as-is;
+7. open **Advanced: adjust individual template text zones** only if a targeted correction is actually necessary;
+8. select an already-`Beworben` / Reply / Interview / Offer / Closed job and verify **Prepare application** is absent while **Open Applications** remains available.
 
-Any known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
+Any known hard-filter failure, source/context drift, overflow, unexpected layout change or missing component/package pixel proof remains fail-closed.
 
 ## Explicit non-goals
 

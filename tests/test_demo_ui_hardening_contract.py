@@ -99,12 +99,16 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
     assert "/api/v1/product-v1/f6-template-review" in editor
     assert "/api/v1/product-v1/f6-template-export" in editor
     assert "render_f6_review_package" in editor
-    assert "Apply draft suggestions to zones" in editor
-    assert "Render local PDFs" in editor
-    assert "Outside-zone identity PASS" in editor
+    assert "One finished PDF instead of zone-by-zone assembly" in editor
+    assert "Create finished application PDF" in editor
+    assert "The generated review text has already been mapped" in editor
+    assert "Open final PDF" in editor
+    assert "Download final PDF" in editor
+    assert "visual identity verified" in editor
+    assert "Advanced: adjust individual template text zones" in editor
     assert "HUMAN REVIEW REQUIRED" in editor
-    assert "No automatic submit/send authority" in editor
-    assert "download={item.download_filename}" in editor
+    assert "No DB write, provider call, application action, submission, or send" in editor
+    assert "download={packagePdf.download_filename}" in editor
     assert "application-package-downloads.css" not in workspace + editor + styles
 
 
@@ -129,3 +133,20 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
     assert "Explicit current-job selection" in operator
     assert "Ready for review drafting" in operator
     assert "rankable && <OpenApplicationButton" not in operator
+
+
+
+def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
+    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert 'type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed"' in workspace
+    assert "applicationStageByJobId" in workspace
+    assert "canPrepareApplication" in workspace
+    assert 'return stage == null || stage === "prepared"' in workspace
+    assert "canPrepareApplication(applicationStages.get(job.silver_job_id))" in workspace
+    assert "if (!applicationJobs.some((job) => job.silver_job_id === requestedId)) return;" in workspace
+
+    assert "canPrepareApplication(applicationStage)" in operator
+    assert "buildApplicationByJobId" in operator
+    assert "canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage)" in operator

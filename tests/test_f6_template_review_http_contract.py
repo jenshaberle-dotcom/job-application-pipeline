@@ -12,6 +12,11 @@ def test_f6_c_loopback_export_is_manifest_bound_and_has_no_submit_send_authority
     assert 'F6_TEMPLATE_EXPORT_PATH = "/api/v1/product-v1/f6-template-export"' in source
     assert "build_review_payload" in source
     assert "render_review_package" in source
+    assert "combine_review_package" in source
+    assert '"schema": "job_application_pipeline.f6_template_export.v2"' in source
+    assert '"package": {' in source
+    assert '"component_order": list(combined.component_order)' in source
+    assert '"visual_identity": all(' in source
     assert "source_manifest_sha256" in source
     assert "draft source manifest is stale; regenerate review text before export" in source
     assert '"transport": "loopback_json_base64"' in source

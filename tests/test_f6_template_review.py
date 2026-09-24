@@ -186,3 +186,39 @@ def test_review_export_rejects_undeclared_zone_before_renderer(
                 "base_application_letter": {},
             },
         )
+
+
+
+def test_combined_review_package_is_one_letter_plus_cv_pdf_with_visual_identity() -> None:
+    letter = _pdf_with_text("Letter")
+    cv = _pdf_with_text("CV")
+    rendered = (
+        review.F6RenderedReviewDocument(
+            document_type="base_cv",
+            canonical_filename="cv.pdf",
+            pdf_bytes=cv,
+            render_evidence={"outside_zone_pixel_identity": True},
+        ),
+        review.F6RenderedReviewDocument(
+            document_type="base_application_letter",
+            canonical_filename="letter.pdf",
+            pdf_bytes=letter,
+            render_evidence={"outside_zone_pixel_identity": True},
+        ),
+    )
+
+    package = review.combine_review_package(rendered)
+
+    assert package.component_order == ("base_application_letter", "base_cv")
+    assert package.page_count == 2
+    assert len(package.page_identity) == 2
+    assert all(item["visual_identity"] is True for item in package.page_identity)
+    assert package.sha256 == sha256(package.pdf_bytes).hexdigest()
+
+    doc = pymupdf.open(stream=package.pdf_bytes, filetype="pdf")
+    try:
+        assert doc.page_count == 2
+        assert "Letter" in doc[0].get_text()
+        assert "CV" in doc[1].get_text()
+    finally:
+        doc.close()

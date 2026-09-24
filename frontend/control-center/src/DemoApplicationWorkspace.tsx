@@ -16,12 +16,26 @@ type TopJob = {
   hard_filter_status?: string | null;
 };
 
+type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed";
+
 type ProductTruth = {
   top_jobs?: TopJob[];
   job_readiness?: TopJob[];
   application_sources_ready?: {
     base_cv?: boolean;
     base_application_letter?: boolean;
+  };
+  application_tracking?: {
+    applications?: Array<{
+      silver_job_id?: number | null;
+      effective_stage?: ApplicationStage;
+    }>;
+    job_linkage?: {
+      exact_matches?: Array<{
+        silver_job_id?: number | null;
+        effective_stage?: ApplicationStage;
+      }>;
+    };
   };
 };
 
@@ -153,12 +167,45 @@ function readinessTone(ready: boolean) {
   return ready ? "ready" : "blocked";
 }
 
+function applicationStageByJobId(productTruth: ProductTruth | null | undefined) {
+  const stages = new Map<number, ApplicationStage>();
+  for (const application of productTruth?.application_tracking?.applications || []) {
+    if (
+      typeof application.silver_job_id === "number" &&
+      application.effective_stage
+    ) {
+      stages.set(application.silver_job_id, application.effective_stage);
+    }
+  }
+  for (const application of productTruth?.application_tracking?.job_linkage?.exact_matches || []) {
+    if (
+      typeof application.silver_job_id === "number" &&
+      application.effective_stage &&
+      !stages.has(application.silver_job_id)
+    ) {
+      stages.set(application.silver_job_id, application.effective_stage);
+    }
+  }
+  return stages;
+}
+
+function canPrepareApplication(stage: ApplicationStage | undefined) {
+  return stage == null || stage === "prepared";
+}
+
 export default function DemoApplicationWorkspace() {
   const { payload: productTruth } = useProductTruth<ProductTruth>();
   const [open, setOpen] = useState(false);
   const topJobs = useMemo(
     () => Array.isArray(productTruth?.top_jobs) ? productTruth.top_jobs.slice(0, 5) : [],
     [productTruth?.top_jobs],
+  );
+  const applicationStages = useMemo(
+    () => applicationStageByJobId(productTruth),
+    [
+      productTruth?.application_tracking?.applications,
+      productTruth?.application_tracking?.job_linkage?.exact_matches,
+    ],
   );
   const applicationJobs = useMemo(() => {
     const allCurrent = Array.isArray(productTruth?.job_readiness)
@@ -170,8 +217,10 @@ export default function DemoApplicationWorkspace() {
       : [];
     const byId = new Map<number, TopJob>();
     [...topJobs, ...allCurrent].forEach((job) => byId.set(job.silver_job_id, job));
-    return [...byId.values()];
-  }, [productTruth?.job_readiness, topJobs]);
+    return [...byId.values()].filter(
+      (job) => canPrepareApplication(applicationStages.get(job.silver_job_id)),
+    );
+  }, [applicationStages, productTruth?.job_readiness, topJobs]);
   const sourceReadiness = productTruth?.application_sources_ready || {};
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<ApplicationWorkspacePayload | null>(null);
@@ -194,7 +243,8 @@ export default function DemoApplicationWorkspace() {
     const openRequestedTarget = (event: Event) => {
       const detail = (event as CustomEvent<{ silverJobId?: number }>).detail;
       const requestedId = Number(detail?.silverJobId || 0);
-      if (requestedId > 0 && applicationJobs.some((job) => job.silver_job_id === requestedId)) {
+      if (requestedId > 0) {
+        if (!applicationJobs.some((job) => job.silver_job_id === requestedId)) return;
         setSelectedId(requestedId);
       }
       setOpen(true);
