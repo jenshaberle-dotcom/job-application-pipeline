@@ -166,7 +166,7 @@ type ProductPayload = {
 };
 
 type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "approvals" | "operations";
-type JobFilter = "current" | "unreviewed" | "interesting" | "not_relevant" | "rankable" | "applied" | "all";
+type JobFilter = "unreviewed" | "interesting" | "not_relevant" | "rankable" | "applied" | "all";
 type JobSort =
   | "newest"
   | "oldest"
@@ -538,7 +538,6 @@ function Jobs({
 
     return payload.job_readiness
       .filter((job) => {
-        if (filter === "current" && !isCurrent(job)) return false;
         if (filter === "unreviewed" && job.review_label) return false;
         if (filter === "interesting" && job.review_label?.label !== "interesting") return false;
         if (filter === "not_relevant" && job.review_label?.label !== "not_relevant") return false;
@@ -564,7 +563,6 @@ function Jobs({
     null;
 
   const counts: Record<JobFilter, number> = {
-    current: payload.job_readiness.filter(isCurrent).length,
     unreviewed: payload.job_readiness.filter((job) => !job.review_label).length,
     interesting: payload.job_readiness.filter(
       (job) => job.review_label?.label === "interesting"
@@ -609,7 +607,7 @@ function Jobs({
         <span>Review surface</span>
         <h1>All jobs</h1>
         <p>
-          Employer-origin review inventory with explicit current-state filtering. Closed or historical rows remain auditable until lifecycle truth removes them from Current.
+          Current employer-origin vacancies only. Market sensors and historical jobs remain auditable outside this review list.
           A real Profile Fit exists only after detail evidence, capability fit and hard gates.
         </p>
       </div>
@@ -619,7 +617,6 @@ function Jobs({
       <div className="ow-filter-row">
         {([
           ["all", "All jobs"],
-          ["current", "Current"],
           ["unreviewed", "Unreviewed"],
           ["interesting", "Interesting"],
           ["not_relevant", "Not relevant"],
