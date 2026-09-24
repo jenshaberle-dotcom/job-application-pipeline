@@ -47,12 +47,12 @@ def test_runtime_adapter_keeps_product_readiness_visible_before_assessment() -> 
     assert "top_jobs: actionableTopJobs" not in adapter
 
 
-def test_runtime_adapter_current_counts_require_fresh_lifecycle_truth() -> None:
+def test_runtime_adapter_current_counts_use_persisted_lifecycle_truth() -> None:
     adapter = ADAPTER.read_text(encoding="utf-8")
 
     assert "function isCurrentProductJob(job: JsonRecord): boolean" in adapter
     assert 'String(job.lifecycle_status || "").trim().toLowerCase() === "active_confirmed"' in adapter
-    assert "job.demo_live_verified === true" in adapter
+    assert "job.demo_live_verified === true" not in adapter
     assert "const currentJobs = allJobs.filter(isCurrentProductJob)" in adapter
     assert "review_scope_current_active_job_count: currentJobs.length" in adapter
 
