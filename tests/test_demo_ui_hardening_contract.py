@@ -106,3 +106,26 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
     assert "No automatic submit/send authority" in editor
     assert "download={item.download_filename}" in editor
     assert "application-package-downloads.css" not in workspace + editor + styles
+
+
+
+def test_application_drafting_separates_top5_recommendation_from_operator_selection() -> None:
+    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert "applicationJobs" in workspace
+    assert "productTruth?.job_readiness" in workspace
+    assert 'job.lifecycle_status === "active_confirmed"' in workspace
+    assert 'job.origin_validation_status === "validated"' in workspace
+    assert 'job.hard_filter_status !== "failed"' in workspace
+    assert "Operator-selected current job" in workspace
+    assert "Top-5 recommendation authority remains separate" in workspace
+    assert 'detail?.silverJobId' in workspace
+    assert 'aria-label="Application target jobs"' in workspace
+
+    assert "silverJobId?: number" in operator
+    assert '{ detail: silverJobId ? { silverJobId } : {} }' in operator
+    assert 'isCurrent(job) && job.hard_filter_status !== "failed"' in operator
+    assert "Explicit current-job selection" in operator
+    assert "Ready for review drafting" in operator
+    assert "rankable && <OpenApplicationButton" not in operator
