@@ -26,6 +26,9 @@ from scripts.product_v1_application_workspace_runtime_quality import (
     application_workspace_payload,
     generate_application_draft_payload,
 )
+from scripts.product_v1_application_workspace_runtime import (
+    ApplicationWorkspaceLifecycleStop,
+)
 from scripts.product_v1_data_layers_runtime import load_data_layers_payload
 from scripts.product_v1_f4c_source_health_runtime import (
     load_source_schedule_evidence,
