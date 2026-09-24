@@ -99,12 +99,16 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
     assert "/api/v1/product-v1/f6-template-review" in editor
     assert "/api/v1/product-v1/f6-template-export" in editor
     assert "render_f6_review_package" in editor
-    assert "Apply draft suggestions to zones" in editor
-    assert "Render local PDFs" in editor
-    assert "Outside-zone identity PASS" in editor
+    assert "One finished PDF instead of zone-by-zone assembly" in editor
+    assert "Create finished application PDF" in editor
+    assert "The generated review text has already been mapped" in editor
+    assert "Open final PDF" in editor
+    assert "Download final PDF" in editor
+    assert "visual identity verified" in editor
+    assert "Advanced: adjust individual template text zones" in editor
     assert "HUMAN REVIEW REQUIRED" in editor
-    assert "No automatic submit/send authority" in editor
-    assert "download={item.download_filename}" in editor
+    assert "No DB write, provider call, application action, submission, or send" in editor
+    assert "download={packagePdf.download_filename}" in editor
     assert "application-package-downloads.css" not in workspace + editor + styles
 
 
