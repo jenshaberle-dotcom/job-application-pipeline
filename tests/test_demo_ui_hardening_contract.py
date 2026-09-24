@@ -133,3 +133,20 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
     assert "Explicit current-job selection" in operator
     assert "Ready for review drafting" in operator
     assert "rankable && <OpenApplicationButton" not in operator
+
+
+
+def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
+    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert 'type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed"' in workspace
+    assert "applicationStageByJobId" in workspace
+    assert "canPrepareApplication" in workspace
+    assert 'return stage == null || stage === "prepared"' in workspace
+    assert "canPrepareApplication(applicationStages.get(job.silver_job_id))" in workspace
+    assert "if (!applicationJobs.some((job) => job.silver_job_id === requestedId)) return;" in workspace
+
+    assert "canPrepareApplication(applicationStage)" in operator
+    assert "buildApplicationByJobId" in operator
+    assert "canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage)" in operator
