@@ -406,7 +406,7 @@ def request_codex_application_adaptation(
             package=None,
         )
     version = _codex_version(executable)
-    logged_in, login_output = _codex_login_status(executable)
+    logged_in, _ = _codex_login_status(executable)
     if not logged_in:
         return CodexApplicationDraftResult(
             status="unavailable",
