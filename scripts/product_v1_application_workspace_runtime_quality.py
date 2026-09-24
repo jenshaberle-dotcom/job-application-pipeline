@@ -47,7 +47,7 @@ def _fallback_with_template_authority(
         {
             "quality_contract": "f6_template_authority_v1",
             "base_document_text_shared_with_provider": provider_text_shared,
-            "render_status": "template_bound_renderer_pending",
+            "render_status": "template_bound_renderer_qualified_review_export_available",
             "legacy_generic_document_export": False,
         }
     )
@@ -127,7 +127,7 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
             "fallback_reason": None,
             "quality_contract": "f6_template_authority_v1",
             "base_document_text_shared_with_provider": True,
-            "render_status": "template_bound_renderer_pending",
+            "render_status": "template_bound_renderer_qualified_review_export_available",
             "legacy_generic_document_export": False,
             "live_job_evidence": {
                 "final_url": final_url,
