@@ -357,7 +357,26 @@ Candidate **1.1.1** fixes only this runtime layer:
 - no API-key fallback or automatic credit purchase is permitted;
 - exhausted allowance/eligible credits remains `draft_unavailable` with no low-quality fallback prose.
 
-The next operator gate after installing 1.1.1 is the same accompio #626 **Generate review text** action. Success means the first real Codex-adapted CV + application-letter review copy is visible. If authentication is absent, the expected next evidence is specifically `codex_auth_required`; that will be handled on the next 1.1.x patch without promoting to 1.2.0.
+The planned accompio #626 drafting gate is superseded because the vacancy disappeared from the employer surface before content qualification completed. This exposed a lifecycle-serving defect: older `active_confirmed` evidence could remain operator-selectable even after it was no longer fresh enough to support a Product action.
+
+### Candidate 1.1.2 — fresh-vacancy action authority
+
+JAP already had a deterministic `product_v1_demo_live_scope` contract with a 30-minute maximum health-evidence age, but it was audit-only. Candidate **1.1.2** makes that contract executable Product authority:
+
+- Control Center projects origin truth first and then live-scope freshness for every job-readiness and Top-5 row;
+- `demo_live_verified=true` is required for anything presented as a **current** Product action;
+- stale active evidence becomes an explicit `live_health_refresh_required` projection rather than silently remaining current;
+- Overview current counts, Top-5 actions, the Application target and the Application Workspace selector all require fresh live truth;
+- the F6 backend independently rechecks the same freshness contract before persisted vacancy-detail reuse, so a stale row cannot bypass the UI through a direct API call;
+- the existing exact-observation reuse contract remains intact after freshness passes, so 1.1.2 does not restore redundant detail GETs merely to obtain drafting text;
+- freshness expiry alone does not write `inactive_confirmed`. It removes Product action authority; authoritative closure still requires exact-detail closure evidence or verified complete-inventory absence.
+
+The next operator gate is therefore two-part:
+
+1. after installing 1.1.2, the expired accompio #626 vacancy must no longer be selectable/current for F6;
+2. choose another genuinely current Employer-Origin vacancy and continue the first real Codex-adapted CV + application-letter review test there.
+
+This remains a **1.1.x patch correction**. It does not satisfy or advance the 1.2.0 acceptance gate by itself.
 
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
