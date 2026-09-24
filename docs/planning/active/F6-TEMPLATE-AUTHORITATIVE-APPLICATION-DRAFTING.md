@@ -304,6 +304,38 @@ After exact-head CI and immutable **1.1.0** release:
 
 If the review text is accepted, the next gate is **Create finished application PDF** under the existing exact-template, source-manifest, overflow and outside-zone pixel-identity contract.
 
+### Release-line gate
+
+JAP Classic stays on the **1.1.x** line until the complete automatic CV + application-letter preparation path is operator accepted.
+
+Until then, every correction discovered during real F6 qualification is a patch release only (`1.1.1`, `1.1.2`, ...), including:
+
+- Codex installation/authentication/runtime bridging;
+- included-allowance / paid-credit exhaustion handling;
+- stale recipient/contact leakage;
+- vacancy-specific content quality;
+- CV adaptation scope;
+- template-zone mapping;
+- overflow handling;
+- PDF render/layout-preservation regressions.
+
+**1.2.0 is reserved** for the operator-accepted capability boundary where one explicitly selected vacancy can produce both a vacancy-adapted CV and a vacancy-specific application letter automatically, while preserving the approved base layout as completely as possible and changing only as much content as necessary.
+
+1.2.0 acceptance therefore requires all of the following at once:
+
+1. correct current-job identity and Employer-Origin evidence;
+2. no stale employer/contact/application-letter content;
+3. high-quality vacancy-specific CV adaptation;
+4. high-quality vacancy-specific application-letter text;
+5. automatic mapping into only manifest-authorized text zones;
+6. exact source-template page/geometry authority retained;
+7. overflow fail-closed and outside-zone pixel identity proven;
+8. explicit human review before export;
+9. graceful `draft_unavailable` when Codex allowance/credits/authentication are unavailable, with no low-quality prose fallback;
+10. zero automatic submission/send authority.
+
+Passing only the text-generation step does not authorize 1.2.0; the finished rendered document pair must pass the operator gate.
+
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
 
