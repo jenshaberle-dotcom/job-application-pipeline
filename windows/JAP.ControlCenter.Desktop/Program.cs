@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -8,6 +9,8 @@ namespace JAP.ControlCenter.Desktop;
 internal static class Program
 {
     private const string MutexName = @"Local\JAP.ControlCenter.Desktop";
+    private static readonly TimeSpan LifecycleHandoffTimeout = TimeSpan.FromSeconds(25);
+    private static readonly TimeSpan UpdateHandoffProbeTimeout = TimeSpan.FromSeconds(8);
 
     [STAThread]
     private static void Main(string[] args)
@@ -39,12 +42,49 @@ internal static class Program
 
             if (!ownsMutex)
             {
-                MessageBox.Show(
-                    "JAP Control Center ist bereits geöffnet.",
-                    "JAP Control Center",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-                return;
+                if (IsProductUpdateHandoffInProgress())
+                {
+                    if (WaitForExistingVisibleWindow(UpdateHandoffProbeTimeout))
+                    {
+                        return;
+                    }
+
+                    MessageBox.Show(
+                        "JAP Control Center wird gerade aktualisiert und startet anschließend automatisch neu.",
+                        "JAP Control Center",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return;
+                }
+
+                if (TryActivateExistingVisibleWindow())
+                {
+                    return;
+                }
+
+                try
+                {
+                    ownsMutex = mutex.WaitOne(LifecycleHandoffTimeout, false);
+                }
+                catch (AbandonedMutexException)
+                {
+                    ownsMutex = true;
+                }
+
+                if (!ownsMutex)
+                {
+                    if (TryActivateExistingVisibleWindow())
+                    {
+                        return;
+                    }
+
+                    MessageBox.Show(
+                        "JAP Control Center wird gerade beendet oder neu gestartet. Bitte in einem Moment erneut öffnen.",
+                        "JAP Control Center",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return;
+                }
             }
 
             ApplicationConfiguration.Initialize();
@@ -57,6 +97,103 @@ internal static class Program
                 mutex.ReleaseMutex();
             }
         }
+    }
+
+    private static bool IsProductUpdateHandoffInProgress()
+    {
+        try
+        {
+            var installRoot = ResolveInstallRoot();
+            return !string.IsNullOrWhiteSpace(installRoot)
+                && File.Exists(Path.Combine(installRoot, "state", "accepted-update.json"));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool WaitForExistingVisibleWindow(TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(timeout);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (!IsProductUpdateHandoffInProgress()
+                && TryActivateExistingVisibleWindow())
+            {
+                return true;
+            }
+
+            Thread.Sleep(250);
+        }
+
+        return false;
+    }
+
+    private static bool TryActivateExistingVisibleWindow()
+    {
+        var executable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            return false;
+        }
+
+        var processName = Path.GetFileNameWithoutExtension(executable);
+        foreach (var process in Process.GetProcessesByName(processName))
+        {
+            using (process)
+            {
+                if (process.Id == Environment.ProcessId || process.HasExited)
+                {
+                    continue;
+                }
+
+                process.Refresh();
+                var handle = process.MainWindowHandle;
+                if (handle == IntPtr.Zero || !NativeMethods.IsWindowVisible(handle))
+                {
+                    continue;
+                }
+
+                _ = NativeMethods.ShowWindowAsync(handle, NativeMethods.SwRestore);
+                _ = NativeMethods.SetForegroundWindow(handle);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? ResolveInstallRoot()
+    {
+        try
+        {
+            var hostRoot = AppContext.BaseDirectory.TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+            return Directory.GetParent(hostRoot)?.FullName;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static class NativeMethods
+    {
+        internal const int SwRestore = 9;
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetForegroundWindow(IntPtr hWnd);
     }
 }
 
