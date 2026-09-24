@@ -358,7 +358,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
   const reviewed = payload.job_readiness.filter((job) => Boolean(job.review_label));
   const interesting = reviewed.filter((job) => job.review_label?.label === "interesting").length;
   const rejected = reviewed.filter((job) => job.review_label?.label === "not_relevant").length;
-  const top = payload.top_jobs[0] || null;
+  const top = payload.top_jobs.find(isCurrent) || null;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
   const topUrl = top ? externalJobUrl(top) : null;
 
@@ -691,8 +691,8 @@ function Jobs({
 }
 
 function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
-  const [selectedId, setSelectedId] = useState<number | null>(payload.top_jobs[0]?.silver_job_id ?? null);
-  const jobs = payload.top_jobs.slice(0, 5);
+  const jobs = payload.top_jobs.filter(isCurrent).slice(0, 5);
+  const [selectedId, setSelectedId] = useState<number | null>(jobs[0]?.silver_job_id ?? null);
   const applicationByJobId = useMemo(
     () => buildApplicationByJobId(payload),
     [
@@ -715,7 +715,9 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
     ],
   );
   const top = payload.top_jobs.find(
-    (job) => canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage),
+    (job) =>
+      isCurrent(job)
+      && canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage),
   ) || null;
   const firstSelectable = payload.job_readiness.find(
     (job) =>
