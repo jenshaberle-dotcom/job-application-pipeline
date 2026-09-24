@@ -1,0 +1,242 @@
+name: F6 initial assessment materialization
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f6-initial-assessment-materialization
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Exact frozen F6 assessment insert
+    if: >-
+      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+      github.event.issue.number == 1011 &&
+      github.event.comment.user.login == 'jenshaberle-dotcom' &&
+      github.event.comment.author_association == 'OWNER' &&
+      startsWith(github.event.comment.body, '<!-- jap-f6-initial-assessment:apply:v1 -->')
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 20
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      PLAN_OUTPUT: /tmp/jap-f6-initial-assessment-plan.json
+      APPLY_OUTPUT: /tmp/jap-f6-initial-assessment-apply.json
+      APPROVAL_TOKEN: F6-INITIAL-ASSESSMENT-MATERIALIZE
+
+    steps:
+      - name: Parse owner approval envelope
+        shell: bash
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          EVENT_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+
+          marker = "<!-- jap-f6-initial-assessment:apply:v1 -->"
+          lines = [line.strip() for line in os.environ["COMMENT_BODY"].splitlines() if line.strip()]
+          if not lines or lines[0] != marker:
+              raise SystemExit("F6_APPROVAL_MARKER_MISMATCH")
+
+          values = {}
+          for line in lines[1:]:
+              if "=" not in line:
+                  raise SystemExit("F6_APPROVAL_ENVELOPE_MALFORMED")
+              key, value = line.split("=", 1)
+              key = key.strip()
+              value = value.strip()
+              if key in values:
+                  raise SystemExit("F6_APPROVAL_DUPLICATE_KEY:" + key)
+              values[key] = value
+
+          required = {"source_sha", "silver_job_id", "materialization_fingerprint"}
+          if set(values) != required:
+              raise SystemExit("F6_APPROVAL_KEYS_MISMATCH")
+
+          source_sha = values["source_sha"]
+          fingerprint = values["materialization_fingerprint"]
+          if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+              raise SystemExit("F6_APPROVAL_SOURCE_SHA_INVALID")
+          if source_sha != os.environ["EVENT_SOURCE_SHA"]:
+              raise SystemExit("F6_APPROVAL_SOURCE_NOT_CURRENT_MAIN")
+          if not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+              raise SystemExit("F6_APPROVAL_FINGERPRINT_INVALID")
+          try:
+              silver_job_id = int(values["silver_job_id"])
+          except ValueError as exc:
+              raise SystemExit("F6_APPROVAL_SILVER_ID_INVALID") from exc
+          if silver_job_id <= 0:
+              raise SystemExit("F6_APPROVAL_SILVER_ID_INVALID")
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              handle.write(f"SOURCE_SHA={source_sha}\n")
+              handle.write(f"SILVER_JOB_ID={silver_job_id}\n")
+              handle.write(f"MATERIALIZATION_FINGERPRINT={fingerprint}\n")
+          print(
+              "F6_APPROVAL_ENVELOPE=PASS "
+              f"source={source_sha} silver_job_id={silver_job_id} fingerprint={fingerprint}"
+          )
+          PY
+
+      - name: Check out exact approved main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove exact source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$SOURCE_SHA"
+          remote_main="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          test "$remote_main" = "$SOURCE_SHA"
+          echo "F6_EXACT_SOURCE=PASS source=$actual"
+
+      - name: Resolve verified RCC database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          env_file="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity", "checkout", "checkout_repository",
+              "env_file", "env_keys", "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          env_file = context.get("EnvFile")
+          if PurePosixPath(checkout) not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_QUALIFIED_CHECKOUT")
+          print(env_file)
+          PY
+          )"
+          test -s "$env_file"
+          printf 'RUNTIME_ENV_FILE=%s\n' "$env_file" >> "$GITHUB_ENV"
+          echo "F6_RCC_DATABASE_ENV=PASS runner=${RUNNER_NAME}"
+
+      - name: Build isolated exact-source Python runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/jap-f6-initial-assessment-venv"
+          rm -rf "$venv"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -m pip install --disable-pip-version-check --upgrade pip
+          "$venv/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
+          "$venv/bin/python" -m pip check
+          printf 'F6_PYTHON=%s\n' "$venv/bin/python" >> "$GITHUB_ENV"
+          echo "F6_EPHEMERAL_RUNTIME=PASS"
+
+      - name: Recompute exact frozen preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+
+          "$F6_PYTHON" -m scripts.run_f6_initial_assessment_materialization             --silver-job-id "$SILVER_JOB_ID"             --expected-fingerprint "$MATERIALIZATION_FINGERPRINT"             --output "$PLAN_OUTPUT"
+
+          "$F6_PYTHON" - "$PLAN_OUTPUT" <<'PY'
+          import json
+          import os
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          if payload.get("mode") != "plan":
+              raise SystemExit("F6_PREFLIGHT_NOT_PLAN_ONLY")
+          if payload.get("expected_fingerprint") != os.environ["MATERIALIZATION_FINGERPRINT"]:
+              raise SystemExit("F6_PREFLIGHT_FINGERPRINT_DRIFT")
+          boundaries = payload.get("boundaries") or {}
+          if boundaries.get("database_writes") is not False:
+              raise SystemExit("F6_PREFLIGHT_WRITE_BOUNDARY_VIOLATION")
+          if boundaries.get("provider_or_llm_requests") != 0:
+              raise SystemExit("F6_PREFLIGHT_PROVIDER_BOUNDARY_VIOLATION")
+          print("F6_FROZEN_PREFLIGHT=PASS")
+          PY
+
+      - name: Apply exactly one approved assessment insert
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          unset PGOPTIONS || true
+
+          "$F6_PYTHON" -m scripts.run_f6_initial_assessment_materialization             --silver-job-id "$SILVER_JOB_ID"             --expected-fingerprint "$MATERIALIZATION_FINGERPRINT"             --apply             --approval-token "$APPROVAL_TOKEN"             --output "$APPLY_OUTPUT"
+
+          "$F6_PYTHON" - "$APPLY_OUTPUT" <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          if payload.get("mode") != "apply":
+              raise SystemExit("F6_APPLY_MODE_MISMATCH")
+          result = payload.get("apply_result") or {}
+          if result.get("inserted") != 1 or result.get("already_materialized") != 0:
+              raise SystemExit("F6_APPLY_CARDINALITY_MISMATCH")
+          proof = payload.get("postwrite_proof") or {}
+          if proof.get("origin_validation_status") != "validated":
+              raise SystemExit("F6_POSTWRITE_ORIGIN_MISMATCH")
+          if proof.get("activity_status") != "active":
+              raise SystemExit("F6_POSTWRITE_ACTIVITY_MISMATCH")
+          if proof.get("hard_filter_status") != "unknown":
+              raise SystemExit("F6_POSTWRITE_HARD_FILTER_AUTHORITY_DRIFT")
+          if proof.get("capability_fit_status") != "unknown":
+              raise SystemExit("F6_POSTWRITE_CAPABILITY_AUTHORITY_DRIFT")
+          if proof.get("product_readiness_status") != "hard_filter_evidence_required":
+              raise SystemExit("F6_POSTWRITE_READINESS_MISMATCH")
+          print("F6_INITIAL_ASSESSMENT_APPLY=PASS")
+          PY
+
+      - name: Upload immutable run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f6-initial-assessment-materialization-${{ github.run_id }}
+          path: |
+            /tmp/jap-f6-initial-assessment-plan.json
+            /tmp/jap-f6-initial-assessment-apply.json
+          if-no-files-found: warn
+          retention-days: 30
