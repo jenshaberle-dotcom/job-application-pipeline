@@ -1,0 +1,170 @@
+name: F6 selected-job assessment authority diagnostic
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/f6-selected-job-assessment-authority.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Read-only Silver 626 assessment authority
+    if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 15
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      TARGET_SILVER_JOB_ID: "626"
+      OUTPUT: /tmp/jap-f6-626-assessment-authority.json
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity", "checkout", "checkout_repository",
+              "env_file", "env_keys", "interpreter", "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          echo "F6_RCC_CONTEXT=PASS runner=${RUNNER_NAME}"
+
+      - name: Run exact selected-job materialization plan read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+
+          set +e
+          "$RUNTIME_PYTHON" -m scripts.run_product_v1_assessment_materialization_resilient             --silver-job-id "$TARGET_SILVER_JOB_ID"             --output "$OUTPUT"
+          rc=$?
+          set -e
+
+          test -s "$OUTPUT"
+          "$RUNTIME_PYTHON" - "$OUTPUT" "$rc" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          rc = int(sys.argv[2])
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          if payload.get("mode") != "plan":
+              raise SystemExit("F6_DIAGNOSTIC_NOT_PLAN_ONLY")
+          boundaries = payload.get("boundaries") or {}
+          if boundaries.get("database_writes") is not False:
+              raise SystemExit("F6_DIAGNOSTIC_DB_WRITE_BOUNDARY_VIOLATION")
+          if boundaries.get("provider_or_llm_requests") != 0:
+              raise SystemExit("F6_DIAGNOSTIC_PROVIDER_BOUNDARY_VIOLATION")
+          if rc not in (0, 2):
+              raise SystemExit(f"F6_DIAGNOSTIC_UNEXPECTED_EXIT:{rc}")
+
+          safe = {
+              "candidate_count": payload.get("candidate_count"),
+              "proposal_count": payload.get("proposal_count"),
+              "blocked_count": payload.get("blocked_count"),
+              "blocked": [
+                  {
+                      "silver_job_id": row.get("silver_job_id"),
+                      "source_name": row.get("source_name"),
+                      "reason": row.get("reason"),
+                  }
+                  for row in payload.get("blocked") or []
+              ],
+              "proposals": [
+                  {
+                      "silver_job_id": row.get("silver_job_id"),
+                      "source_name": row.get("source_name"),
+                      "title": row.get("title"),
+                      "materialization_fingerprint": row.get("materialization_fingerprint"),
+                      "unresolved_fields": row.get("unresolved_fields"),
+                      "origin_validation_status": (row.get("assessment") or {}).get("origin_validation_status"),
+                      "activity_status": (row.get("assessment") or {}).get("activity_status"),
+                      "hard_filter_status": (row.get("assessment") or {}).get("hard_filter_status"),
+                  }
+                  for row in payload.get("proposals") or []
+              ],
+              "boundaries": {
+                  "database_writes": boundaries.get("database_writes"),
+                  "current_observation_detail_reuse": boundaries.get("current_observation_detail_reuse"),
+                  "network_exact_detail_targets": boundaries.get("network_exact_detail_targets"),
+                  "provider_or_llm_requests": boundaries.get("provider_or_llm_requests"),
+                  "assessment_rows_max_on_apply": boundaries.get("assessment_rows_max_on_apply"),
+                  "assessment_updates": boundaries.get("assessment_updates"),
+                  "capability_fit_created": boundaries.get("capability_fit_created"),
+                  "ranking_scores_created": boundaries.get("ranking_scores_created"),
+                  "top5_forced": boundaries.get("top5_forced"),
+                  "application_or_submission_writes": boundaries.get("application_or_submission_writes"),
+              },
+          }
+          print("F6_626_ASSESSMENT_AUTHORITY=" + json.dumps(safe, sort_keys=True))
+          print("F6_626_READ_ONLY_PLAN=PASS")
+          PY
+
+      - name: Upload read-only diagnostic artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f6-626-assessment-authority
+          path: /tmp/jap-f6-626-assessment-authority.json
+          if-no-files-found: warn
+          retention-days: 1
