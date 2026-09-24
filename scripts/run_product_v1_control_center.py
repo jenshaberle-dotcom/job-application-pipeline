@@ -44,10 +44,6 @@ from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
 from src.search_intelligence.product_v1_demo_origin_projection import (
     project_demo_origin_truth,
 )
-from src.search_intelligence.product_v1_demo_live_scope import (
-    DEFAULT_MAX_HEALTH_AGE_MINUTES,
-    project_demo_live_scope,
-)
 from src.search_intelligence.product_v1_downstream_preview import DownstreamPreviewStop
 
 
@@ -225,15 +221,20 @@ def _merge_job_review_labels(
 
 
 def _merge_demo_origin_projection(payload: dict[str, object]) -> dict[str, object]:
-    """Separate discovery provenance and enforce fresh lifecycle truth for actions."""
+    """Separate discovery provenance from persisted Product lifecycle truth.
+
+    A fixed wall-clock freshness window is not Product cadence authority. Current
+    review scope therefore stays bound to persisted evidence-driven lifecycle truth.
+    Exact live vacancy revalidation happens only when the operator explicitly opens
+    one F6 application target.
+    """
 
     result = dict(payload)
     for collection_name in ("job_readiness", "top_jobs"):
         raw = result.get(collection_name)
         if isinstance(raw, list):
             rows = [item for item in raw if isinstance(item, dict)]
-            origin_projected = project_demo_origin_truth(rows)
-            result[collection_name] = project_demo_live_scope(origin_projected)
+            result[collection_name] = project_demo_origin_truth(rows)
 
     job_rows = result.get("job_readiness")
     actionable_count = (
@@ -245,38 +246,20 @@ def _merge_demo_origin_projection(payload: dict[str, object]) -> dict[str, objec
         if isinstance(job_rows, list)
         else 0
     )
-    live_count = (
-        sum(
-            item.get("demo_live_verified") is True
-            for item in job_rows
-            if isinstance(item, dict)
-        )
-        if isinstance(job_rows, list)
-        else 0
-    )
-    refresh_required_count = (
-        sum(
-            item.get("demo_live_reason") == "live_health_refresh_required"
-            for item in job_rows
-            if isinstance(item, dict)
-        )
-        if isinstance(job_rows, list)
-        else 0
-    )
     summary = dict(result.get("summary") or {})
     summary["demo_actionable_job_count"] = actionable_count
-    summary["demo_live_verified_job_count"] = live_count
-    summary["demo_live_refresh_required_job_count"] = refresh_required_count
     result["summary"] = summary
     boundaries = dict(result.get("boundaries") or {})
     boundaries.update(
         {
             "discovery_url_is_not_product_action_url": True,
             "employer_origin_required_for_demo_action": True,
-            "fresh_lifecycle_health_required_for_product_action": True,
-            "max_product_action_health_age_minutes": DEFAULT_MAX_HEALTH_AGE_MINUTES,
+            "fixed_wall_clock_age_is_not_product_cadence_authority": True,
+            "exact_live_revalidation_occurs_at_f6_action_boundary": True,
         }
     )
+    boundaries.pop("fresh_lifecycle_health_required_for_product_action", None)
+    boundaries.pop("max_product_action_health_age_minutes", None)
     result["boundaries"] = boundaries
     return result
 
