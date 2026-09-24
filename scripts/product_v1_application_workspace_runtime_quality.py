@@ -26,6 +26,8 @@ def _fallback_with_template_authority(
     context: object,
     final_url: str,
     fetched_title: str,
+    evidence_mode: str,
+    job_detail_http_gets: int,
     fallback_reason: str,
     provider_text_shared: bool,
     provider_requests: int = 0,
@@ -37,6 +39,8 @@ def _fallback_with_template_authority(
         context=context,
         final_url=final_url,
         fetched_title=fetched_title,
+        evidence_mode=evidence_mode,
+        job_detail_http_gets=job_detail_http_gets,
         fallback_reason=fallback_reason,
         provider_requests=provider_requests,
         llm_requests=llm_requests,
@@ -49,13 +53,19 @@ def _fallback_with_template_authority(
             "base_document_text_shared_with_provider": provider_text_shared,
             "render_status": "template_bound_renderer_qualified_review_export_available",
             "legacy_generic_document_export": False,
+            "job_detail_http_gets": job_detail_http_gets,
+            "current_observation_detail_reuse": int(
+                evidence_mode == "exact_persisted_observation"
+            ),
         }
     )
     return payload
 
 
 def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
-    context, final_url, fetched_title = load_application_workspace(silver_job_id)
+    context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
+        load_application_workspace(silver_job_id)
+    )
     if not context.generation_ready:
         return {
             "schema": "job_application_pipeline.product_v1_application_draft_demo.v1",
@@ -87,6 +97,8 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
             context=context,
             final_url=final_url,
             fetched_title=fetched_title,
+            evidence_mode=evidence_mode,
+            job_detail_http_gets=job_detail_http_gets,
             fallback_reason="provider_key_unavailable",
             provider_text_shared=False,
         )
@@ -108,6 +120,8 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
             context=context,
             final_url=final_url,
             fetched_title=fetched_title,
+            evidence_mode=evidence_mode,
+            job_detail_http_gets=job_detail_http_gets,
             fallback_reason="quality_provider_campaign_unresolved",
             provider_text_shared=execution.provider_requests > 0,
             provider_requests=execution.provider_requests,
@@ -133,6 +147,7 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
                 "final_url": final_url,
                 "fetched_title": fetched_title,
                 "detail_sha256": context.target.detail_sha256,
+                "evidence_mode": evidence_mode,
             },
         }
     )
