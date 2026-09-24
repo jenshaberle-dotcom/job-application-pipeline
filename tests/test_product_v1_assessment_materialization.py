@@ -130,8 +130,8 @@ def test_cross_origin_detail_redirect_is_rejected() -> None:
         build_assessment_payload(
             row=_row(),
             authorized_sources={SOURCE},
-            ranking_policy_version="product-v1-2026-09-16-affinity-v1",
-        hard_filter_policy_version="product-v1-2026-08-02",
+                ranking_policy_version="product-v1-2026-09-16-affinity-v1",
+            hard_filter_policy_version="product-v1-2026-08-02",
             final_url="https://other.example/job/123",
             detail_text=DETAIL,
         )
