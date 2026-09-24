@@ -72,6 +72,11 @@ Rules:
 - If the vacancy does not explicitly name a contact person, return an empty contact_name and a
   neutral salutation appropriate to the output language.
 - Preserve factual career history; adapt emphasis and wording, not facts.
+- Preserve the approved document layout as completely as possible. You may only provide replacement
+  text for JAP's existing editable text zones; you have no authority to move, resize, add or remove
+  layout elements, pages, graphics, photos, lines, typography regions or document structure.
+- Make content changes only as large as necessary for the selected vacancy. Keep unaffected CV
+  sections semantically unchanged and do not rewrite career-history blocks just for stylistic variety.
 - Write natural, specific application prose. Avoid generic AI phrases, keyword stuffing and
   sentence-by-sentence repetition of the vacancy.
 - The CV short profile must be concise and targeted. The competency profile should contain only
