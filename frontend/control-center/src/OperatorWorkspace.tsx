@@ -320,7 +320,7 @@ function compareJobs(a: Job, b: Job, sort: JobSort) {
 
 function tone(value: string | undefined | null) {
   const normalized = normalize(value);
-  if (["rankable", "active", "active confirmed", "active_confirmed", "approved", "interesting", "passed", "profile_fit_complete"].includes(normalized) || normalized.startsWith("active_last_run_")) return "good";
+  if (["rankable", "active", "active confirmed", "active_confirmed", "approved", "interesting", "passed", "profile_fit_complete", "fresh"].includes(normalized) || normalized.startsWith("active_last_run_")) return "good";
   if (normalized.includes("failed") || normalized.includes("blocked") || normalized.includes("rejected") || normalized === "not_relevant") return "bad";
   if (normalized.includes("stale") || normalized.includes("ambiguous") || normalized === "unsure") return "warn";
   if (normalized.includes("required") || normalized.includes("unknown") || normalized.includes("insufficient")) return "pending";
