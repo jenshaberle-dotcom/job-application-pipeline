@@ -74,6 +74,7 @@ def _load(_silver_job_id: int):
 
 def test_missing_provider_key_uses_zero_request_evidence_first_fallback(monkeypatch) -> None:
     monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     payload = runtime.generate_application_draft_payload(42)
@@ -95,6 +96,7 @@ def test_missing_provider_key_uses_zero_request_evidence_first_fallback(monkeypa
 
 def test_unresolved_provider_campaign_falls_back_without_write_authority(monkeypatch) -> None:
     monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(
         runtime,
