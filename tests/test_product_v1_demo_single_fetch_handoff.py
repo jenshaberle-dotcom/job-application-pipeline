@@ -67,7 +67,13 @@ def test_workspace_single_fetch_carries_final_review_package(monkeypatch) -> Non
 
     def loader(silver_job_id: int):
         calls.append(silver_job_id)
-        return _context(), "https://jobs.example.com/42", "Data Engineer"
+        return (
+            _context(),
+            "https://jobs.example.com/42",
+            "Data Engineer",
+            "live_http_detail",
+            1,
+        )
 
     monkeypatch.setattr(workspace_probe, "load_application_workspace", loader)
     report = workspace_probe.run_workspace_probe_single_fetch(silver_job_id=42)
