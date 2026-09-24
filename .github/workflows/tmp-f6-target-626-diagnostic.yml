@@ -48,6 +48,7 @@ jobs:
           import psycopg
           from psycopg.rows import dict_row
           from src.config import get_database_config
+          from src.search_intelligence.exact_observation_detail import bound_observation_detail
 
           with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
               with conn.cursor() as cur:
@@ -101,6 +102,13 @@ jobs:
             'latest_observation_job_source_url':nj.get('source_url'),
             'latest_observation_description_present':bool(str(nj.get('description') or '').strip()),
           }
+          detail = bound_observation_detail(row)
+          if detail is None: raise SystemExit('TARGET_626_EXACT_OBSERVATION_NOT_REUSABLE')
+          title, detail_text = detail
+          out['bound_observation_title'] = title
+          out['bound_observation_text_length'] = len(detail_text)
+          out['bound_observation_reusable'] = True
           print('TARGET_626='+json.dumps(out, ensure_ascii=False, sort_keys=True))
+          print('TARGET_626_EXACT_OBSERVATION_REUSE=PASS')
           print('DATABASE_WRITES=0')
           PY
