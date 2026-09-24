@@ -672,6 +672,38 @@ def build_plan(
     }
 
 
+def _plan_fingerprints(plan: Mapping[str, object]) -> dict[int, str]:
+    raw = plan.get("proposals")
+    if not isinstance(raw, list):
+        raise MaterializationStop("plan proposals are missing")
+    result: dict[int, str] = {}
+    for item in raw:
+        if not isinstance(item, Mapping):
+            raise MaterializationStop("plan proposal is malformed")
+        silver_job_id = int(item.get("silver_job_id") or 0)
+        fingerprint = str(item.get("materialization_fingerprint") or "").strip()
+        if silver_job_id <= 0 or len(fingerprint) != 64:
+            raise MaterializationStop("plan proposal fingerprint is invalid")
+        if silver_job_id in result:
+            raise MaterializationStop("duplicate Silver job in materialization plan")
+        result[silver_job_id] = fingerprint
+    return result
+
+
+def _require_frozen_plan_unchanged(
+    expected: Mapping[str, object],
+    current: Mapping[str, object],
+) -> None:
+    if int(current.get("blocked_count") or 0):
+        raise MaterializationStop("materialization plan became blocked after preflight")
+    if int(current.get("candidate_count") or -1) != int(expected.get("candidate_count") or -2):
+        raise MaterializationStop("materialization candidate count changed after preflight")
+    if int(current.get("proposal_count") or -1) != int(expected.get("proposal_count") or -2):
+        raise MaterializationStop("materialization proposal count changed after preflight")
+    if _plan_fingerprints(current) != _plan_fingerprints(expected):
+        raise MaterializationStop("materialization fingerprint changed after preflight")
+
+
 def apply_plan(
     *,
     plan: Mapping[str, object],
@@ -691,6 +723,9 @@ def apply_plan(
     conn = psycopg.connect(**get_database_config(), row_factory=dict_row)
     try:
         with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+
             current_ranking_version, current_hard_filter_version = _load_policy_versions(conn)
             if (
                 current_ranking_version != plan.get("ranking_policy_version")
@@ -709,6 +744,14 @@ def apply_plan(
             current_by_id = {int(row["silver_job_id"]): row for row in current_rows}
             if set(current_by_id) != set(expected_by_id):
                 raise MaterializationStop("eligible candidate set changed after preflight")
+
+            current_plan = build_plan(
+                rows=current_rows,
+                authorized_sources=authorized_sources,
+                ranking_policy_version=current_ranking_version,
+                hard_filter_policy_version=current_hard_filter_version,
+            )
+            _require_frozen_plan_unchanged(plan, current_plan)
 
             inserted = 0
             already_materialized = 0
