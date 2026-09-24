@@ -44,9 +44,19 @@ type ExportDocument = {
   render_evidence: RenderEvidence;
 };
 
+type CombinedPackage = {
+  download_filename: string;
+  pdf_base64: string;
+  sha256: string;
+  page_count: number;
+  component_order: string[];
+  visual_identity: boolean;
+};
+
 type ExportPayload = {
   status?: string;
   reason?: string;
+  package?: CombinedPackage;
   documents?: ExportDocument[];
   human_review_required?: boolean;
   submission_actions?: number;
@@ -55,7 +65,7 @@ type ExportPayload = {
 
 type ZoneValues = Record<string, Record<string, string>>;
 
-type LocalExport = ExportDocument & { objectUrl: string };
+type LocalPackage = CombinedPackage & { objectUrl: string };
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -72,15 +82,6 @@ async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(reason);
   }
   return payload;
-}
-
-function cloneValues(values: ZoneValues): ZoneValues {
-  return Object.fromEntries(
-    Object.entries(values).map(([documentType, zones]) => [
-      documentType,
-      { ...zones },
-    ]),
-  );
 }
 
 function valuesFromTemplates(templates: ReviewTemplate[]): ZoneValues {
@@ -123,6 +124,26 @@ function draftSuggestions(fragments: DraftFragment[]): Record<string, Record<str
   };
 }
 
+function applyDraftToBaseline(
+  baseline: ZoneValues,
+  fragments: DraftFragment[],
+): ZoneValues {
+  const result: ZoneValues = Object.fromEntries(
+    Object.entries(baseline).map(([documentType, zones]) => [
+      documentType,
+      { ...zones },
+    ]),
+  );
+  const suggestions = draftSuggestions(fragments);
+  Object.entries(suggestions).forEach(([documentType, zones]) => {
+    if (!result[documentType]) return;
+    Object.entries(zones).forEach(([zoneId, text]) => {
+      if (zoneId in result[documentType]) result[documentType][zoneId] = text;
+    });
+  });
+  return result;
+}
+
 function label(documentType: string) {
   return documentType === "base_cv" ? "CV" : "Application letter";
 }
@@ -141,8 +162,7 @@ export default function F6TemplateReviewEditor({
   const [values, setValues] = useState<ZoneValues>({});
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
-  const [suggestionsApplied, setSuggestionsApplied] = useState(false);
-  const [exports, setExports] = useState<LocalExport[]>([]);
+  const [packagePdf, setPackagePdf] = useState<LocalPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const templates = useMemo(
@@ -161,8 +181,11 @@ export default function F6TemplateReviewEditor({
         const initial = valuesFromTemplates(loaded);
         setReview(payload);
         setBaseline(initial);
-        setValues(initial);
-        setSuggestionsApplied(false);
+        setValues(applyDraftToBaseline(initial, fragments));
+        setPackagePdf((current) => {
+          if (current) URL.revokeObjectURL(current.objectUrl);
+          return null;
+        });
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : String(reason));
@@ -174,24 +197,8 @@ export default function F6TemplateReviewEditor({
   }, [silverJobId, sourceManifestSha256]);
 
   useEffect(() => () => {
-    exports.forEach((item) => URL.revokeObjectURL(item.objectUrl));
-  }, [exports]);
-
-  const applySuggestions = () => {
-    const next = cloneValues(baseline);
-    const suggestions = draftSuggestions(fragments);
-    Object.entries(suggestions).forEach(([documentType, zones]) => {
-      if (!next[documentType]) return;
-      Object.entries(zones).forEach(([zoneId, text]) => {
-        if (zoneId in next[documentType]) next[documentType][zoneId] = text;
-      });
-    });
-    setValues(next);
-    setSuggestionsApplied(true);
-    setError(null);
-    exports.forEach((item) => URL.revokeObjectURL(item.objectUrl));
-    setExports([]);
-  };
+    if (packagePdf) URL.revokeObjectURL(packagePdf.objectUrl);
+  }, [packagePdf]);
 
   const updateZone = (documentType: string, zoneId: string, text: string) => {
     setValues((current) => ({
@@ -201,8 +208,19 @@ export default function F6TemplateReviewEditor({
         [zoneId]: text,
       },
     }));
-    exports.forEach((item) => URL.revokeObjectURL(item.objectUrl));
-    setExports([]);
+    setPackagePdf((current) => {
+      if (current) URL.revokeObjectURL(current.objectUrl);
+      return null;
+    });
+  };
+
+  const resetToGeneratedDraft = () => {
+    setValues(applyDraftToBaseline(baseline, fragments));
+    setError(null);
+    setPackagePdf((current) => {
+      if (current) URL.revokeObjectURL(current.objectUrl);
+      return null;
+    });
   };
 
   const changedReplacements = () => Object.fromEntries(
@@ -219,11 +237,13 @@ export default function F6TemplateReviewEditor({
     }),
   );
 
-  const renderLocalPdfs = async () => {
+  const renderFinishedPdf = async () => {
     setRendering(true);
     setError(null);
-    exports.forEach((item) => URL.revokeObjectURL(item.objectUrl));
-    setExports([]);
+    setPackagePdf((current) => {
+      if (current) URL.revokeObjectURL(current.objectUrl);
+      return null;
+    });
     try {
       const payload = await readJson<ExportPayload>("/api/v1/product-v1/f6-template-export", {
         method: "POST",
@@ -234,11 +254,13 @@ export default function F6TemplateReviewEditor({
           documents: changedReplacements(),
         }),
       });
-      const localExports = (payload.documents || []).map((document) => ({
-        ...document,
-        objectUrl: pdfObjectUrl(document.pdf_base64),
-      }));
-      setExports(localExports);
+      if (!payload.package?.pdf_base64) {
+        throw new Error("Finished application PDF was not returned");
+      }
+      setPackagePdf({
+        ...payload.package,
+        objectUrl: pdfObjectUrl(payload.package.pdf_base64),
+      });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -246,70 +268,73 @@ export default function F6TemplateReviewEditor({
     }
   };
 
-  return <section className="f6-review-editor">
+  return <section className="f6-review-editor f6-finished-document">
     <header className="f6-review-head">
       <div>
-        <span>F6-C · exact-template review</span>
-        <h4>Review and edit permitted PDF text zones</h4>
-        <p>Only manifest-declared zones are editable. Rendering fails closed on overflow or any pixel change outside those zones.</p>
+        <span>F6-C · finished application</span>
+        <h4>One finished PDF instead of zone-by-zone assembly</h4>
+        <p>JAP maps the grounded draft into the approved CV and letter templates internally, verifies the protected pixels, then combines both into one local application PDF.</p>
       </div>
       <b>HUMAN REVIEW REQUIRED</b>
     </header>
 
-    {loading && <div className="f6-review-loading">Loading the two exact local templates…</div>}
-    {error && <div className="f6-review-error"><strong>Export blocked</strong><span>{error}</span></div>}
+    {loading && <div className="f6-review-loading">Preparing the exact local templates…</div>}
+    {error && <div className="f6-review-error"><strong>PDF creation blocked</strong><span>{error}</span></div>}
 
     {!loading && templates.length === 2 && <>
-      <div className="f6-review-actions">
-        <button type="button" onClick={applySuggestions}>
-          {suggestionsApplied ? "Reset and re-apply draft suggestions" : "Apply draft suggestions to zones"}
-        </button>
-        <small>CV summary → short profile. Letter opening/fit/closing → body zones. All other template text stays unchanged unless you edit it explicitly.</small>
-      </div>
-
-      <div className="f6-review-documents">
-        {templates.map((template) => <article key={template.document_type}>
-          <header>
-            <div><span>{label(template.document_type)}</span><b>{template.canonical_filename}</b></div>
-            <code>{template.source_sha256.slice(0, 12)}… · {template.page_count} page{template.page_count === 1 ? "" : "s"}</code>
-          </header>
-          <div className="f6-zone-list">
-            {template.zones.map((zone) => <label key={zone.id}>
-              <span><b>{zone.id}</b><small>page {zone.page}</small></span>
-              <textarea
-                value={values[template.document_type]?.[zone.id] ?? ""}
-                onChange={(event) => updateZone(template.document_type, zone.id, event.target.value)}
-                rows={Math.max(2, Math.min(6, (values[template.document_type]?.[zone.id] || "").split("\n").length + 1))}
-              />
-            </label>)}
+      <div className="f6-finished-flow">
+        <div className="f6-finished-copy">
+          <strong>Application PDF is ready to build</strong>
+          <p>The generated review text has already been mapped to the permitted template zones. You do not need to fill the individual fields manually.</p>
+          <div className="f6-finished-facts">
+            <span><b>1</b> application letter</span>
+            <span><b>2</b> CV pages</span>
+            <span><b>0</b> automatic submissions</span>
           </div>
-        </article>)}
-      </div>
-
-      <div className="f6-render-panel">
-        <div>
-          <strong>Local PDF export</strong>
-          <p>The loopback runtime renders the exact private templates. No DB write, provider call, application action, submission, or send occurs.</p>
         </div>
-        <button type="button" disabled={rendering} onClick={() => void renderLocalPdfs()}>
-          {rendering ? "Rendering and verifying pixels…" : "Render local PDFs"}
+        <button type="button" disabled={rendering} onClick={() => void renderFinishedPdf()}>
+          {rendering ? "Building and verifying final PDF…" : "Create finished application PDF"}
         </button>
       </div>
 
-      {exports.length > 0 && <div className="f6-export-results">
-        {exports.map((item) => <article key={item.document_type}>
-          <div>
-            <span>{label(item.document_type)}</span>
-            <b>{item.render_evidence.outside_zone_pixel_identity ? "Outside-zone identity PASS" : "Verification unavailable"}</b>
-            <small>output {item.render_evidence.output_sha256?.slice(0, 12) || "—"}… · {(item.render_evidence.applied_zone_ids || []).length} edited zone(s)</small>
-          </div>
-          <nav>
-            <a href={item.objectUrl} target="_blank" rel="noreferrer">Open PDF</a>
-            <a href={item.objectUrl} download={item.download_filename}>Download PDF</a>
-          </nav>
-        </article>)}
-        <p>No automatic submit/send authority is created by these files. Review the PDFs before using them outside JAP.</p>
+      {packagePdf && <div className="f6-final-package">
+        <div>
+          <span>FINISHED LOCAL DOCUMENT</span>
+          <h5>{packagePdf.download_filename}</h5>
+          <p>{packagePdf.page_count} pages · letter + CV · {packagePdf.visual_identity ? "visual identity verified" : "verification unavailable"}</p>
+          <code>{packagePdf.sha256.slice(0, 16)}…</code>
+        </div>
+        <nav>
+          <a href={packagePdf.objectUrl} target="_blank" rel="noreferrer">Open final PDF</a>
+          <a className="primary" href={packagePdf.objectUrl} download={packagePdf.download_filename}>Download final PDF</a>
+        </nav>
       </div>}
+
+      <details className="f6-advanced-review">
+        <summary>Advanced: adjust individual template text zones</summary>
+        <p>Only use this when you want to correct a specific field. The normal path above needs no zone-by-zone work.</p>
+        <button type="button" className="f6-reset-draft" onClick={resetToGeneratedDraft}>Reset to generated draft</button>
+        <div className="f6-review-documents">
+          {templates.map((template) => <article key={template.document_type}>
+            <header>
+              <div><span>{label(template.document_type)}</span><b>{template.canonical_filename}</b></div>
+              <code>{template.source_sha256.slice(0, 12)}… · {template.page_count} page{template.page_count === 1 ? "" : "s"}</code>
+            </header>
+            <div className="f6-zone-list">
+              {template.zones.map((zone) => <label key={zone.id}>
+                <span><b>{zone.id}</b><small>page {zone.page}</small></span>
+                <textarea
+                  value={values[template.document_type]?.[zone.id] ?? ""}
+                  onChange={(event) => updateZone(template.document_type, zone.id, event.target.value)}
+                  rows={Math.max(2, Math.min(6, (values[template.document_type]?.[zone.id] || "").split("\n").length + 1))}
+                />
+              </label>)}
+            </div>
+          </article>)}
+        </div>
+      </details>
+
+      <p className="f6-final-boundary">The final PDF is created locally. No DB write, provider call, application action, submission, or send occurs during rendering.</p>
     </>}
   </section>;
 }
