@@ -395,6 +395,25 @@ Candidate **1.1.3** restores the 1.0.79 job-detail action surface:
 
 This explicitly freezes the 1.0.79 application-navigation UX as a regression contract while retaining the newer lifecycle truth boundary.
 
+### Candidate 1.1.4 — exact live vacancy revalidation, no invented 30-minute cadence
+
+The next operator run showed that 1.1.3 restored the buttons but the Product truth surface itself was still inconsistent: All jobs contained the persisted current cohort while the sidebar and `Current` filter rendered zero, and a genuinely interesting replacement target failed F6 only because its last health timestamp was older than 30 minutes.
+
+That exposed the actual authority mistake. `product_v1_demo_live_scope` was created as a bounded demo/audit freshness helper. F4C later made the stronger rule explicit: recurring-ingestion eligibility is **not cadence authority**, and a successful historical run without an explicit cadence must not be labeled stale merely because a fixed wall-clock interval elapsed.
+
+Candidate **1.1.4** therefore changes the boundary rather than tuning the number:
+
+- All jobs/current counts return to persisted evidence-driven lifecycle truth (`active_confirmed`);
+- the 30-minute demo-live helper is removed from the served Product action projection;
+- F6 does not trust age alone. When the operator explicitly chooses **Prepare application**, JAP probes exactly that Silver job's employer-origin URL once;
+- exact URL + expected title => current vacancy confirmed; no lifecycle write is needed and the already-bound persisted vacancy observation remains the drafting-detail source;
+- explicit vacancy-unavailable content => append one lifecycle-health `closed/exact_detail` observation, block drafting, and refresh Product truth so the dead job leaves the current cohort;
+- unverifiable transport/content outcomes => no write and fail closed;
+- generic 404 remains non-authoritative unless source-specific/explicit closure content proves the vacancy itself is gone;
+- Accompio's exact message `Die Stellenanzeige konnte nicht gefunden werden` is accepted as explicit vacancy-unavailable evidence.
+
+This restores coherent counts and prevents a dead job from remaining current after it is actually revalidated, without inventing cadence policy or weakening lifecycle evidence requirements.
+
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
 
