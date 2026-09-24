@@ -120,7 +120,7 @@ def test_legacy_generic_template_renderer_is_physically_absent() -> None:
 def test_active_f6_surfaces_do_not_reintroduce_legacy_generic_export_tokens() -> None:
     paths = (
         ROOT / "scripts" / "product_v1_application_workspace_runtime_quality.py",
-        ROOT / "frontend" / "control-center" / "src" / "DemoApplicationWorkspace.tsx",
+        ROOT / "frontend" / "control-center" / "src" / "ApplicationWorkspace.tsx",
         ROOT / "frontend" / "control-center" / "src" / "ApplicationSourceUpload.tsx",
     )
     combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
