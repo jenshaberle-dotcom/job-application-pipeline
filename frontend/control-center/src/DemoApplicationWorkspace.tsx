@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useProductTruth } from "./ProductTruthContext";
+import F6TemplateReviewEditor from "./F6TemplateReviewEditor";
 import "./demo-application-workspace.css";
 
 type TopJob = {
@@ -100,6 +101,7 @@ type DraftPayload = {
     fragments?: DraftFragment[];
     rationale?: string;
     candidate_fact_keys_used?: string[];
+    source_manifest_sha256?: string;
   } | null;
   render_status?: string;
   legacy_generic_document_export?: boolean;
@@ -340,7 +342,7 @@ export default function DemoApplicationWorkspace() {
 
                 <section className="demo-application-downloads">
                   <header><strong>F6 template authority</strong><span>{templateAuthority?.status === "ready" ? "2/2 exact private PDFs verified" : "exact templates required"}</span></header>
-                  <p className="demo-boundary-note">Legacy generic DOCX/A4 export has been removed. The next F6 slice may render only into declared text zones of the two hash-bound PDFs.</p>
+                  <p className="demo-boundary-note">Legacy generic DOCX/A4 export has been removed. F6-C renders only into declared text zones of the two hash-bound PDFs and verifies every pixel outside those zones.</p>
                 </section>
 
                 <section className="demo-document">
@@ -353,6 +355,12 @@ export default function DemoApplicationWorkspace() {
                   {letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
+                {selectedId != null && draft.package.source_manifest_sha256 && <F6TemplateReviewEditor
+                  silverJobId={selectedId}
+                  sourceManifestSha256={draft.package.source_manifest_sha256}
+                  fragments={draftFragments}
+                />}
+
                 <details className="demo-evidence-details demo-audit-details">
                   <summary>Audit details</summary>
                   <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>
@@ -360,7 +368,7 @@ export default function DemoApplicationWorkspace() {
                 </details>
               </> : <div className="demo-empty-draft">
                 <strong>F6 is review-first and template-authoritative.</strong>
-                <p>When factual context and both exact templates are ready, the system may draft text for review. Rendering into the frozen layouts remains fail-closed until the template-bound renderer is qualified.</p>
+                <p>When factual context and both exact templates are ready, the system may draft text for review. The qualified template-bound renderer then enables explicit local PDF review/export without changing submission authority.</p>
               </div>}
             </article>
           </div>}
