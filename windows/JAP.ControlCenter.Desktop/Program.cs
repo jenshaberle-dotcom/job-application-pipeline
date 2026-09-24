@@ -143,21 +143,30 @@ internal static class Program
         {
             using (process)
             {
-                if (process.Id == Environment.ProcessId || process.HasExited)
+                try
                 {
-                    continue;
-                }
+                    if (process.Id == Environment.ProcessId || process.HasExited)
+                    {
+                        continue;
+                    }
 
-                process.Refresh();
-                var handle = process.MainWindowHandle;
-                if (handle == IntPtr.Zero || !NativeMethods.IsWindowVisible(handle))
+                    process.Refresh();
+                    var handle = process.MainWindowHandle;
+                    if (handle == IntPtr.Zero || !NativeMethods.IsWindowVisible(handle))
+                    {
+                        continue;
+                    }
+
+                    _ = NativeMethods.ShowWindowAsync(handle, NativeMethods.SwRestore);
+                    _ = NativeMethods.SetForegroundWindow(handle);
+                    return true;
+                }
+                catch (Exception exc) when (
+                    exc is InvalidOperationException
+                        or System.ComponentModel.Win32Exception)
                 {
-                    continue;
+                    // A peer can disappear between enumeration and activation.
                 }
-
-                _ = NativeMethods.ShowWindowAsync(handle, NativeMethods.SwRestore);
-                _ = NativeMethods.SetForegroundWindow(handle);
-                return true;
             }
         }
 
