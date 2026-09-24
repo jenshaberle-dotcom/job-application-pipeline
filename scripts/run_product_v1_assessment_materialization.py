@@ -276,7 +276,8 @@ def build_assessment_payload(
     *,
     row: Mapping[str, object],
     authorized_sources: set[str],
-    policy_version: str,
+    ranking_policy_version: str,
+    hard_filter_policy_version: str,
     final_url: str,
     detail_text: str,
 ) -> dict[str, object]:
@@ -330,12 +331,14 @@ def build_assessment_payload(
                     row.get("latest_observation_observed_at")
                 ),
                 "observation_source_type": raw_evidence.get("source_type"),
+                "job_evidence_policy_version": hard_filter_policy_version,
+                "ranking_policy_version_independent": ranking_policy_version,
             },
         },
         "explanations": _evidence_explanations(evidence),
         "uncertainties": _evidence_uncertainties(evidence),
         "policy_key": "default",
-        "policy_version": policy_version,
+        "policy_version": hard_filter_policy_version,
         "assessed_by": ASSESSED_BY,
         "employment_type": patch["employment_type"],
         "employment_evidence_status": patch["employment_evidence_status"],
@@ -356,7 +359,8 @@ def build_assessment_payload(
         {
             "binding": _row_binding_payload(row),
             "final_url": final_url,
-            "policy_version": policy_version,
+            "ranking_policy_version": ranking_policy_version,
+            "hard_filter_policy_version": hard_filter_policy_version,
             "assessment": {key: payload[key] for key in ASSESSMENT_COLUMNS},
         }
     )
@@ -376,7 +380,7 @@ def select_rows(
     return selected
 
 
-def _load_policy_version(conn: psycopg.Connection[Any]) -> str:
+def _load_policy_versions(conn: psycopg.Connection[Any]) -> tuple[str, str]:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -394,11 +398,13 @@ def _load_policy_version(conn: psycopg.Connection[Any]) -> str:
         row = cur.fetchone()
     if row is None:
         raise MaterializationStop("approved Product V1 policies are missing")
-    ranking_version = str(row["ranking_version"] or "")
-    hard_filter_version = str(row["hard_filter_version"] or "")
-    if not ranking_version or ranking_version != hard_filter_version:
-        raise MaterializationStop("Product V1 policy versions are not aligned")
-    return ranking_version
+    ranking_version = str(row["ranking_version"] or "").strip()
+    hard_filter_version = str(row["hard_filter_version"] or "").strip()
+    if not ranking_version:
+        raise MaterializationStop("ranking policy version is missing")
+    if not hard_filter_version:
+        raise MaterializationStop("hard-filter policy version is missing")
+    return ranking_version, hard_filter_version
 
 
 def _load_candidate_rows(
@@ -587,7 +593,8 @@ def build_plan(
     *,
     rows: Sequence[Mapping[str, object]],
     authorized_sources: set[str],
-    policy_version: str,
+    ranking_policy_version: str,
+    hard_filter_policy_version: str,
     fetch_detail: Callable[[str], tuple[str, str, str]] = fetch_public_https_detail_text,
 ) -> dict[str, object]:
     proposals: list[dict[str, object]] = []
@@ -604,7 +611,8 @@ def build_plan(
             payload = build_assessment_payload(
                 row=row,
                 authorized_sources=authorized_sources,
-                policy_version=policy_version,
+                ranking_policy_version=ranking_policy_version,
+                hard_filter_policy_version=hard_filter_policy_version,
                 final_url=final_url,
                 detail_text=detail_text,
             )
@@ -640,7 +648,8 @@ def build_plan(
     return {
         "schema": MATERIALIZER_CONTRACT,
         "mode": "plan",
-        "policy_version": policy_version,
+        "ranking_policy_version": ranking_policy_version,
+        "job_evidence_policy_version": hard_filter_policy_version,
         "candidate_count": len(rows),
         "proposal_count": len(proposals),
         "blocked_count": len(blocked),
@@ -682,8 +691,11 @@ def apply_plan(
     conn = psycopg.connect(**get_database_config(), row_factory=dict_row)
     try:
         with conn.transaction():
-            current_policy_version = _load_policy_version(conn)
-            if current_policy_version != plan.get("policy_version"):
+            current_ranking_version, current_hard_filter_version = _load_policy_versions(conn)
+            if (
+                current_ranking_version != plan.get("ranking_policy_version")
+                or current_hard_filter_version != plan.get("job_evidence_policy_version")
+            ):
                 raise MaterializationStop("Product V1 policy changed after preflight")
 
             current_rows = select_rows(
@@ -773,7 +785,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute("SET TRANSACTION READ ONLY")
-        policy_version = _load_policy_version(conn)
+        ranking_policy_version, hard_filter_policy_version = _load_policy_versions(conn)
         rows = select_rows(
             _load_candidate_rows(
                 conn,
@@ -787,7 +799,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan = build_plan(
         rows=rows,
         authorized_sources=authorized_sources,
-        policy_version=policy_version,
+        ranking_policy_version=ranking_policy_version,
+        hard_filter_policy_version=hard_filter_policy_version,
     )
     result: dict[str, object] = dict(plan)
 
@@ -828,6 +841,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"CANDIDATES={result['candidate_count']}")
     print(f"PROPOSALS={result['proposal_count']}")
     print(f"BLOCKED={result['blocked_count']}")
+    print(f"RANKING_POLICY_VERSION={result['ranking_policy_version']}")
+    print(f"JOB_EVIDENCE_POLICY_VERSION={result['job_evidence_policy_version']}")
     print("UNRESOLVED_COUNTS=" + json.dumps(dict(sorted(unresolved.items()))))
     for proposal in result["proposals"]:
         assessment = proposal["assessment"]
