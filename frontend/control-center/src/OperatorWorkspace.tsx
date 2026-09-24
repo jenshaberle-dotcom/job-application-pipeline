@@ -339,7 +339,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
       <Metric labelText="Needs fit evidence" value={payload.summary.profile_fit_insufficient_evidence_count ?? 0} helper="missing evidence, never negative fit" />
       <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="existing Product gate; F4B remains separate" />
       <Metric labelText="Top 5" value={`${payload.summary.top_job_count}/5`} helper="authoritative shortlist" />
-      <Metric labelText="Application ready" value={payload.summary.application_ready_count} helper="review draft context" />
+      <Metric labelText="Top-5 draft ready" value={payload.summary.application_ready_count} helper="strict recommendation-path eligibility; explicit operator selection is separate" />
     </section>
 
     <section className="ow-overview-grid">
