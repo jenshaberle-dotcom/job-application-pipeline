@@ -166,3 +166,21 @@ def test_single_instance_guard_uses_mutex_ownership_not_named_object_existence()
     assert "catch (AbandonedMutexException)" in program
     assert "mutex.ReleaseMutex()" in program
     assert "out var createdNew" not in program
+
+
+
+def test_single_instance_guard_reactivates_or_waits_instead_of_false_already_open_popup() -> None:
+    program = read("windows/JAP.ControlCenter.Desktop/Program.cs")
+
+    assert "TryActivateExistingVisibleWindow" in program
+    assert "NativeMethods.IsWindowVisible" in program
+    assert "NativeMethods.ShowWindowAsync" in program
+    assert "NativeMethods.SetForegroundWindow" in program
+    assert "LifecycleHandoffTimeout = TimeSpan.FromSeconds(25)" in program
+    assert "mutex.WaitOne(LifecycleHandoffTimeout, false)" in program
+    assert "IsProductUpdateHandoffInProgress" in program
+    assert "accepted-update.json" in program
+    assert "UpdateHandoffProbeTimeout = TimeSpan.FromSeconds(8)" in program
+    assert "JAP Control Center ist bereits geöffnet." not in program
+    assert "wird gerade aktualisiert und startet anschließend automatisch neu" in program
+    assert "wird gerade beendet oder neu gestartet" in program
