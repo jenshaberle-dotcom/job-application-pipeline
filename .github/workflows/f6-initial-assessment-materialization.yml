@@ -15,6 +15,7 @@ jobs:
   apply:
     name: Exact frozen F6 assessment insert
     if: >-
+      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
       github.event.issue.number == 1011 &&
       github.event.comment.user.login == 'jenshaberle-dotcom' &&
       github.event.comment.author_association == 'OWNER' &&
