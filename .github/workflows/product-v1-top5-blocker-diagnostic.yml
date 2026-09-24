@@ -1,0 +1,142 @@
+name: Product V1 Top-5 blocker diagnostic
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/product-v1-top5-blocker-diagnostic.yml"
+      - "scripts/run_product_v1_top5_blocker_diagnostic.py"
+      - "tests/test_product_v1_top5_blocker_diagnostic.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Read-only current Top-5 blocker proof
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 20
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      OUTPUT: /tmp/jap-product-v1-top5-blockers.json
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity", "checkout", "checkout_repository",
+              "env_file", "env_keys", "interpreter", "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          echo "RCC_CONTEXT=PASS runner=$RUNNER_NAME"
+
+      - name: Compile and test diagnostic contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m py_compile scripts/run_product_v1_top5_blocker_diagnostic.py
+          "$RUNTIME_PYTHON" -m pytest -q tests/test_product_v1_top5_blocker_diagnostic.py
+
+      - name: Run current Product truth diagnostic read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_product_v1_top5_blocker_diagnostic \
+            --detail-limit 25 \
+            --output "$OUTPUT"
+
+      - name: Verify fail-closed diagnostic boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if payload.get("status") != "read_only_complete":
+              raise SystemExit("TOP5_DIAGNOSTIC_NOT_COMPLETE")
+          boundaries = payload.get("boundaries") or {}
+          expected = {
+              "database_writes": False,
+              "network_requests": 0,
+              "provider_requests": 0,
+              "hard_filter_reviews_written": 0,
+              "ranking_or_top5_writes": 0,
+              "application_or_submission_actions": 0,
+              "source_or_scheduler_mutation": False,
+          }
+          for key, value in expected.items():
+              if boundaries.get(key) != value:
+                  raise SystemExit(f"TOP5_DIAGNOSTIC_BOUNDARY_VIOLATION:{key}")
+          print("PRODUCT_V1_TOP5_BLOCKER_BOUNDARY=PASS")
+          PY
+
+      - name: Upload read-only diagnostic artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-v1-top5-blocker-diagnostic
+          path: /tmp/jap-product-v1-top5-blockers.json
+          if-no-files-found: warn
+          retention-days: 3
