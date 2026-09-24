@@ -156,6 +156,17 @@ def _target_snapshot(
     )
     if not company_name:
         raise ApplicationWorkspaceStop("company_name is required")
+    origin_validation_status = str(row.get("origin_validation_status") or "").strip()
+    if not origin_validation_status:
+        if authority_source == OPERATOR_SELECTED_AUTHORITY_SOURCE:
+            # A current operator-selected Product row may legitimately still be at
+            # the assessment_required gate. Preserve that missing authority as an
+            # explicit unknown so the canonical context can surface
+            # origin_not_validated instead of failing before blocker rendering.
+            origin_validation_status = "unknown"
+        else:
+            raise ApplicationWorkspaceStop("origin_validation_status is required")
+
     return ApplicationTargetSnapshot(
         silver_job_id=silver_job_id,
         product_rank=product_rank,
@@ -164,7 +175,7 @@ def _target_snapshot(
         source_url=_required_text(row, "source_url"),
         canonical_source_type=_required_text(row, "canonical_source_type"),
         product_readiness_status=_required_text(row, "product_readiness_status"),
-        origin_validation_status=_required_text(row, "origin_validation_status"),
+        origin_validation_status=origin_validation_status,
         activity_status=_required_text(row, "activity_status"),
         hard_filter_status=_required_text(row, "hard_filter_status"),
         detail_text=detail_text,
