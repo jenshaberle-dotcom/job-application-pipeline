@@ -28,6 +28,7 @@ from scripts.product_v1_application_workspace_runtime_quality import (
 )
 from scripts.product_v1_application_workspace_runtime import (
     ApplicationWorkspaceLifecycleStop,
+    revalidate_application_target,
 )
 from scripts.product_v1_data_layers_runtime import load_data_layers_payload
 from scripts.product_v1_f4c_source_health_runtime import (
@@ -78,6 +79,9 @@ from src.search_intelligence.product_v1_application_workspace import (
 PRODUCT_V1_PATH = "/api/v1/product-v1"
 DATA_LAYERS_PATH = "/api/v1/product-v1/data-layers"
 APPLICATION_WORKSPACE_PATH = "/api/v1/product-v1/application-workspace"
+APPLICATION_WORKSPACE_REVALIDATE_PATH = (
+    "/api/v1/product-v1/application-workspace/revalidate"
+)
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
 F6_TEMPLATE_REVIEW_PATH = "/api/v1/product-v1/f6-template-review"
 F6_TEMPLATE_EXPORT_PATH = "/api/v1/product-v1/f6-template-export"
@@ -155,6 +159,22 @@ def parse_application_draft_action_payload(payload: object) -> int:
         raise DemoActionStop("silver_job_id must be positive")
     return silver_job_id
 
+
+
+def parse_application_revalidation_action_payload(payload: object) -> int:
+    if not isinstance(payload, Mapping):
+        raise DemoActionStop("action payload must be a JSON object")
+    if set(payload) != {"action", "silver_job_id"}:
+        raise DemoActionStop("action payload contains unexpected fields")
+    if payload.get("action") != "revalidate_selected_vacancy":
+        raise DemoActionStop("action must be revalidate_selected_vacancy")
+    try:
+        silver_job_id = int(payload.get("silver_job_id") or 0)
+    except (TypeError, ValueError) as exc:
+        raise DemoActionStop("silver_job_id must be an integer") from exc
+    if silver_job_id <= 0:
+        raise DemoActionStop("silver_job_id must be positive")
+    return silver_job_id
 
 
 def _source_manifest_sha256(payload: object) -> str:
@@ -549,6 +569,45 @@ class ProductV1DemoHandler(ProductV1Handler):
             return
         if parsed.path == APPLICATION_SUBMISSION_RECORD_PATH:
             self._post_submission_record()
+            return
+        if parsed.path == APPLICATION_WORKSPACE_REVALIDATE_PATH:
+            try:
+                silver_job_id = parse_application_revalidation_action_payload(
+                    self._read_demo_action_payload()
+                )
+                result = revalidate_application_target(silver_job_id)
+                self._send_json(
+                    {
+                        "status": result.status,
+                        "outcome": result.outcome,
+                        "reason": result.evidence_reason,
+                        "silver_job_id": silver_job_id,
+                        "vacancy_revalidation_http_gets": result.http_requests,
+                        "database_writes": result.health_observation_writes,
+                        "lifecycle_health_observation_writes": (
+                            result.health_observation_writes
+                        ),
+                        "provider_requests": 0,
+                        "application_writes": 0,
+                        "submission_writes": 0,
+                        "send_actions": 0,
+                    }
+                )
+            except (ApplicationWorkspaceStop, DemoActionStop) as exc:
+                self._send_json(
+                    {
+                        "status": "blocked",
+                        "reason": str(exc),
+                        "vacancy_revalidation_http_gets": 0,
+                        "database_writes": 0,
+                        "lifecycle_health_observation_writes": 0,
+                        "provider_requests": 0,
+                        "application_writes": 0,
+                        "submission_writes": 0,
+                        "send_actions": 0,
+                    },
+                    status=HTTPStatus.CONFLICT,
+                )
             return
         if parsed.path != APPLICATION_DRAFT_PATH:
             super().do_POST()
