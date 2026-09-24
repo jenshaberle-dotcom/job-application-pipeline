@@ -1,7 +1,7 @@
 """F6 template-bound PDF rendering with pixel-bound outside-zone proof.
 
 This module is the rendering authority for F6 Slice B only. It accepts only one
-of the two exact private PDFs already admitted by :mod:\`f6_template_authority\`,
+of the two exact private PDFs already admitted by `f6_template_authority`,
 changes text only inside manifest-declared zones, fails closed on overflow, and
 proves that rendered pixels outside all declared zones are unchanged.
 
