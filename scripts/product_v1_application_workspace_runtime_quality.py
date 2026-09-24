@@ -93,6 +93,8 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
                 "detail_sha256": context.target.detail_sha256,
                 "evidence_mode": evidence_mode,
             },
+            "vacancy_revalidation_http_gets": 1,
+            "lifecycle_health_observation_writes": 0,
             "job_detail_http_gets": job_detail_http_gets,
             "current_observation_detail_reuse": int(
                 evidence_mode == "exact_persisted_observation"
