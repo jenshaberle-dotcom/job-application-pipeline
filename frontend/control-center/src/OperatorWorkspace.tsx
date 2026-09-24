@@ -183,9 +183,7 @@ const scoreText = (value: number | null | undefined) => value == null ? "—" : 
 const hasPersistedActiveLifecycle = (job: Job) =>
   ["active confirmed", "active_confirmed"].includes(normalize(job.lifecycle_status));
 
-const isCurrent = (job: Job) =>
-  hasPersistedActiveLifecycle(job)
-  && job.demo_live_verified === true;
+const isCurrent = (job: Job) => hasPersistedActiveLifecycle(job);
 const isRankable = (job: Job) => normalize(job.product_readiness_status) === "rankable";
 const employerName = (job: Job) => job.display_company_name || job.company_name || "Employer not resolved";
 const locationText = (job: Job) => job.city || job.country || (normalize(job.work_model) === "remote" ? "Remote" : "Location not confirmed");
