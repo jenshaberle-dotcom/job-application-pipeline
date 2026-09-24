@@ -117,7 +117,8 @@ def test_job_detail_preserves_1_0_79_application_navigation_affordances() -> Non
     source = _text(WORKSPACE)
 
     assert ">Open original ↗</a>" in source
-    assert "<OpenApplicationButton silverJobId={job.silver_job_id} />" in source
+    assert "<OpenApplicationButton silverJobId={job.silver_job_id}" in source
+    assert 'disabled={liveCheck.status === "checking"}' in source
     assert ">Open Applications</button>" in source
     assert "hasPersistedActiveLifecycle(job)" in source
     assert "demo_live_verified" in source
