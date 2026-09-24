@@ -1,10 +1,10 @@
-"""Bind current Product V1 Top-5 truth to the application-generation context.
+"""Bind one current Product V1 job to the application-generation context.
 
-This module is intentionally side-effect free. Runtime callers supply one authoritative
-Top-5 row, fetched employer-origin detail text, the private Candidate Fact profile/facts,
-and approved base-document rows plus a local content loader. The result is the existing
-source-grounded :class:`ProductV1ApplicationContext`; no provider or application action
-is performed here.
+This module is intentionally side-effect free. Runtime callers may supply either an
+authoritative Top-5 row or an explicitly operator-selected current employer-origin job,
+plus fetched vacancy detail text, private Candidate Facts and approved F6 document
+rows. Selection for drafting never creates ranking, application, submission or send
+authority.
 """
 
 from __future__ import annotations
@@ -24,7 +24,9 @@ from src.search_intelligence.product_v1_application_context import (
     ApplicationSourceDocumentSnapshot,
     ApplicationTargetSnapshot,
     CandidateFactSnapshot,
+    OPERATOR_SELECTED_AUTHORITY_SOURCE,
     ProductV1ApplicationContext,
+    TOP5_AUTHORITY_SOURCE,
     build_product_v1_application_context,
 )
 from src.search_intelligence.product_v1_job_presentation import (
@@ -137,13 +139,17 @@ def _target_snapshot(
     row: Mapping[str, object],
     *,
     detail_text: str,
+    authority_source: str = TOP5_AUTHORITY_SOURCE,
     employer_origin_authorized: bool | None = None,
 ) -> ApplicationTargetSnapshot:
     try:
         silver_job_id = int(row.get("silver_job_id") or 0)
-        product_rank = int(row.get("product_rank") or 0)
+        raw_rank = row.get("product_rank")
+        product_rank = int(raw_rank) if raw_rank is not None else None
     except (TypeError, ValueError) as exc:
-        raise ApplicationWorkspaceStop("invalid Top-5 job identity") from exc
+        raise ApplicationWorkspaceStop("invalid application target identity") from exc
+    if authority_source == OPERATOR_SELECTED_AUTHORITY_SOURCE:
+        product_rank = None
     company_name = authoritative_employer_name(
         row.get("source_name"),
         row.get("company_name"),
@@ -162,6 +168,7 @@ def _target_snapshot(
         activity_status=_required_text(row, "activity_status"),
         hard_filter_status=_required_text(row, "hard_filter_status"),
         detail_text=detail_text,
+        authority_source=authority_source,
         employer_origin_authorized=employer_origin_authorized,
     )
 
@@ -236,6 +243,7 @@ def build_application_workspace_context(
     document_rows: Sequence[Mapping[str, object]],
     load_document: DocumentLoader,
     as_of_date: date,
+    authority_source: str = TOP5_AUTHORITY_SOURCE,
     employer_origin_authorized: bool | None = None,
 ) -> ProductV1ApplicationContext:
     """Build the canonical source-grounded context from current runtime evidence."""
@@ -250,6 +258,7 @@ def build_application_workspace_context(
     target = _target_snapshot(
         top_job_row,
         detail_text=detail_text,
+        authority_source=authority_source,
         employer_origin_authorized=employer_origin_authorized,
     )
     facts = _fact_snapshots(fact_rows)
