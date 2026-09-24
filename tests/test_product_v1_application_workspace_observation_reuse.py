@@ -9,6 +9,9 @@ from scripts import product_v1_application_workspace_runtime as runtime
 from src.search_intelligence.product_v1_application_context import (
     OPERATOR_SELECTED_AUTHORITY_SOURCE,
 )
+from src.search_intelligence.product_v1_live_vacancy_revalidation import (
+    ProductV1VacancyRevalidation,
+)
 
 
 URL = "https://karriere.example.test/de?id=7879f1"
@@ -55,10 +58,26 @@ def _runtime_rows(target: dict[str, object]):
     )
 
 
+def _active_revalidation() -> ProductV1VacancyRevalidation:
+    return ProductV1VacancyRevalidation(
+        status="active",
+        outcome="seen_active",
+        evidence_reason="exact_detail_url_and_title_confirmed",
+        observation_id=None,
+        http_requests=1,
+        health_observation_writes=0,
+    )
+
+
 def test_workspace_reuses_exact_current_observation_without_network(monkeypatch) -> None:
     target = _target()
     monkeypatch.setattr(runtime, "_load_runtime_rows", lambda _job_id: _runtime_rows(target))
     monkeypatch.setattr(runtime, "_employer_origin_authorized", lambda _source: True)
+    monkeypatch.setattr(
+        runtime,
+        "revalidate_selected_vacancy",
+        lambda **_kwargs: _active_revalidation(),
+    )
 
     def no_network(_url: str):
         raise AssertionError("exact current observation must avoid redundant network fetch")
@@ -85,19 +104,27 @@ def test_workspace_reuses_exact_current_observation_without_network(monkeypatch)
     assert "Homeoffice" in detail
 
 
-def test_workspace_rejects_stale_active_label_before_reusing_old_detail(
+def test_workspace_does_not_treat_arbitrary_wall_clock_age_as_product_cadence(
     monkeypatch,
 ) -> None:
     target = _target(health_checked_at="2026-09-24T10:00:00+00:00")
     monkeypatch.setattr(runtime, "_load_runtime_rows", lambda _job_id: _runtime_rows(target))
+    monkeypatch.setattr(runtime, "_employer_origin_authorized", lambda _source: True)
+    monkeypatch.setattr(
+        runtime,
+        "revalidate_selected_vacancy",
+        lambda **_kwargs: _active_revalidation(),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "build_application_workspace_context",
+        lambda **_kwargs: SimpleNamespace(),
+    )
 
-    def should_not_bind(_target):
-        raise AssertionError("stale lifecycle evidence must stop before detail reuse")
+    _context, _final_url, _title, evidence_mode, http_gets = runtime.load_application_workspace(626)
 
-    monkeypatch.setattr(runtime, "bound_observation_detail", should_not_bind)
-
-    with pytest.raises(runtime.ApplicationWorkspaceStop, match="live_health_refresh_required"):
-        runtime.load_application_workspace(626)
+    assert evidence_mode == "exact_persisted_observation"
+    assert http_gets == 0
 
 
 def test_workspace_falls_back_to_bounded_network_when_observation_binding_mismatches(
@@ -106,6 +133,11 @@ def test_workspace_falls_back_to_bounded_network_when_observation_binding_mismat
     target = _target(observation_url="https://karriere.example.test/de?id=other")
     monkeypatch.setattr(runtime, "_load_runtime_rows", lambda _job_id: _runtime_rows(target))
     monkeypatch.setattr(runtime, "_employer_origin_authorized", lambda _source: True)
+    monkeypatch.setattr(
+        runtime,
+        "revalidate_selected_vacancy",
+        lambda **_kwargs: _active_revalidation(),
+    )
     calls: list[str] = []
 
     def network(url: str):
