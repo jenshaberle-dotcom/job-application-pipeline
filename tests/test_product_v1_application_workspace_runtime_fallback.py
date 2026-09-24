@@ -63,7 +63,13 @@ def _context():
 
 
 def _load(_silver_job_id: int):
-    return _context(), "https://jobs.example.com/42", "Data Engineer"
+    return (
+        _context(),
+        "https://jobs.example.com/42",
+        "Data Engineer",
+        "exact_persisted_observation",
+        0,
+    )
 
 
 def test_missing_provider_key_uses_zero_request_evidence_first_fallback(monkeypatch) -> None:
@@ -77,6 +83,8 @@ def test_missing_provider_key_uses_zero_request_evidence_first_fallback(monkeypa
     assert payload["fallback_reason"] == "provider_key_unavailable"
     assert payload["provider_requests"] == 0
     assert payload["database_writes"] == 0
+    assert payload["job_detail_http_gets"] == 0
+    assert payload["current_observation_detail_reuse"] == 1
     assert payload["application_writes"] == 0
     assert payload["submission_writes"] == 0
     assert payload["send_actions"] == 0

@@ -27,6 +27,7 @@ from scripts.run_product_v1_assessment_materialization import (
 )
 from src.config import get_database_config
 from src.ingestion.repository import JobIngestionRepository
+from src.search_intelligence.exact_observation_detail import bound_observation_detail
 from src.search_intelligence.f6_template_authority import authority_status
 from src.search_intelligence.product_v1_application_context import (
     OPERATOR_SELECTED_AUTHORITY_SOURCE,
@@ -102,6 +103,43 @@ def _load_runtime_rows(
 
                 cur.execute(
                     """
+                    SELECT
+                        observation.source_url AS latest_observation_source_url,
+                        observation.normalized_evidence AS latest_observation_evidence,
+                        observation.observed_at AS latest_observation_observed_at
+                    FROM silver_jobs silver
+                    LEFT JOIN LATERAL (
+                        SELECT source_url, normalized_evidence, observed_at
+                        FROM job_observations
+                        WHERE raw_job_id = silver.raw_job_id
+                          AND source_name = silver.source_name
+                          AND is_seen = TRUE
+                        ORDER BY observed_at DESC, id DESC
+                        LIMIT 1
+                    ) observation ON TRUE
+                    WHERE silver.id = %s
+                    """,
+                    (silver_job_id,),
+                )
+                observation = cur.fetchone()
+                target = dict(target)
+                if observation is not None:
+                    target.update(
+                        {
+                            "latest_observation_source_url": observation.get(
+                                "latest_observation_source_url"
+                            ),
+                            "latest_observation_evidence": observation.get(
+                                "latest_observation_evidence"
+                            ),
+                            "latest_observation_observed_at": observation.get(
+                                "latest_observation_observed_at"
+                            ),
+                        }
+                    )
+
+                cur.execute(
+                    """
                     SELECT status, payload_sha256
                     FROM candidate_fact_profiles
                     WHERE profile_key = 'default'
@@ -164,12 +202,22 @@ def _employer_origin_authorized(source_name: object) -> bool:
 
 def load_application_workspace(
     silver_job_id: int,
-) -> tuple[object, str, str]:
+) -> tuple[object, str, str, str, int]:
     target, target_authority_source, profile, facts, documents = _load_runtime_rows(
         silver_job_id
     )
     source_url = str(target.get("source_url") or "")
-    final_url, fetched_title, detail_text = fetch_public_https_detail_text(source_url)
+    persisted_detail = bound_observation_detail(target)
+    if persisted_detail is not None:
+        fetched_title, detail_text = persisted_detail
+        final_url = source_url
+        evidence_mode = "exact_persisted_observation"
+        job_detail_http_gets = 0
+    else:
+        final_url, fetched_title, detail_text = fetch_public_https_detail_text(source_url)
+        evidence_mode = "live_http_detail"
+        job_detail_http_gets = 1
+
     context = build_application_workspace_context(
         top_job_row=target,
         detail_text=detail_text,
@@ -183,11 +231,13 @@ def load_application_workspace(
             target.get("source_name")
         ),
     )
-    return context, final_url, fetched_title
+    return context, final_url, fetched_title, evidence_mode, job_detail_http_gets
 
 
 def application_workspace_payload(silver_job_id: int) -> dict[str, object]:
-    context, final_url, fetched_title = load_application_workspace(silver_job_id)
+    context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
+        load_application_workspace(silver_job_id)
+    )
     canonical = context.canonical_payload()  # type: ignore[union-attr]
     approved_hashes = {
         document.document_type: document.content_sha256
@@ -202,11 +252,15 @@ def application_workspace_payload(silver_job_id: int) -> dict[str, object]:
             "final_url": final_url,
             "fetched_title": fetched_title,
             "detail_sha256": context.target.detail_sha256,  # type: ignore[union-attr]
+            "evidence_mode": evidence_mode,
         },
         "boundaries": {
             "database_reads": True,
             "database_writes": False,
-            "job_detail_http_gets": 1,
+            "job_detail_http_gets": job_detail_http_gets,
+            "current_observation_detail_reuse": int(
+                evidence_mode == "exact_persisted_observation"
+            ),
             "provider_requests": 0,
             "application_writes": 0,
             "submission_writes": 0,
@@ -226,6 +280,8 @@ def _evidence_first_draft_payload(
     context: object,
     final_url: str,
     fetched_title: str,
+    evidence_mode: str,
+    job_detail_http_gets: int,
     fallback_reason: str,
     provider_requests: int = 0,
     llm_requests: int = 0,
@@ -257,6 +313,10 @@ def _evidence_first_draft_payload(
         "tavily_requests": 0,
         "estimated_model_cost_usd": round(float(estimated_model_cost_usd), 8),
         "database_writes": 0,
+        "job_detail_http_gets": job_detail_http_gets,
+        "current_observation_detail_reuse": int(
+            evidence_mode == "exact_persisted_observation"
+        ),
         "application_writes": 0,
         "submission_writes": 0,
         "send_actions": 0,
@@ -268,12 +328,15 @@ def _evidence_first_draft_payload(
             "final_url": final_url,
             "fetched_title": fetched_title,
             "detail_sha256": context.target.detail_sha256,  # type: ignore[union-attr]
+            "evidence_mode": evidence_mode,
         },
     }
 
 
 def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
-    context, final_url, fetched_title = load_application_workspace(silver_job_id)
+    context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
+        load_application_workspace(silver_job_id)
+    )
     if not context.generation_ready:
         return {
             "schema": "job_application_pipeline.product_v1_application_draft_demo.v1",
@@ -305,6 +368,8 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
             context=context,
             final_url=final_url,
             fetched_title=fetched_title,
+            evidence_mode=evidence_mode,
+            job_detail_http_gets=job_detail_http_gets,
             fallback_reason="provider_key_unavailable",
         )
 
@@ -320,6 +385,8 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
             context=context,
             final_url=final_url,
             fetched_title=fetched_title,
+            evidence_mode=evidence_mode,
+            job_detail_http_gets=job_detail_http_gets,
             fallback_reason="provider_campaign_unresolved",
             provider_requests=execution.provider_requests,
             llm_requests=execution.llm_requests,
@@ -338,6 +405,7 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
                 "final_url": final_url,
                 "fetched_title": fetched_title,
                 "detail_sha256": context.target.detail_sha256,
+                "evidence_mode": evidence_mode,
             },
         }
     )

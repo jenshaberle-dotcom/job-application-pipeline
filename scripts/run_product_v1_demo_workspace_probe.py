@@ -162,7 +162,9 @@ def run_workspace_probe(
 def run_workspace_probe_single_fetch(*, silver_job_id: int) -> dict[str, object]:
     """Load one canonical workspace and carry its deterministic draft proof forward."""
     try:
-        context, final_url, fetched_title = load_application_workspace(silver_job_id)
+        context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
+            load_application_workspace(silver_job_id)
+        )
         payload = {
             "status": "ready" if context.generation_ready else "blocked",
             "workspace": context.canonical_payload(),
@@ -170,11 +172,15 @@ def run_workspace_probe_single_fetch(*, silver_job_id: int) -> dict[str, object]
                 "final_url": final_url,
                 "fetched_title": fetched_title,
                 "detail_sha256": context.target.detail_sha256,
+                "evidence_mode": evidence_mode,
             },
             "boundaries": {
                 "database_reads": True,
                 "database_writes": False,
-                "job_detail_http_gets": 1,
+                "job_detail_http_gets": job_detail_http_gets,
+                "current_observation_detail_reuse": int(
+                    evidence_mode == "exact_persisted_observation"
+                ),
                 "provider_requests": 0,
                 "application_writes": 0,
                 "submission_writes": 0,
@@ -261,7 +267,10 @@ def main() -> int:
     print(f"STATE={str(report.get('state') or 'blocked').upper()}")
     print(f"SILVER_JOB_ID={report.get('silver_job_id') or 'NONE'}")
     print("BLOCKERS=" + json.dumps(report.get("blocking_checks") or [], sort_keys=True))
-    print("JOB_DETAIL_HTTP_GETS=1_MAX")
+    print(
+        "JOB_DETAIL_HTTP_GETS="
+        + str((report.get("boundaries") or {}).get("job_detail_http_gets", "UNKNOWN"))
+    )
     print("DATABASE_WRITES=0")
     print("PROVIDER_REQUESTS=0")
     print("SUBMISSION_WRITES=0")
