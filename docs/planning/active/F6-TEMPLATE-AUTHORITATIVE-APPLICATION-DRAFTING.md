@@ -433,7 +433,7 @@ Second, the presence of a bundled Codex binary is not equivalent to the operator
 
 JAP accepts only the official CLI status **Logged in using ChatGPT** as F6 drafting authority. API-key, workload-identity or access-token auth is visible diagnostically but does not enable drafting. If ChatGPT auth is missing, **Generate review text** remains disabled before any model request. There is still no deterministic filler fallback.
 
-1.1.5 also fixes the job-count UX exposed by the same operator run: the full inventory is labeled **All jobs**, Current stays a distinct lifecycle filter, and the sidebar All-jobs badge reflects the inventory rather than an unrelated current count.
+1.1.5 also fixes the job-count UX exposed by the same operator run: **All jobs** remains the canonical current Employer-Origin review scope, the redundant/broken secondary Current filter is removed, and the sidebar badge is derived from the same `job_readiness` cohort. Historical rows remain auditable outside this review list.
 
 The updater is hardened in the same patch after a real first-attempt rollback on `desktop-host` access denial: transient access/sharing failures receive a bounded 45-second cutover retry, and a failed exact target receives a 10-minute retry cooldown instead of being offered again roughly 30 seconds after rollback. Superseding releases are not blocked by that cooldown.
 
