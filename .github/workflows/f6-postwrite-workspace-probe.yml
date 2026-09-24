@@ -93,6 +93,8 @@ jobs:
           # shellcheck disable=SC1090
           source "$RUNTIME_ENV_FILE"
           set +a
+          export PRODUCT_V1_PRIVATE_DOCUMENT_ROOT="$(dirname "$RUNTIME_ENV_FILE")/private_application_sources"
+          test -d "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
           export PGOPTIONS="-c default_transaction_read_only=on"
 
           set +e
@@ -157,6 +159,8 @@ jobs:
           # shellcheck disable=SC1090
           source "$RUNTIME_ENV_FILE"
           set +a
+          export PRODUCT_V1_PRIVATE_DOCUMENT_ROOT="$(dirname "$RUNTIME_ENV_FILE")/private_application_sources"
+          test -d "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
           export PGOPTIONS="-c default_transaction_read_only=on"
           unset OPENAI_API_KEY || true
 
