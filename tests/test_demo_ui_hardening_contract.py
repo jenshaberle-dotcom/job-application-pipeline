@@ -184,6 +184,26 @@ def test_f6_live_revalidation_is_explicit_post_not_workspace_get_side_effect() -
     assert "require_live_application_target(silver_job_id)" in quality
 
 
+def test_selected_job_is_exact_live_revalidated_and_closed_truth_refreshes_ui() -> None:
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert '"/api/v1/product-v1/application-workspace/revalidate"' in operator
+    assert 'action: "revalidate_selected_vacancy"' in operator
+    assert 'method: "POST"' in operator
+    assert 'if (status === "closed")' in operator
+    assert "await refresh().catch(() => undefined)" in operator
+    assert "Live availability" in operator
+
+
+def test_all_jobs_and_current_counts_are_not_conflated() -> None:
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert '["all", "All jobs"]' in operator
+    assert '["current", "Current"]' in operator
+    assert "jobs: payload.job_readiness.length" in operator
+    assert '"All current"' not in operator
+
+
 def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
     workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
