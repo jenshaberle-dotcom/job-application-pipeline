@@ -45,8 +45,8 @@ from src.search_intelligence.product_v1_application_workspace import (
 from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
-from src.search_intelligence.product_v1_demo_live_scope import (
-    evaluate_demo_live_scope,
+from src.search_intelligence.product_v1_live_vacancy_revalidation import (
+    revalidate_selected_vacancy,
 )
 from src.search_intelligence.product_v1_evidence_first_draft import (
     EvidenceFirstDraftStop,
@@ -209,15 +209,24 @@ def load_application_workspace(
     target, target_authority_source, profile, facts, documents = _load_runtime_rows(
         silver_job_id
     )
-    live_scope = evaluate_demo_live_scope(
-        {**dict(target), "demo_actionable": True}
+    source_url = str(target.get("source_url") or "")
+    source_name = str(target.get("source_name") or "")
+    revalidation = revalidate_selected_vacancy(
+        silver_job_id=silver_job_id,
+        expected_source_name=source_name,
+        expected_source_url=source_url,
     )
-    if not live_scope.eligible:
+    if revalidation.closed:
         raise ApplicationWorkspaceStop(
-            f"current vacancy freshness required: {live_scope.reason}"
+            "current vacancy is no longer available: "
+            f"{revalidation.evidence_reason}"
+        )
+    if not revalidation.active:
+        raise ApplicationWorkspaceStop(
+            "current vacancy could not be verified: "
+            f"{revalidation.evidence_reason}"
         )
 
-    source_url = str(target.get("source_url") or "")
     persisted_detail = bound_observation_detail(target)
     if persisted_detail is not None:
         fetched_title, detail_text = persisted_detail
