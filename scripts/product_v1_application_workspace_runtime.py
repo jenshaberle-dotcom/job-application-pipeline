@@ -57,6 +57,15 @@ from src.search_intelligence.product_v1_evidence_first_draft import (
 DEFAULT_OUTPUT = Path("/tmp/product_v1_application_workspace.json")
 
 
+class ApplicationWorkspaceLifecycleStop(ApplicationWorkspaceStop):
+    """Blocked F6 request after an authoritative lifecycle-health write."""
+
+    def __init__(self, message: str, *, lifecycle_health_observation_writes: int) -> None:
+        super().__init__(message)
+        self.lifecycle_health_observation_writes = lifecycle_health_observation_writes
+        self.database_writes = lifecycle_health_observation_writes
+
+
 def _connect() -> psycopg.Connection[Any]:
     return psycopg.connect(**get_database_config(), row_factory=dict_row)
 
@@ -217,9 +226,10 @@ def load_application_workspace(
         expected_source_url=source_url,
     )
     if revalidation.closed:
-        raise ApplicationWorkspaceStop(
+        raise ApplicationWorkspaceLifecycleStop(
             "current vacancy is no longer available: "
-            f"{revalidation.evidence_reason}"
+            f"{revalidation.evidence_reason}",
+            lifecycle_health_observation_writes=revalidation.health_observation_writes,
         )
     if not revalidation.active:
         raise ApplicationWorkspaceStop(
