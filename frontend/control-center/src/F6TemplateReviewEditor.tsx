@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./f6-template-review-editor.css";
 
-type DraftFragment = {
-  kind?: string;
-  text?: string;
-};
-
 type ReviewZone = {
   id: string;
   page: number;
@@ -102,31 +97,9 @@ function pdfObjectUrl(contentBase64: string) {
   return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
 }
 
-function draftSuggestions(fragments: DraftFragment[]): Record<string, Record<string, string>> {
-  const cvSummary = fragments.find((fragment) => fragment.kind === "cv_summary")?.text?.trim();
-  const opening = fragments.find((fragment) => fragment.kind === "letter_opening")?.text?.trim();
-  const fits = fragments.filter((fragment) => fragment.kind === "letter_fit" && fragment.text?.trim());
-  const closing = fragments.find((fragment) => fragment.kind === "letter_closing")?.text?.trim();
-
-  const cv: Record<string, string> = {};
-  const letter: Record<string, string> = {};
-
-  if (cvSummary) cv["p1.short_profile"] = cvSummary;
-  if (opening) letter["body.paragraph_1"] = opening;
-  fits.slice(0, 4).forEach((fragment, index) => {
-    if (fragment.text) letter[`body.paragraph_${index + 2}`] = fragment.text.trim();
-  });
-  if (closing) letter["body.paragraph_6"] = closing;
-
-  return {
-    base_cv: cv,
-    base_application_letter: letter,
-  };
-}
-
 function applyDraftToBaseline(
   baseline: ZoneValues,
-  fragments: DraftFragment[],
+  replacements: ZoneValues,
 ): ZoneValues {
   const result: ZoneValues = Object.fromEntries(
     Object.entries(baseline).map(([documentType, zones]) => [
@@ -134,8 +107,7 @@ function applyDraftToBaseline(
       { ...zones },
     ]),
   );
-  const suggestions = draftSuggestions(fragments);
-  Object.entries(suggestions).forEach(([documentType, zones]) => {
+  Object.entries(replacements).forEach(([documentType, zones]) => {
     if (!result[documentType]) return;
     Object.entries(zones).forEach(([zoneId, text]) => {
       if (zoneId in result[documentType]) result[documentType][zoneId] = text;
@@ -151,11 +123,11 @@ function label(documentType: string) {
 export default function F6TemplateReviewEditor({
   silverJobId,
   sourceManifestSha256,
-  fragments,
+  zoneReplacements,
 }: {
   silverJobId: number;
   sourceManifestSha256: string;
-  fragments: DraftFragment[];
+  zoneReplacements: ZoneValues;
 }) {
   const [review, setReview] = useState<ReviewPayload | null>(null);
   const [baseline, setBaseline] = useState<ZoneValues>({});
@@ -181,7 +153,7 @@ export default function F6TemplateReviewEditor({
         const initial = valuesFromTemplates(loaded);
         setReview(payload);
         setBaseline(initial);
-        setValues(applyDraftToBaseline(initial, fragments));
+        setValues(applyDraftToBaseline(initial, zoneReplacements));
         setPackagePdf((current) => {
           if (current) URL.revokeObjectURL(current.objectUrl);
           return null;
@@ -194,7 +166,7 @@ export default function F6TemplateReviewEditor({
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [silverJobId, sourceManifestSha256]);
+  }, [silverJobId, sourceManifestSha256, zoneReplacements]);
 
   useEffect(() => () => {
     if (packagePdf) URL.revokeObjectURL(packagePdf.objectUrl);
@@ -215,7 +187,7 @@ export default function F6TemplateReviewEditor({
   };
 
   const resetToGeneratedDraft = () => {
-    setValues(applyDraftToBaseline(baseline, fragments));
+    setValues(applyDraftToBaseline(baseline, zoneReplacements));
     setError(null);
     setPackagePdf((current) => {
       if (current) URL.revokeObjectURL(current.objectUrl);
