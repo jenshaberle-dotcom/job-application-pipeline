@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.search_intelligence import product_v1_codex_application_adapter as adapter
+from src.search_intelligence.f6_template_authority import template_spec
 from src.search_intelligence.product_v1_application_context import (
     ApplicationSourceDocumentSnapshot,
     ApplicationTargetSnapshot,
@@ -27,7 +28,7 @@ def _document(document_type: str, content: str) -> ApplicationSourceDocumentSnap
         document_type=document_type,
         source_label=document_type,
         source_reference=f"local://{document_type}.pdf",
-        content_sha256=("a" if document_type == "base_cv" else "b") * 64,
+        content_sha256=template_spec(document_type).sha256,
         content=content,
         status="approved",
         source_hash_verified=True,
@@ -76,7 +77,6 @@ def _context():
             ),
         ),
         as_of_date=date(2026, 9, 24),
-        allow_operator_selected_target=True,
     )
 
 
