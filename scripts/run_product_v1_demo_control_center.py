@@ -279,6 +279,22 @@ class ProductV1DemoHandler(ProductV1Handler):
         try:
             payload = application_workspace_payload(self._workspace_job_id())
             self._send_json(payload)
+        except ApplicationWorkspaceLifecycleStop as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "provider_requests": 0,
+                    "database_writes": exc.database_writes,
+                    "lifecycle_health_observation_writes": (
+                        exc.lifecycle_health_observation_writes
+                    ),
+                    "application_writes": 0,
+                    "submission_writes": 0,
+                    "send_actions": 0,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
         except (ApplicationWorkspaceStop, DemoActionStop) as exc:
             self._send_json(
                 {
@@ -286,6 +302,7 @@ class ProductV1DemoHandler(ProductV1Handler):
                     "reason": str(exc),
                     "provider_requests": 0,
                     "database_writes": 0,
+                    "lifecycle_health_observation_writes": 0,
                     "application_writes": 0,
                     "submission_writes": 0,
                     "send_actions": 0,
@@ -547,6 +564,22 @@ class ProductV1DemoHandler(ProductV1Handler):
                 else HTTPStatus.CONFLICT
             )
             self._send_json(payload, status=status)
+        except ApplicationWorkspaceLifecycleStop as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "provider_requests": 0,
+                    "database_writes": exc.database_writes,
+                    "lifecycle_health_observation_writes": (
+                        exc.lifecycle_health_observation_writes
+                    ),
+                    "application_writes": 0,
+                    "submission_writes": 0,
+                    "send_actions": 0,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
         except (ApplicationWorkspaceStop, DemoActionStop) as exc:
             self._send_json(
                 {
@@ -554,6 +587,7 @@ class ProductV1DemoHandler(ProductV1Handler):
                     "reason": str(exc),
                     "provider_requests": 0,
                     "database_writes": 0,
+                    "lifecycle_health_observation_writes": 0,
                     "application_writes": 0,
                     "submission_writes": 0,
                     "send_actions": 0,
