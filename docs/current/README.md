@@ -38,9 +38,11 @@ Durable evidence:
 
 A project-local `POST-MIGRATION-RESTART = PASS` restores normal work admission for that project under canonical-main + declared temporary-worktree discipline. Other projects' unfinished restart state is not authority to stop this already-PASS project. Portfolio all-PASS remains a prerequisite only for separately coordinated portfolio-wide Warmrunner/DRJ/convergence steps.
 
-## Salvaged product checkpoint — DEMO-001
+## Historical product checkpoint — DEMO-001 (retained evidence only)
 
-DEMO-001 / issue `#707` is now a **salvaged product checkpoint**, not the long-term sequencing authority.
+DEMO-001 / issue `#707` is a **historical product checkpoint**, not current product identity and not sequencing authority.
+
+Current operator-facing identity is **JAP Control Center / Product V1**. `DEMO-001` must not appear as active product branding in the Control Center or Application Workspace. Historical code, migrations, release notes and archived evidence may retain the term when it is necessary to explain provenance.
 
 The proven demo slice was merged to `main` by PR `#781` / merge `d63ba7125693b19286d93b8d32bd955581ac84cd`.
 
@@ -52,9 +54,7 @@ The salvage established durable product value around Employer-Origin action trut
 
 The existing React Control Center remains the reference product UI. No fake Product V1 rows, fabricated ranking fill, weakened origin authority, automatic application submission, or demo-only success branch is allowed.
 
-Canonical retained demo anchor:
-
-- `../planning/active/demo_001_live_e2e_reentry.md`.
+Historical DEMO-001 evidence may still be consulted for provenance, but it cannot redefine current Product V1 behavior or sequencing.
 
 ## Release management
 

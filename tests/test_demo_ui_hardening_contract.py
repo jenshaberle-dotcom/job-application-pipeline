@@ -76,7 +76,7 @@ def test_data_layers_waits_for_workspace_with_mutation_observer() -> None:
 
 
 def test_application_workspace_is_f6_template_authoritative_and_has_no_legacy_download_renderer() -> None:
-    source = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    source = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
     assert "F6 template authority" in source
     assert "Legacy generic DOCX/A4 export has been removed" in source
@@ -89,7 +89,7 @@ def test_application_workspace_is_f6_template_authoritative_and_has_no_legacy_do
 
 
 def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> None:
-    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     editor = (FRONTEND / "F6TemplateReviewEditor.tsx").read_text(encoding="utf-8")
     styles = (FRONTEND / "f6-template-review-editor.css").read_text(encoding="utf-8")
 
@@ -114,7 +114,7 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
 
 
 def test_application_drafting_separates_top5_recommendation_from_operator_selection() -> None:
-    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
     assert "applicationJobs" in workspace
@@ -141,7 +141,7 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
 
 
 def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
-    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
     assert 'type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed"' in workspace
@@ -160,7 +160,7 @@ def test_application_workspace_excludes_jobs_already_applied_or_further_progress
 
 
 def test_application_workspace_exact_target_has_single_event_owner_and_no_long_sidebar() -> None:
-    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     main = (FRONTEND / "main.tsx").read_text(encoding="utf-8")
     css = (FRONTEND / "demo-application-workspace.css").read_text(encoding="utf-8")
     finish_css = (FRONTEND / "product-finish-ux.css").read_text(encoding="utf-8")
@@ -178,3 +178,17 @@ def test_application_workspace_exact_target_has_single_event_owner_and_no_long_s
     assert "ApplicationWorkspaceEventBridge" not in main
     assert "demo-application-launcher" not in css
     assert "ApplicationWorkspaceEventBridge" not in finish_css
+
+
+
+def test_active_application_workspace_has_product_identity_not_demo001_branding() -> None:
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    main = (FRONTEND / "main.tsx").read_text(encoding="utf-8")
+
+    assert "DEMO-001" not in workspace
+    assert "DemoApplicationWorkspace" not in workspace
+    assert "PRODUCT V1 · APPLICATION" in workspace
+    assert 'aria-label="Application preparation journey"' in workspace
+    assert 'import ApplicationWorkspace from "./ApplicationWorkspace";' in main
+    assert "<ApplicationWorkspace />" in main
+    assert "DemoApplicationWorkspace" not in main

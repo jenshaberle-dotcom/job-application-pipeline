@@ -15,7 +15,7 @@ def test_control_center_loads_product_truth_once_and_distributes_snapshot() -> N
     consumers = {
         "OperatorWorkspace.tsx": read("OperatorWorkspace.tsx"),
         "DemoProductPolish.tsx": read("DemoProductPolish.tsx"),
-        "DemoApplicationWorkspace.tsx": read("DemoApplicationWorkspace.tsx"),
+        "ApplicationWorkspace.tsx": read("ApplicationWorkspace.tsx"),
         "EvidencePreviewPanel.tsx": read("EvidencePreviewPanel.tsx"),
         "F4cSourceHealthSurface.tsx": read("F4cSourceHealthSurface.tsx"),
         "JobReviewLabelControls.tsx": read("JobReviewLabelControls.tsx"),

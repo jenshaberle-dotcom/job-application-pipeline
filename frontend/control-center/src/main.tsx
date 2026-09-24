@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import AboutPanel from "./AboutPanel";
 import DataLayersTab from "./DataLayersTab";
-import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
+import ApplicationWorkspace from "./ApplicationWorkspace";
 import DemoOperatorHardening from "./DemoOperatorHardening";
 import DemoProductPolish from "./DemoProductPolish";
 import DemoTruthRibbon from "./DemoTruthRibbon";
@@ -32,7 +32,7 @@ createRoot(root).render(
         <DemoProductPolish />
         <DemoTruthRibbon />
         <F4cSourceHealthSurface />
-        <DemoApplicationWorkspace />
+        <ApplicationWorkspace />
       </ProductTruthProvider>
     </RuntimeErrorBoundary>
   </StrictMode>

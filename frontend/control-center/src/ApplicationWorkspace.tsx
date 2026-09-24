@@ -144,8 +144,17 @@ async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const payload = await response.json() as T;
   if (!response.ok) {
-    const reason = (payload as { reason?: string; blocked_reasons?: string[] }).reason
-      || (payload as { blocked_reasons?: string[] }).blocked_reasons?.join(", ")
+    const detail = payload as {
+      reason?: string;
+      blocked_reasons?: string[];
+      message?: string;
+      error_type?: string;
+    };
+    const reason = detail.reason
+      || detail.blocked_reasons?.join(", ")
+      || (detail.message
+        ? `${detail.error_type ? `${detail.error_type}: ` : ""}${detail.message}`
+        : null)
       || `API returned ${response.status}`;
     throw new Error(reason);
   }
@@ -193,7 +202,7 @@ function canPrepareApplication(stage: ApplicationStage | undefined) {
   return stage == null || stage === "prepared";
 }
 
-export default function DemoApplicationWorkspace() {
+export default function ApplicationWorkspace() {
   const { payload: productTruth } = useProductTruth<ProductTruth>();
   const [open, setOpen] = useState(false);
   const topJobs = useMemo(
@@ -334,14 +343,14 @@ export default function DemoApplicationWorkspace() {
     <section className="demo-application-workspace" role="dialog" aria-modal="true" aria-label="Application Workspace">
       <header className="demo-application-header">
         <div>
-          <span className="demo-eyebrow">DEMO-001 · final product step</span>
+          <span className="demo-eyebrow">PRODUCT V1 · APPLICATION</span>
           <h1>Application Workspace</h1>
           <p>The job you selected stays the application target. Change it only explicitly.</p>
         </div>
         <button type="button" className="demo-close" onClick={() => { setChooserOpen(false); setOpen(false); }}>×</button>
       </header>
 
-      <div className="demo-journey" aria-label="Demo product journey">
+      <div className="demo-journey" aria-label="Application preparation journey">
         <span className="done"><b>1</b>Discover</span>
         <i />
         <span className="done"><b>2</b>Verify</span>
