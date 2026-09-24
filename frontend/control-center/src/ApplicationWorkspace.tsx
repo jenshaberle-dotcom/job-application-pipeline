@@ -14,6 +14,8 @@ type TopJob = {
   lifecycle_status?: string | null;
   origin_validation_status?: string | null;
   hard_filter_status?: string | null;
+  demo_live_verified?: boolean;
+  demo_live_reason?: string | null;
 };
 
 type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed";
@@ -234,6 +236,7 @@ export default function ApplicationWorkspace() {
     const allCurrent = Array.isArray(productTruth?.job_readiness)
       ? productTruth.job_readiness.filter((job) =>
           job.lifecycle_status === "active_confirmed" &&
+          job.demo_live_verified === true &&
           job.hard_filter_status !== "failed"
         )
       : [];
