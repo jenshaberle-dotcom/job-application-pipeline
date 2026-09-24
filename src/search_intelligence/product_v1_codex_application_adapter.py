@@ -110,6 +110,31 @@ class CodexApplicationDraftStop(ValueError):
 
 
 @dataclass(frozen=True)
+class CodexRuntimeStatus:
+    status: str
+    installed: bool
+    chatgpt_authenticated: bool
+    auth_mode: str
+    executable: str | None
+    version: str | None
+    model: str
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "installed": self.installed,
+            "chatgpt_authenticated": self.chatgpt_authenticated,
+            "auth_mode": self.auth_mode,
+            "executable": self.executable,
+            "version": self.version,
+            "model": self.model,
+            "billing_authority": "chatgpt_included_allowance_then_eligible_credits",
+            "api_key_fallback": False,
+            "automatic_credit_purchase": False,
+        }
+
+
+@dataclass(frozen=True)
 class CodexApplicationDraftResult:
     status: str
     attempted: bool
@@ -252,7 +277,58 @@ def _codex_login_status(executable: str) -> tuple[bool, str]:
     except (OSError, subprocess.TimeoutExpired) as exc:
         return False, str(exc)
     output = "\n".join((result.stdout or "", result.stderr or "")).strip()
-    return result.returncode == 0, output
+    # JAP intentionally accepts only ChatGPT-backed Codex auth here. A stored API-key
+    # login would move drafting onto API billing and violate the operator's requested
+    # included-allowance / eligible-credit boundary.
+    return (
+        result.returncode == 0
+        and "logged in using chatgpt" in output.casefold(),
+        output,
+    )
+
+
+def inspect_codex_runtime_status(
+    *,
+    model: str | None = None,
+) -> CodexRuntimeStatus:
+    selected_model = (
+        model or os.environ.get("JAP_CODEX_DRAFT_MODEL") or DEFAULT_MODEL
+    ).strip()
+    executable = _resolve_codex()
+    if not executable:
+        return CodexRuntimeStatus(
+            status="not_installed",
+            installed=False,
+            chatgpt_authenticated=False,
+            auth_mode="none",
+            executable=None,
+            version=None,
+            model=selected_model,
+        )
+
+    version = _codex_version(executable)
+    logged_in, login_output = _codex_login_status(executable)
+    folded = login_output.casefold()
+    auth_mode = (
+        "chatgpt"
+        if logged_in
+        else "api_key"
+        if "logged in using an api key" in folded
+        else "workload_identity"
+        if "logged in using workload identity" in folded
+        else "access_token"
+        if "logged in using access token" in folded
+        else "none"
+    )
+    return CodexRuntimeStatus(
+        status="ready" if logged_in else "auth_required",
+        installed=True,
+        chatgpt_authenticated=logged_in,
+        auth_mode=auth_mode,
+        executable=executable,
+        version=version,
+        model=selected_model,
+    )
 
 
 def _safe_error(text: str) -> str:
@@ -406,16 +482,31 @@ def request_codex_application_adaptation(
             package=None,
         )
     version = _codex_version(executable)
-    logged_in, _ = _codex_login_status(executable)
+    logged_in, login_output = _codex_login_status(executable)
     if not logged_in:
+        folded_login = login_output.casefold()
+        wrong_auth_mode = any(
+            marker in folded_login
+            for marker in (
+                "logged in using an api key",
+                "logged in using workload identity",
+                "logged in using access token",
+            )
+        )
         return CodexApplicationDraftResult(
             status="unavailable",
             attempted=False,
             model=selected_model,
-            reason_code="codex_auth_required",
+            reason_code=(
+                "codex_chatgpt_auth_required"
+                if wrong_auth_mode
+                else "codex_auth_required"
+            ),
             reason=(
-                "Bundled Codex is available but not signed in. Complete one ChatGPT "
-                "Codex login for this WSL user, then retry drafting."
+                "Bundled Codex is available, but JAP requires ChatGPT-backed Codex "
+                "authentication so drafting uses the included allowance / eligible "
+                "Codex credits rather than API billing. Sign in to Codex with ChatGPT "
+                "for this WSL user, then retry drafting."
             ),
             package=None,
             codex_version=version,
@@ -534,7 +625,9 @@ def request_codex_application_adaptation(
 __all__ = [
     "CodexApplicationDraftResult",
     "CodexApplicationDraftStop",
+    "CodexRuntimeStatus",
     "_codex_environment",
     "_codex_login_status",
+    "inspect_codex_runtime_status",
     "request_codex_application_adaptation",
 ]
