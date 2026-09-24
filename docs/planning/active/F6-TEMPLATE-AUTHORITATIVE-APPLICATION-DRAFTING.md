@@ -1,6 +1,6 @@
 # F6 — Template-Authoritative Application Drafting
 
-Status: ACTIVE — Slices A/B operator accepted; Slice C operator-selected path proven, finished-document UX in qualification
+Status: ACTIVE — Slices A/B operator accepted; Slice C 1.0.74 operator-tested, exact-target/compact-picker UX in qualification
 
 ## Outcome
 
@@ -153,6 +153,29 @@ The same installed operator review exposed a small lifecycle UX defect: a Silver
 
 The combined PDF is packaging only. Each component first passes the accepted Slice-B renderer; the package then concatenates application letter followed by CV and raster-hash compares every combined page against its rendered source page. Any visual drift fails closed. No new layout, text, ranking, application, submission or send authority is created.
 
+### Installed 1.0.74 operator evidence
+
+Installed 1.0.74 on exact source `1db8ef0f1708dff7684a21c632086abdf36344fb` confirms the lifecycle suppression works: jobs already at **Beworben** / **Interview** no longer expose **Prepare application** and retain **Open Applications**.
+
+The same operator session exposed two remaining navigation/UX defects:
+
+1. clicking **Prepare application** on a specific All-jobs row can open the Application Workspace on a different job;
+2. the workspace shows the full selectable-job population as a permanently visible sidebar, which is too long and distracts from the explicitly selected application target.
+
+The first defect is caused by competing open-path authority plus silent fallback behavior. The legacy `ApplicationWorkspaceEventBridge` synthetic-click path still coexisted with the direct target event, and the workspace could substitute `applicationJobs[0]` when the requested target was not in its narrower local list.
+
+Candidate target: **1.0.75** on `fix/f6-c-exact-target-compact-picker`.
+
+1.0.75 changes the interaction contract:
+
+- the exact Silver ID selected in All jobs is the target that opens; the workspace may not silently substitute another job;
+- a current non-hard-filter-failed target may open even if Origin evidence is incomplete, so the **same selected job** can show its own fail-closed blocker rather than redirecting elsewhere;
+- the obsolete hidden launcher + synthetic click bridge is physically removed; the workspace is the single owner of `product-v1:open-application-workspace`;
+- the permanent current-jobs sidebar is removed;
+- the selected job is pinned as the primary workspace context;
+- **Change job** is explicit and opens a compact searchable chooser, capped to the 10 highest-Affinity jobs until the operator searches;
+- already-applied/downstream jobs remain excluded from preparation by the accepted 1.0.74 lifecycle invariant.
+
 ### Slice-C rendering contract
 
 - Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
@@ -167,18 +190,19 @@ The combined PDF is packaging only. Each component first passes the accepted Sli
 
 ### Next operator gate
 
-After exact-head CI and immutable **1.0.74** release:
+After exact-head CI and immutable **1.0.75** release:
 
-1. update through the integrated JAP updater and verify the exact 1.0.74 source;
-2. reuse VALUNY Silver 613 through **Prepare application** and generate grounded review text;
-3. do **not** manually assemble text zones in the normal path;
-4. press **Create finished application PDF**;
-5. require one local PDF containing application letter first and CV after it, with package visual identity verified;
-6. open/download that single PDF and visually confirm that the complete application is usable as-is;
-7. open **Advanced: adjust individual template text zones** only if a targeted correction is actually necessary;
-8. select an already-`Beworben` / Reply / Interview / Offer / Closed job and verify **Prepare application** is absent while **Open Applications** remains available.
+1. update through the integrated JAP updater and verify the exact 1.0.75 source;
+2. in **All jobs**, choose a specific still-preparable job and press **Prepare application**;
+3. require that the Application Workspace opens on **that exact Silver job** — no substitution/fallback;
+4. if its Origin context is incomplete, the same target must remain visible with its own fail-closed blocker;
+5. confirm there is no permanent long current-job sidebar;
+6. use **Change job** and verify the compact searchable chooser can intentionally switch the target;
+7. generate review text and press **Create finished application PDF**;
+8. require one local PDF containing application letter first and CV after it, with package visual identity verified;
+9. verify an already-Beworben / Reply / Interview / Offer / Closed job still has no **Prepare application** action.
 
-Any known hard-filter failure, source/context drift, overflow, unexpected layout change or missing component/package pixel proof remains fail-closed.
+Any target substitution, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing component/package pixel proof remains fail-closed.
 
 ## Explicit non-goals
 
