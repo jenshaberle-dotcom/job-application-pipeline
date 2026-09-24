@@ -386,6 +386,8 @@ internal static class ProductUpdateApplier
                 !File.ReadAllBytes(shellScript).Contains((byte)'\r'),
                 $"Staged runtime shell script contains CR bytes: {shellScript}");
         }
+        Require(File.Exists(Path.Combine(stage, "vendor", "codex", "codex")), "Staged bundled Codex executable is missing.");
+        Require(File.Exists(Path.Combine(stage, "vendor", "codex", "codex-info.json")), "Staged bundled Codex identity is missing.");
         var marker = Path.Combine(stage, "frontend", "control-center", "dist", ".jap-source-sha");
         Require(File.Exists(marker), "Staged frontend source marker is missing.");
         Require(File.ReadAllText(marker).Trim().Equals(sourceSha, StringComparison.OrdinalIgnoreCase), "Staged frontend source marker mismatch.");
