@@ -150,6 +150,17 @@ def test_role_relevant_selection_is_source_neutral() -> None:
     assert [row["silver_job_id"] for row in selected] == [1, 3]
 
 
+def test_materializer_keeps_ranking_and_job_evidence_policy_versions_independent() -> None:
+    source = Path("scripts/run_product_v1_assessment_materialization.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "ranking_version != hard_filter_version" not in source
+    assert "return ranking_version, hard_filter_version" in source
+    assert '"policy_version": hard_filter_policy_version' in source
+    assert '"ranking_policy_version_independent": ranking_policy_version' in source
+
+
 def test_runner_is_plan_only_by_default_and_insert_only() -> None:
     source = Path("scripts/run_product_v1_assessment_materialization.py").read_text(
         encoding="utf-8"
