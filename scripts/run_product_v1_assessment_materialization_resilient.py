@@ -47,7 +47,13 @@ _flatten_source_text = flatten_source_text
 _bound_observation_detail = bound_observation_detail
 
 
-def build_plan_isolated(*, rows, authorized_sources, policy_version):
+def build_plan_isolated(
+    *,
+    rows,
+    authorized_sources,
+    ranking_policy_version,
+    hard_filter_policy_version,
+):
     """Run canonical planning with exact observation text reuse and fetch isolation."""
 
     persisted_by_url: dict[str, tuple[str, str]] = {}
@@ -79,7 +85,8 @@ def build_plan_isolated(*, rows, authorized_sources, policy_version):
     plan = _CANONICAL_BUILD_PLAN(
         rows=rows,
         authorized_sources=authorized_sources,
-        policy_version=policy_version,
+        ranking_policy_version=ranking_policy_version,
+        hard_filter_policy_version=hard_filter_policy_version,
         fetch_detail=detail_reader,
     )
     boundaries = dict(plan.get("boundaries") or {})
