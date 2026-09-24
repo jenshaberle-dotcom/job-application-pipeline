@@ -10,10 +10,15 @@ type TopJob = {
   company_name?: string | null;
   city?: string | null;
   overall_quality_score?: number | null;
+  product_readiness_status?: string | null;
+  lifecycle_status?: string | null;
+  origin_validation_status?: string | null;
+  hard_filter_status?: string | null;
 };
 
 type ProductTruth = {
   top_jobs?: TopJob[];
+  job_readiness?: TopJob[];
   application_sources_ready?: {
     base_cv?: boolean;
     base_application_letter?: boolean;
@@ -155,6 +160,18 @@ export default function DemoApplicationWorkspace() {
     () => Array.isArray(productTruth?.top_jobs) ? productTruth.top_jobs.slice(0, 5) : [],
     [productTruth?.top_jobs],
   );
+  const applicationJobs = useMemo(() => {
+    const allCurrent = Array.isArray(productTruth?.job_readiness)
+      ? productTruth.job_readiness.filter((job) =>
+          job.lifecycle_status === "active_confirmed" &&
+          job.origin_validation_status === "validated" &&
+          job.hard_filter_status !== "failed"
+        )
+      : [];
+    const byId = new Map<number, TopJob>();
+    [...topJobs, ...allCurrent].forEach((job) => byId.set(job.silver_job_id, job));
+    return [...byId.values()];
+  }, [productTruth?.job_readiness, topJobs]);
   const sourceReadiness = productTruth?.application_sources_ready || {};
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<ApplicationWorkspacePayload | null>(null);
@@ -164,14 +181,30 @@ export default function DemoApplicationWorkspace() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (topJobs.length === 0) {
+    if (applicationJobs.length === 0) {
       setSelectedId(null);
       return;
     }
-    if (selectedId == null || !topJobs.some((job) => job.silver_job_id === selectedId)) {
-      setSelectedId(topJobs[0].silver_job_id);
+    if (selectedId == null || !applicationJobs.some((job) => job.silver_job_id === selectedId)) {
+      setSelectedId(applicationJobs[0].silver_job_id);
     }
-  }, [selectedId, topJobs]);
+  }, [applicationJobs, selectedId]);
+
+  useEffect(() => {
+    const openRequestedTarget = (event: Event) => {
+      const detail = (event as CustomEvent<{ silverJobId?: number }>).detail;
+      const requestedId = Number(detail?.silverJobId || 0);
+      if (requestedId > 0 && applicationJobs.some((job) => job.silver_job_id === requestedId)) {
+        setSelectedId(requestedId);
+      }
+      setOpen(true);
+    };
+    window.addEventListener("product-v1:open-application-workspace", openRequestedTarget);
+    return () => window.removeEventListener(
+      "product-v1:open-application-workspace",
+      openRequestedTarget,
+    );
+  }, [applicationJobs]);
 
   useEffect(() => {
     if (!open || selectedId == null) return;
@@ -187,8 +220,8 @@ export default function DemoApplicationWorkspace() {
   }, [open, selectedId]);
 
   const selectedJob = useMemo(
-    () => topJobs.find((job) => job.silver_job_id === selectedId) || topJobs[0] || null,
-    [selectedId, topJobs],
+    () => applicationJobs.find((job) => job.silver_job_id === selectedId) || applicationJobs[0] || null,
+    [applicationJobs, selectedId],
   );
 
   const claimPlan = workspace?.workspace?.claim_plan || [];
@@ -224,12 +257,16 @@ export default function DemoApplicationWorkspace() {
     return <button
       type="button"
       className="demo-application-launcher"
-      disabled={topJobs.length === 0}
+      disabled={applicationJobs.length === 0}
       onClick={() => setOpen(true)}
-      title={topJobs.length ? "Prepare an application from authoritative Top-5 truth" : "No authoritative Top-5 job available"}
+      title={applicationJobs.length
+        ? "Prepare review text for an explicit current job; Top-5 recommendation authority remains separate"
+        : "No current validated employer-origin job available"}
     >
       <span>Prepare application</span>
-      <strong>{topJobs.length ? `${topJobs.length} authoritative Top-5 job${topJobs.length === 1 ? "" : "s"}` : "No Top-5 job"}</strong>
+      <strong>{topJobs.length
+        ? `${topJobs.length} Top-5 recommendation${topJobs.length === 1 ? "" : "s"} · ${applicationJobs.length} selectable`
+        : `${applicationJobs.length} operator-selectable current job${applicationJobs.length === 1 ? "" : "s"}`}</strong>
     </button>;
   }
 
@@ -251,7 +288,7 @@ export default function DemoApplicationWorkspace() {
         <i />
         <span className="done"><b>2</b>Verify</span>
         <i />
-        <span className="done"><b>3</b>Rank</span>
+        <span className={selectedJob?.product_rank ? "done" : "active"}><b>3</b>{selectedJob?.product_rank ? "Rank" : "Select"}</span>
         <i />
         <span className="active"><b>4</b>Prepare</span>
       </div>
@@ -264,18 +301,18 @@ export default function DemoApplicationWorkspace() {
       <div className="demo-application-shell">
         <aside className="demo-job-sidebar">
           <div className="demo-sidebar-heading">
-            <span className="demo-eyebrow">Authoritative shortlist</span>
-            <h2>Top 5</h2>
-            <small>{topJobs.length}/5 current recommendations</small>
+            <span className="demo-eyebrow">Application target</span>
+            <h2>Current jobs</h2>
+            <small>{topJobs.length}/5 Top-5 recommendations · {applicationJobs.length} selectable</small>
           </div>
-          <nav className="demo-job-picker" aria-label="Top jobs">
-            {topJobs.map((job) => <button
+          <nav className="demo-job-picker" aria-label="Application target jobs">
+            {applicationJobs.map((job) => <button
               type="button"
               key={job.silver_job_id}
               className={job.silver_job_id === selectedId ? "active" : ""}
               onClick={() => setSelectedId(job.silver_job_id)}
             >
-              <b>#{job.product_rank || "–"}</b>
+              <b>{job.product_rank ? `#${job.product_rank}` : "•"}</b>
               <span>{job.title || "Untitled job"}</span>
               <small>{job.company_name || "Unknown employer"} · {job.city || "Location unconfirmed"}</small>
             </button>)}
@@ -285,13 +322,13 @@ export default function DemoApplicationWorkspace() {
         <main className="demo-application-main">
           {selectedJob && <section className="demo-selected-job">
             <div className="demo-selected-copy">
-              <span className="demo-eyebrow">Selected authoritative job</span>
+              <span className="demo-eyebrow">{selectedJob.product_rank ? "Selected Top-5 recommendation" : "Operator-selected current job"}</span>
               <h2>{selectedJob.title}</h2>
               <p>{selectedJob.company_name} · {selectedJob.city || "Location unconfirmed"}</p>
             </div>
-            <div className="demo-score-ring" aria-label={`${percent(selectedJob.overall_quality_score)} profile fit`}>
+            <div className="demo-score-ring" aria-label={`${percent(selectedJob.overall_quality_score)} ${selectedJob.product_rank ? "Product score" : "Affinity"}`}>
               <strong>{percent(selectedJob.overall_quality_score)}</strong>
-              <span>profile fit</span>
+              <span>{selectedJob.product_rank ? "Product score" : "Affinity"}</span>
             </div>
           </section>}
 
