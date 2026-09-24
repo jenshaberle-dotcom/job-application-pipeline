@@ -95,13 +95,17 @@ jobs:
           set +a
           export PGOPTIONS="-c default_transaction_read_only=on"
 
+          set +e
           "$F6_PYTHON" -m scripts.product_v1_application_workspace_runtime             --silver-job-id 626             --output "$WORKSPACE_OUTPUT"
+          workspace_rc=$?
+          set -e
 
-          "$F6_PYTHON" - "$WORKSPACE_OUTPUT" <<'PY'
+          "$F6_PYTHON" - "$WORKSPACE_OUTPUT" "$workspace_rc" <<'PY'
           import json
           import sys
 
           payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          runtime_rc = int(sys.argv[2])
           workspace = payload.get("workspace") or {}
           target = workspace.get("target") or {}
           boundaries = payload.get("boundaries") or {}
@@ -128,6 +132,13 @@ jobs:
           }
           failed = [key for key, ok in checks.items() if not ok]
           if failed:
+              print("F6_POSTWRITE_RUNTIME_RC=" + str(runtime_rc))
+              print("F6_POSTWRITE_STATUS=" + str(payload.get("status")))
+              print(
+                  "F6_POSTWRITE_BLOCKED_REASONS="
+                  + json.dumps(payload.get("blocked_reasons") or workspace.get("blocked_reasons") or [])
+              )
+              print("F6_POSTWRITE_FAILED_CHECKS=" + ",".join(failed))
               raise SystemExit("F6_POSTWRITE_WORKSPACE_FAIL:" + ",".join(failed))
           print("F6_POSTWRITE_WORKSPACE=PASS")
           print("F6_POSTWRITE_BLOCKED_REASONS=[]")
