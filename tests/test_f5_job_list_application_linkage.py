@@ -113,6 +113,16 @@ def test_applied_job_row_has_distinct_green_application_state() -> None:
 
 
 
+def test_job_detail_preserves_1_0_79_application_navigation_affordances() -> None:
+    source = _text(WORKSPACE)
+
+    assert ">Open original ↗</a>" in source
+    assert "<OpenApplicationButton silverJobId={job.silver_job_id} />" in source
+    assert ">Open Applications</button>" in source
+    assert "hasPersistedActiveLifecycle(job)" in source
+    assert "demo_live_verified" in source
+
+
 def test_progressed_application_never_offers_prepare_application_again() -> None:
     source = _text(WORKSPACE)
 
