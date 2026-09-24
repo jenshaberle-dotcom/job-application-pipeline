@@ -84,6 +84,21 @@ jobs:
           printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
           echo "F6_RCC_CONTEXT=PASS runner=${RUNNER_NAME}"
 
+      - name: Provision pinned local OSS detail extractors
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_oss_site="$RUNNER_TEMP/jap-f6-diagnostic-local-oss-site"
+          rm -rf "$local_oss_site"
+          "$RUNTIME_PYTHON" -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --target "$local_oss_site" \
+            'extruct==0.18.0' \
+            'trafilatura==2.2.0'
+          printf 'PYTHONPATH=%s:%s\n' "$local_oss_site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          echo "F6_DIAGNOSTIC_LOCAL_OSS=PASS"
+
       - name: Run exact selected-job materialization plan read-only
         shell: bash
         run: |
