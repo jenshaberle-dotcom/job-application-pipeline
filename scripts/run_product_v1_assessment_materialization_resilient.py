@@ -18,7 +18,7 @@ semantics remain exactly those of the canonical runner.
 """
 from __future__ import annotations
 
-from typing import Mapping, Sequence
+from typing import Sequence
 
 from scripts import run_product_v1_assessment_materialization as materializer
 from src.search_intelligence.exact_observation_detail import (
