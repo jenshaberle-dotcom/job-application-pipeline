@@ -157,7 +157,7 @@ def _prompt(context: ProductV1ApplicationContext) -> str:
             "statement": item.statement,
             "limitations": list(item.limitations),
         }
-        for item in context.candidate_facts
+        for item in context.approved_candidate_facts
         if item.approval_status == "approved"
     ]
     packet = {
