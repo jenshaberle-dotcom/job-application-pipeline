@@ -196,12 +196,13 @@ def test_selected_job_is_exact_live_revalidated_and_closed_truth_refreshes_ui() 
     assert "Live availability" in operator
 
 
-def test_all_jobs_and_current_counts_are_not_conflated() -> None:
+def test_all_jobs_is_the_current_employer_origin_review_scope() -> None:
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
     assert '["all", "All jobs"]' in operator
-    assert '["current", "Current"]' in operator
+    assert '["current", "Current"]' not in operator
     assert "jobs: payload.job_readiness.length" in operator
+    assert "Current employer-origin vacancies only." in operator
     assert '"All current"' not in operator
 
 
