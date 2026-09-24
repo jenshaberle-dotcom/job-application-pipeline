@@ -1,0 +1,188 @@
+name: F6 postwrite workspace probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/f6-postwrite-workspace-probe.yml"
+      - "windows/JAP.ControlCenter.Desktop/VERSION"
+      - "tests/test_jap_windows_desktop_lifecycle_guard.py"
+      - "tests/test_jap_control_center_about_contract.py"
+      - "tests/test_jap_windows_runtime_start_diagnostics.py"
+      - "tests/test_jap_windows_control_center_webview2_startup.py"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: Silver 626 ready + deterministic review draft
+    runs-on: [self-hosted, rcc-general-linux-01--jap]
+    timeout-minutes: 20
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: rcc-general-linux-01--jap
+      WORKSPACE_OUTPUT: /tmp/jap-f6-626-postwrite-workspace.json
+      DRAFT_OUTPUT: /tmp/jap-f6-626-postwrite-draft.json
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve verified RCC database environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          env_file="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {"repository_identity", "env_file", "env_keys", "capability:postgresql"}
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          print(context["EnvFile"])
+          PY
+          )"
+          test -s "$env_file"
+          printf 'RUNTIME_ENV_FILE=%s\n' "$env_file" >> "$GITHUB_ENV"
+          echo "F6_POSTWRITE_RCC_CONTEXT=PASS"
+
+      - name: Build isolated exact-source Python runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/jap-f6-postwrite-venv"
+          rm -rf "$venv"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -m pip install --disable-pip-version-check --upgrade pip
+          "$venv/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
+          "$venv/bin/python" -m pip check
+          printf 'F6_PYTHON=%s\n' "$venv/bin/python" >> "$GITHUB_ENV"
+          echo "F6_POSTWRITE_EPHEMERAL_RUNTIME=PASS"
+
+      - name: Prove Application Workspace is generation-ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+
+          "$F6_PYTHON" -m scripts.product_v1_application_workspace_runtime             --silver-job-id 626             --output "$WORKSPACE_OUTPUT"
+
+          "$F6_PYTHON" - "$WORKSPACE_OUTPUT" <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          workspace = payload.get("workspace") or {}
+          target = workspace.get("target") or {}
+          boundaries = payload.get("boundaries") or {}
+          templates = payload.get("template_authority") or {}
+          claims = workspace.get("claim_plan") or []
+
+          checks = {
+              "status_ready": payload.get("status") == "ready",
+              "generation_ready": workspace.get("generation_ready") is True,
+              "blocked_reasons_empty": workspace.get("blocked_reasons") == [],
+              "silver_626": target.get("silver_job_id") == 626,
+              "title_exact": target.get("title") == "AI Automation Engineer (m/w/d)",
+              "company_accompio": str(target.get("company_name") or "").casefold() == "accompio",
+              "operator_selected": target.get("authority_source") == "operator_selected_current_job",
+              "origin_validated": target.get("origin_validation_status") == "validated",
+              "activity_active": target.get("activity_status") == "active",
+              "hard_filter_unknown": target.get("hard_filter_status") == "unknown",
+              "template_authority_ready": templates.get("status") == "ready",
+              "claim_plan_nonempty": len(claims) > 0,
+              "exact_observation_reuse": boundaries.get("current_observation_detail_reuse") == 1,
+              "detail_http_gets_zero": boundaries.get("job_detail_http_gets") == 0,
+              "database_writes_zero": boundaries.get("database_writes") is False,
+              "provider_requests_zero": boundaries.get("provider_requests") == 0,
+          }
+          failed = [key for key, ok in checks.items() if not ok]
+          if failed:
+              raise SystemExit("F6_POSTWRITE_WORKSPACE_FAIL:" + ",".join(failed))
+          print("F6_POSTWRITE_WORKSPACE=PASS")
+          print("F6_POSTWRITE_BLOCKED_REASONS=[]")
+          print(f"F6_POSTWRITE_CLAIM_PLAN={len(claims)}")
+          print("F6_POSTWRITE_ORIGIN=validated")
+          print("F6_POSTWRITE_HARD_FILTER=unknown")
+          print("F6_POSTWRITE_TEMPLATE_AUTHORITY=ready")
+          print("F6_POSTWRITE_EXACT_OBSERVATION_REUSE=1")
+          PY
+
+      - name: Prove deterministic review draft path stays review-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          unset OPENAI_API_KEY || true
+
+          "$F6_PYTHON" -m scripts.product_v1_application_workspace_runtime             --silver-job-id 626             --generate             --output "$DRAFT_OUTPUT"
+
+          "$F6_PYTHON" - "$DRAFT_OUTPUT" <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          if payload.get("status") != "draft_for_review":
+              raise SystemExit("F6_DRAFT_NOT_READY_FOR_REVIEW")
+          if payload.get("draft_mode") != "deterministic_evidence_first":
+              raise SystemExit("F6_DRAFT_MODE_UNEXPECTED")
+          if payload.get("provider_requests") != 0:
+              raise SystemExit("F6_DRAFT_PROVIDER_REQUESTED")
+          if payload.get("database_writes") != 0:
+              raise SystemExit("F6_DRAFT_DB_WRITE_BOUNDARY_VIOLATION")
+          if payload.get("application_writes") != 0 or payload.get("submission_writes") != 0:
+              raise SystemExit("F6_DRAFT_APPLICATION_AUTHORITY_VIOLATION")
+          if payload.get("send_actions") != 0:
+              raise SystemExit("F6_DRAFT_SEND_BOUNDARY_VIOLATION")
+          if payload.get("current_observation_detail_reuse") != 1:
+              raise SystemExit("F6_DRAFT_OBSERVATION_REUSE_MISSING")
+          print("F6_DETERMINISTIC_REVIEW_DRAFT=PASS")
+          print("F6_DRAFT_MODE=deterministic_evidence_first")
+          print("F6_DRAFT_PROVIDER_REQUESTS=0")
+          print("F6_DRAFT_WRITES=0")
+          PY
+
+      - name: Upload read-only proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f6-postwrite-workspace-proof
+          path: |
+            /tmp/jap-f6-626-postwrite-workspace.json
+            /tmp/jap-f6-626-postwrite-draft.json
+          if-no-files-found: warn
+          retention-days: 7
