@@ -13,6 +13,8 @@ PID_FILE="${STATE_ROOT}/runtime.pid"
 RUNTIME_INFO="${RUNTIME_ROOT}/runtime-info.json"
 FRONTEND_DIST="${RUNTIME_ROOT}/frontend/control-center/dist"
 FRONTEND_BUILD_SHA_FILE="${FRONTEND_DIST}/.jap-source-sha"
+CODEX_BINARY="${RUNTIME_ROOT}/vendor/codex/codex"
+CODEX_INFO="${RUNTIME_ROOT}/vendor/codex/codex-info.json"
 
 fail() {
   printf 'JAP_WINDOWS_APP_BLOCKED=%s\n' "$1" >&2
@@ -110,6 +112,8 @@ fi
 [[ -f "$RUNTIME_ROOT/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
 [[ -f "$RUNTIME_ROOT/scripts/ensure_pinned_local_oss_runtime.sh" ]] || fail local_oss_provisioner_missing
 [[ -f "$RUNTIME_ROOT/requirements.txt" ]] || fail pinned_requirements_missing
+[[ -f "$CODEX_BINARY" ]] || fail bundled_codex_missing
+[[ -f "$CODEX_INFO" ]] || fail bundled_codex_info_missing
 [[ -f "$FRONTEND_DIST/index.html" ]] || fail frontend_bundle_missing
 [[ -f "$FRONTEND_BUILD_SHA_FILE" ]] || fail frontend_source_marker_missing
 
@@ -136,6 +140,33 @@ IFS='|' read -r runtime_repository_id runtime_source_sha runtime_schema <<<"$run
 
 frontend_build_sha="$(tr -d '\r\n[:space:]' < "$FRONTEND_BUILD_SHA_FILE")"
 [[ "$frontend_build_sha" == "$PINNED_SHA" ]] || fail frontend_source_marker_mismatch
+
+codex_identity="$(
+  "$PROJECT_ROOT/.venv/bin/python" - "$CODEX_INFO" "$CODEX_BINARY" <<'PY'
+import hashlib
+import json
+import sys
+
+info_path, binary_path = sys.argv[1:]
+with open(info_path, encoding="utf-8-sig") as handle:
+    payload = json.load(handle)
+if payload.get("schema") != "job_application_pipeline.codex_runtime.v1":
+    raise SystemExit("codex runtime schema mismatch")
+if payload.get("version") != "0.154.0":
+    raise SystemExit("codex runtime version mismatch")
+if payload.get("platform") != "x86_64-unknown-linux-musl":
+    raise SystemExit("codex runtime platform mismatch")
+with open(binary_path, "rb") as handle:
+    digest = hashlib.sha256(handle.read()).hexdigest()
+if digest != payload.get("binary_sha256"):
+    raise SystemExit("codex binary checksum mismatch")
+print(f"{payload['version']}|{digest}")
+PY
+)" || fail bundled_codex_identity_invalid
+
+IFS='|' read -r codex_version codex_binary_sha <<<"$codex_identity"
+[[ "$codex_version" == "0.154.0" ]] || fail bundled_codex_version_mismatch
+chmod 0755 "$CODEX_BINARY" || fail bundled_codex_not_executable
 
 if pid="$(managed_pid 2>/dev/null)"; then
   fail "managed_runtime_already_running_pid_${pid}"
@@ -175,6 +206,7 @@ export PRODUCT_V1_UI_HOST="127.0.0.1"
 export PRODUCT_V1_UI_PORT="8780"
 export PYTHONUNBUFFERED=1
 export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"
+export JAP_CODEX_EXECUTABLE="$CODEX_BINARY"
 
 cd "$RUNTIME_ROOT"
 launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime --reuse-frontend)
@@ -184,6 +216,8 @@ printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"
 printf 'JAP_WINDOWS_APP_LOCAL_OSS_SITE=%s\n' "$LOCAL_OSS_SITE"
 printf 'JAP_WINDOWS_APP_PYTHON_UNBUFFERED=1\n'
 printf 'JAP_WINDOWS_APP_PINNED_SHA=%s\n' "$JAP_CONTROL_CENTER_PINNED_SHA"
+printf 'JAP_WINDOWS_APP_CODEX_VERSION=%s\n' "$codex_version"
+printf 'JAP_WINDOWS_APP_CODEX_SHA256=%s\n' "$codex_binary_sha"
 printf 'JAP_WINDOWS_APP_URI=http://127.0.0.1:8780/\n'
 
 "${launcher[@]}" &
