@@ -20,6 +20,7 @@ from src.search_intelligence.f6_template_authority import template_spec
 
 
 TOP5_AUTHORITY_SOURCE = "gold_product_v1_top_jobs"
+OPERATOR_SELECTED_AUTHORITY_SOURCE = "operator_selected_current_job"
 REQUIRED_DOCUMENT_TYPES = ("base_cv", "base_application_letter")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -27,7 +28,7 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 @dataclass(frozen=True)
 class ApplicationTargetSnapshot:
     silver_job_id: int
-    product_rank: int
+    product_rank: int | None
     title: str
     company_name: str
     source_url: str
@@ -219,18 +220,24 @@ def _normalized_text(value: object, *, field_name: str) -> str:
 
 def _validate_target(target: ApplicationTargetSnapshot) -> tuple[str, ...]:
     reasons: list[str] = []
-    if target.authority_source != TOP5_AUTHORITY_SOURCE:
-        reasons.append("top5_authority_required")
-    if target.product_rank < 1 or target.product_rank > 5:
-        reasons.append("authoritative_top5_rank_required")
-    if target.product_readiness_status != "rankable":
-        reasons.append("job_not_rankable")
+    if target.authority_source == TOP5_AUTHORITY_SOURCE:
+        if target.product_rank is None or target.product_rank < 1 or target.product_rank > 5:
+            reasons.append("authoritative_top5_rank_required")
+        if target.product_readiness_status != "rankable":
+            reasons.append("job_not_rankable")
+        if target.hard_filter_status != "passed":
+            reasons.append("hard_filter_not_passed")
+    elif target.authority_source == OPERATOR_SELECTED_AUTHORITY_SOURCE:
+        if target.product_rank not in (None, 0):
+            reasons.append("operator_selected_target_must_not_claim_top5_rank")
+        if target.hard_filter_status == "failed":
+            reasons.append("known_hard_filter_conflict")
+    else:
+        reasons.append("application_target_authority_required")
     if target.origin_validation_status != "validated":
         reasons.append("origin_not_validated")
     if target.activity_status != "active":
         reasons.append("job_not_confirmed_active")
-    if target.hard_filter_status != "passed":
-        reasons.append("hard_filter_not_passed")
     employer_origin_authorized = (
         target.canonical_source_type == "employer_origin"
         if target.employer_origin_authorized is None
@@ -406,6 +413,7 @@ def build_product_v1_application_context(
 
 __all__ = [
     "TOP5_AUTHORITY_SOURCE",
+    "OPERATOR_SELECTED_AUTHORITY_SOURCE",
     "ApplicationSourceDocumentSnapshot",
     "ApplicationTargetSnapshot",
     "CandidateClaimPlanEntry",
