@@ -1,0 +1,217 @@
+from __future__ import annotations
+
+from datetime import date
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from src.search_intelligence import product_v1_codex_application_adapter as adapter
+from src.search_intelligence.f6_template_authority import template_spec
+from src.search_intelligence.product_v1_application_context import (
+    ApplicationSourceDocumentSnapshot,
+    ApplicationTargetSnapshot,
+    CandidateFactSnapshot,
+    build_product_v1_application_context,
+)
+
+
+DETAIL = (
+    "AI Automation Engineer (m/w/d). accompio sucht Verstärkung für Python, "
+    "PostgreSQL und AI Automation in Innsbruck."
+)
+
+
+def _document(document_type: str, content: str) -> ApplicationSourceDocumentSnapshot:
+    return ApplicationSourceDocumentSnapshot(
+        document_type=document_type,
+        source_label=document_type,
+        source_reference=f"local://{document_type}.pdf",
+        content_sha256=template_spec(document_type).sha256,
+        content=content,
+        status="approved",
+        source_hash_verified=True,
+    )
+
+
+def _context():
+    return build_product_v1_application_context(
+        target=ApplicationTargetSnapshot(
+            silver_job_id=626,
+            product_rank=None,
+            title="AI Automation Engineer (m/w/d)",
+            company_name="accompio",
+            source_url="https://jobs.example/accompio/626",
+            canonical_source_type="employer_origin",
+            product_readiness_status="hard_filter_evidence_required",
+            origin_validation_status="validated",
+            activity_status="active",
+            hard_filter_status="unknown",
+            detail_text=DETAIL,
+            authority_source="operator_selected_current_job",
+        ),
+        candidate_profile_status="approved",
+        candidate_profile_sha256="c" * 64,
+        candidate_facts=(
+            CandidateFactSnapshot(
+                fact_key="python",
+                category="skill",
+                evidence_class="professional_employment",
+                approval_status="approved",
+                statement="Python und PostgreSQL nutze ich in eigenen Data-Engineering-Projekten.",
+                capability_tags=("Python", "PostgreSQL"),
+                limitations=(),
+            ),
+        ),
+        source_documents=(
+            _document(
+                "base_cv",
+                "Jens Haberle. System Development Engineer / Product Owner. "
+                "Python, PostgreSQL, Data Pipelines, ML Evaluation.",
+            ),
+            _document(
+                "base_application_letter",
+                "Hornetsecurity GmbH. Julia Klein. Sehr geehrte Frau Klein. "
+                "Bewerbung als AI Automation Architect.",
+            ),
+        ),
+        as_of_date=date(2026, 9, 24),
+    )
+
+
+def _model_output() -> dict[str, object]:
+    return {
+        "status": "draft_for_review",
+        "language": "de",
+        "contact_name": "",
+        "salutation": "Sehr geehrte Damen und Herren,",
+        "cv_short_profile": (
+            "System- und Data-Engineering-Profil mit Python, PostgreSQL und "
+            "praxisnaher AI-Automation."
+        ),
+        "cv_competency_profile": (
+            "Python · PostgreSQL · Data Pipelines · ML Evaluation · System Engineering"
+        ),
+        "letter_paragraphs": [
+            (
+                "Die Position AI Automation Engineer bei accompio verbindet Python-basierte "
+                "Automatisierung mit einem Umfeld, in dem ich meine System- und Data-Engineering-Erfahrung einbringen kann."
+            ),
+            (
+                "In eigenen Data-Engineering-Projekten arbeite ich mit Python und PostgreSQL "
+                "und verbinde Datenmodellierung, Pipeline-Logik und Qualitätskontrollen."
+            ),
+            (
+                "Aus meiner beruflichen System-Engineering- und Product-Owner-Erfahrung bringe "
+                "ich zusätzlich strukturierte Anforderungsarbeit, Traceability und technische Abstimmung mit."
+            ),
+            "Gerne erläutere ich Ihnen im Gespräch, wie ich diese Erfahrung bei accompio einbringen kann.",
+        ],
+        "rationale": "Auf die nachgewiesenen Python-, Daten- und System-Engineering-Bezüge fokussiert.",
+    }
+
+
+def test_codex_schema_carries_text_only_and_no_layout_authority() -> None:
+    schema = adapter._schema()
+    encoded = json.dumps(schema, sort_keys=True)
+
+    for forbidden in (
+        "bbox",
+        "x",
+        "y",
+        "width",
+        "height",
+        "font_size",
+        "page_count",
+        "add_page",
+        "remove_page",
+        "move_zone",
+    ):
+        assert f'"{forbidden}"' not in encoded
+
+
+def test_prompt_excludes_stale_application_letter_and_includes_approved_cv() -> None:
+    prompt = adapter._prompt(_context())
+
+    assert "System Development Engineer / Product Owner" in prompt
+    assert "Hornetsecurity GmbH" not in prompt
+    assert "Julia Klein" not in prompt
+    assert '"company_name": "accompio"' in prompt
+
+
+def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/usr/bin/codex")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.153.0")
+
+    def fake_run(command, **kwargs):
+        if command[1:] == ["--version"]:
+            return SimpleNamespace(returncode=0, stdout="codex-cli 0.153.0", stderr="")
+        output_path = Path(command[command.index("-o") + 1])
+        output_path.write_text(
+            json.dumps(_model_output(), ensure_ascii=False),
+            encoding="utf-8",
+        )
+        assert "--full-auto" not in command
+        assert command[command.index("--sandbox") + 1] == "read-only"
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(adapter.subprocess, "run", fake_run)
+
+    result = adapter.request_codex_application_adaptation(
+        context=_context(),
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert result.status == "completed"
+    assert result.package is not None
+    zones = result.package["zone_replacements"]
+    letter = zones["base_application_letter"]
+    assert letter["recipient.block"] == "accompio"
+    assert letter["date"] == "24.09.2026"
+    assert letter["subject"] == "Bewerbung als AI Automation Engineer (m/w/d)"
+    assert letter["salutation"] == "Sehr geehrte Damen und Herren,"
+    combined = "\n".join(letter.values())
+    assert "Hornetsecurity" not in combined
+    assert "Julia Klein" not in combined
+    assert zones["base_cv"]["p1.short_profile"]
+    assert zones["base_cv"]["p1.competency_profile"]
+
+
+def test_codex_capacity_exhaustion_returns_no_low_quality_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/usr/bin/codex")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.153.0")
+
+    monkeypatch.setattr(
+        adapter.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="Usage limit reached. Add credits or wait for your allowance reset.",
+        ),
+    )
+
+    result = adapter.request_codex_application_adaptation(context=_context())
+
+    assert result.status == "unavailable"
+    assert result.reason_code == "codex_capacity_unavailable"
+    assert result.package is None
+    assert result.attempted is True
+
+
+def test_invented_contact_is_rejected() -> None:
+    decoded = _model_output()
+    decoded["contact_name"] = "Julia Klein"
+    decoded["salutation"] = "Sehr geehrte Frau Klein,"
+
+    with pytest.raises(adapter.CodexApplicationDraftStop, match="invented a contact"):
+        adapter._validate_output(
+            decoded,
+            context=_context(),
+            as_of_date=date(2026, 9, 24),
+        )

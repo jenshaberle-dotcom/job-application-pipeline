@@ -236,6 +236,48 @@ Candidate target: **1.0.80**.
 
 1.0.80 brings the initial materializer onto that same contract: both approved policy versions are required and independently frozen across preflight/apply; the assessment row binds the hard-filter/job-evidence policy version; ranking-policy identity is recorded separately in evidence metadata; equality between the two versions is no longer required. This is an authority-correction, not a relaxation.
 
+### Approved initial assessment + post-write F6 readiness proof
+
+The operator explicitly approved the single Silver #626 initial-assessment insert. Run `36002073813` executed against exact main `71d6800d61251d70db8f7cd757fd4236e282be94` only after recomputing the frozen materialization fingerprint `78d9d24f1ecfc25488c47c77e0585d54a62c0b2729b6fb417dd403be57333e19`.
+
+Post-write proof is deliberately narrow:
+
+- exactly 1 assessment inserted, 0 pre-existing/conflicting rows;
+- Origin = `validated`;
+- activity = `active`;
+- hard filter = `unknown`;
+- capability fit = `unknown`;
+- readiness = `hard_filter_evidence_required`;
+- all direct ranking-score fields remain null;
+- provider requests = 0;
+- ranking scores created = 0;
+- Top-5 forced = 0;
+- application/submission/send authority remains absent.
+
+A subsequent read-only live probe using the canonical private-document root proves the same Silver #626 now yields Application Workspace `READY`, blocked reasons `[]`, 2 grounded claim-plan entries, exact observation reuse with zero detail HTTP GETs, and F6 template authority `ready`. With the provider explicitly disabled, the canonical draft path reaches `draft_for_review` in `deterministic_evidence_first` mode with provider requests 0 and all DB/application/submission/send writes 0.
+
+### F6 design mandate — preserve layout maximally, change only what is necessary
+
+The approved private CV and application-letter PDFs remain the visual authority. The product goal is not to redesign them per vacancy. The rule is:
+
+> **Preserve the base layout as completely as possible; adapt only as much content as the concrete vacancy actually requires.**
+
+Operational consequences:
+
+- Codex may return **text values only**; it receives no layout coordinates and no layout mutation authority.
+- Existing pages, geometry, photograph, graphics, lines, section placement and non-editable typography remain untouched.
+- CV career-history blocks are factual authority and must not be rewritten merely for stylistic variation.
+- Primary CV adaptation is limited to the already-declared short-profile / competency zones unless a later operator-approved template contract explicitly adds more.
+- Application-letter recipient, date, subject, salutation and body zones may change because they are vacancy-specific.
+- Text overflow fails closed. JAP must never solve overflow by moving graphics, resizing the page, manufacturing a different design or silently adding a page.
+- The existing renderer proof remains mandatory: **zero changed pixels outside declared editable zones**.
+
+This is the design rule for the whole Codex adaptation path, not only the accompio test case.
+
+### JAP Classic 1.1.0 boundary
+
+The operator chose this point to start the **1.1.x** minor line because the status/readiness path is now usable as an operator feature: job identity stays pinned, failure reasons are explicit, authority transitions are visible, and the workspace can move from blocked state to review-draft readiness without manufacturing ranking authority. Existing 1.0.x releases remain immutable; the next release is **1.1.0**.
+
 ### Slice-C rendering contract
 
 - Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
@@ -250,9 +292,17 @@ Candidate target: **1.0.80**.
 
 ### Next operator gate
 
-After exact-head CI and immutable **1.0.80** release, stop before mutation and obtain explicit approval for the single preflighted Silver #626 assessment insert. Approval is valid only while the exact candidate remains Silver #626 and the recomputed materialization fingerprint is `78d9d24f1ecfc25488c47c77e0585d54a62c0b2729b6fb417dd403be57333e19`. Apply must remain insert-only and revalidate both policy versions and the eligible candidate set transactionally.
+After exact-head CI and immutable **1.1.0** release:
 
-After an approved insert and independent post-write proof, refresh/re-open the same accompio job. Origin should then be validated from the already-admitted employer-origin evidence while hard-filter/capability/ranking authority remains unchanged. The next visible F6 test is **Generate review text**, followed by **Create finished application PDF** only if the context becomes generation-ready.
+1. update through the integrated JAP updater and verify version 1.1.0;
+2. re-open accompio Silver #626 through **Prepare application**;
+3. require the same job to remain pinned and the workspace to be generation-ready;
+4. require Origin validated while hard filter remains explicitly unknown;
+5. require 2 grounded Candidate Fact claim entries and 2/2 exact F6 template authority;
+6. require **Generate review text** to be enabled;
+7. trigger it once and review the operator-visible draft. The draft may be edited/reviewed but still carries no automatic submit/send authority.
+
+If the review text is accepted, the next gate is **Create finished application PDF** under the existing exact-template, source-manifest, overflow and outside-zone pixel-identity contract.
 
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
