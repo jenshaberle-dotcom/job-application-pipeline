@@ -1,7 +1,9 @@
 """Runtime binding for the Product V1 demo Application Workspace.
 
-The default action is read-only context inspection for one authoritative Top-5 job.
-An explicit ``--generate`` action produces a review-only source-grounded draft. It
+The default action is read-only context inspection for one explicit operator-selected
+current employer-origin job. Existing Top-5 membership remains a stronger optional
+authority, but is not required merely to prepare review text. An explicit
+``--generate`` action produces a review-only source-grounded draft. It
 prefers the existing bounded OpenAI drafter when a key is available and falls back
 to a deterministic evidence-first package if no provider is available or the bounded
 provider campaign cannot yield a validated package. Neither path performs any
@@ -26,6 +28,10 @@ from scripts.run_product_v1_assessment_materialization import (
 from src.config import get_database_config
 from src.ingestion.repository import JobIngestionRepository
 from src.search_intelligence.f6_template_authority import authority_status
+from src.search_intelligence.product_v1_application_context import (
+    OPERATOR_SELECTED_AUTHORITY_SOURCE,
+    TOP5_AUTHORITY_SOURCE,
+)
 from src.search_intelligence.product_v1_application_drafter import (
     execute_product_v1_application_drafter,
     openai_application_draft_model_callback,
@@ -55,6 +61,7 @@ def _load_runtime_rows(
     silver_job_id: int,
 ) -> tuple[
     Mapping[str, object],
+    str,
     Mapping[str, object] | None,
     tuple[Mapping[str, object], ...],
     tuple[Mapping[str, object], ...],
@@ -76,9 +83,21 @@ def _load_runtime_rows(
                     (silver_job_id,),
                 )
                 target = cur.fetchone()
+                target_authority_source = TOP5_AUTHORITY_SOURCE
+                if target is None:
+                    cur.execute(
+                        """
+                        SELECT *
+                        FROM gold_product_v1_job_readiness
+                        WHERE silver_job_id = %s
+                        """,
+                        (silver_job_id,),
+                    )
+                    target = cur.fetchone()
+                    target_authority_source = OPERATOR_SELECTED_AUTHORITY_SOURCE
                 if target is None:
                     raise ApplicationWorkspaceStop(
-                        "authoritative Top-5 job was not found"
+                        "current Product job was not found"
                     )
 
                 cur.execute(
@@ -128,7 +147,7 @@ def _load_runtime_rows(
     finally:
         conn.close()
 
-    return target, profile, facts, documents
+    return target, target_authority_source, profile, facts, documents
 
 
 def _private_document_root() -> Path | None:
@@ -146,7 +165,9 @@ def _employer_origin_authorized(source_name: object) -> bool:
 def load_application_workspace(
     silver_job_id: int,
 ) -> tuple[object, str, str]:
-    target, profile, facts, documents = _load_runtime_rows(silver_job_id)
+    target, target_authority_source, profile, facts, documents = _load_runtime_rows(
+        silver_job_id
+    )
     source_url = str(target.get("source_url") or "")
     final_url, fetched_title, detail_text = fetch_public_https_detail_text(source_url)
     context = build_application_workspace_context(
@@ -157,6 +178,7 @@ def load_application_workspace(
         document_rows=documents,
         load_document=local_document_loader(private_root=_private_document_root()),
         as_of_date=date.today(),
+        authority_source=target_authority_source,
         employer_origin_authorized=_employer_origin_authorized(
             target.get("source_name")
         ),
@@ -192,6 +214,9 @@ def application_workspace_payload(silver_job_id: int) -> dict[str, object]:
             "draft_approval_authority": False,
             "application_authority": False,
             "submission_authority": False,
+            "top5_authority_required_for_operator_selected_drafting": False,
+            "operator_selected_job_is_not_top5_authority": True,
+            "hard_filter_unknown_does_not_become_passed": True,
         },
     }
 
