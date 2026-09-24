@@ -10,6 +10,7 @@ submission, or send authority is introduced here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Mapping
 
@@ -55,6 +56,15 @@ class F6RenderedReviewDocument:
     canonical_filename: str
     pdf_bytes: bytes
     render_evidence: dict[str, object]
+
+
+@dataclass(frozen=True)
+class F6CombinedReviewPackage:
+    pdf_bytes: bytes
+    sha256: str
+    page_count: int
+    component_order: tuple[str, ...]
+    page_identity: tuple[dict[str, object], ...]
 
 
 def _installed_template_path(*, root: Path, spec: F6TemplateSpec) -> Path:
@@ -177,6 +187,83 @@ def _normalize_document_replacements(
     return result
 
 
+def _page_pixel_sha(page: pymupdf.Page) -> str:
+    pixmap = page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5), alpha=False)
+    return sha256(pixmap.samples).hexdigest()
+
+
+def combine_review_package(
+    rendered: tuple[F6RenderedReviewDocument, ...],
+) -> F6CombinedReviewPackage:
+    """Concatenate the rendered letter + CV into one operator-facing PDF.
+
+    The component PDFs remain the authority for F6 zone rendering. This packaging
+    step changes no page content: every combined page is raster-hash compared
+    against its source rendered page and fails closed on any visual drift.
+    """
+
+    by_type = {document.document_type: document for document in rendered}
+    order = ("base_application_letter", "base_cv")
+    if set(by_type) != set(order):
+        raise F6TemplateReviewStop(
+            "combined F6 package requires exactly application letter and CV"
+        )
+
+    combined = pymupdf.open()
+    expected_hashes: list[tuple[str, int, str]] = []
+    try:
+        for document_type in order:
+            source = pymupdf.open(stream=by_type[document_type].pdf_bytes, filetype="pdf")
+            try:
+                for page_index in range(source.page_count):
+                    expected_hashes.append(
+                        (
+                            document_type,
+                            page_index + 1,
+                            _page_pixel_sha(source[page_index]),
+                        )
+                    )
+                combined.insert_pdf(source)
+            finally:
+                source.close()
+
+        if combined.page_count != len(expected_hashes):
+            raise F6TemplateReviewStop("combined F6 package page count changed")
+
+        page_identity: list[dict[str, object]] = []
+        for combined_index, (document_type, source_page, expected_sha) in enumerate(
+            expected_hashes
+        ):
+            actual_sha = _page_pixel_sha(combined[combined_index])
+            identical = actual_sha == expected_sha
+            page_identity.append(
+                {
+                    "package_page": combined_index + 1,
+                    "document_type": document_type,
+                    "source_page": source_page,
+                    "source_pixel_sha256": expected_sha,
+                    "package_pixel_sha256": actual_sha,
+                    "visual_identity": identical,
+                }
+            )
+            if not identical:
+                raise F6TemplateReviewStop(
+                    "combined F6 package changed page pixels during concatenation"
+                )
+
+        payload = combined.tobytes(garbage=3, deflate=True)
+    finally:
+        combined.close()
+
+    return F6CombinedReviewPackage(
+        pdf_bytes=payload,
+        sha256=sha256(payload).hexdigest(),
+        page_count=len(expected_hashes),
+        component_order=order,
+        page_identity=tuple(page_identity),
+    )
+
+
 def render_review_package(
     *,
     root: Path,
@@ -246,10 +333,12 @@ def render_review_package(
 
 
 __all__ = [
+    "F6CombinedReviewPackage",
     "F6RenderedReviewDocument",
     "F6ReviewDocument",
     "F6TemplateReviewStop",
     "build_review_payload",
+    "combine_review_package",
     "load_review_document",
     "render_review_package",
 ]
