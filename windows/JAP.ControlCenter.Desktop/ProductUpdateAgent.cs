@@ -315,6 +315,8 @@ internal static class ProductUpdateAgent
         var localOssProvisioner = Path.Combine(stage, "scripts", "ensure_pinned_local_oss_runtime.sh");
         Require(File.Exists(localOssProvisioner), "Staged local OSS provisioner is missing.");
         Require(!File.ReadAllBytes(localOssProvisioner).Contains((byte)'\r'), "Staged local OSS provisioner contains CR bytes.");
+        Require(File.Exists(Path.Combine(stage, "vendor", "codex", "codex")), "Staged bundled Codex executable is missing.");
+        Require(File.Exists(Path.Combine(stage, "vendor", "codex", "codex-info.json")), "Staged bundled Codex identity is missing.");
         Require(File.Exists(Path.Combine(stage, "frontend", "control-center", "dist", "index.html")), "Staged frontend bundle is missing.");
         var marker = Path.Combine(stage, "frontend", "control-center", "dist", ".jap-source-sha");
         Require(File.Exists(marker), "Staged frontend source marker is missing.");

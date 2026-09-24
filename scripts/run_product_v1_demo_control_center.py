@@ -540,7 +540,7 @@ class ProductV1DemoHandler(ProductV1Handler):
             payload = generate_application_draft_payload(silver_job_id)
             status = (
                 HTTPStatus.OK
-                if payload.get("status") == "draft_for_review"
+                if payload.get("status") in {"draft_for_review", "draft_unavailable"}
                 else HTTPStatus.CONFLICT
             )
             self._send_json(payload, status=status)

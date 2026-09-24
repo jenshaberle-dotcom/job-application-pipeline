@@ -119,6 +119,54 @@ jobs:
         run: |
           $Runtime = Join-Path $env:RUNNER_TEMP "jap-runtime"
           New-Item -ItemType Directory -Force -Path $Runtime | Out-Null
+
+          # JAP 1.1.x embeds the official Codex CLI as a product runtime dependency.
+          # The binary is fetched only at release-build time, pinned to one official
+          # OpenAI release asset and checksum, then shipped inside the immutable
+          # runtime bundle. Installed startup never performs npm/curl/self-update.
+          $CodexVersion = "0.154.0"
+          $CodexArchiveName = "codex-x86_64-unknown-linux-musl.tar.gz"
+          $CodexArchiveSha256 = "d7e18b2597ae8f242f5f31ee9e90deef48dbc9edd634d9868fb6435d08c07f02"
+          $CodexReleaseUrl = "https://github.com/openai/codex/releases/download/rust-v$CodexVersion/$CodexArchiveName"
+          $CodexArchive = Join-Path $env:RUNNER_TEMP $CodexArchiveName
+          $CodexExtract = Join-Path $env:RUNNER_TEMP "jap-codex-linux-x64"
+          Remove-Item -Recurse -Force $CodexExtract -ErrorAction SilentlyContinue
+          Remove-Item -Force $CodexArchive -ErrorAction SilentlyContinue
+          Invoke-WebRequest -UseBasicParsing -Uri $CodexReleaseUrl -OutFile $CodexArchive
+          $ActualArchiveSha256 = (Get-FileHash $CodexArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($ActualArchiveSha256 -ne $CodexArchiveSha256) {
+            throw "Official Codex archive checksum mismatch."
+          }
+          New-Item -ItemType Directory -Force -Path $CodexExtract | Out-Null
+          tar -xzf $CodexArchive -C $CodexExtract
+          if ($LASTEXITCODE -ne 0) {
+            throw "Official Codex archive extraction failed."
+          }
+          $CodexBinary = @(
+            Get-ChildItem -Path $CodexExtract -Recurse -File |
+              Where-Object { $_.Name -eq "codex-x86_64-unknown-linux-musl" -or $_.Name -eq "codex" }
+          )
+          if ($CodexBinary.Count -ne 1) {
+            throw "Expected exactly one official Codex Linux x64 binary, found $($CodexBinary.Count)."
+          }
+          $CodexVendor = Join-Path $Runtime "vendor\codex"
+          New-Item -ItemType Directory -Force -Path $CodexVendor | Out-Null
+          Copy-Item -Force $CodexBinary[0].FullName (Join-Path $CodexVendor "codex")
+          $CodexBinarySha256 = (Get-FileHash (Join-Path $CodexVendor "codex") -Algorithm SHA256).Hash.ToLowerInvariant()
+          @{
+            schema = "job_application_pipeline.codex_runtime.v1"
+            version = $CodexVersion
+            platform = "x86_64-unknown-linux-musl"
+            upstream_repository = "openai/codex"
+            upstream_release = "rust-v$CodexVersion"
+            archive_sha256 = $CodexArchiveSha256
+            binary_sha256 = $CodexBinarySha256
+            authentication = "chatgpt_cli_login"
+            billing = "chatgpt_included_allowance_then_eligible_credits"
+            auto_purchase = $false
+            auto_api_key_fallback = $false
+          } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $CodexVendor "codex-info.json")
+
           foreach ($Directory in @("src", "scripts", "config", "contracts", "db")) {
             if (Test-Path $Directory) {
               Copy-Item -Recurse -Force $Directory (Join-Path $Runtime $Directory)
@@ -160,11 +208,19 @@ jobs:
             update_policy = "product_local_latest_direct"
             update_generation = "cgkb_product_local_v1"
             compatibility_line = "cgkb-product-local-1"
-          } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $Runtime "runtime-info.json")
+            codex = @{
+              version = $CodexVersion
+              platform = "x86_64-unknown-linux-musl"
+              binary_sha256 = $CodexBinarySha256
+              auth_mode = "chatgpt_cli_login"
+            }
+          } | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $Runtime "runtime-info.json")
           foreach ($Required in @(
             "scripts\run_product_v1_live_demo.py",
             "scripts\run_jap_windows_control_center.sh",
             "scripts\ensure_pinned_local_oss_runtime.sh",
+            "vendor\codex\codex",
+            "vendor\codex\codex-info.json",
             "requirements.txt",
             "frontend\control-center\dist\index.html",
             "frontend\control-center\dist\.jap-source-sha",
@@ -208,6 +264,8 @@ jobs:
             foreach ($RequiredEntry in @(
               "runtime-info.json",
               "scripts/run_product_v1_live_demo.py",
+              "vendor/codex/codex",
+              "vendor/codex/codex-info.json",
               "frontend/control-center/dist/index.html",
               "frontend/control-center/dist/.jap-source-sha"
             )) {

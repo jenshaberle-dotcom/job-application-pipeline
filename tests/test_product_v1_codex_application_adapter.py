@@ -144,7 +144,8 @@ def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/usr/bin/codex")
-    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.153.0")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.154.0")
+    monkeypatch.setattr(adapter, "_codex_login_status", lambda _exe: (True, "Logged in using ChatGPT"))
 
     def fake_run(command, **kwargs):
         if command[1:] == ["--version"]:
@@ -184,7 +185,8 @@ def test_codex_capacity_exhaustion_returns_no_low_quality_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/usr/bin/codex")
-    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.153.0")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.154.0")
+    monkeypatch.setattr(adapter, "_codex_login_status", lambda _exe: (True, "Logged in using ChatGPT"))
 
     monkeypatch.setattr(
         adapter.subprocess,
@@ -202,6 +204,46 @@ def test_codex_capacity_exhaustion_returns_no_low_quality_fallback(
     assert result.reason_code == "codex_capacity_unavailable"
     assert result.package is None
     assert result.attempted is True
+
+
+def test_missing_chatgpt_login_stops_before_model_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/runtime/vendor/codex/codex")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.154.0")
+    monkeypatch.setattr(
+        adapter,
+        "_codex_login_status",
+        lambda _exe: (False, "Not logged in"),
+    )
+
+    result = adapter.request_codex_application_adaptation(context=_context())
+
+    assert result.status == "unavailable"
+    assert result.reason_code == "codex_auth_required"
+    assert result.attempted is False
+    assert result.package is None
+
+
+def test_codex_subprocess_environment_does_not_inherit_jap_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", "/home/jens")
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "db-secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "api-secret")
+    monkeypatch.setenv("GITHUB_TOKEN", "github-secret")
+    monkeypatch.setenv("CODEX_HOME", "/home/jens/.codex")
+
+    environment = adapter._codex_environment()
+
+    assert environment["HOME"] == "/home/jens"
+    assert environment["PATH"] == "/usr/bin"
+    assert environment["CODEX_HOME"] == "/home/jens/.codex"
+    assert environment["JAP_CODEX_EMBEDDED"] == "1"
+    assert "POSTGRES_PASSWORD" not in environment
+    assert "OPENAI_API_KEY" not in environment
+    assert "GITHUB_TOKEN" not in environment
 
 
 def test_invented_contact_is_rejected() -> None:

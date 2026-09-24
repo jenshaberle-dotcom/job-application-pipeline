@@ -336,6 +336,29 @@ Until then, every correction discovered during real F6 qualification is a patch 
 
 Passing only the text-generation step does not authorize 1.2.0; the finished rendered document pair must pass the operator gate.
 
+### Installed 1.1.0 Codex runtime boundary / candidate 1.1.1
+
+The first installed 1.1.0 operator run reaches a fully ready accompio Silver #626 context but fails before any model request with:
+
+`Codex CLI is not available to the JAP runtime.`
+
+That result is accepted as a clean runtime-delivery finding. It does not authorize restoring deterministic prose and does not change the 1.2.0 acceptance boundary.
+
+Candidate **1.1.1** fixes only this runtime layer:
+
+- the product release build downloads one official OpenAI Codex CLI Linux x64 archive at build time only;
+- version is pinned to `0.154.0` and the upstream archive SHA-256 is frozen in release authority;
+- the extracted Codex binary and a JAP-owned identity manifest are included in the immutable runtime ZIP;
+- update staging, cutover verification and bootstrap all require the bundled binary/manifest before accepting the runtime;
+- installed startup verifies the binary SHA-256, restores its executable bit and binds `JAP_CODEX_EXECUTABLE` directly to the immutable runtime path;
+- normal installed startup does not npm-install, curl, wget, self-update or otherwise provision Codex from the network;
+- F6 launches Codex with a minimal allow-listed environment so PostgreSQL, GitHub and API credentials from JAP are not inherited;
+- `codex login status` is checked before drafting. Missing account authentication is an explicit product state, not a generic HTTP error;
+- no API-key fallback or automatic credit purchase is permitted;
+- exhausted allowance/eligible credits remains `draft_unavailable` with no low-quality fallback prose.
+
+The next operator gate after installing 1.1.1 is the same accompio #626 **Generate review text** action. Success means the first real Codex-adapted CV + application-letter review copy is visible. If authentication is absent, the expected next evidence is specifically `codex_auth_required`; that will be handled on the next 1.1.x patch without promoting to 1.2.0.
+
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
 

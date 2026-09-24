@@ -146,6 +146,8 @@ function Assert-BundleIdentity(
         (Join-Path $RuntimeStage "scripts\run_product_v1_live_demo.py"),
         (Join-Path $RuntimeStage "scripts\run_jap_windows_control_center.sh"),
         (Join-Path $RuntimeStage "scripts\ensure_pinned_local_oss_runtime.sh"),
+        (Join-Path $RuntimeStage "vendor\codex\codex"),
+        (Join-Path $RuntimeStage "vendor\codex\codex-info.json"),
         (Join-Path $RuntimeStage "frontend\control-center\dist\index.html"),
         (Join-Path $RuntimeStage "frontend\control-center\dist\.jap-source-sha")
     )) {

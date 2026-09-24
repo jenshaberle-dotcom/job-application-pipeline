@@ -112,6 +112,8 @@ type DraftMode =
 type DraftPayload = {
   status?: string;
   reason?: string;
+  reason_code?: string;
+  retryable?: boolean;
   blocked_reasons?: string[];
   draft_mode?: DraftMode;
   fallback_reason?: string | null;
@@ -475,8 +477,22 @@ export default function ApplicationWorkspace() {
             <article className="demo-workspace-card demo-draft-card">
               <header>
                 <span className="demo-eyebrow">Prepared application</span>
-                <h3>{draft?.status === "draft_for_review" ? "Grounded text ready for review" : "Waiting for your action"}</h3>
+                <h3>{draft?.status === "draft_for_review"
+                  ? "Grounded text ready for review"
+                  : draft?.status === "draft_unavailable"
+                    ? "Codex drafting unavailable"
+                    : "Waiting for your action"}</h3>
               </header>
+
+              {draft?.status === "draft_unavailable" && <div className="demo-error">
+                <b>{draft.reason_code === "codex_auth_required"
+                  ? "One-time ChatGPT sign-in required"
+                  : draft.reason_code === "codex_capacity_unavailable"
+                    ? "Codex allowance / credits unavailable"
+                    : "Codex could not create the draft"}</b>
+                <span>{draft.reason || "No application text was generated."}</span>
+                <small>No deterministic filler is substituted. The selected job, template authority and review-only boundary remain unchanged.</small>
+              </div>}
 
               {draft?.status === "draft_for_review" && draft.package ? <>
                 <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
