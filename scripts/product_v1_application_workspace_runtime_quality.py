@@ -17,6 +17,7 @@ import json
 from scripts.product_v1_application_workspace_runtime import (
     application_workspace_payload,
     load_application_workspace,
+    require_live_application_target,
 )
 from src.search_intelligence.product_v1_codex_application_adapter import (
     request_codex_application_adaptation,
@@ -51,6 +52,7 @@ def _blocked_payload(*, context: object, reasons: list[str]) -> dict[str, object
 
 
 def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
+    require_live_application_target(silver_job_id)
     context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
         load_application_workspace(silver_job_id)
     )
