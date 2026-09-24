@@ -301,12 +301,21 @@ function Metric({ labelText, value, helper }: { labelText: string; value: number
   return <article className="ow-metric"><span>{labelText}</span><strong>{value}</strong><small>{helper}</small></article>;
 }
 
-function OpenApplicationButton({ disabled = false }: { disabled?: boolean }) {
+function OpenApplicationButton({
+  disabled = false,
+  silverJobId,
+}: {
+  disabled?: boolean;
+  silverJobId?: number;
+}) {
   return <button
     type="button"
     className="ow-primary"
     disabled={disabled}
-    onClick={() => window.dispatchEvent(new CustomEvent("product-v1:open-application-workspace"))}
+    onClick={() => window.dispatchEvent(new CustomEvent(
+      "product-v1:open-application-workspace",
+      { detail: silverJobId ? { silverJobId } : {} },
+    ))}
   >Prepare application</button>;
 }
 
@@ -387,7 +396,7 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
 
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{rankable && <OpenApplicationButton />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{isCurrent(job) && job.hard_filter_status !== "failed" && <OpenApplicationButton silverJobId={job.silver_job_id} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Profile Fit coverage</span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /></div><div><span>Profile Fit decision</span><Status value={job.profile_fit_decision || "unknown"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
@@ -677,6 +686,10 @@ function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () =>
 
 function Application({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
   const top = payload.top_jobs[0] || null;
+  const firstSelectable = payload.job_readiness.find(
+    (job) => isCurrent(job) && job.hard_filter_status !== "failed",
+  ) || null;
+  const target = top || firstSelectable;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
   const authorityTemplates = payload.f6_template_authority?.templates || [];
   const cvTemplate = authorityTemplates.find((item) => item.document_type === "base_cv");
@@ -684,7 +697,7 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>F6 · Template-authoritative drafting</span><h1>Application</h1><p>Verified vacancy + Candidate Facts + the two frozen private PDFs. Layout is immutable; only explicitly approved text zones may change. Never auto-submit.</p></div></header>
     <section className="ow-application-grid">
-      <article className="ow-card"><span className="ow-kicker">Selected target</span><h2>{top?.title || "No authoritative Top-5 job"}</h2>{top && <p>{employerName(top)} · {locationText(top)} · {scoreText(top.overall_quality_score)} authoritative Product score</p>}<div className="ow-readiness"><div className={top ? "ready" : "blocked"}><i /><span>Top-5 target</span><b>{top ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact authority" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact authority" : "Required"}</b></div></div><OpenApplicationButton disabled={!top || !docsReady} /></article>
+      <article className="ow-card"><span className="ow-kicker">Application target</span><h2>{target?.title || "No current selectable job"}</h2>{target && <p>{employerName(target)} · {locationText(target)} · {top ? `${scoreText(top.overall_quality_score)} authoritative Product score` : `${scoreText(target.overall_quality_score)} Affinity · operator selected`}</p>}<div className="ow-readiness"><div className={target ? "ready" : "blocked"}><i /><span>{top ? "Top-5 recommendation" : "Explicit current-job selection"}</span><b>{target ? "Ready for review drafting" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact authority" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact authority" : "Required"}</b></div></div><OpenApplicationButton silverJobId={target?.silver_job_id} disabled={!target || !docsReady} /></article>
       <article className="ow-card ow-boundary-card"><span className="ow-kicker">F6 layout boundary</span><h2>{docsReady ? "Pixel-bound template authority active" : "Install the two exact F6 PDFs"}</h2><p>The PDF binaries remain private, but their SHA-256 hashes, page geometry and editable text zones are frozen in repo truth. Arbitrary replacement layouts are no longer accepted.</p><ul><li>Layout and graphics are immutable</li><li>Only declared text zones may change</li><li>Candidate Facts and exact Origin evidence are content authority</li><li>No legacy renderer, hidden auto-apply, submit or send</li></ul></article>
     </section>
     <article className="ow-card">
