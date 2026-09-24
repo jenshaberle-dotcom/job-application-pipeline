@@ -1,65 +1,53 @@
-"""DEMO-001 quality binding for the Product V1 Application Workspace.
+"""Product V1 Application Workspace drafting binding.
 
-Workspace/context authority stays in the canonical runtime. The bounded model callback
-may produce review-only text fragments, but F6 no longer permits the legacy generic
-DOCX/A4 renderer. Exact template-bound rendering is a separate authority-gated step.
+The Product path now uses embedded Codex for one bounded responsibility only:
+adapting the approved CV profile/competency text and the application-letter text
+to the exact selected vacancy. Deterministic context, source truth, template
+authority, rendering, submission boundaries and all writes remain outside Codex.
+
+If Codex allowance/credits/authentication are unavailable, the draft stops
+visibly. JAP no longer substitutes deterministic filler prose for an
+operator-facing application.
 """
 from __future__ import annotations
 
-import os
+import hashlib
+import json
 
 from scripts.product_v1_application_workspace_runtime import (
-    _evidence_first_draft_payload,
     application_workspace_payload,
     load_application_workspace,
 )
-from src.search_intelligence.product_v1_application_drafter_quality import (
-    openai_quality_application_draft_model_callback,
-)
-from src.search_intelligence.product_v1_application_quality_campaign import (
-    execute_quality_application_drafter,
+from src.search_intelligence.product_v1_codex_application_adapter import (
+    request_codex_application_adaptation,
 )
 
 
-def _fallback_with_template_authority(
-    *,
-    context: object,
-    final_url: str,
-    fetched_title: str,
-    evidence_mode: str,
-    job_detail_http_gets: int,
-    fallback_reason: str,
-    provider_text_shared: bool,
-    provider_requests: int = 0,
-    llm_requests: int = 0,
-    estimated_model_cost_usd: float = 0.0,
-    stages: list[dict[str, object]] | None = None,
-) -> dict[str, object]:
-    payload = _evidence_first_draft_payload(
-        context=context,
-        final_url=final_url,
-        fetched_title=fetched_title,
-        evidence_mode=evidence_mode,
-        job_detail_http_gets=job_detail_http_gets,
-        fallback_reason=fallback_reason,
-        provider_requests=provider_requests,
-        llm_requests=llm_requests,
-        estimated_model_cost_usd=estimated_model_cost_usd,
-        stages=stages,
+def _source_manifest_sha256(context: object) -> str:
+    payload = context.source_manifest()
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
     )
-    payload.update(
-        {
-            "quality_contract": "f6_template_authority_v1",
-            "base_document_text_shared_with_provider": provider_text_shared,
-            "render_status": "template_bound_renderer_qualified_review_export_available",
-            "legacy_generic_document_export": False,
-            "job_detail_http_gets": job_detail_http_gets,
-            "current_observation_detail_reuse": int(
-                evidence_mode == "exact_persisted_observation"
-            ),
-        }
-    )
-    return payload
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _blocked_payload(*, context: object, reasons: list[str]) -> dict[str, object]:
+    return {
+        "schema": "job_application_pipeline.product_v1_application_draft_demo.v2",
+        "status": "blocked",
+        "blocked_reasons": reasons,
+        "workspace": context.canonical_payload(),
+        "draft_mode": "codex_embedded_v1",
+        "codex_requests": 0,
+        "provider_requests": 0,
+        "database_writes": 0,
+        "application_writes": 0,
+        "submission_writes": 0,
+        "send_actions": 0,
+    }
 
 
 def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
@@ -67,91 +55,96 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
         load_application_workspace(silver_job_id)
     )
     if not context.generation_ready:
-        return {
-            "schema": "job_application_pipeline.product_v1_application_draft_demo.v1",
-            "status": "blocked",
-            "blocked_reasons": list(context.blocked_reasons),
-            "workspace": context.canonical_payload(),
-            "provider_requests": 0,
-            "database_writes": 0,
-            "application_writes": 0,
-            "submission_writes": 0,
-            "send_actions": 0,
-        }
-    if not context.claim_plan:
-        return {
-            "schema": "job_application_pipeline.product_v1_application_draft_demo.v1",
-            "status": "blocked",
-            "blocked_reasons": ["candidate_job_claim_plan_required"],
-            "workspace": context.canonical_payload(),
-            "provider_requests": 0,
-            "database_writes": 0,
-            "application_writes": 0,
-            "submission_writes": 0,
-            "send_actions": 0,
-        }
-
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        return _fallback_with_template_authority(
+        return _blocked_payload(
             context=context,
-            final_url=final_url,
-            fetched_title=fetched_title,
-            evidence_mode=evidence_mode,
-            job_detail_http_gets=job_detail_http_gets,
-            fallback_reason="provider_key_unavailable",
-            provider_text_shared=False,
+            reasons=list(context.blocked_reasons),
+        )
+    if not context.claim_plan:
+        return _blocked_payload(
+            context=context,
+            reasons=["candidate_job_claim_plan_required"],
         )
 
-    execution = execute_quality_application_drafter(
-        context=context,
-        model=openai_quality_application_draft_model_callback(
-            context=context,
-            api_key=api_key,
-        ),
-    )
-    if execution.package is None:
-        unresolved = [
-            stage.to_json()
-            for stage in execution.stages
-            if stage.attempted and stage.status in {"unresolved", "failed_closed"}
-        ]
-        return _fallback_with_template_authority(
-            context=context,
-            final_url=final_url,
-            fetched_title=fetched_title,
-            evidence_mode=evidence_mode,
-            job_detail_http_gets=job_detail_http_gets,
-            fallback_reason="quality_provider_campaign_unresolved",
-            provider_text_shared=execution.provider_requests > 0,
-            provider_requests=execution.provider_requests,
-            llm_requests=execution.llm_requests,
-            estimated_model_cost_usd=execution.estimated_model_cost_usd,
-            stages=[stage.to_json() for stage in execution.stages],
-        ) | {
-            "unresolved_provider_stage_count": len(unresolved),
-        }
-
-    payload = execution.to_json()
-    payload.update(
-        {
-            "schema": "job_application_pipeline.product_v1_application_draft_demo.v1",
-            "status": "draft_for_review",
-            "draft_mode": "provider_validated_quality_v3",
-            "fallback_reason": None,
-            "quality_contract": "f6_template_authority_v1",
-            "base_document_text_shared_with_provider": True,
-            "render_status": "template_bound_renderer_qualified_review_export_available",
-            "legacy_generic_document_export": False,
+    result = request_codex_application_adaptation(context=context)
+    if result.package is None:
+        return {
+            "schema": "job_application_pipeline.product_v1_application_draft_demo.v2",
+            "status": "draft_unavailable",
+            "reason": result.reason or "Embedded Codex drafting is unavailable.",
+            "reason_code": result.reason_code or "codex_unavailable",
+            "retryable": result.reason_code
+            in {
+                "codex_capacity_unavailable",
+                "codex_timeout",
+                "codex_execution_failed",
+            },
+            "draft_mode": "codex_embedded_v1",
+            "codex_model": result.model,
+            "codex_version": result.codex_version,
+            "codex_requests": int(result.attempted),
+            "provider_requests": int(result.attempted),
+            "llm_requests": int(result.attempted),
+            "fallback_generated": False,
+            "fallback_policy": "no_low_quality_prose_fallback",
+            "workspace": context.canonical_payload(),
             "live_job_evidence": {
                 "final_url": final_url,
                 "fetched_title": fetched_title,
                 "detail_sha256": context.target.detail_sha256,
                 "evidence_mode": evidence_mode,
             },
+            "job_detail_http_gets": job_detail_http_gets,
+            "current_observation_detail_reuse": int(
+                evidence_mode == "exact_persisted_observation"
+            ),
+            "database_writes": 0,
+            "application_writes": 0,
+            "submission_writes": 0,
+            "send_actions": 0,
         }
+
+    package = dict(result.package)
+    package["source_manifest_sha256"] = _source_manifest_sha256(context)
+    package["candidate_fact_keys_used"] = sorted(
+        entry.fact_key for entry in context.claim_plan
     )
-    return payload
+
+    return {
+        "schema": "job_application_pipeline.product_v1_application_draft_demo.v2",
+        "status": "draft_for_review",
+        "draft_mode": "codex_embedded_v1",
+        "fallback_reason": None,
+        "fallback_generated": False,
+        "quality_contract": "f6_codex_adaptation_v1",
+        "codex_model": result.model,
+        "codex_version": result.codex_version,
+        "codex_requests": 1,
+        "provider_requests": 1,
+        "llm_requests": 1,
+        "base_cv_text_shared_with_codex": True,
+        "base_application_letter_text_shared_with_codex": False,
+        "render_status": "template_bound_renderer_qualified_review_export_available",
+        "legacy_generic_document_export": False,
+        "package": package,
+        "live_job_evidence": {
+            "final_url": final_url,
+            "fetched_title": fetched_title,
+            "detail_sha256": context.target.detail_sha256,
+            "evidence_mode": evidence_mode,
+        },
+        "job_detail_http_gets": job_detail_http_gets,
+        "current_observation_detail_reuse": int(
+            evidence_mode == "exact_persisted_observation"
+        ),
+        "database_writes": 0,
+        "application_writes": 0,
+        "submission_writes": 0,
+        "send_actions": 0,
+        "draft_approval_authority": False,
+        "application_authority": False,
+        "submission_authority": False,
+        "send_authority": False,
+    }
 
 
 __all__ = ["application_workspace_payload", "generate_application_draft_payload"]
