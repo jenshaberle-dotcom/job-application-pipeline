@@ -157,6 +157,33 @@ def test_f6_navigation_uses_exact_live_revalidation_not_arbitrary_age() -> None:
     assert "current vacancy could not be verified" in backend
 
 
+def test_f6_live_revalidation_is_explicit_post_not_workspace_get_side_effect() -> None:
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    runtime = (ROOT / "scripts" / "product_v1_application_workspace_runtime.py").read_text(
+        encoding="utf-8"
+    )
+    server = (ROOT / "scripts" / "run_product_v1_demo_control_center.py").read_text(
+        encoding="utf-8"
+    )
+    quality = (
+        ROOT / "scripts" / "product_v1_application_workspace_runtime_quality.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"/api/v1/product-v1/application-workspace/revalidate"' in workspace
+    assert 'action: "revalidate_selected_vacancy"' in workspace
+    assert 'method: "POST"' in workspace
+    assert "APPLICATION_WORKSPACE_REVALIDATE_PATH" in server
+    assert "parse_application_revalidation_action_payload" in server
+    assert "def revalidate_application_target(" in runtime
+    assert "def require_live_application_target(" in runtime
+
+    load_section = runtime.split("def load_application_workspace(", 1)[1].split(
+        "def application_workspace_payload(", 1
+    )[0]
+    assert "revalidate_selected_vacancy(" not in load_section
+    assert "require_live_application_target(silver_job_id)" in quality
+
+
 def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
     workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
