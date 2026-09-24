@@ -11,7 +11,7 @@ permissions:
 jobs:
   diagnose:
     name: Read-only current vacancy exact-detail cohort
-    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    runs-on: [self-hosted, rcc-general-linux-01--jap]
     timeout-minutes: 20
     env:
       RCC_REPOSITORY_ID: "1230805345"
