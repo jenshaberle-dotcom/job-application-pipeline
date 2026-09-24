@@ -289,6 +289,46 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --output "$RECONCILIATION_OUTPUT"
 
+      - name: TEMP diagnose Valuny pre-application operator evidence read-only
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" - <<'PY'
+          import json
+          import psycopg
+          from psycopg.rows import dict_row
+          from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+
+          with psycopg.connect(DatabaseConfig.from_environment().dsn(), row_factory=dict_row) as conn:
+              with conn.transaction():
+                  conn.execute("SET TRANSACTION READ ONLY")
+                  rows = conn.execute(
+                      """
+                      SELECT
+                          silver.id AS silver_job_id,
+                          silver.title,
+                          silver.company_name,
+                          silver.source_name,
+                          silver.created_at AS job_created_at,
+                          label.label,
+                          label.reviewed_at,
+                          label.selection_reason,
+                          label.capture_surface
+                      FROM silver_jobs silver
+                      LEFT JOIN gold_job_review_relevance_labels label
+                        ON label.silver_job_id = silver.id
+                      WHERE lower(coalesce(silver.company_name, '')) LIKE '%valuny%'
+                      ORDER BY silver.id
+                      """
+                  ).fetchall()
+          print("VALUNY_OPERATOR_EVIDENCE=" + json.dumps(rows, default=str, sort_keys=True))
+          PY
+
       - name: Run exact-head real DB migration 113 preflight read-only
         if: ${{ env.MODE == 'preflight' }}
         shell: bash
