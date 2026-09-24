@@ -106,7 +106,8 @@ type DraftMode =
   | "provider_validated"
   | "provider_validated_quality_v2"
   | "provider_validated_quality_v3"
-  | "deterministic_evidence_first";
+  | "deterministic_evidence_first"
+  | "codex_embedded_v1";
 
 type DraftPayload = {
   status?: string;
@@ -115,12 +116,22 @@ type DraftPayload = {
   draft_mode?: DraftMode;
   fallback_reason?: string | null;
   base_document_text_shared_with_provider?: boolean;
+  base_cv_text_shared_with_codex?: boolean;
+  codex_model?: string;
+  codex_version?: string | null;
+  codex_requests?: number;
   package?: {
     status?: string;
     fragments?: DraftFragment[];
     rationale?: string;
     candidate_fact_keys_used?: string[];
     source_manifest_sha256?: string;
+    preview?: {
+      cv_short_profile?: string;
+      cv_competency_profile?: string;
+      application_letter?: string;
+    };
+    zone_replacements?: Record<string, Record<string, string>>;
   } | null;
   render_status?: string;
   legacy_generic_document_export?: boolean;
@@ -166,6 +177,7 @@ function fragmentGroup(kind: string | undefined) {
 }
 
 function draftModeLabel(mode: DraftMode | undefined) {
+  if (mode === "codex_embedded_v1") return "CODEX-ADAPTED";
   if (mode === "provider_validated_quality_v3") return "BASE-DOCUMENT ADAPTED";
   if (mode === "provider_validated_quality_v2" || mode === "provider_validated") return "PROVIDER-VALIDATED";
   if (mode === "deterministic_evidence_first") return "EVIDENCE-FIRST · PROVIDER-FREE";
@@ -312,6 +324,8 @@ export default function ApplicationWorkspace() {
   const draftFragments = draft?.package?.fragments || [];
   const cvFragments = draftFragments.filter((item) => fragmentGroup(item.kind) === "CV");
   const letterFragments = draftFragments.filter((item) => fragmentGroup(item.kind) === "Application letter");
+  const draftPreview = draft?.package?.preview;
+  const zoneReplacements = draft?.package?.zone_replacements || {};
   const templateAuthority = workspace?.template_authority;
   const generationReady = workspace?.status === "ready" && workspace.workspace?.generation_ready === true && claimPlan.length > 0;
   const vacancyReady = Boolean(workspace?.live_job_evidence?.fetched_title || workspace?.live_job_evidence?.final_url);
@@ -466,6 +480,7 @@ export default function ApplicationWorkspace() {
 
               {draft?.status === "draft_for_review" && draft.package ? <>
                 <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
+                {draft.base_cv_text_shared_with_codex && <p className="demo-provider-context-note">Embedded Codex used the approved CV plus the exact vacancy for this adaptation. The previous application-letter text was deliberately not supplied, so stale employer/contact text cannot become drafting context. No submission or send action occurred.</p>}
                 {draft.base_document_text_shared_with_provider && <p className="demo-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
                 {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain bound to approved Candidate Facts and exact vacancy evidence.</p>}
@@ -477,24 +492,30 @@ export default function ApplicationWorkspace() {
 
                 <section className="demo-document">
                   <header><span>CV adaptation</span><small>complete review copy</small></header>
-                  {cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
+                  {draftPreview?.cv_short_profile && <div className="demo-draft-fragment"><p>{draftPreview.cv_short_profile}</p></div>}
+                  {draftPreview?.cv_competency_profile && <div className="demo-draft-fragment"><p>{draftPreview.cv_competency_profile}</p></div>}
+                  {!draftPreview && cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
                 <section className="demo-document">
                   <header><span>Application letter</span><small>complete review copy</small></header>
-                  {letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
+                  {draftPreview?.application_letter
+                    ? draftPreview.application_letter.split("\n\n").filter(Boolean).map((paragraph, index) => <div className="demo-draft-fragment" key={`codex-letter-${index}`}><p>{paragraph}</p></div>)
+                    : letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
                 {selectedId != null && draft.package.source_manifest_sha256 && <F6TemplateReviewEditor
                   silverJobId={selectedId}
                   sourceManifestSha256={draft.package.source_manifest_sha256}
-                  fragments={draftFragments}
+                  zoneReplacements={zoneReplacements}
                 />}
 
                 <details className="demo-evidence-details demo-audit-details">
                   <summary>Audit details</summary>
-                  <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>
-                  <footer><span>Provider requests: {draft.provider_requests ?? 0}</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
+                  {draft.draft_mode === "codex_embedded_v1"
+                    ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · {draft.codex_version || "version unavailable"} · CV + letter adaptation only</small></div></div>
+                    : <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>}
+                  <footer><span>Codex/provider requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
               </> : <div className="demo-empty-draft">
                 <strong>F6 is review-first and template-authoritative.</strong>
