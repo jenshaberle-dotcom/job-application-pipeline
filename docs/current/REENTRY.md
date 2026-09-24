@@ -6,16 +6,19 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical operator-accepted Product baseline: `main@a7eae418cbcc8c901070d9db65505cece086e6f7`, desktop **1.0.71**;
-- integrated updater is accepted and routine; 1.0.71 adds the exact pinned PyMuPDF installed-runtime dependency required by F6-B without changing CGKB updater authority;
-- F5 is **operator accepted / COMPLETE**: Finanz Informatik application linkage reaches the All-jobs surface as the green application-active row; Sources counted tabs are accepted; lifecycle/evidence authority boundaries remain intact;
-- updater hardening and the F5 functional excursion have no remaining sequencing authority;
-- current frozen campaign authority is **F6 — Template-Authoritative Application Drafting**;
+- canonical released Product baseline: `main@f55b8adab62337b4e0a28c3ad9bcb56186c84cc6`, desktop **1.0.72**;
+- integrated CGKB product-local updater remains accepted and routine;
+- F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
+- F6 Slices A and B are **operator accepted / COMPLETE**;
+- Slice C exact-template review/edit + local PDF export is present in 1.0.72, but its first installed operator attempt exposed an older Top-5-only workspace coupling before PDF review could be exercised;
+- current corrective candidate is **1.0.73** on `feature/f6-c-operator-selected-target`;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
-F6 Slices A and B are now **operator accepted / COMPLETE**. The two operator-supplied private PDFs remain the only authorized layouts. Installed 1.0.71 on exact source `a7eae418cbcc8c901070d9db65505cece086e6f7` ran the real two-template Slice-B qualifier and ended `F6_TEMPLATE_RENDERER_QUALIFICATION=PASS`: both templates were covered, every page had zero changed pixels outside all declared zones, rendered PDFs were not persisted, and DB/provider/network/application/submission/send actions were all zero.
+The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
 
-Slice C is active on `feature/f6-c-review-export` with candidate desktop **1.0.72**. It adds the Control Center review/edit surface for manifest-declared zones and explicit local PDF Open/Download actions. Export is source-manifest-bound and delegates every changed document to the accepted Slice-B renderer; overflow, stale source context, undeclared zones or outside-zone pixel drift fail closed. Human review remains mandatory. No automatic submit/send authority is introduced.
+The 1.0.73 correction therefore separates two authorities. Top-5 stays strict and may remain empty. An explicit operator selection of a current, Origin-validated, authorized employer-origin vacancy may nevertheless open the review-only Application Workspace. Such a target carries `operator_selected_current_job`, has no Product rank, leaves unknown hard-filter evidence unknown, and is blocked by a known hard-filter failure. Candidate Facts, exact current vacancy evidence, exact F6 PDF authority, source-manifest binding, outside-zone pixel proof and the no-submit/no-send boundary remain unchanged.
+
+The next operator gate is installed 1.0.73: choose a current non-failed job (VALUNY Silver 613 is the current test case), prepare grounded review text, render both exact F6 PDFs, require outside-zone identity PASS and visually inspect the files.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.

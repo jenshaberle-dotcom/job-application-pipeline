@@ -1,6 +1,6 @@
 # F6 — Template-Authoritative Application Drafting
 
-Status: ACTIVE — Slices A/B operator accepted; Slice C review/edit + local PDF export in qualification
+Status: ACTIVE — Slices A/B operator accepted; Slice C released in 1.0.72, operator-selected target hardening in qualification
 
 ## Outcome
 
@@ -106,9 +106,36 @@ This closes Slice B and authorizes Slice C only. It does not grant draft approva
 
 ## Slice C — Review/Edit + Local PDF Export — IN QUALIFICATION
 
-Current candidate target: **1.0.72** on `feature/f6-c-review-export`.
+The first Slice-C implementation shipped as **1.0.72** from exact source `f55b8adab62337b4e0a28c3ad9bcb56186c84cc6`. It provides manifest-zone editing, source-manifest-bound local PDF rendering and the accepted Slice-B outside-zone pixel proof.
 
-Implementation contract:
+The first installed operator attempt exposed a separate pre-existing Product coupling before the new PDF surface could be exercised: the Application Workspace accepted only `gold_product_v1_top_jobs` targets while current Product truth contained **0 rankable / 0 Top-5** rows.
+
+### Runtime diagnosis — 2026-09-24
+
+The installed Product payload reported 80 current active jobs and 45 authoritative Affinity rows, but zero rankable jobs. Its readiness population was dominated by `hard_filter_evidence_required` plus `assessment_required`; VALUNY Silver 613 was active, Origin-validated and Affinity-authoritative while its hard-filter state remained unknown.
+
+A separate verified RCC warm-runtime read-only proof confirmed the population-level condition without mutating authority: rankable `0`, Top-5 `0`, 65 hard-filter-evidence-required rows, 13 assessment-required rows and 2 blocked hard-filter rows. Capability Fit remained unknown for the highest-Affinity blocked rows. This is consistent with the existing PD-053/054/059 fail-closed Product contract and must not be repaired by manufacturing ranking authority.
+
+Refresh is not a ranking/materialization action. Repeating UI refresh cannot legitimately turn unknown Fit/hard-filter evidence into Top-5 truth.
+
+### Operator-selected drafting boundary
+
+Candidate target: **1.0.73** on `feature/f6-c-operator-selected-target`.
+
+F6 drafting and Top-5 recommendation authority are now separated deliberately:
+
+- Top-5 remains unchanged and fail-closed. No row is promoted, ranked or threshold-bypassed for F6.
+- An operator may explicitly select a **current, Origin-validated, authorized employer-origin job** as a review-drafting target even when it is not Top-5.
+- An operator-selected target carries `authority_source=operator_selected_current_job` and **no Product rank**.
+- An unknown hard-filter state remains unknown; drafting does not convert it to passed.
+- A known hard-filter failure remains blocked from this path.
+- Candidate claims still come only from approved Candidate Facts and exact current vacancy evidence.
+- Exact F6 template/hash/zone authority, source-manifest binding, overflow fail-closed and outside-zone pixel identity remain unchanged.
+- Drafting remains review-only: no application, submission, send or Product/ranking authority is created.
+
+This boundary matches the real operator workflow: a recommendation system may honestly have an empty Top-5 while the operator can still decide to prepare material for a specific current vacancy.
+
+### Slice-C rendering contract
 
 - Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
 - source text from each declared zone is visible as the editable baseline; no undeclared page area is editable;
@@ -118,21 +145,21 @@ Implementation contract:
 - final rendering delegates to the accepted Slice-B renderer, including overflow fail-closed and outside-zone pixel-identity proof;
 - unchanged documents may be exported as their exact source-template bytes; changed documents carry renderer evidence and output SHA-256;
 - rendered PDFs cross only the loopback Product boundary as base64 and become local browser/WebView PDF objects for explicit Open/Download actions; no public/cloud persistence is introduced;
-- database/provider/application/submission/send actions remain zero;
 - human review remains mandatory and no automatic submit/send authority exists.
 
 ### Next operator gate
 
-After exact-head CI and immutable **1.0.72** release, update through the integrated JAP updater and use **Prepare application** on one authoritative Top-5 job:
+After exact-head CI and immutable **1.0.73** release:
 
-1. generate grounded review text;
-2. open the F6-C exact-template editor and apply draft suggestions;
-3. inspect/edit permitted zones as needed;
-4. press **Render local PDFs**;
-5. require two output documents and `Outside-zone identity PASS` for each changed document;
-6. open/download both PDFs and visually confirm that the approved layouts remain intact and only intended text zones changed.
+1. update through the integrated JAP updater and verify the exact 1.0.73 source;
+2. in **All jobs**, select VALUNY `Machine Learning Engineer / Data Scientist (m/w/d)` (Silver 613) or another current non-failed Employer-Origin job;
+3. press **Prepare application** and verify the workspace labels it **Operator-selected current job** rather than inventing a Top-5 rank;
+4. generate grounded review text;
+5. apply/edit only the permitted F6 text zones;
+6. press **Render local PDFs** and require `Outside-zone identity PASS` for each changed document;
+7. open/download both PDFs and visually confirm that approved layouts remain intact and only intended text zones changed.
 
-Any overflow, stale-source-manifest signal, unexpected layout change, or missing pixel proof is a fail-closed result, not an operator workaround.
+Any known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
 ## Explicit non-goals
 

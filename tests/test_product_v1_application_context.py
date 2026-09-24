@@ -7,6 +7,7 @@ from src.search_intelligence.product_v1_application_context import (
     ApplicationSourceDocumentSnapshot,
     ApplicationTargetSnapshot,
     CandidateFactSnapshot,
+    OPERATOR_SELECTED_AUTHORITY_SOURCE,
     build_product_v1_application_context,
 )
 
@@ -127,6 +128,67 @@ def test_non_top5_or_non_rankable_job_is_blocked() -> None:
     assert context.generation_ready is False
     assert "authoritative_top5_rank_required" in context.blocked_reasons
     assert "job_not_rankable" in context.blocked_reasons
+    assert context.generation_context_authority is False
+
+
+def test_operator_selected_current_job_can_prepare_review_without_top5_claim() -> None:
+    context = build_product_v1_application_context(
+        target=_target(
+            product_rank=None,
+            authority_source=OPERATOR_SELECTED_AUTHORITY_SOURCE,
+            product_readiness_status="hard_filter_evidence_required",
+            hard_filter_status="unknown",
+        ),
+        candidate_profile_status="approved",
+        candidate_profile_sha256="9" * 64,
+        candidate_facts=(
+            _fact("python", "I use Python professionally.", ("Python",)),
+        ),
+        source_documents=(
+            _document("base_cv", "CV"),
+            _document("base_application_letter", "Letter"),
+        ),
+        as_of_date=TODAY,
+    )
+
+    assert context.generation_ready is True
+    assert context.blocked_reasons == ()
+    assert context.generation_context_authority is True
+    assert context.target.product_rank is None
+    manifest = context.source_manifest()
+    assert manifest["target"]["authority_source"] == OPERATOR_SELECTED_AUTHORITY_SOURCE
+    assert manifest["target"]["product_rank"] is None
+    assert manifest["target"]["hard_filter_status"] == "unknown"
+    assert context.draft_approval_authority is False
+    assert context.application_authority is False
+    assert context.submission_authority is False
+    assert context.product_authority is False
+
+
+def test_operator_selected_job_with_known_hard_filter_conflict_stays_blocked() -> None:
+    context = build_product_v1_application_context(
+        target=_target(
+            product_rank=None,
+            authority_source=OPERATOR_SELECTED_AUTHORITY_SOURCE,
+            product_readiness_status="blocked_hard_filter",
+            hard_filter_status="failed",
+        ),
+        candidate_profile_status="approved",
+        candidate_profile_sha256="8" * 64,
+        candidate_facts=(
+            _fact("python", "I use Python professionally.", ("Python",)),
+        ),
+        source_documents=(
+            _document("base_cv", "CV"),
+            _document("base_application_letter", "Letter"),
+        ),
+        as_of_date=TODAY,
+    )
+
+    assert context.generation_ready is False
+    assert "known_hard_filter_conflict" in context.blocked_reasons
+    assert "top5_authority_required" not in context.blocked_reasons
+    assert "authoritative_top5_rank_required" not in context.blocked_reasons
     assert context.generation_context_authority is False
 
 
