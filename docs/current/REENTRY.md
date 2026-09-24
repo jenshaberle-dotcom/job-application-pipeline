@@ -6,21 +6,22 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical released Product baseline: desktop **1.0.76**, source `c582a5e6d90fc4afee68e2a4c0cfdec97289dd5d`;
+- canonical installed/released Product baseline: desktop **1.0.77**, source `5c67bc1d3f544ebb7b36fe734487ef101db014b5`;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
 - 1.0.75 carries exact Silver-target preservation, no silent first-job fallback, a single workspace open-event owner and compact searchable **Change job** selection;
-- 1.0.76 hardens the Windows single-instance/update handoff and is installed locally;
-- operator feedback on installed 1.0.76 establishes that `DEMO-001 · final product step` is stale product branding: JAP now operates as **JAP Control Center / Product V1**, while DEMO-001 is retained only as historical provenance;
-- current candidate is **1.0.77** on `cleanup/product-v1-retire-demo001-ui`: active Application Workspace module/product copy drops DEMO-001 identity and surfaces server-provided runtime error detail instead of generic `API returned 500`;
+- 1.0.76 hardens the Windows single-instance/update handoff;
+- installed 1.0.77 proves the Product V1 Application identity and exposes runtime error detail; exact accompio Silver #626 now fails transparently as `DownstreamPreviewStop: preview detail returned HTTP 404`;
+- a verified read-only RCC diagnostic proved Silver #626 already has current exact URL-bound recurring Employer-Origin observation evidence for the same persisted source URL/title, including a 3,994-character normalized vacancy detail; DB writes remained zero;
+- current candidate is **1.0.78** on `fix/f6-origin-drift-recovery`: Application Workspace and assessment materialization share one exact-observation detail contract, reuse exact persisted current evidence before any detail HTTP GET, and retain bounded network fetch only as fallback;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
 
 The 1.0.73 correction therefore separates two authorities. Top-5 stays strict and may remain empty. An explicit operator selection of a current, Origin-validated, authorized employer-origin vacancy may nevertheless open the review-only Application Workspace. Such a target carries `operator_selected_current_job`, has no Product rank, leaves unknown hard-filter evidence unknown, and is blocked by a known hard-filter failure. Candidate Facts, exact current vacancy evidence, exact F6 PDF authority, source-manifest binding, outside-zone pixel proof and the no-submit/no-send boundary remain unchanged.
 
-The next Product gate is 1.0.77. The Application Workspace must identify itself as Product V1 rather than DEMO-001, preserve the exact selected Silver target and, if workspace construction still fails for the selected job, display the backend exception type/message instead of the opaque `API returned 500`. The subsequent fix must address the revealed root cause without weakening fail-closed application authority.
+The next Product gate is installed 1.0.78. Re-open accompio Silver #626 through **Prepare application**. The workspace must reuse its exact persisted recurring observation (`evidence_mode=exact_persisted_observation`, detail HTTP GETs `0`) rather than failing on a redundant network read. If the remaining Product authority checks block generation, the same selected job and its explicit blocker must remain visible; no Origin, ranking, hard-filter, application, submission or send authority is synthesized. If the workspace is ready, continue through grounded review text and the single finished F6 application PDF.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.
