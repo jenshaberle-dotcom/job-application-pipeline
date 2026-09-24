@@ -225,6 +225,66 @@ def test_missing_chatgpt_login_stops_before_model_request(
     assert result.package is None
 
 
+def test_codex_login_status_accepts_chatgpt_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        adapter.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=0,
+            stdout="",
+            stderr="Logged in using an API key - sk-...1234",
+        ),
+    )
+
+    logged_in, output = adapter._codex_login_status("/runtime/vendor/codex/codex")
+
+    assert logged_in is False
+    assert "API key" in output
+
+
+def test_runtime_status_reports_non_chatgpt_auth_without_enabling_drafting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/runtime/vendor/codex/codex")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.154.0")
+    monkeypatch.setattr(
+        adapter,
+        "_codex_login_status",
+        lambda _exe: (False, "Logged in using an API key - sk-...1234"),
+    )
+
+    status = adapter.inspect_codex_runtime_status()
+
+    assert status.status == "auth_required"
+    assert status.installed is True
+    assert status.chatgpt_authenticated is False
+    assert status.auth_mode == "api_key"
+    assert status.to_json()["api_key_fallback"] is False
+    assert status.to_json()["automatic_credit_purchase"] is False
+
+
+def test_api_key_codex_login_is_rejected_for_jap_drafting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/runtime/vendor/codex/codex")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.154.0")
+    monkeypatch.setattr(
+        adapter,
+        "_codex_login_status",
+        lambda _exe: (False, "Logged in using an API key - sk-...1234"),
+    )
+
+    result = adapter.request_codex_application_adaptation(context=_context())
+
+    assert result.status == "unavailable"
+    assert result.reason_code == "codex_chatgpt_auth_required"
+    assert result.attempted is False
+    assert result.package is None
+    assert "included allowance" in (result.reason or "")
+
+
 def test_codex_subprocess_environment_does_not_inherit_jap_secrets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
