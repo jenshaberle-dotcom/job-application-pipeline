@@ -232,6 +232,30 @@ def test_2xx_filled_position_content_is_exact_detail_closure() -> None:
     )
 
 
+def test_404_with_explicit_exact_vacancy_closure_marker_is_closed() -> None:
+    target = _health_target()
+    classification = classify_exact_detail(
+        target,
+        HttpProbeResult(
+            status_code=404,
+            final_url=target.source_url,
+            response_text="Die Stellenanzeige konnte nicht gefunden werden.",
+            redirect_count=0,
+        ),
+    )
+
+    assert classification.outcome == OUTCOME_CLOSED
+    assert classification.coverage == COVERAGE_EXACT_DETAIL
+    assert (
+        classification.evidence_reason
+        == "explicit_vacancy_unavailable_on_exact_detail"
+    )
+    assert (
+        classification.evidence["explicit_closure_marker"]
+        == "stellenanzeige_nicht_gefunden"
+    )
+
+
 def test_generic_2xx_title_mismatch_remains_unverifiable() -> None:
     target = _health_target()
     classification = classify_exact_detail(
