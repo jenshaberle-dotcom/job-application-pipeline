@@ -53,6 +53,16 @@ type ClaimPlanEntry = {
   job_references?: ClaimReference[];
 };
 
+type VacancyRevalidationPayload = {
+  status?: "active" | "closed" | "unverifiable" | "blocked";
+  outcome?: string;
+  reason?: string;
+  silver_job_id?: number;
+  vacancy_revalidation_http_gets?: number;
+  database_writes?: number;
+  lifecycle_health_observation_writes?: number;
+};
+
 type ApplicationWorkspacePayload = {
   status?: string;
   reason?: string;
@@ -293,19 +303,50 @@ export default function ApplicationWorkspace() {
     let active = true;
     setLoading(true);
     setDraft(null);
+    setWorkspace(null);
     setError(null);
-    readJson<ApplicationWorkspacePayload>(`/api/v1/product-v1/application-workspace?silver_job_id=${selectedId}`)
-      .then((payload) => { if (active) setWorkspace(payload); })
+
+    const loadVerifiedWorkspace = async () => {
+      const revalidation = await readJson<VacancyRevalidationPayload>(
+        "/api/v1/product-v1/application-workspace/revalidate",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "revalidate_selected_vacancy",
+            silver_job_id: selectedId,
+          }),
+        },
+      );
+      if (!active) return;
+
+      if (revalidation.status === "closed") {
+        setError(
+          `Current vacancy is no longer available: ${revalidation.reason || "explicit closure evidence"}`,
+        );
+        await refreshProductTruth().catch(() => undefined);
+        return;
+      }
+      if (revalidation.status !== "active") {
+        setError(
+          `Current vacancy could not be verified: ${revalidation.reason || revalidation.status || "unknown reason"}`,
+        );
+        return;
+      }
+
+      const payload = await readJson<ApplicationWorkspacePayload>(
+        `/api/v1/product-v1/application-workspace?silver_job_id=${selectedId}`,
+      );
+      if (active) setWorkspace(payload);
+    };
+
+    void loadVerifiedWorkspace()
       .catch((reason: unknown) => {
         if (!active) return;
-        const message = String(reason);
         setWorkspace(null);
-        setError(message);
-        if (message.includes("current vacancy is no longer available")) {
-          void refreshProductTruth().catch(() => undefined);
-        }
+        setError(String(reason));
       })
       .finally(() => { if (active) setLoading(false); });
+
     return () => { active = false; };
   }, [open, selectedId, refreshProductTruth]);
 
