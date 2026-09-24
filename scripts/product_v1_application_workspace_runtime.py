@@ -277,6 +277,8 @@ def application_workspace_payload(silver_job_id: int) -> dict[str, object]:
         "boundaries": {
             "database_reads": True,
             "database_writes": False,
+            "vacancy_revalidation_http_gets": 1,
+            "lifecycle_health_observation_writes": 0,
             "job_detail_http_gets": job_detail_http_gets,
             "current_observation_detail_reuse": int(
                 evidence_mode == "exact_persisted_observation"
