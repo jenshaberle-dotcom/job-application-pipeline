@@ -23,6 +23,8 @@ type Job = {
   discovery_source_url?: string | null;
   product_readiness_status?: string;
   lifecycle_status?: string;
+  origin_validation_status?: string;
+  hard_filter_status?: string;
   overall_quality_score?: number | null;
   product_overall_quality_score?: number | null;
   display_fit_score?: number | null;
