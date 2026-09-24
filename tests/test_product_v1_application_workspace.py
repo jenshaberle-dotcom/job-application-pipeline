@@ -133,6 +133,57 @@ def test_operator_selected_current_job_is_review_ready_without_top5_rank(
     assert context.submission_authority is False
 
 
+def test_operator_selected_missing_origin_state_surfaces_explicit_blocker(
+    tmp_path: Path,
+) -> None:
+    job = _job()
+    job.update(
+        {
+            "product_rank": None,
+            "product_readiness_status": "assessment_required",
+            "origin_validation_status": None,
+            "hard_filter_status": "unknown",
+        }
+    )
+
+    context = build_application_workspace_context(
+        top_job_row=job,
+        detail_text="We are looking for a Machine Learning Engineer with strong Python skills.",
+        profile_row={"status": "approved", "payload_sha256": "a" * 64},
+        fact_rows=[_fact()],
+        document_rows=_documents(tmp_path),
+        load_document=_verified_loader,
+        as_of_date=date(2026, 9, 24),
+        authority_source=OPERATOR_SELECTED_AUTHORITY_SOURCE,
+    )
+
+    assert context.generation_ready is False
+    assert context.target.origin_validation_status == "unknown"
+    assert "origin_not_validated" in context.blocked_reasons
+    assert context.target.authority_source == OPERATOR_SELECTED_AUTHORITY_SOURCE
+    assert context.target.product_rank is None
+    assert context.application_authority is False
+    assert context.submission_authority is False
+
+
+def test_top5_missing_origin_state_still_fails_closed_before_context_build(
+    tmp_path: Path,
+) -> None:
+    job = _job()
+    job["origin_validation_status"] = None
+
+    with pytest.raises(ApplicationWorkspaceStop, match="origin_validation_status is required"):
+        build_application_workspace_context(
+            top_job_row=job,
+            detail_text="Python",
+            profile_row={"status": "approved", "payload_sha256": "a" * 64},
+            fact_rows=[_fact()],
+            document_rows=_documents(tmp_path),
+            load_document=_verified_loader,
+            as_of_date=date(2026, 9, 24),
+        )
+
+
 def test_operator_selected_current_job_cannot_bypass_known_hard_filter_failure(
     tmp_path: Path,
 ) -> None:
