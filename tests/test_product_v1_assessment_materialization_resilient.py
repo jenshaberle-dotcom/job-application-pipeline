@@ -59,7 +59,8 @@ def test_http_429_blocks_only_one_candidate_and_plan_completes(monkeypatch) -> N
     plan = resilient.build_plan_isolated(
         rows=[_row(1), _row(2)],
         authorized_sources={SOURCE},
-        policy_version="product-v1-2026-08-02",
+        ranking_policy_version="product-v1-2026-09-16-affinity-v1",
+        hard_filter_policy_version="product-v1-2026-08-02",
     )
 
     assert plan["candidate_count"] == 2
@@ -95,7 +96,8 @@ def test_current_exact_observation_description_avoids_network(monkeypatch) -> No
     plan = resilient.build_plan_isolated(
         rows=[_row(3, persisted_description=DETAIL)],
         authorized_sources={SOURCE},
-        policy_version="product-v1-2026-08-02",
+        ranking_policy_version="product-v1-2026-09-16-affinity-v1",
+        hard_filter_policy_version="product-v1-2026-08-02",
     )
 
     assert plan["proposal_count"] == 1
@@ -105,6 +107,9 @@ def test_current_exact_observation_description_avoids_network(monkeypatch) -> No
     assert plan["boundaries"]["network_retry_requests"] == 0
     assert calls == []
     assessment = plan["proposals"][0]["assessment"]
+    assert plan["ranking_policy_version"] == "product-v1-2026-09-16-affinity-v1"
+    assert plan["job_evidence_policy_version"] == "product-v1-2026-08-02"
+    assert assessment["policy_version"] == "product-v1-2026-08-02"
     assert assessment["employment_type"] == "permanent"
     assert assessment["required_languages"] == ["de", "en"]
     assert assessment["work_model"] == "hybrid"

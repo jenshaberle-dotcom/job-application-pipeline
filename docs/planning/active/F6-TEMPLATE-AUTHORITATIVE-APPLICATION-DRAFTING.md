@@ -218,6 +218,24 @@ Candidate target: **1.0.79** on `fix/f6-explicit-origin-blocker`.
 
 1.0.79 therefore normalizes a missing Origin field to `unknown` **only for the operator-selected drafting projection**. The canonical context then produces `origin_not_validated`, keeps generation blocked and preserves the exact target. A Top-5 target with a missing Origin field still fails construction. No assessment is inserted, no Origin status becomes validated, and no Product/ranking/application/submission/send authority changes.
 
+### Installed 1.0.79 operator acceptance + read-only materialization proof
+
+The installed operator test passes the intended 1.0.79 boundary:
+
+- the exact accompio Silver #626 target remains pinned;
+- the former low-level missing-field exception is gone;
+- the workspace renders **Context blocked / origin not validated**;
+- 2 Candidate Facts are matched and both F6 templates retain exact authority;
+- draft generation remains disabled while Origin authority is absent.
+
+A fresh RCC read-only plan then evaluated exactly Silver #626 through the existing resilient initial-assessment materializer. It produced one proposal and zero blockers with materialization fingerprint `78d9d24f1ecfc25488c47c77e0585d54a62c0b2729b6fb417dd403be57333e19`. The plan reused the exact persisted observation once, performed zero vacancy-detail network reads, zero DB writes and zero provider/LLM requests, and created no ranking score, capability-fit or Top-5 authority.
+
+That proof also found a stale pre-F4B coupling in the materializer. The approved ranking policy is now `product-v1-2026-09-16-affinity-v1`; the approved job-evidence/hard-filter policy remains `product-v1-2026-08-02`. Newer F4A code already treats those as independent authorities and binds assessment `policy_version` to job-evidence semantics while recording ranking-policy version separately.
+
+Candidate target: **1.0.80**.
+
+1.0.80 brings the initial materializer onto that same contract: both approved policy versions are required and independently frozen across preflight/apply; the assessment row binds the hard-filter/job-evidence policy version; ranking-policy identity is recorded separately in evidence metadata; equality between the two versions is no longer required. This is an authority-correction, not a relaxation.
+
 ### Slice-C rendering contract
 
 - Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
@@ -232,15 +250,9 @@ Candidate target: **1.0.79** on `fix/f6-explicit-origin-blocker`.
 
 ### Next operator gate
 
-After exact-head CI and immutable **1.0.79** release:
+After exact-head CI and immutable **1.0.80** release, stop before mutation and obtain explicit approval for the single preflighted Silver #626 assessment insert. Approval is valid only while the exact candidate remains Silver #626 and the recomputed materialization fingerprint is `78d9d24f1ecfc25488c47c77e0585d54a62c0b2729b6fb417dd403be57333e19`. Apply must remain insert-only and revalidate both policy versions and the eligible candidate set transactionally.
 
-1. update through the integrated JAP updater and verify the exact 1.0.79 source;
-2. select accompio Silver #626 and press **Prepare application**;
-3. require the exact same job to remain pinned and exact persisted observation reuse to remain intact;
-4. require the low-level `origin_validation_status is required` error to disappear;
-5. require the workspace to render a normal fail-closed **Context blocked** state with `origin_not_validated`, unless Origin authority has independently changed before the test;
-6. do not bypass that authority stop; assess the existing guarded materialization path separately before any DB mutation;
-7. only after legitimate Origin authority exists may the flow continue to grounded review text and **Create finished application PDF**.
+After an approved insert and independent post-write proof, refresh/re-open the same accompio job. Origin should then be validated from the already-admitted employer-origin evidence while hard-filter/capability/ranking authority remains unchanged. The next visible F6 test is **Generate review text**, followed by **Create finished application PDF** only if the context becomes generation-ready.
 
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 

@@ -63,7 +63,8 @@ def test_generic_materialization_uses_source_evidence_without_scores_or_fit() ->
     payload = build_assessment_payload(
         row=_row(),
         authorized_sources={SOURCE},
-        policy_version="product-v1-2026-08-02",
+        ranking_policy_version="product-v1-2026-09-16-affinity-v1",
+        hard_filter_policy_version="product-v1-2026-08-02",
         final_url=DETAIL_URL,
         detail_text=DETAIL,
     )
@@ -87,6 +88,15 @@ def test_generic_materialization_uses_source_evidence_without_scores_or_fit() ->
     assert payload["ranking_factors"]["schema"] == MATERIALIZER_CONTRACT
     assert payload["ranking_factors"]["source_evidence_only"] is True
     assert payload["ranking_factors"]["authority"]["profile_source_role"] == "employer_origin"
+    assert (
+        payload["ranking_factors"]["authority"]["job_evidence_policy_version"]
+        == "product-v1-2026-08-02"
+    )
+    assert (
+        payload["ranking_factors"]["authority"]["ranking_policy_version_independent"]
+        == "product-v1-2026-09-16-affinity-v1"
+    )
+    assert payload["policy_version"] == "product-v1-2026-08-02"
     assert len(str(payload["materialization_fingerprint"])) == 64
     assert ASSESSED_BY == "deterministic_assessment_materialization_v1"
 
@@ -120,7 +130,8 @@ def test_cross_origin_detail_redirect_is_rejected() -> None:
         build_assessment_payload(
             row=_row(),
             authorized_sources={SOURCE},
-            policy_version="product-v1-2026-08-02",
+                ranking_policy_version="product-v1-2026-09-16-affinity-v1",
+            hard_filter_policy_version="product-v1-2026-08-02",
             final_url="https://other.example/job/123",
             detail_text=DETAIL,
         )
@@ -137,6 +148,17 @@ def test_role_relevant_selection_is_source_neutral() -> None:
     )
 
     assert [row["silver_job_id"] for row in selected] == [1, 3]
+
+
+def test_materializer_keeps_ranking_and_job_evidence_policy_versions_independent() -> None:
+    source = Path("scripts/run_product_v1_assessment_materialization.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "ranking_version != hard_filter_version" not in source
+    assert "return ranking_version, hard_filter_version" in source
+    assert '"policy_version": hard_filter_policy_version' in source
+    assert '"ranking_policy_version_independent": ranking_policy_version' in source
 
 
 def test_runner_is_plan_only_by_default_and_insert_only() -> None:
