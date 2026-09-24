@@ -1,6 +1,6 @@
 # F6 — Template-Authoritative Application Drafting
 
-Status: ACTIVE — Slice A operator accepted; Slice B template-bound renderer in qualification
+Status: ACTIVE — Slices A/B operator accepted; Slice C review/edit + local PDF export in qualification
 
 ## Outcome
 
@@ -74,14 +74,14 @@ Acceptance criteria:
 - Product readiness requires exact template authority, not merely an `approved` DB row;
 - old generic renderer/package paths are physically absent;
 - Control Center explains the authority and exposes only exact-template verification;
-- generation can still produce grounded review text, but rendering remains `template_bound_renderer_pending`;
+- at Slice A completion, generation could produce grounded review text while rendering was still pending; this historical state is superseded by the accepted Slice-B renderer;
 - database/application/submission/send authority remains unchanged.
 
 ### Slice A operator evidence
 
 Installed 1.0.68 successfully verified both exact private templates through the Product surface. The generic DOCX/A4 path remained absent. This closes Slice A and authorizes Slice B only; it grants no final PDF export or submission/send authority.
 
-## Slice B — Template-Bound Renderer — IN QUALIFICATION
+## Slice B — Template-Bound Renderer — COMPLETE / OPERATOR ACCEPTED
 
 PR #999 introduces a new F6-only renderer authority. It is not a revival of the retired generic exporter.
 
@@ -96,15 +96,43 @@ Acceptance criteria:
 - rendered bytes remain review-only and grant no application/submission/send authority;
 - CI uses synthetic PDFs only; private template bytes remain local.
 
+### Slice B operator evidence
+
+Installed Product **1.0.71** on exact release source `a7eae418cbcc8c901070d9db65505cece086e6f7` completed the real private-template qualification successfully.
+
+The local proof covered exactly both canonical templates (`template_count: 2`). The application-letter render changed only `body.paragraph_1`; the CV render changed only `p1.short_profile`. Every page reported `outside_zone_pixel_identity: true` and `changed_pixels: 0` outside declared zones. Rendered PDFs were not persisted and private template paths/bytes were not disclosed. The qualifier reported zero database reads/writes, provider/network requests, application actions, submission actions and send actions, and ended with `F6_TEMPLATE_RENDERER_QUALIFICATION=PASS`.
+
+This closes Slice B and authorizes Slice C only. It does not grant draft approval, application, submission or send authority.
+
+## Slice C — Review/Edit + Local PDF Export — IN QUALIFICATION
+
+Current candidate target: **1.0.72** on `feature/f6-c-review-export`.
+
+Implementation contract:
+
+- Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
+- source text from each declared zone is visible as the editable baseline; no undeclared page area is editable;
+- explicit operator action may apply bounded draft suggestions: CV summary -> `p1.short_profile`; letter opening/fit/closing -> declared letter body zones;
+- the operator can edit those zone texts before rendering;
+- export is bound to the exact draft `source_manifest_sha256`; if the current job/fact/template context drifts, export fails closed and requires draft regeneration;
+- final rendering delegates to the accepted Slice-B renderer, including overflow fail-closed and outside-zone pixel-identity proof;
+- unchanged documents may be exported as their exact source-template bytes; changed documents carry renderer evidence and output SHA-256;
+- rendered PDFs cross only the loopback Product boundary as base64 and become local browser/WebView PDF objects for explicit Open/Download actions; no public/cloud persistence is introduced;
+- database/provider/application/submission/send actions remain zero;
+- human review remains mandatory and no automatic submit/send authority exists.
+
 ### Next operator gate
 
-After PR #999 exact-head qualification and merge/release, run the local F6-B qualification against the already-installed exact private CV and application-letter PDFs. The proof renders one short marker into one declared zone per document, requires zero changed pixels outside all declared zones, persists no rendered PDF, exposes no private path/bytes, performs no DB/provider/network/application action, and must end with `F6_TEMPLATE_RENDERER_QUALIFICATION=PASS`.
+After exact-head CI and immutable **1.0.72** release, update through the integrated JAP updater and use **Prepare application** on one authoritative Top-5 job:
 
-Only after that real two-template proof may Slice B be marked complete and Slice C begin.
+1. generate grounded review text;
+2. open the F6-C exact-template editor and apply draft suggestions;
+3. inspect/edit permitted zones as needed;
+4. press **Render local PDFs**;
+5. require two output documents and `Outside-zone identity PASS` for each changed document;
+6. open/download both PDFs and visually confirm that the approved layouts remain intact and only intended text zones changed.
 
-## Slice C — queued
-
-Control Center review/edit surface for permitted text zones plus final local PDF export. Human acceptance remains mandatory.
+Any overflow, stale-source-manifest signal, unexpected layout change, or missing pixel proof is a fail-closed result, not an operator workaround.
 
 ## Explicit non-goals
 
