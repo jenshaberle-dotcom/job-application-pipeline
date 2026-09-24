@@ -21,7 +21,7 @@ jobs:
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
-      RCC_RUNNER_NAME: rcc-general-linux-01--jap
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
       WORKSPACE_OUTPUT: /tmp/jap-f6-626-postwrite-workspace.json
       DRAFT_OUTPUT: /tmp/jap-f6-626-postwrite-draft.json
 
