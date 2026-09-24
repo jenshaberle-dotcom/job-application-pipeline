@@ -134,6 +134,8 @@ jobs:
               raise SystemExit(f"F6_DIAGNOSTIC_UNEXPECTED_EXIT:{rc}")
 
           safe = {
+              "ranking_policy_version": payload.get("ranking_policy_version"),
+              "job_evidence_policy_version": payload.get("job_evidence_policy_version"),
               "candidate_count": payload.get("candidate_count"),
               "proposal_count": payload.get("proposal_count"),
               "blocked_count": payload.get("blocked_count"),
