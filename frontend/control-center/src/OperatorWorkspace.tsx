@@ -191,6 +191,32 @@ const applicationStageLabel: Record<ApplicationStage, string> = {
   closed: "Geschlossen",
 };
 const isAppliedStage = (stage: ApplicationStage) => stage !== "prepared";
+const canPrepareApplication = (stage: ApplicationStage | null | undefined) =>
+  stage == null || stage === "prepared";
+
+function buildApplicationByJobId(payload: ProductPayload): Map<number, LinkedApplication> {
+  const linked = new Map<number, LinkedApplication>();
+  for (const application of payload.application_tracking?.applications || []) {
+    if (typeof application.silver_job_id === "number") {
+      linked.set(application.silver_job_id, {
+        ...application,
+        linkage_status: "persisted",
+      });
+    }
+  }
+  for (const application of payload.application_tracking?.job_linkage?.exact_matches || []) {
+    if (
+      typeof application.silver_job_id === "number" &&
+      !linked.has(application.silver_job_id)
+    ) {
+      linked.set(application.silver_job_id, {
+        ...application,
+        linkage_status: "exact_projected",
+      });
+    }
+  }
+  return linked;
+}
 
 function externalJobUrl(job: Job): string | null {
   // Product/application authority still uses the guarded source_url. For review
@@ -398,7 +424,7 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
 
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{isCurrent(job) && job.hard_filter_status !== "failed" && <OpenApplicationButton silverJobId={job.silver_job_id} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{isCurrent(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Profile Fit coverage</span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /></div><div><span>Profile Fit decision</span><Status value={job.profile_fit_decision || "unknown"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
@@ -429,32 +455,13 @@ function Jobs({
     setFilter("all");
     setSearch("");
   }, [selectedJobId]);
-  const applicationByJobId = useMemo(() => {
-    const linked = new Map<number, LinkedApplication>();
-    for (const application of payload.application_tracking?.applications || []) {
-      if (typeof application.silver_job_id === "number") {
-        linked.set(application.silver_job_id, {
-          ...application,
-          linkage_status: "persisted",
-        });
-      }
-    }
-    for (const application of payload.application_tracking?.job_linkage?.exact_matches || []) {
-      if (
-        typeof application.silver_job_id === "number" &&
-        !linked.has(application.silver_job_id)
-      ) {
-        linked.set(application.silver_job_id, {
-          ...application,
-          linkage_status: "exact_projected",
-        });
-      }
-    }
-    return linked;
-  }, [
-    payload.application_tracking?.applications,
-    payload.application_tracking?.job_linkage?.exact_matches,
-  ]);
+  const applicationByJobId = useMemo(
+    () => buildApplicationByJobId(payload),
+    [
+      payload.application_tracking?.applications,
+      payload.application_tracking?.job_linkage?.exact_matches,
+    ],
+  );
 
   const filtered = useMemo(() => {
     const q = normalize(search);
@@ -680,16 +687,35 @@ function Jobs({
 function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
   const [selectedId, setSelectedId] = useState<number | null>(payload.top_jobs[0]?.silver_job_id ?? null);
   const jobs = payload.top_jobs.slice(0, 5);
+  const applicationByJobId = useMemo(
+    () => buildApplicationByJobId(payload),
+    [
+      payload.application_tracking?.applications,
+      payload.application_tracking?.job_linkage?.exact_matches,
+    ],
+  );
   const selected = jobs.find((job) => job.silver_job_id === selectedId) || jobs[0] || null;
   return <div className="ow-stack"><header className="ow-page-header"><div><span>Application shortlist</span><h1>Top 5</h1><p>Only authoritative rankable jobs. Empty slots stay empty.</p></div><strong className="ow-big-count">{jobs.length}/5</strong></header>
-    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small></span><strong>{scoreText(job.overall_quality_score)}</strong></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} />}</section> : <section className="ow-card"><h2>No Top-5 job currently qualifies.</h2><p>The product does not fill the shortlist with weaker or stale jobs.</p></section>}
+    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small></span><strong>{scoreText(job.overall_quality_score)}</strong></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />}</section> : <section className="ow-card"><h2>No Top-5 job currently qualifies.</h2><p>The product does not fill the shortlist with weaker or stale jobs.</p></section>}
   </div>;
 }
 
 function Application({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
-  const top = payload.top_jobs[0] || null;
+  const applicationByJobId = useMemo(
+    () => buildApplicationByJobId(payload),
+    [
+      payload.application_tracking?.applications,
+      payload.application_tracking?.job_linkage?.exact_matches,
+    ],
+  );
+  const top = payload.top_jobs.find(
+    (job) => canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage),
+  ) || null;
   const firstSelectable = payload.job_readiness.find(
-    (job) => isCurrent(job) && job.hard_filter_status !== "failed",
+    (job) =>
+      isCurrent(job) &&
+      job.hard_filter_status !== "failed" &&
+      canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage),
   ) || null;
   const target = top || firstSelectable;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
