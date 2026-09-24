@@ -123,6 +123,11 @@ def test_desktop_host_is_self_contained_webview2_window() -> None:
     assert "catch (AbandonedMutexException)" in program
     assert "mutex.ReleaseMutex()" in program
     assert "out var createdNew" not in program
+    assert "TryActivateExistingVisibleWindow" in program
+    assert "mutex.WaitOne(LifecycleHandoffTimeout, false)" in program
+    assert "IsProductUpdateHandoffInProgress" in program
+    assert "accepted-update.json" in program
+    assert "JAP Control Center ist bereits geöffnet." not in program
     assert "RuntimeStartTimeout" in program
     assert "_runtime.EnsureStartedAsync(RuntimeStartTimeout)" in program
     assert '"--exec"' in runtime

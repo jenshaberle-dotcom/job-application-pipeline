@@ -95,4 +95,13 @@ def test_webview2_navigation_is_proven_before_splash_is_hidden() -> None:
 
 
 def test_current_product_local_release_version() -> None:
-    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.75"
+    assert VERSION.read_text(encoding="utf-8").strip() == "1.0.76"
+
+
+
+def test_shutdown_interval_is_phase_logged_before_mutex_release() -> None:
+    program = _program()
+    assert 'WriteStartupPhase("shutdown_begin"' in program
+    assert 'WriteStartupPhase("shutdown_complete"' in program
+    assert "Hide();" in program
+    assert "_runtime.StopAsync(StopTimeout)" in program

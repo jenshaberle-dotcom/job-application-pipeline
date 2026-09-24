@@ -6,20 +6,20 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical released Product baseline: `main@1db8ef0f1708dff7684a21c632086abdf36344fb`, desktop **1.0.74**;
+- canonical released Product baseline: `main@abe8aa7ec20a9ab0b0aedf6b3fcbcd7fa6f5de56`, desktop **1.0.75**;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
-- installed 1.0.74 proves the progressed-application suppression: `applied` / later-stage jobs no longer expose **Prepare application** and retain **Open Applications**;
-- installed 1.0.74 also exposes one remaining navigation defect: an explicit **Prepare application** click can land on a different job, and the always-visible current-job sidebar is too large for the normal workflow;
-- current candidate is **1.0.75** on `fix/f6-c-exact-target-compact-picker`: exact Silver target preservation, no silent fallback, one event owner, pinned target and compact searchable **Change job** chooser;
+- 1.0.75 carries exact Silver-target preservation, no silent first-job fallback, a single workspace open-event owner and compact searchable **Change job** selection;
+- the first 1.0.75 local start exposed a Windows desktop lifecycle race only: during hidden shutdown/update handoff the old host still owns the single-instance mutex, so a manual click can report `JAP Control Center ist bereits geöffnet` even though no window is visible; the normal updater later restarts the app successfully;
+- current candidate is **1.0.76** on `fix/windows-single-instance-reactivation`: visible peers are reactivated, hidden normal shutdown is given a bounded mutex handoff window, update handoff is detected from the frozen accepted-update state, and the false `already open` popup is removed;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
 
 The 1.0.73 correction therefore separates two authorities. Top-5 stays strict and may remain empty. An explicit operator selection of a current, Origin-validated, authorized employer-origin vacancy may nevertheless open the review-only Application Workspace. Such a target carries `operator_selected_current_job`, has no Product rank, leaves unknown hard-filter evidence unknown, and is blocked by a known hard-filter failure. Candidate Facts, exact current vacancy evidence, exact F6 PDF authority, source-manifest binding, outside-zone pixel proof and the no-submit/no-send boundary remain unchanged.
 
-The next operator gate is installed 1.0.75: click **Prepare application** on a specific still-preparable All-jobs row and require the workspace to open on that exact Silver ID with no substitution. The selected target is pinned; switching jobs is an explicit **Change job** action using a compact searchable chooser rather than a permanent long sidebar. Then generate review text and create the single finished application PDF. Already-Beworben/later-stage jobs must continue to suppress **Prepare application**.
+The next operator gate is installed 1.0.76. First prove Windows lifecycle behavior: while JAP is visibly open, a second launch should reactivate the existing window; during normal hidden shutdown a new launch may wait up to the bounded handoff and then start cleanly; during an accepted update the second launch must report that JAP is updating rather than falsely claiming a visible instance already exists. Then continue the 1.0.75 F6 gate: click **Prepare application** on a specific still-preparable All-jobs row, require that exact Silver ID with no substitution, optionally use **Change job**, and create the single finished application PDF.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.
