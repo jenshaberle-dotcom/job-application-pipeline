@@ -9,6 +9,8 @@ from scripts.run_product_v1_assessment_materialization import (
     ASSESSED_BY,
     MATERIALIZER_CONTRACT,
     MaterializationStop,
+    _plan_fingerprints,
+    _require_frozen_plan_unchanged,
     build_assessment_payload,
     select_rows,
     validate_materialization_authority,
@@ -130,7 +132,7 @@ def test_cross_origin_detail_redirect_is_rejected() -> None:
         build_assessment_payload(
             row=_row(),
             authorized_sources={SOURCE},
-                ranking_policy_version="product-v1-2026-09-16-affinity-v1",
+            ranking_policy_version="product-v1-2026-09-16-affinity-v1",
             hard_filter_policy_version="product-v1-2026-08-02",
             final_url="https://other.example/job/123",
             detail_text=DETAIL,
@@ -159,6 +161,46 @@ def test_materializer_keeps_ranking_and_job_evidence_policy_versions_independent
     assert "return ranking_version, hard_filter_version" in source
     assert '"policy_version": hard_filter_policy_version' in source
     assert '"ranking_policy_version_independent": ranking_policy_version' in source
+
+
+def _fingerprint_plan(fingerprint: str) -> dict[str, object]:
+    return {
+        "candidate_count": 1,
+        "proposal_count": 1,
+        "blocked_count": 0,
+        "proposals": [
+            {
+                "silver_job_id": 626,
+                "materialization_fingerprint": fingerprint,
+            }
+        ],
+    }
+
+
+def test_frozen_plan_accepts_identical_materialization_fingerprint() -> None:
+    fingerprint = "a" * 64
+    expected = _fingerprint_plan(fingerprint)
+    current = _fingerprint_plan(fingerprint)
+
+    _require_frozen_plan_unchanged(expected, current)
+    assert _plan_fingerprints(current) == {626: fingerprint}
+
+
+def test_frozen_plan_rejects_materialization_fingerprint_drift() -> None:
+    with pytest.raises(MaterializationStop, match="fingerprint changed"):
+        _require_frozen_plan_unchanged(
+            _fingerprint_plan("a" * 64),
+            _fingerprint_plan("b" * 64),
+        )
+
+
+def test_apply_rechecks_frozen_plan_in_repeatable_read_transaction() -> None:
+    source = Path("scripts/run_product_v1_assessment_materialization.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ" in source
+    assert "_require_frozen_plan_unchanged(plan, current_plan)" in source
 
 
 def test_runner_is_plan_only_by_default_and_insert_only() -> None:
