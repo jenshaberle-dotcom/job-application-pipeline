@@ -378,6 +378,23 @@ The next operator gate is therefore two-part:
 
 This remains a **1.1.x patch correction**. It does not satisfy or advance the 1.2.0 acceptance gate by itself.
 
+### Candidate 1.1.3 — restore 1.0.79 application-navigation affordances
+
+Installed 1.1.2 correctly removed stale-vacancy action authority, but it accidentally coupled that authority to **button visibility**. As soon as the 30-minute live-health evidence expired, All jobs no longer showed the application-navigation controls that were product-proven in 1.0.79.
+
+That is a regression. Freshness decides whether F6 may continue, not whether the operator may navigate to the authoritative F6 state.
+
+Candidate **1.1.3** restores the 1.0.79 job-detail action surface:
+
+- **Open original ↗** remains available whenever an exact browser-safe source URL exists;
+- **Prepare application** remains visible for persisted `active_confirmed`, non-hard-filter-failed jobs whose F5 stage has not progressed beyond `prepared`;
+- **Open Applications** remains visible for jobs already linked to an F5 application;
+- the Application Workspace target chooser again accepts persisted-active jobs so the job selected in All jobs remains the job inspected in F6;
+- freshness is still enforced independently by the backend before current vacancy evidence may become drafting authority;
+- stale jobs therefore reach a visible `current vacancy freshness required` blocker instead of silently losing all navigation controls.
+
+This explicitly freezes the 1.0.79 application-navigation UX as a regression contract while retaining the newer lifecycle truth boundary.
+
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
 

@@ -180,8 +180,11 @@ type SourceTab = "All" | SourceGroup;
 const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
 const label = (value: string | undefined | null) => (value || "unknown").replaceAll("_", " ");
 const scoreText = (value: number | null | undefined) => value == null ? "—" : `${Math.round(value)}%`;
+const hasPersistedActiveLifecycle = (job: Job) =>
+  ["active confirmed", "active_confirmed"].includes(normalize(job.lifecycle_status));
+
 const isCurrent = (job: Job) =>
-  ["active confirmed", "active_confirmed"].includes(normalize(job.lifecycle_status))
+  hasPersistedActiveLifecycle(job)
   && job.demo_live_verified === true;
 const isRankable = (job: Job) => normalize(job.product_readiness_status) === "rankable";
 const employerName = (job: Job) => job.display_company_name || job.company_name || "Employer not resolved";
@@ -430,7 +433,7 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
 
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{isCurrent(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Profile Fit coverage</span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /></div><div><span>Profile Fit decision</span><Status value={job.profile_fit_decision || "unknown"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>

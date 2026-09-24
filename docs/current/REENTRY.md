@@ -6,7 +6,7 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical installed/released Product baseline: desktop **1.1.1**, source `b2828d0e905e0c2ca37a0227fc4c9334cc096c50`;
+- canonical installed/released Product baseline: desktop **1.1.2**, source `5ab00f6636c3761445f44a9ad629bd697fe7485a`;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
@@ -34,13 +34,16 @@ This section supersedes older F5/updater sequencing statements retained below as
 - the next operator observation exposed a separate Product lifecycle defect: accompio Silver #626 had disappeared from the employer site while JAP still projected its older `active_confirmed` truth as current/selectable. The existing 30-minute `product_v1_demo_live_scope` freshness contract existed only as an audit and was not wired into the served Product surface;
 - current candidate **1.1.2** wires that existing freshness authority into `job_readiness`/Top-5 operator projection and F6 server-side preparation. An old `active_confirmed` label is no longer enough: Product actions require `demo_live_verified=true`, otherwise the row is visibly `live_health_refresh_required` (or the corresponding freshness reason) and cannot enter F6;
 - this does **not** invent `inactive_confirmed` from age alone. Persisted lifecycle truth remains evidence-driven; stale/expired freshness removes action authority immediately, while exact-detail/complete-inventory evidence remains responsible for authoritative inactive classification;
+- installed 1.1.2 exposed a UI regression caused by wiring freshness into navigation visibility: the **1.0.79-era job-detail action surface** (`Open original`, `Prepare application`, and linked `Open Applications`) disappeared whenever live-health freshness expired, even though the job remained auditable and operator-selectable in All jobs;
+- current candidate **1.1.3** separates **navigation affordance** from **mutation/action authority**: persisted `active_confirmed` jobs retain the 1.0.79 job-detail controls and can always navigate into the Application Workspace, while the F6 backend independently remains fail-closed on `evaluate_demo_live_scope` before any vacancy evidence reuse or drafting;
+- no freshness rule is removed by 1.1.3. The UI no longer hides the route to the authoritative blocker; stale jobs can be inspected/selected, but cannot produce a draft until the backend freshness contract passes;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
 
 The 1.0.73 correction therefore separates two authorities. Top-5 stays strict and may remain empty. An explicit operator selection of a current, Origin-validated, authorized employer-origin vacancy may nevertheless open the review-only Application Workspace. Such a target carries `operator_selected_current_job`, has no Product rank, leaves unknown hard-filter evidence unknown, and is blocked by a known hard-filter failure. Candidate Facts, exact current vacancy evidence, exact F6 PDF authority, source-manifest binding, outside-zone pixel proof and the no-submit/no-send boundary remain unchanged.
 
-The accompio Silver #626 vacancy is no longer an acceptable F6 test target because it has disappeared from the employer surface. The next Product gate is installed **1.1.2**: first prove that Silver #626 is no longer treated as a fresh/current application target despite its older persisted active evidence. Then select another genuinely current Employer-Origin vacancy and continue the Codex CV + application-letter qualification there. No stale target may be used merely to keep the F6 test moving.
+The accompio Silver #626 vacancy remains retired as an F6 test target. The next Product gate is installed **1.1.3**: All jobs must again expose the complete 1.0.79 job-detail action surface for persisted-active jobs, while stale freshness still blocks server-side drafting. Then choose a genuinely current Employer-Origin vacancy and continue the embedded-Codex CV + application-letter qualification there.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.
