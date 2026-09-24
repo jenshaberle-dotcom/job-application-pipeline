@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-import pytest
 
 from scripts import product_v1_application_workspace_runtime as runtime
 from src.search_intelligence.product_v1_application_context import (
