@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from scripts import product_v1_application_workspace_runtime as runtime
@@ -18,6 +19,8 @@ def _target(*, observation_url: str = URL) -> dict[str, object]:
         "source_url": URL,
         "title": "AI Automation Engineer (m/w/d)",
         "company_name": "Example",
+        "lifecycle_status": "active_confirmed",
+        "last_health_checked_at": datetime.now(UTC).isoformat(),
         "latest_observation_source_url": observation_url,
         "latest_observation_evidence": {
             "source_url": observation_url,
