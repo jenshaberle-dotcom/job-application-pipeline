@@ -211,15 +211,16 @@ export default function DemoApplicationWorkspace() {
     const allCurrent = Array.isArray(productTruth?.job_readiness)
       ? productTruth.job_readiness.filter((job) =>
           job.lifecycle_status === "active_confirmed" &&
-          job.origin_validation_status === "validated" &&
           job.hard_filter_status !== "failed"
         )
       : [];
     const byId = new Map<number, TopJob>();
     [...topJobs, ...allCurrent].forEach((job) => byId.set(job.silver_job_id, job));
-    return [...byId.values()].filter(
-      (job) => canPrepareApplication(applicationStages.get(job.silver_job_id)),
-    );
+    return [...byId.values()]
+      .filter((job) => canPrepareApplication(applicationStages.get(job.silver_job_id)))
+      .sort((left, right) => (
+        Number(right.overall_quality_score ?? -1) - Number(left.overall_quality_score ?? -1)
+      ));
   }, [applicationStages, productTruth?.job_readiness, topJobs]);
   const sourceReadiness = productTruth?.application_sources_ready || {};
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -228,25 +229,29 @@ export default function DemoApplicationWorkspace() {
   const [loading, setLoading] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (applicationJobs.length === 0) {
-      setSelectedId(null);
-      return;
-    }
-    if (selectedId == null || !applicationJobs.some((job) => job.silver_job_id === selectedId)) {
-      setSelectedId(applicationJobs[0].silver_job_id);
-    }
-  }, [applicationJobs, selectedId]);
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [jobQuery, setJobQuery] = useState("");
 
   useEffect(() => {
     const openRequestedTarget = (event: Event) => {
       const detail = (event as CustomEvent<{ silverJobId?: number }>).detail;
       const requestedId = Number(detail?.silverJobId || 0);
-      if (requestedId > 0) {
-        if (!applicationJobs.some((job) => job.silver_job_id === requestedId)) return;
-        setSelectedId(requestedId);
+      const requestedJob = requestedId > 0
+        ? applicationJobs.find((job) => job.silver_job_id === requestedId)
+        : applicationJobs[0];
+
+      if (!requestedJob) {
+        setError(
+          requestedId > 0
+            ? `Selected job #${requestedId} is not currently eligible for application preparation.`
+            : "No current job is eligible for application preparation.",
+        );
+        return;
       }
+
+      setSelectedId(requestedJob.silver_job_id);
+      setChooserOpen(false);
+      setJobQuery("");
       setOpen(true);
     };
     window.addEventListener("product-v1:open-application-workspace", openRequestedTarget);
@@ -270,9 +275,27 @@ export default function DemoApplicationWorkspace() {
   }, [open, selectedId]);
 
   const selectedJob = useMemo(
-    () => applicationJobs.find((job) => job.silver_job_id === selectedId) || applicationJobs[0] || null,
+    () => applicationJobs.find((job) => job.silver_job_id === selectedId) || null,
     [applicationJobs, selectedId],
   );
+
+  const chooserJobs = useMemo(() => {
+    const query = jobQuery.trim().toLocaleLowerCase();
+    const filtered = query
+      ? applicationJobs.filter((job) =>
+          [job.title, job.company_name, job.city]
+            .filter(Boolean)
+            .some((value) => String(value).toLocaleLowerCase().includes(query))
+        )
+      : applicationJobs;
+    return filtered.slice(0, 10);
+  }, [applicationJobs, jobQuery]);
+
+  const chooseJob = (job: TopJob) => {
+    setSelectedId(job.silver_job_id);
+    setChooserOpen(false);
+    setJobQuery("");
+  };
 
   const claimPlan = workspace?.workspace?.claim_plan || [];
   const documents = workspace?.workspace?.source_manifest?.documents || [];
@@ -303,22 +326,7 @@ export default function DemoApplicationWorkspace() {
     }
   };
 
-  if (!open) {
-    return <button
-      type="button"
-      className="demo-application-launcher"
-      disabled={applicationJobs.length === 0}
-      onClick={() => setOpen(true)}
-      title={applicationJobs.length
-        ? "Prepare review text for an explicit current job; Top-5 recommendation authority remains separate"
-        : "No current validated employer-origin job available"}
-    >
-      <span>Prepare application</span>
-      <strong>{topJobs.length
-        ? `${topJobs.length} Top-5 recommendation${topJobs.length === 1 ? "" : "s"} · ${applicationJobs.length} selectable`
-        : `${applicationJobs.length} operator-selectable current job${applicationJobs.length === 1 ? "" : "s"}`}</strong>
-    </button>;
-  }
+  if (!open) return null;
 
   return <div className="demo-application-backdrop" role="presentation" onMouseDown={(event) => {
     if (event.currentTarget === event.target) setOpen(false);
@@ -328,9 +336,9 @@ export default function DemoApplicationWorkspace() {
         <div>
           <span className="demo-eyebrow">DEMO-001 · final product step</span>
           <h1>Application Workspace</h1>
-          <p>One current job, verified evidence, exact F6 templates, one reviewable text draft.</p>
+          <p>The job you selected stays the application target. Change it only explicitly.</p>
         </div>
-        <button type="button" className="demo-close" onClick={() => setOpen(false)}>×</button>
+        <button type="button" className="demo-close" onClick={() => { setChooserOpen(false); setOpen(false); }}>×</button>
       </header>
 
       <div className="demo-journey" aria-label="Demo product journey">
@@ -348,27 +356,7 @@ export default function DemoApplicationWorkspace() {
         <span>Nothing is submitted or sent automatically.</span>
       </div>
 
-      <div className="demo-application-shell">
-        <aside className="demo-job-sidebar">
-          <div className="demo-sidebar-heading">
-            <span className="demo-eyebrow">Application target</span>
-            <h2>Current jobs</h2>
-            <small>{topJobs.length}/5 Top-5 recommendations · {applicationJobs.length} selectable</small>
-          </div>
-          <nav className="demo-job-picker" aria-label="Application target jobs">
-            {applicationJobs.map((job) => <button
-              type="button"
-              key={job.silver_job_id}
-              className={job.silver_job_id === selectedId ? "active" : ""}
-              onClick={() => setSelectedId(job.silver_job_id)}
-            >
-              <b>{job.product_rank ? `#${job.product_rank}` : "•"}</b>
-              <span>{job.title || "Untitled job"}</span>
-              <small>{job.company_name || "Unknown employer"} · {job.city || "Location unconfirmed"}</small>
-            </button>)}
-          </nav>
-        </aside>
-
+      <div className="demo-application-shell demo-application-shell-direct">
         <main className="demo-application-main">
           {selectedJob && <section className="demo-selected-job">
             <div className="demo-selected-copy">
@@ -376,11 +364,57 @@ export default function DemoApplicationWorkspace() {
               <h2>{selectedJob.title}</h2>
               <p>{selectedJob.company_name} · {selectedJob.city || "Location unconfirmed"}</p>
             </div>
-            <div className="demo-score-ring" aria-label={`${percent(selectedJob.overall_quality_score)} ${selectedJob.product_rank ? "Product score" : "Affinity"}`}>
-              <strong>{percent(selectedJob.overall_quality_score)}</strong>
-              <span>{selectedJob.product_rank ? "Product score" : "Affinity"}</span>
+            <div className="demo-selected-actions">
+              <button
+                type="button"
+                className="demo-change-job"
+                onClick={() => setChooserOpen((value) => !value)}
+              >
+                Change job
+              </button>
+              <div className="demo-score-ring" aria-label={`${percent(selectedJob.overall_quality_score)} ${selectedJob.product_rank ? "Product score" : "Affinity"}`}>
+                <strong>{percent(selectedJob.overall_quality_score)}</strong>
+                <span>{selectedJob.product_rank ? "Product score" : "Affinity"}</span>
+              </div>
             </div>
           </section>}
+
+          {chooserOpen && <section className="demo-job-chooser" aria-label="Change application target">
+            <header>
+              <div>
+                <span className="demo-eyebrow">Change application target</span>
+                <h3>Find another current job</h3>
+                <small>{applicationJobs.length} jobs can still enter the review-only preparation flow.</small>
+              </div>
+              <button type="button" onClick={() => setChooserOpen(false)}>×</button>
+            </header>
+            <input
+              autoFocus
+              type="search"
+              value={jobQuery}
+              onChange={(event) => setJobQuery(event.target.value)}
+              placeholder="Search title, employer or location…"
+              aria-label="Search application target jobs"
+            />
+            <div className="demo-job-chooser-results">
+              {chooserJobs.map((job) => <button
+                type="button"
+                key={job.silver_job_id}
+                className={job.silver_job_id === selectedId ? "active" : ""}
+                onClick={() => chooseJob(job)}
+              >
+                <span>
+                  <b>{job.title || "Untitled job"}</b>
+                  <small>{job.company_name || "Unknown employer"} · {job.city || "Location unconfirmed"}</small>
+                </span>
+                <strong>{percent(job.overall_quality_score)}<small>{job.product_rank ? "Product" : "Affinity"}</small></strong>
+              </button>)}
+              {chooserJobs.length === 0 && <p>No matching current job.</p>}
+            </div>
+            {applicationJobs.length > chooserJobs.length && !jobQuery.trim() && <footer>Showing the 10 highest-Affinity selectable jobs. Search to reach the rest.</footer>}
+          </section>}
+
+          {!selectedJob && <div className="demo-error"><b>Exact target unavailable</b><span>The requested job is no longer selectable. Close this workspace and choose another job from All jobs.</span></div>}
 
           {loading && <div className="demo-loading">Binding live vacancy evidence, Candidate Facts and approved source documents…</div>}
           {error && <div className="demo-error"><b>Fail closed</b><span>{error}</span></div>}
