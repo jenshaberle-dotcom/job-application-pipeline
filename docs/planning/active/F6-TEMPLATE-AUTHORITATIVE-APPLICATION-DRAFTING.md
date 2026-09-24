@@ -256,6 +256,24 @@ Post-write proof is deliberately narrow:
 
 A subsequent read-only live probe using the canonical private-document root proves the same Silver #626 now yields Application Workspace `READY`, blocked reasons `[]`, 2 grounded claim-plan entries, exact observation reuse with zero detail HTTP GETs, and F6 template authority `ready`. With the provider explicitly disabled, the canonical draft path reaches `draft_for_review` in `deterministic_evidence_first` mode with provider requests 0 and all DB/application/submission/send writes 0.
 
+### F6 design mandate — preserve layout maximally, change only what is necessary
+
+The approved private CV and application-letter PDFs remain the visual authority. The product goal is not to redesign them per vacancy. The rule is:
+
+> **Preserve the base layout as completely as possible; adapt only as much content as the concrete vacancy actually requires.**
+
+Operational consequences:
+
+- Codex may return **text values only**; it receives no layout coordinates and no layout mutation authority.
+- Existing pages, geometry, photograph, graphics, lines, section placement and non-editable typography remain untouched.
+- CV career-history blocks are factual authority and must not be rewritten merely for stylistic variation.
+- Primary CV adaptation is limited to the already-declared short-profile / competency zones unless a later operator-approved template contract explicitly adds more.
+- Application-letter recipient, date, subject, salutation and body zones may change because they are vacancy-specific.
+- Text overflow fails closed. JAP must never solve overflow by moving graphics, resizing the page, manufacturing a different design or silently adding a page.
+- The existing renderer proof remains mandatory: **zero changed pixels outside declared editable zones**.
+
+This is the design rule for the whole Codex adaptation path, not only the accompio test case.
+
 ### JAP Classic 1.1.0 boundary
 
 The operator chose this point to start the **1.1.x** minor line because the status/readiness path is now usable as an operator feature: job identity stays pinned, failure reasons are explicit, authority transitions are visible, and the workspace can move from blocked state to review-draft readiness without manufacturing ranking authority. Existing 1.0.x releases remain immutable; the next release is **1.1.0**.
