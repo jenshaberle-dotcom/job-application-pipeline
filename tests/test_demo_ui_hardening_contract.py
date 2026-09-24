@@ -120,7 +120,7 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
     assert "applicationJobs" in workspace
     assert "productTruth?.job_readiness" in workspace
     assert 'job.lifecycle_status === "active_confirmed"' in workspace
-    assert 'job.demo_live_verified === true' in workspace
+    assert 'job.demo_live_verified === true' not in workspace
     assert 'job.origin_validation_status === "validated"' not in workspace
     assert 'job.hard_filter_status !== "failed"' in workspace
     assert "Operator-selected current job" in workspace
@@ -134,11 +134,25 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
 
     assert "silverJobId?: number" in operator
     assert '{ detail: silverJobId ? { silverJobId } : {} }' in operator
-    assert 'isCurrent(job) && job.hard_filter_status !== "failed"' in operator
+    assert 'hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed"' in operator
     assert "Explicit current-job selection" in operator
     assert "Ready for review drafting" in operator
     assert "rankable && <OpenApplicationButton" not in operator
 
+
+
+def test_f6_navigation_affordance_survives_freshness_expiry_while_backend_remains_authority() -> None:
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+    backend = (ROOT / "scripts" / "product_v1_application_workspace_runtime.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "hasPersistedActiveLifecycle(job)" in operator
+    assert "<OpenApplicationButton silverJobId={job.silver_job_id} />" in operator
+    assert 'job.demo_live_verified === true' not in workspace
+    assert "evaluate_demo_live_scope(" in backend
+    assert "current vacancy freshness required" in backend
 
 
 def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
