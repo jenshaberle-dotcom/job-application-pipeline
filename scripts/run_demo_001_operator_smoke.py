@@ -86,8 +86,8 @@ def main() -> int:
     _require(int(draft.get("send_actions") or 0) == 0, "application generation performed send action")
 
     _require(
-        draft.get("render_status") == "template_bound_renderer_pending",
-        "F6 renderer must remain fail-closed until template-bound rendering is qualified",
+        draft.get("render_status") == "template_bound_renderer_qualified_review_export_available",
+        "F6 renderer must expose only the qualified template-bound review/export path",
     )
     _require(
         draft.get("legacy_generic_document_export") is False,
@@ -100,7 +100,7 @@ def main() -> int:
     print(f"PROVIDER_REQUESTS={draft.get('provider_requests')}")
     print("F6_TEMPLATE_AUTHORITY=READY")
     print("LEGACY_GENERIC_DOCUMENT_EXPORT=false")
-    print("RENDER_STATUS=template_bound_renderer_pending")
+    print("RENDER_STATUS=template_bound_renderer_qualified_review_export_available")
     print("DATABASE_WRITES=0")
     print("SUBMISSION_WRITES=0")
     print("SEND_ACTIONS=0")

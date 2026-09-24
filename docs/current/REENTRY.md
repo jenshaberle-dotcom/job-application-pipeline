@@ -6,14 +6,16 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical Product baseline before current F6-B candidate work: `main@65670ebf2647e0b1b699778edaf6467201a6397b`, desktop **1.0.69**;
-- integrated updater is accepted and routine; 1.0.69 adds only live-runtime LF/integrity hardening after the successful F6-A 1.0.68 operator verification;
+- canonical operator-accepted Product baseline: `main@a7eae418cbcc8c901070d9db65505cece086e6f7`, desktop **1.0.71**;
+- integrated updater is accepted and routine; 1.0.71 adds the exact pinned PyMuPDF installed-runtime dependency required by F6-B without changing CGKB updater authority;
 - F5 is **operator accepted / COMPLETE**: Finanz Informatik application linkage reaches the All-jobs surface as the green application-active row; Sources counted tabs are accepted; lifecycle/evidence authority boundaries remain intact;
 - updater hardening and the F5 functional excursion have no remaining sequencing authority;
-- current frozen campaign authority is now **F6 — Template-Authoritative Application Drafting**;
+- current frozen campaign authority is **F6 — Template-Authoritative Application Drafting**;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
-F6 Slice A is operator accepted. The two operator-supplied private PDFs are the only authorized layouts. Their bytes remain private; exact SHA-256, page geometry and editable text zones are public repo truth. Old generic A4/DOCX rendering and arbitrary base-PDF replacement are forbidden and physically removed. Slice B is active on PR #999: a new F6-only renderer must mutate text only inside declared zones, fail closed on overflow, and prove zero changed raster pixels outside all declared zones before Slice C may begin.
+F6 Slices A and B are now **operator accepted / COMPLETE**. The two operator-supplied private PDFs remain the only authorized layouts. Installed 1.0.71 on exact source `a7eae418cbcc8c901070d9db65505cece086e6f7` ran the real two-template Slice-B qualifier and ended `F6_TEMPLATE_RENDERER_QUALIFICATION=PASS`: both templates were covered, every page had zero changed pixels outside all declared zones, rendered PDFs were not persisted, and DB/provider/network/application/submission/send actions were all zero.
+
+Slice C is active on `feature/f6-c-review-export` with candidate desktop **1.0.72**. It adds the Control Center review/edit surface for manifest-declared zones and explicit local PDF Open/Download actions. Export is source-manifest-bound and delegates every changed document to the accepted Slice-B renderer; overflow, stale source context, undeclared zones or outside-zone pixel drift fail closed. Human review remains mandatory. No automatic submit/send authority is introduced.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.

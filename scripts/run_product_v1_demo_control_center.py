@@ -10,6 +10,8 @@ it never submits an application externally.
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 from datetime import date, datetime
 from decimal import Decimal
 from http import HTTPStatus
@@ -59,6 +61,11 @@ from scripts.run_product_v1_control_center import (
 from src.search_intelligence.private_application_source_text import (
     PrivateApplicationSourceTextError,
 )
+from src.search_intelligence.f6_template_review import (
+    F6TemplateReviewStop,
+    build_review_payload,
+    render_review_package,
+)
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
 )
@@ -68,11 +75,14 @@ PRODUCT_V1_PATH = "/api/v1/product-v1"
 DATA_LAYERS_PATH = "/api/v1/product-v1/data-layers"
 APPLICATION_WORKSPACE_PATH = "/api/v1/product-v1/application-workspace"
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
+F6_TEMPLATE_REVIEW_PATH = "/api/v1/product-v1/f6-template-review"
+F6_TEMPLATE_EXPORT_PATH = "/api/v1/product-v1/f6-template-export"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
 APPLICATION_SUBMISSION_RECORD_PATH = "/api/v1/product-v1/application-submission-record"
 MAILBOX_SYNC_PATH = "/api/v1/product-v1/mailbox-sync"
 _MAX_ACTION_BODY_BYTES = 4_096
 _MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
+_MAX_F6_EXPORT_BODY_BYTES = 256 * 1024
 _DEFAULT_PRIVATE_DOCUMENT_ROOT = Path("private_application_sources")
 
 
@@ -142,6 +152,45 @@ def parse_application_draft_action_payload(payload: object) -> int:
     return silver_job_id
 
 
+
+def _source_manifest_sha256(payload: object) -> str:
+    if not isinstance(payload, Mapping):
+        raise DemoActionStop("current source manifest is unavailable")
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def parse_f6_template_export_payload(
+    payload: object,
+) -> tuple[int, str, Mapping[str, object]]:
+    if not isinstance(payload, Mapping):
+        raise DemoActionStop("F6 export payload must be a JSON object")
+    expected = {"action", "silver_job_id", "source_manifest_sha256", "documents"}
+    if set(payload) != expected:
+        raise DemoActionStop("F6 export payload contains unexpected fields")
+    if payload.get("action") != "render_f6_review_package":
+        raise DemoActionStop("F6 export action must be render_f6_review_package")
+    try:
+        silver_job_id = int(payload.get("silver_job_id") or 0)
+    except (TypeError, ValueError) as exc:
+        raise DemoActionStop("silver_job_id must be an integer") from exc
+    if silver_job_id <= 0:
+        raise DemoActionStop("silver_job_id must be positive")
+    manifest_sha = str(payload.get("source_manifest_sha256") or "").strip().lower()
+    if len(manifest_sha) != 64 or any(ch not in "0123456789abcdef" for ch in manifest_sha):
+        raise DemoActionStop("source_manifest_sha256 must be a lowercase SHA-256")
+    documents = payload.get("documents")
+    if not isinstance(documents, Mapping):
+        raise DemoActionStop("documents must be an object")
+    return silver_job_id, manifest_sha, documents
+
+
 class ProductV1DemoHandler(ProductV1Handler):
     server_version = "DeepOceanProductV1/0.12-demo"
 
@@ -189,6 +238,25 @@ class ProductV1DemoHandler(ProductV1Handler):
         if parsed.path == DATA_LAYERS_PATH:
             try:
                 self._send_json(load_data_layers_payload(_load_operator_product_payload()))
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_runtime_error(exc)
+            return
+        if parsed.path == F6_TEMPLATE_REVIEW_PATH:
+            try:
+                self._send_json(
+                    build_review_payload(root=configure_demo_private_document_root())
+                )
+            except F6TemplateReviewStop as exc:
+                self._send_json(
+                    {
+                        "status": "blocked",
+                        "reason": str(exc),
+                        "human_review_required": True,
+                        "submission_actions": 0,
+                        "send_actions": 0,
+                    },
+                    status=HTTPStatus.CONFLICT,
+                )
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_runtime_error(exc)
             return
@@ -284,6 +352,87 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
+    def _post_f6_template_export(self) -> None:
+        """Render exact-template PDFs for explicit local operator review only."""
+
+        try:
+            silver_job_id, expected_manifest_sha, documents = (
+                parse_f6_template_export_payload(
+                    self._read_demo_action_payload(
+                        max_bytes=_MAX_F6_EXPORT_BODY_BYTES
+                    )
+                )
+            )
+            workspace = application_workspace_payload(silver_job_id)
+            if workspace.get("status") != "ready":
+                raise DemoActionStop("current application workspace is not ready")
+            workspace_payload = workspace.get("workspace")
+            source_manifest = (
+                workspace_payload.get("source_manifest")
+                if isinstance(workspace_payload, Mapping)
+                else None
+            )
+            current_manifest_sha = _source_manifest_sha256(source_manifest)
+            if current_manifest_sha != expected_manifest_sha:
+                raise DemoActionStop(
+                    "draft source manifest is stale; regenerate review text before export"
+                )
+
+            rendered = render_review_package(
+                root=configure_demo_private_document_root(),
+                replacements_by_document=documents,
+            )
+            response_documents = []
+            for document in rendered:
+                canonical = Path(document.canonical_filename)
+                download_filename = f"{canonical.stem}_JAP_review.pdf"
+                response_documents.append(
+                    {
+                        "document_type": document.document_type,
+                        "download_filename": download_filename,
+                        "pdf_base64": base64.b64encode(document.pdf_bytes).decode("ascii"),
+                        "render_evidence": document.render_evidence,
+                    }
+                )
+            self._send_json(
+                {
+                    "schema": "job_application_pipeline.f6_template_export.v1",
+                    "status": "rendered_for_review",
+                    "campaign": "F6",
+                    "slice": "C",
+                    "silver_job_id": silver_job_id,
+                    "source_manifest_sha256": current_manifest_sha,
+                    "documents": response_documents,
+                    "transport": "loopback_json_base64",
+                    "database_writes": 0,
+                    "provider_requests": 0,
+                    "application_actions": 0,
+                    "submission_actions": 0,
+                    "send_actions": 0,
+                    "human_review_required": True,
+                    "draft_approval_authority": False,
+                    "application_authority": False,
+                    "submission_authority": False,
+                    "send_authority": False,
+                }
+            )
+        except (DemoActionStop, F6TemplateReviewStop) as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "database_writes": 0,
+                    "provider_requests": 0,
+                    "application_actions": 0,
+                    "submission_actions": 0,
+                    "send_actions": 0,
+                    "human_review_required": True,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
+        except Exception as exc:  # pragma: no cover - runtime diagnostics
+            self._send_runtime_error(exc)
+
     def _post_submission_record(self) -> None:
         """Record an operator-confirmed past submission; never submit externally."""
 
@@ -335,6 +484,9 @@ class ProductV1DemoHandler(ProductV1Handler):
             return
         if parsed.path == APPLICATION_SOURCE_UPLOAD_PATH:
             self._post_document_upload()
+            return
+        if parsed.path == F6_TEMPLATE_EXPORT_PATH:
+            self._post_f6_template_export()
             return
         if parsed.path == APPLICATION_SUBMISSION_RECORD_PATH:
             self._post_submission_record()
