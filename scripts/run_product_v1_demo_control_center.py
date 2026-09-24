@@ -64,6 +64,7 @@ from src.search_intelligence.private_application_source_text import (
 from src.search_intelligence.f6_template_review import (
     F6TemplateReviewStop,
     build_review_payload,
+    combine_review_package,
     render_review_package,
 )
 from src.search_intelligence.product_v1_application_workspace import (
@@ -164,6 +165,15 @@ def _source_manifest_sha256(payload: object) -> str:
         default=str,
     )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _safe_pdf_filename_part(value: object, *, fallback: str) -> str:
+    text = "".join(
+        ch if ch.isalnum() or ch in {"-", "_"} else "_"
+        for ch in str(value or "").strip()
+    )
+    compact = "_".join(part for part in text.split("_") if part)
+    return (compact[:80] or fallback).strip("_")
 
 
 def parse_f6_template_export_payload(
@@ -394,14 +404,43 @@ class ProductV1DemoHandler(ProductV1Handler):
                         "render_evidence": document.render_evidence,
                     }
                 )
+
+            combined = combine_review_package(rendered)
+            target = (
+                workspace_payload.get("target")
+                if isinstance(workspace_payload, Mapping)
+                else None
+            )
+            employer = (
+                target.get("company_name")
+                if isinstance(target, Mapping)
+                else None
+            )
+            package_filename = (
+                "JAP_Bewerbung_"
+                + _safe_pdf_filename_part(employer, fallback="Bewerbung")
+                + ".pdf"
+            )
             self._send_json(
                 {
-                    "schema": "job_application_pipeline.f6_template_export.v1",
+                    "schema": "job_application_pipeline.f6_template_export.v2",
                     "status": "rendered_for_review",
                     "campaign": "F6",
                     "slice": "C",
                     "silver_job_id": silver_job_id,
                     "source_manifest_sha256": current_manifest_sha,
+                    "package": {
+                        "download_filename": package_filename,
+                        "pdf_base64": base64.b64encode(combined.pdf_bytes).decode("ascii"),
+                        "sha256": combined.sha256,
+                        "page_count": combined.page_count,
+                        "component_order": list(combined.component_order),
+                        "page_identity": list(combined.page_identity),
+                        "visual_identity": all(
+                            item.get("visual_identity") is True
+                            for item in combined.page_identity
+                        ),
+                    },
                     "documents": response_documents,
                     "transport": "loopback_json_base64",
                     "database_writes": 0,
