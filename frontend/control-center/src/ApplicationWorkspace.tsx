@@ -219,7 +219,7 @@ function canPrepareApplication(stage: ApplicationStage | undefined) {
 }
 
 export default function ApplicationWorkspace() {
-  const { payload: productTruth } = useProductTruth<ProductTruth>();
+  const { payload: productTruth, refreshProductTruth } = useProductTruth<ProductTruth>();
   const [open, setOpen] = useState(false);
   const topJobs = useMemo(
     () => Array.isArray(productTruth?.top_jobs) ? productTruth.top_jobs.slice(0, 5) : [],
@@ -296,10 +296,18 @@ export default function ApplicationWorkspace() {
     setError(null);
     readJson<ApplicationWorkspacePayload>(`/api/v1/product-v1/application-workspace?silver_job_id=${selectedId}`)
       .then((payload) => { if (active) setWorkspace(payload); })
-      .catch((reason: unknown) => { if (active) { setWorkspace(null); setError(String(reason)); } })
+      .catch((reason: unknown) => {
+        if (!active) return;
+        const message = String(reason);
+        setWorkspace(null);
+        setError(message);
+        if (message.includes("current vacancy is no longer available")) {
+          void refreshProductTruth().catch(() => undefined);
+        }
+      })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [open, selectedId]);
+  }, [open, selectedId, refreshProductTruth]);
 
   const selectedJob = useMemo(
     () => applicationJobs.find((job) => job.silver_job_id === selectedId) || null,
