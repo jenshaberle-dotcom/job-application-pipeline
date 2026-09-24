@@ -1,0 +1,52 @@
+.f6-review-editor {
+  margin-top: 16px;
+  border: 1px solid rgba(83, 220, 255, .18);
+  border-radius: 13px;
+  padding: 15px;
+  background: rgba(5, 24, 36, .72);
+}
+.f6-review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.f6-review-head span { color: #63d9ff; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+.f6-review-head h4 { margin: 4px 0 5px; color: #dff8ff; font-size: 16px; }
+.f6-review-head p { max-width: 760px; margin: 0; color: #7896a4; font-size: 11px; line-height: 1.5; }
+.f6-review-head > b { flex: 0 0 auto; padding: 6px 9px; border: 1px solid rgba(88,216,155,.25); border-radius: 999px; background: rgba(88,216,155,.08); color: #82e6b8; font-size: 9px; letter-spacing: .07em; }
+.f6-review-loading, .f6-review-error { margin-top: 12px; padding: 11px 12px; border-radius: 9px; background: rgba(255,255,255,.025); color: #9ab4c0; font-size: 11px; }
+.f6-review-error { display: grid; gap: 4px; border: 1px solid rgba(255,105,105,.25); color: #ffb4b4; }
+.f6-review-actions { display: flex; align-items: center; gap: 12px; margin-top: 13px; }
+.f6-review-actions button, .f6-render-panel button { border: 1px solid rgba(67,218,255,.4); border-radius: 9px; padding: 9px 11px; background: rgba(25,125,159,.3); color: #dff8ff; font-weight: 750; cursor: pointer; }
+.f6-review-actions small { color: #718f9d; font-size: 10px; line-height: 1.45; }
+.f6-review-documents { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.f6-review-documents > article { min-width: 0; border: 1px solid rgba(255,255,255,.065); border-radius: 10px; background: rgba(2,15,24,.62); overflow: hidden; }
+.f6-review-documents > article > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 10px 11px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.f6-review-documents header span, .f6-review-documents header b { display: block; }
+.f6-review-documents header span { color: #63d9ff; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.f6-review-documents header b { margin-top: 3px; color: #d7f2fa; font-size: 11px; }
+.f6-review-documents header code { color: #6f8c99; font-size: 9px; }
+.f6-zone-list { display: grid; max-height: 430px; overflow: auto; }
+.f6-zone-list label { display: grid; grid-template-columns: 145px minmax(0, 1fr); gap: 9px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.045); }
+.f6-zone-list label:last-child { border-bottom: 0; }
+.f6-zone-list label > span b, .f6-zone-list label > span small { display: block; }
+.f6-zone-list label > span b { color: #a9c7d3; font-size: 10px; }
+.f6-zone-list label > span small { margin-top: 3px; color: #607e8c; font-size: 9px; }
+.f6-zone-list textarea { width: 100%; min-height: 48px; resize: vertical; box-sizing: border-box; border: 1px solid rgba(255,255,255,.09); border-radius: 7px; padding: 7px 8px; background: #081a25; color: #d9f3fb; font: inherit; font-size: 10px; line-height: 1.4; }
+.f6-zone-list textarea:focus { outline: 1px solid rgba(83,220,255,.45); border-color: rgba(83,220,255,.4); }
+.f6-render-panel { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding: 11px 12px; border: 1px solid rgba(88,216,155,.13); border-radius: 10px; background: rgba(88,216,155,.035); }
+.f6-render-panel strong { color: #d8f3fb; font-size: 12px; }
+.f6-render-panel p { margin: 4px 0 0; color: #73909d; font-size: 10px; }
+.f6-render-panel button:disabled { opacity: .45; cursor: wait; }
+.f6-export-results { display: grid; gap: 8px; margin-top: 12px; }
+.f6-export-results > article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 11px; border: 1px solid rgba(88,216,155,.18); border-radius: 9px; background: rgba(88,216,155,.045); }
+.f6-export-results span, .f6-export-results b, .f6-export-results small { display: block; }
+.f6-export-results span { color: #77a0ae; font-size: 9px; text-transform: uppercase; }
+.f6-export-results b { margin-top: 2px; color: #86e8bb; font-size: 11px; }
+.f6-export-results small { margin-top: 3px; color: #708d99; font-size: 9px; }
+.f6-export-results nav { display: flex; gap: 7px; }
+.f6-export-results a { padding: 7px 9px; border: 1px solid rgba(83,220,255,.25); border-radius: 7px; color: #8fe8ff; text-decoration: none; font-size: 10px; }
+.f6-export-results > p { margin: 0; color: #6f8c99; font-size: 9px; }
+@media (max-width: 1080px) {
+  .f6-review-documents { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .f6-review-head, .f6-review-actions, .f6-render-panel, .f6-export-results > article { flex-direction: column; align-items: stretch; }
+  .f6-zone-list label { grid-template-columns: 1fr; }
+}
