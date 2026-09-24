@@ -92,7 +92,10 @@ function demoActionable(job: JsonRecord): boolean {
 }
 
 function isCurrentProductJob(job: JsonRecord): boolean {
-  return String(job.lifecycle_status || "").trim().toLowerCase() === "active_confirmed";
+  return (
+    String(job.lifecycle_status || "").trim().toLowerCase() === "active_confirmed"
+    && job.demo_live_verified === true
+  );
 }
 
 function isRankableProductJob(job: JsonRecord): boolean {
