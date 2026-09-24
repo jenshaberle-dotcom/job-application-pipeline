@@ -206,6 +206,18 @@ Candidate target: **1.0.78** on `fix/f6-origin-drift-recovery`.
 - no alternate URL is guessed and no third-party/search evidence becomes Product authority;
 - no lifecycle, Origin, Fit, ranking, application, submission or send authority is widened.
 
+### Installed 1.0.78 explicit-Origin blocker diagnostic
+
+The installed 1.0.78 operator retest keeps accompio Silver #626 pinned and no longer fails on the redundant detail HTTP 404. The next failure is:
+
+`origin_validation_status is required`.
+
+This is a context-construction defect, not permission to infer Origin validation. `gold_product_v1_job_readiness` deliberately exposes `origin_validation_status=NULL` while a current job has no materialized Product assessment and labels that state `assessment_required`. The 1.0.75 interaction contract already requires such an explicitly selected job to stay open and show its own fail-closed blocker rather than aborting or redirecting.
+
+Candidate target: **1.0.79** on `fix/f6-explicit-origin-blocker`.
+
+1.0.79 therefore normalizes a missing Origin field to `unknown` **only for the operator-selected drafting projection**. The canonical context then produces `origin_not_validated`, keeps generation blocked and preserves the exact target. A Top-5 target with a missing Origin field still fails construction. No assessment is inserted, no Origin status becomes validated, and no Product/ranking/application/submission/send authority changes.
+
 ### Slice-C rendering contract
 
 - Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
@@ -220,15 +232,15 @@ Candidate target: **1.0.78** on `fix/f6-origin-drift-recovery`.
 
 ### Next operator gate
 
-After exact-head CI and immutable **1.0.78** release:
+After exact-head CI and immutable **1.0.79** release:
 
-1. update through the integrated JAP updater and verify the exact 1.0.78 source;
+1. update through the integrated JAP updater and verify the exact 1.0.79 source;
 2. select accompio Silver #626 and press **Prepare application**;
-3. require the exact same job to remain pinned;
-4. require the redundant HTTP-404 failure to disappear because current exact observation evidence is reused with zero detail HTTP GETs;
-5. if a later authority gate blocks drafting, inspect that explicit blocker without bypassing it;
-6. if ready, generate grounded review text and press **Create finished application PDF**;
-7. require one local PDF containing application letter first and CV after it, with package visual identity verified.
+3. require the exact same job to remain pinned and exact persisted observation reuse to remain intact;
+4. require the low-level `origin_validation_status is required` error to disappear;
+5. require the workspace to render a normal fail-closed **Context blocked** state with `origin_not_validated`, unless Origin authority has independently changed before the test;
+6. do not bypass that authority stop; assess the existing guarded materialization path separately before any DB mutation;
+7. only after legitimate Origin authority exists may the flow continue to grounded review text and **Create finished application PDF**.
 
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
