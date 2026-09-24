@@ -149,6 +149,8 @@ The main F6-C path therefore becomes:
 
 The individual zone editor remains available only under an Advanced disclosure for targeted corrections. It is no longer the primary operator step.
 
+The same installed operator review exposed a small lifecycle UX defect: a Silver job already linked to an application in `applied`, `reply`, `interview`, `offer` or `closed` still showed **Prepare application**. The 1.0.74 candidate removes preparation from every normal UI surface once the shared F5 effective stage has progressed beyond `prepared`. The existing lifecycle status remains visible and links to **Applications** instead. `prepared` itself remains eligible because it is not submission authority.
+
 The combined PDF is packaging only. Each component first passes the accepted Slice-B renderer; the package then concatenates application letter followed by CV and raster-hash compares every combined page against its rendered source page. Any visual drift fails closed. No new layout, text, ranking, application, submission or send authority is created.
 
 ### Slice-C rendering contract
@@ -173,7 +175,8 @@ After exact-head CI and immutable **1.0.74** release:
 4. press **Create finished application PDF**;
 5. require one local PDF containing application letter first and CV after it, with package visual identity verified;
 6. open/download that single PDF and visually confirm that the complete application is usable as-is;
-7. open **Advanced: adjust individual template text zones** only if a targeted correction is actually necessary.
+7. open **Advanced: adjust individual template text zones** only if a targeted correction is actually necessary;
+8. select an already-`Beworben` / Reply / Interview / Offer / Closed job and verify **Prepare application** is absent while **Open Applications** remains available.
 
 Any known hard-filter failure, source/context drift, overflow, unexpected layout change or missing component/package pixel proof remains fail-closed.
 
