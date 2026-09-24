@@ -11,6 +11,7 @@ internal sealed class UpdateCoordinator : IDisposable
     private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v3";
     private const string CompatibilityLine = "cgkb-product-local-1";
     private static readonly TimeSpan SnoozeDuration = TimeSpan.FromHours(6);
+    private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DiscoveryInterval = TimeSpan.FromMinutes(10);
 
     private readonly Form _owner;
@@ -150,14 +151,16 @@ internal sealed class UpdateCoordinator : IDisposable
 
         var snooze = ReadSnooze();
         var now = DateTimeOffset.UtcNow;
-        if (snooze is not null && snooze.SnoozeUntilUtc > now)
+        var snoozeMatchesPending = snooze is not null
+            && snooze.TargetMainSha == pending.TargetMainSha
+            && snooze.TargetDesktopVersion == pending.TargetDesktopVersion;
+        if (snoozeMatchesPending && snooze!.SnoozeUntilUtc > now)
         {
             return false;
         }
 
         var wasSuperseded = snooze is not null
-            && (snooze.TargetMainSha != pending.TargetMainSha
-                || snooze.TargetDesktopVersion != pending.TargetDesktopVersion);
+            && !snoozeMatchesPending;
         var supersededText = wasSuperseded
             ? "\nWährend des Aufschubs wurde ein neuerer kompatibler Stand bereitgestellt."
             : string.Empty;
@@ -354,6 +357,23 @@ internal sealed class UpdateCoordinator : IDisposable
         }
     }
 
+    private void WriteFailureCooldown(
+        string targetSha,
+        string targetVersion,
+        DateTimeOffset until)
+    {
+        WriteJsonAtomic(
+            _snoozePath,
+            new
+            {
+                schema = SnoozeSchema,
+                snooze_until_utc = until.ToString("O"),
+                target_main_sha = targetSha,
+                target_desktop_version = targetVersion,
+                reason = "apply_failed_retry_cooldown"
+            });
+    }
+
     private void WriteSnooze(PendingUpdate pending, DateTimeOffset until)
     {
         WriteJsonAtomic(
@@ -400,10 +420,22 @@ internal sealed class UpdateCoordinator : IDisposable
             if (GetString(root, "status") == "failed")
             {
                 var detail = GetString(root, "detail");
+                var targetSha = GetString(root, "target_main_sha");
+                var targetVersion = GetString(root, "target_desktop_version");
+                if (!string.IsNullOrWhiteSpace(targetSha)
+                    && !string.IsNullOrWhiteSpace(targetVersion))
+                {
+                    WriteFailureCooldown(
+                        targetSha,
+                        targetVersion,
+                        DateTimeOffset.UtcNow.Add(FailureRetryDelay));
+                }
+
                 MessageBox.Show(
                     _owner,
                     "Das letzte JAP-Update konnte nicht abgeschlossen werden. Die vorherige Installation wurde wieder gestartet."
-                    + (string.IsNullOrWhiteSpace(detail) ? string.Empty : $"\n\n{detail}"),
+                    + $"\n\nDerselbe Update-Stand wird für {FailureRetryDelay.TotalMinutes:0} Minuten nicht erneut angeboten. Ein neuerer Stand bleibt sofort zulässig."
+                    + (string.IsNullOrWhiteSpace(detail) ? string.Empty : $"\n\nTechnisches Detail: {detail}"),
                     "JAP Control Center Update",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
