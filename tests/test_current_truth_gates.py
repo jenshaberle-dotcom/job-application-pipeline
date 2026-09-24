@@ -154,6 +154,12 @@ def test_explicit_vacancy_closure_marker_is_narrow() -> None:
         == "job_has_been_filled"
     )
     assert explicit_vacancy_closure_marker("We are filling positions in our data team.") is None
+    assert (
+        explicit_vacancy_closure_marker(
+            "Die Stellenanzeige konnte nicht gefunden werden"
+        )
+        == "stellenanzeige_nicht_gefunden"
+    )
     assert explicit_vacancy_closure_marker("Careers page. Job search unavailable.") is None
 
 
