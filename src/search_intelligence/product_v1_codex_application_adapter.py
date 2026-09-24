@@ -23,7 +23,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from typing import Mapping, Sequence
+from typing import Mapping
 
 from src.search_intelligence.product_v1_application_context import (
     ProductV1ApplicationContext,
