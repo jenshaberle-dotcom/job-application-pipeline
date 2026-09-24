@@ -1,23 +1,3 @@
-.demo-application-launcher {
-  position: fixed;
-  right: 28px;
-  bottom: 24px;
-  z-index: 70;
-  min-width: 238px;
-  border: 1px solid rgba(74, 215, 255, 0.42);
-  border-radius: 16px;
-  padding: 13px 17px;
-  background: linear-gradient(145deg, rgba(8, 35, 52, 0.98), rgba(5, 20, 32, 0.98));
-  color: #e7f9ff;
-  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.42), 0 0 28px rgba(36, 199, 255, 0.15);
-  text-align: left;
-  cursor: pointer;
-}
-.demo-application-launcher:disabled { opacity: 0.5; cursor: not-allowed; }
-.demo-application-launcher span, .demo-application-launcher strong { display: block; }
-.demo-application-launcher span { color: #7de3ff; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
-.demo-application-launcher strong { margin-top: 5px; font-size: 15px; }
-
 .demo-application-backdrop {
   position: fixed;
   inset: 0;
@@ -86,40 +66,11 @@
 
 .demo-application-shell {
   display: grid;
-  grid-template-columns: minmax(220px, 275px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   padding: 0 28px 28px;
 }
-.demo-job-sidebar {
-  min-width: 0;
-  border: 1px solid rgba(255,255,255,.075);
-  border-radius: 15px;
-  padding: 15px;
-  background: rgba(3,17,27,.68);
-}
-.demo-sidebar-heading { padding: 2px 3px 12px; border-bottom: 1px solid rgba(255,255,255,.06); }
-.demo-sidebar-heading h2 { margin: 4px 0 2px; font-size: 21px; }
-.demo-sidebar-heading small { color: #75909e; font-size: 11px; }
-.demo-job-picker { display: grid; gap: 8px; margin-top: 10px; }
-.demo-job-picker button {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 3px 9px;
-  width: 100%;
-  padding: 11px 11px;
-  border: 1px solid rgba(255,255,255,.075);
-  border-radius: 10px;
-  background: rgba(255,255,255,.022);
-  color: #cce8f2;
-  text-align: left;
-  cursor: pointer;
-}
-.demo-job-picker button:hover { border-color: rgba(83,220,255,.24); background: rgba(48,170,214,.04); }
-.demo-job-picker button.active { border-color: rgba(76,213,255,.48); background: rgba(45,169,207,.1); box-shadow: inset 2px 0 #5addff; }
-.demo-job-picker button b { grid-row: 1 / 3; align-self: center; color: #63d9ff; font-size: 13px; }
-.demo-job-picker button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 760; }
-.demo-job-picker button small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #819caa; font-size: 10px; }
-
+.demo-application-shell-direct { max-width: 1180px; margin: 0 auto; width: 100%; }
 .demo-application-main { min-width: 0; }
 .demo-selected-job {
   display: flex;
@@ -134,6 +85,88 @@
 .demo-selected-copy { min-width: 0; }
 .demo-selected-job h2 { margin: 4px 0 3px; font-size: 20px; line-height: 1.25; }
 .demo-selected-job p { margin: 0; color: #91aebb; font-size: 13px; }
+.demo-selected-actions { display: flex; align-items: center; gap: 12px; }
+.demo-change-job {
+  border: 1px solid rgba(83,220,255,.25);
+  border-radius: 9px;
+  padding: 8px 11px;
+  background: rgba(48,170,214,.07);
+  color: #a9eaff;
+  font-size: 10px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.demo-change-job:hover { border-color: rgba(83,220,255,.5); background: rgba(48,170,214,.12); }
+
+.demo-job-chooser {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(83,220,255,.18);
+  border-radius: 13px;
+  background: rgba(3,17,27,.9);
+}
+.demo-job-chooser > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.demo-job-chooser > header h3 { margin: 4px 0 3px; font-size: 16px; }
+.demo-job-chooser > header small { color: #7795a3; font-size: 10px; }
+.demo-job-chooser > header > button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+  color: #b9d8e4;
+  cursor: pointer;
+}
+.demo-job-chooser > input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 11px;
+  border: 1px solid rgba(83,220,255,.16);
+  border-radius: 9px;
+  padding: 10px 11px;
+  background: #071925;
+  color: #dff8ff;
+  font: inherit;
+  font-size: 11px;
+}
+.demo-job-chooser > input:focus { outline: 1px solid rgba(83,220,255,.42); }
+.demo-job-chooser-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 9px;
+}
+.demo-job-chooser-results > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 9px;
+  background: rgba(255,255,255,.02);
+  color: #d1ebf4;
+  text-align: left;
+  cursor: pointer;
+}
+.demo-job-chooser-results > button:hover { border-color: rgba(83,220,255,.24); }
+.demo-job-chooser-results > button.active { border-color: rgba(83,220,255,.48); background: rgba(48,170,214,.08); }
+.demo-job-chooser-results > button > span { min-width: 0; }
+.demo-job-chooser-results > button > span b,
+.demo-job-chooser-results > button > span small,
+.demo-job-chooser-results > button > strong small { display: block; }
+.demo-job-chooser-results > button > span b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.demo-job-chooser-results > button > span small { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #72909d; font-size: 9px; }
+.demo-job-chooser-results > button > strong { flex: 0 0 auto; color: #75ddff; font-size: 13px; text-align: right; }
+.demo-job-chooser-results > button > strong small { margin-top: 2px; color: #698996; font-size: 7px; text-transform: uppercase; }
+.demo-job-chooser-results > p { grid-column: 1 / -1; margin: 8px 2px; color: #7f9aa6; font-size: 10px; }
+.demo-job-chooser > footer { margin-top: 8px; color: #668490; font-size: 9px; }
 .demo-score-ring {
   display: grid;
   place-items: center;
@@ -198,9 +231,8 @@
 
 @media (max-width: 1080px) {
   .demo-application-shell { grid-template-columns: 1fr; }
-  .demo-job-sidebar { padding-bottom: 12px; }
-  .demo-job-picker { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
   .demo-application-grid { grid-template-columns: 1fr; }
+  .demo-job-chooser-results { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {
@@ -214,5 +246,6 @@
   .demo-score-ring { flex-basis: 70px; width: 70px; height: 70px; }
   .demo-score-ring strong { font-size: 21px; }
   .demo-readiness-list { grid-template-columns: 1fr; }
-  .demo-application-launcher { right: 14px; bottom: 14px; }
+  .demo-selected-job { flex-direction: column; }
+  .demo-selected-actions { width: 100%; justify-content: space-between; }
 }

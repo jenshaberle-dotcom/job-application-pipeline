@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import AboutPanel from "./AboutPanel";
-import ApplicationWorkspaceEventBridge from "./ApplicationWorkspaceEventBridge";
 import DataLayersTab from "./DataLayersTab";
 import DemoApplicationWorkspace from "./DemoApplicationWorkspace";
 import DemoOperatorHardening from "./DemoOperatorHardening";
@@ -34,7 +33,6 @@ createRoot(root).render(
         <DemoTruthRibbon />
         <F4cSourceHealthSurface />
         <DemoApplicationWorkspace />
-        <ApplicationWorkspaceEventBridge />
       </ProductTruthProvider>
     </RuntimeErrorBoundary>
   </StrictMode>

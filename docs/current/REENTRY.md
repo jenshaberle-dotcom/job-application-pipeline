@@ -6,21 +6,20 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical released Product baseline: `main@3fbe37bf3e91494f86fcf509a9daf6d364bcce44`, desktop **1.0.73**;
+- canonical released Product baseline: `main@1db8ef0f1708dff7684a21c632086abdf36344fb`, desktop **1.0.74**;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
-- installed 1.0.73 operator-proves the explicit current-job drafting boundary: VALUNY Silver 613 opens as `operator_selected_current_job` while Top-5 correctly remains empty;
-- the remaining Slice-C issue is operator UX: zone-by-zone assembly is too granular for the normal path;
-- current candidate is **1.0.74** on `feature/f6-c-single-finished-pdf`: automatic internal zone mapping plus one combined finished local application PDF; Advanced retains zone-level correction only;
-- 1.0.74 also removes **Prepare application** for jobs whose shared F5 effective stage is already `applied`, `reply`, `interview`, `offer` or `closed`; `prepared` remains eligible because it is not submission authority;
+- installed 1.0.74 proves the progressed-application suppression: `applied` / later-stage jobs no longer expose **Prepare application** and retain **Open Applications**;
+- installed 1.0.74 also exposes one remaining navigation defect: an explicit **Prepare application** click can land on a different job, and the always-visible current-job sidebar is too large for the normal workflow;
+- current candidate is **1.0.75** on `fix/f6-c-exact-target-compact-picker`: exact Silver target preservation, no silent fallback, one event owner, pinned target and compact searchable **Change job** chooser;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
 
 The 1.0.73 correction therefore separates two authorities. Top-5 stays strict and may remain empty. An explicit operator selection of a current, Origin-validated, authorized employer-origin vacancy may nevertheless open the review-only Application Workspace. Such a target carries `operator_selected_current_job`, has no Product rank, leaves unknown hard-filter evidence unknown, and is blocked by a known hard-filter failure. Candidate Facts, exact current vacancy evidence, exact F6 PDF authority, source-manifest binding, outside-zone pixel proof and the no-submit/no-send boundary remain unchanged.
 
-The next operator gate is installed 1.0.74: reuse VALUNY Silver 613, generate grounded review text, then create **one finished application PDF**. The package must contain the rendered application letter followed by the CV, preserve component pixel proofs plus package page visual identity, and be usable without normal-path zone-by-zone editing. Advanced zone editing remains optional only. In the same build, an already-Beworben or later-stage job must no longer expose **Prepare application**; its existing application state and **Open Applications** remain the operator path.
+The next operator gate is installed 1.0.75: click **Prepare application** on a specific still-preparable All-jobs row and require the workspace to open on that exact Silver ID with no substitution. The selected target is pinned; switching jobs is an explicit **Change job** action using a compact searchable chooser rather than a permanent long sidebar. Then generate review text and create the single finished application PDF. Already-Beworben/later-stage jobs must continue to suppress **Prepare application**.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.

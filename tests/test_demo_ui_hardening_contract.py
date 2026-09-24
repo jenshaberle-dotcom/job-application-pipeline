@@ -120,12 +120,16 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
     assert "applicationJobs" in workspace
     assert "productTruth?.job_readiness" in workspace
     assert 'job.lifecycle_status === "active_confirmed"' in workspace
-    assert 'job.origin_validation_status === "validated"' in workspace
+    assert 'job.origin_validation_status === "validated"' not in workspace
     assert 'job.hard_filter_status !== "failed"' in workspace
     assert "Operator-selected current job" in workspace
-    assert "Top-5 recommendation authority remains separate" in workspace
+    assert "Selected Top-5 recommendation" in workspace
+    assert "Operator-selected current job" in workspace
     assert 'detail?.silverJobId' in workspace
-    assert 'aria-label="Application target jobs"' in workspace
+    assert "The job you selected stays the application target" in workspace
+    assert 'aria-label="Change application target"' in workspace
+    assert 'aria-label="Search application target jobs"' in workspace
+    assert "Showing the 10 highest-Affinity selectable jobs" in workspace
 
     assert "silverJobId?: number" in operator
     assert '{ detail: silverJobId ? { silverJobId } : {} }' in operator
@@ -145,8 +149,32 @@ def test_application_workspace_excludes_jobs_already_applied_or_further_progress
     assert "canPrepareApplication" in workspace
     assert 'return stage == null || stage === "prepared"' in workspace
     assert "canPrepareApplication(applicationStages.get(job.silver_job_id))" in workspace
-    assert "if (!applicationJobs.some((job) => job.silver_job_id === requestedId)) return;" in workspace
+    assert "const requestedJob = requestedId > 0" in workspace
+    assert "setSelectedId(requestedJob.silver_job_id)" in workspace
+    assert "|| applicationJobs[0] || null" not in workspace
 
     assert "canPrepareApplication(applicationStage)" in operator
     assert "buildApplicationByJobId" in operator
     assert "canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage)" in operator
+
+
+
+def test_application_workspace_exact_target_has_single_event_owner_and_no_long_sidebar() -> None:
+    workspace = (FRONTEND / "DemoApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    main = (FRONTEND / "main.tsx").read_text(encoding="utf-8")
+    css = (FRONTEND / "demo-application-workspace.css").read_text(encoding="utf-8")
+    finish_css = (FRONTEND / "product-finish-ux.css").read_text(encoding="utf-8")
+
+    assert 'window.addEventListener("product-v1:open-application-workspace", openRequestedTarget)' in workspace
+    assert "setSelectedId(requestedJob.silver_job_id)" in workspace
+    assert "selectedJob = useMemo" in workspace
+    assert "|| applicationJobs[0]" not in workspace
+    assert "Change job" in workspace
+    assert "chooserJobs" in workspace
+    assert "slice(0, 10)" in workspace
+    assert "demo-job-chooser" in workspace
+    assert "demo-job-sidebar" not in workspace
+    assert "demo-application-launcher" not in workspace
+    assert "ApplicationWorkspaceEventBridge" not in main
+    assert "demo-application-launcher" not in css
+    assert "ApplicationWorkspaceEventBridge" not in finish_css

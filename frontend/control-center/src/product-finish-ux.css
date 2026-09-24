@@ -1,22 +1,7 @@
 /* DEMO-001 product-finish refinements from live operator review. */
 
-/* Application preparation belongs to the Application surface, never as a global
-   floating obstruction. The hidden launcher remains in the DOM as the existing
-   bounded Application Workspace hook used by ApplicationWorkspaceEventBridge. */
-.demo-application-launcher {
-  position: fixed !important;
-  width: 1px !important;
-  height: 1px !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: 0 !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  overflow: hidden !important;
-  clip-path: inset(50%) !important;
-}
+/* Application preparation is opened directly from the selected job/application
+   target. No hidden launcher or synthetic click bridge remains. */
 
 /* Use the widescreen viewport instead of leaving a large dead outer frame. */
 .ow-main {
