@@ -123,7 +123,8 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
     assert 'job.origin_validation_status === "validated"' not in workspace
     assert 'job.hard_filter_status !== "failed"' in workspace
     assert "Operator-selected current job" in workspace
-    assert "Top-5 recommendation authority remains separate" in workspace
+    assert "Selected Top-5 recommendation" in workspace
+    assert "Operator-selected current job" in workspace
     assert 'detail?.silverJobId' in workspace
     assert "The job you selected stays the application target" in workspace
     assert 'aria-label="Change application target"' in workspace
