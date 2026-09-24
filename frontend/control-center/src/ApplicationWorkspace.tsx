@@ -121,6 +121,19 @@ type DraftMode =
   | "deterministic_evidence_first"
   | "codex_embedded_v1";
 
+type CodexStatusPayload = {
+  status?: "ready" | "auth_required" | "not_installed";
+  installed?: boolean;
+  chatgpt_authenticated?: boolean;
+  auth_mode?: string;
+  executable?: string | null;
+  version?: string | null;
+  model?: string;
+  billing_authority?: string;
+  api_key_fallback?: boolean;
+  automatic_credit_purchase?: boolean;
+};
+
 type DraftPayload = {
   status?: string;
   reason?: string;
@@ -263,6 +276,7 @@ export default function ApplicationWorkspace() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<ApplicationWorkspacePayload | null>(null);
   const [draft, setDraft] = useState<DraftPayload | null>(null);
+  const [codexStatus, setCodexStatus] = useState<CodexStatusPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -297,6 +311,25 @@ export default function ApplicationWorkspace() {
       openRequestedTarget,
     );
   }, [applicationJobs]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void readJson<CodexStatusPayload>("/api/v1/product-v1/codex-status")
+      .then((payload) => {
+        if (active) setCodexStatus(payload);
+      })
+      .catch(() => {
+        if (active) {
+          setCodexStatus({
+            status: "not_installed",
+            installed: false,
+            chatgpt_authenticated: false,
+          });
+        }
+      });
+    return () => { active = false; };
+  }, [open]);
 
   useEffect(() => {
     if (!open || selectedId == null) return;
@@ -383,6 +416,7 @@ export default function ApplicationWorkspace() {
   const zoneReplacements = draft?.package?.zone_replacements || {};
   const templateAuthority = workspace?.template_authority;
   const generationReady = workspace?.status === "ready" && workspace.workspace?.generation_ready === true && claimPlan.length > 0;
+  const codexReady = codexStatus?.status === "ready" && codexStatus.chatgpt_authenticated === true;
   const vacancyReady = Boolean(workspace?.live_job_evidence?.fetched_title || workspace?.live_job_evidence?.final_url);
   const candidateFactsReady = claimPlan.length > 0;
   const documentsReady = documents.length >= 2 && sourceReadiness?.base_cv === true && sourceReadiness?.base_application_letter === true;
@@ -508,10 +542,22 @@ export default function ApplicationWorkspace() {
                 <div className={readinessTone(vacancyReady)}><i /><span>Vacancy</span><b>{vacancyReady ? "Employer-origin verified" : "Evidence required"}</b></div>
                 <div className={readinessTone(candidateFactsReady)}><i /><span>Candidate facts</span><b>{candidateFactsReady ? `${claimPlan.length} matched claims` : "Matches required"}</b></div>
                 <div className={readinessTone(documentsReady)}><i /><span>F6 templates</span><b>{documentsReady ? "2/2 exact authority" : `${documents.length}/2 exact`}</b></div>
+                <div className={readinessTone(codexReady)}><i /><span>Embedded Codex</span><b>{codexReady
+                  ? `ChatGPT connected · ${codexStatus?.version || "version verified"}`
+                  : codexStatus?.installed
+                    ? "ChatGPT sign-in required"
+                    : "Bundled runtime unavailable"}</b></div>
                 <div className="ready"><i /><span>Submission boundary</span><b>Review only · no auto-submit</b></div>
               </div>
 
               {workspaceBlockers.length > 0 && <div className="demo-blockers"><b>What still blocks this application?</b>{workspaceBlockers.map((item) => <span key={item}>{normalized(item)}</span>)}</div>}
+              {generationReady && !codexReady && <div className="demo-blockers">
+                <b>What still blocks automatic CV + letter adaptation?</b>
+                <span>{codexStatus?.installed
+                  ? `Bundled Codex ${codexStatus.version || ""} is present, but this WSL runtime is not signed in with ChatGPT.`
+                  : "The bundled Codex runtime could not be verified."}</span>
+                <span>JAP will not switch to API-key billing and will not generate deterministic filler text.</span>
+              </div>}
 
               <details className="demo-evidence-details">
                 <summary>Evidence details</summary>
@@ -522,8 +568,14 @@ export default function ApplicationWorkspace() {
                 {claimPlan.length > 0 && <div className="demo-claim-plan">{claimPlan.slice(0, 5).map((entry) => <div key={entry.fact_key}><b>{entry.statement || entry.fact_key}</b><small>{entry.job_references?.map((reference) => reference.evidence).filter(Boolean).join(" · ") || "No exact vacancy match"}</small></div>)}</div>}
               </details>
 
-              <button type="button" className="demo-generate-button" disabled={!generationReady || drafting} onClick={() => void generateDraft()}>
-                {drafting ? "Preparing review text…" : draft?.status === "draft_for_review" ? "Regenerate review text" : "Generate review text"}
+              <button type="button" className="demo-generate-button" disabled={!generationReady || !codexReady || drafting} onClick={() => void generateDraft()}>
+                {drafting
+                  ? "Preparing review text…"
+                  : !codexReady
+                    ? "ChatGPT Codex connection required"
+                    : draft?.status === "draft_for_review"
+                      ? "Regenerate review text"
+                      : "Generate review text"}
               </button>
             </article>
 
@@ -538,7 +590,7 @@ export default function ApplicationWorkspace() {
               </header>
 
               {draft?.status === "draft_unavailable" && <div className="demo-error">
-                <b>{draft.reason_code === "codex_auth_required"
+                <b>{["codex_auth_required", "codex_chatgpt_auth_required"].includes(draft.reason_code || "")
                   ? "One-time ChatGPT sign-in required"
                   : draft.reason_code === "codex_capacity_unavailable"
                     ? "Codex allowance / credits unavailable"
