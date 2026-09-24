@@ -6,7 +6,7 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical installed/released Product baseline: desktop **1.1.2**, source `5ab00f6636c3761445f44a9ad629bd697fe7485a`;
+- canonical installed/released Product baseline: desktop **1.1.3**, source `c4cdb9ed53cde59d6dcdb08d3614bf85b63541e3`;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
@@ -37,6 +37,10 @@ This section supersedes older F5/updater sequencing statements retained below as
 - installed 1.1.2 exposed a UI regression caused by wiring freshness into navigation visibility: the **1.0.79-era job-detail action surface** (`Open original`, `Prepare application`, and linked `Open Applications`) disappeared whenever live-health freshness expired, even though the job remained auditable and operator-selectable in All jobs;
 - current candidate **1.1.3** separates **navigation affordance** from **mutation/action authority**: persisted `active_confirmed` jobs retain the 1.0.79 job-detail controls and can always navigate into the Application Workspace, while the F6 backend independently remains fail-closed on `evaluate_demo_live_scope` before any vacancy evidence reuse or drafting;
 - no freshness rule is removed by 1.1.3. The UI no longer hides the route to the authoritative blocker; stale jobs can be inspected/selected, but cannot produce a draft until the backend freshness contract passes;
+- installed 1.1.3 then exposed the deeper design error behind the `Current 0` display and universal `live_health_refresh_required` blockers: the 30-minute `product_v1_demo_live_scope` helper was an audit/demo freshness heuristic, while F4C explicitly states that recurring eligibility without explicit cadence authority must remain `cadence_unknown`; using a fixed 30-minute wall-clock age as Product action authority was therefore incorrect;
+- current candidate **1.1.4** removes that arbitrary age from the served Product surface and restores persisted evidence-driven `active_confirmed` lifecycle truth for All jobs/current counts. F6 now performs one operator-triggered **exact live vacancy revalidation** on the selected job instead;
+- successful exact live validation is read-only and the already persisted exact observation remains the drafting-detail source (no redundant second detail fetch). Explicit closure is different: a narrow exact-detail closure signal writes one append-only lifecycle-health observation so Gold converges to `inactive_confirmed`, then the Control Center refreshes Product truth immediately;
+- the Accompio closure page text `Die Stellenanzeige konnte nicht gefunden werden` is now an explicit vacancy-closure marker. Network failures, title mismatches, generic 404s and other unverifiable outcomes still perform no lifecycle write and fail F6 closed;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
