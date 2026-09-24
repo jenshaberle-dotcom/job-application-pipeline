@@ -149,7 +149,8 @@ def test_f6_navigation_uses_exact_live_revalidation_not_arbitrary_age() -> None:
     )
 
     assert "hasPersistedActiveLifecycle(job)" in operator
-    assert "<OpenApplicationButton silverJobId={job.silver_job_id} />" in operator
+    assert "<OpenApplicationButton silverJobId={job.silver_job_id}" in operator
+    assert 'disabled={liveCheck.status === "checking"}' in operator
     assert 'job.demo_live_verified === true' not in workspace
     assert "revalidate_selected_vacancy(" in backend
     assert "evaluate_demo_live_scope(" not in backend
