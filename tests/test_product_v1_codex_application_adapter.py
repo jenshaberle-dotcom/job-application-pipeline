@@ -112,6 +112,25 @@ def _model_output() -> dict[str, object]:
     }
 
 
+def test_codex_schema_carries_text_only_and_no_layout_authority() -> None:
+    schema = adapter._schema()
+    encoded = json.dumps(schema, sort_keys=True)
+
+    for forbidden in (
+        "bbox",
+        "x",
+        "y",
+        "width",
+        "height",
+        "font_size",
+        "page_count",
+        "add_page",
+        "remove_page",
+        "move_zone",
+    ):
+        assert f'"{forbidden}"' not in encoded
+
+
 def test_prompt_excludes_stale_application_letter_and_includes_approved_cv() -> None:
     prompt = adapter._prompt(_context())
 
