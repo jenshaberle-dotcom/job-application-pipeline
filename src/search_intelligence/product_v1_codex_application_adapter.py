@@ -60,6 +60,23 @@ AUTH_PATTERNS = (
     "invalid credentials",
 )
 
+SAFE_ENV_KEYS = (
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "PATH",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "ALL_PROXY",
+    "CODEX_HOME",
+)
+
 SYSTEM_TASK = """You are the embedded drafting engine inside a local job-application product.
 Your ONLY task is to adapt the candidate's existing CV summary/competency profile and application
 letter to the supplied exact vacancy.
@@ -194,6 +211,18 @@ def _resolve_codex() -> str | None:
     return shutil.which("codex") or shutil.which("codex.exe")
 
 
+def _codex_environment() -> dict[str, str]:
+    """Expose only the OS/auth context Codex needs; never inherit JAP secrets."""
+
+    environment = {
+        key: value
+        for key in SAFE_ENV_KEYS
+        if (value := os.environ.get(key))
+    }
+    environment["JAP_CODEX_EMBEDDED"] = "1"
+    return environment
+
+
 def _codex_version(executable: str) -> str | None:
     try:
         result = subprocess.run(
@@ -202,11 +231,28 @@ def _codex_version(executable: str) -> str | None:
             capture_output=True,
             text=True,
             timeout=10,
+            env=_codex_environment(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
     text = " ".join((result.stdout or result.stderr or "").split())
     return text[:160] or None
+
+
+def _codex_login_status(executable: str) -> tuple[bool, str]:
+    try:
+        result = subprocess.run(
+            [executable, "login", "status"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=_codex_environment(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, str(exc)
+    output = "\n".join((result.stdout or "", result.stderr or "")).strip()
+    return result.returncode == 0, output
 
 
 def _safe_error(text: str) -> str:
@@ -360,6 +406,20 @@ def request_codex_application_adaptation(
             package=None,
         )
     version = _codex_version(executable)
+    logged_in, login_output = _codex_login_status(executable)
+    if not logged_in:
+        return CodexApplicationDraftResult(
+            status="unavailable",
+            attempted=False,
+            model=selected_model,
+            reason_code="codex_auth_required",
+            reason=(
+                "Bundled Codex is available but not signed in. Complete one ChatGPT "
+                "Codex login for this WSL user, then retry drafting."
+            ),
+            package=None,
+            codex_version=version,
+        )
 
     try:
         prompt = _prompt(context)
@@ -404,7 +464,7 @@ def request_codex_application_adaptation(
                 capture_output=True,
                 text=True,
                 timeout=timeout_seconds,
-                env=dict(os.environ),
+                env=_codex_environment(),
             )
         except subprocess.TimeoutExpired:
             return CodexApplicationDraftResult(
@@ -474,5 +534,7 @@ def request_codex_application_adaptation(
 __all__ = [
     "CodexApplicationDraftResult",
     "CodexApplicationDraftStop",
+    "_codex_environment",
+    "_codex_login_status",
     "request_codex_application_adaptation",
 ]
