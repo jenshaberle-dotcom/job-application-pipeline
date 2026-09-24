@@ -14,6 +14,8 @@ type TopJob = {
   lifecycle_status?: string | null;
   origin_validation_status?: string | null;
   hard_filter_status?: string | null;
+  demo_live_verified?: boolean;
+  demo_live_reason?: string | null;
 };
 
 type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed";
@@ -234,13 +236,17 @@ export default function ApplicationWorkspace() {
     const allCurrent = Array.isArray(productTruth?.job_readiness)
       ? productTruth.job_readiness.filter((job) =>
           job.lifecycle_status === "active_confirmed" &&
+          job.demo_live_verified === true &&
           job.hard_filter_status !== "failed"
         )
       : [];
     const byId = new Map<number, TopJob>();
     [...topJobs, ...allCurrent].forEach((job) => byId.set(job.silver_job_id, job));
     return [...byId.values()]
-      .filter((job) => canPrepareApplication(applicationStages.get(job.silver_job_id)))
+      .filter((job) =>
+        job.demo_live_verified === true
+        && canPrepareApplication(applicationStages.get(job.silver_job_id))
+      )
       .sort((left, right) => (
         Number(right.overall_quality_score ?? -1) - Number(left.overall_quality_score ?? -1)
       ));

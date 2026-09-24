@@ -120,6 +120,7 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
     assert "applicationJobs" in workspace
     assert "productTruth?.job_readiness" in workspace
     assert 'job.lifecycle_status === "active_confirmed"' in workspace
+    assert 'job.demo_live_verified === true' in workspace
     assert 'job.origin_validation_status === "validated"' not in workspace
     assert 'job.hard_filter_status !== "failed"' in workspace
     assert "Operator-selected current job" in workspace

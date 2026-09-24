@@ -44,6 +44,10 @@ type Job = {
   profile_fit_missing_factors?: string[];
   profile_fit_failed_factors?: string[];
   review_label?: JobReviewLabelState | null;
+  demo_live_verified?: boolean;
+  demo_live_reason?: string | null;
+  last_health_checked_at?: string | null;
+  latest_health_observed_at?: string | null;
 };
 
 type SourceConnector = {
@@ -176,7 +180,9 @@ type SourceTab = "All" | SourceGroup;
 const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
 const label = (value: string | undefined | null) => (value || "unknown").replaceAll("_", " ");
 const scoreText = (value: number | null | undefined) => value == null ? "—" : `${Math.round(value)}%`;
-const isCurrent = (job: Job) => ["active confirmed", "active_confirmed"].includes(normalize(job.lifecycle_status));
+const isCurrent = (job: Job) =>
+  ["active confirmed", "active_confirmed"].includes(normalize(job.lifecycle_status))
+  && job.demo_live_verified === true;
 const isRankable = (job: Job) => normalize(job.product_readiness_status) === "rankable";
 const employerName = (job: Job) => job.display_company_name || job.company_name || "Employer not resolved";
 const locationText = (job: Job) => job.city || job.country || (normalize(job.work_model) === "remote" ? "Remote" : "Location not confirmed");
@@ -314,7 +320,7 @@ function compareJobs(a: Job, b: Job, sort: JobSort) {
 
 function tone(value: string | undefined | null) {
   const normalized = normalize(value);
-  if (["rankable", "active", "active confirmed", "active_confirmed", "approved", "interesting", "passed", "profile_fit_complete"].includes(normalized) || normalized.startsWith("active_last_run_")) return "good";
+  if (["rankable", "active", "active confirmed", "active_confirmed", "approved", "interesting", "passed", "profile_fit_complete", "fresh"].includes(normalized) || normalized.startsWith("active_last_run_")) return "good";
   if (normalized.includes("failed") || normalized.includes("blocked") || normalized.includes("rejected") || normalized === "not_relevant") return "bad";
   if (normalized.includes("stale") || normalized.includes("ambiguous") || normalized === "unsure") return "warn";
   if (normalized.includes("required") || normalized.includes("unknown") || normalized.includes("insufficient")) return "pending";
@@ -352,7 +358,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
   const reviewed = payload.job_readiness.filter((job) => Boolean(job.review_label));
   const interesting = reviewed.filter((job) => job.review_label?.label === "interesting").length;
   const rejected = reviewed.filter((job) => job.review_label?.label === "not_relevant").length;
-  const top = payload.top_jobs[0] || null;
+  const top = payload.top_jobs.find(isCurrent) || null;
   const docsReady = payload.application_sources_ready.base_cv && payload.application_sources_ready.base_application_letter;
   const topUrl = top ? externalJobUrl(top) : null;
 
@@ -428,7 +434,7 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Profile Fit coverage</span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /></div><div><span>Profile Fit decision</span><Status value={job.profile_fit_decision || "unknown"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
-    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
+    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Live check</span><Status value={job.demo_live_verified === true ? "fresh" : (job.demo_live_reason || "refresh required")} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
     <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected explanation evidence.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected uncertainty.</p>}</div></section>
   </aside>;
 }
@@ -685,8 +691,8 @@ function Jobs({
 }
 
 function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
-  const [selectedId, setSelectedId] = useState<number | null>(payload.top_jobs[0]?.silver_job_id ?? null);
-  const jobs = payload.top_jobs.slice(0, 5);
+  const jobs = payload.top_jobs.filter(isCurrent).slice(0, 5);
+  const [selectedId, setSelectedId] = useState<number | null>(jobs[0]?.silver_job_id ?? null);
   const applicationByJobId = useMemo(
     () => buildApplicationByJobId(payload),
     [
@@ -709,7 +715,9 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
     ],
   );
   const top = payload.top_jobs.find(
-    (job) => canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage),
+    (job) =>
+      isCurrent(job)
+      && canPrepareApplication(applicationByJobId.get(job.silver_job_id)?.effective_stage),
   ) || null;
   const firstSelectable = payload.job_readiness.find(
     (job) =>

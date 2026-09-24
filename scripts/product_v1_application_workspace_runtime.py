@@ -45,6 +45,9 @@ from src.search_intelligence.product_v1_application_workspace import (
 from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
+from src.search_intelligence.product_v1_demo_live_scope import (
+    evaluate_demo_live_scope,
+)
 from src.search_intelligence.product_v1_evidence_first_draft import (
     EvidenceFirstDraftStop,
     build_evidence_first_review_draft,
@@ -206,6 +209,14 @@ def load_application_workspace(
     target, target_authority_source, profile, facts, documents = _load_runtime_rows(
         silver_job_id
     )
+    live_scope = evaluate_demo_live_scope(
+        {**dict(target), "demo_actionable": True}
+    )
+    if not live_scope.eligible:
+        raise ApplicationWorkspaceStop(
+            f"current vacancy freshness required: {live_scope.reason}"
+        )
+
     source_url = str(target.get("source_url") or "")
     persisted_detail = bound_observation_detail(target)
     if persisted_detail is not None:

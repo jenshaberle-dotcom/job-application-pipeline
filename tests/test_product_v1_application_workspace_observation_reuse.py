@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
+
+import pytest
 
 from scripts import product_v1_application_workspace_runtime as runtime
 from src.search_intelligence.product_v1_application_context import (
@@ -11,13 +14,19 @@ from src.search_intelligence.product_v1_application_context import (
 URL = "https://karriere.example.test/de?id=7879f1"
 
 
-def _target(*, observation_url: str = URL) -> dict[str, object]:
+def _target(
+    *,
+    observation_url: str = URL,
+    health_checked_at: str | None = None,
+) -> dict[str, object]:
     return {
         "silver_job_id": 626,
         "source_name": "generic_origin:example",
         "source_url": URL,
         "title": "AI Automation Engineer (m/w/d)",
         "company_name": "Example",
+        "lifecycle_status": "active_confirmed",
+        "last_health_checked_at": health_checked_at or datetime.now(UTC).isoformat(),
         "latest_observation_source_url": observation_url,
         "latest_observation_evidence": {
             "source_url": observation_url,
@@ -74,6 +83,21 @@ def test_workspace_reuses_exact_current_observation_without_network(monkeypatch)
     assert "Build production AI automation with Python and APIs." in detail
     assert "Festanstellung" in detail
     assert "Homeoffice" in detail
+
+
+def test_workspace_rejects_stale_active_label_before_reusing_old_detail(
+    monkeypatch,
+) -> None:
+    target = _target(health_checked_at="2026-09-24T10:00:00+00:00")
+    monkeypatch.setattr(runtime, "_load_runtime_rows", lambda _job_id: _runtime_rows(target))
+
+    def should_not_bind(_target):
+        raise AssertionError("stale lifecycle evidence must stop before detail reuse")
+
+    monkeypatch.setattr(runtime, "bound_observation_detail", should_not_bind)
+
+    with pytest.raises(runtime.ApplicationWorkspaceStop, match="live_health_refresh_required"):
+        runtime.load_application_workspace(626)
 
 
 def test_workspace_falls_back_to_bounded_network_when_observation_binding_mismatches(
