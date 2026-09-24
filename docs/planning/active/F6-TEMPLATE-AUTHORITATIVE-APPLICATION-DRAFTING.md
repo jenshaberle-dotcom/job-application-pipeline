@@ -1,6 +1,6 @@
 # F6 — Template-Authoritative Application Drafting
 
-Status: ACTIVE — Slices A/B operator accepted; Slice C 1.0.74 operator-tested, exact-target/compact-picker UX in qualification
+Status: ACTIVE — Slices A/B operator accepted; Slice C exact-target/product identity proven, exact-observation reuse in qualification
 
 ## Outcome
 
@@ -176,6 +176,36 @@ Candidate target: **1.0.75** on `fix/f6-c-exact-target-compact-picker`.
 - **Change job** is explicit and opens a compact searchable chooser, capped to the 10 highest-Affinity jobs until the operator searches;
 - already-applied/downstream jobs remain excluded from preparation by the accepted 1.0.74 lifecycle invariant.
 
+### Installed 1.0.77 exact-target diagnostic
+
+Installed 1.0.77 preserves the operator-selected target and uses Product V1 application branding. For accompio Silver #626 it exposed the previously opaque runtime error as:
+
+`DownstreamPreviewStop: preview detail returned HTTP 404`.
+
+A verified read-only RCC diagnostic then proved this is a redundant-network-path defect, not missing vacancy evidence or a guessed replacement URL:
+
+- Silver #626 source is `generic_origin:accompio`;
+- Silver source URL, latest recurring observation source URL and nested normalized job source URL are exactly the same;
+- lifecycle remains `active_confirmed`;
+- the latest exact observation was recorded on 2026-09-22 and contains a normalized job description;
+- the existing exact-observation contract reconstructs 3,994 characters of source-grounded vacancy evidence;
+- `TARGET_626_EXACT_OBSERVATION_REUSE=PASS`;
+- database writes remained zero.
+
+Assessment materialization already reused this exact persisted evidence before network fallback. The Application Workspace did not: it performed a redundant detail HTTP GET unconditionally, allowing an external HTTP 404 to hide evidence JAP already held.
+
+Candidate target: **1.0.78** on `fix/f6-origin-drift-recovery`.
+
+1.0.78 makes the evidence boundary singular:
+
+- exact URL-bound current observation evidence is projected by one shared read-only helper;
+- both assessment materialization and Application Workspace consume that helper;
+- reuse is admitted only when Silver source URL == observation source URL == normalized nested job source URL and a persisted description exists;
+- exact persisted evidence performs **zero** detail HTTP GETs;
+- network detail fetch remains a bounded fallback only when exact persisted evidence is unavailable;
+- no alternate URL is guessed and no third-party/search evidence becomes Product authority;
+- no lifecycle, Origin, Fit, ranking, application, submission or send authority is widened.
+
 ### Slice-C rendering contract
 
 - Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
@@ -190,19 +220,18 @@ Candidate target: **1.0.75** on `fix/f6-c-exact-target-compact-picker`.
 
 ### Next operator gate
 
-After exact-head CI and immutable **1.0.75** release:
+After exact-head CI and immutable **1.0.78** release:
 
-1. update through the integrated JAP updater and verify the exact 1.0.75 source;
-2. in **All jobs**, choose a specific still-preparable job and press **Prepare application**;
-3. require that the Application Workspace opens on **that exact Silver job** — no substitution/fallback;
-4. if its Origin context is incomplete, the same target must remain visible with its own fail-closed blocker;
-5. confirm there is no permanent long current-job sidebar;
-6. use **Change job** and verify the compact searchable chooser can intentionally switch the target;
-7. generate review text and press **Create finished application PDF**;
-8. require one local PDF containing application letter first and CV after it, with package visual identity verified;
-9. verify an already-Beworben / Reply / Interview / Offer / Closed job still has no **Prepare application** action.
+1. update through the integrated JAP updater and verify the exact 1.0.78 source;
+2. select accompio Silver #626 and press **Prepare application**;
+3. require the exact same job to remain pinned;
+4. require the redundant HTTP-404 failure to disappear because current exact observation evidence is reused with zero detail HTTP GETs;
+5. if a later authority gate blocks drafting, inspect that explicit blocker without bypassing it;
+6. if ready, generate grounded review text and press **Create finished application PDF**;
+7. require one local PDF containing application letter first and CV after it, with package visual identity verified.
 
-Any target substitution, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing component/package pixel proof remains fail-closed.
+A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
+
 
 ## Explicit non-goals
 
