@@ -154,6 +154,12 @@ def test_explicit_vacancy_closure_marker_is_narrow() -> None:
         == "job_has_been_filled"
     )
     assert explicit_vacancy_closure_marker("We are filling positions in our data team.") is None
+    assert (
+        explicit_vacancy_closure_marker(
+            "Die Stellenanzeige konnte nicht gefunden werden"
+        )
+        == "stellenanzeige_nicht_gefunden"
+    )
     assert explicit_vacancy_closure_marker("Careers page. Job search unavailable.") is None
 
 
@@ -223,6 +229,30 @@ def test_2xx_filled_position_content_is_exact_detail_closure() -> None:
     assert (
         classification.evidence["explicit_closure_marker"]
         == "position_has_been_filled"
+    )
+
+
+def test_404_with_explicit_exact_vacancy_closure_marker_is_closed() -> None:
+    target = _health_target()
+    classification = classify_exact_detail(
+        target,
+        HttpProbeResult(
+            status_code=404,
+            final_url=target.source_url,
+            response_text="Die Stellenanzeige konnte nicht gefunden werden.",
+            redirect_count=0,
+        ),
+    )
+
+    assert classification.outcome == OUTCOME_CLOSED
+    assert classification.coverage == COVERAGE_EXACT_DETAIL
+    assert (
+        classification.evidence_reason
+        == "explicit_vacancy_unavailable_on_exact_detail"
+    )
+    assert (
+        classification.evidence["explicit_closure_marker"]
+        == "stellenanzeige_nicht_gefunden"
     )
 
 

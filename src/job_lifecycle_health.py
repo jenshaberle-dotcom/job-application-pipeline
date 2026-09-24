@@ -563,6 +563,13 @@ def classify_exact_detail(
         )
 
     if probe.status_code == 404:
+        if url_identity_match and closure_marker is not None:
+            return HealthClassification(
+                outcome=OUTCOME_CLOSED,
+                coverage=COVERAGE_EXACT_DETAIL,
+                evidence_reason="explicit_vacancy_unavailable_on_exact_detail",
+                evidence=evidence,
+            )
         return HealthClassification(
             outcome=OUTCOME_UNVERIFIABLE,
             coverage=COVERAGE_EXACT_DETAIL,

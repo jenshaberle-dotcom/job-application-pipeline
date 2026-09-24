@@ -120,7 +120,7 @@ def test_long_lived_wsl_runtime_is_detached_inside_linux_without_prepare_path() 
 
 
 def test_current_runtime_release_version() -> None:
-    assert _text(VERSION).strip() == "1.1.3"
+    assert _text(VERSION).strip() == "1.1.4"
 
 
 

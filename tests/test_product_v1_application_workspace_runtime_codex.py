@@ -78,6 +78,7 @@ def _load(_silver_job_id: int):
 
 def test_capacity_unavailable_never_falls_back_to_deterministic_prose(monkeypatch) -> None:
     monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
     monkeypatch.setattr(
         runtime,
         "request_codex_application_adaptation",
@@ -106,6 +107,7 @@ def test_capacity_unavailable_never_falls_back_to_deterministic_prose(monkeypatc
 
 def test_codex_package_passes_direct_zone_replacements_to_review_ui(monkeypatch) -> None:
     monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
     monkeypatch.setattr(
         runtime,
         "request_codex_application_adaptation",

@@ -33,6 +33,10 @@ EXPLICIT_VACANCY_CLOSURE_MARKERS: tuple[tuple[str, str], ...] = (
         "stellenausschreibung_nicht_mehr_verfuegbar",
         "diese stellenausschreibung ist nicht mehr verfügbar",
     ),
+    (
+        "stellenanzeige_nicht_gefunden",
+        "die stellenanzeige konnte nicht gefunden werden",
+    ),
 )
 
 

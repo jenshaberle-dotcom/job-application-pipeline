@@ -45,8 +45,8 @@ from src.search_intelligence.product_v1_application_workspace import (
 from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
-from src.search_intelligence.product_v1_demo_live_scope import (
-    evaluate_demo_live_scope,
+from src.search_intelligence.product_v1_live_vacancy_revalidation import (
+    revalidate_selected_vacancy,
 )
 from src.search_intelligence.product_v1_evidence_first_draft import (
     EvidenceFirstDraftStop,
@@ -55,6 +55,15 @@ from src.search_intelligence.product_v1_evidence_first_draft import (
 
 
 DEFAULT_OUTPUT = Path("/tmp/product_v1_application_workspace.json")
+
+
+class ApplicationWorkspaceLifecycleStop(ApplicationWorkspaceStop):
+    """Blocked F6 request after an authoritative lifecycle-health write."""
+
+    def __init__(self, message: str, *, lifecycle_health_observation_writes: int) -> None:
+        super().__init__(message)
+        self.lifecycle_health_observation_writes = lifecycle_health_observation_writes
+        self.database_writes = lifecycle_health_observation_writes
 
 
 def _connect() -> psycopg.Connection[Any]:
@@ -203,20 +212,47 @@ def _employer_origin_authorized(source_name: object) -> bool:
     return str(source_name or "") in authorized
 
 
+def revalidate_application_target(silver_job_id: int):
+    """Perform the explicit F6 action-boundary exact vacancy probe."""
+
+    target, _authority, _profile, _facts, _documents = _load_runtime_rows(
+        silver_job_id
+    )
+    source_url = str(target.get("source_url") or "")
+    source_name = str(target.get("source_name") or "")
+    return revalidate_selected_vacancy(
+        silver_job_id=silver_job_id,
+        expected_source_name=source_name,
+        expected_source_url=source_url,
+    )
+
+
+def require_live_application_target(silver_job_id: int):
+    """Require one exact live vacancy proof before a drafting authority step."""
+
+    revalidation = revalidate_application_target(silver_job_id)
+    if revalidation.closed:
+        raise ApplicationWorkspaceLifecycleStop(
+            "current vacancy is no longer available: "
+            f"{revalidation.evidence_reason}",
+            lifecycle_health_observation_writes=(
+                revalidation.health_observation_writes
+            ),
+        )
+    if not revalidation.active:
+        raise ApplicationWorkspaceStop(
+            "current vacancy could not be verified: "
+            f"{revalidation.evidence_reason}"
+        )
+    return revalidation
+
+
 def load_application_workspace(
     silver_job_id: int,
 ) -> tuple[object, str, str, str, int]:
     target, target_authority_source, profile, facts, documents = _load_runtime_rows(
         silver_job_id
     )
-    live_scope = evaluate_demo_live_scope(
-        {**dict(target), "demo_actionable": True}
-    )
-    if not live_scope.eligible:
-        raise ApplicationWorkspaceStop(
-            f"current vacancy freshness required: {live_scope.reason}"
-        )
-
     source_url = str(target.get("source_url") or "")
     persisted_detail = bound_observation_detail(target)
     if persisted_detail is not None:
@@ -268,6 +304,8 @@ def application_workspace_payload(silver_job_id: int) -> dict[str, object]:
         "boundaries": {
             "database_reads": True,
             "database_writes": False,
+            "vacancy_revalidation_http_gets": 0,
+            "lifecycle_health_observation_writes": 0,
             "job_detail_http_gets": job_detail_http_gets,
             "current_observation_detail_reuse": int(
                 evidence_mode == "exact_persisted_observation"
@@ -345,6 +383,7 @@ def _evidence_first_draft_payload(
 
 
 def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
+    require_live_application_target(silver_job_id)
     context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
         load_application_workspace(silver_job_id)
     )
