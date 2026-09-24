@@ -141,7 +141,7 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
 
 
 
-def test_f6_navigation_affordance_survives_freshness_expiry_while_backend_remains_authority() -> None:
+def test_f6_navigation_uses_exact_live_revalidation_not_arbitrary_age() -> None:
     workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
     backend = (ROOT / "scripts" / "product_v1_application_workspace_runtime.py").read_text(
@@ -151,8 +151,10 @@ def test_f6_navigation_affordance_survives_freshness_expiry_while_backend_remain
     assert "hasPersistedActiveLifecycle(job)" in operator
     assert "<OpenApplicationButton silverJobId={job.silver_job_id} />" in operator
     assert 'job.demo_live_verified === true' not in workspace
-    assert "evaluate_demo_live_scope(" in backend
-    assert "current vacancy freshness required" in backend
+    assert "revalidate_selected_vacancy(" in backend
+    assert "evaluate_demo_live_scope(" not in backend
+    assert "current vacancy is no longer available" in backend
+    assert "current vacancy could not be verified" in backend
 
 
 def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
