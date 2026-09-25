@@ -21,7 +21,6 @@ from src.search_intelligence.personio_legacy_authority_bindings import (
 
 PERSONIO_RECURRING_AUTHORITY_CONTRACT = "personio-recurring-feed-authority.v1"
 ATS_BACKED_SOURCE_TYPE = "employer_origin_ats_backed_career_site"
-VERIFIED_ATS_LIFECYCLE_REASON = "authoritative_verified_ats_feed_observation"
 
 
 @dataclass(frozen=True)
@@ -54,20 +53,10 @@ def _reviewed_personio_observation_authority(
             False,
             "personio_lifecycle_not_active",
         )
-    if (
-        _text(row.get("lifecycle_evidence_reason"))
-        != VERIFIED_ATS_LIFECYCLE_REASON
-    ):
-        return ApplicationEmployerOriginAuthority(
-            False,
-            "personio_verified_feed_lifecycle_required",
-        )
-    if _text(row.get("latest_health_coverage")) != "complete_inventory":
-        return ApplicationEmployerOriginAuthority(
-            False,
-            "personio_complete_inventory_required",
-        )
-
+    # Lifecycle-health evidence is intentionally independent from source-origin
+    # authority. An operator-triggered exact-detail revalidation may become the
+    # newest lifecycle projection without invalidating the already-bound reviewed
+    # recurring-feed observation that proves Employer-Origin identity.
     source_url = _text(row.get("source_url"))
     observation_url = _text(row.get("latest_observation_source_url"))
     normalized = row.get("latest_observation_evidence")
@@ -156,6 +145,5 @@ __all__ = [
     "ATS_BACKED_SOURCE_TYPE",
     "ApplicationEmployerOriginAuthority",
     "PERSONIO_RECURRING_AUTHORITY_CONTRACT",
-    "VERIFIED_ATS_LIFECYCLE_REASON",
     "application_employer_origin_authority",
 ]
