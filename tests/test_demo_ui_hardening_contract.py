@@ -108,7 +108,8 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
     assert "Open final PDF" in editor
     assert "Download final PDF" in editor
     assert "visual identity verified" in editor
-    assert "Advanced: adjust individual template text zones" in editor
+    assert "Advanced: manual override (normally not required)" in editor
+    assert "exact-template preflighted" in editor
     assert "HUMAN REVIEW REQUIRED" in editor
     assert "No DB write, provider call, application action, submission, or send" in editor
     assert "download={packagePdf.download_filename}" in editor
