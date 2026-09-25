@@ -14,7 +14,9 @@ concurrency:
 jobs:
   baseline:
     name: Read-only current source truth baseline
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: >-
+      ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+          github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 120
     env:
