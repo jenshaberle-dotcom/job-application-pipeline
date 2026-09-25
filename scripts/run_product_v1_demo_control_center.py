@@ -77,6 +77,10 @@ from src.search_intelligence.product_v1_application_workspace import (
 from src.search_intelligence.product_v1_codex_application_adapter import (
     inspect_codex_runtime_status,
 )
+from src.search_intelligence.product_v1_codex_chatgpt_login import (
+    codex_chatgpt_login_status,
+    start_codex_chatgpt_login,
+)
 
 
 PRODUCT_V1_PATH = "/api/v1/product-v1"
@@ -92,6 +96,7 @@ APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
 APPLICATION_SUBMISSION_RECORD_PATH = "/api/v1/product-v1/application-submission-record"
 MAILBOX_SYNC_PATH = "/api/v1/product-v1/mailbox-sync"
 CODEX_STATUS_PATH = "/api/v1/product-v1/codex-status"
+CODEX_LOGIN_PATH = "/api/v1/product-v1/codex-login"
 _MAX_ACTION_BODY_BYTES = 4_096
 _MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
 _MAX_F6_EXPORT_BODY_BYTES = 256 * 1024
@@ -281,6 +286,12 @@ class ProductV1DemoHandler(ProductV1Handler):
         if parsed.path == CODEX_STATUS_PATH:
             try:
                 self._send_json(inspect_codex_runtime_status().to_json())
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_runtime_error(exc)
+            return
+        if parsed.path == CODEX_LOGIN_PATH:
+            try:
+                self._send_json(codex_chatgpt_login_status())
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_runtime_error(exc)
             return
@@ -570,6 +581,24 @@ class ProductV1DemoHandler(ProductV1Handler):
             result = sync_mailbox(reason="operator_refresh")
             status = HTTPStatus.OK if result.get("status") in {"pass", "already_running"} else HTTPStatus.SERVICE_UNAVAILABLE
             self._send_json(result, status=status)
+            return
+        if parsed.path == CODEX_LOGIN_PATH:
+            try:
+                payload = self._read_demo_action_payload()
+                if not isinstance(payload, Mapping):
+                    raise DemoActionStop("Codex login payload must be an object")
+                if set(payload) != {"action"}:
+                    raise DemoActionStop("Codex login payload contains unexpected fields")
+                if payload.get("action") != "start_chatgpt_device_login":
+                    raise DemoActionStop("Codex login action is invalid")
+                self._send_json(start_codex_chatgpt_login())
+            except DemoActionStop as exc:
+                self._send_json(
+                    {"status": "blocked", "reason": str(exc)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_runtime_error(exc)
             return
         if parsed.path == APPLICATION_SOURCE_UPLOAD_PATH:
             self._post_document_upload()
