@@ -498,11 +498,6 @@ def _title_confirmation(
         ):
             return True, "structured_title_surface"
 
-    if source_url and len(expected_tokens) >= 3:
-        path_tokens = _title_identity_tokens(unquote(urlsplit(source_url).path))
-        if _contains_token_sequence(path_tokens, expected_tokens):
-            return True, "exact_url_slug"
-
     return False, None
 
 
