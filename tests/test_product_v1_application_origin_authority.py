@@ -116,3 +116,90 @@ def test_reviewed_personio_still_requires_active_lifecycle() -> None:
 
     assert result.authorized is False
     assert result.reason == "personio_lifecycle_not_active"
+
+
+
+def test_validated_active_direct_product_origin_is_generic_f6_authority() -> None:
+    result = application_employer_origin_authority(
+        {
+            "source_name": "finanz_informatik:careers",
+            "source_url": "https://jobs.f-i.de/job/12345",
+            "canonical_source_type": "unknown",
+            "origin_validation_status": "validated",
+            "activity_status": "active",
+            "lifecycle_status": "active_confirmed",
+        },
+        generic_source_authorized=False,
+    )
+
+    assert result.authorized is True
+    assert result.reason == "validated_active_product_employer_origin"
+
+
+def test_validated_direct_origin_does_not_require_source_specific_allowlist() -> None:
+    result = application_employer_origin_authority(
+        {
+            "source_name": "hannoverre",
+            "source_url": "https://jobs.hannover-re.com/job/software-engineer",
+            "canonical_source_type": "unknown",
+            "origin_validation_status": "validated",
+            "activity_status": "active",
+            "lifecycle_status": "active_confirmed",
+        },
+        generic_source_authorized=False,
+    )
+
+    assert result.authorized is True
+    assert result.reason == "validated_active_product_employer_origin"
+
+
+def test_validated_aggregator_source_still_fails_closed() -> None:
+    result = application_employer_origin_authority(
+        {
+            "source_name": "stepstone",
+            "source_url": "https://www.stepstone.de/stellenangebote--example",
+            "canonical_source_type": "aggregator",
+            "origin_validation_status": "validated",
+            "activity_status": "active",
+            "lifecycle_status": "active_confirmed",
+        },
+        generic_source_authorized=False,
+    )
+
+    assert result.authorized is False
+    assert result.reason == "validated_origin_requires_direct_https_source"
+
+
+def test_validated_product_origin_rejects_mismatched_current_observation() -> None:
+    result = application_employer_origin_authority(
+        {
+            "source_name": "company:careers",
+            "source_url": "https://jobs.example.test/job/42",
+            "canonical_source_type": "employer_origin_career_site",
+            "origin_validation_status": "validated",
+            "activity_status": "active",
+            "lifecycle_status": "active_confirmed",
+            "latest_observation_source_url": "https://jobs.example.test/job/99",
+        },
+        generic_source_authorized=False,
+    )
+
+    assert result.authorized is False
+    assert result.reason == "current_observation_url_mismatch"
+
+
+def test_validated_product_origin_requires_current_active_lifecycle() -> None:
+    result = application_employer_origin_authority(
+        {
+            "source_name": "company:careers",
+            "source_url": "https://jobs.example.test/job/42",
+            "canonical_source_type": "employer_origin_career_site",
+            "origin_validation_status": "validated",
+            "activity_status": "inactive",
+            "lifecycle_status": "inactive_confirmed",
+        },
+        generic_source_authorized=False,
+    )
+
+    assert result.authorized is False
+    assert result.reason == "product_origin_lifecycle_not_active"

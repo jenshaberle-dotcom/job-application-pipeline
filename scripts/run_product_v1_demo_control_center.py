@@ -493,14 +493,6 @@ class ProductV1DemoHandler(ProductV1Handler):
             payload = application_workspace_payload(self._workspace_job_id())
             self._send_json(payload)
         except ApplicationWorkspaceLifecycleStop as exc:
-            if request_id:
-                _set_draft_progress(
-                    request_id,
-                    status="failed",
-                    phase="stopped",
-                    percent=100,
-                    message=str(exc),
-                )
             self._send_json(
                 {
                     "status": "blocked",
