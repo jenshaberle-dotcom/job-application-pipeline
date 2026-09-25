@@ -89,6 +89,40 @@ def test_title_confirmation_uses_normalized_page_text() -> None:
     )
 
 
+def test_title_confirmation_tolerates_connector_and_gender_presentation() -> None:
+    assert title_is_confirmed(
+        "Software Engineer Workflow and Process Automation",
+        (
+            "<html><title>Careers</title>"
+            "<h1>Software Engineer Workflow &amp; Process Automation (m/f/d)</h1>"
+            "</html>"
+        ),
+    )
+
+
+def test_title_confirmation_can_use_exact_detail_url_slug() -> None:
+    assert title_is_confirmed(
+        "Software Engineer Workflow and Process Automation",
+        "<html><title>Careers at Example</title><body>Apply now</body></html>",
+        source_url=(
+            "https://jobs.example.com/job/"
+            "Software-Engineer-Workflow-Process-Automation/12345/"
+        ),
+    )
+
+
+def test_generic_listing_body_does_not_confirm_title_without_title_surface() -> None:
+    assert not title_is_confirmed(
+        "Senior Data Engineer",
+        (
+            "<html><title>Careers at Example</title><body>"
+            "<div>Senior Data Engineer</div><div>Software Engineer</div>"
+            "</body></html>"
+        ),
+        source_url="https://jobs.example.com/careers/12345/",
+    )
+
+
 def test_exact_2xx_url_and_title_is_seen_active() -> None:
     result = classify_exact_detail(target(), active_fetcher(TARGET_URL, timeout_seconds=5))
     assert result.outcome == OUTCOME_SEEN_ACTIVE
@@ -96,6 +130,7 @@ def test_exact_2xx_url_and_title_is_seen_active() -> None:
     assert result.evidence_reason == "exact_detail_url_and_title_confirmed"
     assert result.evidence["url_identity_match"] is True
     assert result.evidence["title_match"] is True
+    assert result.evidence["title_match_mode"] == "structured_title_surface"
     assert "response_text" not in result.evidence
 
 
