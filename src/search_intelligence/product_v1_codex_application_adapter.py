@@ -187,6 +187,7 @@ class CodexApplicationDraftResult:
     status: str
     attempted: bool
     model: str
+    reasoning_effort: str
     reason_code: str | None
     reason: str | None
     package: dict[str, object] | None
@@ -197,6 +198,7 @@ class CodexApplicationDraftResult:
             "status": self.status,
             "attempted": self.attempted,
             "model": self.model,
+            "reasoning_effort": self.reasoning_effort,
             "reason_code": self.reason_code,
             "reason": self.reason,
             "package": self.package,
@@ -688,6 +690,7 @@ def request_codex_application_adaptation(
             status="failed_closed",
             attempted=False,
             model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
             reason_code="codex_reasoning_effort_invalid",
             reason="JAP Codex reasoning effort must be low, medium, high or xhigh.",
             package=None,
@@ -698,6 +701,7 @@ def request_codex_application_adaptation(
             status="unavailable",
             attempted=False,
             model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
             reason_code="codex_not_installed",
             reason="Codex CLI is not available to the JAP runtime.",
             package=None,
@@ -718,6 +722,7 @@ def request_codex_application_adaptation(
             status="unavailable",
             attempted=False,
             model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
             reason_code=(
                 "codex_chatgpt_auth_required"
                 if wrong_auth_mode
@@ -744,6 +749,7 @@ def request_codex_application_adaptation(
             status="failed_closed",
             attempted=False,
             model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
             reason_code="candidate_source_unavailable",
             reason=str(exc),
             package=None,
@@ -842,6 +848,7 @@ def request_codex_application_adaptation(
         status="completed",
         attempted=True,
         model=selected_model,
+        reasoning_effort=selected_reasoning_effort,
         reason_code=None,
         reason=None,
         package=package,
