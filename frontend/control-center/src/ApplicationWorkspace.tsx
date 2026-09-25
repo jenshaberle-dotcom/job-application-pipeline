@@ -608,7 +608,7 @@ export default function ApplicationWorkspace() {
               </div>
 
               {workspaceBlockers.length > 0 && <div className="demo-blockers"><b>What still blocks this application?</b>{workspaceBlockers.map((item) => <span key={item}>{normalized(item)}</span>)}</div>}
-              {generationReady && !codexReady && <div className="demo-blockers">
+              {!codexReady && <div className="demo-blockers">
                 <b>What still blocks automatic CV + letter adaptation?</b>
                 <span>{codexStatus?.installed
                   ? `Bundled Codex ${codexStatus.version || ""} is present, but this WSL runtime is not signed in with ChatGPT.`
