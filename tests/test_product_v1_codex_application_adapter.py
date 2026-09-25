@@ -410,3 +410,24 @@ def test_unfinished_letter_paragraph_is_rejected_before_rendering() -> None:
             context=_context(),
             as_of_date=date(2026, 9, 24),
         )
+
+
+
+def test_cv_short_profile_preserves_deliberate_paragraph_break() -> None:
+    decoded = _model_output()
+    decoded["cv_short_profile"] = (
+        "Erfahrener System Engineer mit langjähriger Verantwortung für komplexe Schnittstellen.\n\n"
+        "Heute verbinde ich diese Erfahrung mit Python, SQL und reproduzierbaren Datenpipelines."
+    )
+
+    package = adapter._validate_output(
+        decoded,
+        context=_context(),
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert "\n\n" in package["preview"]["cv_short_profile"]
+    assert (
+        package["zone_replacements"]["base_cv"]["p1.short_profile"]
+        == package["preview"]["cv_short_profile"]
+    )
