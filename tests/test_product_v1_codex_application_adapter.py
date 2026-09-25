@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 import json
 from pathlib import Path
@@ -360,17 +361,24 @@ def test_codex_subprocess_environment_does_not_inherit_jap_secrets(
     assert "GITHUB_TOKEN" not in environment
 
 
-def test_invented_contact_is_rejected() -> None:
+def test_invented_contact_is_removed_and_salutation_falls_back_safely() -> None:
     decoded = _model_output()
     decoded["contact_name"] = "Julia Klein"
     decoded["salutation"] = "Sehr geehrte Frau Klein,"
 
-    with pytest.raises(adapter.CodexApplicationDraftStop, match="invented a contact"):
-        adapter._validate_output(
-            decoded,
-            context=_context(),
-            as_of_date=date(2026, 9, 24),
-        )
+    package = adapter._validate_output(
+        decoded,
+        context=_context(),
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["contact_name"] == ""
+    letter = package["zone_replacements"]["base_application_letter"]
+    assert letter["recipient.block"] == "accompio"
+    assert letter["salutation"] == "Guten Tag,"
+    assert package["automatic_semantic_repairs"] == [
+        "invented_contact_removed_and_generic_salutation_used"
+    ]
 
 
 def test_overlong_competency_profile_is_rejected_before_review() -> None:
