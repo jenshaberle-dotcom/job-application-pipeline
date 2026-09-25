@@ -91,9 +91,23 @@ def test_reviewed_personio_must_carry_exact_verified_feed_contract() -> None:
     assert result.reason == "personio_reviewed_feed_contract_mismatch"
 
 
-def test_reviewed_personio_requires_the_authoritative_lifecycle_projection() -> None:
+def test_exact_detail_revalidation_does_not_revoke_reviewed_personio_origin() -> None:
     row = _reviewed_personio_row()
-    row["lifecycle_evidence_reason"] = "historical_success_only"
+    row["lifecycle_evidence_reason"] = "exact_detail_url_and_title_confirmed"
+    row["latest_health_coverage"] = "exact_detail"
+
+    result = application_employer_origin_authority(
+        row,
+        generic_source_authorized=False,
+    )
+
+    assert result.authorized is True
+    assert result.reason == "reviewed_verified_personio_recurring_feed"
+
+
+def test_reviewed_personio_still_requires_active_lifecycle() -> None:
+    row = _reviewed_personio_row()
+    row["lifecycle_status"] = "inactive_confirmed"
 
     result = application_employer_origin_authority(
         row,
@@ -101,4 +115,4 @@ def test_reviewed_personio_requires_the_authoritative_lifecycle_projection() -> 
     )
 
     assert result.authorized is False
-    assert result.reason == "personio_verified_feed_lifecycle_required"
+    assert result.reason == "personio_lifecycle_not_active"

@@ -354,12 +354,6 @@ export default function ApplicationWorkspace() {
         .then((payload) => {
           if (!active) return;
           setCodexLogin(payload);
-          if (payload.status === "completed") {
-            return readJson<CodexStatusPayload>("/api/v1/product-v1/codex-status")
-              .then((status) => {
-                if (active) setCodexStatus(status);
-              });
-          }
           return undefined;
         })
         .catch(() => undefined);
@@ -368,6 +362,18 @@ export default function ApplicationWorkspace() {
       active = false;
       window.clearInterval(timer);
     };
+  }, [open, codexLogin?.status, codexStatus?.chatgpt_authenticated]);
+
+  useEffect(() => {
+    if (!open || codexStatus?.chatgpt_authenticated) return;
+    if (codexLogin?.status !== "completed") return;
+    let active = true;
+    void readJson<CodexStatusPayload>("/api/v1/product-v1/codex-status")
+      .then((status) => {
+        if (active) setCodexStatus(status);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
   }, [open, codexLogin?.status, codexStatus?.chatgpt_authenticated]);
 
   useEffect(() => {
