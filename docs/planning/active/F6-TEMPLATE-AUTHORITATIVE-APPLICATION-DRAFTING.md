@@ -795,6 +795,34 @@ The adversarial regression matrix includes generic AI company collisions, short 
 
 Only after this test matrix and full Product gates are green should another real Codex operator run be spent. The real acceptance remains non-Eraneos: at least one new direct Employer-Origin job must complete Quality AI -> exact template preflight -> final PDF + Word, and a second independent job must at minimum reach a valid review draft or expose a genuinely new generic failure class.
 
+### Candidate 1.1.17 — source-neutral vacancy-title verification + drafting polish
+
+A blind 1.1.16 test finally produces both a positive and a negative previously unseen job.
+
+Positive: enercity / **Operation Expert Process, Data und Automation** reaches Ready for drafting, completes Quality AI and renders the intended 3-page package without an Eraneos-specific path.
+
+Negative: Hannover Re / **Software Engineer Workflow and Process Automation** stops before drafting with `vacancy_title_not_confirmed_on_detail_page`.
+
+The negative case exposes an exact-detail verification overfit. The lifecycle gate currently compares the entire normalized Silver title as one literal substring of the fetched response. Equivalent presentation variants such as `and` vs `&`, appended gender markers, or title content exposed only through an H1/title/JSON field or the concrete job URL can therefore fail despite the exact URL remaining the same job.
+
+1.1.17 keeps the current fail-closed lifecycle boundary but changes title confirmation to a source-neutral multi-signal identity check:
+
+- normalize presentation-only connector and gender-marker tokens;
+- inspect explicit title-bearing HTML/JSON surfaces rather than granting authority from arbitrary listing-page body text;
+- permit exact-detail URL slug confirmation only when at least three meaningful title tokens form the same normalized sequence;
+- preserve exact URL-identity, closure-marker and HTTP-status checks unchanged;
+- expose `title_match_mode` in evidence for operator diagnostics;
+- a generic careers page that merely lists the vacancy in body content remains unverifiable.
+
+The blind enercity application also becomes a quality benchmark rather than a special case. Prompt quality rules now discourage boilerplate openings, unnecessary employer-name repetition and paragraphs that merely restate the same quality/process claim.
+
+#### 1.1.17 acceptance
+
+1. Hannover Re-like title variants using `&` vs `and` and gender markers must verify generically without source-specific code.
+2. Generic careers/listing pages must remain fail-closed.
+3. A new blind job should still complete through Quality AI and exact PDF/Word generation.
+4. Existing Employer-Origin, no-submit/no-send and template pixel boundaries remain unchanged.
+
 ## Explicit non-goals
 
 - no alternate template chooser;
