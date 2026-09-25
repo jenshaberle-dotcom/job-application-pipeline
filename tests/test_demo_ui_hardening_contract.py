@@ -332,5 +332,6 @@ def test_application_workspace_shows_live_quality_drafting_progress() -> None:
     assert "Provider request" in workspace
     assert "Elapsed {draftElapsedLabel}" in workspace
     assert "Fortschritt basiert auf abgeschlossenen JAP-Arbeitsschritten" in workspace
+    assert "Semantic repairs:" in workspace
     assert 'role="progressbar"' in workspace
     assert ".demo-drafting-progress-track" in styles
