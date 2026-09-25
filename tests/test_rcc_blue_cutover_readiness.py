@@ -15,6 +15,7 @@ EXPECTED_ACTIVE_BLUE = {
     "f6-initial-assessment-materialization.yml",
     "freeze2-s0-source-truth-baseline.yml",
     "freeze2-s1-s2-residual-classification.yml",
+    "freeze2-ingestion-stall-diagnostic.yml",
     "p1-generic-origin-product-activate.yml",
     "p1-generic-origin-product-proof.yml",
     "p1-generic-origin-systematic-search.yml",
