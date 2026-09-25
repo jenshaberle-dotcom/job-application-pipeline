@@ -149,7 +149,8 @@ def _add_letter(
     )
     # PDF signature art is deliberately not copied into the editable companion.
     # This keeps the companion editable and avoids duplicate/overlay signatures.
-    document.add_paragraph()
+    spacer = document.add_paragraph()
+    spacer.paragraph_format.space_after = Pt(1)
     document.add_paragraph(_text(values, kind, "closing.name", "[Name]"))
 
 
@@ -187,20 +188,26 @@ def _add_cv(
     for index in range(1, 6):
         value = _text(values, kind, f"p1.experience.{index}")
         if value:
-            document.add_paragraph(value)
+            paragraph = document.add_paragraph(value)
+            paragraph.paragraph_format.space_after = Pt(2)
+            paragraph.paragraph_format.line_spacing = 1.0
 
     document.add_page_break()
     document.add_heading("Ausbildung & Weiterbildung", level=1)
     for index in range(1, 4):
         value = _text(values, kind, f"p2.education.{index}")
         if value:
-            document.add_paragraph(value)
+            paragraph = document.add_paragraph(value)
+            paragraph.paragraph_format.space_after = Pt(2)
+            paragraph.paragraph_format.line_spacing = 1.0
 
     document.add_heading("Eigene Projekte", level=1)
     for index in range(1, 3):
         value = _text(values, kind, f"p2.project.{index}")
         if value:
-            document.add_paragraph(value)
+            paragraph = document.add_paragraph(value)
+            paragraph.paragraph_format.space_after = Pt(2)
+            paragraph.paragraph_format.line_spacing = 1.0
 
     document.add_heading("Kenntnisse", level=1)
     skills = document.add_table(rows=1, cols=4)
