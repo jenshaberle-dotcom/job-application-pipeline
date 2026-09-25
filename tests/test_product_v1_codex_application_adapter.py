@@ -444,3 +444,114 @@ def test_cv_short_profile_preserves_deliberate_paragraph_break() -> None:
         package["zone_replacements"]["base_cv"]["p1.short_profile"]
         == package["preview"]["cv_short_profile"]
     )
+
+
+
+def test_target_specificity_accepts_company_brand_without_legal_suffix() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            company_name="Finanz Informatik GmbH & Co. KG",
+            title="Data Platform Engineer (m/w/d)",
+        ),
+    )
+    decoded = _model_output()
+    decoded["letter_paragraphs"] = [
+        "Die Position als Data Platform Engineer bei Finanz Informatik spricht mich an, weil sie Plattform-Engineering und Datenverarbeitung verbindet.",
+        *decoded["letter_paragraphs"][1:],
+    ]
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["status"] == "draft_for_review"
+
+
+def test_target_specificity_accepts_role_without_gender_marker() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            company_name="Unbekannte Beispiel GmbH",
+            title="Data Platform Engineer (m/w/d)",
+        ),
+    )
+    decoded = _model_output()
+    decoded["letter_paragraphs"] = [
+        "Die Aufgabe als Data Platform Engineer verbindet Datenplattformen und Engineering-Verantwortung auf eine für mich sehr passende Weise.",
+        *decoded["letter_paragraphs"][1:],
+    ]
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["status"] == "draft_for_review"
+
+
+def test_grounded_company_team_salutation_is_allowed_without_named_contact() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            company_name="Heartbeat AI GmbH",
+            title="(Senior) Software Engineer - Device Connectivity (Go) (m/f/d)",
+        ),
+    )
+    decoded = _model_output()
+    decoded["salutation"] = "Liebes Heartbeat AI Team,"
+    decoded["letter_paragraphs"] = [
+        "Die Rolle im Bereich Device Connectivity bei Heartbeat AI verbindet Software Engineering mit technisch anspruchsvollen Schnittstellen.",
+        *decoded["letter_paragraphs"][1:],
+    ]
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["zone_replacements"]["base_application_letter"]["salutation"] == (
+        "Liebes Heartbeat AI Team,"
+    )
+    assert package["automatic_semantic_repairs"] == []
+
+
+def test_ungrounded_personal_salutation_is_repaired_without_provider_retry() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            company_name="Heartbeat AI GmbH",
+            title="(Senior) Software Engineer - Device Connectivity (Go) (m/f/d)",
+        ),
+    )
+    decoded = _model_output()
+    decoded["salutation"] = "Sehr geehrte Frau Schneider,"
+    decoded["letter_paragraphs"] = [
+        "Die Rolle im Bereich Device Connectivity bei Heartbeat AI verbindet Software Engineering mit technisch anspruchsvollen Schnittstellen.",
+        *decoded["letter_paragraphs"][1:],
+    ]
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["zone_replacements"]["base_application_letter"]["salutation"] == (
+        "Guten Tag,"
+    )
+    assert package["automatic_semantic_repairs"] == [
+        "ungrounded_salutation_replaced_with_generic"
+    ]
