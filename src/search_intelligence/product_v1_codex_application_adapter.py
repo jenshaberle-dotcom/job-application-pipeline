@@ -125,6 +125,11 @@ QUALITY BAR
   target role at least once. Legal suffixes and gender markers are not required in prose.
 - Prefer concrete evidence over generic self-description. Do not copy requirement lists or stuff
   keywords.
+- Avoid formulaic openings when the vacancy provides a more specific hook. Do not repeatedly name
+  the employer just to prove specificity; once the target identity is clear, spend the remaining
+  space on evidence, contribution and motivation.
+- Each letter paragraph must add a distinct part of the argument. Avoid paraphrasing the same
+  claim (for example process quality, structure or reliability) in several consecutive paragraphs.
 - Do not frame the candidate primarily as a learner when the same evidence supports an experienced
   engineering-transfer narrative.
 - Every paragraph must be a complete, grammatically finished thought. No truncated phrases,
