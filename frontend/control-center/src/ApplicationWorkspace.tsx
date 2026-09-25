@@ -74,6 +74,9 @@ type ApplicationWorkspacePayload = {
       title?: string;
       company_name?: string;
       source_url?: string;
+      employer_origin_authorized?: boolean;
+      origin_validation_status?: string;
+      canonical_source_type?: string;
     };
     generation_ready?: boolean;
     blocked_reasons?: string[];
@@ -132,6 +135,16 @@ type CodexStatusPayload = {
   billing_authority?: string;
   api_key_fallback?: boolean;
   automatic_credit_purchase?: boolean;
+};
+
+type CodexLoginPayload = {
+  status?: "idle" | "starting" | "awaiting_user" | "completed" | "failed" | "blocked";
+  verification_url?: string | null;
+  user_code?: string | null;
+  started_at?: string;
+  expires_at?: string;
+  detail?: string | null;
+  reason?: string;
 };
 
 type DraftPayload = {
@@ -277,6 +290,7 @@ export default function ApplicationWorkspace() {
   const [workspace, setWorkspace] = useState<ApplicationWorkspacePayload | null>(null);
   const [draft, setDraft] = useState<DraftPayload | null>(null);
   const [codexStatus, setCodexStatus] = useState<CodexStatusPayload | null>(null);
+  const [codexLogin, setCodexLogin] = useState<CodexLoginPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +344,31 @@ export default function ApplicationWorkspace() {
       });
     return () => { active = false; };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || codexStatus?.chatgpt_authenticated) return;
+    if (!codexLogin || !["starting", "awaiting_user"].includes(codexLogin.status || "")) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      void readJson<CodexLoginPayload>("/api/v1/product-v1/codex-login")
+        .then((payload) => {
+          if (!active) return;
+          setCodexLogin(payload);
+          if (payload.status === "completed") {
+            return readJson<CodexStatusPayload>("/api/v1/product-v1/codex-status")
+              .then((status) => {
+                if (active) setCodexStatus(status);
+              });
+          }
+          return undefined;
+        })
+        .catch(() => undefined);
+    }, 1500);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [open, codexLogin?.status, codexStatus?.chatgpt_authenticated]);
 
   useEffect(() => {
     if (!open || selectedId == null) return;
@@ -418,8 +457,25 @@ export default function ApplicationWorkspace() {
   const generationReady = workspace?.status === "ready" && workspace.workspace?.generation_ready === true && claimPlan.length > 0;
   const codexReady = codexStatus?.status === "ready" && codexStatus.chatgpt_authenticated === true;
   const vacancyReady = Boolean(workspace?.live_job_evidence?.fetched_title || workspace?.live_job_evidence?.final_url);
+  const originAuthorized = workspace?.workspace?.target?.employer_origin_authorized === true;
   const candidateFactsReady = claimPlan.length > 0;
   const documentsReady = documents.length >= 2 && sourceReadiness?.base_cv === true && sourceReadiness?.base_application_letter === true;
+
+  const startCodexLogin = async () => {
+    setError(null);
+    try {
+      const payload = await readJson<CodexLoginPayload>("/api/v1/product-v1/codex-login", {
+        method: "POST",
+        body: JSON.stringify({ action: "start_chatgpt_device_login" }),
+      });
+      setCodexLogin(payload);
+      if (payload.verification_url) {
+        window.open(payload.verification_url, "_blank", "noopener,noreferrer");
+      }
+    } catch (reason) {
+      setError(String(reason));
+    }
+  };
 
   const generateDraft = async () => {
     if (selectedId == null || !generationReady) return;
@@ -539,7 +595,8 @@ export default function ApplicationWorkspace() {
               </header>
 
               <div className="demo-readiness-list">
-                <div className={readinessTone(vacancyReady)}><i /><span>Vacancy</span><b>{vacancyReady ? "Employer-origin verified" : "Evidence required"}</b></div>
+                <div className={readinessTone(vacancyReady)}><i /><span>Vacancy</span><b>{vacancyReady ? "Live vacancy verified" : "Evidence required"}</b></div>
+                <div className={readinessTone(originAuthorized)}><i /><span>Employer-Origin authority</span><b>{originAuthorized ? "Verified" : "Authority required"}</b></div>
                 <div className={readinessTone(candidateFactsReady)}><i /><span>Candidate facts</span><b>{candidateFactsReady ? `${claimPlan.length} matched claims` : "Matches required"}</b></div>
                 <div className={readinessTone(documentsReady)}><i /><span>F6 templates</span><b>{documentsReady ? "2/2 exact authority" : `${documents.length}/2 exact`}</b></div>
                 <div className={readinessTone(codexReady)}><i /><span>Embedded Codex</span><b>{codexReady
@@ -557,6 +614,16 @@ export default function ApplicationWorkspace() {
                   ? `Bundled Codex ${codexStatus.version || ""} is present, but this WSL runtime is not signed in with ChatGPT.`
                   : "The bundled Codex runtime could not be verified."}</span>
                 <span>JAP will not switch to API-key billing and will not generate deterministic filler text.</span>
+                {codexStatus?.installed && <button type="button" onClick={() => void startCodexLogin()}>
+                  {codexLogin?.status === "starting" || codexLogin?.status === "awaiting_user"
+                    ? "ChatGPT sign-in in progress"
+                    : "Connect ChatGPT"}
+                </button>}
+                {codexLogin?.verification_url && <span>
+                  Open <a href={codexLogin.verification_url} target="_blank" rel="noreferrer">ChatGPT device sign-in</a>
+                  {codexLogin.user_code ? <> and enter code <strong>{codexLogin.user_code}</strong></> : null}.
+                </span>}
+                {codexLogin?.status === "failed" && <span>{codexLogin.detail || "ChatGPT sign-in did not complete."}</span>}
               </div>}
 
               <details className="demo-evidence-details">
