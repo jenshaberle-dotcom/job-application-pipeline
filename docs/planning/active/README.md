@@ -1,7 +1,7 @@
 # Active Planning
 
 Status: current planning truth  
-Last rebaseline: ACQ-GENERALIZATION-90 builder V5 residual-composition frontier; `#676` active
+Last rebaseline: Freeze II — Source Truth & Connector Reliability; `#1038` active, S0 baseline first
 
 ## Product authority
 
@@ -15,28 +15,29 @@ DON may adapt technical design and sequencing. It may not infer unresolved produ
 
 ## Current steering rule
 
-**ACQ-GENERALIZATION-90 / issue #676 is the current deterministic acquisition continuation.**
+**Freeze II — Source Truth & Connector Reliability / issue #1038 is the current campaign authority.**
 
-Read these first for #676 work:
+Read these first:
 
-1. `acq_generalization_90_reentry.md` — active continuation and semantic retention boundary;
-2. `acq_generalization_90_reentry.json` — machine-readable current frontier;
-3. `acq_generalization_90_target.md` — canonical full-population metric and guardrails.
+1. `FREEZE-II-SOURCE-TRUTH-CONNECTOR-RELIABILITY.md` — canonical S0-S6 sequence and acceptance gates;
+2. `../../current/REENTRY.md` — current cross-project/product re-entry state;
+3. `acq_generalization_90_reentry.md` and `acq_generalization_90_reentry.json` — retained acquisition-builder evidence used by S1/S2, not current campaign sequencing;
+4. `F4A-R2-OPERATOR-VISIBLE-REQUIREMENT-EVIDENCE.md` and `F4A-R7-SKILL-EVIDENCE-RELIABILITY.md` — retained field/provenance hardening evidence.
 
-The older REENTRY-001B / issue #672 material remains valid predecessor evidence and is retained in `reentry001b_deterministic_v41_frontier.md` plus the #672 issue history. It no longer overrides #676 sequencing.
+The immediate action is **S0 current truth baseline**. It must re-measure current source/connector counts, family concentration, deterministic first failures and Bronze->Silver->Product/CC metadata reliability before any new source activation.
 
-## Current deterministic acquisition metric
+## Historical #676 deterministic acquisition metric — NOT current authority
 
-Primary metric:
+Retained historical checkpoint:
 
-- all current distinct Employer-Origin candidates: `65`;
+- distinct Employer-Origin candidates: `65`;
 - strict functioning deterministic acquisition: `36/65 = 55.4%`;
-- minimum passing numerator at current `N=65`: `59/65 = 90.8%`;
+- old target numerator at N=65: `59/65 = 90.8%`;
 - historical materialized regression cohort: `36/40` strict proven.
 
-Builder `recipe_ready` is diagnostic and never substitutes for product coverage. A candidate enters the numerator only after materialized connector execution passes unchanged strict genuine-job E2E proof.
+These figures remain useful predecessor evidence only. Freeze-II S0 establishes the current denominator and current coverage pressure. Builder `recipe_ready` remains diagnostic and never substitutes for materialized strict Product connector coverage.
 
-## Current #676 frontier
+## Retained #676 frontier
 
 Completed reusable work includes:
 
@@ -63,7 +64,7 @@ V5 delivery:
 
 No numerical V5/product lift is claimed until the same 65-candidate cohort is replayed from the canonical WSL runtime/database.
 
-## Current deterministic sequence
+## Retained #676 deterministic sequence
 
 1. Resolve the current `origin/main` and any live #676 work PR before creating or editing a branch.
 2. Run `scripts/run_deterministic_connector_builder_layer_audit_v5.py` against the same 65-candidate cohort from the canonical WSL runtime/database.
@@ -105,26 +106,24 @@ The 2026-08-28 canonical-workspace migration is **fully merged and closed as a m
 - delivery PR #682: merged;
 - migration delivery merge: `6af34cb54a9bbf29ffc257d1109f495d08d1678d`.
 
-Historical migration checkpoint files remain retained provenance while #676 is active. Their filenames do not make them disposable.
+Historical migration checkpoint files remain retained provenance while #676 evidence is reused by Freeze-II S1/S2. Their filenames do not make them disposable.
 
 Retention rule: **qualified content is preserved on main; superseded branch/worktree cleanup is a separate DRJ technical action requiring fresh local observation.** The repository mailbox remains `NO_REQUEST` unless a fresh hygiene pass establishes exact safe retirement candidates.
 
-See `acq_generalization_90_reentry.md` for exact ACTIVE/PRESERVE/SUPERSEDED/disposable dispositions.
+See `acq_generalization_90_reentry.md` for retained ACTIVE/PRESERVE/SUPERSEDED/disposable dispositions; Freeze-II #1038 owns current sequencing.
 
 ## Active control surfaces
 
-1. `../../reference/product-contract/README.md` — product authority and decision status.
-2. `prd001_product_intent_rebaseline.md` — progressive PRD-alignment gate.
-3. `acq_generalization_90_reentry.md` — **current acquisition re-entry and retention authority**.
-4. `acq_generalization_90_reentry.json` — machine-readable #676 state.
-5. `acq_generalization_90_target.md` — full-population deterministic target.
-6. `deterministic_connector_builder_layers.md` — evidence-driven builder and residual-adapter architecture.
-7. `backlog_refinement.md` — operator-readable contradiction and work-item view.
-8. `backlog_catalog.json` — machine-readable engineering work-item inventory.
-9. `roadmap.md` — short sequencing view.
-10. `reentry001b_deterministic_v41_frontier.md` — retained predecessor evidence from #672; not current #676 sequencing authority.
-11. `reentry001a_mcp_backed_pipeline_reentry_decision.md` — historical V37-V39 re-entry boundary.
-12. `canonical_target_profile.md` — recorded profile hierarchy pending PRD confirmation.
+1. `FREEZE-II-SOURCE-TRUTH-CONNECTOR-RELIABILITY.md` — **current Freeze-II campaign authority**.
+2. `../../current/REENTRY.md` — canonical current re-entry and installed Product truth.
+3. `../../reference/product-contract/README.md` — product authority and decision status.
+4. `prd001_product_intent_rebaseline.md` — progressive PRD-alignment gate.
+5. `acq_generalization_90_reentry.md` / `.json` — retained deterministic acquisition evidence for S1/S2.
+6. `acq_generalization_90_target.md` — retained >=90% acquisition target; denominator must be rebaselined by S0.
+7. `deterministic_connector_builder_layers.md` — evidence-driven builder and residual-adapter architecture.
+8. `F4A-R2-OPERATOR-VISIBLE-REQUIREMENT-EVIDENCE.md` — source-to-operator field/provenance baseline.
+9. `F4A-R7-SKILL-EVIDENCE-RELIABILITY.md` — deterministic-before-ML semantic evidence baseline.
+10. `backlog_refinement.md`, `backlog_catalog.json`, `roadmap.md` — broader inventory/sequence references.
 
 ## Lifecycle truth already closed
 
