@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 import pymupdf
 
@@ -349,6 +349,7 @@ def render_review_package(
     *,
     root: Path,
     replacements_by_document: object,
+    progress_callback: Callable[[str, int, str], None] | None = None,
 ) -> tuple[F6RenderedReviewDocument, ...]:
     if not isinstance(replacements_by_document, Mapping):
         raise F6TemplateReviewStop("documents must be an object")
@@ -362,7 +363,17 @@ def render_review_package(
 
     private_root = root.expanduser().resolve()
     rendered: list[F6RenderedReviewDocument] = []
-    for document_type in ("base_cv", "base_application_letter"):
+    for index, document_type in enumerate(("base_cv", "base_application_letter")):
+        if progress_callback is not None:
+            progress_callback(
+                "render_cv" if index == 0 else "render_letter",
+                36 if index == 0 else 54,
+                (
+                    "Der Lebenslauf wird in die Originalvorlage eingesetzt und außerhalb der Textzonen pixelgenau geprüft."
+                    if index == 0
+                    else "Das Anschreiben wird in die Originalvorlage eingesetzt und außerhalb der Textzonen pixelgenau geprüft."
+                ),
+            )
         spec = specs[document_type]
         review = load_review_document(root=private_root, spec=spec)
         replacements = _normalize_document_replacements(
@@ -409,6 +420,12 @@ def render_review_package(
                 render_evidence=evidence,
             )
         )
+        if progress_callback is not None:
+            progress_callback(
+                "render_cv_done" if index == 0 else "render_letter_done",
+                48 if index == 0 else 66,
+                "Lebenslauf ist verifiziert." if index == 0 else "Anschreiben ist verifiziert.",
+            )
 
     return tuple(rendered)
 

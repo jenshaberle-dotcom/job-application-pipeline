@@ -792,7 +792,10 @@ export default function ApplicationWorkspace() {
                     : "Provider request pending"}</span>
                   <span>Elapsed {draftElapsedLabel}</span>
                 </div>
-                <small>Der Balken zeigt den realen JAP-Workflowstatus; Codex stellt keine Token-für-Token-Prozentwerte bereit.</small>
+                <small
+                  className="demo-progress-explainer"
+                  title="Der Prozentwert steigt nur, wenn JAP einen verifizierten Arbeitsschritt abgeschlossen hat. Während Codex Text erzeugt, bleibt der Balken deshalb auf der aktuellen Phase."
+                >ⓘ Fortschritt basiert auf abgeschlossenen JAP-Arbeitsschritten.</small>
               </div>}
 
               {draft?.status === "draft_unavailable" && <div className="demo-error">

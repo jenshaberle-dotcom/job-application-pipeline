@@ -671,6 +671,51 @@ On Eraneos #511:
 8. no Advanced zone editing, submission or send authority is required.
 
 
+### Candidate 1.1.13 — file-build progress, clearer help, and Word companion quality
+
+The real 1.1.12 operator run closes the PDF/render-parity defect. Quality AI visibly progresses through verified workflow phases, bounded provider repair is observable, and the finished Eraneos PDF renders successfully as one letter plus two CV pages. Direct side-by-side rendering against the accepted Hornet source shows the immutable visual template structure remains intact.
+
+The remaining work is therefore Product polish and companion quality rather than PDF authority.
+
+#### Progress/help UX
+
+The Quality-AI progress surface keeps the real phase bar but replaces the implementation-centric sentence about token percentages with concise user help:
+
+- visible text: `Fortschritt basiert auf abgeschlossenen JAP-Arbeitsschritten.`
+- hover/help detail explains that the percentage advances only after a verified JAP phase completes and may remain steady while Codex is generating text.
+
+The final file builder gets its own request-bound progress channel. It reports real local phases for workspace binding, CV rendering/pixel proof, letter rendering/pixel proof, PDF concatenation, Word generation and completion. The UI shows **Deine Bewerbungsdateien werden erstellt**, percentage, current phase and elapsed time. It explicitly states that this is local processing with no provider request.
+
+#### Word companion findings and correction
+
+The 1.1.12 editable DOCX is text-correct in intent but not yet acceptable as a polished convenience artifact:
+
+- real rendering produces five pages instead of the canonical three;
+- the letter spills into an almost empty second page;
+- the two-page CV becomes three pages;
+- source PDF text extraction leaks exact duplicate logical lines in the Alstom entry;
+- PDF-only portrait/signature/graphic identity is intentionally absent, so DOCX remains non-authoritative.
+
+1.1.13 keeps PDF as sole pixel/layout authority but raises Word convenience quality:
+
+- all sections use A4 rather than US Letter for the letter page;
+- typography, margins and paragraph spacing are compacted toward the source PDF density;
+- exact duplicate extraction lines are collapsed only in the Word convenience path;
+- page breaks still encode the intended letter -> CV page 1 -> CV page 2 structure;
+- no change is made to canonical PDF bytes, F6 source authority, submission/send boundaries or the no-LLM Local-only option.
+
+The Codex quality prompt also explicitly rejects mixed-tense profile constructions such as `strukturiere beziehungsweise koordinierte`, observed in the otherwise strong 1.1.12 Eraneos CV adaptation.
+
+#### 1.1.13 operator acceptance
+
+1. Quality-AI help text is concise and the detailed progress semantics are available as hover/help text.
+2. Final PDF/Word creation visibly reports real local progress instead of only disabling the button.
+3. Final PDF remains identical in authority and layout behavior to accepted 1.1.12.
+4. Editable Word opens as a practical approximately three-page companion, with no nearly empty spill page and no duplicated extraction lines.
+5. DOCX remains explicitly non-pixel-authoritative and editable.
+6. No provider request, DB write, application action, submission or send occurs during file building.
+
+
 ## Explicit non-goals
 
 - no alternate template chooser;

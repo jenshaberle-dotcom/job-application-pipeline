@@ -127,6 +127,9 @@ QUALITY BAR
   engineering-transfer narrative.
 - Every paragraph must be a complete, grammatically finished thought. No truncated phrases,
   malformed word joins, duplicated fragments or sentence debris.
+- Keep verb tense grammatically consistent. When one sentence combines an ongoing role with a
+  previous role, separate the time references explicitly instead of mixing present and past forms
+  such as "strukturiere beziehungsweise koordinierte".
 - Preserve personalization when the vacancy names a contact and the exact template can fit it.
 - Use the current CV and letter as reference material before drafting. Internally review the complete
   result for factual grounding, language quality, stale identities and coherence before returning it.

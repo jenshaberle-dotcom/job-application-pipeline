@@ -152,3 +152,50 @@
   .f6-finished-flow > button { width: 100%; min-width: 0; }
   .f6-final-package nav { flex-wrap: wrap; }
 }
+
+
+.f6-export-progress {
+  display: grid;
+  gap: 11px;
+  margin-top: 12px;
+  padding: 14px 15px;
+  border: 1px solid rgba(88,216,155,.24);
+  border-radius: 11px;
+  background: rgba(88,216,155,.055);
+}
+.f6-export-progress-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.f6-export-progress-head > div { display: grid; gap: 4px; }
+.f6-export-progress-head strong { color: #e0f7ee; font-size: 13px; }
+.f6-export-progress-head span,
+.f6-export-progress small { color: #83a79a; font-size: 10px; line-height: 1.45; }
+.f6-export-progress-head > b { color: #7ee2b4; font-size: 15px; }
+.f6-export-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(118,160,173,.18);
+}
+.f6-export-progress-track > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #3b9cbf, #67d9b6);
+  transition: width 220ms ease;
+}
+.f6-export-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: #9db9af;
+  font-size: 9px;
+}
+.f6-export-progress small {
+  width: fit-content;
+  cursor: help;
+  border-bottom: 1px dotted rgba(158,234,255,.38);
+}

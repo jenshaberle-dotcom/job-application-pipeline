@@ -65,6 +65,14 @@ type ExportPayload = {
   send_actions?: number;
 };
 
+type ExportProgressPayload = {
+  status?: "waiting" | "running" | "completed" | "failed";
+  phase?: string;
+  percent?: number;
+  message?: string;
+  updated_at?: string;
+};
+
 type ZoneValues = Record<string, Record<string, string>>;
 
 type LocalPackage = CombinedPackage & {
@@ -163,6 +171,9 @@ export default function F6TemplateReviewEditor({
   const [values, setValues] = useState<ZoneValues>({});
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
+  const [renderRequestId, setRenderRequestId] = useState<string | null>(null);
+  const [renderProgress, setRenderProgress] = useState<ExportProgressPayload | null>(null);
+  const [renderElapsedSeconds, setRenderElapsedSeconds] = useState(0);
   const [packagePdf, setPackagePdf] = useState<LocalPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -240,6 +251,16 @@ export default function F6TemplateReviewEditor({
   );
 
   const renderFinishedPdf = async () => {
+    const requestId = globalThis.crypto?.randomUUID?.()
+      || `f6-export-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    setRenderRequestId(requestId);
+    setRenderProgress({
+      status: "waiting",
+      phase: "queued",
+      percent: 0,
+      message: "Finale Bewerbungsdateien werden vorbereitet.",
+    });
+    setRenderElapsedSeconds(0);
     setRendering(true);
     setError(null);
     setPackagePdf((current) => {
@@ -254,6 +275,7 @@ export default function F6TemplateReviewEditor({
           silver_job_id: silverJobId,
           source_manifest_sha256: sourceManifestSha256,
           documents: changedReplacements(),
+          request_id: requestId,
         }),
       });
       if (!payload.package?.pdf_base64) {
@@ -272,6 +294,42 @@ export default function F6TemplateReviewEditor({
       setRendering(false);
     }
   };
+
+  useEffect(() => {
+    if (!rendering || !renderRequestId) return undefined;
+    let active = true;
+
+    const poll = async () => {
+      try {
+        const payload = await readJson<ExportProgressPayload>(
+          `/api/v1/product-v1/f6-template-export-progress?request_id=${encodeURIComponent(renderRequestId)}`,
+        );
+        if (active) setRenderProgress(payload);
+      } catch {
+        // Progress is observability only. The export POST remains authoritative.
+      }
+    };
+
+    void poll();
+    const pollTimer = window.setInterval(() => void poll(), 500);
+    const elapsedTimer = window.setInterval(
+      () => setRenderElapsedSeconds((seconds) => seconds + 1),
+      1000,
+    );
+    return () => {
+      active = false;
+      window.clearInterval(pollTimer);
+      window.clearInterval(elapsedTimer);
+    };
+  }, [rendering, renderRequestId]);
+
+  const renderProgressPercent = Math.max(
+    0,
+    Math.min(100, Math.round(renderProgress?.percent || 0)),
+  );
+  const renderElapsedLabel = `${Math.floor(renderElapsedSeconds / 60)}:${String(
+    renderElapsedSeconds % 60,
+  ).padStart(2, "0")}`;
 
   return <section className="f6-review-editor f6-finished-document">
     <header className="f6-review-head">
@@ -300,9 +358,35 @@ export default function F6TemplateReviewEditor({
           </div>
         </div>
         <button type="button" disabled={rendering || Boolean(error)} onClick={() => void renderFinishedPdf()}>
-          {rendering ? "Building and verifying final PDF…" : "Create finished application PDF"}
+          {rendering ? "PDF & Word werden erstellt…" : "Create finished application PDF"}
         </button>
       </div>
+
+      {rendering && <div className="f6-export-progress" role="status" aria-live="polite">
+        <div className="f6-export-progress-head">
+          <div>
+            <strong>Deine Bewerbungsdateien werden erstellt</strong>
+            <span>{renderProgress?.message || "PDF und Word-Datei werden lokal aufgebaut und verifiziert."}</span>
+          </div>
+          <b>{renderProgressPercent}%</b>
+        </div>
+        <div
+          className="f6-export-progress-track"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={renderProgressPercent}
+        >
+          <i style={{ width: `${Math.max(3, renderProgressPercent)}%` }} />
+        </div>
+        <div className="f6-export-progress-meta">
+          <span>Lokale Verarbeitung · keine Provider-Anfrage</span>
+          <span>Elapsed {renderElapsedLabel}</span>
+        </div>
+        <small
+          title="JAP aktualisiert den Fortschritt nach real abgeschlossenen Schritten: Vorlagenbindung, PDF-Rendering, Pixelprüfung, Zusammenführung und Word-Erstellung."
+        >ⓘ Fortschritt basiert auf abgeschlossenen Dateierstellungs-Schritten.</small>
+      </div>}
 
       {packagePdf && <div className="f6-final-package">
         <div>

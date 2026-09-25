@@ -16,7 +16,7 @@ from typing import Mapping
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Inches, Mm, Pt
+from docx.shared import Mm, Pt, RGBColor
 
 
 ZoneValues = Mapping[str, Mapping[str, str]]
@@ -32,26 +32,56 @@ def _text(
     if not isinstance(document, Mapping):
         return fallback
     value = str(document.get(zone_id) or "").strip()
-    return value or fallback
+    if not value:
+        return fallback
+
+    # PDF extraction can expose duplicate logical lines when source text objects overlap.
+    # The verified PDF remains untouched; only the editable Word companion is normalized.
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for raw_line in value.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        normalized = " ".join(raw_line.split())
+        if normalized and normalized in seen:
+            continue
+        if normalized:
+            seen.add(normalized)
+        cleaned.append(raw_line.strip())
+    compact = "\n".join(cleaned).strip()
+    return compact or fallback
 
 
 def _configure_styles(document: Document) -> None:
     normal = document.styles["Normal"]
     normal.font.name = "Aptos"
-    normal.font.size = Pt(10.5)
-    for name in ("Title", "Heading 1", "Heading 2"):
+    normal.font.size = Pt(9)
+    normal.paragraph_format.space_after = Pt(3)
+    normal.paragraph_format.line_spacing = 1.02
+
+    title = document.styles["Title"]
+    title.font.name = "Aptos"
+    title.font.size = Pt(22)
+    title.font.bold = True
+    title.font.color.rgb = RGBColor(0x16, 0x2A, 0x45)
+
+    for name in ("Heading 1", "Heading 2"):
         style = document.styles[name]
         style.font.name = "Aptos"
+        style.font.bold = True
+        style.font.color.rgb = RGBColor(0x16, 0x2A, 0x45)
+        style.paragraph_format.space_before = Pt(6)
+        style.paragraph_format.space_after = Pt(3)
+    document.styles["Heading 1"].font.size = Pt(12.5)
+    document.styles["Heading 2"].font.size = Pt(10.5)
 
 
 def _configure_letter_section(document: Document) -> None:
     section = document.sections[0]
-    section.page_width = Inches(8.5)
-    section.page_height = Inches(11)
-    section.top_margin = Mm(17)
-    section.bottom_margin = Mm(17)
-    section.left_margin = Mm(17)
-    section.right_margin = Mm(17)
+    section.page_width = Mm(210)
+    section.page_height = Mm(297)
+    section.top_margin = Mm(14)
+    section.bottom_margin = Mm(13)
+    section.left_margin = Mm(16)
+    section.right_margin = Mm(16)
 
 
 def _add_identity_header(
@@ -65,16 +95,16 @@ def _add_identity_header(
     paragraph.paragraph_format.space_after = Pt(2)
     run = paragraph.add_run(name)
     run.bold = True
-    run.font.size = Pt(24)
+    run.font.size = Pt(22)
     if tagline:
         paragraph = document.add_paragraph()
         paragraph.paragraph_format.space_after = Pt(1)
         run = paragraph.add_run(tagline)
         run.bold = True
-        run.font.size = Pt(10)
+        run.font.size = Pt(9)
     if contact:
         paragraph = document.add_paragraph(contact)
-        paragraph.paragraph_format.space_after = Pt(10)
+        paragraph.paragraph_format.space_after = Pt(7)
 
 
 def _add_letter(
@@ -112,14 +142,15 @@ def _add_letter(
         value = _text(values, kind, f"body.paragraph_{index}")
         if value:
             paragraph = document.add_paragraph(value)
-            paragraph.paragraph_format.space_after = Pt(8)
+            paragraph.paragraph_format.space_after = Pt(5)
 
     document.add_paragraph(
         _text(values, kind, "closing.formula", "Mit freundlichen Grüßen")
     )
     # PDF signature art is deliberately not copied into the editable companion.
     # This keeps the companion editable and avoids duplicate/overlay signatures.
-    document.add_paragraph()
+    spacer = document.add_paragraph()
+    spacer.paragraph_format.space_after = Pt(1)
     document.add_paragraph(_text(values, kind, "closing.name", "[Name]"))
 
 
@@ -131,10 +162,10 @@ def _add_cv(
     section = document.add_section(WD_SECTION.NEW_PAGE)
     section.page_width = Mm(210)
     section.page_height = Mm(297)
-    section.top_margin = Mm(14)
-    section.bottom_margin = Mm(14)
-    section.left_margin = Mm(14)
-    section.right_margin = Mm(14)
+    section.top_margin = Mm(11)
+    section.bottom_margin = Mm(11)
+    section.left_margin = Mm(12)
+    section.right_margin = Mm(12)
 
     _add_identity_header(
         document,
@@ -157,20 +188,26 @@ def _add_cv(
     for index in range(1, 6):
         value = _text(values, kind, f"p1.experience.{index}")
         if value:
-            document.add_paragraph(value)
+            paragraph = document.add_paragraph(value)
+            paragraph.paragraph_format.space_after = Pt(2)
+            paragraph.paragraph_format.line_spacing = 1.0
 
     document.add_page_break()
     document.add_heading("Ausbildung & Weiterbildung", level=1)
     for index in range(1, 4):
         value = _text(values, kind, f"p2.education.{index}")
         if value:
-            document.add_paragraph(value)
+            paragraph = document.add_paragraph(value)
+            paragraph.paragraph_format.space_after = Pt(2)
+            paragraph.paragraph_format.line_spacing = 1.0
 
     document.add_heading("Eigene Projekte", level=1)
     for index in range(1, 3):
         value = _text(values, kind, f"p2.project.{index}")
         if value:
-            document.add_paragraph(value)
+            paragraph = document.add_paragraph(value)
+            paragraph.paragraph_format.space_after = Pt(2)
+            paragraph.paragraph_format.line_spacing = 1.0
 
     document.add_heading("Kenntnisse", level=1)
     skills = document.add_table(rows=1, cols=4)
