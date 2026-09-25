@@ -193,11 +193,11 @@ def _zone_html(
     return f"<p>{body}</p>", css
 
 
-def _assert_text_fits(
+def _text_fits(
     *, page: pymupdf.Page, rect: pymupdf.Rect, zone_id: str, text: str
-) -> None:
+) -> bool:
     if not text:
-        return
+        return True
     html, css = _zone_html(page=page, rect=rect, zone_id=zone_id, text=text)
     scratch = pymupdf.open()
     try:
@@ -211,7 +211,15 @@ def _assert_text_fits(
         )
     finally:
         scratch.close()
-    if spare_height < 0 or not math.isclose(float(scale), 1.0, rel_tol=0, abs_tol=1e-9):
+    return spare_height >= 0 and math.isclose(
+        float(scale), 1.0, rel_tol=0, abs_tol=1e-9
+    )
+
+
+def _assert_text_fits(
+    *, page: pymupdf.Page, rect: pymupdf.Rect, zone_id: str, text: str
+) -> None:
+    if not _text_fits(page=page, rect=rect, zone_id=zone_id, text=text):
         raise F6TemplateRenderStop(
             f"replacement text does not fit frozen F6 zone without scaling: {zone_id}"
         )
@@ -328,6 +336,41 @@ def _outside_zone_diff(
     )
 
 
+def probe_template_replacement_overflows(
+    *,
+    document_type: str,
+    template_pdf: bytes,
+    replacements: Mapping[str, object],
+) -> tuple[str, ...]:
+    """Return every replacement zone that cannot fit at the source text scale.
+
+    This is a read-only preflight. It uses the same exact template authority,
+    source-derived text style and no-scaling rule as the final renderer, but it
+    changes no PDF bytes and emits no render authority.
+    """
+
+    spec = validate_template_pdf(document_type=document_type, content=template_pdf)
+    normalized = _normalize_replacements(spec=spec, replacements=replacements)
+    zones = _zone_map(spec)
+    document = pymupdf.open(stream=template_pdf, filetype="pdf")
+    try:
+        overflow: list[str] = []
+        for zone_id, text in normalized.items():
+            zone = zones[zone_id]
+            page_index = _page_index(zone, spec)
+            rect = _zone_rect(zone)
+            if not _text_fits(
+                page=document[page_index],
+                rect=rect,
+                zone_id=zone_id,
+                text=text,
+            ):
+                overflow.append(zone_id)
+        return tuple(overflow)
+    finally:
+        document.close()
+
+
 def render_template_pdf(
     *,
     document_type: str,
@@ -405,5 +448,6 @@ __all__ = [
     "F6PageDiffEvidence",
     "F6TemplateRenderResult",
     "F6TemplateRenderStop",
+    "probe_template_replacement_overflows",
     "render_template_pdf",
 ]

@@ -170,3 +170,25 @@ def test_outside_zone_diff_detects_graphic_mutation() -> None:
 
     assert evidence.changed_pixels > 0
     assert evidence.outside_zone_sha256_before != evidence.outside_zone_sha256_after
+
+
+def test_fit_preflight_reports_overflow_without_mutating_pdf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _template_pdf()
+    spec = _bind_exact_authority(monkeypatch, source)
+
+    fitting = renderer.probe_template_replacement_overflows(
+        document_type=spec.document_type,
+        template_pdf=source,
+        replacements={"body.paragraph_1": "Kurzer Text."},
+    )
+    overflowing = renderer.probe_template_replacement_overflows(
+        document_type=spec.document_type,
+        template_pdf=source,
+        replacements={"body.paragraph_1": "zu viel Text " * 180},
+    )
+
+    assert fitting == ()
+    assert overflowing == ("body.paragraph_1",)
+    assert sha256(source).hexdigest() == spec.sha256

@@ -6,7 +6,7 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical installed/released Product baseline: desktop **1.1.7**, source `0ae9ac8d09d01f2152c3ba8b473cd7d366167073`;
+- canonical installed/released Product baseline: desktop **1.1.8**, source `d2554a099a131f923df4f2e4d0d438a2f6972a45`;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
@@ -58,13 +58,18 @@ This section supersedes older F5/updater sequencing statements retained below as
 - the first real final-PDF render then correctly fails closed on `p1.competency_profile`: `replacement text does not fit frozen F6 zone without scaling`. This is no longer an auth/Origin/context failure; the text generator produced content larger than the already-frozen template zone;
 - candidate **1.1.8** binds Codex output to conservative frozen-layout text budgets before review: CV short profile <= 520 chars, competency profile <= 180 chars, exactly four application-letter paragraphs <= 240 chars each. The exact renderer still remains final authority; no font scaling, page growth, geometry mutation or layout relaxation is introduced;
 - 1.1.8 also removes the contradictory review UX where a renderer error could coexist with `Application PDF is ready to build` and an enabled build button. A blocked render is labeled as text adjustment required; editing clears the stale error and permits a new exact render attempt;
+- installed **1.1.8** proves that static character budgets alone are not sufficient layout authority: the regenerated Eraneos #511 draft advances past the former `p1.competency_profile` overflow but the final exact renderer now rejects `salutation`. The Advanced zone editor can recover manually, but that is explicitly not acceptable as the normal product path;
+- root cause: drafting and exact-template geometry are still separated. Codex is constrained by approximate character budgets, while only the final export currently asks PyMuPDF whether the actual source-derived font, line height and frozen rectangle fit at scale 1.0;
+- candidate **1.1.9** moves that exact fit proof into generation itself. Every Codex draft is preflighted read-only against the installed private PDFs using the same source style and no-scaling rule as final rendering. Overflowing qualified zones are fed back automatically to Codex, together with the previous overflowing text, for bounded compact repair; up to three total Codex attempts are allowed;
+- a draft is returned to the operator only after exact-template preflight passes. If bounded repair cannot resolve the fit, JAP returns `draft_unavailable / f6_template_fit_unresolved` instead of pushing zone editing onto the operator or generating filler. Final export still reruns the full renderer and outside-zone pixel proof;
+- the Advanced zone editor remains available only as an exceptional human override, not a normal dependency of automatic document preparation;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
 
 The 1.0.73 correction therefore separates two authorities. Top-5 stays strict and may remain empty. An explicit operator selection of a current, Origin-validated, authorized employer-origin vacancy may nevertheless open the review-only Application Workspace. Such a target carries `operator_selected_current_job`, has no Product rank, leaves unknown hard-filter evidence unknown, and is blocked by a known hard-filter failure. Candidate Facts, exact current vacancy evidence, exact F6 PDF authority, source-manifest binding, outside-zone pixel proof and the no-submit/no-send boundary remain unchanged.
 
-The next Product gate is candidate **1.1.8** on live **Eraneos Silver #511 — Data Engineer (all genders)**. Regenerate the Codex review text under the frozen-layout budgets and then create the finished application PDF. Acceptance requires the exact 1-page letter + 2-page CV package to render without scaling, preserve outside-zone pixel identity, remain human-review-only, and retain zero automatic submission/send authority.
+The next Product gate is candidate **1.1.9** on live **Eraneos Silver #511 — Data Engineer (all genders)**. One Generate/Regenerate action must automatically return only a renderer-preflighted draft; no zone-by-zone operator editing is part of the normal path. Then Create finished application PDF must produce the exact 1-page letter + 2-page CV package without scaling, with outside-zone pixel identity, human review required, and zero automatic submission/send authority.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.

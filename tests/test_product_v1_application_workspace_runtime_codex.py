@@ -108,6 +108,7 @@ def test_capacity_unavailable_never_falls_back_to_deterministic_prose(monkeypatc
 def test_codex_package_passes_direct_zone_replacements_to_review_ui(monkeypatch) -> None:
     monkeypatch.setattr(runtime, "load_application_workspace", _load)
     monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
+    monkeypatch.setattr(runtime, "_probe_generated_package_overflows", lambda _package: ())
     monkeypatch.setattr(
         runtime,
         "request_codex_application_adaptation",
@@ -152,3 +153,136 @@ def test_codex_package_passes_direct_zone_replacements_to_review_ui(monkeypatch)
     assert payload["package"]["source_manifest_sha256"]
     assert payload["provider_requests"] == 1
     assert payload["database_writes"] == 0
+
+
+
+def test_exact_template_overflow_triggers_bounded_automatic_codex_repair(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
+
+    first_package = {
+        "status": "draft_for_review",
+        "preview": {
+            "cv_short_profile": "Targeted CV profile",
+            "cv_competency_profile": "Python · PostgreSQL",
+            "application_letter": "Sehr geehrte Frau Krzeminski,\n\nTargeted letter",
+        },
+        "zone_replacements": {
+            "base_cv": {"p1.short_profile": "Targeted CV profile"},
+            "base_application_letter": {
+                "recipient.block": "accompio",
+                "salutation": "Sehr geehrte Frau Krzeminski,",
+            },
+        },
+    }
+    repaired_package = {
+        **first_package,
+        "preview": {
+            **first_package["preview"],
+            "application_letter": "Guten Tag Frau Krzeminski,\n\nTargeted letter",
+        },
+        "zone_replacements": {
+            "base_cv": {"p1.short_profile": "Targeted CV profile"},
+            "base_application_letter": {
+                "recipient.block": "accompio",
+                "salutation": "Guten Tag Frau Krzeminski,",
+            },
+        },
+    }
+    calls = []
+
+    def fake_codex(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            package=first_package if len(calls) == 1 else repaired_package,
+            attempted=True,
+            model="gpt-5.6-sol",
+            codex_version="codex-cli test",
+            reason_code=None,
+            reason=None,
+        )
+
+    probes = iter(
+        [
+            ("base_application_letter:salutation",),
+            (),
+        ]
+    )
+    monkeypatch.setattr(runtime, "request_codex_application_adaptation", fake_codex)
+    monkeypatch.setattr(
+        runtime,
+        "_probe_generated_package_overflows",
+        lambda _package: next(probes),
+    )
+
+    payload = runtime.generate_application_draft_payload(626)
+
+    assert payload["status"] == "draft_for_review"
+    assert payload["layout_fit_status"] == "exact_template_preflight_pass"
+    assert payload["layout_repair_attempts"] == 1
+    assert payload["codex_requests"] == 2
+    assert len(calls) == 2
+    assert calls[1]["layout_feedback"] == (
+        "base_application_letter:salutation",
+    )
+    assert calls[1]["previous_package"] == first_package
+    assert (
+        payload["package"]["zone_replacements"]["base_application_letter"][
+            "salutation"
+        ]
+        == "Guten Tag Frau Krzeminski,"
+    )
+
+
+def test_unresolved_layout_overflow_never_falls_back_to_manual_or_filler(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
+
+    package = {
+        "status": "draft_for_review",
+        "preview": {
+            "cv_short_profile": "Targeted CV profile",
+            "cv_competency_profile": "Python · PostgreSQL",
+            "application_letter": "Sehr geehrte Frau Krzeminski,\n\nTargeted letter",
+        },
+        "zone_replacements": {
+            "base_cv": {"p1.short_profile": "Targeted CV profile"},
+            "base_application_letter": {
+                "recipient.block": "accompio",
+                "salutation": "Sehr geehrte Frau Krzeminski,",
+            },
+        },
+    }
+
+    monkeypatch.setattr(
+        runtime,
+        "request_codex_application_adaptation",
+        lambda **_kwargs: SimpleNamespace(
+            package=package,
+            attempted=True,
+            model="gpt-5.6-sol",
+            codex_version="codex-cli test",
+            reason_code=None,
+            reason=None,
+        ),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_probe_generated_package_overflows",
+        lambda _package: ("base_application_letter:salutation",),
+    )
+
+    payload = runtime.generate_application_draft_payload(626)
+
+    assert payload["status"] == "draft_unavailable"
+    assert payload["reason_code"] == "f6_template_fit_unresolved"
+    assert payload["codex_requests"] == 3
+    assert payload["layout_overflows"] == [
+        "base_application_letter:salutation"
+    ]
+    assert payload["fallback_generated"] is False
+    assert payload.get("package") is None

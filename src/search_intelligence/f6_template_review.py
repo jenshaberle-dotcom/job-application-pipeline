@@ -25,6 +25,7 @@ from src.search_intelligence.f6_template_authority import (
 from src.search_intelligence.f6_template_renderer import (
     F6TemplateRenderResult,
     F6TemplateRenderStop,
+    probe_template_replacement_overflows,
     render_template_pdf,
 )
 
@@ -264,6 +265,49 @@ def combine_review_package(
     )
 
 
+def probe_review_replacement_overflows(
+    *,
+    root: Path,
+    replacements_by_document: object,
+) -> tuple[str, ...]:
+    """Preflight generated text against both exact private templates.
+
+    Returned identifiers are prefixed with the document type so a drafting
+    repair loop can target only the zones that actually overflow.
+    """
+
+    if not isinstance(replacements_by_document, Mapping):
+        raise F6TemplateReviewStop("documents must be an object")
+
+    specs = {spec.document_type: spec for spec in template_specs()}
+    if set(str(key) for key in replacements_by_document) != set(specs):
+        raise F6TemplateReviewStop(
+            "F6 fit preflight requires exactly base_cv and base_application_letter"
+        )
+
+    private_root = root.expanduser().resolve()
+    overflow: list[str] = []
+    for document_type in ("base_cv", "base_application_letter"):
+        spec = specs[document_type]
+        review = load_review_document(root=private_root, spec=spec)
+        replacements = _normalize_document_replacements(
+            spec=spec,
+            raw=replacements_by_document[document_type],
+        )
+        if not replacements:
+            continue
+        try:
+            zone_ids = probe_template_replacement_overflows(
+                document_type=document_type,
+                template_pdf=review.template_pdf,
+                replacements=replacements,
+            )
+        except (F6TemplateAuthorityStop, F6TemplateRenderStop) as exc:
+            raise F6TemplateReviewStop(str(exc)) from exc
+        overflow.extend(f"{document_type}:{zone_id}" for zone_id in zone_ids)
+    return tuple(overflow)
+
+
 def render_review_package(
     *,
     root: Path,
@@ -340,5 +384,6 @@ __all__ = [
     "build_review_payload",
     "combine_review_package",
     "load_review_document",
+    "probe_review_replacement_overflows",
     "render_review_package",
 ]

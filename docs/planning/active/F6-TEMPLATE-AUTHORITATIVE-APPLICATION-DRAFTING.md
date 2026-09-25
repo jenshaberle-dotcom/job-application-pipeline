@@ -514,6 +514,30 @@ The review UI also becomes truthful after a failed render: it no longer simultan
 The next operator gate remains Eraneos #511: regenerate review text on 1.1.8 and create the finished application PDF. Acceptance requires 3 pages total (1 application letter + 2 CV pages), no scaling, exact frozen-template geometry, outside-zone pixel identity, human review required, and zero automatic submission/send authority.
 
 
+### Candidate 1.1.9 — renderer-in-the-loop automatic fit, no normal zone editing
+
+The installed 1.1.8 operator run proves the next architectural gap. Static content budgets helped: the prior `p1.competency_profile` overflow is no longer the first failure. But the final exact renderer now rejects `salutation`, and the UI exposes the Advanced zone editor as the manual escape hatch.
+
+That cannot be the normal product contract. Automatic document preparation must include physical template fit, not stop one step before it.
+
+1.1.9 therefore moves the exact renderer fit predicate into the drafting loop:
+
+- generated replacements are preflighted read-only against the exact installed private template bytes;
+- preflight uses the same source-derived font/style, frozen rectangles and strict scale-1.0 rule as final rendering;
+- all overflowing zones are returned as qualified `document_type:zone_id` feedback;
+- Codex receives the exact failing zone identifiers plus the previous overflowing text and rewrites only as much as necessary;
+- the loop is bounded to three total Codex attempts so it cannot consume allowance indefinitely;
+- a review draft reaches the UI only when exact-template preflight reports zero overflow zones;
+- unresolved fit becomes explicit `draft_unavailable / f6_template_fit_unresolved`; there is no deterministic filler and no required manual zone repair;
+- the final export still performs the complete render and outside-zone pixel-identity proof. Preflight is an admission check, not a replacement for final authority.
+
+For salutation overflow specifically, Codex may use a shorter natural grounded salutation. If a personalized salutation cannot fit, a neutral professional salutation is permitted while the verified contact remains in the recipient block. No contact identity may be invented or changed to solve layout.
+
+The Advanced zone editor is retained only as an exceptional human override after review. It is not part of the acceptance path.
+
+The next operator gate remains Eraneos #511: one regeneration action must produce a draft marked `exact_template_preflight_pass`, after which the finished PDF must render directly as 3 pages with no scaling, exact frozen-template geometry, outside-zone pixel identity, human review required, and zero automatic submission/send authority.
+
+
 ## Explicit non-goals
 
 - no alternate template chooser;

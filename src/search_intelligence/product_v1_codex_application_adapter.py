@@ -111,6 +111,12 @@ Rules:
   Return exactly 4 paragraphs and keep every paragraph at or below 240 characters.
 - These text budgets are hard F6 layout constraints. Do not compensate by asking for smaller fonts,
   scaling, extra pages, moved zones or any other layout change.
+- When renderer feedback is supplied, the previous draft did not physically fit one or more exact
+  frozen template zones. Rewrite only as much as needed to make every named zone materially shorter
+  than its previous value while preserving facts and vacancy specificity. For salutation overflow,
+  prefer a shorter natural grounded form; if a personalized salutation still cannot be made compact,
+  a neutral professional salutation is allowed because the grounded contact remains in the recipient
+  block. Never invent a different contact person merely to fit.
 - Prefer German when the vacancy is German or mixed German/English. Use English only when the
   vacancy is clearly English.
 - Return only the schema-constrained result. Human review remains mandatory.
@@ -221,7 +227,12 @@ def _base_cv_text(context: ProductV1ApplicationContext) -> str:
     raise CodexApplicationDraftStop("approved base CV text is unavailable")
 
 
-def _prompt(context: ProductV1ApplicationContext) -> str:
+def _prompt(
+    context: ProductV1ApplicationContext,
+    *,
+    layout_feedback: tuple[str, ...] = (),
+    previous_package: Mapping[str, object] | None = None,
+) -> str:
     facts = [
         {
             "fact_key": item.fact_key,
@@ -252,8 +263,35 @@ def _prompt(context: ProductV1ApplicationContext) -> str:
                 "letter_paragraph_count": LETTER_PARAGRAPH_COUNT,
                 "letter_paragraph_max_chars": LETTER_PARAGRAPH_MAX_CHARS,
             },
+            "renderer_feedback": list(layout_feedback),
+            "renderer_feedback_policy": (
+                "previous draft overflowed these exact frozen zones; compact them"
+                if layout_feedback
+                else "no exact-template overflow observed yet"
+            ),
         },
     }
+    if layout_feedback and previous_package:
+        preview = previous_package.get("preview")
+        if isinstance(preview, Mapping):
+            packet["previous_review_draft"] = {
+                "cv_short_profile": str(preview.get("cv_short_profile") or ""),
+                "cv_competency_profile": str(
+                    preview.get("cv_competency_profile") or ""
+                ),
+                "application_letter": str(preview.get("application_letter") or ""),
+            }
+        replacements = previous_package.get("zone_replacements")
+        if isinstance(replacements, Mapping):
+            failing_values: dict[str, str] = {}
+            for qualified_zone in layout_feedback:
+                document_type, separator, zone_id = qualified_zone.partition(":")
+                if not separator:
+                    continue
+                document = replacements.get(document_type)
+                if isinstance(document, Mapping):
+                    failing_values[qualified_zone] = str(document.get(zone_id) or "")
+            packet["previous_overflowing_zone_values"] = failing_values
     return SYSTEM_TASK + "\n\nINPUT PACKET:\n" + json.dumps(
         packet, ensure_ascii=False, sort_keys=True
     )
@@ -517,6 +555,8 @@ def request_codex_application_adaptation(
     as_of_date: date | None = None,
     model: str | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    layout_feedback: tuple[str, ...] = (),
+    previous_package: Mapping[str, object] | None = None,
 ) -> CodexApplicationDraftResult:
     selected_model = (model or os.environ.get("JAP_CODEX_DRAFT_MODEL") or DEFAULT_MODEL).strip()
     executable = _resolve_codex()
@@ -561,7 +601,11 @@ def request_codex_application_adaptation(
         )
 
     try:
-        prompt = _prompt(context)
+        prompt = _prompt(
+            context,
+            layout_feedback=layout_feedback,
+            previous_package=previous_package,
+        )
     except CodexApplicationDraftStop as exc:
         return CodexApplicationDraftResult(
             status="failed_closed",
