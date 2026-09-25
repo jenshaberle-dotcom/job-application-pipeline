@@ -16,7 +16,7 @@ from typing import Mapping
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Inches, Mm, Pt
+from docx.shared import Mm, Pt, RGBColor
 
 
 ZoneValues = Mapping[str, Mapping[str, str]]
@@ -32,7 +32,22 @@ def _text(
     if not isinstance(document, Mapping):
         return fallback
     value = str(document.get(zone_id) or "").strip()
-    return value or fallback
+    if not value:
+        return fallback
+
+    # PDF extraction can expose duplicate logical lines when source text objects overlap.
+    # The verified PDF remains untouched; only the editable Word companion is normalized.
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for raw_line in value.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        normalized = " ".join(raw_line.split())
+        if normalized and normalized in seen:
+            continue
+        if normalized:
+            seen.add(normalized)
+        cleaned.append(raw_line.strip())
+    compact = "\n".join(cleaned).strip()
+    return compact or fallback
 
 
 def _configure_styles(document: Document) -> None:
