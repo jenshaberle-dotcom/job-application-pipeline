@@ -308,6 +308,43 @@ def probe_review_replacement_overflows(
     return tuple(overflow)
 
 
+def final_review_zone_values(
+    *,
+    root: Path,
+    replacements_by_document: object,
+) -> dict[str, dict[str, str]]:
+    """Return the exact source-zone text with approved replacements applied.
+
+    This is the shared text model for editable companion exports. It never grants
+    layout authority: PDF rendering/pixel proof remains separate and canonical.
+    """
+
+    if not isinstance(replacements_by_document, Mapping):
+        raise F6TemplateReviewStop("documents must be an object")
+    specs = {spec.document_type: spec for spec in template_specs()}
+    if set(str(key) for key in replacements_by_document) != set(specs):
+        raise F6TemplateReviewStop(
+            "final F6 text model requires exactly base_cv and base_application_letter"
+        )
+
+    private_root = root.expanduser().resolve()
+    final: dict[str, dict[str, str]] = {}
+    for document_type in ("base_cv", "base_application_letter"):
+        spec = specs[document_type]
+        review = load_review_document(root=private_root, spec=spec)
+        source = {
+            str(zone["id"]): str(zone.get("source_text") or "")
+            for zone in review.zones
+        }
+        replacements = _normalize_document_replacements(
+            spec=spec,
+            raw=replacements_by_document[document_type],
+        )
+        source.update(replacements)
+        final[document_type] = source
+    return final
+
+
 def render_review_package(
     *,
     root: Path,
@@ -383,6 +420,7 @@ __all__ = [
     "F6TemplateReviewStop",
     "build_review_payload",
     "combine_review_package",
+    "final_review_zone_values",
     "load_review_document",
     "probe_review_replacement_overflows",
     "render_review_package",

@@ -148,7 +148,8 @@ def test_codex_package_passes_direct_zone_replacements_to_review_ui(monkeypatch)
     assert payload["draft_mode"] == "codex_embedded_v1"
     assert payload["fallback_generated"] is False
     assert payload["base_cv_text_shared_with_codex"] is True
-    assert payload["base_application_letter_text_shared_with_codex"] is False
+    assert payload["base_application_letter_text_shared_with_codex"] is True
+    assert payload["vacancy_text_shared_with_codex"] is True
     assert payload["package"]["zone_replacements"]["base_application_letter"]["recipient.block"] == "accompio"
     assert payload["package"]["source_manifest_sha256"]
     assert payload["provider_requests"] == 1
@@ -354,3 +355,69 @@ def test_unresolved_layout_overflow_never_falls_back_to_manual_or_filler(
     ]
     assert payload["fallback_generated"] is False
     assert payload.get("package") is None
+
+
+
+def test_local_private_mode_never_calls_codex_and_updates_only_deterministic_zones(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
+    monkeypatch.setattr(runtime, "_probe_generated_package_overflows", lambda _package: ())
+    monkeypatch.setattr(
+        runtime,
+        "request_codex_application_adaptation",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("local_private must not call Codex")
+        ),
+    )
+
+    payload = runtime.generate_application_draft_payload(
+        626,
+        generation_mode="local_private",
+    )
+
+    assert payload["status"] == "draft_for_review"
+    assert payload["draft_mode"] == "local_private_edit"
+    assert payload["provider_requests"] == 0
+    assert payload["llm_requests"] == 0
+    assert payload["codex_requests"] == 0
+    assert payload["private_document_content_left_device"] is False
+    assert payload["base_cv_text_shared_with_codex"] is False
+    assert payload["base_application_letter_text_shared_with_codex"] is False
+    assert payload["vacancy_text_shared_with_codex"] is False
+    zones = payload["package"]["zone_replacements"]
+    assert zones["base_application_letter"]["recipient.block"] == "accompio"
+    assert zones["base_application_letter"]["date"] == "24.09.2026"
+    assert zones["base_application_letter"]["subject"] == (
+        "Bewerbung als AI Automation Engineer"
+    )
+    assert zones["base_application_letter"]["salutation"] == "Guten Tag,"
+    assert zones["base_cv"]["p2.footer.date"] == "Hannover, 24. September 2026"
+
+
+
+def test_cv_footer_date_has_safe_local_compaction_without_touching_signature(
+    monkeypatch,
+) -> None:
+    context, *_ = _load(626)
+    package = {
+        "language": "de",
+        "contact_name": "",
+        "zone_replacements": {
+            "base_cv": {"p2.footer.date": "Hannover, 24. September 2026"},
+            "base_application_letter": {},
+        },
+    }
+
+    repaired, repairs = runtime._apply_deterministic_layout_repairs(
+        package,
+        layout_overflows=("base_cv:p2.footer.date",),
+        context=context,
+    )
+
+    assert repaired["zone_replacements"]["base_cv"]["p2.footer.date"] == (
+        "Hannover, 24.09.2026"
+    )
+    assert repairs == ("base_cv:p2.footer.date=compact_date",)
+    assert "signature" not in str(repaired).casefold()

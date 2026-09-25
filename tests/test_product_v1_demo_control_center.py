@@ -13,7 +13,17 @@ def test_application_draft_action_requires_exact_review_action() -> None:
         parse_application_draft_action_payload(
             {"action": "generate_review_draft", "silver_job_id": 42}
         )
-        == 42
+        == (42, "codex_quality")
+    )
+    assert (
+        parse_application_draft_action_payload(
+            {
+                "action": "generate_review_draft",
+                "silver_job_id": 42,
+                "generation_mode": "local_private",
+            }
+        )
+        == (42, "local_private")
     )
 
 
@@ -24,6 +34,7 @@ def test_application_draft_action_requires_exact_review_action() -> None:
         [],
         {"action": "generate_review_draft"},
         {"action": "generate_review_draft", "silver_job_id": 42, "submit": True},
+        {"action": "generate_review_draft", "silver_job_id": 42, "generation_mode": "remote_mystery"},
         {"action": "submit_application", "silver_job_id": 42},
         {"action": "generate_review_draft", "silver_job_id": 0},
         {"action": "generate_review_draft", "silver_job_id": "not-an-id"},

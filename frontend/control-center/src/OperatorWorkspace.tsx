@@ -186,6 +186,20 @@ type SortColumn = "fit" | "review" | "job" | "location" | "published" | "observe
 type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Pending" | "Not implemented";
 type SourceTab = "All" | SourceGroup;
 
+function downloadBase64Document(contentBase64: string, filename: string, mimeType: string) {
+  const binary = atob(contentBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 const normalize = (value: string | undefined | null) => (value || "").trim().toLocaleLowerCase();
 const label = (value: string | undefined | null) => (value || "unknown").replaceAll("_", " ");
 const scoreText = (value: number | null | undefined) => value == null ? "—" : `${Math.round(value)}%`;
@@ -768,6 +782,8 @@ function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () =>
 }
 
 function Application({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
+  const [starterLoading, setStarterLoading] = useState(false);
+  const [starterError, setStarterError] = useState<string | null>(null);
   const applicationByJobId = useMemo(
     () => buildApplicationByJobId(payload),
     [
@@ -791,16 +807,44 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
   const authorityTemplates = payload.f6_template_authority?.templates || [];
   const cvTemplate = authorityTemplates.find((item) => item.document_type === "base_cv");
   const letterTemplate = authorityTemplates.find((item) => item.document_type === "base_application_letter");
+
+  const downloadStarterTemplate = async () => {
+    setStarterLoading(true);
+    setStarterError(null);
+    try {
+      const response = await fetch("/api/v1/product-v1/application-starter-template", {
+        headers: { Accept: "application/json" },
+      });
+      const result = await response.json() as {
+        download_filename?: string;
+        docx_base64?: string;
+        reason?: string;
+      };
+      if (!response.ok || !result.docx_base64) {
+        throw new Error(result.reason || "Fillable starter template is unavailable.");
+      }
+      downloadBase64Document(
+        result.docx_base64,
+        result.download_filename || "JAP_Ausfuellbare_Bewerbungsvorlage.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      );
+    } catch (reason) {
+      setStarterError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setStarterLoading(false);
+    }
+  };
+
   return <div className="ow-stack">
-    <header className="ow-page-header"><div><span>F6 · Template-authoritative drafting</span><h1>Application</h1><p>Verified vacancy + Candidate Facts + the two frozen private PDFs. Layout is immutable; only explicitly approved text zones may change. Never auto-submit.</p></div></header>
+    <header className="ow-page-header"><div><span>F6 · Quality-first application preparation</span><h1>Application</h1><p>Use your own exact private CV + letter for pixel-preserving adaptation, or download the provider-free fillable Word starter when you do not have source documents yet. Never auto-submit.</p></div></header>
     <section className="ow-application-grid">
       <article className="ow-card"><span className="ow-kicker">Application target</span><h2>{target?.title || "No current selectable job"}</h2>{target && <p>{employerName(target)} · {locationText(target)} · {top ? `${scoreText(top.overall_quality_score)} authoritative Product score` : `${scoreText(target.overall_quality_score)} Affinity · operator selected`}</p>}<div className="ow-readiness"><div className={target ? "ready" : "blocked"}><i /><span>{top ? "Top-5 recommendation" : "Explicit current-job selection"}</span><b>{target ? "Ready for review drafting" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact authority" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact authority" : "Required"}</b></div></div><OpenApplicationButton silverJobId={target?.silver_job_id} disabled={!target || !docsReady} /></article>
       <article className="ow-card ow-boundary-card"><span className="ow-kicker">F6 layout boundary</span><h2>{docsReady ? "Pixel-bound template authority active" : "Install the two exact F6 PDFs"}</h2><p>The PDF binaries remain private, but their SHA-256 hashes, page geometry and editable text zones are frozen in repo truth. Arbitrary replacement layouts are no longer accepted.</p><ul><li>Layout and graphics are immutable</li><li>Only declared text zones may change</li><li>Candidate Facts and exact Origin evidence are content authority</li><li>No legacy renderer, hidden auto-apply, submit or send</li></ul></article>
     </section>
     <article className="ow-card">
       <span className="ow-kicker">F6 template authority</span>
-      <h2>Exactly two layouts. No fallback.</h2>
-      <p>These are the only application templates allowed in the freeze campaign. A visually similar or older PDF is rejected by exact hash before it can become active.</p>
+      <h2>Own exact layouts when available · local starter when not</h2>
+      <p>The installed private PDFs remain the only pixel-authoritative templates for automatic F6 rendering. A user without them is not stranded: JAP can provide a fillable local Word starter with no LLM/provider request and no claim of PDF template authority.</p>
       <div className="ow-document-grid">
         <ApplicationSourceUpload
           documentType="base_cv"
@@ -818,6 +862,14 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
           canonicalSha256={letterTemplate?.sha256 || ""}
           onUploaded={refresh}
         />
+      </div>
+      <div className="ow-callout">
+        <b>No own CV/letter available?</b>
+        <span>Download a fillable Word starter locally. It contains placeholders only, sends nothing to an LLM and can be completed manually. It is a fallback document, not pixel-authoritative F6 source material.</span>
+        <button type="button" disabled={starterLoading} onClick={() => void downloadStarterTemplate()}>
+          {starterLoading ? "Building local Word template…" : "Download fillable Word starter"}
+        </button>
+        {starterError && <small>{starterError}</small>}
       </div>
     </article>
   </div>;

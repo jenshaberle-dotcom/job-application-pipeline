@@ -31,17 +31,20 @@ from src.search_intelligence.product_v1_application_context import (
 
 
 DEFAULT_MODEL = "gpt-5.6-sol"
-DEFAULT_TIMEOUT_SECONDS = 120.0
+DEFAULT_REASONING_EFFORT = "high"
+DEFAULT_TIMEOUT_SECONDS = 180.0
 MAX_VACANCY_CHARS = 16_000
 MAX_CV_CHARS = 18_000
+MAX_LETTER_CHARS = 14_000
 
 # Frozen F6 layout budgets. These are content limits, not layout authority:
 # Codex must stay inside the already-approved text zones and the renderer remains
 # the final exact-fit/pixel-identity gate.
 CV_SHORT_PROFILE_MAX_CHARS = 520
 CV_COMPETENCY_PROFILE_MAX_CHARS = 180
-LETTER_PARAGRAPH_COUNT = 4
-LETTER_PARAGRAPH_MAX_CHARS = 240
+LETTER_PARAGRAPH_MIN_COUNT = 4
+LETTER_PARAGRAPH_MAX_COUNT = 6
+LETTER_PARAGRAPH_MAX_CHARS = 520
 CAPACITY_PATTERNS = (
     "usage limit",
     "usage_limit",
@@ -85,42 +88,69 @@ SAFE_ENV_KEYS = (
     "CODEX_HOME",
 )
 
-SYSTEM_TASK = """You are the embedded drafting engine inside a local job-application product.
-Your ONLY task is to adapt the candidate's existing CV summary/competency profile and application
-letter to the supplied exact vacancy.
+SYSTEM_TASK = """You are the embedded high-quality application drafting engine inside a local
+job-application product. This is a quality-first workflow, not a high-volume generator.
 
-Rules:
-- Do not write code, inspect files, browse, call tools, or change anything.
-- Use only the supplied vacancy text, approved Candidate Facts and approved base-CV text.
-- Treat any employer, recipient, job title or salutation from prior application material as stale.
-- Never invent a contact person, address, qualification, employer, duration, metric or skill.
-- If the vacancy does not explicitly name a contact person, return an empty contact_name and a
-  neutral salutation appropriate to the output language.
-- Preserve factual career history; adapt emphasis and wording, not facts.
-- Preserve the approved document layout as completely as possible. You may only provide replacement
-  text for JAP's existing editable text zones; you have no authority to move, resize, add or remove
-  layout elements, pages, graphics, photos, lines, typography regions or document structure.
-- Make content changes only as large as necessary for the selected vacancy. Keep unaffected CV
-  sections semantically unchanged and do not rewrite career-history blocks just for stylistic variety.
-- Write natural, specific application prose. Avoid generic AI phrases, keyword stuffing and
-  sentence-by-sentence repetition of the vacancy.
-- The CV short profile must be concise and targeted. Hard limit: 520 characters.
-- The competency profile is a compact frozen side-panel, not a second summary. Hard limit:
-  180 characters total. Prefer 4-6 short capability groups separated by " · ".
-- The application letter must be coherent as one letter, not disconnected evidence snippets.
-  Return exactly 4 paragraphs and keep every paragraph at or below 240 characters.
-- These text budgets are hard F6 layout constraints. Do not compensate by asking for smaller fonts,
-  scaling, extra pages, moved zones or any other layout change.
-- When renderer feedback is supplied, the previous draft did not physically fit one or more exact
-  frozen template zones. Rewrite only as much as needed to make every named zone materially shorter
-  than its previous value while preserving facts and vacancy specificity.
-- If renderer_compaction_targets are supplied, each hard_target_max_chars value is mandatory for the
-  corresponding zone on this repair attempt. Prefer concise complete sentences over truncation.
-- JAP repairs deterministic metadata zones itself; renderer feedback sent to you is limited to text
-  that you actually control. Never invent or alter facts merely to fit.
-- Prefer German when the vacancy is German or mixed German/English. Use English only when the
-  vacancy is clearly English.
-- Return only the schema-constrained result. Human review remains mandatory.
+Your ONLY task is to adapt the candidate's current CV and current application letter to the supplied
+exact vacancy while obeying JAP's authority boundaries.
+
+SOURCE AUTHORITY
+- CURRENT VACANCY is the sole authority for the target employer, target role, requirements, named
+  contacts and current application context.
+- APPROVED CANDIDATE FACTS and CURRENT CV are factual candidate authority.
+- CURRENT APPLICATION LETTER is a style, tone, structure and writing-quality reference. Its old
+  employer, recipient, role, date, salutation and vacancy-specific claims are STALE and have zero
+  factual authority for the new application.
+- Never invent a contact person, address, qualification, employer, duration, metric, skill or
+  professional experience.
+
+EDIT AUTHORITY
+- PIXEL-FROZEN: page geometry, graphics, portrait, signature image, lines, colors, non-editable
+  typography regions and every pixel outside declared editable text zones. You have no authority
+  to move, resize, add, delete or redesign them.
+- JAP-DETERMINISTIC: recipient block, application date, subject and final metadata replacement.
+  Do not try to position or overlay these fields; JAP replaces the existing source text in-place.
+- SEMANTICALLY ADAPTABLE: CV short profile, CV competency profile, salutation and descriptive
+  application-letter body paragraphs. These may be rewritten substantially when needed for a
+  strong vacancy-specific application, but facts must remain grounded.
+- PRESERVE-BY-DEFAULT: career history, education, projects, skills lists and other source content.
+  Do not rewrite them merely for stylistic variation unless JAP explicitly exposes such a zone.
+
+QUALITY BAR
+- Match the current letter's professionalism, density and narrative coherence while writing a
+  genuinely vacancy-specific new letter.
+- Build a clear argument: why this role -> relevant proven experience -> current relevant practice
+  -> value for this employer -> concise motivation/close.
+- Prefer concrete evidence over generic self-description. Do not copy requirement lists or stuff
+  keywords.
+- Do not frame the candidate primarily as a learner when the same evidence supports an experienced
+  engineering-transfer narrative.
+- Every paragraph must be a complete, grammatically finished thought. No truncated phrases,
+  malformed word joins, duplicated fragments or sentence debris.
+- Preserve personalization when the vacancy names a contact and the exact template can fit it.
+- Use the current CV and letter as reference material before drafting. Internally review the complete
+  result for factual grounding, language quality, stale identities and coherence before returning it.
+
+LAYOUT / FIT
+- The CV short profile must be concise and targeted. Hard limit: 520 characters. Preserve the
+  current zone's readable paragraph rhythm where practical; two compact paragraphs are preferred
+  when the source profile uses that structure.
+- The competency profile is a compact frozen side-panel. Hard limit: 180 characters total. Preserve
+  the current zone's list/separator style: when the current profile is a bullet list, return 4-6
+  short bullet lines rather than converting it into a run-on separator string.
+- Return between 4 and 6 coherent application-letter paragraphs. Each paragraph may use up to
+  520 characters; JAP's exact renderer is the final physical-fit authority.
+- Never solve fit by requesting smaller fonts, scaling, extra pages, moved zones or layout changes.
+- When renderer feedback is supplied, rewrite only the named semantic zones and make them materially
+  shorter while preserving the argument and facts.
+- If renderer_compaction_targets are supplied, each hard_target_max_chars value is mandatory.
+- JAP repairs deterministic metadata zones itself. Never alter facts merely to fit.
+
+LANGUAGE / OUTPUT
+- Prefer German when the vacancy is German or mixed German/English. Use English only when clearly
+  appropriate.
+- Return only the schema-constrained result. Human review remains mandatory. No application is ever
+  submitted or sent by this task.
 """
 
 
@@ -137,6 +167,7 @@ class CodexRuntimeStatus:
     executable: str | None
     version: str | None
     model: str
+    reasoning_effort: str
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -147,6 +178,7 @@ class CodexRuntimeStatus:
             "executable": self.executable,
             "version": self.version,
             "model": self.model,
+            "reasoning_effort": self.reasoning_effort,
             "billing_authority": "chatgpt_included_allowance_then_eligible_credits",
             "api_key_fallback": False,
             "automatic_credit_purchase": False,
@@ -158,6 +190,7 @@ class CodexApplicationDraftResult:
     status: str
     attempted: bool
     model: str
+    reasoning_effort: str
     reason_code: str | None
     reason: str | None
     package: dict[str, object] | None
@@ -168,6 +201,7 @@ class CodexApplicationDraftResult:
             "status": self.status,
             "attempted": self.attempted,
             "model": self.model,
+            "reasoning_effort": self.reasoning_effort,
             "reason_code": self.reason_code,
             "reason": self.reason,
             "package": self.package,
@@ -206,8 +240,8 @@ def _schema() -> dict[str, object]:
             },
             "letter_paragraphs": {
                 "type": "array",
-                "minItems": LETTER_PARAGRAPH_COUNT,
-                "maxItems": LETTER_PARAGRAPH_COUNT,
+                "minItems": LETTER_PARAGRAPH_MIN_COUNT,
+                "maxItems": LETTER_PARAGRAPH_MAX_COUNT,
                 "items": {
                     "type": "string",
                     "minLength": 20,
@@ -219,13 +253,36 @@ def _schema() -> dict[str, object]:
     }
 
 
-def _base_cv_text(context: ProductV1ApplicationContext) -> str:
+def _source_document_text(
+    context: ProductV1ApplicationContext,
+    *,
+    document_type: str,
+    max_chars: int,
+) -> str:
     for document in context.source_documents:
-        if document.document_type == "base_cv":
+        if document.document_type == document_type:
             text = str(document.content or "").strip()
             if text:
-                return text[:MAX_CV_CHARS]
-    raise CodexApplicationDraftStop("approved base CV text is unavailable")
+                return text[:max_chars]
+    raise CodexApplicationDraftStop(
+        f"approved {document_type} text is unavailable"
+    )
+
+
+def _base_cv_text(context: ProductV1ApplicationContext) -> str:
+    return _source_document_text(
+        context,
+        document_type="base_cv",
+        max_chars=MAX_CV_CHARS,
+    )
+
+
+def _base_application_letter_text(context: ProductV1ApplicationContext) -> str:
+    return _source_document_text(
+        context,
+        document_type="base_application_letter",
+        max_chars=MAX_LETTER_CHARS,
+    )
 
 
 def _prompt(
@@ -252,16 +309,69 @@ def _prompt(
             "vacancy_text": context.target.detail_text[:MAX_VACANCY_CHARS],
         },
         "approved_candidate_facts": facts,
-        "approved_base_cv_text": _base_cv_text(context),
+        "edit_authority": {
+            "pixel_frozen": [
+                "page_geometry",
+                "portrait",
+                "signature_image",
+                "rules_and_lines",
+                "colors_and_graphics",
+                "all_pixels_outside_declared_text_zones",
+            ],
+            "jap_deterministic_zones": [
+                "base_application_letter:recipient.block",
+                "base_application_letter:date",
+                "base_application_letter:subject",
+                "base_application_letter:closing.formula",
+                "base_cv:p2.footer.date",
+            ],
+            "codex_semantic_zones": [
+                "base_cv:p1.short_profile",
+                "base_cv:p1.competency_profile",
+                "base_application_letter:salutation",
+                "base_application_letter:body.paragraph_1..6",
+            ],
+            "preserve_by_default": [
+                "career_history",
+                "education",
+                "projects",
+                "skills_lists",
+                "footer_name",
+            ],
+            "renderer_is_final_physical_fit_authority": True,
+            "no_scaling_or_overlay_authority": True,
+        },
+        "current_documents": {
+            "cv": {
+                "content": _base_cv_text(context),
+                "authority": "candidate_fact_and_style_reference",
+                "layout_policy": "pixel_frozen_except_declared_semantic_text_zones",
+            },
+            "application_letter": {
+                "content": _base_application_letter_text(context),
+                "authority": "style_structure_quality_reference_only",
+                "stale_fields": [
+                    "employer",
+                    "recipient",
+                    "job_title",
+                    "date",
+                    "salutation",
+                    "vacancy_specific_claims",
+                ],
+                "layout_policy": "pixel_frozen_except_declared_semantic_text_zones",
+            },
+        },
         "output_notes": {
             "recipient_block_is_built_deterministically_by_JAP": True,
             "subject_and_date_are_built_deterministically_by_JAP": True,
-            "old_application_letter_content_is_not_source_material": True,
+            "current_application_letter_is_style_reference_not_fact_authority": True,
+            "current_cv_and_letter_and_vacancy_are_shared_with_codex": True,
             "human_review_required": True,
             "frozen_layout_text_budgets": {
                 "cv_short_profile_max_chars": CV_SHORT_PROFILE_MAX_CHARS,
                 "cv_competency_profile_max_chars": CV_COMPETENCY_PROFILE_MAX_CHARS,
-                "letter_paragraph_count": LETTER_PARAGRAPH_COUNT,
+                "letter_paragraph_min_count": LETTER_PARAGRAPH_MIN_COUNT,
+                "letter_paragraph_max_count": LETTER_PARAGRAPH_MAX_COUNT,
                 "letter_paragraph_max_chars": LETTER_PARAGRAPH_MAX_CHARS,
             },
             "renderer_feedback": list(layout_feedback),
@@ -376,9 +486,15 @@ def _codex_login_status(executable: str) -> tuple[bool, str]:
 def inspect_codex_runtime_status(
     *,
     model: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> CodexRuntimeStatus:
     selected_model = (
         model or os.environ.get("JAP_CODEX_DRAFT_MODEL") or DEFAULT_MODEL
+    ).strip()
+    selected_reasoning_effort = (
+        reasoning_effort
+        or os.environ.get("JAP_CODEX_REASONING_EFFORT")
+        or DEFAULT_REASONING_EFFORT
     ).strip()
     executable = _resolve_codex()
     if not executable:
@@ -390,6 +506,7 @@ def inspect_codex_runtime_status(
             executable=None,
             version=None,
             model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
         )
 
     version = _codex_version(executable)
@@ -414,6 +531,7 @@ def inspect_codex_runtime_status(
         executable=executable,
         version=version,
         model=selected_model,
+        reasoning_effort=selected_reasoning_effort,
     )
 
 
@@ -444,6 +562,16 @@ def _normalized(value: object) -> str:
     return " ".join(str(value or "").split())
 
 
+def _normalized_blocks(value: object) -> str:
+    raw = str(value or "").strip()
+    blocks = [
+        " ".join(block.split())
+        for block in re.split(r"\n\s*\n", raw)
+        if block.strip()
+    ]
+    return "\n\n".join(blocks)
+
+
 def _validate_output(
     decoded: Mapping[str, object],
     *,
@@ -466,7 +594,7 @@ def _validate_output(
     language = _normalized(decoded.get("language"))
     contact_name = _normalized(decoded.get("contact_name"))
     salutation = _normalized(decoded.get("salutation"))
-    cv_short = _normalized(decoded.get("cv_short_profile"))
+    cv_short = _normalized_blocks(decoded.get("cv_short_profile"))
     cv_competency = str(decoded.get("cv_competency_profile") or "").strip()
     rationale = _normalized(decoded.get("rationale"))
     raw_paragraphs = decoded.get("letter_paragraphs")
@@ -474,11 +602,13 @@ def _validate_output(
         raise CodexApplicationDraftStop("Codex returned an unsupported application language")
     if (
         not isinstance(raw_paragraphs, list)
-        or len(raw_paragraphs) != LETTER_PARAGRAPH_COUNT
+        or not LETTER_PARAGRAPH_MIN_COUNT
+        <= len(raw_paragraphs)
+        <= LETTER_PARAGRAPH_MAX_COUNT
     ):
         raise CodexApplicationDraftStop(
-            "Codex letter must contain exactly "
-            f"{LETTER_PARAGRAPH_COUNT} F6 paragraphs"
+            "Codex letter paragraph count is outside the F6 quality range "
+            f"{LETTER_PARAGRAPH_MIN_COUNT}-{LETTER_PARAGRAPH_MAX_COUNT}"
         )
     paragraphs = tuple(_normalized(item) for item in raw_paragraphs)
     if any(len(item) < 20 for item in paragraphs):
@@ -486,6 +616,10 @@ def _validate_output(
     if any(len(item) > LETTER_PARAGRAPH_MAX_CHARS for item in paragraphs):
         raise CodexApplicationDraftStop(
             "Codex letter paragraph exceeds the frozen F6 text budget"
+        )
+    if any(item[-1] not in ".!?;:" for item in paragraphs):
+        raise CodexApplicationDraftStop(
+            "Codex returned an unfinished application-letter paragraph"
         )
 
     detail_folded = context.target.detail_text.casefold()
@@ -530,6 +664,18 @@ def _validate_output(
         else as_of_date.isoformat()
     )
     closing = "Mit freundlichen Grüßen" if language == "de" else "Kind regards"
+    cv_footer_date = (
+        f"Hannover, {as_of_date.day}. "
+        + (
+            (
+                "Januar Februar März April Mai Juni Juli August September "
+                "Oktober November Dezember"
+            ).split()[as_of_date.month - 1]
+            if language == "de"
+            else as_of_date.strftime("%B")
+        )
+        + f" {as_of_date.year}"
+    )
 
     letter_zones: dict[str, str] = {
         "recipient.block": recipient,
@@ -557,6 +703,7 @@ def _validate_output(
             "base_cv": {
                 "p1.short_profile": cv_short,
                 "p1.competency_profile": cv_competency,
+                "p2.footer.date": cv_footer_date,
             },
             "base_application_letter": letter_zones,
         },
@@ -572,17 +719,34 @@ def request_codex_application_adaptation(
     context: ProductV1ApplicationContext,
     as_of_date: date | None = None,
     model: str | None = None,
+    reasoning_effort: str | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     layout_feedback: tuple[str, ...] = (),
     previous_package: Mapping[str, object] | None = None,
 ) -> CodexApplicationDraftResult:
     selected_model = (model or os.environ.get("JAP_CODEX_DRAFT_MODEL") or DEFAULT_MODEL).strip()
+    selected_reasoning_effort = (
+        reasoning_effort
+        or os.environ.get("JAP_CODEX_REASONING_EFFORT")
+        or DEFAULT_REASONING_EFFORT
+    ).strip()
+    if selected_reasoning_effort not in {"low", "medium", "high", "xhigh"}:
+        return CodexApplicationDraftResult(
+            status="failed_closed",
+            attempted=False,
+            model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
+            reason_code="codex_reasoning_effort_invalid",
+            reason="JAP Codex reasoning effort must be low, medium, high or xhigh.",
+            package=None,
+        )
     executable = _resolve_codex()
     if not executable:
         return CodexApplicationDraftResult(
             status="unavailable",
             attempted=False,
             model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
             reason_code="codex_not_installed",
             reason="Codex CLI is not available to the JAP runtime.",
             package=None,
@@ -603,6 +767,7 @@ def request_codex_application_adaptation(
             status="unavailable",
             attempted=False,
             model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
             reason_code=(
                 "codex_chatgpt_auth_required"
                 if wrong_auth_mode
@@ -629,6 +794,7 @@ def request_codex_application_adaptation(
             status="failed_closed",
             attempted=False,
             model=selected_model,
+            reasoning_effort=selected_reasoning_effort,
             reason_code="candidate_source_unavailable",
             reason=str(exc),
             package=None,
@@ -651,6 +817,8 @@ def request_codex_application_adaptation(
             "read-only",
             "--model",
             selected_model,
+            "-c",
+            f'model_reasoning_effort="{selected_reasoning_effort}"',
             "--output-schema",
             str(schema_path),
             "-o",
@@ -672,6 +840,7 @@ def request_codex_application_adaptation(
                 status="unavailable",
                 attempted=True,
                 model=selected_model,
+                reasoning_effort=selected_reasoning_effort,
                 reason_code="codex_timeout",
                 reason="Codex drafting timed out. No fallback prose was generated.",
                 package=None,
@@ -682,6 +851,7 @@ def request_codex_application_adaptation(
                 status="unavailable",
                 attempted=True,
                 model=selected_model,
+                reasoning_effort=selected_reasoning_effort,
                 reason_code="codex_launch_failed",
                 reason=_safe_error(str(exc)),
                 package=None,
@@ -696,6 +866,7 @@ def request_codex_application_adaptation(
                 status="unavailable",
                 attempted=True,
                 model=selected_model,
+                reasoning_effort=selected_reasoning_effort,
                 reason_code=reason_code,
                 reason=reason,
                 package=None,
@@ -715,6 +886,7 @@ def request_codex_application_adaptation(
                 status="failed_closed",
                 attempted=True,
                 model=selected_model,
+                reasoning_effort=selected_reasoning_effort,
                 reason_code="codex_output_validation_failed",
                 reason=_safe_error(str(exc)),
                 package=None,
@@ -725,6 +897,7 @@ def request_codex_application_adaptation(
         status="completed",
         attempted=True,
         model=selected_model,
+        reasoning_effort=selected_reasoning_effort,
         reason_code=None,
         reason=None,
         package=package,

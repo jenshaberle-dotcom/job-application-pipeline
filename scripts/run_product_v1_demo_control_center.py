@@ -69,7 +69,12 @@ from src.search_intelligence.f6_template_review import (
     F6TemplateReviewStop,
     build_review_payload,
     combine_review_package,
+    final_review_zone_values,
     render_review_package,
+)
+from src.search_intelligence.f6_docx_export import (
+    build_editable_companion_docx,
+    build_fillable_starter_docx,
 )
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
@@ -93,6 +98,7 @@ APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
 F6_TEMPLATE_REVIEW_PATH = "/api/v1/product-v1/f6-template-review"
 F6_TEMPLATE_EXPORT_PATH = "/api/v1/product-v1/f6-template-export"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
+APPLICATION_STARTER_TEMPLATE_PATH = "/api/v1/product-v1/application-starter-template"
 APPLICATION_SUBMISSION_RECORD_PATH = "/api/v1/product-v1/application-submission-record"
 MAILBOX_SYNC_PATH = "/api/v1/product-v1/mailbox-sync"
 CODEX_STATUS_PATH = "/api/v1/product-v1/codex-status"
@@ -153,11 +159,14 @@ def _load_operator_product_payload() -> dict[str, object]:
     return projected
 
 
-def parse_application_draft_action_payload(payload: object) -> int:
+def parse_application_draft_action_payload(
+    payload: object,
+) -> tuple[int, str]:
     if not isinstance(payload, Mapping):
         raise DemoActionStop("action payload must be a JSON object")
-    if set(payload) != {"action", "silver_job_id"}:
-        raise DemoActionStop("action payload contains unexpected fields")
+    allowed = {"action", "silver_job_id", "generation_mode"}
+    if not set(payload).issubset(allowed) or not {"action", "silver_job_id"}.issubset(payload):
+        raise DemoActionStop("action payload contains unexpected or missing fields")
     if payload.get("action") != "generate_review_draft":
         raise DemoActionStop("action must be generate_review_draft")
     try:
@@ -166,7 +175,10 @@ def parse_application_draft_action_payload(payload: object) -> int:
         raise DemoActionStop("silver_job_id must be an integer") from exc
     if silver_job_id <= 0:
         raise DemoActionStop("silver_job_id must be positive")
-    return silver_job_id
+    generation_mode = str(payload.get("generation_mode") or "codex_quality").strip()
+    if generation_mode not in {"codex_quality", "local_private"}:
+        raise DemoActionStop("generation_mode must be codex_quality or local_private")
+    return silver_job_id, generation_mode
 
 
 
@@ -292,6 +304,27 @@ class ProductV1DemoHandler(ProductV1Handler):
         if parsed.path == CODEX_LOGIN_PATH:
             try:
                 self._send_json(codex_chatgpt_login_status())
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_runtime_error(exc)
+            return
+        if parsed.path == APPLICATION_STARTER_TEMPLATE_PATH:
+            try:
+                content = build_fillable_starter_docx()
+                self._send_json(
+                    {
+                        "schema": "job_application_pipeline.application_starter_template.v1",
+                        "status": "ready",
+                        "download_filename": "JAP_Ausfuellbare_Bewerbungsvorlage.docx",
+                        "docx_base64": base64.b64encode(content).decode("ascii"),
+                        "provider_or_llm_requests": 0,
+                        "network_requests": 0,
+                        "database_writes": 0,
+                        "submission_actions": 0,
+                        "send_actions": 0,
+                        "template_authority": False,
+                        "purpose": "local_fillable_fallback_without_uploaded_documents",
+                    }
+                )
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_runtime_error(exc)
             return
@@ -477,11 +510,26 @@ class ProductV1DemoHandler(ProductV1Handler):
                 if isinstance(target, Mapping)
                 else None
             )
-            package_filename = (
+            title = (
+                target.get("title")
+                if isinstance(target, Mapping)
+                else None
+            )
+            final_values = final_review_zone_values(
+                root=configure_demo_private_document_root(),
+                replacements_by_document=documents,
+            )
+            editable_docx = build_editable_companion_docx(
+                values_by_document=final_values,
+                company_name=str(employer or ""),
+                title=str(title or ""),
+            )
+            package_base = (
                 "JAP_Bewerbung_"
                 + _safe_pdf_filename_part(employer, fallback="Bewerbung")
-                + ".pdf"
             )
+            package_filename = package_base + ".pdf"
+            editable_filename = package_base + "_editierbar.docx"
             self._send_json(
                 {
                     "schema": "job_application_pipeline.f6_template_export.v2",
@@ -501,6 +549,13 @@ class ProductV1DemoHandler(ProductV1Handler):
                             item.get("visual_identity") is True
                             for item in combined.page_identity
                         ),
+                        "editable_docx": {
+                            "download_filename": editable_filename,
+                            "docx_base64": base64.b64encode(editable_docx).decode("ascii"),
+                            "authority": "editable_companion_only",
+                            "pixel_exact": False,
+                            "source_text_model": "same_final_f6_zone_values",
+                        },
                     },
                     "documents": response_documents,
                     "transport": "loopback_json_base64",
@@ -652,10 +707,13 @@ class ProductV1DemoHandler(ProductV1Handler):
             super().do_POST()
             return
         try:
-            silver_job_id = parse_application_draft_action_payload(
+            silver_job_id, generation_mode = parse_application_draft_action_payload(
                 self._read_demo_action_payload()
             )
-            payload = generate_application_draft_payload(silver_job_id)
+            payload = generate_application_draft_payload(
+                silver_job_id,
+                generation_mode=generation_mode,
+            )
             status = (
                 HTTPStatus.OK
                 if payload.get("status") in {"draft_for_review", "draft_unavailable"}

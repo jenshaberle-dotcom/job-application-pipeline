@@ -79,7 +79,8 @@ def test_application_workspace_is_f6_template_authoritative_and_has_no_legacy_do
     source = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
     assert "F6 template authority" in source
-    assert "Legacy generic DOCX/A4 export has been removed" in source
+    assert "PDF remains exact template authority" in source
+    assert "current CV, current application letter and exact vacancy together" in source
     assert "template_bound_renderer_pending" not in source
     assert "downloadDraftFile" not in source
     assert 'key === "cv_docx"' not in source
@@ -107,6 +108,8 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
     assert "The generated review text has already been mapped" in editor
     assert "Open final PDF" in editor
     assert "Download final PDF" in editor
+    assert "Download editable Word" in editor
+    assert "PDF is the verified layout authority" in editor
     assert "visual identity verified" in editor
     assert "Advanced: manual override (normally not required)" in editor
     assert "exact-template preflighted" in editor
@@ -222,7 +225,7 @@ def test_application_workspace_separates_live_vacancy_from_employer_origin_autho
 def test_chatgpt_connection_can_start_before_other_context_blockers_clear() -> None:
     workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
-    assert "{!codexReady && <div className=\"demo-blockers\">" in workspace
+    assert "{codexRequired && !codexReady && <div className=\"demo-blockers\">" in workspace
     assert "generationReady && !codexReady" not in workspace
     assert "Connect ChatGPT" in workspace
 
@@ -289,3 +292,24 @@ def test_active_application_workspace_has_product_identity_not_demo001_branding(
     assert 'import ApplicationWorkspace from "./ApplicationWorkspace";' in main
     assert "<ApplicationWorkspace />" in main
     assert "DemoApplicationWorkspace" not in main
+
+
+
+def test_application_workspace_has_explicit_llm_privacy_choice() -> None:
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert 'type GenerationMode = "codex_quality" | "local_private"' in workspace
+    assert "Quality AI — share current CV + current letter + vacancy" in workspace
+    assert "Local only — send no CV, letter or vacancy text to an LLM" in workspace
+    assert 'generation_mode: generationMode' in workspace
+    assert "Prepare locally without LLM" in workspace
+    assert 'manualEditingRequired={draft.draft_mode === "local_private_edit"}' in workspace
+
+
+def test_no_upload_path_offers_provider_free_fillable_word_starter() -> None:
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert "/api/v1/product-v1/application-starter-template" in operator
+    assert "Download fillable Word starter" in operator
+    assert "sends nothing to an LLM" in operator
+    assert "fallback document, not pixel-authoritative F6 source material" in operator

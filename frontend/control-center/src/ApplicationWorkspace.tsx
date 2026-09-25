@@ -117,7 +117,10 @@ type DraftFragment = {
   job_evidence?: Array<{ evidence?: string }>;
 };
 
+type GenerationMode = "codex_quality" | "local_private";
+
 type DraftMode =
+  | "local_private_edit"
   | "provider_validated"
   | "provider_validated_quality_v2"
   | "provider_validated_quality_v3"
@@ -132,6 +135,7 @@ type CodexStatusPayload = {
   executable?: string | null;
   version?: string | null;
   model?: string;
+  reasoning_effort?: string;
   billing_authority?: string;
   api_key_fallback?: boolean;
   automatic_credit_purchase?: boolean;
@@ -157,6 +161,9 @@ type DraftPayload = {
   fallback_reason?: string | null;
   base_document_text_shared_with_provider?: boolean;
   base_cv_text_shared_with_codex?: boolean;
+  base_application_letter_text_shared_with_codex?: boolean;
+  vacancy_text_shared_with_codex?: boolean;
+  codex_reasoning_effort?: string;
   codex_model?: string;
   codex_version?: string | null;
   codex_requests?: number;
@@ -222,6 +229,7 @@ function fragmentGroup(kind: string | undefined) {
 
 function draftModeLabel(mode: DraftMode | undefined) {
   if (mode === "codex_embedded_v1") return "CODEX-ADAPTED";
+  if (mode === "local_private_edit") return "LOCAL-ONLY · NO LLM";
   if (mode === "provider_validated_quality_v3") return "BASE-DOCUMENT ADAPTED";
   if (mode === "provider_validated_quality_v2" || mode === "provider_validated") return "PROVIDER-VALIDATED";
   if (mode === "deterministic_evidence_first") return "EVIDENCE-FIRST · PROVIDER-FREE";
@@ -300,6 +308,7 @@ export default function ApplicationWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
   const [jobQuery, setJobQuery] = useState("");
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("codex_quality");
 
   useEffect(() => {
     const openRequestedTarget = (event: Event) => {
@@ -464,8 +473,11 @@ export default function ApplicationWorkspace() {
   const draftPreview = draft?.package?.preview;
   const zoneReplacements = draft?.package?.zone_replacements || {};
   const templateAuthority = workspace?.template_authority;
-  const generationReady = workspace?.status === "ready" && workspace.workspace?.generation_ready === true && claimPlan.length > 0;
+  const generationReady = workspace?.status === "ready"
+    && workspace.workspace?.generation_ready === true
+    && (generationMode === "local_private" || claimPlan.length > 0);
   const codexReady = codexStatus?.status === "ready" && codexStatus.chatgpt_authenticated === true;
+  const codexRequired = generationMode === "codex_quality";
   const vacancyReady = Boolean(workspace?.live_job_evidence?.fetched_title || workspace?.live_job_evidence?.final_url);
   const originAuthorized = workspace?.workspace?.target?.employer_origin_authorized === true;
   const candidateFactsReady = claimPlan.length > 0;
@@ -494,7 +506,11 @@ export default function ApplicationWorkspace() {
     try {
       const payload = await readJson<DraftPayload>("/api/v1/product-v1/application-draft", {
         method: "POST",
-        body: JSON.stringify({ action: "generate_review_draft", silver_job_id: selectedId }),
+        body: JSON.stringify({
+          action: "generate_review_draft",
+          silver_job_id: selectedId,
+          generation_mode: generationMode,
+        }),
       });
       setDraft(payload);
     } catch (reason) {
@@ -609,16 +625,33 @@ export default function ApplicationWorkspace() {
                 <div className={readinessTone(originAuthorized)}><i /><span>Employer-Origin authority</span><b>{originAuthorized ? "Verified" : "Authority required"}</b></div>
                 <div className={readinessTone(candidateFactsReady)}><i /><span>Candidate facts</span><b>{candidateFactsReady ? `${claimPlan.length} matched claims` : "Matches required"}</b></div>
                 <div className={readinessTone(documentsReady)}><i /><span>F6 templates</span><b>{documentsReady ? "2/2 exact authority" : `${documents.length}/2 exact`}</b></div>
-                <div className={readinessTone(codexReady)}><i /><span>Embedded Codex</span><b>{codexReady
-                  ? `ChatGPT connected · ${codexStatus?.version || "version verified"}`
-                  : codexStatus?.installed
-                    ? "ChatGPT sign-in required"
-                    : "Bundled runtime unavailable"}</b></div>
+                <div className={readinessTone(!codexRequired || codexReady)}><i /><span>Drafting mode</span><b>{!codexRequired
+                  ? "Local only · no LLM transfer"
+                  : codexReady
+                    ? `ChatGPT Codex connected · ${codexStatus?.version || "version verified"}`
+                    : codexStatus?.installed
+                      ? "ChatGPT sign-in required"
+                      : "Bundled Codex unavailable"}</b></div>
                 <div className="ready"><i /><span>Submission boundary</span><b>Review only · no auto-submit</b></div>
               </div>
 
+              <div className="demo-blockers">
+                <b>How should JAP prepare this application?</b>
+                <label><input
+                  type="radio"
+                  name="generation-mode"
+                  checked={generationMode === "codex_quality"}
+                  onChange={() => { setGenerationMode("codex_quality"); setDraft(null); }}
+                /> Quality AI — share current CV + current letter + vacancy with ChatGPT Codex</label>
+                <label><input
+                  type="radio"
+                  name="generation-mode"
+                  checked={generationMode === "local_private"}
+                  onChange={() => { setGenerationMode("local_private"); setDraft(null); }}
+                /> Local only — send no CV, letter or vacancy text to an LLM; preserve wording and edit locally</label>
+              </div>
               {workspaceBlockers.length > 0 && <div className="demo-blockers"><b>What still blocks this application?</b>{workspaceBlockers.map((item) => <span key={item}>{normalized(item)}</span>)}</div>}
-              {!codexReady && <div className="demo-blockers">
+              {codexRequired && !codexReady && <div className="demo-blockers">
                 <b>What still blocks automatic CV + letter adaptation?</b>
                 <span>{codexStatus?.installed
                   ? `Bundled Codex ${codexStatus.version || ""} is present, but this WSL runtime is not signed in with ChatGPT.`
@@ -645,14 +678,18 @@ export default function ApplicationWorkspace() {
                 {claimPlan.length > 0 && <div className="demo-claim-plan">{claimPlan.slice(0, 5).map((entry) => <div key={entry.fact_key}><b>{entry.statement || entry.fact_key}</b><small>{entry.job_references?.map((reference) => reference.evidence).filter(Boolean).join(" · ") || "No exact vacancy match"}</small></div>)}</div>}
               </details>
 
-              <button type="button" className="demo-generate-button" disabled={!generationReady || !codexReady || drafting} onClick={() => void generateDraft()}>
+              <button type="button" className="demo-generate-button" disabled={!generationReady || (codexRequired && !codexReady) || drafting} onClick={() => void generateDraft()}>
                 {drafting
                   ? "Preparing review text…"
-                  : !codexReady
+                  : codexRequired && !codexReady
                     ? "ChatGPT Codex connection required"
-                    : draft?.status === "draft_for_review"
-                      ? "Regenerate review text"
-                      : "Generate review text"}
+                    : generationMode === "local_private"
+                      ? draft?.status === "draft_for_review"
+                        ? "Reset local review draft"
+                        : "Prepare locally without LLM"
+                      : draft?.status === "draft_for_review"
+                        ? "Regenerate review text"
+                        : "Generate review text"}
               </button>
             </article>
 
@@ -680,14 +717,15 @@ export default function ApplicationWorkspace() {
 
               {draft?.status === "draft_for_review" && draft.package ? <>
                 <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
-                {draft.base_cv_text_shared_with_codex && <p className="demo-provider-context-note">Embedded Codex used the approved CV plus the exact vacancy for this adaptation. The previous application-letter text was deliberately not supplied, so stale employer/contact text cannot become drafting context. No submission or send action occurred.</p>}
+                {draft.base_cv_text_shared_with_codex && draft.base_application_letter_text_shared_with_codex && <p className="demo-provider-context-note">Quality-first Codex received the current CV, current application letter and exact vacancy together. CV/Candidate Facts remain factual authority; the previous letter is style/structure reference only and its old employer, recipient, role and date are explicitly stale. No submission or send action occurred.</p>}
+                {draft.draft_mode === "local_private_edit" && <p className="demo-provider-context-note">Local-only mode made zero LLM/provider requests. Existing descriptive wording stays local and unchanged until you edit it; JAP only prepares target/date metadata automatically, then the same exact PDF renderer verifies the result.</p>}
                 {draft.base_document_text_shared_with_provider && <p className="demo-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
                 {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain bound to approved Candidate Facts and exact vacancy evidence.</p>}
 
                 <section className="demo-application-downloads">
                   <header><strong>F6 template authority</strong><span>{templateAuthority?.status === "ready" ? "2/2 exact private PDFs verified" : "exact templates required"}</span></header>
-                  <p className="demo-boundary-note">Legacy generic DOCX/A4 export has been removed. F6-C renders only into declared text zones of the two hash-bound PDFs and verifies every pixel outside those zones.</p>
+                  <p className="demo-boundary-note">PDF remains exact template authority: JAP replaces text inside declared zones and verifies every pixel outside them. Portrait, signature image, rules and geometry remain frozen; date/recipient/subject are replaced in-place rather than overlaid.</p>
                 </section>
 
                 <section className="demo-document">
@@ -708,12 +746,13 @@ export default function ApplicationWorkspace() {
                   silverJobId={selectedId}
                   sourceManifestSha256={draft.package.source_manifest_sha256}
                   zoneReplacements={zoneReplacements}
+                  manualEditingRequired={draft.draft_mode === "local_private_edit"}
                 />}
 
                 <details className="demo-evidence-details demo-audit-details">
                   <summary>Audit details</summary>
                   {draft.draft_mode === "codex_embedded_v1"
-                    ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · {draft.codex_version || "version unavailable"} · CV + letter adaptation only</small></div></div>
+                    ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · reasoning {draft.codex_reasoning_effort || codexStatus?.reasoning_effort || "configured"} · {draft.codex_version || "version unavailable"} · current CV + current letter + vacancy</small></div></div>
                     : <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>}
                   <footer><span>Codex/provider requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>Layout repairs: {draft.layout_repair_attempts ?? 0} Codex · {draft.automatic_layout_repairs?.length ?? 0} safe local</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
