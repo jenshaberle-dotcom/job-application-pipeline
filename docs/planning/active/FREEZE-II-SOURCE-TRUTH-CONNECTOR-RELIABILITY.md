@@ -1,6 +1,6 @@
 # Freeze II — Source Truth & Connector Reliability
 
-Status: ACTIVE — S0 baseline implementation / qualification
+Status: ACTIVE — S0 COMPLETE; S1/S2 residual classification active
 Canonical issue: #1038
 Previous campaign: F0-F6 COMPLETE / OPERATOR ACCEPTED FOR CURRENT COHORT
 
@@ -40,7 +40,7 @@ The campaign does not begin by adding ranking, Fit, UI or application features. 
 9. ML/LLM may later propose Shadow evidence only; neither creates source truth.
 10. Fit/Combined/ranking authority does not expand until upstream gates pass.
 
-## S0 — Current truth baseline + layer-loss map — ACTIVE
+## S0 — Current truth baseline + layer-loss map — COMPLETE
 
 Read-only current-state measurement.
 
@@ -67,6 +67,23 @@ S0 composes existing qualified audit paths instead of creating a competing truth
 The wrapper is `scripts/run_freeze2_s0_source_truth_baseline.py`.
 
 Important: builder `recipe_ready` remains diagnostic and is explicitly not Product coverage.
+
+Exact-main S0 evidence (2026-09-25):
+
+- source SHA: `fe7758d2fb7dbed4586fdc55af69969ad37f7547`;
+- workflow run: `36187566852` — SUCCESS;
+- source overview: 89 sources, 31 Employer-Origin, 21 active Employer-Origin, 22 validated, 33 registered, 39 ingested;
+- active Employer-Origin family concentration: 21/21 current active Employer-Origin sources are projected through `generic_origin`;
+- current deterministic connector-candidate population: 67;
+- V6 diagnostic recipe-ready: 23/67 — diagnostic only, not Product coverage;
+- first failures: Origin 16, Origin reachability 1, Inventory 6, Detail 13, Proof 8;
+- Product review source families: generic_origin 41, finanz_informatik 14, personio 12, hdi 9, enercity 2;
+- current metadata audit: 75 reachable rows, 0 extractor-gap rows, 0 Silver->Product/CC projection-loss rows, 0 violating rows;
+- requirement/skill audit: 53 bounded requirement sections, 54 jobs with observed skills, 16 skill-recall-risk rows;
+- field coverage pressure remains high even without layer-loss: employment type source-absent 72, languages source-absent 49, seniority source-absent 73, weekly hours source-absent 55, work model source-absent 28 plus 3 conflicts;
+- all S0 effect boundaries remained zero.
+
+Interpretation: downstream projection integrity is currently healthy; the next leverage lies in broader Origin/connector coverage plus stronger reusable extraction at the source/detail boundary. S0 therefore closes and S1/S2 move into residual classification before any activation.
 
 S0 boundary:
 
@@ -174,10 +191,10 @@ Target operator cohort:
 
 ## Current sequence
 
-`S0 baseline -> S1 breadth -> S2 matrix -> S3 extraction -> S4 integrity -> S5 semantics -> S6 acceptance`
+`S0 COMPLETE -> S1/S2 residual classification -> first reusable connector/source-family wave -> S3 extraction -> S4 integrity -> S5 semantics -> S6 acceptance`
 
-S1/S2 may overlap after S0. S3 may begin against high-lift reusable gaps exposed by S0/S2. S5 remains blocked until S0-S4 evidence is materially stronger.
+S1/S2 now overlap deliberately. Before source activation, classify the current Origin/Inventory/Detail/Proof residuals with the already-existing bounded diagnostics and compare them with the canonical generic Product proof. The first implementation cohort is selected by reusable population lift, evidence strength, source-family reuse and metadata benefit — never by named-employer convenience.
 
-## Immediate operator gate
+## Immediate next gate
 
-Qualify and merge the S0 harness, then run the read-only S0 workflow on exact current `main`. Use that report to choose the first connector/source-family cohort by expected reusable lift and metadata risk. Do not activate or mutate any source during S0.
+Qualify and merge `scripts/run_freeze2_s1_s2_residual_classification.py` plus its guarded exact-main workflow. Run it read-only on current main. The resulting Origin-plan classes, Inventory surface/bridge hypotheses, Detail surface classes and Product-proof residual set select the first mutating S1/S2 implementation wave. Until that report exists, source activation and connector materialization remain zero.
