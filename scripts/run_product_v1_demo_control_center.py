@@ -420,6 +420,20 @@ class ProductV1DemoHandler(ProductV1Handler):
                     status=HTTPStatus.BAD_REQUEST,
                 )
             return
+        if parsed.path == F6_TEMPLATE_EXPORT_PROGRESS_PATH:
+            try:
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                raw = query.get("request_id") or []
+                if len(raw) != 1:
+                    raise DemoActionStop("exactly one request_id query parameter is required")
+                request_id = _validated_draft_request_id(raw[0])
+                self._send_json(_get_f6_export_progress(request_id))
+            except DemoActionStop as exc:
+                self._send_json(
+                    {"status": "blocked", "reason": str(exc)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+            return
         if parsed.path == CODEX_STATUS_PATH:
             try:
                 self._send_json(inspect_codex_runtime_status().to_json())
@@ -592,13 +606,20 @@ class ProductV1DemoHandler(ProductV1Handler):
     def _post_f6_template_export(self) -> None:
         """Render exact-template PDFs for explicit local operator review only."""
 
+        request_id: str | None = None
         try:
-            silver_job_id, expected_manifest_sha, documents = (
+            silver_job_id, expected_manifest_sha, documents, request_id = (
                 parse_f6_template_export_payload(
                     self._read_demo_action_payload(
                         max_bytes=_MAX_F6_EXPORT_BODY_BYTES
                     )
                 )
+            )
+            _set_f6_export_progress(
+                request_id,
+                phase="bind_workspace",
+                percent=8,
+                message="Stelle, Entwurf und freigegebene Vorlagen werden gebunden.",
             )
             workspace = application_workspace_payload(silver_job_id)
             if workspace.get("status") != "ready":
@@ -615,9 +636,21 @@ class ProductV1DemoHandler(ProductV1Handler):
                     "draft source manifest is stale; regenerate review text before export"
                 )
 
+            _set_f6_export_progress(
+                request_id,
+                phase="render_templates",
+                percent=28,
+                message="Anschreiben und Lebenslauf werden in die Originalvorlagen eingesetzt und pixelgenau geprüft.",
+            )
             rendered = render_review_package(
                 root=configure_demo_private_document_root(),
                 replacements_by_document=documents,
+                progress_callback=lambda phase, percent, message: _set_f6_export_progress(
+                    request_id,
+                    phase=phase,
+                    percent=percent,
+                    message=message,
+                ),
             )
             response_documents = []
             for document in rendered:
@@ -632,6 +665,12 @@ class ProductV1DemoHandler(ProductV1Handler):
                     }
                 )
 
+            _set_f6_export_progress(
+                request_id,
+                phase="combine_pdf",
+                percent=72,
+                message="Die verifizierten Seiten werden zu einer Bewerbung zusammengeführt.",
+            )
             combined = combine_review_package(rendered)
             target = (
                 workspace_payload.get("target")
@@ -648,6 +687,12 @@ class ProductV1DemoHandler(ProductV1Handler):
                 if isinstance(target, Mapping)
                 else None
             )
+            _set_f6_export_progress(
+                request_id,
+                phase="build_word",
+                percent=84,
+                message="Die editierbare Word-Begleitdatei wird aus denselben finalen Texten erstellt.",
+            )
             final_values = final_review_zone_values(
                 root=configure_demo_private_document_root(),
                 replacements_by_document=documents,
@@ -663,6 +708,13 @@ class ProductV1DemoHandler(ProductV1Handler):
             )
             package_filename = package_base + ".pdf"
             editable_filename = package_base + "_editierbar.docx"
+            _set_f6_export_progress(
+                request_id,
+                status="completed",
+                phase="complete",
+                percent=100,
+                message="PDF und Word-Datei sind fertig und verifiziert.",
+            )
             self._send_json(
                 {
                     "schema": "job_application_pipeline.f6_template_export.v2",
@@ -705,6 +757,14 @@ class ProductV1DemoHandler(ProductV1Handler):
                 }
             )
         except (DemoActionStop, F6TemplateReviewStop) as exc:
+            if request_id:
+                _set_f6_export_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(exc),
+                )
             self._send_json(
                 {
                     "status": "blocked",
@@ -719,6 +779,14 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.CONFLICT,
             )
         except Exception as exc:  # pragma: no cover - runtime diagnostics
+            if request_id:
+                _set_f6_export_progress(
+                    request_id,
+                    status="failed",
+                    phase="error",
+                    percent=100,
+                    message=f"{type(exc).__name__}: {exc}",
+                )
             self._send_runtime_error(exc)
 
     def _post_submission_record(self) -> None:
