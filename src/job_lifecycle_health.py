@@ -428,16 +428,96 @@ def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", collapsed).strip()
 
 
-def title_is_confirmed(expected_title: str, response_text: str) -> bool:
+def _title_identity_tokens(value: str) -> tuple[str, ...]:
+    return tuple(
+        token
+        for token in normalize_text(value).split()
+        if token not in TITLE_NOISE_TOKENS
+    )
+
+
+def _contains_token_sequence(
+    haystack: tuple[str, ...],
+    needle: tuple[str, ...],
+) -> bool:
+    if not needle or len(needle) > len(haystack):
+        return False
+    width = len(needle)
+    return any(
+        haystack[index : index + width] == needle
+        for index in range(len(haystack) - width + 1)
+    )
+
+
+def _strip_markup(value: str) -> str:
+    return unescape(re.sub(r"<[^>]+>", " ", value)).strip()
+
+
+def _title_surfaces(response_text: str) -> tuple[str, ...]:
+    scope = response_text[:MAX_CLASSIFICATION_BODY_CHARS]
+    surfaces: list[str] = []
+    for pattern in (
+        r"<title[^>]*>(.*?)</title>",
+        r"<h1[^>]*>(.*?)</h1>",
+        r'["\']title["\']\s*:\s*["\']([^"\']+)["\']',
+    ):
+        for match in re.findall(pattern, scope, flags=re.IGNORECASE | re.DOTALL):
+            candidate = _strip_markup(str(match))
+            if candidate:
+                surfaces.append(candidate)
+    return tuple(dict.fromkeys(surfaces))
+
+
+def _title_confirmation(
+    expected_title: str,
+    response_text: str,
+    *,
+    source_url: str | None = None,
+) -> tuple[bool, str | None]:
     normalized_title = normalize_text(expected_title)
-    normalized_response = normalize_text(
-        response_text[:MAX_CLASSIFICATION_BODY_CHARS]
+    if not normalized_title or len(normalized_title) < 6:
+        return False, None
+
+    scope = response_text[:MAX_CLASSIFICATION_BODY_CHARS]
+    looks_like_markup = bool(
+        re.search(r"<\s*(?:html|body|title|h1|meta)\b", scope, re.IGNORECASE)
     )
-    return bool(
-        normalized_title
-        and len(normalized_title) >= 6
-        and normalized_title in normalized_response
+    if not looks_like_markup:
+        normalized_response = normalize_text(scope)
+        if normalized_title in normalized_response:
+            return True, "plain_text_exact"
+
+    expected_tokens = _title_identity_tokens(expected_title)
+    if len(expected_tokens) < 2:
+        return False, None
+
+    for surface in _title_surfaces(scope):
+        if _contains_token_sequence(
+            _title_identity_tokens(surface),
+            expected_tokens,
+        ):
+            return True, "structured_title_surface"
+
+    if source_url and len(expected_tokens) >= 3:
+        path_tokens = _title_identity_tokens(unquote(urlsplit(source_url).path))
+        if _contains_token_sequence(path_tokens, expected_tokens):
+            return True, "exact_url_slug"
+
+    return False, None
+
+
+def title_is_confirmed(
+    expected_title: str,
+    response_text: str,
+    *,
+    source_url: str | None = None,
+) -> bool:
+    confirmed, _ = _title_confirmation(
+        expected_title,
+        response_text,
+        source_url=source_url,
     )
+    return confirmed
 
 
 def ensure_expected_target_identity(
