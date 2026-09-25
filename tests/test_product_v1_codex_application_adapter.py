@@ -141,6 +141,11 @@ def test_prompt_includes_current_cv_letter_and_vacancy_with_split_authority() ->
     assert '"authority": "style_structure_quality_reference_only"' in prompt
     assert '"stale_fields":' in prompt
     assert '"current_cv_and_letter_and_vacancy_are_shared_with_codex": true' in prompt
+    assert '"signature_image"' in prompt
+    assert '"all_pixels_outside_declared_text_zones"' in prompt
+    assert '"no_scaling_or_overlay_authority": true' in prompt
+    assert '"base_application_letter:recipient.block"' in prompt
+    assert '"base_application_letter:body.paragraph_1..6"' in prompt
     assert '"cv_competency_profile_max_chars": 180' in prompt
     assert '"letter_paragraph_min_count": 4' in prompt
     assert '"letter_paragraph_max_count": 6' in prompt
