@@ -159,11 +159,14 @@ def _load_operator_product_payload() -> dict[str, object]:
     return projected
 
 
-def parse_application_draft_action_payload(payload: object) -> int:
+def parse_application_draft_action_payload(
+    payload: object,
+) -> tuple[int, str]:
     if not isinstance(payload, Mapping):
         raise DemoActionStop("action payload must be a JSON object")
-    if set(payload) != {"action", "silver_job_id"}:
-        raise DemoActionStop("action payload contains unexpected fields")
+    allowed = {"action", "silver_job_id", "generation_mode"}
+    if not set(payload).issubset(allowed) or not {"action", "silver_job_id"}.issubset(payload):
+        raise DemoActionStop("action payload contains unexpected or missing fields")
     if payload.get("action") != "generate_review_draft":
         raise DemoActionStop("action must be generate_review_draft")
     try:
@@ -172,7 +175,10 @@ def parse_application_draft_action_payload(payload: object) -> int:
         raise DemoActionStop("silver_job_id must be an integer") from exc
     if silver_job_id <= 0:
         raise DemoActionStop("silver_job_id must be positive")
-    return silver_job_id
+    generation_mode = str(payload.get("generation_mode") or "codex_quality").strip()
+    if generation_mode not in {"codex_quality", "local_private"}:
+        raise DemoActionStop("generation_mode must be codex_quality or local_private")
+    return silver_job_id, generation_mode
 
 
 
@@ -701,10 +707,13 @@ class ProductV1DemoHandler(ProductV1Handler):
             super().do_POST()
             return
         try:
-            silver_job_id = parse_application_draft_action_payload(
+            silver_job_id, generation_mode = parse_application_draft_action_payload(
                 self._read_demo_action_payload()
             )
-            payload = generate_application_draft_payload(silver_job_id)
+            payload = generate_application_draft_payload(
+                silver_job_id,
+                generation_mode=generation_mode,
+            )
             status = (
                 HTTPStatus.OK
                 if payload.get("status") in {"draft_for_review", "draft_unavailable"}
