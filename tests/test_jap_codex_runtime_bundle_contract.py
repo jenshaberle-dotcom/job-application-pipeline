@@ -100,6 +100,27 @@ def test_control_center_exposes_codex_runtime_and_chatgpt_auth_truth() -> None:
     assert "ChatGPT allowance / eligible credits" in about
 
 
+def test_product_exposes_one_time_chatgpt_device_login_without_token_transport() -> None:
+    server = _text(SERVER)
+    login = _text(
+        ROOT / "src" / "search_intelligence" / "product_v1_codex_chatgpt_login.py"
+    )
+    workspace = _text(
+        ROOT / "frontend" / "control-center" / "src" / "ApplicationWorkspace.tsx"
+    )
+
+    assert 'CODEX_LOGIN_PATH = "/api/v1/product-v1/codex-login"' in server
+    assert "start_codex_chatgpt_login()" in server
+    assert "codex_chatgpt_login_status()" in server
+    assert '[runtime.executable, "login", "--device-auth"]' in login
+    assert "verification_url" in login
+    assert "user_code" in login
+    assert "auth.json" not in server
+    assert '"/api/v1/product-v1/codex-login"' in workspace
+    assert "Connect ChatGPT" in workspace
+    assert "ChatGPT device sign-in" in workspace
+
+
 def test_codex_availability_is_a_product_state_not_http_transport_failure() -> None:
     server = _text(SERVER)
 
