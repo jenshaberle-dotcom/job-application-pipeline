@@ -738,6 +738,9 @@ def generate_application_draft_payload(
         "layout_repair_attempts": max(0, codex_requests - 1),
         "layout_overflows": [],
         "automatic_layout_repairs": automatic_layout_repairs,
+        "automatic_semantic_repairs": list(
+            package.get("automatic_semantic_repairs") or []
+        ),
         "base_cv_text_shared_with_codex": True,
         "base_application_letter_text_shared_with_codex": True,
         "vacancy_text_shared_with_codex": True,

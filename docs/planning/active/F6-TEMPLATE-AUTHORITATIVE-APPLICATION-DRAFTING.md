@@ -736,6 +736,38 @@ This is not a Codex or template problem. The F6 runtime was incorrectly reusing 
 
 The operator gate for 1.1.14 is deliberately **not Eraneos**. Select at least two different current direct Employer-Origin jobs from different source families. Both must reach Ready for drafting without source-specific code. At least one must complete Quality AI -> exact preflight -> 3-page PDF + editable Word. A known aggregator/discovery URL must remain blocked.
 
+### Candidate 1.1.15 — generic semantic validation and safe local repair
+
+Installed 1.1.14 closes the source-specific Employer-Origin blocker: multiple non-Eraneos direct jobs now reach Ready for drafting.
+
+The next cross-job failures prove a separate semantic-validator issue, not Codex capacity:
+
+- Finanz Informatik returns a Codex draft but F6 rejects it as `not specific to the selected target`;
+- Heartbeat AI returns a Codex draft but F6 rejects the salutation as `non-grounded personal salutation`;
+- `/codex-status` remains `ready`, ChatGPT-authenticated, `gpt-5.6-sol / high`.
+
+The specificity predicate was too literal. It required the full persisted company name (for example `Finanz Informatik GmbH & Co. KG`) or the full persisted role title including presentation markers such as `(m/w/d)` to occur verbatim in the body. High-quality human prose naturally uses the employer brand and role without legal/gender suffixes.
+
+1.1.15 therefore makes validation source-neutral and presentation-neutral:
+
+- normalize company identity by removing legal entity suffixes such as GmbH, Co., KG, AG, SE, Ltd/LLC/Inc;
+- normalize role identity by removing gender markers and evaluating meaningful title segments;
+- require at least one grounded employer-brand or role identity in the letter, so truly generic prose still fails closed;
+- explicitly instruct Codex to name the employer brand or target role naturally at least once.
+
+Salutation handling becomes a safe deterministic boundary rather than a provider retry:
+
+- a vacancy-grounded named contact remains authoritative;
+- a grounded employer/team salutation such as `Liebes Heartbeat AI Team,` is allowed;
+- an invented contact is removed from the recipient path and replaced with a generic grounded salutation;
+- an ungrounded personal salutation with no verified contact is replaced locally with `Guten Tag,` or `Dear Hiring Team,`;
+- no new candidate fact, employer fact or submission authority is invented;
+- the audit reports the number of safe local semantic repairs.
+
+#### 1.1.15 operator acceptance
+
+Use at least two non-Eraneos jobs. A successful first Codex response must not be rejected merely because legal suffixes/gender markers are absent from normal prose or because a safe local salutation normalization is possible. Truly generic body text and genuinely invented factual content must remain fail-closed. At least one non-Eraneos job must complete Quality AI -> exact preflight -> PDF + Word export.
+
 ## Explicit non-goals
 
 - no alternate template chooser;

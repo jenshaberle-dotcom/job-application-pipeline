@@ -121,6 +121,8 @@ QUALITY BAR
   genuinely vacancy-specific new letter.
 - Build a clear argument: why this role -> relevant proven experience -> current relevant practice
   -> value for this employer -> concise motivation/close.
+- Make target identity explicit in the letter: naturally name the target employer brand or the
+  target role at least once. Legal suffixes and gender markers are not required in prose.
 - Prefer concrete evidence over generic self-description. Do not copy requirement lists or stuff
   keywords.
 - Do not frame the candidate primarily as a learner when the same evidence supports an experienced
@@ -575,12 +577,164 @@ def _normalized_blocks(value: object) -> str:
     return "\n\n".join(blocks)
 
 
+_LEGAL_ENTITY_TOKENS = frozenset(
+    {
+        "gmbh",
+        "mbh",
+        "co",
+        "kg",
+        "ag",
+        "se",
+        "ltd",
+        "limited",
+        "llc",
+        "inc",
+        "incorporated",
+        "corp",
+        "corporation",
+    }
+)
+_ROLE_NOISE_TOKENS = frozenset(
+    {
+        "m",
+        "w",
+        "d",
+        "f",
+        "x",
+        "gn",
+        "all",
+        "genders",
+    }
+)
+
+
+def _identity_words(value: object) -> tuple[str, ...]:
+    normalized = re.sub(
+        r"[^\w+#]+",
+        " ",
+        str(value or "").casefold(),
+        flags=re.UNICODE,
+    )
+    return tuple(word for word in normalized.split() if word)
+
+
+def _company_identity_phrase(company_name: object) -> str:
+    words = tuple(
+        word
+        for word in _identity_words(company_name)
+        if word not in _LEGAL_ENTITY_TOKENS
+    )
+    return " ".join(words)
+
+
+def _role_identity_phrases(title: object) -> tuple[str, ...]:
+    raw = str(title or "")
+    phrases: list[str] = []
+    for part in re.split(r"\s+[–—-]\s+", raw):
+        words = [
+            word
+            for word in _identity_words(part)
+            if word not in _ROLE_NOISE_TOKENS
+        ]
+        while words and words[0] in {"senior", "junior", "lead", "principal"}:
+            with_level = " ".join(words)
+            if len(with_level) >= 5:
+                phrases.append(with_level)
+            words = words[1:]
+        phrase = " ".join(words)
+        if len(phrase) >= 5:
+            phrases.append(phrase)
+
+    full = " ".join(
+        word
+        for word in _identity_words(raw)
+        if word not in _ROLE_NOISE_TOKENS
+    )
+    if len(full) >= 5:
+        phrases.append(full)
+
+    # Preserve order while removing duplicates.
+    return tuple(dict.fromkeys(phrases))
+
+
+def _letter_is_target_specific(
+    *,
+    paragraphs: tuple[str, ...],
+    company_name: str,
+    title: str,
+) -> bool:
+    letter = " ".join(_identity_words(" ".join(paragraphs)))
+    company = _company_identity_phrase(company_name)
+    if company and company in letter:
+        return True
+    return any(phrase in letter for phrase in _role_identity_phrases(title))
+
+
+def _generic_salutation(language: str) -> str:
+    return "Guten Tag," if language == "de" else "Dear Hiring Team,"
+
+
+def _organizational_salutation_is_grounded(
+    *,
+    salutation: str,
+    company_name: str,
+) -> bool:
+    salutation_text = " ".join(_identity_words(salutation))
+    company = _company_identity_phrase(company_name)
+    return bool(company and company in salutation_text)
+
+
+def _repair_salutation_grounding(
+    decoded: Mapping[str, object],
+    *,
+    context: ProductV1ApplicationContext,
+) -> tuple[dict[str, object], tuple[str, ...]]:
+    repaired = dict(decoded)
+    language = _normalized(repaired.get("language"))
+    if language not in {"de", "en"}:
+        return repaired, ()
+
+    contact_name = _normalized(repaired.get("contact_name"))
+    salutation = _normalized(repaired.get("salutation"))
+    detail_folded = context.target.detail_text.casefold()
+    repairs: list[str] = []
+
+    if contact_name and contact_name.casefold() not in detail_folded:
+        repaired["contact_name"] = ""
+        repaired["salutation"] = _generic_salutation(language)
+        repairs.append("invented_contact_removed_and_generic_salutation_used")
+        return repaired, tuple(repairs)
+
+    if contact_name:
+        return repaired, ()
+
+    allowed_generic = {
+        "de": ("sehr geehrte damen und herren", "guten tag"),
+        "en": ("dear hiring team", "dear recruitment team", "dear sir or madam"),
+    }[language]
+    if any(salutation.casefold().startswith(item) for item in allowed_generic):
+        return repaired, ()
+    if _organizational_salutation_is_grounded(
+        salutation=salutation,
+        company_name=context.target.company_name,
+    ):
+        return repaired, ()
+
+    repaired["salutation"] = _generic_salutation(language)
+    repairs.append("ungrounded_salutation_replaced_with_generic")
+    return repaired, tuple(repairs)
+
+
 def _validate_output(
     decoded: Mapping[str, object],
     *,
     context: ProductV1ApplicationContext,
     as_of_date: date,
 ) -> dict[str, object]:
+    decoded, automatic_semantic_repairs = _repair_salutation_grounding(
+        decoded,
+        context=context,
+    )
     expected = {
         "status",
         "language",
@@ -627,21 +781,18 @@ def _validate_output(
 
     detail_folded = context.target.detail_text.casefold()
     if contact_name and contact_name.casefold() not in detail_folded:
-        raise CodexApplicationDraftStop("Codex invented a contact person not present in vacancy evidence")
-    if not contact_name:
-        allowed_generic = {
-            "de": ("sehr geehrte damen und herren", "guten tag"),
-            "en": ("dear hiring team", "dear recruitment team", "dear sir or madam"),
-        }[language]
-        if not any(salutation.casefold().startswith(item) for item in allowed_generic):
-            raise CodexApplicationDraftStop("Codex used a non-grounded personal salutation")
+        raise CodexApplicationDraftStop(
+            "Codex contact grounding repair did not converge"
+        )
 
-    combined_letter = " ".join(paragraphs).casefold()
-    if (
-        context.target.company_name.casefold() not in combined_letter
-        and context.target.title.casefold() not in combined_letter
+    if not _letter_is_target_specific(
+        paragraphs=paragraphs,
+        company_name=context.target.company_name,
+        title=context.target.title,
     ):
-        raise CodexApplicationDraftStop("Codex letter is not specific to the selected target")
+        raise CodexApplicationDraftStop(
+            "Codex letter is not specific to the selected target"
+        )
     if len(cv_short) < 40 or len(cv_competency) < 20:
         raise CodexApplicationDraftStop("Codex CV adaptation is incomplete")
     if len(cv_short) > CV_SHORT_PROFILE_MAX_CHARS:
@@ -697,6 +848,7 @@ def _validate_output(
         "language": language,
         "rationale": rationale,
         "contact_name": contact_name,
+        "automatic_semantic_repairs": list(automatic_semantic_repairs),
         "preview": {
             "cv_short_profile": cv_short,
             "cv_competency_profile": cv_competency,
