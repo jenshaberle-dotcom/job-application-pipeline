@@ -143,7 +143,8 @@ def _apply_deterministic_layout_repairs(
     if not isinstance(replacements, dict):
         return repaired, ()
     letter = replacements.get("base_application_letter")
-    if not isinstance(letter, dict):
+    cv = replacements.get("base_cv")
+    if not isinstance(letter, dict) or not isinstance(cv, dict):
         return repaired, ()
 
     language = str(repaired.get("language") or "de").strip().casefold()
@@ -157,7 +158,20 @@ def _apply_deterministic_layout_repairs(
     repairs: list[str] = []
 
     for qualified_zone in layout_overflows:
-        if qualified_zone == "base_application_letter:salutation":
+        if qualified_zone == "base_cv:p2.footer.date":
+            raw = str(cv.get("p2.footer.date") or "")
+            match = re.fullmatch(
+                r"([^,]+),\s*(\d{1,2})\.\s+\S+\s+(\d{4})",
+                raw,
+            )
+            if match:
+                replacement = (
+                    f"{match.group(1)}, {int(match.group(2)):02d}."
+                    f"{context.as_of_date.month:02d}.{match.group(3)}"
+                )
+                cv["p2.footer.date"] = replacement
+                repairs.append(f"{qualified_zone}=compact_date")
+        elif qualified_zone == "base_application_letter:salutation":
             replacement = "Guten Tag," if language == "de" else "Hello,"
             if str(letter.get("salutation") or "") != replacement:
                 letter["salutation"] = replacement
