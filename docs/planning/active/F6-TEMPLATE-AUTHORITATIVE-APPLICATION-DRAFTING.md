@@ -538,6 +538,29 @@ The Advanced zone editor is retained only as an exceptional human override after
 The next operator gate remains Eraneos #511: one regeneration action must produce a draft marked `exact_template_preflight_pass`, after which the finished PDF must render directly as 3 pages with no scaling, exact frozen-template geometry, outside-zone pixel identity, human review required, and zero automatic submission/send authority.
 
 
+### Candidate 1.1.10 — split deterministic metadata repair from semantic Codex repair
+
+The installed 1.1.9 operator test still fails closed on Eraneos #511 with `f6_template_fit_unresolved` after the three bounded automatic repair attempts. The UI did not expose the final overflow-zone list, which is itself an observability gap.
+
+Inspection of the 1.1.9 loop shows the deeper problem: all exact-template overflows are sent back to Codex, but several letter zones are not Codex-owned at all. JAP itself deterministically constructs `recipient.block`, `date`, `subject` and `closing.formula`; Codex cannot make those fields shorter no matter how many retries are spent. Salutation is model-produced but also has a safe local fallback when personalization is too wide for the frozen one-line zone.
+
+1.1.10 therefore separates layout repair authority:
+
+- JAP-owned metadata overflows are repaired locally with conservative semantics-preserving variants and immediately re-preflighted against the exact private PDF;
+- salutation overflow falls back to a neutral professional compact form rather than spending another provider request;
+- recipient overflow drops nonessential addressing syntax while keeping verified employer/contact text;
+- subject overflow falls back to the compact exact job title, stripping only trailing diversity markers such as `(all genders)` or `(m/w/d)`;
+- closing/date use shorter conventional formatting only if the exact zone requires it;
+- only `p1.short_profile`, `p1.competency_profile` and application-letter body paragraphs are Codex repair authority;
+- each semantic repair request receives the previous failing value plus a mandatory progressive character target at 65% of the prior length, bounded by the existing minimum-quality schema;
+- unresolved non-Codex zones fail as `f6_template_fit_policy_missing` rather than wasting model calls;
+- unresolved semantic zones still fail as `f6_template_fit_unresolved` after at most three total Codex attempts;
+- UI failure evidence now prints the exact remaining `layout_overflows` and any automatic safe repairs already applied;
+- final render and outside-zone pixel identity remain unchanged and authoritative.
+
+The acceptance path remains intentionally simple: one regeneration action, no Advanced zone editing, then one final PDF creation action. Any normal-path requirement for manual zone work is still a release failure.
+
+
 ## Explicit non-goals
 
 - no alternate template chooser;
