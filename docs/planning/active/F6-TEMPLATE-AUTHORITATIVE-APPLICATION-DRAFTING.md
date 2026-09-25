@@ -716,6 +716,26 @@ The Codex quality prompt also explicitly rejects mixed-tense profile constructio
 6. No provider request, DB write, application action, submission or send occurs during file building.
 
 
+### Candidate 1.1.14 — generic Employer-Origin authority across Product jobs
+
+The first intentional 1.1.13 cross-job test is an acceptance blocker. Eraneos #511 reaches F6, while other operator-selected current jobs such as Finanz Informatik / Data Platform Engineer and Hannover Re / Software Engineer stop at `employer origin required` despite live vacancy evidence and already-validated Product origin state.
+
+This is not a Codex or template problem. The F6 runtime was incorrectly reusing the **active recurring ingestion-profile registry** as downstream application authority. That makes Product usability depend on source-profile liveness/history and explains why the reviewed Eraneos Personio exception appeared uniquely functional.
+
+1.1.14 moves F6 to the correct source-neutral boundary:
+
+- persisted `origin_validation_status=validated` is the downstream Product statement that employer origin has already passed the approved assessment boundary;
+- lifecycle must still be `active_confirmed` and Product activity must be active;
+- the application target must be a direct absolute HTTPS URL;
+- known discovery/aggregator source families and hosts remain rejected;
+- if current exact observation URL evidence is present it must still match the Silver source URL;
+- active recurring Employer-Origin profiles remain accepted as a stronger upstream proof;
+- reviewed legacy Personio feed authority remains a compatibility fallback only;
+- no provider/company/job-specific allowlist is required for normal F6 use;
+- immediately before generation, the existing exact live-vacancy revalidation remains mandatory, so this change does not weaken current-vacancy truth or create submit/send authority.
+
+The operator gate for 1.1.14 is deliberately **not Eraneos**. Select at least two different current direct Employer-Origin jobs from different source families. Both must reach Ready for drafting without source-specific code. At least one must complete Quality AI -> exact preflight -> 3-page PDF + editable Word. A known aggregator/discovery URL must remain blocked.
+
 ## Explicit non-goals
 
 - no alternate template chooser;
