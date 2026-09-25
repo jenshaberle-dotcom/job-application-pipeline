@@ -2,6 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import "./about-panel.css";
 
+type CodexStatus = {
+  status?: "ready" | "auth_required" | "not_installed";
+  installed?: boolean;
+  chatgpt_authenticated?: boolean;
+  auth_mode?: string;
+  version?: string | null;
+  model?: string;
+  billing_authority?: string;
+  api_key_fallback?: boolean;
+  automatic_credit_purchase?: boolean;
+};
+
 type AppInfo = {
   schema?: string;
   app_name?: string;
@@ -25,10 +37,27 @@ async function readAppInfo(signal?: AbortSignal): Promise<AppInfo> {
   return response.json() as Promise<AppInfo>;
 }
 
+async function readCodexStatus(signal?: AbortSignal): Promise<CodexStatus> {
+  const response = await fetch("/api/v1/product-v1/codex-status", {
+    ...(signal ? { signal } : {}),
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`Codex status returned ${response.status}`);
+  return response.json() as Promise<CodexStatus>;
+}
+
 const value = (raw: string | undefined, fallback = "Unavailable") =>
   raw?.trim() || fallback;
 
-function AboutScreen({ info, error }: { info: AppInfo | null; error: string | null }) {
+function AboutScreen({
+  info,
+  codex,
+  error,
+}: {
+  info: AppInfo | null;
+  codex: CodexStatus | null;
+  error: string | null;
+}) {
   const revision = info?.source_revision?.trim();
   const shortRevision = revision && /^[0-9a-f]{40}$/i.test(revision)
     ? revision.slice(0, 12)
@@ -76,6 +105,18 @@ function AboutScreen({ info, error }: { info: AppInfo | null; error: string | nu
       </article>
 
       <article className="ow-card">
+        <span className="ow-kicker">Drafting runtime</span>
+        <h2>Embedded Codex</h2>
+        <div className="about-facts">
+          <div><span>Runtime</span><b>{codex?.installed ? `Bundled · ${value(codex.version || undefined, "version verified")}` : "Unavailable"}</b></div>
+          <div><span>ChatGPT auth</span><b>{codex?.chatgpt_authenticated ? "Connected" : "Sign-in required"}</b></div>
+          <div><span>Model</span><b>{value(codex?.model)}</b></div>
+          <div><span>Usage authority</span><b>ChatGPT allowance / eligible credits</b></div>
+          <div><span>API-key fallback</span><b>{codex?.api_key_fallback === false ? "Disabled" : "Not verified"}</b></div>
+        </div>
+      </article>
+
+      <article className="ow-card">
         <span className="ow-kicker">Updates</span>
         <h2>Integrated self-update</h2>
         <div className="about-facts">
@@ -95,6 +136,7 @@ export default function AboutPanel() {
   const [mainRoot, setMainRoot] = useState<HTMLElement | null>(null);
   const [active, setActive] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [codex, setCodex] = useState<CodexStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -141,11 +183,15 @@ export default function AboutPanel() {
   }, []);
 
   useEffect(() => {
-    if (!active || info) return;
+    if (!active || (info && codex)) return;
     const controller = new AbortController();
-    readAppInfo(controller.signal)
-      .then((payload) => {
-        setInfo(payload);
+    void Promise.all([
+      info ? Promise.resolve(info) : readAppInfo(controller.signal),
+      codex ? Promise.resolve(codex) : readCodexStatus(controller.signal),
+    ])
+      .then(([appInfo, codexStatus]) => {
+        setInfo(appInfo);
+        setCodex(codexStatus);
         setError(null);
       })
       .catch((reason: unknown) => {
@@ -153,7 +199,7 @@ export default function AboutPanel() {
         setError(reason instanceof Error ? reason.message : String(reason));
       });
     return () => controller.abort();
-  }, [active, info]);
+  }, [active, codex, info]);
 
   const nav = useMemo(
     () => navRoot
@@ -170,7 +216,7 @@ export default function AboutPanel() {
   );
 
   const screen = active && mainRoot
-    ? createPortal(<AboutScreen info={info} error={error} />, mainRoot)
+    ? createPortal(<AboutScreen info={info} codex={codex} error={error} />, mainRoot)
     : null;
 
   return <>{nav}{screen}</>;

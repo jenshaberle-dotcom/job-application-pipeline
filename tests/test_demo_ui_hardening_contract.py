@@ -149,7 +149,8 @@ def test_f6_navigation_uses_exact_live_revalidation_not_arbitrary_age() -> None:
     )
 
     assert "hasPersistedActiveLifecycle(job)" in operator
-    assert "<OpenApplicationButton silverJobId={job.silver_job_id} />" in operator
+    assert "<OpenApplicationButton silverJobId={job.silver_job_id}" in operator
+    assert 'disabled={liveCheck.status === "checking"}' in operator
     assert 'job.demo_live_verified === true' not in workspace
     assert "revalidate_selected_vacancy(" in backend
     assert "evaluate_demo_live_scope(" not in backend
@@ -182,6 +183,27 @@ def test_f6_live_revalidation_is_explicit_post_not_workspace_get_side_effect() -
     )[0]
     assert "revalidate_selected_vacancy(" not in load_section
     assert "require_live_application_target(silver_job_id)" in quality
+
+
+def test_selected_job_is_exact_live_revalidated_and_closed_truth_refreshes_ui() -> None:
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert '"/api/v1/product-v1/application-workspace/revalidate"' in operator
+    assert 'action: "revalidate_selected_vacancy"' in operator
+    assert 'method: "POST"' in operator
+    assert 'if (status === "closed")' in operator
+    assert "await refresh().catch(() => undefined)" in operator
+    assert "Live availability" in operator
+
+
+def test_all_jobs_is_the_current_employer_origin_review_scope() -> None:
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert '["all", "All jobs"]' in operator
+    assert '["current", "Current"]' not in operator
+    assert "jobs: payload.job_readiness.length" in operator
+    assert "Current employer-origin vacancies only." in operator
+    assert '"All current"' not in operator
 
 
 def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:

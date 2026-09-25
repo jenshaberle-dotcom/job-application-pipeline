@@ -74,6 +74,15 @@ type SourceConnector = {
 };
 
 type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed";
+type VacancyRevalidationPayload = {
+  status?: "active" | "closed" | "unverifiable" | "blocked";
+  outcome?: string;
+  reason?: string;
+  silver_job_id?: number;
+  vacancy_revalidation_http_gets?: number;
+  database_writes?: number;
+  lifecycle_health_observation_writes?: number;
+};
 type LinkedApplication = {
   application_id?: number;
   silver_job_id?: number | null;
@@ -157,7 +166,7 @@ type ProductPayload = {
 };
 
 type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "approvals" | "operations";
-type JobFilter = "current" | "unreviewed" | "interesting" | "not_relevant" | "rankable" | "applied" | "all";
+type JobFilter = "unreviewed" | "interesting" | "not_relevant" | "rankable" | "applied" | "all";
 type JobSort =
   | "newest"
   | "oldest"
@@ -411,6 +420,60 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
 
 function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications }: { job: Job; payload: ProductPayload; refresh: () => Promise<void>; applicationStage?: ApplicationStage | null; onOpenApplications?: () => void }) {
   const sourceUrl = externalJobUrl(job);
+  const [liveCheck, setLiveCheck] = useState<{
+    status: "idle" | "checking" | "active" | "closed" | "unverifiable" | "error";
+    reason?: string;
+  }>({ status: "idle" });
+
+  useEffect(() => {
+    if (!hasPersistedActiveLifecycle(job)) {
+      setLiveCheck({ status: "idle" });
+      return;
+    }
+
+    let mounted = true;
+    setLiveCheck({ status: "checking" });
+    void fetch("/api/v1/product-v1/application-workspace/revalidate", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "revalidate_selected_vacancy",
+        silver_job_id: job.silver_job_id,
+      }),
+    })
+      .then(async (response) => {
+        const payload = await response.json() as VacancyRevalidationPayload;
+        if (!mounted) return;
+        if (!response.ok) {
+          setLiveCheck({
+            status: "error",
+            reason: payload.reason || `live check returned ${response.status}`,
+          });
+          return;
+        }
+
+        const status = payload.status || "unverifiable";
+        setLiveCheck({
+          status: status === "active"
+            ? "active"
+            : status === "closed"
+              ? "closed"
+              : "unverifiable",
+          reason: payload.reason,
+        });
+        if (status === "closed") {
+          await refresh().catch(() => undefined);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (mounted) {
+          setLiveCheck({ status: "error", reason: String(reason) });
+        }
+      });
+
+    return () => { mounted = false; };
+  }, [job.silver_job_id, job.lifecycle_status, refresh]);
+
   const rankable = isRankable(job);
   const profileFitFactors = job.profile_fit_factors || {};
   const profileFitFactorRows = [
@@ -431,11 +494,11 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
 
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} disabled={liveCheck.status === "checking"} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Profile Fit coverage</span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /></div><div><span>Profile Fit decision</span><Status value={job.profile_fit_decision || "unknown"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
-    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
+    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Live availability</span><Status value={liveCheck.status === "checking" ? "checking" : liveCheck.status === "idle" ? "not checked" : liveCheck.status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
     <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected explanation evidence.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected uncertainty.</p>}</div></section>
   </aside>;
 }
@@ -475,7 +538,6 @@ function Jobs({
 
     return payload.job_readiness
       .filter((job) => {
-        if (filter === "current" && !isCurrent(job)) return false;
         if (filter === "unreviewed" && job.review_label) return false;
         if (filter === "interesting" && job.review_label?.label !== "interesting") return false;
         if (filter === "not_relevant" && job.review_label?.label !== "not_relevant") return false;
@@ -501,7 +563,6 @@ function Jobs({
     null;
 
   const counts: Record<JobFilter, number> = {
-    current: payload.job_readiness.filter(isCurrent).length,
     unreviewed: payload.job_readiness.filter((job) => !job.review_label).length,
     interesting: payload.job_readiness.filter(
       (job) => job.review_label?.label === "interesting"
@@ -555,8 +616,7 @@ function Jobs({
     <section className="ow-job-toolbar">
       <div className="ow-filter-row">
         {([
-          ["all", "All current"],
-          ["current", "Current"],
+          ["all", "All jobs"],
           ["unreviewed", "Unreviewed"],
           ["interesting", "Interesting"],
           ["not_relevant", "Not relevant"],
@@ -916,7 +976,7 @@ export default function OperatorWorkspace() {
   if (!payload) return <main className="ow-loading"><div /><p>Reading Product V1 truth…</p></main>;
 
   const navBadges: Partial<Record<View, number>> = {
-    jobs: payload.summary.review_scope_current_active_job_count ?? payload.job_readiness.filter(isCurrent).length,
+    jobs: payload.job_readiness.length,
     top5: payload.summary.top_job_count,
     approvals: payload.source_connector_overview.sources.filter((source) => source.current_blocker === "final_approval_incomplete").length,
     sources: payload.source_connector_overview.summary.attention_count,

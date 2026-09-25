@@ -74,6 +74,9 @@ from src.search_intelligence.f6_template_review import (
 from src.search_intelligence.product_v1_application_workspace import (
     ApplicationWorkspaceStop,
 )
+from src.search_intelligence.product_v1_codex_application_adapter import (
+    inspect_codex_runtime_status,
+)
 
 
 PRODUCT_V1_PATH = "/api/v1/product-v1"
@@ -88,6 +91,7 @@ F6_TEMPLATE_EXPORT_PATH = "/api/v1/product-v1/f6-template-export"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
 APPLICATION_SUBMISSION_RECORD_PATH = "/api/v1/product-v1/application-submission-record"
 MAILBOX_SYNC_PATH = "/api/v1/product-v1/mailbox-sync"
+CODEX_STATUS_PATH = "/api/v1/product-v1/codex-status"
 _MAX_ACTION_BODY_BYTES = 4_096
 _MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
 _MAX_F6_EXPORT_BODY_BYTES = 256 * 1024
@@ -271,6 +275,12 @@ class ProductV1DemoHandler(ProductV1Handler):
         if parsed.path == DATA_LAYERS_PATH:
             try:
                 self._send_json(load_data_layers_payload(_load_operator_product_payload()))
+            except Exception as exc:  # pragma: no cover - runtime diagnostics
+                self._send_runtime_error(exc)
+            return
+        if parsed.path == CODEX_STATUS_PATH:
+            try:
+                self._send_json(inspect_codex_runtime_status().to_json())
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_runtime_error(exc)
             return

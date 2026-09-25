@@ -9,10 +9,13 @@ internal static class ProductUpdateApplier
     private const string AcceptedSchema = "job_application_pipeline.windows_product_update.v2";
     private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v3";
     private const string ResultSchema = "job_application_pipeline.windows_update_result.v2";
+    private const string SnoozeSchema = "job_application_pipeline.windows_update_snooze.v1";
     private const string CompatibilityLine = "cgkb-product-local-1";
     private const string Policy = "product_local_latest_direct";
     private const string UpdateGeneration = "cgkb_product_local_v1";
     private const int ProductPort = 8780;
+    private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan MoveRetryWindow = TimeSpan.FromSeconds(45);
     private static readonly Regex ShaPattern = new("^[0-9a-f]{40}$", RegexOptions.CultureInvariant);
     private static readonly Regex DigestPattern = new("^[0-9a-f]{64}$", RegexOptions.CultureInvariant);
 
@@ -24,6 +27,7 @@ internal static class ProductUpdateApplier
         var acceptedPath = Path.Combine(stateRoot, "accepted-update.json");
         var pendingPath = Path.Combine(stateRoot, "pending-update.json");
         var resultPath = Path.Combine(stateRoot, "update-result.json");
+        var snoozePath = Path.Combine(stateRoot, "update-snooze.json");
         var logPath = Path.Combine(installRoot, "logs", "product-update-applier.log");
         var currentPath = Path.Combine(installRoot, "current.json");
         var desktopLive = Path.Combine(installRoot, "desktop-host");
@@ -174,6 +178,7 @@ internal static class ProductUpdateApplier
             WriteResult(resultPath, "success", targetSha, targetVersion, "runtime_verified");
             TryDelete(acceptedPath);
             TryDelete(pendingPath);
+            TryDelete(snoozePath);
             WriteLog(logPath, "apply_success", $"version={targetVersion} sha={targetSha}");
             TryDeleteDirectory(rollbackRoot);
             CleanupOldUpdates(installRoot, targetSha);
@@ -225,7 +230,15 @@ internal static class ProductUpdateApplier
                 TryDelete(acceptedPath);
                 TryDelete(pendingPath);
                 WriteResult(resultPath, "failed", targetSha ?? string.Empty, targetVersion ?? string.Empty, exc.Message);
-                WriteLog(logPath, "apply_failed", exc.ToString());
+                WriteFailureSnooze(
+                    snoozePath,
+                    targetSha ?? string.Empty,
+                    targetVersion ?? string.Empty,
+                    DateTimeOffset.UtcNow.Add(FailureRetryDelay));
+                WriteLog(
+                    logPath,
+                    "apply_failed",
+                    $"{exc} retry_suppressed_until={DateTimeOffset.UtcNow.Add(FailureRetryDelay):O}");
 
                 var oldExe = Path.Combine(desktopLive, "JAP.ControlCenter.Desktop.exe");
                 if (File.Exists(oldExe))
@@ -252,7 +265,7 @@ internal static class ProductUpdateApplier
         string logPath,
         string operation)
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        var deadline = DateTimeOffset.UtcNow.Add(MoveRetryWindow);
         var attempt = 0;
         while (true)
         {
@@ -268,24 +281,35 @@ internal static class ProductUpdateApplier
                 }
                 return;
             }
-            catch (IOException exc) when (
-                IsTransientSharingViolation(exc)
+            catch (Exception exc) when (
+                IsTransientMoveFailure(exc)
                 && DateTimeOffset.UtcNow < deadline)
             {
                 attempt += 1;
                 WriteLog(
                     logPath,
                     "move_retry",
-                    $"operation={operation} attempt={attempt} hresult=0x{exc.HResult:X8} error={exc.Message}");
+                    $"operation={operation} attempt={attempt} type={exc.GetType().Name} "
+                    + $"hresult=0x{exc.HResult:X8} error={exc.Message}");
                 Thread.Sleep(Math.Min(1000, 150 + (attempt * 100)));
             }
         }
     }
 
+    private static bool IsTransientMoveFailure(Exception exc)
+    {
+        if (exc is UnauthorizedAccessException)
+        {
+            return true;
+        }
+
+        return exc is IOException io && IsTransientSharingViolation(io);
+    }
+
     private static bool IsTransientSharingViolation(IOException exc)
     {
         var nativeCode = exc.HResult & 0xFFFF;
-        return nativeCode is 32 or 33;
+        return nativeCode is 5 or 32 or 33;
     }
 
     private static void WaitForHostExit(string hostPidText)
@@ -435,6 +459,30 @@ internal static class ProductUpdateApplier
             detail,
             completed_at = DateTimeOffset.UtcNow.ToString("O")
         });
+
+    private static void WriteFailureSnooze(
+        string path,
+        string targetSha,
+        string targetVersion,
+        DateTimeOffset until)
+    {
+        if (!ShaPattern.IsMatch(targetSha)
+            || !Version.TryParse(targetVersion, out _))
+        {
+            return;
+        }
+
+        WriteJsonAtomic(
+            path,
+            new
+            {
+                schema = SnoozeSchema,
+                snooze_until_utc = until.ToString("O"),
+                target_main_sha = targetSha,
+                target_desktop_version = targetVersion,
+                reason = "apply_failed_retry_cooldown"
+            });
+    }
 
     private static void WriteJsonAtomic(string path, object value)
     {

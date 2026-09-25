@@ -63,8 +63,11 @@ def test_post_consent_applier_has_no_discovery_download_or_extraction_authority(
     assert 'MoveDirectoryWithRetry(runtimeStage, runtimeLive, logPath, "runtime_stage_to_live")' in applier
     assert 'MoveDirectoryWithRetry(desktopLive, desktopBackup, logPath, "desktop_live_to_backup")' in applier
     assert 'MoveDirectoryWithRetry(runtimeLive, runtimeBackup, logPath, "runtime_live_to_backup")' in applier
+    assert "IsTransientMoveFailure" in applier
     assert "IsTransientSharingViolation" in applier
-    assert "nativeCode is 32 or 33" in applier
+    assert "UnauthorizedAccessException" in applier
+    assert "nativeCode is 5 or 32 or 33" in applier
+    assert "MoveRetryWindow = TimeSpan.FromSeconds(45)" in applier
     assert '"move_retry"' in applier
     assert '"move_retry_recovered"' in applier
     assert '"host_exit_wait_complete"' in applier
@@ -90,6 +93,24 @@ def test_post_consent_applier_has_no_discovery_download_or_extraction_authority(
         "npm ",
     ):
         assert forbidden.lower() not in applier.lower()
+
+
+def test_failed_update_does_not_reprompt_same_target_immediately() -> None:
+    applier = read("windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs")
+    coordinator = read("windows/JAP.ControlCenter.Desktop/UpdateCoordinator.cs")
+
+    assert "FailureRetryDelay = TimeSpan.FromMinutes(10)" in applier
+    assert "WriteFailureSnooze(" in applier
+    assert '"apply_failed_retry_cooldown"' in applier
+    assert "TryDelete(snoozePath);" in applier
+
+    assert "FailureRetryDelay = TimeSpan.FromMinutes(10)" in coordinator
+    assert "snoozeMatchesPending" in coordinator
+    assert "if (snoozeMatchesPending && snooze!.SnoozeUntilUtc > now)" in coordinator
+    assert "WriteFailureCooldown(" in coordinator
+    assert '"apply_failed_retry_cooldown"' in coordinator
+    assert "Derselbe Update-Stand wird für" in coordinator
+    assert "Ein neuerer Stand bleibt sofort zulässig." in coordinator
 
 
 def test_release_generation_contains_both_immutable_product_assets() -> None:

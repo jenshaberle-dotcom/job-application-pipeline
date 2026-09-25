@@ -416,6 +416,29 @@ This restores coherent counts and prevents a dead job from remaining current aft
 
 A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
 
+### Candidate 1.1.5 — converge selected-job lifecycle truth and expose real Codex authority
+
+Installed 1.1.4 proves the correct exact-revalidation boundary but still hides two operational truths.
+
+First, the dead Accompio #626 row remains visible until the operator enters F6. Candidate 1.1.5 moves the same bounded exact-detail revalidation to the **selected All-jobs detail**. Selection itself may not manufacture activity or closure: active and unverifiable probes are read-only; only an authoritative exact closure appends one lifecycle-health observation and then refreshes Product truth. This lets dead rows leave Current authority as soon as the operator inspects them, while historical/audit truth remains available according to the Product read model.
+
+Second, the presence of a bundled Codex binary is not equivalent to the operator's ChatGPT account being connected. Candidate 1.1.5 therefore exposes a read-only Codex status endpoint and renders the result both in About and in the F6 readiness card:
+
+- bundled executable present / version;
+- ChatGPT authentication connected vs sign-in required;
+- selected drafting model;
+- usage authority = ChatGPT included allowance / eligible Codex credits;
+- API-key fallback disabled;
+- automatic credit purchase disabled.
+
+JAP accepts only the official CLI status **Logged in using ChatGPT** as F6 drafting authority. API-key, workload-identity or access-token auth is visible diagnostically but does not enable drafting. If ChatGPT auth is missing, **Generate review text** remains disabled before any model request. There is still no deterministic filler fallback.
+
+1.1.5 also fixes the job-count UX exposed by the same operator run: **All jobs** remains the canonical current Employer-Origin review scope, the redundant/broken secondary Current filter is removed, and the sidebar badge is derived from the same `job_readiness` cohort. Historical rows remain auditable outside this review list.
+
+The updater is hardened in the same patch after a real first-attempt rollback on `desktop-host` access denial: transient access/sharing failures receive a bounded 45-second cutover retry, and a failed exact target receives a 10-minute retry cooldown instead of being offered again roughly 30 seconds after rollback. Superseding releases are not blocked by that cooldown.
+
+The 1.2.0 acceptance boundary is unchanged. 1.1.5 only makes lifecycle truth, Codex authority and updater recovery observable/stable enough to continue the real CV + letter qualification.
+
 
 ## Explicit non-goals
 
