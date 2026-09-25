@@ -148,7 +148,8 @@ def test_codex_package_passes_direct_zone_replacements_to_review_ui(monkeypatch)
     assert payload["draft_mode"] == "codex_embedded_v1"
     assert payload["fallback_generated"] is False
     assert payload["base_cv_text_shared_with_codex"] is True
-    assert payload["base_application_letter_text_shared_with_codex"] is False
+    assert payload["base_application_letter_text_shared_with_codex"] is True
+    assert payload["vacancy_text_shared_with_codex"] is True
     assert payload["package"]["zone_replacements"]["base_application_letter"]["recipient.block"] == "accompio"
     assert payload["package"]["source_manifest_sha256"]
     assert payload["provider_requests"] == 1
