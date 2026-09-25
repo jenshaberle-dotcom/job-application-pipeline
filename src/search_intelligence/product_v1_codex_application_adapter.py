@@ -606,6 +606,34 @@ _ROLE_NOISE_TOKENS = frozenset(
         "genders",
     }
 )
+_GENERIC_COMPANY_IDENTITY_TOKENS = frozenset(
+    {
+        "ai",
+        "it",
+        "data",
+        "digital",
+        "group",
+        "holding",
+        "services",
+        "solutions",
+        "systems",
+        "software",
+        "tech",
+        "technology",
+        "technologies",
+    }
+)
+_GENERIC_SINGLE_ROLE_TOKENS = frozenset(
+    {
+        "analyst",
+        "architect",
+        "consultant",
+        "developer",
+        "engineer",
+        "manager",
+        "specialist",
+    }
+)
 
 
 def _identity_words(value: object) -> tuple[str, ...]:
@@ -618,13 +646,42 @@ def _identity_words(value: object) -> tuple[str, ...]:
     return tuple(word for word in normalized.split() if word)
 
 
-def _company_identity_phrase(company_name: object) -> str:
-    words = tuple(
+def _company_identity_words(company_name: object) -> tuple[str, ...]:
+    return tuple(
         word
         for word in _identity_words(company_name)
         if word not in _LEGAL_ENTITY_TOKENS
     )
-    return " ".join(words)
+
+
+def _phrase_occurs(haystack: tuple[str, ...], needle: tuple[str, ...]) -> bool:
+    if not needle or len(needle) > len(haystack):
+        return False
+    width = len(needle)
+    return any(haystack[index : index + width] == needle for index in range(len(haystack) - width + 1))
+
+
+def _company_identity_is_distinctive(words: tuple[str, ...]) -> bool:
+    if not words:
+        return False
+    if len(words) >= 2:
+        return any(word not in _GENERIC_COMPANY_IDENTITY_TOKENS for word in words)
+    word = words[0]
+    return (
+        word not in _GENERIC_COMPANY_IDENTITY_TOKENS
+        and (len(word) >= 3 or any(character.isdigit() for character in word))
+    )
+
+
+def _role_phrase_is_distinctive(phrase: str) -> bool:
+    words = tuple(phrase.split())
+    if len(words) >= 2:
+        return True
+    return bool(
+        words
+        and words[0] not in _GENERIC_SINGLE_ROLE_TOKENS
+        and len(words[0]) >= 5
+    )
 
 
 def _role_identity_phrases(title: object) -> tuple[str, ...]:
@@ -653,8 +710,13 @@ def _role_identity_phrases(title: object) -> tuple[str, ...]:
     if len(full) >= 5:
         phrases.append(full)
 
-    # Preserve order while removing duplicates.
-    return tuple(dict.fromkeys(phrases))
+    # Preserve order while removing duplicates, then discard identity fragments
+    # that are too weak to prove a particular target on their own.
+    return tuple(
+        phrase
+        for phrase in dict.fromkeys(phrases)
+        if _role_phrase_is_distinctive(phrase)
+    )
 
 
 def _letter_is_target_specific(
@@ -663,11 +725,18 @@ def _letter_is_target_specific(
     company_name: str,
     title: str,
 ) -> bool:
-    letter = " ".join(_identity_words(" ".join(paragraphs)))
-    company = _company_identity_phrase(company_name)
-    if company and company in letter:
+    letter_words = _identity_words(" ".join(paragraphs))
+    company_words = _company_identity_words(company_name)
+    if (
+        _company_identity_is_distinctive(company_words)
+        and _phrase_occurs(letter_words, company_words)
+    ):
         return True
-    return any(phrase in letter for phrase in _role_identity_phrases(title))
+
+    return any(
+        _phrase_occurs(letter_words, tuple(phrase.split()))
+        for phrase in _role_identity_phrases(title)
+    )
 
 
 def _generic_salutation(language: str) -> str:
@@ -679,9 +748,27 @@ def _organizational_salutation_is_grounded(
     salutation: str,
     company_name: str,
 ) -> bool:
-    salutation_text = " ".join(_identity_words(salutation))
-    company = _company_identity_phrase(company_name)
-    return bool(company and company in salutation_text)
+    salutation_words = _identity_words(salutation)
+    company_words = _company_identity_words(company_name)
+    return bool(
+        _company_identity_is_distinctive(company_words)
+        and _phrase_occurs(salutation_words, company_words)
+    )
+
+
+def _contact_is_grounded(contact_name: str, detail_text: str) -> bool:
+    contact_words = _identity_words(contact_name)
+    detail_words = set(_identity_words(detail_text))
+    return bool(contact_words and all(word in detail_words for word in contact_words))
+
+
+def _salutation_mentions_contact(salutation: str, contact_name: str) -> bool:
+    salutation_words = set(_identity_words(salutation))
+    contact_words = _identity_words(contact_name)
+    if not contact_words:
+        return False
+    surname = contact_words[-1]
+    return surname in salutation_words or all(word in salutation_words for word in contact_words)
 
 
 def _repair_salutation_grounding(
@@ -696,22 +783,32 @@ def _repair_salutation_grounding(
 
     contact_name = _normalized(repaired.get("contact_name"))
     salutation = _normalized(repaired.get("salutation"))
-    detail_folded = context.target.detail_text.casefold()
     repairs: list[str] = []
 
-    if contact_name and contact_name.casefold() not in detail_folded:
+    if contact_name and not _contact_is_grounded(
+        contact_name,
+        context.target.detail_text,
+    ):
         repaired["contact_name"] = ""
         repaired["salutation"] = _generic_salutation(language)
         repairs.append("invented_contact_removed_and_generic_salutation_used")
         return repaired, tuple(repairs)
 
-    if contact_name:
-        return repaired, ()
-
     allowed_generic = {
         "de": ("sehr geehrte damen und herren", "guten tag"),
         "en": ("dear hiring team", "dear recruitment team", "dear sir or madam"),
     }[language]
+
+    if contact_name:
+        if (
+            any(salutation.casefold().startswith(item) for item in allowed_generic)
+            or _salutation_mentions_contact(salutation, contact_name)
+        ):
+            return repaired, ()
+        repaired["salutation"] = _generic_salutation(language)
+        repairs.append("mismatched_contact_salutation_replaced_with_generic")
+        return repaired, tuple(repairs)
+
     if any(salutation.casefold().startswith(item) for item in allowed_generic):
         return repaired, ()
     if _organizational_salutation_is_grounded(
@@ -779,8 +876,10 @@ def _validate_output(
             "Codex returned an unfinished application-letter paragraph"
         )
 
-    detail_folded = context.target.detail_text.casefold()
-    if contact_name and contact_name.casefold() not in detail_folded:
+    if contact_name and not _contact_is_grounded(
+        contact_name,
+        context.target.detail_text,
+    ):
         raise CodexApplicationDraftStop(
             "Codex contact grounding repair did not converge"
         )

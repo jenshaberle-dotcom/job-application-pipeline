@@ -768,6 +768,33 @@ Salutation handling becomes a safe deterministic boundary rather than a provider
 
 Use at least two non-Eraneos jobs. A successful first Codex response must not be rejected merely because legal suffixes/gender markers are absent from normal prose or because a safe local salutation normalization is possible. Truly generic body text and genuinely invented factual content must remain fail-closed. At least one non-Eraneos job must complete Quality AI -> exact preflight -> PDF + Word export.
 
+### Candidate 1.1.16 — pre-operator adversarial semantic hardening
+
+Before another real provider/operator run, perform one bounded no-provider hardening pass over the new 1.1.15 validator.
+
+Static review identified two classes worth closing before spending another Codex request:
+
+1. **weak identity false positives** — a generic one-token company such as `AI GmbH` could appear target-specific simply because normal technical prose mentioned `AI`; raw substring matching could also allow short-brand collisions;
+2. **contact/salutation divergence** — a contact could be correctly grounded in vacancy evidence while the generated salutation named another person, because the previous validator checked contact grounding but not consistency between the contact and salutation.
+
+1.1.16 hardens these boundaries without widening model authority:
+
+- use normalized token-sequence matching rather than arbitrary substrings;
+- legal suffix stripping remains, but generic company tokens such as AI/IT/Data/Tech/Software/Solutions cannot alone prove target specificity;
+- short distinctive brands such as IAV remain valid specificity evidence;
+- generic one-word role titles such as Engineer/Developer/Consultant do not alone prove target specificity;
+- multi-token target roles remain valid after gender/presentation normalization;
+- grounded contact names are matched against vacancy evidence by normalized tokens so `Krzeminski, Paulina` can ground `Paulina Krzeminski`;
+- when a grounded contact exists, the salutation must either mention that contact or be an approved generic salutation;
+- a salutation that names a different person is deterministically replaced with the generic language-appropriate form and reported as a safe semantic repair;
+- no provider retry is introduced by this hardening.
+
+The adversarial regression matrix includes generic AI company collisions, short distinctive brands, token-boundary collisions, legal suffix normalization, role-marker normalization, grounded company-team salutations, reordered contact names, mismatched named-contact salutations and generic fallback salutations.
+
+#### 1.1.16 operator acceptance
+
+Only after this test matrix and full Product gates are green should another real Codex operator run be spent. The real acceptance remains non-Eraneos: at least one new direct Employer-Origin job must complete Quality AI -> exact template preflight -> final PDF + Word, and a second independent job must at minimum reach a valid review draft or expose a genuinely new generic failure class.
+
 ## Explicit non-goals
 
 - no alternate template chooser;
