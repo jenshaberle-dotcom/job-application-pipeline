@@ -88,6 +88,32 @@ def test_device_login_output_exposes_only_public_url_and_user_code(monkeypatch) 
     assert "token" not in str(snapshot).casefold()
 
 
+def test_device_login_code_may_be_embedded_in_prompt_line(monkeypatch) -> None:
+    process = FakeProcess(
+        "Enter this one-time code: ABCD-12345\nSuccessfully logged in\n"
+    )
+    session = login._LoginSession(
+        session_id="session-inline-code",
+        status="starting",
+        verification_url=None,
+        user_code=None,
+        started_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        detail=None,
+        process=process,
+    )
+    monkeypatch.setattr(
+        login,
+        "inspect_codex_runtime_status",
+        lambda: SimpleNamespace(chatgpt_authenticated=True),
+    )
+
+    login._consume(session)
+
+    assert session.status == "completed"
+    assert session.user_code == "ABCD-12345"
+
+
 def test_device_login_failure_never_reports_tokens(monkeypatch) -> None:
     process = FakeProcess(
         "Error: device auth timed out after 15 minutes\n",
