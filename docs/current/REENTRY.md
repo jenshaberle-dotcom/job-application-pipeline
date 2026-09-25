@@ -1,10 +1,15 @@
 # JAP Current Re-Entry
 
-Status: canonical current re-entry projection + frozen product campaign sequencing authority
+Status: canonical current re-entry projection + Freeze-II sequencing authority
 
-## CURRENT FREEZE AUTHORITY — COMPLETE / OPERATOR ACCEPTED
+## CURRENT ACTIVE CAMPAIGN — FREEZE II SOURCE TRUTH / S0 ACTIVE
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
+
+- **Freeze II — Source Truth & Connector Reliability is ACTIVE.** Canonical issue: #1038. Canonical plan: `docs/planning/active/FREEZE-II-SOURCE-TRUTH-CONNECTOR-RELIABILITY.md`. The active sequence is `S0 baseline -> S1 connector breadth -> S2 source-family matrix -> S3 deterministic extraction -> S4 Bronze/Silver/Product integrity -> S5 requirement/skill semantics -> S6 cross-family acceptance`.
+- **S0 is the sole next Product-learning action.** It is read-only and re-measures the current Employer-Origin/source population, deterministic connector first failures, active-family concentration, Bronze->Silver->Product/CC field status, projection loss and requirement/skill reliability. Historical #676 counts such as `36/65` are retained evidence only and are not current authority until remeasured.
+- **Freeze-II priority:** more strict-proven Employer-Origin connectors and more trustworthy source metadata. Connector volume without exact source proof and field reliability is not progress. Missing/conflicting fields remain explicit unknown/conflict; Product/CC may not reconstruct stronger truth than Silver owns.
+- **Carried work:** #789 + CR-F1-001 enter S1; #676 supplies reusable deterministic builder architecture; F4A-R2/R3/R7 supply extraction/provenance baselines; #891 is gated behind S0-S4; #910 contributes only its Data-Layers truth-audit component during this campaign; #917/#922 remain bounded secondary inputs/backlog rather than source authority.
 
 - **Current Product freeze campaign is COMPLETE / OPERATOR ACCEPTED for the available real-job cohort.** F0, F1, F2, F3, F4A, F4B, F4C, F5 and F6 have each crossed their Product/operator gate at least once through the normal bounded pipeline. F6 Slice C is accepted as good enough for the present cohort after multiple real non-Eraneos jobs exercised vacancy-specific drafting, exact-template preflight and export. No further 1.1.x polishing is authorized merely from known-cohort repetition; new F6 work requires reproducible evidence from broader connector/job coverage.
 - **Next active product-learning phase is Connector Expansion / acquisition breadth**, centered on #789 plus carried residual CR-F1-001. The purpose is to produce more diverse Employer-Origin material, not to reopen the completed freeze by default.
@@ -14,7 +19,7 @@ This section supersedes older F5/updater sequencing statements retained below as
 - **1.1.18 updater hardening is superseded / insufficient:** it fixed Stage-vs-Stage overlap only. The subsequent real 1.1.18 cutover was disturbed by repeated external desktop starts. The target live trees were already verified, but an unauthorized desktop start entered the runtime path during the cutover window; restart verification then failed. Rollback restored the runtime first and subsequently failed deleting the target desktop tree because a loaded framework DLL remained locked, leaving `current.json=1.1.18` while the live runtime identity was 1.1.17. Issue #1035 reopens the updater slice.
 - **1.1.19 updater recovery hardening candidate:** JAP itself now owns this failure boundary regardless of external launcher behavior. Stage and Apply share one installation-scoped update-operation mutex; consent creates an atomic handoff marker with a random token; normal desktop starts are rejected before any Runtime access while that handoff is active; only the token-bearing Applier restart may pass. Future staging uses the exact target desktop tree as the isolated apply helper so the target generation's Applier fixes apply to subsequent cutovers. Rollback stops exact live-host peers, retries transient directory deletion as well as moves, restores desktop/runtime independently, restores `current.json` only after both previous live identities verify, and retains the handoff fail-closed if coherent recovery cannot be proven. No external demo/watchdog implementation is part of this Product fix.
 
-- canonical installed/released Product baseline: desktop **1.1.11**, source `93e58345a148ec79cfafe3e44432583fb917adae`;
+- canonical installed/released Product baseline: desktop **1.1.19**, source `f6a39173a9e75d7998e822312b7c9bc784ef3e5f`; operator recovery from the failed 1.1.18 cutover is complete and normal repeated external-start behavior is stable;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
