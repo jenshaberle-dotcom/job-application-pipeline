@@ -138,6 +138,20 @@ def test_prompt_excludes_stale_application_letter_and_includes_approved_cv() -> 
     assert "Hornetsecurity GmbH" not in prompt
     assert "Julia Klein" not in prompt
     assert '"company_name": "accompio"' in prompt
+    assert '"cv_competency_profile_max_chars": 180' in prompt
+    assert '"letter_paragraph_count": 4' in prompt
+    assert '"letter_paragraph_max_chars": 240' in prompt
+
+
+def test_codex_schema_freezes_current_f6_text_budgets() -> None:
+    schema = adapter._schema()
+    properties = schema["properties"]
+
+    assert properties["cv_short_profile"]["maxLength"] == 520
+    assert properties["cv_competency_profile"]["maxLength"] == 180
+    assert properties["letter_paragraphs"]["minItems"] == 4
+    assert properties["letter_paragraphs"]["maxItems"] == 4
+    assert properties["letter_paragraphs"]["items"]["maxLength"] == 240
 
 
 def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
@@ -312,6 +326,34 @@ def test_invented_contact_is_rejected() -> None:
     decoded["salutation"] = "Sehr geehrte Frau Klein,"
 
     with pytest.raises(adapter.CodexApplicationDraftStop, match="invented a contact"):
+        adapter._validate_output(
+            decoded,
+            context=_context(),
+            as_of_date=date(2026, 9, 24),
+        )
+
+
+def test_overlong_competency_profile_is_rejected_before_review() -> None:
+    decoded = _model_output()
+    decoded["cv_competency_profile"] = "X" * (
+        adapter.CV_COMPETENCY_PROFILE_MAX_CHARS + 1
+    )
+
+    with pytest.raises(adapter.CodexApplicationDraftStop, match="competency profile"):
+        adapter._validate_output(
+            decoded,
+            context=_context(),
+            as_of_date=date(2026, 9, 24),
+        )
+
+
+def test_letter_must_use_exactly_four_layout_bounded_paragraphs() -> None:
+    decoded = _model_output()
+    decoded["letter_paragraphs"] = list(decoded["letter_paragraphs"]) + [
+        "Ein zusätzlicher Absatz darf die kleineren Folgezonen nicht heimlich belegen."
+    ]
+
+    with pytest.raises(adapter.CodexApplicationDraftStop, match="exactly 4"):
         adapter._validate_output(
             decoded,
             context=_context(),
