@@ -1,6 +1,6 @@
 # F6 — Template-Authoritative Application Drafting
 
-Status: ACTIVE — Slices A/B operator accepted; Slice C exact-target/product identity proven, exact-observation reuse in qualification
+Status: COMPLETE / OPERATOR ACCEPTED FOR CURRENT COHORT — Slices A/B/C accepted; broader connector/job coverage is the next evidence source
 
 ## Outcome
 
@@ -104,7 +104,10 @@ The local proof covered exactly both canonical templates (`template_count: 2`). 
 
 This closes Slice B and authorizes Slice C only. It does not grant draft approval, application, submission or send authority.
 
-## Slice C — Review/Edit + Local PDF Export — IN QUALIFICATION
+## Slice C — Review/Edit + Local PDF Export — COMPLETE / OPERATOR ACCEPTED FOR CURRENT COHORT
+
+Freeze-close note (2026-09-25): the operator accepts the Slice-C behavior as sufficiently stable for the currently available real-job cohort. Multiple non-Eraneos jobs exercised the generalized path; remaining quality/generalization uncertainty is now dominated by insufficient connector/job diversity rather than a known F6 architecture blocker. Further F6 correction requires a reproducible failure from newly broadened Employer-Origin coverage. The next learning loop therefore moves to connector expansion rather than continuing same-cohort drafting polish.
+
 
 The first Slice-C implementation shipped as **1.0.72** from exact source `f55b8adab62337b4e0a28c3ad9bcb56186c84cc6`. It provides manifest-zone editing, source-manifest-bound local PDF rendering and the accepted Slice-B outside-zone pixel proof.
 
