@@ -1,6 +1,6 @@
 # Freeze II — Source Truth & Connector Reliability
 
-Status: ACTIVE — S0 COMPLETE; S1 CONNECTOR FLEET COMPLETENESS PRIMARY; S2 supports implementation ordering
+Status: ACTIVE — S0 COMPLETE; LINKEDIN + INDEED SENSOR EXPANSION FIRST
 Canonical issue: #1038
 Previous campaign: F0-F6 COMPLETE / OPERATOR ACCEPTED FOR CURRENT COHORT
 
@@ -10,9 +10,9 @@ The next JAP freeze campaign deliberately moves upstream.
 
 Primary loop:
 
-`every candidate has an executable connector -> every connector is systematically searched live -> broader real vacancy evidence -> better source understanding -> harder deterministic extraction -> more trustworthy metadata in JAP Control Center`
+`LinkedIn + Indeed conservative market sensors -> new employer/source candidates -> freeze expanded candidate cohort -> generic connector creation -> systematic live search -> broader real vacancy evidence -> better company/source understanding -> stronger metadata extraction -> optional first ML shadow model -> reassess`
 
-The campaign does not begin by adding ranking, Fit, UI or application features. The present learning bottleneck is evidence breadth. The existing candidate set exists because each candidate has already produced at least one historically relevant job/discovery signal; Freeze II therefore treats the candidate population as a monitoring fleet to be made executable, not merely as a shortlist from which a few convenient connectors are selected. Historical relevance justifies monitoring effort but does not itself prove a current vacancy or current source validity.
+The campaign does not begin by adding ranking, Fit, UI or application features. The present learning bottleneck is evidence breadth. The existing candidate set exists because each candidate has already produced at least one historically relevant job/discovery signal. Freeze II therefore first expands that population with conservative market sensors and only then freezes the connector-fleet denominator. Historical relevance justifies monitoring effort but does not itself prove a current vacancy or current source validity.
 
 ## Inherited work
 
@@ -40,6 +40,9 @@ The campaign does not begin by adding ranking, Fit, UI or application features. 
 9. Deterministic structured or bounded visible evidence is first lane.
 10. ML/LLM may later propose Shadow evidence only; neither creates source truth.
 11. Fit/Combined/ranking authority does not expand until upstream gates pass.
+12. LinkedIn and Indeed are discovery/freshness sensors only. Direct login automation, browser-session automation, CAPTCHA handling, broad scraping and raw job-content persistence remain prohibited. Their admissible automated transport is a separately reviewed official API or an already-approved external web-search provider that returns minimal public search evidence.
+13. LinkedIn/Indeed observations may create or prioritize employer/source candidates only. Aggregator URLs and job identities are discarded before Employer-Origin learning; the candidate must be resolved to a direct employer/ATS source before source proof.
+14. Candidate expansion precedes the connector-fleet denominator freeze. The S0 count of 67 is the initial population, not the final S1 denominator.
 
 ## S0 — Current truth baseline + layer-loss map — COMPLETE
 
@@ -95,11 +98,52 @@ S0 boundary:
 - provider/LLM calls 0;
 - Fit/ranking/application authority 0.
 
+## S0.5 — Conservative market-sensor expansion — FIRST ACTIVE SLICE
+
+Add **LinkedIn** and **Indeed** as conservative market-discovery sensors alongside Bundesagentur and StepStone.
+
+Purpose:
+
+- broaden company/employer discovery;
+- broaden role/title/vocabulary visibility;
+- detect false-negative employers that the current source raster misses;
+- feed candidate expansion, never Product job authority.
+
+Transport contract:
+
+- no personal login/session automation;
+- no browser automation or CAPTCHA bypass;
+- no direct broad scraping;
+- no raw job-description persistence;
+- use only a documented/approved API path or the project's already-approved bounded web-search provider path;
+- emit only minimal discovery evidence: platform, query, observed company, bounded title/location signal, public result URL/reference, observed timestamp;
+- discard aggregator URL/job identity before Employer-Origin URL-structure learning.
+
+Initial acceptance:
+
+- LinkedIn and Indeed both execute one bounded search plan for the current role/location intent;
+- each produces an explicit outcome: observations, zero-yield, provider-unavailable or policy-blocked;
+- provider request count and budget are explicit;
+- DB/Bronze/Silver/Product writes remain zero in the first proof.
+
+## S0.6 — Candidate expansion from sensor evidence
+
+After sensor proof, run known-candidate suppression and bounded candidate promotion:
+
+- suppress companies already represented by the Employer-Origin candidate lifecycle;
+- retain genuinely new employers for bounded review/promotion;
+- resolve each promoted company to a direct employer/ATS source before any Origin proof;
+- preserve discovery provenance (`linkedin`, `indeed`, existing sensors) without allowing the aggregator URL to become source authority.
+
+The resulting reviewed candidate population becomes the **Freeze-II connector-fleet denominator**.
+
+The current S0 count **67** remains the initial baseline for delta accounting. New sensor-derived candidates are added explicitly; candidates are never removed merely to improve a percentage.
+
 ## S1 — Connector fleet completeness + systematic live search — PRIMARY
 
 Primary work: #789 + CR-F1-001.
 
-S0 freezes the initial campaign fleet at **67 current connector candidates**. S1 is not satisfied by adding five or another small convenience cohort. The target is fleet completeness.
+S0 measured **67 initial connector candidates**. S0.5/S0.6 may grow that population. Once the sensor-driven candidate-expansion wave is reviewed, S1 freezes the expanded cohort as its denominator. S1 is not satisfied by a convenient subset. The target is fleet completeness, with **~95% generic connector-generation success as a strong engineering objective (not a hard gate)** and eventual connector smoke coverage for the full frozen cohort.
 
 ### S1-A — executable connector contract
 
@@ -110,7 +154,13 @@ For every candidate in the S0 baseline cohort:
 - every synthetic record is marked non-authoritative and is structurally blocked from Bronze, Silver, Product/CC, ranking, Fit and application paths;
 - shared ATS/source-family mechanics are reused wherever possible; a per-candidate configuration is not an excuse for employer-specific parsing logic.
 
-Initial acceptance target: **67/67 baseline candidates pass connector smoke**. New candidates discovered during the campaign enter the fleet denominator as an explicit delta rather than silently changing the baseline.
+Acceptance metrics:
+
+- `generic_builder_success_rate`: fraction of the frozen expanded cohort whose connector instance/configuration is generated without employer-specific runtime parsing code;
+- **~95%** generic builder success is a strong target and design pressure, not a hard pass/fail threshold;
+- difficult candidates may not be removed from the denominator to improve the rate;
+- remaining long-tail cases are classified by reusable source/ATS mechanics and closed separately;
+- eventual technical connector-smoke coverage target remains **100% of the frozen cohort**.
 
 ### S1-B — live source search
 
