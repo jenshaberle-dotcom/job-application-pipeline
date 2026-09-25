@@ -131,16 +131,20 @@ def test_codex_schema_carries_text_only_and_no_layout_authority() -> None:
         assert f'"{forbidden}"' not in encoded
 
 
-def test_prompt_excludes_stale_application_letter_and_includes_approved_cv() -> None:
+def test_prompt_includes_current_cv_letter_and_vacancy_with_split_authority() -> None:
     prompt = adapter._prompt(_context())
 
     assert "System Development Engineer / Product Owner" in prompt
-    assert "Hornetsecurity GmbH" not in prompt
-    assert "Julia Klein" not in prompt
+    assert "Hornetsecurity GmbH" in prompt
+    assert "Julia Klein" in prompt
     assert '"company_name": "accompio"' in prompt
+    assert '"authority": "style_structure_quality_reference_only"' in prompt
+    assert '"stale_fields":' in prompt
+    assert '"current_cv_and_letter_and_vacancy_are_shared_with_codex": true' in prompt
     assert '"cv_competency_profile_max_chars": 180' in prompt
-    assert '"letter_paragraph_count": 4' in prompt
-    assert '"letter_paragraph_max_chars": 240' in prompt
+    assert '"letter_paragraph_min_count": 4' in prompt
+    assert '"letter_paragraph_max_count": 6' in prompt
+    assert '"letter_paragraph_max_chars": 520' in prompt
 
 
 def test_renderer_feedback_adds_progressive_hard_compaction_targets() -> None:
@@ -175,8 +179,8 @@ def test_codex_schema_freezes_current_f6_text_budgets() -> None:
     assert properties["cv_short_profile"]["maxLength"] == 520
     assert properties["cv_competency_profile"]["maxLength"] == 180
     assert properties["letter_paragraphs"]["minItems"] == 4
-    assert properties["letter_paragraphs"]["maxItems"] == 4
-    assert properties["letter_paragraphs"]["items"]["maxLength"] == 240
+    assert properties["letter_paragraphs"]["maxItems"] == 6
+    assert properties["letter_paragraphs"]["items"]["maxLength"] == 520
 
 
 def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
@@ -196,6 +200,8 @@ def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
         )
         assert "--full-auto" not in command
         assert command[command.index("--sandbox") + 1] == "read-only"
+        assert command[command.index("--model") + 1] == "gpt-5.6-sol"
+        assert 'model_reasoning_effort="high"' in command
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(adapter.subprocess, "run", fake_run)
@@ -218,6 +224,8 @@ def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
     assert "Julia Klein" not in combined
     assert zones["base_cv"]["p1.short_profile"]
     assert zones["base_cv"]["p1.competency_profile"]
+    assert zones["base_cv"]["p2.footer.date"] == "Hannover, 24. September 2026"
+    assert result.reasoning_effort == "high"
 
 
 def test_codex_capacity_exhaustion_returns_no_low_quality_fallback(
@@ -300,6 +308,8 @@ def test_runtime_status_reports_non_chatgpt_auth_without_enabling_drafting(
     assert status.installed is True
     assert status.chatgpt_authenticated is False
     assert status.auth_mode == "api_key"
+    assert status.reasoning_effort == "high"
+    assert status.to_json()["reasoning_effort"] == "high"
     assert status.to_json()["api_key_fallback"] is False
     assert status.to_json()["automatic_credit_purchase"] is False
 
@@ -372,13 +382,29 @@ def test_overlong_competency_profile_is_rejected_before_review() -> None:
         )
 
 
-def test_letter_must_use_exactly_four_layout_bounded_paragraphs() -> None:
+def test_letter_accepts_quality_range_but_rejects_more_than_six_paragraphs() -> None:
     decoded = _model_output()
     decoded["letter_paragraphs"] = list(decoded["letter_paragraphs"]) + [
-        "Ein zusätzlicher Absatz darf die kleineren Folgezonen nicht heimlich belegen."
+        "Ein fünfter vollständiger Absatz darf bei ausreichendem Platz genutzt werden.",
+        "Ein sechster vollständiger Absatz darf ebenfalls für einen sauberen Abschluss dienen.",
+        "Ein siebter Absatz liegt außerhalb des freigegebenen F6-Layouts.",
     ]
 
-    with pytest.raises(adapter.CodexApplicationDraftStop, match="exactly 4"):
+    with pytest.raises(adapter.CodexApplicationDraftStop, match="quality range"):
+        adapter._validate_output(
+            decoded,
+            context=_context(),
+            as_of_date=date(2026, 9, 24),
+        )
+
+
+def test_unfinished_letter_paragraph_is_rejected_before_rendering() -> None:
+    decoded = _model_output()
+    decoded["letter_paragraphs"][2] = (
+        "Aus meiner beruflichen Erfahrung bringe ich strukturierte Entscheidungen und belastbaren"
+    )
+
+    with pytest.raises(adapter.CodexApplicationDraftStop, match="unfinished"):
         adapter._validate_output(
             decoded,
             context=_context(),
