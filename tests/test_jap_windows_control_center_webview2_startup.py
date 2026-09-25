@@ -95,7 +95,7 @@ def test_webview2_navigation_is_proven_before_splash_is_hidden() -> None:
 
 
 def test_current_product_local_release_version() -> None:
-    assert VERSION.read_text(encoding="utf-8").strip() == "1.1.7"
+    assert VERSION.read_text(encoding="utf-8").strip() == "1.1.8"
 
 
 

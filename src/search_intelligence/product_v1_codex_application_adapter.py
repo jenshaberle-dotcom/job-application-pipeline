@@ -34,6 +34,14 @@ DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_TIMEOUT_SECONDS = 120.0
 MAX_VACANCY_CHARS = 16_000
 MAX_CV_CHARS = 18_000
+
+# Frozen F6 layout budgets. These are content limits, not layout authority:
+# Codex must stay inside the already-approved text zones and the renderer remains
+# the final exact-fit/pixel-identity gate.
+CV_SHORT_PROFILE_MAX_CHARS = 520
+CV_COMPETENCY_PROFILE_MAX_CHARS = 180
+LETTER_PARAGRAPH_COUNT = 4
+LETTER_PARAGRAPH_MAX_CHARS = 240
 CAPACITY_PATTERNS = (
     "usage limit",
     "usage_limit",
@@ -96,9 +104,13 @@ Rules:
   sections semantically unchanged and do not rewrite career-history blocks just for stylistic variety.
 - Write natural, specific application prose. Avoid generic AI phrases, keyword stuffing and
   sentence-by-sentence repetition of the vacancy.
-- The CV short profile must be concise and targeted. The competency profile should contain only
-  capabilities supported by the supplied candidate sources.
+- The CV short profile must be concise and targeted. Hard limit: 520 characters.
+- The competency profile is a compact frozen side-panel, not a second summary. Hard limit:
+  180 characters total. Prefer 4-6 short capability groups separated by " · ".
 - The application letter must be coherent as one letter, not disconnected evidence snippets.
+  Return exactly 4 paragraphs and keep every paragraph at or below 240 characters.
+- These text budgets are hard F6 layout constraints. Do not compensate by asking for smaller fonts,
+  scaling, extra pages, moved zones or any other layout change.
 - Prefer German when the vacancy is German or mixed German/English. Use English only when the
   vacancy is clearly English.
 - Return only the schema-constrained result. Human review remains mandatory.
@@ -175,13 +187,25 @@ def _schema() -> dict[str, object]:
             "language": {"type": "string", "enum": ["de", "en"]},
             "contact_name": {"type": "string", "maxLength": 120},
             "salutation": {"type": "string", "minLength": 2, "maxLength": 220},
-            "cv_short_profile": {"type": "string", "minLength": 40, "maxLength": 1_300},
-            "cv_competency_profile": {"type": "string", "minLength": 20, "maxLength": 900},
+            "cv_short_profile": {
+                "type": "string",
+                "minLength": 40,
+                "maxLength": CV_SHORT_PROFILE_MAX_CHARS,
+            },
+            "cv_competency_profile": {
+                "type": "string",
+                "minLength": 20,
+                "maxLength": CV_COMPETENCY_PROFILE_MAX_CHARS,
+            },
             "letter_paragraphs": {
                 "type": "array",
-                "minItems": 3,
-                "maxItems": 6,
-                "items": {"type": "string", "minLength": 20, "maxLength": 1_500},
+                "minItems": LETTER_PARAGRAPH_COUNT,
+                "maxItems": LETTER_PARAGRAPH_COUNT,
+                "items": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": LETTER_PARAGRAPH_MAX_CHARS,
+                },
             },
             "rationale": {"type": "string", "maxLength": 600},
         },
@@ -222,6 +246,12 @@ def _prompt(context: ProductV1ApplicationContext) -> str:
             "subject_and_date_are_built_deterministically_by_JAP": True,
             "old_application_letter_content_is_not_source_material": True,
             "human_review_required": True,
+            "frozen_layout_text_budgets": {
+                "cv_short_profile_max_chars": CV_SHORT_PROFILE_MAX_CHARS,
+                "cv_competency_profile_max_chars": CV_COMPETENCY_PROFILE_MAX_CHARS,
+                "letter_paragraph_count": LETTER_PARAGRAPH_COUNT,
+                "letter_paragraph_max_chars": LETTER_PARAGRAPH_MAX_CHARS,
+            },
         },
     }
     return SYSTEM_TASK + "\n\nINPUT PACKET:\n" + json.dumps(
@@ -386,11 +416,21 @@ def _validate_output(
     raw_paragraphs = decoded.get("letter_paragraphs")
     if language not in {"de", "en"}:
         raise CodexApplicationDraftStop("Codex returned an unsupported application language")
-    if not isinstance(raw_paragraphs, list) or not 3 <= len(raw_paragraphs) <= 6:
-        raise CodexApplicationDraftStop("Codex letter paragraph count is outside F6 bounds")
+    if (
+        not isinstance(raw_paragraphs, list)
+        or len(raw_paragraphs) != LETTER_PARAGRAPH_COUNT
+    ):
+        raise CodexApplicationDraftStop(
+            "Codex letter must contain exactly "
+            f"{LETTER_PARAGRAPH_COUNT} F6 paragraphs"
+        )
     paragraphs = tuple(_normalized(item) for item in raw_paragraphs)
     if any(len(item) < 20 for item in paragraphs):
         raise CodexApplicationDraftStop("Codex returned an empty/undersized letter paragraph")
+    if any(len(item) > LETTER_PARAGRAPH_MAX_CHARS for item in paragraphs):
+        raise CodexApplicationDraftStop(
+            "Codex letter paragraph exceeds the frozen F6 text budget"
+        )
 
     detail_folded = context.target.detail_text.casefold()
     if contact_name and contact_name.casefold() not in detail_folded:
@@ -411,6 +451,14 @@ def _validate_output(
         raise CodexApplicationDraftStop("Codex letter is not specific to the selected target")
     if len(cv_short) < 40 or len(cv_competency) < 20:
         raise CodexApplicationDraftStop("Codex CV adaptation is incomplete")
+    if len(cv_short) > CV_SHORT_PROFILE_MAX_CHARS:
+        raise CodexApplicationDraftStop(
+            "Codex CV short profile exceeds the frozen F6 text budget"
+        )
+    if len(cv_competency) > CV_COMPETENCY_PROFILE_MAX_CHARS:
+        raise CodexApplicationDraftStop(
+            "Codex CV competency profile exceeds the frozen F6 text budget"
+        )
 
     recipient = context.target.company_name
     if contact_name:

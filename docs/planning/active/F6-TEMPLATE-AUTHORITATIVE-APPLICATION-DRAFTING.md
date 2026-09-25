@@ -496,6 +496,24 @@ No arbitrary Personio allowlist is introduced, no inactive target is admitted, a
 The next operator gate remains **Eraneos Silver #511 — Data Engineer (all genders)**. On installed 1.1.7 require `Live vacancy verified`, `Employer-Origin authority = Verified`, `ChatGPT connected`, zero application blockers and an enabled **Generate review text** action. The generated CV + letter remain review-first and template-authoritative.
 
 
+### Candidate 1.1.8 — layout-budgeted Codex text before exact rendering
+
+Installed 1.1.7 passes the previous Employer-Origin and ChatGPT connection gates and produces the first real vacancy-specific Codex CV + application-letter draft for Eraneos #511. The exact renderer then correctly blocks the first final-PDF attempt because `p1.competency_profile` does not fit its frozen zone without scaling.
+
+That is expected fail-closed renderer behavior, but generation must respect the frozen layout earlier. 1.1.8 therefore adds conservative text budgets to the Codex schema and prompt:
+
+- CV short profile: at most 520 characters;
+- CV competency profile: at most 180 characters, intentionally compact;
+- application letter: exactly four body paragraphs;
+- each letter paragraph: at most 240 characters.
+
+These limits are content constraints only. They do not grant layout authority and do not replace the renderer. The final renderer still performs exact zone fit plus outside-zone pixel-identity proof and may block any text that does not actually fit.
+
+The review UI also becomes truthful after a failed render: it no longer simultaneously reports `PDF creation blocked` and `Application PDF is ready to build`. While a renderer error is active, the build control is disabled and the surface explicitly asks for text adjustment or regeneration; editing a zone clears the stale renderer error so another exact attempt can be made.
+
+The next operator gate remains Eraneos #511: regenerate review text on 1.1.8 and create the finished application PDF. Acceptance requires 3 pages total (1 application letter + 2 CV pages), no scaling, exact frozen-template geometry, outside-zone pixel identity, human review required, and zero automatic submission/send authority.
+
+
 ## Explicit non-goals
 
 - no alternate template chooser;

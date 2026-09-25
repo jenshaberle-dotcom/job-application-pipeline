@@ -6,7 +6,7 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical installed/released Product baseline: desktop **1.1.6**, source `69186640247b2f8d7e5ec859d45189df966c6ca5`;
+- canonical installed/released Product baseline: desktop **1.1.7**, source `0ae9ac8d09d01f2152c3ba8b473cd7d366167073`;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
@@ -54,13 +54,17 @@ This section supersedes older F5/updater sequencing statements retained below as
 - the same 1.1.6 run exposes a UI reconciliation race: after the backend reaches completed ChatGPT auth, the Application Workspace can remain on `ChatGPT sign-in required` because the polling effect invalidates its own nested status request when `codexLogin.status` changes to `completed`;
 - the Eraneos #511 run also proves that 1.1.6 incorrectly couples reviewed Personio **source-origin authority** to the newest lifecycle-health projection. The explicit exact live vacancy revalidation legitimately advances lifecycle evidence to `exact_detail_url_and_title_confirmed` / `exact_detail`, which must not revoke the still-exact, reviewed `personio-recurring-feed-authority.v1` Employer-Origin binding;
 - candidate **1.1.7** separates those authorities: reviewed Personio origin remains bound to its exact recurring-feed observation contract while `active_confirmed` remains mandatory, and completed device login reconciles Codex runtime status in an independent UI effect;
+- installed **1.1.7** passes both prior blockers and reaches the first real Codex-adapted document draft for Eraneos #511. The UI exposes a complete CV adaptation and vacancy-specific application letter, audit reports bundled `gpt-5.6-sol / codex-cli 0.154.0`, exactly one Codex/provider request, and zero DB/submission/send writes;
+- the first real final-PDF render then correctly fails closed on `p1.competency_profile`: `replacement text does not fit frozen F6 zone without scaling`. This is no longer an auth/Origin/context failure; the text generator produced content larger than the already-frozen template zone;
+- candidate **1.1.8** binds Codex output to conservative frozen-layout text budgets before review: CV short profile <= 520 chars, competency profile <= 180 chars, exactly four application-letter paragraphs <= 240 chars each. The exact renderer still remains final authority; no font scaling, page growth, geometry mutation or layout relaxation is introduced;
+- 1.1.8 also removes the contradictory review UX where a renderer error could coexist with `Application PDF is ready to build` and an enabled build button. A blocked render is labeled as text adjustment required; editing clears the stale error and permits a new exact render attempt;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
 
 The 1.0.73 correction therefore separates two authorities. Top-5 stays strict and may remain empty. An explicit operator selection of a current, Origin-validated, authorized employer-origin vacancy may nevertheless open the review-only Application Workspace. Such a target carries `operator_selected_current_job`, has no Product rank, leaves unknown hard-filter evidence unknown, and is blocked by a known hard-filter failure. Candidate Facts, exact current vacancy evidence, exact F6 PDF authority, source-manifest binding, outside-zone pixel proof and the no-submit/no-send boundary remain unchanged.
 
-The next Product gate is candidate **1.1.7** on live **Eraneos Silver #511 — Data Engineer (all genders)**. The exact live revalidation may remain the newest lifecycle-health proof, but the reviewed recurring Personio observation must still yield `Employer-Origin authority = Verified` and remove `employer_origin_required`. Existing ChatGPT credentials must be detected without another login; after a fresh device login, the UI must also transition automatically to `ChatGPT connected` without manual reload. When both are green, **Generate review text** must enable and produce the first real vacancy-specific Codex-adapted CV + application-letter review draft.
+The next Product gate is candidate **1.1.8** on live **Eraneos Silver #511 — Data Engineer (all genders)**. Regenerate the Codex review text under the frozen-layout budgets and then create the finished application PDF. Acceptance requires the exact 1-page letter + 2-page CV package to render without scaling, preserve outside-zone pixel identity, remain human-review-only, and retain zero automatic submission/send authority.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.
