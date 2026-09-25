@@ -95,16 +95,16 @@ def _add_identity_header(
     paragraph.paragraph_format.space_after = Pt(2)
     run = paragraph.add_run(name)
     run.bold = True
-    run.font.size = Pt(24)
+    run.font.size = Pt(22)
     if tagline:
         paragraph = document.add_paragraph()
         paragraph.paragraph_format.space_after = Pt(1)
         run = paragraph.add_run(tagline)
         run.bold = True
-        run.font.size = Pt(10)
+        run.font.size = Pt(9)
     if contact:
         paragraph = document.add_paragraph(contact)
-        paragraph.paragraph_format.space_after = Pt(10)
+        paragraph.paragraph_format.space_after = Pt(7)
 
 
 def _add_letter(
@@ -142,7 +142,7 @@ def _add_letter(
         value = _text(values, kind, f"body.paragraph_{index}")
         if value:
             paragraph = document.add_paragraph(value)
-            paragraph.paragraph_format.space_after = Pt(8)
+            paragraph.paragraph_format.space_after = Pt(5)
 
     document.add_paragraph(
         _text(values, kind, "closing.formula", "Mit freundlichen Grüßen")
@@ -161,10 +161,10 @@ def _add_cv(
     section = document.add_section(WD_SECTION.NEW_PAGE)
     section.page_width = Mm(210)
     section.page_height = Mm(297)
-    section.top_margin = Mm(14)
-    section.bottom_margin = Mm(14)
-    section.left_margin = Mm(14)
-    section.right_margin = Mm(14)
+    section.top_margin = Mm(11)
+    section.bottom_margin = Mm(11)
+    section.left_margin = Mm(12)
+    section.right_margin = Mm(12)
 
     _add_identity_header(
         document,
