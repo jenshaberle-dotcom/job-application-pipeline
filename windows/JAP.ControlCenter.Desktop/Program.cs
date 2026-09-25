@@ -27,6 +27,21 @@ internal static class Program
             return;
         }
 
+        var installRoot = ResolveInstallRoot();
+        if (!string.IsNullOrWhiteSpace(installRoot)
+            && ProductUpdateOperation.HasActiveHandoff(installRoot)
+            && !ProductUpdateOperation.RestartTokenMatches(
+                installRoot,
+                ProductUpdateOperation.ReadEnvironmentToken()))
+        {
+            MessageBox.Show(
+                "JAP Control Center wird gerade aktualisiert und startet anschließend automatisch neu.",
+                "JAP Control Center",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
         using var mutex = new Mutex(initiallyOwned: false, MutexName);
         var ownsMutex = false;
         try
@@ -105,7 +120,11 @@ internal static class Program
         {
             var installRoot = ResolveInstallRoot();
             return !string.IsNullOrWhiteSpace(installRoot)
-                && File.Exists(Path.Combine(installRoot, "state", "accepted-update.json"));
+                && (ProductUpdateOperation.HasActiveHandoff(installRoot)
+                    || File.Exists(Path.Combine(
+                        installRoot,
+                        "state",
+                        "accepted-update.json")));
         }
         catch
         {

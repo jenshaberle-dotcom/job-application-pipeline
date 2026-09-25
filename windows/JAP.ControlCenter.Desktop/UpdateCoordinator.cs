@@ -192,6 +192,10 @@ internal sealed class UpdateCoordinator : IDisposable
             }
 
             WriteAcceptedManifest(pending.ManifestJson);
+            var handoffToken = ProductUpdateOperation.BeginHandoff(
+                _installRoot,
+                pending.TargetMainSha,
+                pending.TargetDesktopVersion);
             TryDelete(_snoozePath);
             WriteEvent(
                 "update_accepted",
@@ -222,6 +226,7 @@ internal sealed class UpdateCoordinator : IDisposable
             startInfo.ArgumentList.Add(_installRoot);
             startInfo.ArgumentList.Add("--host-pid");
             startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
+            ProductUpdateOperation.AttachRestartToken(startInfo, handoffToken);
 
             _ = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("JAP product-local update applier could not be started.");
@@ -231,6 +236,7 @@ internal sealed class UpdateCoordinator : IDisposable
         }
         catch (Exception exc)
         {
+            ProductUpdateOperation.ClearHandoff(_installRoot);
             TryDelete(_acceptedPath);
             WriteEvent("update_start_failed", exc.ToString());
             MessageBox.Show(

@@ -40,11 +40,33 @@ internal static class ProductUpdateApplier
         string? desktopBackup = null;
         string? runtimeBackup = null;
         Process? restarted = null;
-        var desktopMoved = false;
-        var runtimeMoved = false;
+        string? previousSha = null;
+        string? previousVersion = null;
+        var desktopBackedUp = false;
+        var runtimeBackedUp = false;
+        var desktopTargetInstalled = false;
+        var runtimeTargetInstalled = false;
+        var handoffToken = ProductUpdateOperation.ReadEnvironmentToken();
+        using var operationMutex = ProductUpdateOperation.CreateOperationMutex(installRoot);
+        var ownsOperationMutex = false;
 
         try
         {
+            Require(
+                ProductUpdateOperation.RestartTokenMatches(installRoot, handoffToken),
+                "Product update handoff authority mismatch.");
+            ownsOperationMutex = ProductUpdateOperation.TryAcquire(
+                operationMutex,
+                TimeSpan.FromSeconds(60),
+                out var recoveredAbandoned);
+            Require(
+                ownsOperationMutex,
+                "Another JAP product update operation is still active.");
+            if (recoveredAbandoned)
+            {
+                WriteLog(logPath, "apply_lock_recovered", $"install_root={installRoot}");
+            }
+
             WriteLog(logPath, "apply_begin", $"host_pid={hostPidText}");
             WriteLog(logPath, "host_exit_wait_begin", $"host_pid={hostPidText}");
             WaitForHostExit(hostPidText);
@@ -97,6 +119,10 @@ internal static class ProductUpdateApplier
             {
                 Require(Get(currentDoc.RootElement, "schema") == InstallSchema, "Installed JAP schema changed before cutover.");
                 Require(Get(currentDoc.RootElement, "update_generation") == UpdateGeneration, "Installed JAP generation changed before cutover.");
+                previousSha = Get(currentDoc.RootElement, "pinned_sha").Trim().ToLowerInvariant();
+                previousVersion = Get(currentDoc.RootElement, "desktop_host_version").Trim();
+                Require(ShaPattern.IsMatch(previousSha), "Installed JAP source identity is invalid before cutover.");
+                Require(Version.TryParse(previousVersion, out _), "Installed JAP version is invalid before cutover.");
             }
 
             rollbackRoot = Path.Combine(
@@ -111,16 +137,18 @@ internal static class ProductUpdateApplier
             if (Directory.Exists(desktopLive))
             {
                 MoveDirectoryWithRetry(desktopLive, desktopBackup, logPath, "desktop_live_to_backup");
+                desktopBackedUp = true;
             }
             MoveDirectoryWithRetry(desktopStage, desktopLive, logPath, "desktop_stage_to_live");
-            desktopMoved = true;
+            desktopTargetInstalled = true;
 
             if (Directory.Exists(runtimeLive))
             {
                 MoveDirectoryWithRetry(runtimeLive, runtimeBackup, logPath, "runtime_live_to_backup");
+                runtimeBackedUp = true;
             }
             MoveDirectoryWithRetry(runtimeStage, runtimeLive, logPath, "runtime_stage_to_live");
-            runtimeMoved = true;
+            runtimeTargetInstalled = true;
 
             VerifyDesktopStage(desktopLive, targetSha, targetVersion);
             VerifyRuntimeStage(runtimeLive, targetSha, targetVersion);
@@ -156,12 +184,10 @@ internal static class ProductUpdateApplier
             var exe = Path.Combine(desktopLive, "JAP.ControlCenter.Desktop.exe");
             Require(File.Exists(exe), "Installed desktop executable is missing after cutover.");
             WriteLog(logPath, "restart_begin", $"exe={exe}");
-            restarted = Process.Start(new ProcessStartInfo
-            {
-                FileName = exe,
-                WorkingDirectory = installRoot,
-                UseShellExecute = true
-            }) ?? throw new InvalidOperationException("Updated JAP host could not be restarted.");
+            restarted = StartProductWithHandoff(
+                exe,
+                installRoot,
+                handoffToken);
             WriteLog(logPath, "restart_started", $"pid={restarted.Id} target={targetVersion}");
 
             WriteLog(logPath, "restart_verify_begin", $"pid={restarted.Id} sha={targetSha}");
@@ -180,82 +206,300 @@ internal static class ProductUpdateApplier
             TryDelete(pendingPath);
             TryDelete(snoozePath);
             WriteLog(logPath, "apply_success", $"version={targetVersion} sha={targetSha}");
+            ProductUpdateOperation.ClearHandoff(installRoot);
             TryDeleteDirectory(rollbackRoot);
             CleanupOldUpdates(installRoot, targetSha);
             return 0;
         }
         catch (Exception exc)
         {
+            var rollbackErrors = new List<string>();
             try
             {
-                if (restarted is not null && !restarted.HasExited)
+                StopProcessBestEffort(restarted);
+                StopLiveDesktopPeers(desktopLive, logPath);
+
+                if (desktopBackedUp)
+                {
+                    TryRestoreDirectory(
+                        desktopLive,
+                        desktopBackup,
+                        logPath,
+                        "rollback_desktop_backup_to_live",
+                        rollbackErrors);
+                }
+                else if (desktopTargetInstalled)
+                {
+                    rollbackErrors.Add("rollback_desktop_backup_missing");
+                }
+
+                if (runtimeBackedUp)
+                {
+                    TryRestoreDirectory(
+                        runtimeLive,
+                        runtimeBackup,
+                        logPath,
+                        "rollback_runtime_backup_to_live",
+                        rollbackErrors);
+                }
+                else if (runtimeTargetInstalled)
+                {
+                    rollbackErrors.Add("rollback_runtime_backup_missing");
+                }
+
+                var previousGenerationRestored = false;
+                if (rollbackErrors.Count == 0
+                    && !string.IsNullOrWhiteSpace(previousCurrentJson)
+                    && !string.IsNullOrWhiteSpace(previousSha)
+                    && !string.IsNullOrWhiteSpace(previousVersion))
                 {
                     try
                     {
-                        restarted.CloseMainWindow();
-                        if (!restarted.WaitForExit(25_000))
-                        {
-                            restarted.Kill(entireProcessTree: true);
-                            restarted.WaitForExit(5_000);
-                        }
+                        VerifyDesktopStage(desktopLive, previousSha, previousVersion);
+                        VerifyRuntimeStage(runtimeLive, previousSha, previousVersion);
+                        var temporary = currentPath + ".rollback.tmp";
+                        File.WriteAllText(temporary, previousCurrentJson);
+                        File.Move(temporary, currentPath, true);
+                        previousGenerationRestored = true;
+                        WriteLog(
+                            logPath,
+                            "rollback_generation_verified",
+                            $"version={previousVersion} sha={previousSha}");
                     }
-                    catch { }
-                }
-
-                if (runtimeMoved)
-                {
-                    if (Directory.Exists(runtimeLive)) Directory.Delete(runtimeLive, true);
-                    if (!string.IsNullOrWhiteSpace(runtimeBackup) && Directory.Exists(runtimeBackup))
+                    catch (Exception verifyExc)
                     {
-                        MoveDirectoryWithRetry(runtimeBackup, runtimeLive, logPath, "rollback_runtime_backup_to_live");
+                        rollbackErrors.Add(
+                            $"rollback_generation_verify={verifyExc.GetType().Name}:{verifyExc.Message}");
                     }
                 }
 
-                if (desktopMoved)
-                {
-                    if (Directory.Exists(desktopLive)) Directory.Delete(desktopLive, true);
-                    if (!string.IsNullOrWhiteSpace(desktopBackup) && Directory.Exists(desktopBackup))
-                    {
-                        MoveDirectoryWithRetry(desktopBackup, desktopLive, logPath, "rollback_desktop_backup_to_live");
-                    }
-                }
-
-                if (!string.IsNullOrWhiteSpace(previousCurrentJson))
-                {
-                    var temporary = currentPath + ".rollback.tmp";
-                    File.WriteAllText(temporary, previousCurrentJson);
-                    File.Move(temporary, currentPath, true);
-                }
-
-                TryDelete(acceptedPath);
-                TryDelete(pendingPath);
-                WriteResult(resultPath, "failed", targetSha ?? string.Empty, targetVersion ?? string.Empty, exc.Message);
+                var rollbackDetail = rollbackErrors.Count == 0
+                    ? "rollback_restored_previous_generation"
+                    : "rollback_errors=" + string.Join(" | ", rollbackErrors);
+                WriteResult(
+                    resultPath,
+                    "failed",
+                    targetSha ?? string.Empty,
+                    targetVersion ?? string.Empty,
+                    $"{exc.Message}; {rollbackDetail}");
                 WriteFailureSnooze(
                     snoozePath,
                     targetSha ?? string.Empty,
                     targetVersion ?? string.Empty,
                     DateTimeOffset.UtcNow.Add(FailureRetryDelay));
-                WriteLog(
-                    logPath,
-                    "apply_failed",
-                    $"{exc} retry_suppressed_until={DateTimeOffset.UtcNow.Add(FailureRetryDelay):O}");
 
-                var oldExe = Path.Combine(desktopLive, "JAP.ControlCenter.Desktop.exe");
-                if (File.Exists(oldExe))
+                if (previousGenerationRestored)
                 {
-                    Process.Start(new ProcessStartInfo
+                    TryDelete(acceptedPath);
+                    TryDelete(pendingPath);
+                    ProductUpdateOperation.ClearHandoff(installRoot);
+                    WriteLog(
+                        logPath,
+                        "apply_failed_rolled_back",
+                        $"{exc} retry_suppressed_until={DateTimeOffset.UtcNow.Add(FailureRetryDelay):O}");
+
+                    var oldExe = Path.Combine(desktopLive, "JAP.ControlCenter.Desktop.exe");
+                    if (File.Exists(oldExe))
                     {
-                        FileName = oldExe,
-                        WorkingDirectory = installRoot,
-                        UseShellExecute = true
-                    });
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = oldExe,
+                            WorkingDirectory = installRoot,
+                            UseShellExecute = true
+                        });
+                    }
+                }
+                else
+                {
+                    WriteLog(
+                        logPath,
+                        "rollback_incomplete_handoff_retained",
+                        $"{exc} {rollbackDetail}");
                 }
             }
             catch (Exception rollbackExc)
             {
-                try { WriteLog(logPath, "rollback_failed", rollbackExc.ToString()); } catch { }
+                try
+                {
+                    WriteLog(
+                        logPath,
+                        "rollback_failed_handoff_retained",
+                        rollbackExc.ToString());
+                }
+                catch { }
             }
             return 2;
+        }
+        finally
+        {
+            if (ownsOperationMutex)
+            {
+                operationMutex.ReleaseMutex();
+            }
+        }
+    }
+
+    private static void StopProcessBestEffort(Process? process)
+    {
+        if (process is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (process.HasExited)
+            {
+                return;
+            }
+
+            process.CloseMainWindow();
+            if (!process.WaitForExit(25_000))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(5_000);
+            }
+        }
+        catch
+        {
+            // Rollback still attempts exact live-tree recovery.
+        }
+    }
+
+    private static void StopLiveDesktopPeers(string desktopLive, string logPath)
+    {
+        var expected = Path.GetFullPath(
+            Path.Combine(desktopLive, "JAP.ControlCenter.Desktop.exe"));
+        foreach (var process in Process.GetProcessesByName("JAP.ControlCenter.Desktop"))
+        {
+            using (process)
+            {
+                try
+                {
+                    if (process.Id == Environment.ProcessId || process.HasExited)
+                    {
+                        continue;
+                    }
+
+                    var actual = process.MainModule?.FileName;
+                    if (string.IsNullOrWhiteSpace(actual)
+                        || !Path.GetFullPath(actual).Equals(
+                            expected,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    WriteLog(
+                        logPath,
+                        "rollback_stop_live_peer",
+                        $"pid={process.Id} path={actual}");
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(5_000);
+                }
+                catch
+                {
+                    // Bounded delete/move retry remains the final rollback authority.
+                }
+            }
+        }
+    }
+
+    private static void TryRestoreDirectory(
+        string live,
+        string? backup,
+        string logPath,
+        string operation,
+        List<string> errors)
+    {
+        try
+        {
+            if (Directory.Exists(live))
+            {
+                DeleteDirectoryWithRetry(
+                    live,
+                    logPath,
+                    operation + "_delete_live");
+            }
+
+            if (string.IsNullOrWhiteSpace(backup)
+                || !Directory.Exists(backup))
+            {
+                throw new DirectoryNotFoundException(
+                    $"Rollback backup is missing: {backup}");
+            }
+
+            MoveDirectoryWithRetry(
+                backup,
+                live,
+                logPath,
+                operation);
+        }
+        catch (Exception restoreExc)
+        {
+            errors.Add(
+                $"{operation}={restoreExc.GetType().Name}:{restoreExc.Message}");
+            try
+            {
+                WriteLog(
+                    logPath,
+                    "rollback_component_failed",
+                    $"operation={operation} error={restoreExc}");
+            }
+            catch { }
+        }
+    }
+
+    private static Process StartProductWithHandoff(
+        string executable,
+        string installRoot,
+        string handoffToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = installRoot,
+            UseShellExecute = false
+        };
+        ProductUpdateOperation.AttachRestartToken(startInfo, handoffToken);
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException(
+                "Updated JAP host could not be restarted.");
+    }
+
+    private static void DeleteDirectoryWithRetry(
+        string path,
+        string logPath,
+        string operation)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(MoveRetryWindow);
+        var attempt = 0;
+        while (true)
+        {
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                if (attempt > 0)
+                {
+                    WriteLog(
+                        logPath,
+                        "delete_retry_recovered",
+                        $"operation={operation} attempts={attempt + 1}");
+                }
+                return;
+            }
+            catch (Exception exc) when (
+                IsTransientMoveFailure(exc)
+                && DateTimeOffset.UtcNow < deadline)
+            {
+                attempt += 1;
+                WriteLog(
+                    logPath,
+                    "delete_retry",
+                    $"operation={operation} attempt={attempt} type={exc.GetType().Name} "
+                    + $"hresult=0x{exc.HResult:X8} error={exc.Message}");
+                Thread.Sleep(Math.Min(1000, 150 + (attempt * 100)));
+            }
         }
     }
 

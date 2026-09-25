@@ -29,25 +29,25 @@ internal static class ProductUpdateAgent
     {
         var installRoot = ResolveInstallRoot(args);
         var logPath = Path.Combine(installRoot, "logs", "product-update-agent.log");
-        using var stageMutex = new Mutex(
-            initiallyOwned: false,
-            BuildStageMutexName(installRoot));
-        var ownsStageMutex = false;
+        using var operationMutex = ProductUpdateOperation.CreateOperationMutex(installRoot);
+        var ownsOperationMutex = false;
         try
         {
-            try
+            ownsOperationMutex = ProductUpdateOperation.TryAcquire(
+                operationMutex,
+                TimeSpan.Zero,
+                out var recoveredAbandoned);
+            if (recoveredAbandoned)
             {
-                ownsStageMutex = stageMutex.WaitOne(0, false);
-            }
-            catch (AbandonedMutexException)
-            {
-                ownsStageMutex = true;
                 WriteLog(logPath, "stage_lock_recovered", $"install_root={installRoot}");
             }
 
-            if (!ownsStageMutex)
+            if (!ownsOperationMutex)
             {
-                WriteLog(logPath, "stage_skipped", "reason=stage_already_running");
+                WriteLog(
+                    logPath,
+                    "stage_skipped",
+                    "reason=update_operation_in_progress");
                 return 0;
             }
 
@@ -64,9 +64,9 @@ internal static class ProductUpdateAgent
         }
         finally
         {
-            if (ownsStageMutex)
+            if (ownsOperationMutex)
             {
-                stageMutex.ReleaseMutex();
+                operationMutex.ReleaseMutex();
             }
         }
     }
@@ -190,7 +190,7 @@ internal static class ProductUpdateAgent
         VerifyRuntimeStage(runtimeStage, selected.SourceSha, selected.Version.ToString());
 
         DeleteDirectory(helperRoot);
-        CopyDirectory(AppContext.BaseDirectory, helperRoot);
+        CopyDirectory(desktopStage, helperRoot);
         var helperExecutable = Path.Combine(helperRoot, "JAP.ControlCenter.Desktop.exe");
         Require(File.Exists(helperExecutable), "Product-local apply helper executable is missing.");
 
@@ -368,16 +368,6 @@ internal static class ProductUpdateAgent
     private static void DeleteDirectory(string path)
     {
         if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
-    }
-
-    private static string BuildStageMutexName(string installRoot)
-    {
-        var normalizedRoot = Path.GetFullPath(installRoot)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .ToUpperInvariant();
-        var digest = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(normalizedRoot)));
-        return $@"Local\JAP.ControlCenter.ProductUpdateStage.{digest}";
     }
 
     private static string ResolveInstallRoot(string[] args)
