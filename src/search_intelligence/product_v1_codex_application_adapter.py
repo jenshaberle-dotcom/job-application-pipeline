@@ -112,9 +112,11 @@ Rules:
 - These text budgets are hard F6 layout constraints. Do not compensate by asking for smaller fonts,
   scaling, extra pages, moved zones or any other layout change.
 - When renderer feedback is supplied, the previous draft did not physically fit one or more exact
-  frozen template zones. Rewrite only as much as needed to make the named zones substantially more
-  compact while preserving facts and vacancy specificity. A shorter natural salutation is allowed;
-  do not invent a different contact person merely to fit.
+  frozen template zones. Rewrite only as much as needed to make every named zone materially shorter
+  than its previous value while preserving facts and vacancy specificity. For salutation overflow,
+  prefer a shorter natural grounded form; if a personalized salutation still cannot be made compact,
+  a neutral professional salutation is allowed because the grounded contact remains in the recipient
+  block. Never invent a different contact person merely to fit.
 - Prefer German when the vacancy is German or mixed German/English. Use English only when the
   vacancy is clearly English.
 - Return only the schema-constrained result. Human review remains mandatory.
@@ -279,6 +281,17 @@ def _prompt(
                 ),
                 "application_letter": str(preview.get("application_letter") or ""),
             }
+        replacements = previous_package.get("zone_replacements")
+        if isinstance(replacements, Mapping):
+            failing_values: dict[str, str] = {}
+            for qualified_zone in layout_feedback:
+                document_type, separator, zone_id = qualified_zone.partition(":")
+                if not separator:
+                    continue
+                document = replacements.get(document_type)
+                if isinstance(document, Mapping):
+                    failing_values[qualified_zone] = str(document.get(zone_id) or "")
+            packet["previous_overflowing_zone_values"] = failing_values
     return SYSTEM_TASK + "\n\nINPUT PACKET:\n" + json.dumps(
         packet, ensure_ascii=False, sort_keys=True
     )
