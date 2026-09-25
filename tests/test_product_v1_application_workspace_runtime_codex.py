@@ -156,14 +156,16 @@ def test_codex_package_passes_direct_zone_replacements_to_review_ui(monkeypatch)
 
 
 
-def test_exact_template_overflow_triggers_bounded_automatic_codex_repair(
+def test_salutation_overflow_is_repaired_deterministically_without_extra_codex(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(runtime, "load_application_workspace", _load)
     monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
 
-    first_package = {
+    package = {
         "status": "draft_for_review",
+        "language": "de",
+        "contact_name": "Paulina Krzeminski",
         "preview": {
             "cv_short_profile": "Targeted CV profile",
             "cv_competency_profile": "Python · PostgreSQL",
@@ -172,22 +174,10 @@ def test_exact_template_overflow_triggers_bounded_automatic_codex_repair(
         "zone_replacements": {
             "base_cv": {"p1.short_profile": "Targeted CV profile"},
             "base_application_letter": {
-                "recipient.block": "accompio",
+                "recipient.block": "accompio\nPaulina Krzeminski",
                 "salutation": "Sehr geehrte Frau Krzeminski,",
-            },
-        },
-    }
-    repaired_package = {
-        **first_package,
-        "preview": {
-            **first_package["preview"],
-            "application_letter": "Guten Tag Frau Krzeminski,\n\nTargeted letter",
-        },
-        "zone_replacements": {
-            "base_cv": {"p1.short_profile": "Targeted CV profile"},
-            "base_application_letter": {
-                "recipient.block": "accompio",
-                "salutation": "Guten Tag Frau Krzeminski,",
+                "body.paragraph_1": "Targeted letter",
+                "closing.formula": "Mit freundlichen Grüßen",
             },
         },
     }
@@ -196,7 +186,7 @@ def test_exact_template_overflow_triggers_bounded_automatic_codex_repair(
     def fake_codex(**kwargs):
         calls.append(kwargs)
         return SimpleNamespace(
-            package=first_package if len(calls) == 1 else repaired_package,
+            package=package,
             attempted=True,
             model="gpt-5.6-sol",
             codex_version="codex-cli test",
@@ -221,19 +211,95 @@ def test_exact_template_overflow_triggers_bounded_automatic_codex_repair(
 
     assert payload["status"] == "draft_for_review"
     assert payload["layout_fit_status"] == "exact_template_preflight_pass"
-    assert payload["layout_repair_attempts"] == 1
-    assert payload["codex_requests"] == 2
-    assert len(calls) == 2
-    assert calls[1]["layout_feedback"] == (
-        "base_application_letter:salutation",
-    )
-    assert calls[1]["previous_package"] == first_package
+    assert payload["layout_repair_attempts"] == 0
+    assert payload["codex_requests"] == 1
+    assert len(calls) == 1
+    assert payload["automatic_layout_repairs"] == [
+        "base_application_letter:salutation=neutral_compact"
+    ]
     assert (
         payload["package"]["zone_replacements"]["base_application_letter"][
             "salutation"
         ]
-        == "Guten Tag Frau Krzeminski,"
+        == "Guten Tag,"
     )
+    assert payload["package"]["preview"]["application_letter"].startswith("Guten Tag,")
+
+
+def test_semantic_overflow_triggers_bounded_automatic_codex_repair(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
+
+    first_package = {
+        "status": "draft_for_review",
+        "language": "de",
+        "contact_name": "",
+        "preview": {
+            "cv_short_profile": "Targeted CV profile",
+            "cv_competency_profile": "Python · PostgreSQL",
+            "application_letter": "Guten Tag,\n\n" + ("Langer Absatz " * 20),
+        },
+        "zone_replacements": {
+            "base_cv": {"p1.short_profile": "Targeted CV profile"},
+            "base_application_letter": {
+                "salutation": "Guten Tag,",
+                "body.paragraph_1": "Langer Absatz " * 20,
+            },
+        },
+    }
+    repaired_package = {
+        **first_package,
+        "preview": {
+            **first_package["preview"],
+            "application_letter": "Guten Tag,\n\nKurzer, gezielter Absatz.",
+        },
+        "zone_replacements": {
+            "base_cv": {"p1.short_profile": "Targeted CV profile"},
+            "base_application_letter": {
+                "salutation": "Guten Tag,",
+                "body.paragraph_1": "Kurzer, gezielter Absatz.",
+            },
+        },
+    }
+    calls = []
+
+    def fake_codex(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            package=first_package if len(calls) == 1 else repaired_package,
+            attempted=True,
+            model="gpt-5.6-sol",
+            codex_version="codex-cli test",
+            reason_code=None,
+            reason=None,
+        )
+
+    probes = iter(
+        [
+            ("base_application_letter:body.paragraph_1",),
+            (),
+        ]
+    )
+    monkeypatch.setattr(runtime, "request_codex_application_adaptation", fake_codex)
+    monkeypatch.setattr(
+        runtime,
+        "_probe_generated_package_overflows",
+        lambda _package: next(probes),
+    )
+
+    payload = runtime.generate_application_draft_payload(626)
+
+    assert payload["status"] == "draft_for_review"
+    assert payload["layout_fit_status"] == "exact_template_preflight_pass"
+    assert payload["layout_repair_attempts"] == 1
+    assert payload["codex_requests"] == 2
+    assert len(calls) == 2
+    assert calls[1]["layout_feedback"] == (
+        "base_application_letter:body.paragraph_1",
+    )
+    assert calls[1]["previous_package"] == first_package
 
 
 def test_unresolved_layout_overflow_never_falls_back_to_manual_or_filler(
@@ -244,16 +310,18 @@ def test_unresolved_layout_overflow_never_falls_back_to_manual_or_filler(
 
     package = {
         "status": "draft_for_review",
+        "language": "de",
+        "contact_name": "",
         "preview": {
             "cv_short_profile": "Targeted CV profile",
             "cv_competency_profile": "Python · PostgreSQL",
-            "application_letter": "Sehr geehrte Frau Krzeminski,\n\nTargeted letter",
+            "application_letter": "Guten Tag,\n\n" + ("Langer Absatz " * 20),
         },
         "zone_replacements": {
             "base_cv": {"p1.short_profile": "Targeted CV profile"},
             "base_application_letter": {
-                "recipient.block": "accompio",
-                "salutation": "Sehr geehrte Frau Krzeminski,",
+                "salutation": "Guten Tag,",
+                "body.paragraph_1": "Langer Absatz " * 20,
             },
         },
     }
@@ -273,7 +341,7 @@ def test_unresolved_layout_overflow_never_falls_back_to_manual_or_filler(
     monkeypatch.setattr(
         runtime,
         "_probe_generated_package_overflows",
-        lambda _package: ("base_application_letter:salutation",),
+        lambda _package: ("base_application_letter:body.paragraph_1",),
     )
 
     payload = runtime.generate_application_draft_payload(626)
@@ -282,7 +350,7 @@ def test_unresolved_layout_overflow_never_falls_back_to_manual_or_filler(
     assert payload["reason_code"] == "f6_template_fit_unresolved"
     assert payload["codex_requests"] == 3
     assert payload["layout_overflows"] == [
-        "base_application_letter:salutation"
+        "base_application_letter:body.paragraph_1"
     ]
     assert payload["fallback_generated"] is False
     assert payload.get("package") is None

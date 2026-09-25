@@ -6,7 +6,7 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
-- canonical installed/released Product baseline: desktop **1.1.8**, source `d2554a099a131f923df4f2e4d0d438a2f6972a45`;
+- canonical installed/released Product baseline: desktop **1.1.9**, source `43fd167965dd5d9f2ed36c89b41bfa256742f36a`;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;
 - F6 Slices A and B are **operator accepted / COMPLETE**;
@@ -63,13 +63,18 @@ This section supersedes older F5/updater sequencing statements retained below as
 - candidate **1.1.9** moves that exact fit proof into generation itself. Every Codex draft is preflighted read-only against the installed private PDFs using the same source style and no-scaling rule as final rendering. Overflowing qualified zones are fed back automatically to Codex, together with the previous overflowing text, for bounded compact repair; up to three total Codex attempts are allowed;
 - a draft is returned to the operator only after exact-template preflight passes. If bounded repair cannot resolve the fit, JAP returns `draft_unavailable / f6_template_fit_unresolved` instead of pushing zone editing onto the operator or generating filler. Final export still reruns the full renderer and outside-zone pixel proof;
 - the Advanced zone editor remains available only as an exceptional human override, not a normal dependency of automatic document preparation;
+- installed **1.1.9** reaches the renderer-in-the-loop path but still returns `draft_unavailable / f6_template_fit_unresolved` on Eraneos #511 after the bounded automatic repair attempts. The Product UI does not yet expose the final overflow-zone list, so the operator cannot see which exact zone remained unresolved;
+- code inspection identifies a structural repair-authority defect: every overflowing zone is currently routed back to Codex even though `recipient.block`, `date`, `subject` and `closing.formula` are generated deterministically by JAP and therefore cannot be changed by the Codex repair request. A salutation also does not need another model call when a verified neutral professional fallback can safely fit;
+- candidate **1.1.10** separates those authorities. JAP performs safe local compaction for its own metadata zones (including neutral compact salutation, compact recipient, exact-title-only subject, compact date and closing variants), then re-runs exact-template preflight. Only CV profile/competency and letter body paragraphs may consume bounded Codex repair calls;
+- Codex repair feedback now includes a progressive hard character target derived from the previous overflowing zone value (65% per repair step, never below the schema minimum), so semantic repair is forced to make measurable progress instead of merely receiving a generic “shorter” instruction;
+- 1.1.10 also surfaces unresolved `layout_overflows` and already-applied automatic safe repairs in the Product UI/audit so any future fail-closed state is self-diagnosing without PowerShell. Manual zone editing remains exceptional only;
 - F6 canonical plan: `docs/planning/active/F6-TEMPLATE-AUTHORITATIVE-APPLICATION-DRAFTING.md`.
 
 The 2026-09-24 installed Product truth contains **0 rankable / 0 Top-5** rows. This is not a refresh/UI failure: current capability/hard-filter evidence remains incomplete under the approved fail-closed Product contract. A verified read-only RCC diagnostic independently confirmed the same population condition. No ranking, hard-filter or Top-5 authority may be invented to unblock F6.
 
 The 1.0.73 correction therefore separates two authorities. Top-5 stays strict and may remain empty. An explicit operator selection of a current, Origin-validated, authorized employer-origin vacancy may nevertheless open the review-only Application Workspace. Such a target carries `operator_selected_current_job`, has no Product rank, leaves unknown hard-filter evidence unknown, and is blocked by a known hard-filter failure. Candidate Facts, exact current vacancy evidence, exact F6 PDF authority, source-manifest binding, outside-zone pixel proof and the no-submit/no-send boundary remain unchanged.
 
-The next Product gate is candidate **1.1.9** on live **Eraneos Silver #511 — Data Engineer (all genders)**. One Generate/Regenerate action must automatically return only a renderer-preflighted draft; no zone-by-zone operator editing is part of the normal path. Then Create finished application PDF must produce the exact 1-page letter + 2-page CV package without scaling, with outside-zone pixel identity, human review required, and zero automatic submission/send authority.
+The next Product gate is candidate **1.1.10** on live **Eraneos Silver #511 — Data Engineer (all genders)**. One Generate/Regenerate action must automatically resolve JAP-owned metadata fit locally and use Codex only for semantic text zones. The operator must not edit Advanced zones. A returned draft must report exact-template preflight pass; then Create finished application PDF must produce the exact 1-page letter + 2-page CV package without scaling, with outside-zone pixel identity, human review required, and zero automatic submission/send authority.
 
 
 Read this file from canonical `refs/heads/main` before continuing Product work. During an active package, an exact package branch may carry a fresher candidate version; merge only after that package's required exact-head qualification.

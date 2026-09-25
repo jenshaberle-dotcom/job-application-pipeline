@@ -143,6 +143,31 @@ def test_prompt_excludes_stale_application_letter_and_includes_approved_cv() -> 
     assert '"letter_paragraph_max_chars": 240' in prompt
 
 
+def test_renderer_feedback_adds_progressive_hard_compaction_targets() -> None:
+    previous = {
+        "preview": {
+            "cv_short_profile": "Kurzprofil",
+            "cv_competency_profile": "Kompetenzen",
+            "application_letter": "Absatz",
+        },
+        "zone_replacements": {
+            "base_application_letter": {
+                "body.paragraph_1": "X" * 200,
+            },
+        },
+    }
+
+    prompt = adapter._prompt(
+        _context(),
+        layout_feedback=("base_application_letter:body.paragraph_1",),
+        previous_package=previous,
+    )
+
+    assert '"previous_chars": 200' in prompt
+    assert '"hard_target_max_chars": 130' in prompt
+    assert '"base_application_letter:body.paragraph_1"' in prompt
+
+
 def test_codex_schema_freezes_current_f6_text_budgets() -> None:
     schema = adapter._schema()
     properties = schema["properties"]

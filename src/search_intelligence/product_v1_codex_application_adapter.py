@@ -113,10 +113,11 @@ Rules:
   scaling, extra pages, moved zones or any other layout change.
 - When renderer feedback is supplied, the previous draft did not physically fit one or more exact
   frozen template zones. Rewrite only as much as needed to make every named zone materially shorter
-  than its previous value while preserving facts and vacancy specificity. For salutation overflow,
-  prefer a shorter natural grounded form; if a personalized salutation still cannot be made compact,
-  a neutral professional salutation is allowed because the grounded contact remains in the recipient
-  block. Never invent a different contact person merely to fit.
+  than its previous value while preserving facts and vacancy specificity.
+- If renderer_compaction_targets are supplied, each hard_target_max_chars value is mandatory for the
+  corresponding zone on this repair attempt. Prefer concise complete sentences over truncation.
+- JAP repairs deterministic metadata zones itself; renderer feedback sent to you is limited to text
+  that you actually control. Never invent or alter facts merely to fit.
 - Prefer German when the vacancy is German or mixed German/English. Use English only when the
   vacancy is clearly English.
 - Return only the schema-constrained result. Human review remains mandatory.
@@ -284,14 +285,31 @@ def _prompt(
         replacements = previous_package.get("zone_replacements")
         if isinstance(replacements, Mapping):
             failing_values: dict[str, str] = {}
+            compaction_targets: dict[str, dict[str, int]] = {}
             for qualified_zone in layout_feedback:
                 document_type, separator, zone_id = qualified_zone.partition(":")
                 if not separator:
                     continue
                 document = replacements.get(document_type)
-                if isinstance(document, Mapping):
-                    failing_values[qualified_zone] = str(document.get(zone_id) or "")
+                if not isinstance(document, Mapping):
+                    continue
+                value = str(document.get(zone_id) or "")
+                failing_values[qualified_zone] = value
+                minimum = (
+                    40
+                    if qualified_zone == "base_cv:p1.short_profile"
+                    else 20
+                    if qualified_zone == "base_cv:p1.competency_profile"
+                    or ":body.paragraph_" in qualified_zone
+                    else 2
+                )
+                target = max(minimum, int(len(value) * 0.65))
+                compaction_targets[qualified_zone] = {
+                    "previous_chars": len(value),
+                    "hard_target_max_chars": target,
+                }
             packet["previous_overflowing_zone_values"] = failing_values
+            packet["renderer_compaction_targets"] = compaction_targets
     return SYSTEM_TASK + "\n\nINPUT PACKET:\n" + json.dumps(
         packet, ensure_ascii=False, sort_keys=True
     )
