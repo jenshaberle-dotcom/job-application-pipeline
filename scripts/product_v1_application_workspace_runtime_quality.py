@@ -472,19 +472,39 @@ def generate_application_draft_payload(
             reasons=["unsupported_generation_mode"],
         )
     if generation_mode == "local_private":
-        return _local_private_draft_payload(
+        _emit_progress(
+            progress_callback,
+            phase="local_prepare",
+            percent=55,
+            message="Unterlagen werden ausschließlich lokal vorbereitet.",
+        )
+        payload = _local_private_draft_payload(
             context=context,
             final_url=final_url,
             fetched_title=fetched_title,
             evidence_mode=evidence_mode,
             job_detail_http_gets=job_detail_http_gets,
         )
+        _emit_progress(
+            progress_callback,
+            phase="complete",
+            percent=100,
+            message="Lokaler Review-Entwurf ist bereit.",
+        )
+        return payload
     if not context.claim_plan:
         return _blocked_payload(
             context=context,
             reasons=["candidate_job_claim_plan_required"],
         )
 
+    _emit_progress(
+        progress_callback,
+        phase="provider_request",
+        percent=25,
+        message="ChatGPT Codex erstellt die hochwertigen, stellenspezifischen Textanpassungen.",
+        provider_request=1,
+    )
     result = request_codex_application_adaptation(context=context)
     codex_requests = int(result.attempted)
     if result.package is None:
@@ -498,8 +518,22 @@ def generate_application_draft_payload(
             job_detail_http_gets=job_detail_http_gets,
         )
 
+    _emit_progress(
+        progress_callback,
+        phase="validate_model_output",
+        percent=55,
+        message="Codex-Ergebnis wird auf Faktenbindung, Struktur und Vollständigkeit geprüft.",
+        provider_request=codex_requests,
+    )
     package = dict(result.package)
     automatic_layout_repairs: list[str] = []
+    _emit_progress(
+        progress_callback,
+        phase="template_preflight",
+        percent=65,
+        message="Texte werden gegen die echten PDF-Zonen bei Originalgröße geprüft.",
+        provider_request=codex_requests,
+    )
     try:
         layout_overflows = _probe_generated_package_overflows(package)
     except F6TemplateReviewStop as exc:
@@ -559,6 +593,17 @@ def generate_application_draft_payload(
 
     layout_overflows = _codex_repairable_overflows(layout_overflows)
     while layout_overflows and codex_requests < _MAX_CODEX_LAYOUT_ATTEMPTS:
+        next_request = codex_requests + 1
+        _emit_progress(
+            progress_callback,
+            phase="provider_repair",
+            percent=min(88, 68 + next_request * 6),
+            message=(
+                "Codex komprimiert gezielt nur die Textzonen, die physisch "
+                "noch nicht in das Original-Layout passen."
+            ),
+            provider_request=next_request,
+        )
         result = request_codex_application_adaptation(
             context=context,
             layout_feedback=layout_overflows,
