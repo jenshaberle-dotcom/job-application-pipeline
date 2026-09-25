@@ -44,4 +44,4 @@ def test_unhandled_ui_failure_is_fail_closed_and_cleans_runtime_bounded() -> Non
 
 
 def test_current_desktop_lifecycle_release_version() -> None:
-    assert _text(VERSION).strip() == "1.1.10"
+    assert _text(VERSION).strip() == "1.1.11"
