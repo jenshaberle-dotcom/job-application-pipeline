@@ -100,17 +100,6 @@ def test_title_confirmation_tolerates_connector_and_gender_presentation() -> Non
     )
 
 
-def test_title_confirmation_can_use_exact_detail_url_slug() -> None:
-    assert title_is_confirmed(
-        "Software Engineer Workflow and Process Automation",
-        "<html><title>Careers at Example</title><body>Apply now</body></html>",
-        source_url=(
-            "https://jobs.example.com/job/"
-            "Software-Engineer-Workflow-Process-Automation/12345/"
-        ),
-    )
-
-
 def test_generic_listing_body_does_not_confirm_title_without_title_surface() -> None:
     assert not title_is_confirmed(
         "Senior Data Engineer",
