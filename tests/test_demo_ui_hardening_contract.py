@@ -223,6 +223,16 @@ def test_chatgpt_connection_can_start_before_other_context_blockers_clear() -> N
     assert "Connect ChatGPT" in workspace
 
 
+def test_completed_chatgpt_login_reconciles_runtime_status_in_separate_effect() -> None:
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert 'if (codexLogin?.status !== "completed") return;' in workspace
+    assert 'if (payload.status === "completed") {' not in workspace
+    assert workspace.count(
+        'readJson<CodexStatusPayload>("/api/v1/product-v1/codex-status")'
+    ) >= 2
+
+
 def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
     workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
