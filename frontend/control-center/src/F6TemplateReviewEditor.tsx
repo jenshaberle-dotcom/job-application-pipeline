@@ -286,8 +286,8 @@ export default function F6TemplateReviewEditor({
       </div>}
 
       <details className="f6-advanced-review">
-        <summary>Advanced: adjust individual template text zones</summary>
-        <p>Only use this when you want to correct a specific field. The normal path above needs no zone-by-zone work.</p>
+        <summary>Advanced: manual override (normally not required)</summary>
+        <p>The normal path is exact-template preflighted and should need no zone-by-zone work. Use this only for an exceptional human correction after review.</p>
         <button type="button" className="f6-reset-draft" onClick={resetToGeneratedDraft}>Reset to generated draft</button>
         <div className="f6-review-documents">
           {templates.map((template) => <article key={template.document_type}>
