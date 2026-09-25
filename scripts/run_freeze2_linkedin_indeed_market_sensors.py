@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 import json
 import os
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
