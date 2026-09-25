@@ -17,7 +17,7 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import Mapping
+from typing import Callable, Mapping
 
 from scripts.product_v1_application_workspace_runtime import (
     application_workspace_payload,
@@ -42,6 +42,30 @@ _CODEX_LAYOUT_ZONES = frozenset(
         *(f"base_application_letter:body.paragraph_{index}" for index in range(1, 7)),
     }
 )
+
+
+ProgressCallback = Callable[[dict[str, object]], None]
+
+
+def _emit_progress(
+    callback: ProgressCallback | None,
+    *,
+    phase: str,
+    percent: int,
+    message: str,
+    provider_request: int = 0,
+) -> None:
+    if callback is None:
+        return
+    callback(
+        {
+            "phase": phase,
+            "percent": max(0, min(100, int(percent))),
+            "message": message,
+            "provider_request": max(0, int(provider_request)),
+            "provider_request_limit": _MAX_CODEX_LAYOUT_ATTEMPTS,
+        }
+    )
 
 
 def _source_manifest_sha256(context: object) -> str:
