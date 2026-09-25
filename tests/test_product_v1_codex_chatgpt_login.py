@@ -54,7 +54,7 @@ def test_missing_bundled_runtime_fails_without_starting_oauth(monkeypatch) -> No
 
 def test_device_login_output_exposes_only_public_url_and_user_code(monkeypatch) -> None:
     process = FakeProcess(
-        "\\n".join(
+        "\n".join(
             [
                 "Follow these steps to sign in with ChatGPT using device code authorization:",
                 "https://auth.openai.com/codex/device",
@@ -90,7 +90,7 @@ def test_device_login_output_exposes_only_public_url_and_user_code(monkeypatch) 
 
 def test_device_login_failure_never_reports_tokens(monkeypatch) -> None:
     process = FakeProcess(
-        "Error: device auth timed out after 15 minutes\\n",
+        "Error: device auth timed out after 15 minutes\n",
         return_code=1,
     )
     session = login._LoginSession(
