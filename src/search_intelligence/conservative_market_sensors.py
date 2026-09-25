@@ -79,6 +79,8 @@ class SensorObservation:
 
 
 def _normalized_values(values: Iterable[object], *, limit: int) -> tuple[str, ...]:
+    if limit <= 0:
+        return ()
     seen: set[str] = set()
     result: list[str] = []
     for value in values:
