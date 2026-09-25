@@ -103,6 +103,7 @@ jobs:
         run: |
           $Paths = @(
             "scripts/install_windows_origin_runtime_lease_watcher.ps1",
+            "scripts/windows/Start-JAP-Classic-Remote-Demo.ps1",
             "scripts/windows/install_or_update_job_pipeline_scheduler.ps1",
             "scripts/windows/run_scheduled_pipeline.ps1"
           )
