@@ -160,6 +160,10 @@ type DraftPayload = {
   codex_model?: string;
   codex_version?: string | null;
   codex_requests?: number;
+  layout_fit_status?: string;
+  layout_overflows?: string[];
+  automatic_layout_repairs?: string[];
+  layout_repair_attempts?: number;
   package?: {
     status?: string;
     fragments?: DraftFragment[];
@@ -670,6 +674,8 @@ export default function ApplicationWorkspace() {
                     : "Codex could not create the draft"}</b>
                 <span>{draft.reason || "No application text was generated."}</span>
                 <small>No deterministic filler is substituted. The selected job, template authority and review-only boundary remain unchanged.</small>
+                {draft.layout_overflows?.length ? <small>Automatic fit diagnostics: {draft.layout_overflows.join(", ")}</small> : null}
+                {draft.automatic_layout_repairs?.length ? <small>Automatic safe repairs already applied: {draft.automatic_layout_repairs.join(", ")}</small> : null}
               </div>}
 
               {draft?.status === "draft_for_review" && draft.package ? <>
@@ -709,7 +715,7 @@ export default function ApplicationWorkspace() {
                   {draft.draft_mode === "codex_embedded_v1"
                     ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · {draft.codex_version || "version unavailable"} · CV + letter adaptation only</small></div></div>
                     : <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>}
-                  <footer><span>Codex/provider requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
+                  <footer><span>Codex/provider requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>Layout repairs: {draft.layout_repair_attempts ?? 0} Codex · {draft.automatic_layout_repairs?.length ?? 0} safe local</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
               </> : <div className="demo-empty-draft">
                 <strong>F6 is review-first and template-authoritative.</strong>
