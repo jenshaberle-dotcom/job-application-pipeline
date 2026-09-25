@@ -612,7 +612,11 @@ def classify_exact_detail(
         == normalize_url_identity(probe.final_url)
     )
     response_scope = probe.response_text[:MAX_CLASSIFICATION_BODY_CHARS]
-    title_match = title_is_confirmed(target.title, response_scope)
+    title_match, title_match_mode = _title_confirmation(
+        target.title,
+        response_scope,
+        source_url=target.source_url,
+    )
     closure_marker = explicit_vacancy_closure_marker(response_scope)
     response_bytes = len(probe.response_text.encode("utf-8"))
 
@@ -623,6 +627,7 @@ def classify_exact_detail(
         "redirect_count": probe.redirect_count,
         "url_identity_match": url_identity_match,
         "title_match": title_match,
+        "title_match_mode": title_match_mode,
         "explicit_closure_marker": closure_marker,
         "response_bytes": response_bytes,
         "error_type": probe.error_type,
