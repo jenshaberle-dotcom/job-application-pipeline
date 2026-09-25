@@ -101,6 +101,9 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
     assert "render_f6_review_package" in editor
     assert "One finished PDF instead of zone-by-zone assembly" in editor
     assert "Create finished application PDF" in editor
+    assert "Template text needs adjustment" in editor
+    assert "disabled={rendering || Boolean(error)}" in editor
+    assert "setError(null);" in editor
     assert "The generated review text has already been mapped" in editor
     assert "Open final PDF" in editor
     assert "Download final PDF" in editor
