@@ -443,10 +443,23 @@ def generate_application_draft_payload(
     silver_job_id: int,
     *,
     generation_mode: str = "codex_quality",
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, object]:
+    _emit_progress(
+        progress_callback,
+        phase="verify_target",
+        percent=5,
+        message="Aktuelle Stelle und Bewerbungsgrenzen werden verifiziert.",
+    )
     require_live_application_target(silver_job_id)
     context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
         load_application_workspace(silver_job_id)
+    )
+    _emit_progress(
+        progress_callback,
+        phase="bind_context",
+        percent=12,
+        message="CV, Anschreiben, Stelle und freigegebene Candidate Facts werden gebunden.",
     )
     if not context.generation_ready:
         return _blocked_payload(
