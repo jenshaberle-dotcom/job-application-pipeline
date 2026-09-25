@@ -151,10 +151,12 @@ export default function F6TemplateReviewEditor({
   silverJobId,
   sourceManifestSha256,
   zoneReplacements,
+  manualEditingRequired = false,
 }: {
   silverJobId: number;
   sourceManifestSha256: string;
   zoneReplacements: ZoneValues;
+  manualEditingRequired?: boolean;
 }) {
   const [review, setReview] = useState<ReviewPayload | null>(null);
   const [baseline, setBaseline] = useState<ZoneValues>({});
@@ -320,9 +322,13 @@ export default function F6TemplateReviewEditor({
         {packagePdf.editable_docx && <small>PDF is the verified layout authority. The Word file uses the same final text but remains intentionally editable and may reflow in Word.</small>}
       </div>}
 
-      <details className="f6-advanced-review">
-        <summary>Advanced: manual override (normally not required)</summary>
-        <p>The normal path is exact-template preflighted and should need no zone-by-zone work. Use this only for an exceptional human correction after review.</p>
+      <details className="f6-advanced-review" open={manualEditingRequired}>
+        <summary>{manualEditingRequired
+          ? "Local-only review: edit descriptive text locally"
+          : "Advanced: manual override (normally not required)"}</summary>
+        <p>{manualEditingRequired
+          ? "No CV, letter or vacancy content was sent to an LLM. JAP updated deterministic target/date fields only; review and edit the descriptive zones locally before final export."
+          : "The normal AI path is exact-template preflighted and should need no zone-by-zone work. Use this only for an exceptional human correction after review."}</p>
         <button type="button" className="f6-reset-draft" onClick={resetToGeneratedDraft}>Reset to generated draft</button>
         <div className="f6-review-documents">
           {templates.map((template) => <article key={template.document_type}>
