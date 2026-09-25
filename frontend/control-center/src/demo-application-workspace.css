@@ -249,3 +249,74 @@
   .demo-selected-job { flex-direction: column; }
   .demo-selected-actions { width: 100%; justify-content: space-between; }
 }
+
+
+.demo-drafting-progress {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+  padding: 18px;
+  border: 1px solid rgba(95, 214, 180, 0.34);
+  border-radius: 14px;
+  background: rgba(12, 42, 49, 0.74);
+}
+
+.demo-drafting-progress-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.demo-drafting-progress-head > div {
+  display: grid;
+  gap: 6px;
+}
+
+.demo-drafting-progress-head strong {
+  color: #e8fbf5;
+  font-size: 1.08rem;
+}
+
+.demo-drafting-progress-head span,
+.demo-drafting-progress small {
+  color: #9bb5bd;
+  line-height: 1.45;
+}
+
+.demo-drafting-progress-head > b {
+  min-width: 54px;
+  text-align: right;
+  color: #7ce3c4;
+  font-size: 1.15rem;
+}
+
+.demo-drafting-progress-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(118, 160, 173, 0.18);
+}
+
+.demo-drafting-progress-track > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #3b9cbf, #67d9b6);
+  transition: width 260ms ease;
+}
+
+.demo-drafting-telemetry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 0.78rem;
+  color: #b7ccd2;
+}
+
+.demo-drafting-telemetry span {
+  padding: 5px 8px;
+  border: 1px solid rgba(118, 160, 173, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 25, 32, 0.42);
+}
