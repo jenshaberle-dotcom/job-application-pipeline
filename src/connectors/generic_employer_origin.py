@@ -391,7 +391,7 @@ class GenericEmployerOriginConnector(JobSourceConnector):
         company_key: str,
         source_name: str | None = None,
         candidate_loader: CandidateLoader = load_generic_origin_source,
-        job_acquirer: JobAcquirer = acquire_one_generic_job,
+        job_acquirer: JobAcquirer | None = None,
     ) -> None:
         self.company_key = company_key
         self.source_name = source_name or f"generic_origin:{company_key}"
@@ -405,7 +405,11 @@ class GenericEmployerOriginConnector(JobSourceConnector):
     ) -> tuple[list[RawJobRecord], str]:
         del profile
         source = self.candidate_loader(self.company_key)
-        job = self.job_acquirer(source)
+        job = (
+            self.job_acquirer(source)
+            if self.job_acquirer is not None
+            else acquire_one_generic_job(source)
+        )
         if job is None:
             return [], source.candidate_url
         return [
