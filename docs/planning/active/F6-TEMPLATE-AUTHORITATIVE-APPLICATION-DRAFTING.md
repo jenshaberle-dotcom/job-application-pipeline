@@ -476,7 +476,24 @@ The readiness UI is corrected at the same time: a fetched live URL/title is labe
 
 The next operator acceptance target remains **Eraneos #511**. After 1.1.6, complete ChatGPT device login inside JAP, require both Origin and Codex readiness to be green, then generate the first real vacancy-specific CV + application-letter review draft.
 
+### Candidate 1.1.7 — preserve reviewed Origin authority across exact revalidation + reconcile completed Codex login
 
+The installed 1.1.6 operator run separates two real regressions from the already-working pieces.
+
+**Codex authentication itself passes.** The official device-code flow completes inside the bundled runtime and the Product API reports `status=ready`, `auth_mode=chatgpt`, `chatgpt_authenticated=true`, `codex-cli 0.154.0`, model `gpt-5.6-sol`, API-key fallback disabled and ChatGPT allowance / eligible-credit billing authority. The remaining defect is only UI reconciliation: the polling effect updates `codexLogin` to `completed`, React cleans up that effect, and the nested status request can no longer commit the now-ready Codex status. 1.1.7 therefore keeps login-session polling and completed-runtime reconciliation in separate effects.
+
+**Eraneos source-origin authority remains distinct from lifecycle-health authority.** The operator-triggered exact vacancy probe correctly produces the newer lifecycle state `active_confirmed / exact_detail_url_and_title_confirmed / exact_detail`. That later exact-detail proof must not revoke a reviewed recurring-feed observation whose exact source URL, target binding, provider, employer identity, complete-inventory contract and evidence fingerprint still prove the source is an authorized Employer-Origin. 1.1.7 therefore:
+
+- still requires the selected Personio target to be one of the reviewed bindings;
+- still requires `active_confirmed`;
+- still requires the exact Silver/observation/normalized/job URL binding;
+- still requires `employer_origin_ats_backed_career_site`;
+- still requires `personio-recurring-feed-authority.v1`, the reviewed binding contract, provider/target identity, validated authority, employer identity, complete inventory, evidence fingerprint and `product_authority=false`;
+- no longer requires that this independent feed authority also be the **newest lifecycle-health reason/coverage**.
+
+No arbitrary Personio allowlist is introduced, no inactive target is admitted, and no Product/ranking/submission authority is manufactured.
+
+The next operator gate remains **Eraneos Silver #511 — Data Engineer (all genders)**. On installed 1.1.7 require `Live vacancy verified`, `Employer-Origin authority = Verified`, `ChatGPT connected`, zero application blockers and an enabled **Generate review text** action. The generated CV + letter remain review-first and template-authoritative.
 
 
 ## Explicit non-goals
