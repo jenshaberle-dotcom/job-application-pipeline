@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import json
 import re
 import unicodedata
+from html import unescape
 from dataclasses import asdict, dataclass
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
@@ -37,6 +38,7 @@ USER_AGENT = (
     "job-application-pipeline-vacancy-health/0.1 "
     "(bounded exact-detail lifecycle probe)"
 )
+TITLE_NOISE_TOKENS = frozenset({"and", "und", "or", "oder", "m", "w", "d", "f", "x", "gn", "all", "genders"})
 
 
 @dataclass(frozen=True)
