@@ -357,6 +357,20 @@ class ProductV1DemoHandler(ProductV1Handler):
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_runtime_error(exc)
             return
+        if parsed.path == APPLICATION_DRAFT_PROGRESS_PATH:
+            try:
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                raw = query.get("request_id") or []
+                if len(raw) != 1:
+                    raise DemoActionStop("exactly one request_id query parameter is required")
+                request_id = _validated_draft_request_id(raw[0])
+                self._send_json(_get_draft_progress(request_id))
+            except DemoActionStop as exc:
+                self._send_json(
+                    {"status": "blocked", "reason": str(exc)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+            return
         if parsed.path == CODEX_STATUS_PATH:
             try:
                 self._send_json(inspect_codex_runtime_status().to_json())
@@ -416,6 +430,14 @@ class ProductV1DemoHandler(ProductV1Handler):
             payload = application_workspace_payload(self._workspace_job_id())
             self._send_json(payload)
         except ApplicationWorkspaceLifecycleStop as exc:
+            if request_id:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(exc),
+                )
             self._send_json(
                 {
                     "status": "blocked",
@@ -768,14 +790,54 @@ class ProductV1DemoHandler(ProductV1Handler):
         if parsed.path != APPLICATION_DRAFT_PATH:
             super().do_POST()
             return
+        request_id: str | None = None
         try:
-            silver_job_id, generation_mode = parse_application_draft_action_payload(
-                self._read_demo_action_payload()
+            silver_job_id, generation_mode, request_id = (
+                parse_application_draft_action_payload(
+                    self._read_demo_action_payload()
+                )
             )
+            _set_draft_progress(
+                request_id,
+                phase="accepted",
+                percent=1,
+                message="Deine Bewerbungsunterlagen werden vorbereitet.",
+            )
+
+            def report_progress(event: dict[str, object]) -> None:
+                _set_draft_progress(
+                    request_id,
+                    phase=str(event.get("phase") or "working"),
+                    percent=int(event.get("percent") or 0),
+                    message=str(event.get("message") or "Bewerbungsunterlagen werden erstellt."),
+                    provider_request=int(event.get("provider_request") or 0),
+                    provider_request_limit=int(event.get("provider_request_limit") or 3),
+                )
+
             payload = generate_application_draft_payload(
                 silver_job_id,
                 generation_mode=generation_mode,
+                progress_callback=report_progress,
             )
+            final_status = str(payload.get("status") or "")
+            if final_status == "draft_for_review":
+                _set_draft_progress(
+                    request_id,
+                    status="completed",
+                    phase="complete",
+                    percent=100,
+                    message="Bewerbungsunterlagen sind für deine Prüfung bereit.",
+                    provider_request=int(payload.get("codex_requests") or 0),
+                )
+            else:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(payload.get("reason") or "Drafting stopped fail-closed."),
+                    provider_request=int(payload.get("codex_requests") or 0),
+                )
             status = (
                 HTTPStatus.OK
                 if payload.get("status") in {"draft_for_review", "draft_unavailable"}
@@ -799,6 +861,14 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.CONFLICT,
             )
         except (ApplicationWorkspaceStop, DemoActionStop) as exc:
+            if request_id:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(exc),
+                )
             self._send_json(
                 {
                     "status": "blocked",
@@ -813,6 +883,14 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.CONFLICT,
             )
         except Exception as exc:  # pragma: no cover - runtime diagnostics
+            if request_id:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="error",
+                    percent=100,
+                    message=f"{type(exc).__name__}: {exc}",
+                )
             self._send_json(
                 {
                     "status": "error",
