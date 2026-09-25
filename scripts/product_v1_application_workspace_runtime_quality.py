@@ -699,9 +699,24 @@ def generate_application_draft_payload(
             layout_overflows=layout_overflows,
             automatic_layout_repairs=tuple(automatic_layout_repairs),
         )
+    _emit_progress(
+        progress_callback,
+        phase="finalize_review",
+        percent=94,
+        message="Review-Entwurf und Layoutnachweis werden finalisiert.",
+        provider_request=codex_requests,
+    )
     package["source_manifest_sha256"] = _source_manifest_sha256(context)
     package["candidate_fact_keys_used"] = sorted(
         entry.fact_key for entry in context.claim_plan
+    )
+
+    _emit_progress(
+        progress_callback,
+        phase="complete",
+        percent=100,
+        message="Bewerbungsunterlagen sind für die menschliche Prüfung bereit.",
+        provider_request=codex_requests,
     )
 
     return {
