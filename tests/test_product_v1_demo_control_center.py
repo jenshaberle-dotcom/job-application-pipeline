@@ -11,9 +11,13 @@ from scripts.run_product_v1_demo_control_center import (
 def test_application_draft_action_requires_exact_review_action() -> None:
     assert (
         parse_application_draft_action_payload(
-            {"action": "generate_review_draft", "silver_job_id": 42}
+            {
+                "action": "generate_review_draft",
+                "silver_job_id": 42,
+                "request_id": "draft-test-001",
+            }
         )
-        == (42, "codex_quality")
+        == (42, "codex_quality", "draft-test-001")
     )
     assert (
         parse_application_draft_action_payload(
@@ -21,9 +25,10 @@ def test_application_draft_action_requires_exact_review_action() -> None:
                 "action": "generate_review_draft",
                 "silver_job_id": 42,
                 "generation_mode": "local_private",
+                "request_id": "draft-test-002",
             }
         )
-        == (42, "local_private")
+        == (42, "local_private", "draft-test-002")
     )
 
 
@@ -33,11 +38,13 @@ def test_application_draft_action_requires_exact_review_action() -> None:
         None,
         [],
         {"action": "generate_review_draft"},
-        {"action": "generate_review_draft", "silver_job_id": 42, "submit": True},
-        {"action": "generate_review_draft", "silver_job_id": 42, "generation_mode": "remote_mystery"},
-        {"action": "submit_application", "silver_job_id": 42},
-        {"action": "generate_review_draft", "silver_job_id": 0},
-        {"action": "generate_review_draft", "silver_job_id": "not-an-id"},
+        {"action": "generate_review_draft", "silver_job_id": 42, "submit": True, "request_id": "draft-test-003"},
+        {"action": "generate_review_draft", "silver_job_id": 42, "generation_mode": "remote_mystery", "request_id": "draft-test-004"},
+        {"action": "submit_application", "silver_job_id": 42, "request_id": "draft-test-005"},
+        {"action": "generate_review_draft", "silver_job_id": 0, "request_id": "draft-test-006"},
+        {"action": "generate_review_draft", "silver_job_id": "not-an-id", "request_id": "draft-test-007"},
+        {"action": "generate_review_draft", "silver_job_id": 42, "request_id": "x"},
+        {"action": "generate_review_draft", "silver_job_id": 42, "request_id": "unsafe/request"},
     ],
 )
 def test_application_draft_action_rejects_widened_or_invalid_payload(payload: object) -> None:
