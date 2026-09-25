@@ -13,6 +13,7 @@ EXPECTED_ACTIVE_BLUE = {
     "f5-application-lifecycle-reconciliation.yml",
     "f5-candidate-supersession-preflight.yml",
     "f6-initial-assessment-materialization.yml",
+    "freeze2-s0-source-truth-baseline.yml",
     "p1-generic-origin-product-activate.yml",
     "p1-generic-origin-product-proof.yml",
     "p1-generic-origin-systematic-search.yml",
