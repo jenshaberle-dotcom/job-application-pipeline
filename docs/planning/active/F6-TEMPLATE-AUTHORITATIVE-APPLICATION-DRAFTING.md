@@ -809,7 +809,6 @@ The negative case exposes an exact-detail verification overfit. The lifecycle ga
 
 - normalize presentation-only connector and gender-marker tokens;
 - inspect explicit title-bearing HTML/JSON surfaces rather than granting authority from arbitrary listing-page body text;
-- permit exact-detail URL slug confirmation only when at least three meaningful title tokens form the same normalized sequence;
 - preserve exact URL-identity, closure-marker and HTTP-status checks unchanged;
 - expose `title_match_mode` in evidence for operator diagnostics;
 - a generic careers page that merely lists the vacancy in body content remains unverifiable.
@@ -820,8 +819,9 @@ The blind enercity application also becomes a quality benchmark rather than a sp
 
 1. Hannover Re-like title variants using `&` vs `and` and gender markers must verify generically without source-specific code.
 2. Generic careers/listing pages must remain fail-closed.
-3. A new blind job should still complete through Quality AI and exact PDF/Word generation.
-4. Existing Employer-Origin, no-submit/no-send and template pixel boundaries remain unchanged.
+3. URL slugs remain identity context only and never prove a vacancy title by themselves.
+4. A new blind job should still complete through Quality AI and exact PDF/Word generation.
+5. Existing Employer-Origin, no-submit/no-send and template pixel boundaries remain unchanged.
 
 ## Explicit non-goals
 
