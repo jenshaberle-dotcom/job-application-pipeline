@@ -1,0 +1,197 @@
+name: Freeze-II S1 S2 residual classification
+
+on:
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: freeze2-s1-s2-residual-classification
+  cancel-in-progress: false
+
+jobs:
+  classify:
+    name: Read-only connector residual classification
+    if: >-
+      ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+          (
+            (github.event_name == 'workflow_dispatch' &&
+             github.ref == 'refs/heads/main') ||
+            (github.event_name == 'issue_comment' &&
+             github.event.issue.number == 1038 &&
+             github.event.comment.user.login == 'jenshaberle-dotcom' &&
+             github.event.comment.author_association == 'OWNER' &&
+             startsWith(github.event.comment.body, '<!-- jap-freeze2-s1-s2:run:v1 -->'))
+          ) }}
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 120
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      REPORT_ROOT: /tmp/jap-freeze2-s1-s2
+      REPORT_OUTPUT: /tmp/jap-freeze2-s1-s2/freeze2-s1-s2-residual-classification.json
+
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "env_file",
+              "env_keys",
+              "interpreter",
+              "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          echo "RCC_CONTEXT=PASS runner=${RUNNER_NAME}"
+
+      - name: Qualify residual classification contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q             tests/test_freeze2_s1_s2_residual_classification.py             tests/test_deterministic_connector_builder.py
+          "$RUNTIME_PYTHON" -m ruff check             scripts/run_freeze2_s1_s2_residual_classification.py             tests/test_freeze2_s1_s2_residual_classification.py
+
+      - name: Run S1 S2 residual classification read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$REPORT_ROOT"
+          mkdir -p "$REPORT_ROOT"
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_freeze2_s1_s2_residual_classification             --output-dir "$REPORT_ROOT"             --output "$REPORT_OUTPUT"
+
+      - name: Upload residual classification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: freeze2-s1-s2-residual-classification-${{ github.run_id }}
+          path: ${{ env.REPORT_ROOT }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish selection evidence to issue 1038
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$REPORT_OUTPUT" <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import urllib.request
+
+          report = json.loads(Path(os.environ["REPORT_OUTPUT"]).read_text(encoding="utf-8"))
+          product = report["current_generic_product"]
+          residuals = report["residual_cohorts"]
+          remaining = report["remaining_after_canonical_generic_product_proof"]
+          origin = report["origin_plan"]["summary"]
+          inventory = report["inventory_surface"]["summary"]
+          bridge = report["inventory_bridge"]["summary"]
+          detail = report["detail_surface"]["summary"]
+
+          marker = "<!-- jap-freeze2-s1-s2-classification:v1 -->"
+          body = "\n".join(
+              [
+                  marker,
+                  "## Freeze-II S1/S2 — read-only residual classification",
+                  "",
+                  f"- source SHA: `{os.environ['SOURCE_SHA']}`",
+                  f"- workflow: https://github.com/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}",
+                  f"- current candidates: **{product['candidate_count']}**",
+                  f"- canonical generic proof PASS: **{product['proof_pass_count']}**",
+                  f"- residual counts: `{json.dumps({k: v['count'] for k, v in residuals.items()}, sort_keys=True)}`",
+                  f"- Origin plan classes: `{json.dumps(origin.get('classification_counts', {}), sort_keys=True)}`",
+                  f"- Inventory surface classes: `{json.dumps(inventory.get('primary_classification_counts', {}), sort_keys=True)}`",
+                  f"- Inventory bridge hypotheses: `{json.dumps(bridge.get('hypothesis_counts', {}), sort_keys=True)}`",
+                  f"- Detail surface classes: `{json.dumps(detail.get('classification_counts', {}), sort_keys=True)}`",
+                  f"- remaining after canonical Product proof: `{json.dumps(remaining, sort_keys=True)}`",
+                  "",
+                  "No connector/source activation or DB/Bronze/Silver/Product mutation occurred.",
+                  "Use reusable technical-class lift + metadata benefit to choose the first implementation cohort.",
+              ]
+          )
+
+          print(body)
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text(body + "\n", encoding="utf-8")
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/issues/1038/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "JAP-Freeze-II-S1-S2",
+                  "Content-Type": "application/json",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status != 201:
+                  raise SystemExit(f"ISSUE_COMMENT_HTTP_{response.status}")
+          PY
