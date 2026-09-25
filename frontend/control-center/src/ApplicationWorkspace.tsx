@@ -759,12 +759,41 @@ export default function ApplicationWorkspace() {
             <article className="demo-workspace-card demo-draft-card">
               <header>
                 <span className="demo-eyebrow">Prepared application</span>
-                <h3>{draft?.status === "draft_for_review"
-                  ? "Grounded text ready for review"
-                  : draft?.status === "draft_unavailable"
-                    ? "Codex drafting unavailable"
-                    : "Waiting for your action"}</h3>
+                <h3>{drafting
+                  ? "Deine Bewerbungsunterlagen werden erstellt"
+                  : draft?.status === "draft_for_review"
+                    ? "Grounded text ready for review"
+                    : draft?.status === "draft_unavailable"
+                      ? "Codex drafting unavailable"
+                      : "Waiting for your action"}</h3>
               </header>
+
+              {drafting && <div className="demo-drafting-progress" role="status" aria-live="polite">
+                <div className="demo-drafting-progress-head">
+                  <div>
+                    <strong>Deine Bewerbungsunterlagen werden erstellt</strong>
+                    <span>{draftProgress?.message || "ChatGPT Codex arbeitet an CV und Anschreiben."}</span>
+                  </div>
+                  <b>{draftProgressPercent}%</b>
+                </div>
+                <div
+                  className="demo-drafting-progress-track"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={draftProgressPercent}
+                >
+                  <i style={{ width: `${Math.max(3, draftProgressPercent)}%` }} />
+                </div>
+                <div className="demo-drafting-telemetry">
+                  <span>{codexStatus?.model || "gpt-5.6-sol"} · reasoning {codexStatus?.reasoning_effort || "high"}</span>
+                  <span>{(draftProgress?.provider_request || 0) > 0
+                    ? `Provider request ${draftProgress?.provider_request}/${draftProgress?.provider_request_limit || 3}`
+                    : "Provider request pending"}</span>
+                  <span>Elapsed {draftElapsedLabel}</span>
+                </div>
+                <small>Der Balken zeigt den realen JAP-Workflowstatus; Codex stellt keine Token-für-Token-Prozentwerte bereit.</small>
+              </div>}
 
               {draft?.status === "draft_unavailable" && <div className="demo-error">
                 <b>{["codex_auth_required", "codex_chatgpt_auth_required"].includes(draft.reason_code || "")
