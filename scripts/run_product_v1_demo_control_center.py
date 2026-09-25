@@ -144,11 +144,10 @@ def _set_draft_progress(
         "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     with _DRAFT_PROGRESS_LOCK:
+        _DRAFT_PROGRESS.pop(request_id, None)
         _DRAFT_PROGRESS[request_id] = payload
         while len(_DRAFT_PROGRESS) > 128:
             oldest = next(iter(_DRAFT_PROGRESS))
-            if oldest == request_id and len(_DRAFT_PROGRESS) == 1:
-                break
             _DRAFT_PROGRESS.pop(oldest, None)
 
 
