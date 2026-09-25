@@ -173,6 +173,7 @@ export default function F6TemplateReviewEditor({
   }, [packagePdf]);
 
   const updateZone = (documentType: string, zoneId: string, text: string) => {
+    setError(null);
     setValues((current) => ({
       ...current,
       [documentType]: {
@@ -256,15 +257,17 @@ export default function F6TemplateReviewEditor({
     {!loading && templates.length === 2 && <>
       <div className="f6-finished-flow">
         <div className="f6-finished-copy">
-          <strong>Application PDF is ready to build</strong>
-          <p>The generated review text has already been mapped to the permitted template zones. You do not need to fill the individual fields manually.</p>
+          <strong>{error ? "Template text needs adjustment" : "Application PDF is ready to build"}</strong>
+          <p>{error
+            ? "The exact renderer rejected at least one text zone. Shorten the named zone in Advanced review or regenerate the review text before building again."
+            : "The generated review text has already been mapped to the permitted template zones. You do not need to fill the individual fields manually."}</p>
           <div className="f6-finished-facts">
             <span><b>1</b> application letter</span>
             <span><b>2</b> CV pages</span>
             <span><b>0</b> automatic submissions</span>
           </div>
         </div>
-        <button type="button" disabled={rendering} onClick={() => void renderFinishedPdf()}>
+        <button type="button" disabled={rendering || Boolean(error)} onClick={() => void renderFinishedPdf()}>
           {rendering ? "Building and verifying final PDF…" : "Create finished application PDF"}
         </button>
       </div>
