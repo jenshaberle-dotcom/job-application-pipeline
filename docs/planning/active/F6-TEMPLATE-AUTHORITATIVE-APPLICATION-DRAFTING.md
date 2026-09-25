@@ -627,6 +627,50 @@ Use Eraneos #511 and the accepted Hornet application as quality benchmark. Accep
 - all paths remain human-review-only with zero automatic submit/send authority.
 
 
+### Candidate 1.1.12 — exact render/preflight parity + live drafting telemetry
+
+The installed 1.1.11 operator run proves the quality-context redesign. The new Eraneos draft is coherent, concrete and materially closer to the accepted Hornet benchmark, and Local-only mode proves its zero-provider path plus editable Word output.
+
+Two concrete Product defects remain.
+
+#### Final-render parity defect
+
+The Quality-AI generation loop reports exact-template preflight pass, but final PDF export still fails on `p1.competency_profile`.
+
+The cause is deterministic and local. Preflight calls the fit predicate on the pristine source PDF and therefore derives the original zone font size/color/weight. Final rendering previously performed redaction first and then called the same style extractor on the now-empty zone. With no source text remaining, the extractor falls back to generic 9.5pt. A zone authored at a smaller source font can therefore pass preflight and overflow at final insertion.
+
+1.1.12 captures the exact zone HTML/CSS **before redaction** and reuses that captured source style for insertion. Preflight and final rendering therefore share one typography authority. The no-scaling rule, zone geometry, redaction boundary and outside-zone pixel proof are unchanged.
+
+A regression test deliberately returns a much larger fallback font whenever source text has already disappeared; final rendering must still pass and prove that every source-style lookup occurred while pristine source text was present.
+
+#### Drafting progress observability
+
+Quality-AI with `gpt-5.6-sol / high` can take materially longer than local-only preparation. 1.1.11 disabled the button but exposed no activity beyond `Preparing review text…`, which looks indistinguishable from a hung request.
+
+1.1.12 adds a request-bound progress channel over the already-threaded loopback server:
+
+- client creates a bounded request id and starts the normal blocking generation request;
+- a separate read-only progress endpoint exposes current JAP phase, workflow percentage, bounded provider request counter and timestamp;
+- phases include target verification, context binding, provider request, model-output validation, exact-template preflight, bounded provider repair, finalization and completion;
+- UI polls the progress endpoint while the generation POST remains in flight;
+- Product shows **Deine Bewerbungsunterlagen werden erstellt**, current phase message, configured model/reasoning, Provider request `N/3`, elapsed time and a workflow progress bar;
+- the Product explicitly states that this is JAP workflow progress, not invented token-level/model-internal percentage telemetry;
+- progress failures are observability-only and never alter drafting authority or silently retry a provider call.
+
+#### 1.1.12 operator acceptance
+
+On Eraneos #511:
+
+1. Quality AI visibly reports progress during the long Codex operation;
+2. model remains `gpt-5.6-sol` with reasoning `high`;
+3. provider request counter reflects the real bounded calls;
+4. the returned exact-template-preflighted draft creates the final PDF directly;
+5. no `p1.competency_profile` preflight/final-render divergence remains;
+6. verified PDF remains 1 letter + 2 CV pages with outside-zone pixel identity;
+7. editable Word companion remains available;
+8. no Advanced zone editing, submission or send authority is required.
+
+
 ## Explicit non-goals
 
 - no alternate template chooser;
