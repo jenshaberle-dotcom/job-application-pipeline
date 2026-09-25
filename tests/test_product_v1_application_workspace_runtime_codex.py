@@ -196,7 +196,7 @@ def test_salutation_overflow_is_repaired_deterministically_without_extra_codex(
 
     probes = iter(
         [
-            ("base_application_letter:body.paragraph_1",),
+            ("base_application_letter:salutation",),
             (),
         ]
     )
