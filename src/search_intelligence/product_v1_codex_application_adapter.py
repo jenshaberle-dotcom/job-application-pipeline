@@ -809,10 +809,6 @@ def _repair_salutation_grounding(
         repairs.append("mismatched_contact_salutation_replaced_with_generic")
         return repaired, tuple(repairs)
 
-    allowed_generic = {
-        "de": ("sehr geehrte damen und herren", "guten tag"),
-        "en": ("dear hiring team", "dear recruitment team", "dear sir or madam"),
-    }[language]
     if any(salutation.casefold().startswith(item) for item in allowed_generic):
         return repaired, ()
     if _organizational_salutation_is_grounded(
