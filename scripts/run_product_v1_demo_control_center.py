@@ -845,6 +845,14 @@ class ProductV1DemoHandler(ProductV1Handler):
             )
             self._send_json(payload, status=status)
         except ApplicationWorkspaceLifecycleStop as exc:
+            if request_id:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(exc),
+                )
             self._send_json(
                 {
                     "status": "blocked",
