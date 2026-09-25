@@ -6,6 +6,8 @@ Status: canonical current re-entry projection + frozen product campaign sequenci
 
 This section supersedes older F5/updater sequencing statements retained below as historical incident evidence.
 
+- **1.1.18 updater hardening candidate:** operator evidence on installed 1.1.16 exposed overlapping product-update stage processes after restart/manual discovery. Concurrent agents mutated the same target staging tree, producing a sharing violation on bundled `codex` followed by incomplete runtime-stage verification. The product update agent now uses one installation-scoped Windows named mutex derived from the canonical install root. A second process exits cleanly with `stage_skipped reason=stage_already_running`; abandoned ownership is recovered explicitly. This is cross-process singleflight only: release discovery, checksum/identity verification, consent, frozen accepted manifest, cutover and rollback authority remain unchanged.
+
 - canonical installed/released Product baseline: desktop **1.1.11**, source `93e58345a148ec79cfafe3e44432583fb917adae`;
 - integrated CGKB product-local updater remains accepted and routine;
 - F5 is **operator accepted / COMPLETE**; current application linkage is shared with the All-jobs surface and remains separate from ranking authority;

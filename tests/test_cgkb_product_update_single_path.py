@@ -33,6 +33,26 @@ def test_routine_update_is_product_local_and_has_single_authority() -> None:
     assert "installedVersion >= new Version(1, 0, 65)" in coordinator
 
 
+def test_stage_update_is_cross_process_singleflight_per_installation() -> None:
+    agent = read("windows/JAP.ControlCenter.Desktop/ProductUpdateAgent.cs")
+
+    assert "BuildStageMutexName(installRoot)" in agent
+    assert 'Local\\JAP.ControlCenter.ProductUpdateStage.' in agent
+    assert "SHA256.HashData(Encoding.UTF8.GetBytes(normalizedRoot))" in agent
+    assert "stageMutex.WaitOne(0, false)" in agent
+    assert "catch (AbandonedMutexException)" in agent
+    assert '"stage_lock_recovered"' in agent
+    assert '"stage_skipped", "reason=stage_already_running"' in agent
+    assert "stageMutex.ReleaseMutex()" in agent
+
+    run_start = agent.index("public static async Task<int> RunFromCommandLineAsync")
+    run_end = agent.index("private static async Task<string> StageLatestAsync", run_start)
+    run = agent[run_start:run_end]
+    assert run.index("stageMutex.WaitOne(0, false)") < run.index(
+        "StageLatestAsync(installRoot, logPath)"
+    )
+
+
 
 def test_download_stream_is_closed_before_checksum_reopens_temporary_archive() -> None:
     agent = read("windows/JAP.ControlCenter.Desktop/ProductUpdateAgent.cs")
