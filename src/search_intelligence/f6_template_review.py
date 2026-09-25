@@ -287,20 +287,7 @@ def probe_review_replacement_overflows(
 
     private_root = root.expanduser().resolve()
     overflow: list[str] = []
-    for index, document_type in enumerate(("base_cv", "base_application_letter")):
-        if progress_callback is not None:
-            if document_type == "base_cv":
-                progress_callback(
-                    "render_cv",
-                    36,
-                    "Der Lebenslauf wird in die Originalvorlage eingesetzt und außerhalb der Textzonen pixelgenau geprüft.",
-                )
-            else:
-                progress_callback(
-                    "render_letter",
-                    54,
-                    "Das Anschreiben wird in die Originalvorlage eingesetzt und außerhalb der Textzonen pixelgenau geprüft.",
-                )
+    for document_type in ("base_cv", "base_application_letter"):
         spec = specs[document_type]
         review = load_review_document(root=private_root, spec=spec)
         replacements = _normalize_document_replacements(
@@ -376,7 +363,17 @@ def render_review_package(
 
     private_root = root.expanduser().resolve()
     rendered: list[F6RenderedReviewDocument] = []
-    for document_type in ("base_cv", "base_application_letter"):
+    for index, document_type in enumerate(("base_cv", "base_application_letter")):
+        if progress_callback is not None:
+            progress_callback(
+                "render_cv" if index == 0 else "render_letter",
+                36 if index == 0 else 54,
+                (
+                    "Der Lebenslauf wird in die Originalvorlage eingesetzt und außerhalb der Textzonen pixelgenau geprüft."
+                    if index == 0
+                    else "Das Anschreiben wird in die Originalvorlage eingesetzt und außerhalb der Textzonen pixelgenau geprüft."
+                ),
+            )
         spec = specs[document_type]
         review = load_review_document(root=private_root, spec=spec)
         replacements = _normalize_document_replacements(
