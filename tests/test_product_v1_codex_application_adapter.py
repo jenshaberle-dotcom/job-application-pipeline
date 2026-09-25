@@ -555,3 +555,24 @@ def test_ungrounded_personal_salutation_is_repaired_without_provider_retry() -> 
     assert package["automatic_semantic_repairs"] == [
         "ungrounded_salutation_replaced_with_generic"
     ]
+
+
+
+def test_truly_generic_letter_remains_fail_closed() -> None:
+    decoded = _model_output()
+    decoded["letter_paragraphs"] = [
+        "Die ausgeschriebene Position verbindet technische Verantwortung mit anspruchsvollen Aufgaben in einem professionellen Umfeld.",
+        "Meine Erfahrung im System Engineering hilft mir, komplexe Anforderungen strukturiert zu bearbeiten und Ergebnisse nachvollziehbar aufzubereiten.",
+        "Eigene Datenprojekte ergänzen diese Erfahrung um Python, PostgreSQL, Datenmodellierung und reproduzierbare Verarbeitung.",
+        "Gerne erläutere ich im persönlichen Gespräch, wie ich diese Erfahrungen in die neue Aufgabe einbringen kann.",
+    ]
+
+    with pytest.raises(
+        adapter.CodexApplicationDraftStop,
+        match="not specific to the selected target",
+    ):
+        adapter._validate_output(
+            decoded,
+            context=_context(),
+            as_of_date=date(2026, 9, 24),
+        )
