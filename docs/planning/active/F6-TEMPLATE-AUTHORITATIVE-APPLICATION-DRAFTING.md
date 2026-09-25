@@ -561,6 +561,72 @@ Inspection of the 1.1.9 loop shows the deeper problem: all exact-template overfl
 The acceptance path remains intentionally simple: one regeneration action, no Advanced zone editing, then one final PDF creation action. Any normal-path requirement for manual zone work is still a release failure.
 
 
+### Candidate 1.1.11 — quality-first source context, explicit privacy mode, Word companion
+
+The first complete Eraneos output proves the rendering architecture but does not yet meet the accepted Hornet benchmark for application quality. The remaining slice is therefore a Product-quality contract, not another geometry relaxation.
+
+#### Quality-AI source packet and authority
+
+Embedded Codex stays on `gpt-5.6-sol` and is explicitly configured with `model_reasoning_effort="high"`. Each initial drafting request receives all four bounded source classes together:
+
+1. exact current vacancy text — sole target employer/role/requirements/contact authority;
+2. approved Candidate Facts — candidate fact authority;
+3. current CV text — candidate fact plus style reference;
+4. current application-letter text — **style/structure/quality reference only**.
+
+The existing letter's employer, recipient, role, date, salutation and vacancy-specific claims are explicitly stale and have zero authority for the new target. This allows Codex to preserve the accepted Hornet-level voice and narrative density without leaking old application identity into the new application.
+
+#### Edit/layout authority
+
+The normal F6 contract is now explicit:
+
+- pixel-frozen: page geometry, portrait, signature image, rules, colors, graphics and all pixels outside declared editable text zones;
+- JAP-deterministic: recipient block, date, subject and other target metadata are redacted/replaced in their declared zones, never overlaid on top of old text;
+- semantic Codex authority: CV short profile, CV competency profile, salutation and descriptive letter body;
+- preserve-by-default: career history, education, projects, skills and every other non-declared source area;
+- final PDF renderer remains strict scale-1.0 authority and re-proves outside-zone pixel identity.
+
+The CV footer date is now an explicit deterministic zone replacement so a new application cannot retain the old Hornet date. The signature image remains immutable and is never duplicated or overlaid.
+
+Quality drafting may use 4-6 coherent body paragraphs with up to 520 characters each before exact fit. This removes the artificial four-mini-paragraph constraint that degraded the Eraneos narrative. Each returned paragraph must be a complete grammatical thought. Exact-template preflight and bounded semantic compaction remain the physical-fit gate.
+
+#### Privacy choice
+
+Application preparation exposes two explicit modes:
+
+- **Quality AI:** current CV + current letter + exact vacancy are sent to the ChatGPT-authenticated bundled Codex under the authority split above.
+- **Local only:** no CV, letter or vacancy text is sent to an LLM/provider. JAP locally replaces deterministic target/date metadata and preserves descriptive wording; the operator edits semantic zones locally before the same exact renderer/export step.
+
+No API-key fallback, hidden provider call, submission or send authority exists in either mode.
+
+#### No-upload fallback
+
+Missing private CV/letter source material must not leave the user with no useful application artifact. The Application surface offers a local, fillable `.docx` starter containing placeholders for letter, profile, experience, education, projects and skills. It is generated without LLM/provider/network content transfer and explicitly carries **no F6 pixel/template authority**. It is a manual fallback until the user chooses to supply authoritative source documents.
+
+#### Word output
+
+Successful exact F6 export now produces two artifacts from the same final text model:
+
+- verified PDF — canonical layout/pixel authority;
+- editable DOCX companion — local, editable convenience output.
+
+DOCX never becomes template authority because Word can reflow fonts/spacing. It is generated from the final merged F6 zone values after the same source-manifest binding; the verified PDF remains the submission-quality reference.
+
+#### 1.1.11 operator acceptance
+
+Use Eraneos #511 and the accepted Hornet application as quality benchmark. Accept only when:
+
+- audit shows `gpt-5.6-sol`, reasoning `high`, current CV + current letter + exact vacancy;
+- no stale Hornet target identity becomes factual content;
+- letter is coherent, complete and materially vacancy-specific, without malformed joins or truncated sentences;
+- CV adaptation remains bounded and the footer date is current;
+- signature/portrait/graphics/layout stay frozen and final PDF visual-identity proof passes;
+- final package offers verified PDF plus editable Word companion;
+- Local-only mode proves zero provider/LLM requests and remains usable through local manual semantic editing;
+- no-upload flow downloads the fillable provider-free Word starter;
+- all paths remain human-review-only with zero automatic submit/send authority.
+
+
 ## Explicit non-goals
 
 - no alternate template chooser;
