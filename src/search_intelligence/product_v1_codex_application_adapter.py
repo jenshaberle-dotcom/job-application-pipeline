@@ -309,6 +309,38 @@ def _prompt(
             "vacancy_text": context.target.detail_text[:MAX_VACANCY_CHARS],
         },
         "approved_candidate_facts": facts,
+        "edit_authority": {
+            "pixel_frozen": [
+                "page_geometry",
+                "portrait",
+                "signature_image",
+                "rules_and_lines",
+                "colors_and_graphics",
+                "all_pixels_outside_declared_text_zones",
+            ],
+            "jap_deterministic_zones": [
+                "base_application_letter:recipient.block",
+                "base_application_letter:date",
+                "base_application_letter:subject",
+                "base_application_letter:closing.formula",
+                "base_cv:p2.footer.date",
+            ],
+            "codex_semantic_zones": [
+                "base_cv:p1.short_profile",
+                "base_cv:p1.competency_profile",
+                "base_application_letter:salutation",
+                "base_application_letter:body.paragraph_1..6",
+            ],
+            "preserve_by_default": [
+                "career_history",
+                "education",
+                "projects",
+                "skills_lists",
+                "footer_name",
+            ],
+            "renderer_is_final_physical_fit_authority": True,
+            "no_scaling_or_overlay_authority": True,
+        },
         "current_documents": {
             "cv": {
                 "content": _base_cv_text(context),
