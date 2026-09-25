@@ -19,6 +19,7 @@ from http.server import ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+from threading import Lock
 from typing import Mapping
 from urllib.parse import parse_qs, urlparse
 
@@ -95,6 +96,7 @@ APPLICATION_WORKSPACE_REVALIDATE_PATH = (
     "/api/v1/product-v1/application-workspace/revalidate"
 )
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
+APPLICATION_DRAFT_PROGRESS_PATH = "/api/v1/product-v1/application-draft-progress"
 F6_TEMPLATE_REVIEW_PATH = "/api/v1/product-v1/f6-template-review"
 F6_TEMPLATE_EXPORT_PATH = "/api/v1/product-v1/f6-template-export"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
@@ -107,6 +109,64 @@ _MAX_ACTION_BODY_BYTES = 4_096
 _MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
 _MAX_F6_EXPORT_BODY_BYTES = 256 * 1024
 _DEFAULT_PRIVATE_DOCUMENT_ROOT = Path("private_application_sources")
+_DRAFT_PROGRESS_LOCK = Lock()
+_DRAFT_PROGRESS: dict[str, dict[str, object]] = {}
+
+
+def _validated_draft_request_id(value: object) -> str:
+    request_id = str(value or "").strip()
+    if not 8 <= len(request_id) <= 96:
+        raise DemoActionStop("request_id must contain 8-96 safe characters")
+    if any(not (ch.isalnum() or ch in {"-", "_", "."}) for ch in request_id):
+        raise DemoActionStop("request_id contains unsupported characters")
+    return request_id
+
+
+def _set_draft_progress(
+    request_id: str,
+    *,
+    status: str = "running",
+    phase: str,
+    percent: int,
+    message: str,
+    provider_request: int = 0,
+    provider_request_limit: int = 3,
+) -> None:
+    payload = {
+        "schema": "job_application_pipeline.application_draft_progress.v1",
+        "request_id": request_id,
+        "status": status,
+        "phase": phase,
+        "percent": max(0, min(100, int(percent))),
+        "message": str(message),
+        "provider_request": max(0, int(provider_request)),
+        "provider_request_limit": max(0, int(provider_request_limit)),
+        "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    with _DRAFT_PROGRESS_LOCK:
+        _DRAFT_PROGRESS[request_id] = payload
+        while len(_DRAFT_PROGRESS) > 128:
+            oldest = next(iter(_DRAFT_PROGRESS))
+            if oldest == request_id and len(_DRAFT_PROGRESS) == 1:
+                break
+            _DRAFT_PROGRESS.pop(oldest, None)
+
+
+def _get_draft_progress(request_id: str) -> dict[str, object]:
+    with _DRAFT_PROGRESS_LOCK:
+        current = _DRAFT_PROGRESS.get(request_id)
+        if current is not None:
+            return dict(current)
+    return {
+        "schema": "job_application_pipeline.application_draft_progress.v1",
+        "request_id": request_id,
+        "status": "waiting",
+        "phase": "queued",
+        "percent": 0,
+        "message": "Drafting request is waiting to start.",
+        "provider_request": 0,
+        "provider_request_limit": 3,
+    }
 
 
 class DemoActionStop(ValueError):
@@ -161,11 +221,12 @@ def _load_operator_product_payload() -> dict[str, object]:
 
 def parse_application_draft_action_payload(
     payload: object,
-) -> tuple[int, str]:
+) -> tuple[int, str, str]:
     if not isinstance(payload, Mapping):
         raise DemoActionStop("action payload must be a JSON object")
-    allowed = {"action", "silver_job_id", "generation_mode"}
-    if not set(payload).issubset(allowed) or not {"action", "silver_job_id"}.issubset(payload):
+    allowed = {"action", "silver_job_id", "generation_mode", "request_id"}
+    required = {"action", "silver_job_id", "request_id"}
+    if not set(payload).issubset(allowed) or not required.issubset(payload):
         raise DemoActionStop("action payload contains unexpected or missing fields")
     if payload.get("action") != "generate_review_draft":
         raise DemoActionStop("action must be generate_review_draft")
@@ -178,7 +239,8 @@ def parse_application_draft_action_payload(
     generation_mode = str(payload.get("generation_mode") or "codex_quality").strip()
     if generation_mode not in {"codex_quality", "local_private"}:
         raise DemoActionStop("generation_mode must be codex_quality or local_private")
-    return silver_job_id, generation_mode
+    request_id = _validated_draft_request_id(payload.get("request_id"))
+    return silver_job_id, generation_mode, request_id
 
 
 
