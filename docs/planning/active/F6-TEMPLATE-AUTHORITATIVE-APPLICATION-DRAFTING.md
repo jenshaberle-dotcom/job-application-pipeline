@@ -439,6 +439,45 @@ The updater is hardened in the same patch after a real first-attempt rollback on
 
 The 1.2.0 acceptance boundary is unchanged. 1.1.5 only makes lifecycle truth, Codex authority and updater recovery observable/stable enough to continue the real CV + letter qualification.
 
+### Candidate 1.1.6 — reviewed Personio F6 authority + in-product ChatGPT device login
+
+Installed 1.1.5 confirms that the Codex runtime is physically embedded and version-bound, but also proves two blockers are still independent:
+
+1. **Eraneos #511** reaches exact live vacancy evidence, 3 matched Candidate Facts and 2/2 exact F6 templates, yet F6 reports `employer_origin_required`.
+2. Codex is present as `codex-cli 0.154.0` but `codex login status` reports no ChatGPT login, so automatic CV + letter adaptation correctly remains disabled.
+
+The Eraneos blocker is not solved by weakening Employer-Origin rules. The repository already contains a reviewed legacy Personio authority path used by lifecycle migration 099. 1.1.6 admits that path only when the exact selected row carries all of the already-frozen evidence:
+
+- source is one of the reviewed legacy Personio targets (currently Eraneos / 1KOMMA5° only);
+- lifecycle is `active_confirmed` from `authoritative_verified_ats_feed_observation`;
+- coverage is `complete_inventory`;
+- latest observation URL and normalized source URL exactly equal the Silver source URL;
+- source type is `employer_origin_ats_backed_career_site`;
+- `personio-recurring-feed-authority.v1` and the reviewed binding contract match;
+- provider/target identity matches the reviewed target;
+- authority validated, employer identity bound and inventory complete are all true;
+- `product_authority` remains false on the feed evidence itself;
+- the exact job URL is bound inside the observation.
+
+This composes existing authorities; it does not make arbitrary Personio sources Product authority.
+
+For ChatGPT authentication, 1.1.6 adds a bounded local login coordinator around the already bundled official Codex CLI:
+
+- command is exactly `codex login --device-auth`;
+- Codex owns OAuth/device exchange and credential persistence;
+- JAP UI receives only verification URL, one-time user code and coarse session state;
+- no token/auth.json content crosses the loopback JSON boundary;
+- the device flow expires under Codex's own 15-minute contract;
+- UI polling ends only when `codex login status` reports **Logged in using ChatGPT**;
+- API-key/workload/access-token login still does not enable drafting;
+- login can be started even if another F6 context blocker is still visible.
+
+The readiness UI is corrected at the same time: a fetched live URL/title is labeled **Live vacancy verified**, while **Employer-Origin authority** has its own independent row. This prevents the 1.1.5 contradiction where a green “Employer-origin verified” card coexisted with an `employer_origin_required` blocker.
+
+The next operator acceptance target remains **Eraneos #511**. After 1.1.6, complete ChatGPT device login inside JAP, require both Origin and Codex readiness to be green, then generate the first real vacancy-specific CV + application-letter review draft.
+
+
+
 
 ## Explicit non-goals
 

@@ -42,6 +42,9 @@ from src.search_intelligence.product_v1_application_workspace import (
     build_application_workspace_context,
     local_document_loader,
 )
+from src.search_intelligence.product_v1_application_origin_authority import (
+    application_employer_origin_authority,
+)
 from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
@@ -205,11 +208,15 @@ def _private_document_root() -> Path | None:
     return Path(raw).expanduser() if raw else None
 
 
-def _employer_origin_authorized(source_name: object) -> bool:
+def _employer_origin_authority(target: Mapping[str, object]):
     authorized = set(
         authorized_recurring_employer_origin_sources(JobIngestionRepository())
     )
-    return str(source_name or "") in authorized
+    source_name = str(target.get("source_name") or "")
+    return application_employer_origin_authority(
+        target,
+        generic_source_authorized=source_name in authorized,
+    )
 
 
 def revalidate_application_target(silver_job_id: int):
@@ -265,6 +272,7 @@ def load_application_workspace(
         evidence_mode = "live_http_detail"
         job_detail_http_gets = 1
 
+    origin_authority = _employer_origin_authority(target)
     context = build_application_workspace_context(
         top_job_row=target,
         detail_text=detail_text,
@@ -274,9 +282,7 @@ def load_application_workspace(
         load_document=local_document_loader(private_root=_private_document_root()),
         as_of_date=date.today(),
         authority_source=target_authority_source,
-        employer_origin_authorized=_employer_origin_authorized(
-            target.get("source_name")
-        ),
+        employer_origin_authorized=origin_authority.authorized,
     )
     return context, final_url, fetched_title, evidence_mode, job_detail_http_gets
 

@@ -206,6 +206,23 @@ def test_all_jobs_is_the_current_employer_origin_review_scope() -> None:
     assert '"All current"' not in operator
 
 
+def test_application_workspace_separates_live_vacancy_from_employer_origin_authority() -> None:
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert "Live vacancy verified" in workspace
+    assert "Employer-Origin authority" in workspace
+    assert "Employer-origin verified" not in workspace
+    assert "workspace?.workspace?.target?.employer_origin_authorized === true" in workspace
+
+
+def test_chatgpt_connection_can_start_before_other_context_blockers_clear() -> None:
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert "{!codexReady && <div className=\"demo-blockers\">" in workspace
+    assert "generationReady && !codexReady" not in workspace
+    assert "Connect ChatGPT" in workspace
+
+
 def test_application_workspace_excludes_jobs_already_applied_or_further_progressed() -> None:
     workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
