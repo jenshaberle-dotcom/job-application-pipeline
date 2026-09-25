@@ -355,3 +355,42 @@ def test_unresolved_layout_overflow_never_falls_back_to_manual_or_filler(
     ]
     assert payload["fallback_generated"] is False
     assert payload.get("package") is None
+
+
+
+def test_local_private_mode_never_calls_codex_and_updates_only_deterministic_zones(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
+    monkeypatch.setattr(runtime, "_probe_generated_package_overflows", lambda _package: ())
+    monkeypatch.setattr(
+        runtime,
+        "request_codex_application_adaptation",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("local_private must not call Codex")
+        ),
+    )
+
+    payload = runtime.generate_application_draft_payload(
+        626,
+        generation_mode="local_private",
+    )
+
+    assert payload["status"] == "draft_for_review"
+    assert payload["draft_mode"] == "local_private_edit"
+    assert payload["provider_requests"] == 0
+    assert payload["llm_requests"] == 0
+    assert payload["codex_requests"] == 0
+    assert payload["private_document_content_left_device"] is False
+    assert payload["base_cv_text_shared_with_codex"] is False
+    assert payload["base_application_letter_text_shared_with_codex"] is False
+    assert payload["vacancy_text_shared_with_codex"] is False
+    zones = payload["package"]["zone_replacements"]
+    assert zones["base_application_letter"]["recipient.block"] == "accompio"
+    assert zones["base_application_letter"]["date"] == "24.09.2026"
+    assert zones["base_application_letter"]["subject"] == (
+        "Bewerbung als AI Automation Engineer"
+    )
+    assert zones["base_application_letter"]["salutation"] == "Guten Tag,"
+    assert zones["base_cv"]["p2.footer.date"] == "Hannover, 24. September 2026"
