@@ -132,6 +132,7 @@ type CodexStatusPayload = {
   executable?: string | null;
   version?: string | null;
   model?: string;
+  reasoning_effort?: string;
   billing_authority?: string;
   api_key_fallback?: boolean;
   automatic_credit_purchase?: boolean;
@@ -157,6 +158,9 @@ type DraftPayload = {
   fallback_reason?: string | null;
   base_document_text_shared_with_provider?: boolean;
   base_cv_text_shared_with_codex?: boolean;
+  base_application_letter_text_shared_with_codex?: boolean;
+  vacancy_text_shared_with_codex?: boolean;
+  codex_reasoning_effort?: string;
   codex_model?: string;
   codex_version?: string | null;
   codex_requests?: number;
@@ -680,14 +684,14 @@ export default function ApplicationWorkspace() {
 
               {draft?.status === "draft_for_review" && draft.package ? <>
                 <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
-                {draft.base_cv_text_shared_with_codex && <p className="demo-provider-context-note">Embedded Codex used the approved CV plus the exact vacancy for this adaptation. The previous application-letter text was deliberately not supplied, so stale employer/contact text cannot become drafting context. No submission or send action occurred.</p>}
+                {draft.base_cv_text_shared_with_codex && draft.base_application_letter_text_shared_with_codex && <p className="demo-provider-context-note">Quality-first Codex received the current CV, current application letter and exact vacancy together. CV/Candidate Facts remain factual authority; the previous letter is style/structure reference only and its old employer, recipient, role and date are explicitly stale. No submission or send action occurred.</p>}
                 {draft.base_document_text_shared_with_provider && <p className="demo-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
                 {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain bound to approved Candidate Facts and exact vacancy evidence.</p>}
 
                 <section className="demo-application-downloads">
                   <header><strong>F6 template authority</strong><span>{templateAuthority?.status === "ready" ? "2/2 exact private PDFs verified" : "exact templates required"}</span></header>
-                  <p className="demo-boundary-note">Legacy generic DOCX/A4 export has been removed. F6-C renders only into declared text zones of the two hash-bound PDFs and verifies every pixel outside those zones.</p>
+                  <p className="demo-boundary-note">PDF remains exact template authority: JAP replaces text inside declared zones and verifies every pixel outside them. Portrait, signature image, rules and geometry remain frozen; date/recipient/subject are replaced in-place rather than overlaid.</p>
                 </section>
 
                 <section className="demo-document">
@@ -713,7 +717,7 @@ export default function ApplicationWorkspace() {
                 <details className="demo-evidence-details demo-audit-details">
                   <summary>Audit details</summary>
                   {draft.draft_mode === "codex_embedded_v1"
-                    ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · {draft.codex_version || "version unavailable"} · CV + letter adaptation only</small></div></div>
+                    ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · reasoning {draft.codex_reasoning_effort || codexStatus?.reasoning_effort || "configured"} · {draft.codex_version || "version unavailable"} · current CV + current letter + vacancy</small></div></div>
                     : <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>}
                   <footer><span>Codex/provider requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>Layout repairs: {draft.layout_repair_attempts ?? 0} Codex · {draft.automatic_layout_repairs?.length ?? 0} safe local</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
