@@ -1,6 +1,6 @@
 # Freeze II — Source Truth & Connector Reliability
 
-Status: ACTIVE — S0 COMPLETE; S1/S2 residual classification active
+Status: ACTIVE — S0 COMPLETE; S1 connector saturation active
 Canonical issue: #1038
 Previous campaign: F0-F6 COMPLETE / OPERATOR ACCEPTED FOR CURRENT COHORT
 
@@ -10,9 +10,9 @@ The next JAP freeze campaign deliberately moves upstream.
 
 Primary loop:
 
-`more Employer-Origin coverage -> better source understanding -> harder deterministic extraction -> less layer loss -> more trustworthy metadata in JAP Control Center`
+`all current candidates connector-bound -> isolated smoke proof -> systematic real search -> broad current job evidence -> metadata extraction hardening -> more trustworthy JAP Control Center`
 
-The campaign does not begin by adding ranking, Fit, UI or application features. The present learning bottleneck is the breadth and reliability of source evidence reaching Bronze, Silver and Product.
+The campaign does not begin by adding ranking, Fit, UI or application features. The present learning bottleneck is source breadth. The first objective is therefore connector saturation across the complete current Employer-Origin candidate population, followed by systematic real search. Metadata extraction becomes the primary hardening wave only after that broader real-job population exists.
 
 ## Inherited work
 
@@ -30,15 +30,16 @@ The campaign does not begin by adding ranking, Fit, UI or application features. 
 ## Frozen truth boundaries
 
 1. Employer-Origin or separately reviewed equivalent is Product source authority. Aggregators/sensors remain discovery evidence.
-2. Connector coverage changes only after materialized strict genuine-job E2E proof.
-3. Source identity, reachability, inventory completeness, detail identity and field extraction are separate dimensions.
-4. Missing/conflicting metadata remains explicit unknown/conflict.
-5. Bronze preserves evidence; Silver owns canonical normalized field truth; Product/CC may not manufacture stronger downstream truth.
-6. Field provenance must survive to the operator surface.
-7. Employer-specific exceptions are forbidden unless generalized into reusable source/template-family contracts.
-8. Deterministic structured or bounded visible evidence is first lane.
-9. ML/LLM may later propose Shadow evidence only; neither creates source truth.
-10. Fit/Combined/ranking authority does not expand until upstream gates pass.
+2. **Connector operability and Product source coverage are separate metrics.** Every current candidate is expected to have an executable connector binding and smoke proof; Product coverage still changes only after real materialized strict genuine-job E2E proof.
+3. A connector smoke may emit exactly one synthetic/non-authoritative job envelope, but smoke data is persistence-forbidden and may never enter Bronze, Silver, Gold/Product, ranking or application state.
+4. Every current candidate must receive a systematic real source-search attempt. A valid outcome is `real jobs observed`, `real zero-yield`, or `blocked with explicit reason`; silent skipping is forbidden.
+5. Existing candidacy is sufficient justification for connector/search engineering because each candidate originated from prior relevant-employer/job evidence. It is not current vacancy authority.
+6. Source identity, reachability, inventory completeness, query/search behavior, detail identity and field extraction are separate dimensions.
+7. Missing/conflicting metadata remains explicit unknown/conflict.
+8. Bronze preserves evidence; Silver owns canonical normalized field truth; Product/CC may not manufacture stronger downstream truth.
+9. Employer-specific exceptions are forbidden unless generalized into reusable source/template-family contracts or candidate bindings over a shared engine.
+10. Deterministic structured or bounded visible evidence is first lane. ML/LLM may later propose Shadow evidence only; neither creates source truth.
+11. Fit/Combined/ranking authority does not expand until upstream gates pass.
 
 ## S0 — Current truth baseline + layer-loss map — COMPLETE
 
@@ -94,23 +95,67 @@ S0 boundary:
 - provider/LLM calls 0;
 - Fit/ranking/application authority 0.
 
-## S1 — Connector breadth + fresh-company closure
+## S1 — Connector saturation across the complete candidate population — ACTIVE
 
-Primary work: #789 + CR-F1-001.
+Primary work: #789 + CR-F1-001 + current 67-candidate S0 denominator.
 
-Target:
+The primary S1 metric is no longer "a few additional connectors". It is **candidate connector saturation**.
 
-- at least five newly strict-proven active Employer-Origin connectors;
-- at least three distinct source/ATS families;
-- activation only after strict proof;
-- normal Bronze/Silver ingestion, no demo-only wiring;
-- lift attributed to reusable technical classes, never employer-name branches.
+### S1A — 100% connector binding + isolated smoke
 
-The #676 >=90% target remains a useful long-term target. S0 must establish the current denominator before any new percentage is authoritative.
+For every current distinct Employer-Origin candidate:
 
-## S2 — Source-family capability matrix
+- derive the canonical binding `generic_origin:<company_key>`;
+- prove the default registry resolves it to the Employer-Origin connector family;
+- execute a connector-contract smoke that emits one synthetic dummy `RawJobRecord`;
+- mark the smoke evidence explicitly non-authoritative and persistence-forbidden;
+- never pass the synthetic record to Bronze/Silver/Product.
 
-For every material source/ATS family record:
+Initial denominator: **67/67** from S0. Future candidates automatically extend the denominator.
+
+### S1B — 100% real source execution attempt
+
+For every candidate, execute the real source path independently of whether a relevant job is currently open.
+
+Each candidate must end in exactly one explicit state:
+
+- `real_jobs_observed`;
+- `real_zero_yield`;
+- `origin_resolution_required`;
+- `source_unreachable`;
+- `inventory_or_detail_blocked`;
+- `proof_blocked`.
+
+No candidate may disappear because a strict Product gate has not yet passed. Product activation remains separate.
+
+### S1C — systematic relevant-job search
+
+Once a candidate has a usable real source path:
+
+- search company-grounded vocabulary first;
+- fill remaining breadth from the canonical target raster;
+- use impossible/control-query discrimination where the source supports query semantics;
+- collect real current job/detail evidence read-only first;
+- retain truthful zero-yield when no current relevant vacancy exists;
+- only real Employer-Origin evidence may later enter normal Bronze/Silver ingestion.
+
+S1 acceptance:
+
+- **100% current candidates connector-smoke PASS**;
+- **100% current candidates real-search attempted or explicit source blocker**;
+- zero silent skips;
+- every source/search outcome has bounded request accounting;
+- real jobs are attributable to exact source/detail evidence;
+- no synthetic smoke data persisted;
+- reusable mechanics are shared across candidates instead of employer-name code branches.
+
+The currently running residual classifier is supporting evidence only. It helps implement shared mechanics, but it does not narrow S1 to a small "high-lift" subset and no longer owns sequencing.
+
+The #676 >=90% strict Product-coverage target remains a separate long-term measure. Connector saturation can reach 100% before strict Product coverage does; the two numbers must never be conflated.
+
+## S2 — Source/search evidence breadth + source-family capability matrix
+
+After S1 has exercised the complete candidate population, build the source/search evidence matrix from those real executions. For every material source/ATS family record:
 
 - first-party/canonical-host relationship;
 - delegation model;
@@ -191,10 +236,10 @@ Target operator cohort:
 
 ## Current sequence
 
-`S0 COMPLETE -> S1/S2 residual classification -> first reusable connector/source-family wave -> S3 extraction -> S4 integrity -> S5 semantics -> S6 acceptance`
+`S0 COMPLETE -> S1 connector saturation (all candidates) -> S2 systematic real-search/source-family matrix -> S3 metadata extraction -> S4 integrity -> S5 semantics -> S6 acceptance`
 
-S1/S2 now overlap deliberately. Before source activation, classify the current Origin/Inventory/Detail/Proof residuals with the already-existing bounded diagnostics and compare them with the canonical generic Product proof. The first implementation cohort is selected by reusable population lift, evidence strength, source-family reuse and metadata benefit — never by named-employer convenience.
+S1 is denominator-driven, not cohort-driven: every current candidate participates. Residual classification remains useful only to decide which shared capability fixes unblock many candidates at once. S2 consumes the resulting full-population real-search evidence. S3 metadata hardening starts only after that breadth exists.
 
 ## Immediate next gate
 
-Qualify and merge `scripts/run_freeze2_s1_s2_residual_classification.py` plus its guarded exact-main workflow. Run it read-only on current main. The resulting Origin-plan classes, Inventory surface/bridge hypotheses, Detail surface classes and Product-proof residual set select the first mutating S1/S2 implementation wave. Until that report exists, source activation and connector materialization remain zero.
+Install and qualify the S1 connector-saturation harness against the complete current candidate population. First prove 100% canonical connector binding plus isolated synthetic smoke without persistence. Then execute bounded real-source/systematic-search passes across all candidates in batches until every candidate has either real job/zero-yield evidence or an explicit source blocker. Use residual diagnostics only to repair shared mechanics. Do not wait for metadata hardening before broadening the source population.

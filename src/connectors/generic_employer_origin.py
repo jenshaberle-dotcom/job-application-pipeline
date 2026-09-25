@@ -49,6 +49,7 @@ class GenericOriginSource:
 
 
 CandidateLoader = Callable[[str], GenericOriginSource]
+JobAcquirer = Callable[[GenericOriginSource], AcquiredJobPage | None]
 
 
 def _active_projection_exists(conn: psycopg.Connection[object]) -> bool:
@@ -390,10 +391,12 @@ class GenericEmployerOriginConnector(JobSourceConnector):
         company_key: str,
         source_name: str | None = None,
         candidate_loader: CandidateLoader = load_generic_origin_source,
+        job_acquirer: JobAcquirer | None = None,
     ) -> None:
         self.company_key = company_key
         self.source_name = source_name or f"generic_origin:{company_key}"
         self.candidate_loader = candidate_loader
+        self.job_acquirer = job_acquirer
 
     def fetch_jobs(
         self,
@@ -402,7 +405,11 @@ class GenericEmployerOriginConnector(JobSourceConnector):
     ) -> tuple[list[RawJobRecord], str]:
         del profile
         source = self.candidate_loader(self.company_key)
-        job = acquire_one_generic_job(source)
+        job = (
+            self.job_acquirer(source)
+            if self.job_acquirer is not None
+            else acquire_one_generic_job(source)
+        )
         if job is None:
             return [], source.candidate_url
         return [
