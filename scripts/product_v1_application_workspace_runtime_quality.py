@@ -17,7 +17,7 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import Mapping
+from typing import Callable, Mapping
 
 from scripts.product_v1_application_workspace_runtime import (
     application_workspace_payload,
@@ -42,6 +42,30 @@ _CODEX_LAYOUT_ZONES = frozenset(
         *(f"base_application_letter:body.paragraph_{index}" for index in range(1, 7)),
     }
 )
+
+
+ProgressCallback = Callable[[dict[str, object]], None]
+
+
+def _emit_progress(
+    callback: ProgressCallback | None,
+    *,
+    phase: str,
+    percent: int,
+    message: str,
+    provider_request: int = 0,
+) -> None:
+    if callback is None:
+        return
+    callback(
+        {
+            "phase": phase,
+            "percent": max(0, min(100, int(percent))),
+            "message": message,
+            "provider_request": max(0, int(provider_request)),
+            "provider_request_limit": _MAX_CODEX_LAYOUT_ATTEMPTS,
+        }
+    )
 
 
 def _source_manifest_sha256(context: object) -> str:
@@ -419,10 +443,23 @@ def generate_application_draft_payload(
     silver_job_id: int,
     *,
     generation_mode: str = "codex_quality",
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, object]:
+    _emit_progress(
+        progress_callback,
+        phase="verify_target",
+        percent=5,
+        message="Aktuelle Stelle und Bewerbungsgrenzen werden verifiziert.",
+    )
     require_live_application_target(silver_job_id)
     context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
         load_application_workspace(silver_job_id)
+    )
+    _emit_progress(
+        progress_callback,
+        phase="bind_context",
+        percent=12,
+        message="CV, Anschreiben, Stelle und freigegebene Candidate Facts werden gebunden.",
     )
     if not context.generation_ready:
         return _blocked_payload(
@@ -435,19 +472,39 @@ def generate_application_draft_payload(
             reasons=["unsupported_generation_mode"],
         )
     if generation_mode == "local_private":
-        return _local_private_draft_payload(
+        _emit_progress(
+            progress_callback,
+            phase="local_prepare",
+            percent=55,
+            message="Unterlagen werden ausschließlich lokal vorbereitet.",
+        )
+        payload = _local_private_draft_payload(
             context=context,
             final_url=final_url,
             fetched_title=fetched_title,
             evidence_mode=evidence_mode,
             job_detail_http_gets=job_detail_http_gets,
         )
+        _emit_progress(
+            progress_callback,
+            phase="complete",
+            percent=100,
+            message="Lokaler Review-Entwurf ist bereit.",
+        )
+        return payload
     if not context.claim_plan:
         return _blocked_payload(
             context=context,
             reasons=["candidate_job_claim_plan_required"],
         )
 
+    _emit_progress(
+        progress_callback,
+        phase="provider_request",
+        percent=25,
+        message="ChatGPT Codex erstellt die hochwertigen, stellenspezifischen Textanpassungen.",
+        provider_request=1,
+    )
     result = request_codex_application_adaptation(context=context)
     codex_requests = int(result.attempted)
     if result.package is None:
@@ -461,8 +518,22 @@ def generate_application_draft_payload(
             job_detail_http_gets=job_detail_http_gets,
         )
 
+    _emit_progress(
+        progress_callback,
+        phase="validate_model_output",
+        percent=55,
+        message="Codex-Ergebnis wird auf Faktenbindung, Struktur und Vollständigkeit geprüft.",
+        provider_request=codex_requests,
+    )
     package = dict(result.package)
     automatic_layout_repairs: list[str] = []
+    _emit_progress(
+        progress_callback,
+        phase="template_preflight",
+        percent=65,
+        message="Texte werden gegen die echten PDF-Zonen bei Originalgröße geprüft.",
+        provider_request=codex_requests,
+    )
     try:
         layout_overflows = _probe_generated_package_overflows(package)
     except F6TemplateReviewStop as exc:
@@ -522,6 +593,17 @@ def generate_application_draft_payload(
 
     layout_overflows = _codex_repairable_overflows(layout_overflows)
     while layout_overflows and codex_requests < _MAX_CODEX_LAYOUT_ATTEMPTS:
+        next_request = codex_requests + 1
+        _emit_progress(
+            progress_callback,
+            phase="provider_repair",
+            percent=min(88, 68 + next_request * 6),
+            message=(
+                "Codex komprimiert gezielt nur die Textzonen, die physisch "
+                "noch nicht in das Original-Layout passen."
+            ),
+            provider_request=next_request,
+        )
         result = request_codex_application_adaptation(
             context=context,
             layout_feedback=layout_overflows,
@@ -617,9 +699,24 @@ def generate_application_draft_payload(
             layout_overflows=layout_overflows,
             automatic_layout_repairs=tuple(automatic_layout_repairs),
         )
+    _emit_progress(
+        progress_callback,
+        phase="finalize_review",
+        percent=94,
+        message="Review-Entwurf und Layoutnachweis werden finalisiert.",
+        provider_request=codex_requests,
+    )
     package["source_manifest_sha256"] = _source_manifest_sha256(context)
     package["candidate_fact_keys_used"] = sorted(
         entry.fact_key for entry in context.claim_plan
+    )
+
+    _emit_progress(
+        progress_callback,
+        phase="complete",
+        percent=100,
+        message="Bewerbungsunterlagen sind für die menschliche Prüfung bereit.",
+        provider_request=codex_requests,
     )
 
     return {

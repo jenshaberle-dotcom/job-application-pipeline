@@ -228,11 +228,18 @@ def _assert_text_fits(
 def _apply_text_zone(
     *, page: pymupdf.Page, rect: pymupdf.Rect, zone_id: str, text: str
 ) -> None:
+    # Capture the exact source-derived text style BEFORE redacting the old text.
+    # The preflight probes the pristine source page. Recomputing style after
+    # redaction falls back to the generic 9.5pt default and can therefore make a
+    # draft pass preflight but overflow during the real render.
+    html = css = None
+    if text:
+        html, css = _zone_html(page=page, rect=rect, zone_id=zone_id, text=text)
     page.add_redact_annot(rect, fill=False)
     page.apply_redactions(images=0, graphics=0, text=0)
     if not text:
         return
-    html, css = _zone_html(page=page, rect=rect, zone_id=zone_id, text=text)
+    assert html is not None and css is not None
     spare_height, scale = page.insert_htmlbox(
         rect,
         html,

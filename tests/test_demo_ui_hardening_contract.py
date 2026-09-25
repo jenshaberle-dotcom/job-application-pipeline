@@ -313,3 +313,18 @@ def test_no_upload_path_offers_provider_free_fillable_word_starter() -> None:
     assert "Download fillable Word starter" in operator
     assert "sends nothing to an LLM" in operator
     assert "fallback document, not pixel-authoritative F6 source material" in operator
+
+
+
+def test_application_workspace_shows_live_quality_drafting_progress() -> None:
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    styles = (FRONTEND / "demo-application-workspace.css").read_text(encoding="utf-8")
+
+    assert "/api/v1/product-v1/application-draft-progress?request_id=" in workspace
+    assert "request_id: requestId" in workspace
+    assert "Deine Bewerbungsunterlagen werden erstellt" in workspace
+    assert "Provider request" in workspace
+    assert "Elapsed {draftElapsedLabel}" in workspace
+    assert "Codex stellt keine Token-für-Token-Prozentwerte bereit" in workspace
+    assert 'role="progressbar"' in workspace
+    assert ".demo-drafting-progress-track" in styles

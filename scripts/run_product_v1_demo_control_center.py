@@ -19,6 +19,7 @@ from http.server import ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+from threading import Lock
 from typing import Mapping
 from urllib.parse import parse_qs, urlparse
 
@@ -95,6 +96,7 @@ APPLICATION_WORKSPACE_REVALIDATE_PATH = (
     "/api/v1/product-v1/application-workspace/revalidate"
 )
 APPLICATION_DRAFT_PATH = "/api/v1/product-v1/application-draft"
+APPLICATION_DRAFT_PROGRESS_PATH = "/api/v1/product-v1/application-draft-progress"
 F6_TEMPLATE_REVIEW_PATH = "/api/v1/product-v1/f6-template-review"
 F6_TEMPLATE_EXPORT_PATH = "/api/v1/product-v1/f6-template-export"
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
@@ -107,6 +109,63 @@ _MAX_ACTION_BODY_BYTES = 4_096
 _MAX_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
 _MAX_F6_EXPORT_BODY_BYTES = 256 * 1024
 _DEFAULT_PRIVATE_DOCUMENT_ROOT = Path("private_application_sources")
+_DRAFT_PROGRESS_LOCK = Lock()
+_DRAFT_PROGRESS: dict[str, dict[str, object]] = {}
+
+
+def _validated_draft_request_id(value: object) -> str:
+    request_id = str(value or "").strip()
+    if not 8 <= len(request_id) <= 96:
+        raise DemoActionStop("request_id must contain 8-96 safe characters")
+    if any(not (ch.isalnum() or ch in {"-", "_", "."}) for ch in request_id):
+        raise DemoActionStop("request_id contains unsupported characters")
+    return request_id
+
+
+def _set_draft_progress(
+    request_id: str,
+    *,
+    status: str = "running",
+    phase: str,
+    percent: int,
+    message: str,
+    provider_request: int = 0,
+    provider_request_limit: int = 3,
+) -> None:
+    payload = {
+        "schema": "job_application_pipeline.application_draft_progress.v1",
+        "request_id": request_id,
+        "status": status,
+        "phase": phase,
+        "percent": max(0, min(100, int(percent))),
+        "message": str(message),
+        "provider_request": max(0, int(provider_request)),
+        "provider_request_limit": max(0, int(provider_request_limit)),
+        "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    with _DRAFT_PROGRESS_LOCK:
+        _DRAFT_PROGRESS.pop(request_id, None)
+        _DRAFT_PROGRESS[request_id] = payload
+        while len(_DRAFT_PROGRESS) > 128:
+            oldest = next(iter(_DRAFT_PROGRESS))
+            _DRAFT_PROGRESS.pop(oldest, None)
+
+
+def _get_draft_progress(request_id: str) -> dict[str, object]:
+    with _DRAFT_PROGRESS_LOCK:
+        current = _DRAFT_PROGRESS.get(request_id)
+        if current is not None:
+            return dict(current)
+    return {
+        "schema": "job_application_pipeline.application_draft_progress.v1",
+        "request_id": request_id,
+        "status": "waiting",
+        "phase": "queued",
+        "percent": 0,
+        "message": "Drafting request is waiting to start.",
+        "provider_request": 0,
+        "provider_request_limit": 3,
+    }
 
 
 class DemoActionStop(ValueError):
@@ -161,11 +220,12 @@ def _load_operator_product_payload() -> dict[str, object]:
 
 def parse_application_draft_action_payload(
     payload: object,
-) -> tuple[int, str]:
+) -> tuple[int, str, str]:
     if not isinstance(payload, Mapping):
         raise DemoActionStop("action payload must be a JSON object")
-    allowed = {"action", "silver_job_id", "generation_mode"}
-    if not set(payload).issubset(allowed) or not {"action", "silver_job_id"}.issubset(payload):
+    allowed = {"action", "silver_job_id", "generation_mode", "request_id"}
+    required = {"action", "silver_job_id", "request_id"}
+    if not set(payload).issubset(allowed) or not required.issubset(payload):
         raise DemoActionStop("action payload contains unexpected or missing fields")
     if payload.get("action") != "generate_review_draft":
         raise DemoActionStop("action must be generate_review_draft")
@@ -178,7 +238,8 @@ def parse_application_draft_action_payload(
     generation_mode = str(payload.get("generation_mode") or "codex_quality").strip()
     if generation_mode not in {"codex_quality", "local_private"}:
         raise DemoActionStop("generation_mode must be codex_quality or local_private")
-    return silver_job_id, generation_mode
+    request_id = _validated_draft_request_id(payload.get("request_id"))
+    return silver_job_id, generation_mode, request_id
 
 
 
@@ -295,6 +356,20 @@ class ProductV1DemoHandler(ProductV1Handler):
             except Exception as exc:  # pragma: no cover - runtime diagnostics
                 self._send_runtime_error(exc)
             return
+        if parsed.path == APPLICATION_DRAFT_PROGRESS_PATH:
+            try:
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                raw = query.get("request_id") or []
+                if len(raw) != 1:
+                    raise DemoActionStop("exactly one request_id query parameter is required")
+                request_id = _validated_draft_request_id(raw[0])
+                self._send_json(_get_draft_progress(request_id))
+            except DemoActionStop as exc:
+                self._send_json(
+                    {"status": "blocked", "reason": str(exc)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+            return
         if parsed.path == CODEX_STATUS_PATH:
             try:
                 self._send_json(inspect_codex_runtime_status().to_json())
@@ -354,6 +429,14 @@ class ProductV1DemoHandler(ProductV1Handler):
             payload = application_workspace_payload(self._workspace_job_id())
             self._send_json(payload)
         except ApplicationWorkspaceLifecycleStop as exc:
+            if request_id:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(exc),
+                )
             self._send_json(
                 {
                     "status": "blocked",
@@ -706,14 +789,54 @@ class ProductV1DemoHandler(ProductV1Handler):
         if parsed.path != APPLICATION_DRAFT_PATH:
             super().do_POST()
             return
+        request_id: str | None = None
         try:
-            silver_job_id, generation_mode = parse_application_draft_action_payload(
-                self._read_demo_action_payload()
+            silver_job_id, generation_mode, request_id = (
+                parse_application_draft_action_payload(
+                    self._read_demo_action_payload()
+                )
             )
+            _set_draft_progress(
+                request_id,
+                phase="accepted",
+                percent=1,
+                message="Deine Bewerbungsunterlagen werden vorbereitet.",
+            )
+
+            def report_progress(event: dict[str, object]) -> None:
+                _set_draft_progress(
+                    request_id,
+                    phase=str(event.get("phase") or "working"),
+                    percent=int(event.get("percent") or 0),
+                    message=str(event.get("message") or "Bewerbungsunterlagen werden erstellt."),
+                    provider_request=int(event.get("provider_request") or 0),
+                    provider_request_limit=int(event.get("provider_request_limit") or 3),
+                )
+
             payload = generate_application_draft_payload(
                 silver_job_id,
                 generation_mode=generation_mode,
+                progress_callback=report_progress,
             )
+            final_status = str(payload.get("status") or "")
+            if final_status == "draft_for_review":
+                _set_draft_progress(
+                    request_id,
+                    status="completed",
+                    phase="complete",
+                    percent=100,
+                    message="Bewerbungsunterlagen sind für deine Prüfung bereit.",
+                    provider_request=int(payload.get("codex_requests") or 0),
+                )
+            else:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(payload.get("reason") or "Drafting stopped fail-closed."),
+                    provider_request=int(payload.get("codex_requests") or 0),
+                )
             status = (
                 HTTPStatus.OK
                 if payload.get("status") in {"draft_for_review", "draft_unavailable"}
@@ -721,6 +844,14 @@ class ProductV1DemoHandler(ProductV1Handler):
             )
             self._send_json(payload, status=status)
         except ApplicationWorkspaceLifecycleStop as exc:
+            if request_id:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(exc),
+                )
             self._send_json(
                 {
                     "status": "blocked",
@@ -737,6 +868,14 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.CONFLICT,
             )
         except (ApplicationWorkspaceStop, DemoActionStop) as exc:
+            if request_id:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="stopped",
+                    percent=100,
+                    message=str(exc),
+                )
             self._send_json(
                 {
                     "status": "blocked",
@@ -751,6 +890,14 @@ class ProductV1DemoHandler(ProductV1Handler):
                 status=HTTPStatus.CONFLICT,
             )
         except Exception as exc:  # pragma: no cover - runtime diagnostics
+            if request_id:
+                _set_draft_progress(
+                    request_id,
+                    status="failed",
+                    phase="error",
+                    percent=100,
+                    message=f"{type(exc).__name__}: {exc}",
+                )
             self._send_json(
                 {
                     "status": "error",

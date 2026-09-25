@@ -151,6 +151,16 @@ type CodexLoginPayload = {
   reason?: string;
 };
 
+type DraftProgressPayload = {
+  status?: "waiting" | "running" | "completed" | "failed";
+  phase?: string;
+  percent?: number;
+  message?: string;
+  provider_request?: number;
+  provider_request_limit?: number;
+  updated_at?: string;
+};
+
 type DraftPayload = {
   status?: string;
   reason?: string;
@@ -305,6 +315,9 @@ export default function ApplicationWorkspace() {
   const [codexLogin, setCodexLogin] = useState<CodexLoginPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [draftRequestId, setDraftRequestId] = useState<string | null>(null);
+  const [draftProgress, setDraftProgress] = useState<DraftProgressPayload | null>(null);
+  const [draftElapsedSeconds, setDraftElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
   const [jobQuery, setJobQuery] = useState("");
@@ -501,6 +514,18 @@ export default function ApplicationWorkspace() {
 
   const generateDraft = async () => {
     if (selectedId == null || !generationReady) return;
+    const requestId = globalThis.crypto?.randomUUID?.()
+      || `draft-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    setDraftRequestId(requestId);
+    setDraftProgress({
+      status: "waiting",
+      phase: "queued",
+      percent: 0,
+      message: "Deine Bewerbungsunterlagen werden vorbereitet.",
+      provider_request: 0,
+      provider_request_limit: 3,
+    });
+    setDraftElapsedSeconds(0);
     setDrafting(true);
     setError(null);
     try {
@@ -510,6 +535,7 @@ export default function ApplicationWorkspace() {
           action: "generate_review_draft",
           silver_job_id: selectedId,
           generation_mode: generationMode,
+          request_id: requestId,
         }),
       });
       setDraft(payload);
@@ -519,6 +545,43 @@ export default function ApplicationWorkspace() {
       setDrafting(false);
     }
   };
+
+  useEffect(() => {
+    if (!drafting || !draftRequestId) return undefined;
+    let active = true;
+
+    const poll = async () => {
+      try {
+        const payload = await readJson<DraftProgressPayload>(
+          `/api/v1/product-v1/application-draft-progress?request_id=${encodeURIComponent(draftRequestId)}`,
+        );
+        if (active) setDraftProgress(payload);
+      } catch {
+        // The blocking generation request remains authoritative. Progress
+        // polling is best-effort observability and must never fail drafting.
+      }
+    };
+
+    void poll();
+    const pollTimer = window.setInterval(() => void poll(), 800);
+    const elapsedTimer = window.setInterval(
+      () => setDraftElapsedSeconds((seconds) => seconds + 1),
+      1000,
+    );
+    return () => {
+      active = false;
+      window.clearInterval(pollTimer);
+      window.clearInterval(elapsedTimer);
+    };
+  }, [drafting, draftRequestId]);
+
+  const draftProgressPercent = Math.max(
+    0,
+    Math.min(100, Math.round(draftProgress?.percent || 0)),
+  );
+  const draftElapsedLabel = `${Math.floor(draftElapsedSeconds / 60)}:${String(
+    draftElapsedSeconds % 60,
+  ).padStart(2, "0")}`;
 
   if (!open) return null;
 
@@ -696,12 +759,41 @@ export default function ApplicationWorkspace() {
             <article className="demo-workspace-card demo-draft-card">
               <header>
                 <span className="demo-eyebrow">Prepared application</span>
-                <h3>{draft?.status === "draft_for_review"
-                  ? "Grounded text ready for review"
-                  : draft?.status === "draft_unavailable"
-                    ? "Codex drafting unavailable"
-                    : "Waiting for your action"}</h3>
+                <h3>{drafting
+                  ? "Deine Bewerbungsunterlagen werden erstellt"
+                  : draft?.status === "draft_for_review"
+                    ? "Grounded text ready for review"
+                    : draft?.status === "draft_unavailable"
+                      ? "Codex drafting unavailable"
+                      : "Waiting for your action"}</h3>
               </header>
+
+              {drafting && <div className="demo-drafting-progress" role="status" aria-live="polite">
+                <div className="demo-drafting-progress-head">
+                  <div>
+                    <strong>Deine Bewerbungsunterlagen werden erstellt</strong>
+                    <span>{draftProgress?.message || "ChatGPT Codex arbeitet an CV und Anschreiben."}</span>
+                  </div>
+                  <b>{draftProgressPercent}%</b>
+                </div>
+                <div
+                  className="demo-drafting-progress-track"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={draftProgressPercent}
+                >
+                  <i style={{ width: `${Math.max(3, draftProgressPercent)}%` }} />
+                </div>
+                <div className="demo-drafting-telemetry">
+                  <span>{codexStatus?.model || "gpt-5.6-sol"} · reasoning {codexStatus?.reasoning_effort || "high"}</span>
+                  <span>{(draftProgress?.provider_request || 0) > 0
+                    ? `Provider request ${draftProgress?.provider_request}/${draftProgress?.provider_request_limit || 3}`
+                    : "Provider request pending"}</span>
+                  <span>Elapsed {draftElapsedLabel}</span>
+                </div>
+                <small>Der Balken zeigt den realen JAP-Workflowstatus; Codex stellt keine Token-für-Token-Prozentwerte bereit.</small>
+              </div>}
 
               {draft?.status === "draft_unavailable" && <div className="demo-error">
                 <b>{["codex_auth_required", "codex_chatgpt_auth_required"].includes(draft.reason_code || "")

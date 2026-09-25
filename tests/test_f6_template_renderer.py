@@ -192,3 +192,39 @@ def test_fit_preflight_reports_overflow_without_mutating_pdf(
     assert fitting == ()
     assert overflowing == ("body.paragraph_1",)
     assert sha256(source).hexdigest() == spec.sha256
+
+
+
+def test_render_uses_same_pristine_source_style_as_preflight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _template_pdf()
+    spec = _bind_exact_authority(monkeypatch, source)
+
+    calls: list[bool] = []
+
+    def source_style(page: pymupdf.Page, rect: pymupdf.Rect):
+        has_source_text = bool(page.get_textbox(rect).strip())
+        calls.append(has_source_text)
+        # A post-redaction style lookup would hit the deliberately huge fallback
+        # and make the final render diverge from the successful preflight.
+        return (7.0, "#000000", False) if has_source_text else (18.0, "#000000", False)
+
+    monkeypatch.setattr(renderer, "_source_text_style", source_style)
+    replacement = "Präziser Kompetenztext mit mehreren kompakten Begriffen."
+
+    assert renderer.probe_template_replacement_overflows(
+        document_type=spec.document_type,
+        template_pdf=source,
+        replacements={"body.paragraph_1": replacement},
+    ) == ()
+
+    result = renderer.render_template_pdf(
+        document_type=spec.document_type,
+        template_pdf=source,
+        replacements={"body.paragraph_1": replacement},
+    )
+
+    assert result.outside_zone_pixel_identity is True
+    assert calls
+    assert all(calls), "renderer must never derive replacement style after redaction"
