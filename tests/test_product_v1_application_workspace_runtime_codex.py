@@ -421,3 +421,65 @@ def test_cv_footer_date_has_safe_local_compaction_without_touching_signature(
     )
     assert repairs == ("base_cv:p2.footer.date=compact_date",)
     assert "signature" not in str(repaired).casefold()
+
+
+
+def test_quality_drafting_emits_live_provider_and_fit_progress(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime, "load_application_workspace", _load)
+    monkeypatch.setattr(runtime, "require_live_application_target", lambda _job_id: None)
+    monkeypatch.setattr(runtime, "_probe_generated_package_overflows", lambda _package: ())
+
+    package = {
+        "status": "draft_for_review",
+        "language": "de",
+        "contact_name": "",
+        "preview": {
+            "cv_short_profile": "Gezieltes Kurzprofil.",
+            "cv_competency_profile": "Python · SQL",
+            "application_letter": "Guten Tag,\n\nVollständiger Absatz.",
+        },
+        "zone_replacements": {
+            "base_cv": {
+                "p1.short_profile": "Gezieltes Kurzprofil.",
+                "p1.competency_profile": "Python · SQL",
+            },
+            "base_application_letter": {
+                "salutation": "Guten Tag,",
+                "body.paragraph_1": "Vollständiger Absatz.",
+            },
+        },
+    }
+    monkeypatch.setattr(
+        runtime,
+        "request_codex_application_adaptation",
+        lambda **_kwargs: SimpleNamespace(
+            package=package,
+            attempted=True,
+            model="gpt-5.6-sol",
+            reasoning_effort="high",
+            codex_version="codex-cli test",
+            reason_code=None,
+            reason=None,
+        ),
+    )
+
+    events: list[dict[str, object]] = []
+    payload = runtime.generate_application_draft_payload(
+        626,
+        progress_callback=events.append,
+    )
+
+    assert payload["status"] == "draft_for_review"
+    phases = [str(event["phase"]) for event in events]
+    assert phases[0] == "verify_target"
+    assert "bind_context" in phases
+    assert "provider_request" in phases
+    assert "validate_model_output" in phases
+    assert "template_preflight" in phases
+    assert "finalize_review" in phases
+    assert phases[-1] == "complete"
+    provider = next(event for event in events if event["phase"] == "provider_request")
+    assert provider["provider_request"] == 1
+    assert provider["provider_request_limit"] == 3
