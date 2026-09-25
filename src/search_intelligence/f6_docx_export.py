@@ -53,20 +53,35 @@ def _text(
 def _configure_styles(document: Document) -> None:
     normal = document.styles["Normal"]
     normal.font.name = "Aptos"
-    normal.font.size = Pt(10.5)
-    for name in ("Title", "Heading 1", "Heading 2"):
+    normal.font.size = Pt(9)
+    normal.paragraph_format.space_after = Pt(3)
+    normal.paragraph_format.line_spacing = 1.02
+
+    title = document.styles["Title"]
+    title.font.name = "Aptos"
+    title.font.size = Pt(22)
+    title.font.bold = True
+    title.font.color.rgb = RGBColor(0x16, 0x2A, 0x45)
+
+    for name in ("Heading 1", "Heading 2"):
         style = document.styles[name]
         style.font.name = "Aptos"
+        style.font.bold = True
+        style.font.color.rgb = RGBColor(0x16, 0x2A, 0x45)
+        style.paragraph_format.space_before = Pt(6)
+        style.paragraph_format.space_after = Pt(3)
+    document.styles["Heading 1"].font.size = Pt(12.5)
+    document.styles["Heading 2"].font.size = Pt(10.5)
 
 
 def _configure_letter_section(document: Document) -> None:
     section = document.sections[0]
-    section.page_width = Inches(8.5)
-    section.page_height = Inches(11)
-    section.top_margin = Mm(17)
-    section.bottom_margin = Mm(17)
-    section.left_margin = Mm(17)
-    section.right_margin = Mm(17)
+    section.page_width = Mm(210)
+    section.page_height = Mm(297)
+    section.top_margin = Mm(14)
+    section.bottom_margin = Mm(13)
+    section.left_margin = Mm(16)
+    section.right_margin = Mm(16)
 
 
 def _add_identity_header(
