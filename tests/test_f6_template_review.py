@@ -222,3 +222,45 @@ def test_combined_review_package_is_one_letter_plus_cv_pdf_with_visual_identity(
         assert "CV" in doc[1].get_text()
     finally:
         doc.close()
+
+
+def test_review_fit_preflight_prefixes_document_and_zone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _pdf_with_text()
+    digest = sha256(payload).hexdigest()
+    specs = (
+        _spec("base_cv", digest, "p1.short_profile"),
+        _spec("base_application_letter", digest, "salutation"),
+    )
+    for spec in specs:
+        _install(tmp_path, spec, payload)
+
+    monkeypatch.setattr(review, "template_specs", lambda: specs)
+    monkeypatch.setattr(
+        review,
+        "validate_template_pdf",
+        lambda *, document_type, content: next(
+            spec for spec in specs if spec.document_type == document_type
+        ),
+    )
+    monkeypatch.setattr(
+        review,
+        "probe_template_replacement_overflows",
+        lambda *, document_type, template_pdf, replacements: (
+            ("salutation",)
+            if document_type == "base_application_letter"
+            else ()
+        ),
+    )
+
+    result = review.probe_review_replacement_overflows(
+        root=tmp_path,
+        replacements_by_document={
+            "base_cv": {"p1.short_profile": "Fits"},
+            "base_application_letter": {"salutation": "Too long"},
+        },
+    )
+
+    assert result == ("base_application_letter:salutation",)
