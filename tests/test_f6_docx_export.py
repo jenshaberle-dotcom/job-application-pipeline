@@ -79,3 +79,48 @@ def test_editable_companion_uses_final_f6_text_values() -> None:
     assert "Sehr geehrte Frau Krzeminski," in text
     assert "Gezieltes Data-Engineering-Kurzprofil." in text
     assert "Hannover, 25. September 2026" in text
+
+
+
+def test_editable_companion_collapses_exact_duplicate_extraction_lines() -> None:
+    values = {
+        "base_application_letter": {
+            "header.name": "Jens Haberle",
+            "recipient.block": "Eraneos",
+            "date": "25.09.2026",
+            "subject": "Bewerbung als Data Engineer",
+            "salutation": "Guten Tag,",
+            "body.paragraph_1": "Kurzer Absatz.",
+            "closing.formula": "Freundliche Grüße",
+            "closing.name": "Jens Haberle",
+        },
+        "base_cv": {
+            "p1.header.name": "Jens Haberle",
+            "p1.short_profile": "Kurzprofil",
+            "p1.competency_profile": "Python",
+            "p1.experience.5": (
+                "Alstom Transport Deutschland GmbH · Praktikant / Diplomand\n"
+                "Diplomarbeit zu technischen Alternativen.\n"
+                "Diplomarbeit zu technischen Alternativen.\n"
+                "Technische Dokumentation.\n"
+                "Technische Dokumentation."
+            ),
+            "p2.footer.name": "Jens Haberle",
+        },
+    }
+
+    content = build_editable_companion_docx(
+        values_by_document=values,
+        company_name="Eraneos",
+        title="Data Engineer",
+    )
+
+    text = _document_text(content)
+    assert text.count("Diplomarbeit zu technischen Alternativen.") == 1
+    assert text.count("Technische Dokumentation.") == 1
+
+    document = Document(BytesIO(content))
+    assert len(document.sections) == 2
+    for section in document.sections:
+        assert round(section.page_width.mm) == 210
+        assert round(section.page_height.mm) == 297
