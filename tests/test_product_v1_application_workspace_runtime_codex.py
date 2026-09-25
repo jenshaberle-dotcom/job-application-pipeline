@@ -390,7 +390,7 @@ def test_local_private_mode_never_calls_codex_and_updates_only_deterministic_zon
     assert zones["base_application_letter"]["recipient.block"] == "accompio"
     assert zones["base_application_letter"]["date"] == "24.09.2026"
     assert zones["base_application_letter"]["subject"] == (
-        "Bewerbung als AI Automation Engineer (m/w/d)"
+        "Bewerbung als AI Automation Engineer"
     )
     assert zones["base_application_letter"]["salutation"] == "Guten Tag,"
     assert zones["base_cv"]["p2.footer.date"] == "Hannover, 24. September 2026"
