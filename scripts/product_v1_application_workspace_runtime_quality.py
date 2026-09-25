@@ -266,7 +266,146 @@ def _draft_unavailable_payload(
     }
 
 
-def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
+def _local_private_draft_payload(
+    *,
+    context: object,
+    final_url: str,
+    fetched_title: str,
+    evidence_mode: str,
+    job_detail_http_gets: int,
+) -> dict[str, object]:
+    """Prepare a provider-free review draft from the current private templates.
+
+    Descriptive source wording is preserved. JAP updates only deterministic
+    target/date metadata; the operator may edit semantic text locally before the
+    exact renderer is invoked. No document content leaves the local runtime.
+    """
+
+    language = "de"
+    as_of_date = context.as_of_date
+    months = (
+        "Januar Februar März April Mai Juni Juli August September "
+        "Oktober November Dezember"
+    ).split()
+    company_name = str(context.target.company_name).strip()
+    title = str(context.target.title).strip()
+    replacements: dict[str, dict[str, str]] = {
+        "base_cv": {
+            "p2.footer.date": (
+                f"Hannover, {as_of_date.day}. {months[as_of_date.month - 1]} "
+                f"{as_of_date.year}"
+            ),
+        },
+        "base_application_letter": {
+            "recipient.block": company_name,
+            "date": as_of_date.strftime("%d.%m.%Y"),
+            "subject": f"Bewerbung als {title}",
+            "salutation": "Guten Tag,",
+        },
+    }
+    package: dict[str, object] = {
+        "status": "draft_for_review",
+        "language": language,
+        "rationale": (
+            "Local-only mode: source wording is preserved and only deterministic "
+            "target/date fields are prepared automatically. Descriptive adaptation "
+            "remains an explicit local human edit."
+        ),
+        "contact_name": "",
+        "zone_replacements": replacements,
+        "draft_approval_authority": False,
+        "application_authority": False,
+        "submission_authority": False,
+        "send_authority": False,
+    }
+
+    try:
+        overflows = _probe_generated_package_overflows(package)
+    except F6TemplateReviewStop as exc:
+        return {
+            "schema": "job_application_pipeline.product_v1_application_draft_demo.v2",
+            "status": "draft_unavailable",
+            "reason": str(exc),
+            "reason_code": "f6_template_preflight_unavailable",
+            "draft_mode": "local_private_edit",
+            "provider_requests": 0,
+            "llm_requests": 0,
+            "database_writes": 0,
+            "submission_writes": 0,
+            "send_actions": 0,
+        }
+
+    package, repairs = _apply_deterministic_layout_repairs(
+        package,
+        layout_overflows=overflows,
+        context=context,
+    )
+    if repairs:
+        try:
+            overflows = _probe_generated_package_overflows(package)
+        except F6TemplateReviewStop as exc:
+            return {
+                "schema": "job_application_pipeline.product_v1_application_draft_demo.v2",
+                "status": "draft_unavailable",
+                "reason": str(exc),
+                "reason_code": "f6_template_preflight_unavailable",
+                "draft_mode": "local_private_edit",
+                "provider_requests": 0,
+                "llm_requests": 0,
+                "database_writes": 0,
+                "submission_writes": 0,
+                "send_actions": 0,
+            }
+
+    package["source_manifest_sha256"] = _source_manifest_sha256(context)
+    package["candidate_fact_keys_used"] = []
+    return {
+        "schema": "job_application_pipeline.product_v1_application_draft_demo.v2",
+        "status": "draft_for_review",
+        "draft_mode": "local_private_edit",
+        "fallback_reason": None,
+        "fallback_generated": False,
+        "quality_contract": "f6_local_private_manual_semantic_review_v1",
+        "layout_policy": "preserve_exact_template_layout_modify_text_zones_only",
+        "layout_fit_status": (
+            "exact_template_preflight_pass"
+            if not overflows
+            else "local_manual_adjustment_required"
+        ),
+        "layout_overflows": list(overflows),
+        "automatic_layout_repairs": list(repairs),
+        "provider_requests": 0,
+        "llm_requests": 0,
+        "codex_requests": 0,
+        "base_cv_text_shared_with_codex": False,
+        "base_application_letter_text_shared_with_codex": False,
+        "vacancy_text_shared_with_codex": False,
+        "private_document_content_left_device": False,
+        "render_status": "local_review_export_available",
+        "package": package,
+        "live_job_evidence": {
+            "final_url": final_url,
+            "fetched_title": fetched_title,
+            "detail_sha256": context.target.detail_sha256,
+            "evidence_mode": evidence_mode,
+        },
+        "job_detail_http_gets": job_detail_http_gets,
+        "database_writes": 0,
+        "application_writes": 0,
+        "submission_writes": 0,
+        "send_actions": 0,
+        "draft_approval_authority": False,
+        "application_authority": False,
+        "submission_authority": False,
+        "send_authority": False,
+    }
+
+
+def generate_application_draft_payload(
+    silver_job_id: int,
+    *,
+    generation_mode: str = "codex_quality",
+) -> dict[str, object]:
     require_live_application_target(silver_job_id)
     context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
         load_application_workspace(silver_job_id)
@@ -275,6 +414,19 @@ def generate_application_draft_payload(silver_job_id: int) -> dict[str, object]:
         return _blocked_payload(
             context=context,
             reasons=list(context.blocked_reasons),
+        )
+    if generation_mode not in {"codex_quality", "local_private"}:
+        return _blocked_payload(
+            context=context,
+            reasons=["unsupported_generation_mode"],
+        )
+    if generation_mode == "local_private":
+        return _local_private_draft_payload(
+            context=context,
+            final_url=final_url,
+            fetched_title=fetched_title,
+            evidence_mode=evidence_mode,
+            job_detail_http_gets=job_detail_http_gets,
         )
     if not context.claim_plan:
         return _blocked_payload(
