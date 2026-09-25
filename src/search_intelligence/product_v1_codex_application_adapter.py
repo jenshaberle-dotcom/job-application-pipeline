@@ -132,9 +132,12 @@ QUALITY BAR
   result for factual grounding, language quality, stale identities and coherence before returning it.
 
 LAYOUT / FIT
-- The CV short profile must be concise and targeted. Hard limit: 520 characters.
-- The competency profile is a compact frozen side-panel. Hard limit: 180 characters total. Prefer
-  4-6 short capability groups separated by " · ".
+- The CV short profile must be concise and targeted. Hard limit: 520 characters. Preserve the
+  current zone's readable paragraph rhythm where practical; two compact paragraphs are preferred
+  when the source profile uses that structure.
+- The competency profile is a compact frozen side-panel. Hard limit: 180 characters total. Preserve
+  the current zone's list/separator style: when the current profile is a bullet list, return 4-6
+  short bullet lines rather than converting it into a run-on separator string.
 - Return between 4 and 6 coherent application-letter paragraphs. Each paragraph may use up to
   520 characters; JAP's exact renderer is the final physical-fit authority.
 - Never solve fit by requesting smaller fonts, scaling, extra pages, moved zones or layout changes.
@@ -527,6 +530,16 @@ def _normalized(value: object) -> str:
     return " ".join(str(value or "").split())
 
 
+def _normalized_blocks(value: object) -> str:
+    raw = str(value or "").strip()
+    blocks = [
+        " ".join(block.split())
+        for block in re.split(r"\n\s*\n", raw)
+        if block.strip()
+    ]
+    return "\n\n".join(blocks)
+
+
 def _validate_output(
     decoded: Mapping[str, object],
     *,
@@ -549,7 +562,7 @@ def _validate_output(
     language = _normalized(decoded.get("language"))
     contact_name = _normalized(decoded.get("contact_name"))
     salutation = _normalized(decoded.get("salutation"))
-    cv_short = _normalized(decoded.get("cv_short_profile"))
+    cv_short = _normalized_blocks(decoded.get("cv_short_profile"))
     cv_competency = str(decoded.get("cv_competency_profile") or "").strip()
     rationale = _normalized(decoded.get("rationale"))
     raw_paragraphs = decoded.get("letter_paragraphs")
