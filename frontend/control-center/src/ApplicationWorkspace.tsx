@@ -473,7 +473,9 @@ export default function ApplicationWorkspace() {
   const draftPreview = draft?.package?.preview;
   const zoneReplacements = draft?.package?.zone_replacements || {};
   const templateAuthority = workspace?.template_authority;
-  const generationReady = workspace?.status === "ready" && workspace.workspace?.generation_ready === true && claimPlan.length > 0;
+  const generationReady = workspace?.status === "ready"
+    && workspace.workspace?.generation_ready === true
+    && (generationMode === "local_private" || claimPlan.length > 0);
   const codexReady = codexStatus?.status === "ready" && codexStatus.chatgpt_authenticated === true;
   const codexRequired = generationMode === "codex_quality";
   const vacancyReady = Boolean(workspace?.live_job_evidence?.fetched_title || workspace?.live_job_evidence?.final_url);
