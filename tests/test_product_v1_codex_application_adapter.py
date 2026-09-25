@@ -576,3 +576,179 @@ def test_truly_generic_letter_remains_fail_closed() -> None:
             context=_context(),
             as_of_date=date(2026, 9, 24),
         )
+
+
+
+def test_generic_short_company_word_does_not_fake_target_specificity() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            company_name="AI GmbH",
+            title="Engineer",
+        ),
+    )
+    decoded = _model_output()
+    decoded["letter_paragraphs"] = [
+        "AI spielt in modernen technischen Produkten eine zunehmend wichtige Rolle.",
+        "Meine Engineering-Erfahrung hilft mir, komplexe Anforderungen strukturiert zu bearbeiten.",
+        "Eigene Datenprojekte ergänzen diese Erfahrung um Python und PostgreSQL.",
+        "Gerne erläutere ich im Gespräch, wie ich meine Erfahrung einbringen kann.",
+    ]
+
+    with pytest.raises(
+        adapter.CodexApplicationDraftStop,
+        match="not specific to the selected target",
+    ):
+        adapter._validate_output(
+            decoded,
+            context=context,
+            as_of_date=date(2026, 9, 24),
+        )
+
+
+def test_short_distinct_company_brand_can_prove_target_identity() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            company_name="IAV GmbH",
+            title="Engineer",
+        ),
+    )
+    decoded = _model_output()
+    decoded["letter_paragraphs"] = [
+        "Die Position bei IAV spricht mich an, weil sie technische Verantwortung und Systemdenken verbindet.",
+        "Meine Engineering-Erfahrung hilft mir, komplexe Anforderungen strukturiert zu bearbeiten.",
+        "Eigene Datenprojekte ergänzen diese Erfahrung um Python und PostgreSQL.",
+        "Gerne erläutere ich im Gespräch, wie ich meine Erfahrung bei IAV einbringen kann.",
+    ]
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["status"] == "draft_for_review"
+
+
+def test_short_company_brand_requires_token_boundary() -> None:
+    assert adapter._phrase_occurs(("sapient", "engineering"), ("sap",)) is False
+    assert adapter._phrase_occurs(("sap", "engineering"), ("sap",)) is True
+
+
+def test_grounded_contact_with_reordered_vacancy_name_is_accepted() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            detail_text=(
+                base.target.detail_text
+                + " Ansprechpartner: Krzeminski, Paulina."
+            ),
+        ),
+    )
+    decoded = _model_output()
+    decoded["contact_name"] = "Paulina Krzeminski"
+    decoded["salutation"] = "Sehr geehrte Frau Krzeminski,"
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["contact_name"] == "Paulina Krzeminski"
+    assert package["automatic_semantic_repairs"] == []
+
+
+def test_grounded_contact_with_wrong_person_in_salutation_is_repaired() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            detail_text=(
+                base.target.detail_text
+                + " Ansprechpartnerin: Paulina Krzeminski."
+            ),
+        ),
+    )
+    decoded = _model_output()
+    decoded["contact_name"] = "Paulina Krzeminski"
+    decoded["salutation"] = "Sehr geehrte Frau Schneider,"
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    letter = package["zone_replacements"]["base_application_letter"]
+    assert package["contact_name"] == "Paulina Krzeminski"
+    assert letter["recipient.block"].endswith("z. Hd. Paulina Krzeminski")
+    assert letter["salutation"] == "Guten Tag,"
+    assert package["automatic_semantic_repairs"] == [
+        "mismatched_contact_salutation_replaced_with_generic"
+    ]
+
+
+def test_grounded_contact_may_use_generic_salutation_without_repair() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            detail_text=(
+                base.target.detail_text
+                + " Ansprechpartnerin: Paulina Krzeminski."
+            ),
+        ),
+    )
+    decoded = _model_output()
+    decoded["contact_name"] = "Paulina Krzeminski"
+    decoded["salutation"] = "Guten Tag,"
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["contact_name"] == "Paulina Krzeminski"
+    assert package["automatic_semantic_repairs"] == []
+
+
+def test_generic_company_team_salutation_is_not_mistaken_for_grounded_brand() -> None:
+    base = _context()
+    context = replace(
+        base,
+        target=replace(
+            base.target,
+            company_name="AI GmbH",
+            title="Data Platform Engineer (m/w/d)",
+        ),
+    )
+    decoded = _model_output()
+    decoded["salutation"] = "Liebes AI Team,"
+    decoded["letter_paragraphs"] = [
+        "Die Aufgabe als Data Platform Engineer verbindet Datenplattformen und Engineering-Verantwortung.",
+        *decoded["letter_paragraphs"][1:],
+    ]
+
+    package = adapter._validate_output(
+        decoded,
+        context=context,
+        as_of_date=date(2026, 9, 24),
+    )
+
+    assert package["zone_replacements"]["base_application_letter"]["salutation"] == (
+        "Guten Tag,"
+    )
+    assert package["automatic_semantic_repairs"] == [
+        "ungrounded_salutation_replaced_with_generic"
+    ]
