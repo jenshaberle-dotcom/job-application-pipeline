@@ -5,6 +5,7 @@ import pytest
 from scripts.run_product_v1_demo_control_center import (
     DemoActionStop,
     parse_application_draft_action_payload,
+    parse_f6_template_export_payload,
 )
 
 
@@ -50,3 +51,30 @@ def test_application_draft_action_requires_exact_review_action() -> None:
 def test_application_draft_action_rejects_widened_or_invalid_payload(payload: object) -> None:
     with pytest.raises(DemoActionStop):
         parse_application_draft_action_payload(payload)
+
+
+
+def test_f6_export_action_requires_request_bound_progress_id() -> None:
+    manifest = "a" * 64
+    documents = {"base_cv": {}, "base_application_letter": {}}
+    parsed = parse_f6_template_export_payload(
+        {
+            "action": "render_f6_review_package",
+            "silver_job_id": 42,
+            "source_manifest_sha256": manifest,
+            "documents": documents,
+            "request_id": "f6-export-001",
+        }
+    )
+
+    assert parsed == (42, manifest, documents, "f6-export-001")
+
+    with pytest.raises(DemoActionStop):
+        parse_f6_template_export_payload(
+            {
+                "action": "render_f6_review_package",
+                "silver_job_id": 42,
+                "source_manifest_sha256": manifest,
+                "documents": documents,
+            }
+        )
