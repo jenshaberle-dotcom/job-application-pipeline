@@ -117,6 +117,12 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
     assert "No DB write, provider call, application action, submission, or send" in editor
     assert "download={packagePdf.download_filename}" in editor
     assert "application-package-downloads.css" not in workspace + editor + styles
+    assert "/api/v1/product-v1/f6-template-export-progress?request_id=" in editor
+    assert "request_id: requestId" in editor
+    assert "Deine Bewerbungsdateien werden erstellt" in editor
+    assert "Lokale Verarbeitung · keine Provider-Anfrage" in editor
+    assert "Fortschritt basiert auf abgeschlossenen Dateierstellungs-Schritten" in editor
+    assert ".f6-export-progress-track" in styles
 
 
 
@@ -325,6 +331,6 @@ def test_application_workspace_shows_live_quality_drafting_progress() -> None:
     assert "Deine Bewerbungsunterlagen werden erstellt" in workspace
     assert "Provider request" in workspace
     assert "Elapsed {draftElapsedLabel}" in workspace
-    assert "Codex stellt keine Token-für-Token-Prozentwerte bereit" in workspace
+    assert "Fortschritt basiert auf abgeschlossenen JAP-Arbeitsschritten" in workspace
     assert 'role="progressbar"' in workspace
     assert ".demo-drafting-progress-track" in styles
