@@ -239,7 +239,22 @@ Acceptance:
 - every percentage has named numerator/denominator/cohort;
 - source-family and field-level diagnostics remain inspectable.
 
-## S5 — Requirement/skill semantic hardening
+## S5 — Metadata learning + optional first ML shadow model
+
+S3/S4 first build a materially broader, provenance-rich dataset from the expanded connector fleet. Only then evaluate whether evidence volume and reviewed labels justify a first ML training experiment.
+
+ML admission checklist:
+
+- training examples come from reviewed source-held evidence, not model-generated truth;
+- train/validation/test splits are held out by employer/source family where practical;
+- deterministic extraction remains production authority;
+- the first model runs in Shadow and reports precision/recall/error classes against reviewed labels;
+- no ML prediction may silently fill a missing source field;
+- promotion requires evidence that it improves a defined residual task without regressing deterministic precision.
+
+Good first tasks are narrow residual classification/extraction problems such as requirement-line classification, skill-span candidates, work-model classification or source/template-family classification. Do not start with a monolithic whole-vacancy model.
+
+## S5.5 — Requirement/skill semantic hardening
 
 Re-enter #891 only after S0-S4 materially broaden evidence.
 
@@ -260,8 +275,10 @@ No employer vocabulary branch and no model-generated source truth.
 
 Target operator cohort:
 
-- S1 baseline fleet connector-smoke completeness = **67/67**;
-- every baseline candidate has a recorded live-search outcome, including explicit zero-yield where appropriate;
+- the expanded post-sensor candidate cohort is explicitly frozen with initial-67 + added-candidate delta accounting;
+- generic connector-generation success is reported against the full frozen cohort, with ~95% as the strong engineering target;
+- connector-smoke completeness = **100% of the frozen cohort**;
+- every frozen-cohort candidate has a recorded live-search outcome, including explicit zero-yield where appropriate;
 - >=10 unseen/current real vacancies;
 - >=5 distinct source/ATS families;
 - includes real proven jobs from the broadened S1 fleet;
@@ -273,10 +290,15 @@ Target operator cohort:
 
 ## Current sequence
 
-`S0 COMPLETE -> S1 fleet completeness (67/67 smoke + 67/67 live-search outcome) with S2 source-family learning in parallel -> broad real vacancy cohort -> S3 extraction -> S4 integrity -> S5 semantics -> S6 acceptance`
+`S0 COMPLETE -> S0.5 LinkedIn/Indeed conservative sensors -> S0.6 new candidate expansion -> freeze expanded candidate cohort -> S1 generic connector creation (~95% strong target, 100% eventual smoke) -> systematic live search -> S2 source-family understanding in parallel -> S3/S4 metadata extraction/integrity -> S5 optional ML shadow pilot -> S5.5 skill semantics -> S6 acceptance`
 
-S1/S2 overlap deliberately. The residual classifier is an **implementation-ordering instrument**, not a reason to stop after a high-lift subset. Reusable source-family classes should be implemented first because they move many candidates cheaply, then the remaining long tail is closed until the entire baseline fleet has a connector and a live-search outcome.
+The residual classifier remains an **implementation-ordering instrument**, not a scope limiter. Common source-family mechanics should be solved first for leverage, but the long tail stays in the denominator.
 
 ## Immediate next gate
 
-Let the exact-main S1/S2 residual classifier finish and use its Origin/Inventory/Detail/Proof classes to order implementation waves. Then start materializing connector capability in waves toward **67/67 technical connector smoke coverage**, followed by systematic live searches for all 67 baseline candidates. No synthetic smoke record may enter Product truth. Real source activation/ingestion still requires real-source proof.
+1. implement and qualify conservative LinkedIn + Indeed sensor plans using an approved search-provider/API transport only;
+2. run a bounded real sensor proof with explicit request/budget accounting;
+3. feed the resulting minimal company signals through known-candidate suppression and bounded candidate expansion;
+4. freeze the expanded candidate cohort;
+5. start the generic connector-builder campaign against the whole frozen cohort, reporting ~95% generic-generation success as a strong target and 100% eventual smoke coverage;
+6. only after the live connector sweep broadens real vacancy evidence, re-enter metadata/extraction hardening and assess ML-data sufficiency.
