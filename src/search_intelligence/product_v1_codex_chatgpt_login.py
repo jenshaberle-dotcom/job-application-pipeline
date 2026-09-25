@@ -21,7 +21,7 @@ from src.search_intelligence.product_v1_codex_application_adapter import (
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _URL_RE = re.compile(r"https://[^\s]+/codex/device")
-_CODE_RE = re.compile(r"^[A-Z0-9]{4,}(?:-[A-Z0-9]{3,})+$")
+_CODE_RE = re.compile(r"\b[A-Z0-9]{4,}(?:-[A-Z0-9]{3,})+\b")
 _LOCK = threading.Lock()
 _SESSION: "_LoginSession | None" = None
 
@@ -76,9 +76,11 @@ def _consume(session: _LoginSession) -> None:
                 if url_match:
                     session.verification_url = url_match.group(0)
                     session.status = "awaiting_user"
-                elif _CODE_RE.fullmatch(line):
-                    session.user_code = line
-                    session.status = "awaiting_user"
+                else:
+                    code_match = _CODE_RE.search(line)
+                    if code_match:
+                        session.user_code = code_match.group(0)
+                        session.status = "awaiting_user"
         return_code = session.process.wait()
         runtime = inspect_codex_runtime_status()
         with _LOCK:
