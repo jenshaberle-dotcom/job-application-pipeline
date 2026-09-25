@@ -71,7 +71,11 @@ def _active_revalidation() -> ProductV1VacancyRevalidation:
 def test_workspace_reuses_exact_current_observation_without_network(monkeypatch) -> None:
     target = _target()
     monkeypatch.setattr(runtime, "_load_runtime_rows", lambda _job_id: _runtime_rows(target))
-    monkeypatch.setattr(runtime, "_employer_origin_authorized", lambda _source: True)
+    monkeypatch.setattr(
+        runtime,
+        "_employer_origin_authority",
+        lambda _target: SimpleNamespace(authorized=True, reason="test"),
+    )
     monkeypatch.setattr(
         runtime,
         "revalidate_selected_vacancy",
@@ -108,7 +112,11 @@ def test_workspace_does_not_treat_arbitrary_wall_clock_age_as_product_cadence(
 ) -> None:
     target = _target(health_checked_at="2026-09-24T10:00:00+00:00")
     monkeypatch.setattr(runtime, "_load_runtime_rows", lambda _job_id: _runtime_rows(target))
-    monkeypatch.setattr(runtime, "_employer_origin_authorized", lambda _source: True)
+    monkeypatch.setattr(
+        runtime,
+        "_employer_origin_authority",
+        lambda _target: SimpleNamespace(authorized=True, reason="test"),
+    )
     monkeypatch.setattr(
         runtime,
         "revalidate_selected_vacancy",
@@ -131,7 +139,11 @@ def test_workspace_falls_back_to_bounded_network_when_observation_binding_mismat
 ) -> None:
     target = _target(observation_url="https://karriere.example.test/de?id=other")
     monkeypatch.setattr(runtime, "_load_runtime_rows", lambda _job_id: _runtime_rows(target))
-    monkeypatch.setattr(runtime, "_employer_origin_authorized", lambda _source: True)
+    monkeypatch.setattr(
+        runtime,
+        "_employer_origin_authority",
+        lambda _target: SimpleNamespace(authorized=True, reason="test"),
+    )
     monkeypatch.setattr(
         runtime,
         "revalidate_selected_vacancy",
