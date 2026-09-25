@@ -33,24 +33,79 @@ def test_routine_update_is_product_local_and_has_single_authority() -> None:
     assert "installedVersion >= new Version(1, 0, 65)" in coordinator
 
 
-def test_stage_update_is_cross_process_singleflight_per_installation() -> None:
+def test_update_operation_is_cross_process_singleflight_per_installation() -> None:
+    operation = read("windows/JAP.ControlCenter.Desktop/ProductUpdateOperation.cs")
+    agent = read("windows/JAP.ControlCenter.Desktop/ProductUpdateAgent.cs")
+    applier = read("windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs")
+
+    assert 'Local\\JAP.ControlCenter.ProductUpdateOperation.' in operation
+    assert "CreateOperationMutex" in operation
+    assert "TryAcquire" in operation
+    assert "catch (AbandonedMutexException)" in operation
+
+    assert "ProductUpdateOperation.CreateOperationMutex(installRoot)" in agent
+    assert "TimeSpan.Zero" in agent
+    assert '"stage_skipped"' in agent
+    assert '"reason=update_operation_in_progress"' in agent
+
+    assert "ProductUpdateOperation.CreateOperationMutex(installRoot)" in applier
+    assert "TimeSpan.FromSeconds(60)" in applier
+    assert '"apply_lock_recovered"' in applier
+
+
+def test_update_handoff_blocks_unowned_desktop_start_before_runtime_access() -> None:
+    operation = read("windows/JAP.ControlCenter.Desktop/ProductUpdateOperation.cs")
+    coordinator = read("windows/JAP.ControlCenter.Desktop/UpdateCoordinator.cs")
+    program = read("windows/JAP.ControlCenter.Desktop/Program.cs")
+    applier = read("windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs")
+
+    assert '"update-handoff.json"' in operation
+    assert '"JAP_UPDATE_HANDOFF_TOKEN"' in operation
+    assert "RandomNumberGenerator.GetBytes(32)" in operation
+    assert "CryptographicOperations.FixedTimeEquals" in operation
+    assert "ProductUpdateOperation.BeginHandoff(" in coordinator
+    assert "ProductUpdateOperation.AttachRestartToken(startInfo, handoffToken)" in coordinator
+    assert "ProductUpdateOperation.ClearHandoff(_installRoot)" in coordinator
+
+    guard = program.index("ProductUpdateOperation.HasActiveHandoff(installRoot)")
+    app_run = program.index("Application.Run(new UpdateAwareApplicationContext())")
+    assert guard < app_run
+    assert "ProductUpdateOperation.RestartTokenMatches(" in program
+
+    assert "ProductUpdateOperation.RestartTokenMatches(installRoot, handoffToken)" in applier
+    assert "StartProductWithHandoff(" in applier
+    assert "ProductUpdateOperation.ClearHandoff(installRoot)" in applier
+
+
+def test_target_desktop_stage_supplies_the_isolated_apply_helper() -> None:
     agent = read("windows/JAP.ControlCenter.Desktop/ProductUpdateAgent.cs")
 
-    assert "BuildStageMutexName(installRoot)" in agent
-    assert 'Local\\JAP.ControlCenter.ProductUpdateStage.' in agent
-    assert "SHA256.HashData(Encoding.UTF8.GetBytes(normalizedRoot))" in agent
-    assert "stageMutex.WaitOne(0, false)" in agent
-    assert "catch (AbandonedMutexException)" in agent
-    assert '"stage_lock_recovered"' in agent
-    assert '"stage_skipped", "reason=stage_already_running"' in agent
-    assert "stageMutex.ReleaseMutex()" in agent
+    assert "CopyDirectory(desktopStage, helperRoot);" in agent
+    assert "CopyDirectory(AppContext.BaseDirectory, helperRoot);" not in agent
 
-    run_start = agent.index("public static async Task<int> RunFromCommandLineAsync")
-    run_end = agent.index("private static async Task<string> StageLatestAsync", run_start)
-    run = agent[run_start:run_end]
-    assert run.index("stageMutex.WaitOne(0, false)") < run.index(
-        "StageLatestAsync(installRoot, logPath)"
+
+def test_failed_cutover_restores_components_independently_before_metadata() -> None:
+    applier = read("windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs")
+
+    assert "desktopBackedUp = true" in applier
+    assert "runtimeBackedUp = true" in applier
+    assert "StopLiveDesktopPeers(desktopLive, logPath)" in applier
+    assert "DeleteDirectoryWithRetry(" in applier
+    assert '"rollback_component_failed"' in applier
+    assert "VerifyDesktopStage(desktopLive, previousSha, previousVersion)" in applier
+    assert "VerifyRuntimeStage(runtimeLive, previousSha, previousVersion)" in applier
+    assert '"rollback_generation_verified"' in applier
+    assert '"rollback_incomplete_handoff_retained"' in applier
+
+    verify_desktop = applier.index(
+        "VerifyDesktopStage(desktopLive, previousSha, previousVersion)"
     )
+    verify_runtime = applier.index(
+        "VerifyRuntimeStage(runtimeLive, previousSha, previousVersion)"
+    )
+    restore_metadata = applier.index('var temporary = currentPath + ".rollback.tmp"')
+    assert verify_desktop < restore_metadata
+    assert verify_runtime < restore_metadata
 
 
 
@@ -90,6 +145,8 @@ def test_post_consent_applier_has_no_discovery_download_or_extraction_authority(
     assert "MoveRetryWindow = TimeSpan.FromSeconds(45)" in applier
     assert '"move_retry"' in applier
     assert '"move_retry_recovered"' in applier
+    assert '"delete_retry"' in applier
+    assert '"delete_retry_recovered"' in applier
     assert '"host_exit_wait_complete"' in applier
     assert '"restart_verify_complete"' in applier
     assert '"cutover_live_verified"' in applier
