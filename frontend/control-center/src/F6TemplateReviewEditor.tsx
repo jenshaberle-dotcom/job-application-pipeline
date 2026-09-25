@@ -46,6 +46,13 @@ type CombinedPackage = {
   page_count: number;
   component_order: string[];
   visual_identity: boolean;
+  editable_docx?: {
+    download_filename: string;
+    docx_base64: string;
+    authority?: string;
+    pixel_exact?: boolean;
+    source_text_model?: string;
+  };
 };
 
 type ExportPayload = {
@@ -60,7 +67,10 @@ type ExportPayload = {
 
 type ZoneValues = Record<string, Record<string, string>>;
 
-type LocalPackage = CombinedPackage & { objectUrl: string };
+type LocalPackage = CombinedPackage & {
+  objectUrl: string;
+  editableDocxObjectUrl?: string;
+};
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -88,13 +98,30 @@ function valuesFromTemplates(templates: ReviewTemplate[]): ZoneValues {
   );
 }
 
-function pdfObjectUrl(contentBase64: string) {
+function binaryObjectUrl(contentBase64: string, mimeType: string) {
   const binary = atob(contentBase64);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }
-  return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+}
+
+function pdfObjectUrl(contentBase64: string) {
+  return binaryObjectUrl(contentBase64, "application/pdf");
+}
+
+function docxObjectUrl(contentBase64: string) {
+  return binaryObjectUrl(
+    contentBase64,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  );
+}
+
+function revokePackageUrls(current: LocalPackage | null) {
+  if (!current) return;
+  URL.revokeObjectURL(current.objectUrl);
+  if (current.editableDocxObjectUrl) URL.revokeObjectURL(current.editableDocxObjectUrl);
 }
 
 function applyDraftToBaseline(
@@ -155,7 +182,7 @@ export default function F6TemplateReviewEditor({
         setBaseline(initial);
         setValues(applyDraftToBaseline(initial, zoneReplacements));
         setPackagePdf((current) => {
-          if (current) URL.revokeObjectURL(current.objectUrl);
+          revokePackageUrls(current);
           return null;
         });
       })
@@ -169,7 +196,7 @@ export default function F6TemplateReviewEditor({
   }, [silverJobId, sourceManifestSha256, zoneReplacements]);
 
   useEffect(() => () => {
-    if (packagePdf) URL.revokeObjectURL(packagePdf.objectUrl);
+    revokePackageUrls(packagePdf);
   }, [packagePdf]);
 
   const updateZone = (documentType: string, zoneId: string, text: string) => {
@@ -182,7 +209,7 @@ export default function F6TemplateReviewEditor({
       },
     }));
     setPackagePdf((current) => {
-      if (current) URL.revokeObjectURL(current.objectUrl);
+      revokePackageUrls(current);
       return null;
     });
   };
@@ -191,7 +218,7 @@ export default function F6TemplateReviewEditor({
     setValues(applyDraftToBaseline(baseline, zoneReplacements));
     setError(null);
     setPackagePdf((current) => {
-      if (current) URL.revokeObjectURL(current.objectUrl);
+      revokePackageUrls(current);
       return null;
     });
   };
@@ -214,7 +241,7 @@ export default function F6TemplateReviewEditor({
     setRendering(true);
     setError(null);
     setPackagePdf((current) => {
-      if (current) URL.revokeObjectURL(current.objectUrl);
+      revokePackageUrls(current);
       return null;
     });
     try {
@@ -233,6 +260,9 @@ export default function F6TemplateReviewEditor({
       setPackagePdf({
         ...payload.package,
         objectUrl: pdfObjectUrl(payload.package.pdf_base64),
+        editableDocxObjectUrl: payload.package.editable_docx?.docx_base64
+          ? docxObjectUrl(payload.package.editable_docx.docx_base64)
+          : undefined,
       });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -282,7 +312,12 @@ export default function F6TemplateReviewEditor({
         <nav>
           <a href={packagePdf.objectUrl} target="_blank" rel="noreferrer">Open final PDF</a>
           <a className="primary" href={packagePdf.objectUrl} download={packagePdf.download_filename}>Download final PDF</a>
+          {packagePdf.editableDocxObjectUrl && packagePdf.editable_docx && <a
+            href={packagePdf.editableDocxObjectUrl}
+            download={packagePdf.editable_docx.download_filename}
+          >Download editable Word</a>}
         </nav>
+        {packagePdf.editable_docx && <small>PDF is the verified layout authority. The Word file uses the same final text but remains intentionally editable and may reflow in Word.</small>}
       </div>}
 
       <details className="f6-advanced-review">
