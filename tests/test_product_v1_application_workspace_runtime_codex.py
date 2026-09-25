@@ -394,3 +394,30 @@ def test_local_private_mode_never_calls_codex_and_updates_only_deterministic_zon
     )
     assert zones["base_application_letter"]["salutation"] == "Guten Tag,"
     assert zones["base_cv"]["p2.footer.date"] == "Hannover, 24. September 2026"
+
+
+
+def test_cv_footer_date_has_safe_local_compaction_without_touching_signature(
+    monkeypatch,
+) -> None:
+    context, *_ = _load(626)
+    package = {
+        "language": "de",
+        "contact_name": "",
+        "zone_replacements": {
+            "base_cv": {"p2.footer.date": "Hannover, 24. September 2026"},
+            "base_application_letter": {},
+        },
+    }
+
+    repaired, repairs = runtime._apply_deterministic_layout_repairs(
+        package,
+        layout_overflows=("base_cv:p2.footer.date",),
+        context=context,
+    )
+
+    assert repaired["zone_replacements"]["base_cv"]["p2.footer.date"] == (
+        "Hannover, 24.09.2026"
+    )
+    assert repairs == ("base_cv:p2.footer.date=compact_date",)
+    assert "signature" not in str(repaired).casefold()
