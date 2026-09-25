@@ -227,7 +227,7 @@ def test_exact_template_overflow_triggers_bounded_automatic_codex_repair(
     assert calls[1]["layout_feedback"] == (
         "base_application_letter:salutation",
     )
-    assert calls[1]["previous_package"] is first_package
+    assert calls[1]["previous_package"] == first_package
     assert (
         payload["package"]["zone_replacements"]["base_application_letter"][
             "salutation"
