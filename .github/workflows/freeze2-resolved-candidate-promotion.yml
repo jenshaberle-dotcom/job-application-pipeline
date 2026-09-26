@@ -1,0 +1,323 @@
+name: Freeze-II resolved candidate promotion
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: freeze2-resolved-candidate-promotion
+  cancel-in-progress: false
+
+jobs:
+  dry-run:
+    name: Plan resolved-origin candidate promotion
+    if: >-
+      ${{ github.event.issue.number == 1038 &&
+          github.event.comment.user.login == 'jenshaberle-dotcom' &&
+          github.event.comment.author_association == 'OWNER' &&
+          startsWith(github.event.comment.body, '<!-- jap-freeze2-resolved-promotion:dry-run:v1 -->') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      INPUT_ROOT: /tmp/freeze2-resolved-promotion
+      OUTPUT: /tmp/freeze2-resolved-candidate-promotion.json
+      COMMENT_BODY: ${{ github.event.comment.body }}
+
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve evidence run ids
+        id: evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$COMMENT_BODY" =~ review_run_id=([0-9]+) ]]; then
+            review_run_id="${BASH_REMATCH[1]}"
+          else
+            echo "Missing review_run_id=<numeric run id>" >&2
+            exit 2
+          fi
+          if [[ "$COMMENT_BODY" =~ origin_run_id=([0-9]+) ]]; then
+            origin_run_id="${BASH_REMATCH[1]}"
+          else
+            echo "Missing origin_run_id=<numeric run id>" >&2
+            exit 2
+          fi
+          echo "review_run_id=$review_run_id" >> "$GITHUB_OUTPUT"
+          echo "origin_run_id=$origin_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download S0.6 review artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: freeze2-sensor-candidate-expansion-review-${{ steps.evidence.outputs.review_run_id }}
+          path: ${{ env.INPUT_ROOT }}/review
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.evidence.outputs.review_run_id }}
+
+      - name: Download pre-candidate origin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: freeze2-pre-candidate-origin-resolution-${{ steps.evidence.outputs.origin_run_id }}
+          path: ${{ env.INPUT_ROOT }}/origin
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.evidence.outputs.origin_run_id }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned development dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r requirements-dev.txt
+
+      - name: Qualify resolved promotion contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q             tests/test_freeze2_resolved_candidate_promotion.py             tests/test_market_sensor_candidate_promotion_batch.py
+          python -m ruff check             src/search_intelligence/freeze2_resolved_candidate_promotion.py             scripts/run_freeze2_resolved_candidate_promotion.py             tests/test_freeze2_resolved_candidate_promotion.py
+
+      - name: Run write-free promotion dry-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m scripts.run_freeze2_resolved_candidate_promotion             --review-json "$INPUT_ROOT/review/freeze2-sensor-candidate-expansion-review.json"             --origin-json "$INPUT_ROOT/origin/freeze2-pre-candidate-origin-resolution.json"             --review-run-id "${{ steps.evidence.outputs.review_run_id }}"             --origin-run-id "${{ steps.evidence.outputs.origin_run_id }}"             --output "$OUTPUT"
+
+      - name: Upload dry-run plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: freeze2-resolved-candidate-promotion-${{ github.run_id }}
+          path: ${{ env.OUTPUT }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish dry-run result
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - "$OUTPUT" <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import urllib.request
+
+          report = json.loads(Path(os.environ["OUTPUT"]).read_text(encoding="utf-8"))
+          summary = report["summary"]
+          lines = [
+              "<!-- jap-freeze2-resolved-promotion:dry-run-result:v1 -->",
+              "## Freeze-II — resolved-origin candidate promotion dry-run",
+              "",
+              f"- source SHA: `{os.environ['SOURCE_SHA']}`",
+              f"- workflow: https://github.com/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}",
+              f"- review run: `{report['review_run_id']}`",
+              f"- origin run: `{report['origin_run_id']}`",
+              f"- cohort digest: `{report['immutable_cohort_digest']}`",
+              f"- resolved-origin cohort: **{summary['resolved_origin_count']}**",
+              f"- planned candidate creates: **{summary['planned_create_count']}**",
+              f"- blocked/skipped: **{summary['blocked_or_skipped_count']}**",
+              "",
+              "Plans:",
+          ]
+          for item in report["items"]:
+              origin = item.get("resolved_origin") or {}
+              lines.append(
+                  f"- `{item['company_key']}` — {item['company_name']} — "
+                  f"**{item['action']}** — create_allowed **{item['create_allowed']}** — "
+                  f"origin `{origin.get('selected_url') or '-'}`"
+              )
+          lines.extend(
+              [
+                  "",
+                  "Boundary: dry-run only; DB writes 0; candidate creation 0; "
+                  "candidate_url writes 0; connector/source activation 0. "
+                  "A later apply must present this exact cohort digest and may only "
+                  "shrink the effect set through current-DB duplicate rechecks.",
+              ]
+          )
+          body = "\n".join(lines)
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text(body + "\n", encoding="utf-8")
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/issues/1038/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "JAP-Freeze-II-Resolved-Promotion",
+                  "Content-Type": "application/json",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status != 201:
+                  raise SystemExit(f"ISSUE_COMMENT_HTTP_{response.status}")
+          PY
+
+  apply:
+    name: Apply approved resolved-origin candidate cohort
+    if: >-
+      ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+          github.event.issue.number == 1038 &&
+          github.event.comment.user.login == 'jenshaberle-dotcom' &&
+          github.event.comment.author_association == 'OWNER' &&
+          startsWith(github.event.comment.body, '<!-- jap-freeze2-resolved-promotion:apply:v1 -->') }}
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 20
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      INPUT_ROOT: /tmp/freeze2-resolved-promotion-apply
+      OUTPUT: /tmp/freeze2-resolved-candidate-promotion-apply.json
+      COMMENT_BODY: ${{ github.event.comment.body }}
+
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve approved evidence and digest
+        id: authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$COMMENT_BODY" =~ review_run_id=([0-9]+) ]]; then
+            review_run_id="${BASH_REMATCH[1]}"
+          else
+            exit 2
+          fi
+          if [[ "$COMMENT_BODY" =~ origin_run_id=([0-9]+) ]]; then
+            origin_run_id="${BASH_REMATCH[1]}"
+          else
+            exit 2
+          fi
+          if [[ "$COMMENT_BODY" =~ cohort_digest=([0-9a-f]{64}) ]]; then
+            digest="${BASH_REMATCH[1]}"
+          else
+            echo "Missing cohort_digest=<64 hex chars>" >&2
+            exit 2
+          fi
+          echo "review_run_id=$review_run_id" >> "$GITHUB_OUTPUT"
+          echo "origin_run_id=$origin_run_id" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Download S0.6 review artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: freeze2-sensor-candidate-expansion-review-${{ steps.authority.outputs.review_run_id }}
+          path: ${{ env.INPUT_ROOT }}/review
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.authority.outputs.review_run_id }}
+
+      - name: Download pre-candidate origin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: freeze2-pre-candidate-origin-resolution-${{ steps.authority.outputs.origin_run_id }}
+          path: ${{ env.INPUT_ROOT }}/origin
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.authority.outputs.origin_run_id }}
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "env_file",
+              "env_keys",
+              "interpreter",
+              "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Qualify apply contracts before effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q             tests/test_freeze2_resolved_candidate_promotion.py             tests/test_market_sensor_candidate_promotion_batch.py
+          "$RUNTIME_PYTHON" -m ruff check             src/search_intelligence/freeze2_resolved_candidate_promotion.py             scripts/run_freeze2_resolved_candidate_promotion.py
+
+      - name: Apply digest-bound candidate creation
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          "$RUNTIME_PYTHON" -m scripts.run_freeze2_resolved_candidate_promotion             --review-json "$INPUT_ROOT/review/freeze2-sensor-candidate-expansion-review.json"             --origin-json "$INPUT_ROOT/origin/freeze2-pre-candidate-origin-resolution.json"             --review-run-id "${{ steps.authority.outputs.review_run_id }}"             --origin-run-id "${{ steps.authority.outputs.origin_run_id }}"             --expected-cohort-digest "${{ steps.authority.outputs.digest }}"             --approved-by "${{ github.event.comment.user.login }}"             --apply             --output "$OUTPUT"
+
+      - name: Upload apply evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: freeze2-resolved-candidate-promotion-apply-${{ github.run_id }}
+          path: ${{ env.OUTPUT }}
+          if-no-files-found: error
+          retention-days: 14
