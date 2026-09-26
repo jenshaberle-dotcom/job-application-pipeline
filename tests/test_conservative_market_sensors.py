@@ -5,6 +5,7 @@ from src.search_intelligence.conservative_market_sensors import (
     accept_provider_result,
     build_sensor_queries,
     deduplicate_observations,
+    extract_observed_company_signal,
 )
 
 
@@ -96,3 +97,53 @@ def test_sensor_boundary_has_no_product_or_platform_automation_authority() -> No
     assert BOUNDARY["silver_writes"] == 0
     assert BOUNDARY["product_authority"] == 0
     assert BOUNDARY["aggregator_url_is_not_origin_url"] is True
+
+
+def test_extracts_only_explicit_company_signals() -> None:
+    company, rule = extract_observed_company_signal(
+        sensor="linkedin",
+        title="HDI Group sucht Algorithmic Cyber Portfolio Steerer / AI-Engineer",
+        snippet="",
+    )
+    assert company == "HDI Group"
+    assert rule == "linkedin_title_company_prefix"
+
+    company, rule = extract_observed_company_signal(
+        sensor="indeed",
+        title="Consultant GenAI & Agentic AI | Insurance (m/w/d)",
+        snippet=(
+            "Consultant GenAI & Agentic AI | Insurance (m/w/d) "
+            "Deloitte GmbH · 3.9 Hannover Stellenbeschreibung"
+        ),
+    )
+    assert company == "Deloitte GmbH"
+    assert rule == "indeed_title_prefix_rating"
+
+
+def test_company_signal_stays_unknown_when_result_metadata_is_ambiguous() -> None:
+    company, rule = extract_observed_company_signal(
+        sensor="linkedin",
+        title="Senior AI Engineer (m/f/d)",
+        snippet="Get notified about new Artificial Intelligence Engineer jobs in Hannover.",
+    )
+    assert company is None
+    assert rule is None
+
+
+def test_accepted_observation_carries_explicit_company_and_intent() -> None:
+    observation = accept_provider_result(
+        sensor="linkedin",
+        provider="tavily",
+        query='site:linkedin.com/jobs/view "AI Architect" "Hannover" Germany',
+        url="https://www.linkedin.com/jobs/view/123456/",
+        title="AI Consumer Experience Manager bei Sonova Gruppe",
+        snippet="Bewerben Sie sich für die Stelle in Hannover.",
+        observed_at_utc="2026-09-26T10:31:57+00:00",
+        search_term="AI Architect",
+        location_signal="Hannover",
+    )
+    assert observation is not None
+    assert observation.search_term == "AI Architect"
+    assert observation.location_signal == "Hannover"
+    assert observation.observed_company_signal == "Sonova Gruppe"
+    assert observation.company_signal_status == "explicit"
