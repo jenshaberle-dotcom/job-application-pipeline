@@ -17,7 +17,6 @@ import argparse
 from dataclasses import asdict
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Mapping
 
 import requests
