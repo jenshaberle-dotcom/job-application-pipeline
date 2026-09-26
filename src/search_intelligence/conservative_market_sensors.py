@@ -12,11 +12,12 @@ authority.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import re
 from typing import Iterable, Mapping, Sequence
 from urllib.parse import urlparse
 
 
-SENSOR_SCHEMA = "job_application_pipeline.conservative_market_sensor.v1"
+SENSOR_SCHEMA = "job_application_pipeline.conservative_market_sensor.v2"
 SENSOR_PLATFORMS = ("linkedin", "indeed")
 
 _PLATFORM_SPECS: dict[str, dict[str, object]] = {
@@ -50,6 +51,12 @@ BOUNDARY = {
     "aggregator_job_identity_discarded_before_origin_learning": True,
 }
 
+_LEGAL_ENTITY_SUFFIX = (
+    r"(?:GmbH(?:\s*&\s*Co\.?\s*KG)?|AG|SE|KGaA|KG|"
+    r"UG(?:\s*\(haftungsbeschränkt\))?|e\.?\s*V\.?|Ltd\.?|LLC|Inc\.?|"
+    r"Gruppe|Group)"
+)
+
 
 @dataclass(frozen=True)
 class SensorQuery:
@@ -70,6 +77,11 @@ class SensorObservation:
     title_signal: str
     snippet_signal: str
     observed_at_utc: str
+    search_term: str | None = None
+    location_signal: str | None = None
+    observed_company_signal: str | None = None
+    company_signal_status: str = "unknown"
+    company_signal_rule: str | None = None
     authority: str = "discovery_only"
 
     def as_dict(self) -> dict[str, object]:
@@ -95,6 +107,145 @@ def _normalized_values(values: Iterable[object], *, limit: int) -> tuple[str, ..
         if len(result) >= limit:
             break
     return tuple(result)
+
+
+def _clean_company_signal(value: object, *, max_words: int = 8) -> str | None:
+    rendered = " ".join(str(value or "").split()).strip(" \t\r\n|–—-,:;")
+    if not rendered or len(rendered) > 160:
+        return None
+    if len(rendered.split()) > max_words:
+        return None
+    return rendered
+
+
+def _indeed_title_base(title_signal: str) -> str:
+    return re.sub(
+        r"\s+-\s+(?:\d{5}\b.*|Deutschland\b.*|Indeed\.com\b.*)$",
+        "",
+        title_signal,
+        flags=re.IGNORECASE,
+    ).strip()
+
+
+def extract_observed_company_signal(
+    *,
+    sensor: str,
+    title: object,
+    snippet: object,
+) -> tuple[str | None, str | None]:
+    """Extract only explicit employer text from provider result metadata.
+
+    The extractor intentionally has no fuzzy/company-dictionary fallback. When the
+    result metadata does not carry a bounded, structurally explicit company signal,
+    the observation remains unattributed for later review.
+    """
+
+    title_signal = " ".join(str(title or "").split())[:300]
+    snippet_signal = " ".join(str(snippet or "").split())[:500]
+
+    if sensor == "linkedin":
+        match = re.match(
+            r"^(?P<company>.+?)\s+(?:sucht|hiring)\s+",
+            title_signal,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "linkedin_title_company_prefix"
+
+        match = re.search(
+            r"\sbei\s+(?P<company>.+?)(?:\s+[—–|-]\s+|\s+\|\s*LinkedIn$|$)",
+            title_signal,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "linkedin_title_bei"
+
+        match = re.search(
+            rf"\bbei\s+(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,80}}\b{_LEGAL_ENTITY_SUFFIX})"
+            r"\s+in\s+[A-ZÄÖÜ]",
+            snippet_signal,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "linkedin_snippet_bei_legal_in"
+
+        match = re.search(
+            r"\bwir\s+bei\s+(?P<company>[A-Z][A-Z0-9&.+-]{1,30})\b",
+            snippet_signal,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "linkedin_snippet_wir_bei_acronym"
+
+        match = re.search(
+            rf"\s-\s+(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,80}}\b{_LEGAL_ENTITY_SUFFIX})$",
+            title_signal,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "linkedin_title_legal_suffix"
+
+    if sensor == "indeed":
+        title_base = _indeed_title_base(title_signal)
+        if title_base and snippet_signal.casefold().startswith(title_base.casefold()):
+            remainder = snippet_signal[len(title_base) :].strip(" \t\r\n|–—-,:;")
+            match = re.match(
+                r"^(?P<company>.+?)\s+[·•]\s+\d(?:[.,]\d)?\b",
+                remainder,
+            )
+            if match:
+                company = _clean_company_signal(match.group("company"))
+                if company:
+                    return company, "indeed_title_prefix_rating"
+
+        match = re.search(
+            r"\bjoin\s+(?P<company>[A-ZÄÖÜ][A-Za-zÄÖÜäöüß0-9&.'’+ -]{1,60}?)['’]s\b",
+            snippet_signal,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "indeed_snippet_join_possessive"
+
+        match = re.search(
+            rf"\bbei\s+(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,80}}\b{_LEGAL_ENTITY_SUFFIX})\b",
+            snippet_signal,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "indeed_snippet_bei_legal"
+
+        match = re.search(
+            r"\bwir\s+bei\s+(?P<company>[A-Z][A-Z0-9&.+-]{1,30})\b",
+            snippet_signal,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "indeed_snippet_wir_bei_acronym"
+
+        match = re.search(
+            rf"\s-\s+(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,80}}\b{_LEGAL_ENTITY_SUFFIX})$",
+            title_signal,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            company = _clean_company_signal(match.group("company"))
+            if company:
+                return company, "indeed_title_legal_suffix"
+
+    return None, None
 
 
 def build_sensor_queries(
@@ -158,6 +309,8 @@ def accept_provider_result(
     title: object,
     snippet: object,
     observed_at_utc: str,
+    search_term: str | None = None,
+    location_signal: str | None = None,
     snippet_limit: int = 500,
 ) -> SensorObservation | None:
     if sensor not in _PLATFORM_SPECS:
@@ -174,6 +327,11 @@ def accept_provider_result(
 
     title_signal = " ".join(str(title or "").split())[:300]
     snippet_signal = " ".join(str(snippet or "").split())[: max(0, snippet_limit)]
+    observed_company_signal, company_signal_rule = extract_observed_company_signal(
+        sensor=sensor,
+        title=title_signal,
+        snippet=snippet_signal,
+    )
 
     return SensorObservation(
         schema=SENSOR_SCHEMA,
@@ -185,6 +343,11 @@ def accept_provider_result(
         title_signal=title_signal,
         snippet_signal=snippet_signal,
         observed_at_utc=observed_at_utc,
+        search_term=search_term,
+        location_signal=location_signal,
+        observed_company_signal=observed_company_signal,
+        company_signal_status="explicit" if observed_company_signal else "unknown",
+        company_signal_rule=company_signal_rule,
     )
 
 
@@ -195,10 +358,7 @@ def deduplicate_observations(
     for observation in observations:
         key = (observation.sensor, observation.url)
         by_identity.setdefault(key, observation)
-    return tuple(
-        by_identity[key]
-        for key in sorted(by_identity)
-    )
+    return tuple(by_identity[key] for key in sorted(by_identity))
 
 
 def boundary_report() -> Mapping[str, object]:

@@ -14,6 +14,9 @@ from src.normalization.company_keys import company_key_matches, normalize_compan
 
 
 DATA_SEARCH_TERMS = {
+    "agentic ai",
+    "ai architect",
+    "ai automation",
     "analytics engineer",
     "big data",
     "data engineer",

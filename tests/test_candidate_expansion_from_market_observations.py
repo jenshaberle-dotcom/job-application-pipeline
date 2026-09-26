@@ -79,3 +79,23 @@ def test_build_review_counts_decision_groups() -> None:
     assert review.create_recommended_count == 1
     assert review.suppressed_count == 1
     assert review.boundary["candidate_creation_allowed"] is False
+
+
+def test_current_ai_sensor_terms_are_relevant_for_candidate_expansion() -> None:
+    item = decide_candidate_expansion_item(
+        MarketCompanyObservation(
+            company_key="new_ai_employer",
+            company_name="New AI Employer GmbH",
+            source_name="linkedin",
+            observation_count=1,
+            latest_observed_at="2026-09-26T10:31:57+00:00",
+            search_terms=("AI Architect",),
+            sample_titles=("AI Solution Architect",),
+        ),
+        [],
+        min_create_observations=2,
+        min_review_observations=1,
+    )
+
+    assert item.decision == "manual_review_required"
+    assert item.evidence["data_search_terms"] == ["ai architect"]

@@ -152,6 +152,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                         title=row.title,
                         snippet=row.snippet,
                         observed_at_utc=observed_at,
+                        search_term=plan.search_term,
+                        location_signal=plan.location_signal,
                     )
                     if observation is None:
                         rejected_count += 1
