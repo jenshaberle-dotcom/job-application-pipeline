@@ -1,46 +1,19 @@
 name: P1 generic Employer-Origin product activation
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/p1-generic-origin-product-activate.yml"
-      - "requirements.txt"
-      - "db/migrations/107_create_generic_employer_origin_active_sources.sql"
-      - "db/migrations/115_expand_ai_automation_market_coverage.sql"
-      - "scripts/run_generic_employer_origin_product.py"
-      - "scripts/run_known_public_vacancy_parity.py"
-      - "scripts/qualify_generic_employer_origin_connectors.py"
-      - "scripts/apply_generic_employer_origin_activation.py"
-      - "scripts/ensure_pinned_local_oss_runtime.sh"
-      - "scripts/run_daily_pipeline.sh"
-      - "src/config.py"
-      - "src/connectors/generic_employer_origin.py"
-      - "src/connectors/bundesagentur.py"
-      - "src/connectors/generic_employer_origin_product.py"
-      - "src/connectors/generic_job_detail_evidence.py"
-      - "src/connectors/registry.py"
-      - "src/ingestion/generic_origin_bronze_admission.py"
-      - "src/ingestion/runner.py"
-      - "src/ingestion/repository.py"
-      - "src/ingest_jobs.py"
-      - "src/silver/transformer.py"
-      - "src/search_intelligence/origin_seed_pool.py"
-      - "scripts/product_v1_control_center_base.py"
-      - "src/connectors/employer_origin_**"
-      - "src/search_intelligence/deterministic_connector_builder.py"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
   group: p1-generic-employer-origin-product-activation
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   activate:
-    name: Activate generic proof-pass sources and prove persisted Product E2E
-    if: ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
+    name: Activate generic proof-pass sources and prove persisted Product E2E (repo-authority gated)
+    if: ${{ github.event_name == 'workflow_dispatch' && vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' }}
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 180
     env:
@@ -64,6 +37,17 @@ jobs:
           actual="$(git rev-parse HEAD)"
           test "$actual" = "$GITHUB_SHA"
           echo "GENERIC_ACTIVATION_SOURCE=$actual"
+
+      - name: Require Freeze-II connector activation authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          authority="docs/current/FREEZE-II-CONNECTOR-ACTIVATION-AUTHORITY.md"
+          test -f "$authority"
+          grep -Fxq "sensor_expansion_complete: true" "$authority"
+          grep -Fxq "expanded_cohort_frozen: true" "$authority"
+          grep -Fxq "activation_allowed: true" "$authority"
+          echo "FREEZE2_CONNECTOR_ACTIVATION_AUTHORITY=PASS"
 
       - name: Resolve verified RCC runtime context
         shell: bash

@@ -8,6 +8,8 @@ ACTIVATION = Path("scripts/apply_generic_employer_origin_activation.py")
 CONNECTOR = Path("src/connectors/generic_employer_origin.py")
 QUALIFIER = Path("scripts/qualify_generic_employer_origin_connectors.py")
 WORKFLOW = Path(".github/workflows/p1-generic-origin-product-activate.yml")
+AUTHORITY = Path("docs/current/FREEZE-II-CONNECTOR-ACTIVATION-AUTHORITY.md")
+WORKFLOWS = Path(".github/workflows")
 
 
 def test_generic_active_source_projection_accepts_only_canonical_pass_state() -> None:
@@ -64,14 +66,47 @@ def test_preactivation_discovered_origin_is_not_misclassified_as_connector_failu
     assert "GENERIC_PREACTIVATION_MATERIALIZATION_PENDING" in source
 
 
-def test_main_activation_is_automatic_not_a_demo_or_manual_effect_path() -> None:
+def test_product_activation_is_manual_and_repo_authority_gated() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
+    authority = AUTHORITY.read_text(encoding="utf-8")
 
-    assert "push:" in workflow
-    assert "branches: [main]" in workflow
-    assert "workflow_dispatch" not in workflow
-    assert "demo" not in workflow.casefold()
+    assert "workflow_dispatch:" in workflow
+    assert "push:" not in workflow
+    assert "github.event_name == 'workflow_dispatch'" in workflow
+    assert 'grep -Fxq "sensor_expansion_complete: true"' in workflow
+    assert 'grep -Fxq "expanded_cohort_frozen: true"' in workflow
+    assert 'grep -Fxq "activation_allowed: true"' in workflow
     assert "scripts.run_generic_employer_origin_product" in workflow
     assert "scripts.qualify_generic_employer_origin_connectors" in workflow
     assert "scripts.apply_generic_employer_origin_activation" in workflow
     assert "--source generic_origin" in workflow
+
+    assert "status: withheld" in authority
+    assert "sensor_expansion_complete: false" in authority
+    assert "expanded_cohort_frozen: false" in authority
+    assert "activation_allowed: false" in authority
+
+
+def test_freeze2_effect_authority_cannot_return_on_main_push_under_another_workflow() -> None:
+    offenders: list[str] = []
+
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        workflow = path.read_text(encoding="utf-8")
+        if "push:" not in workflow or "branches: [main]" not in workflow:
+            continue
+
+        direct_generic_effect = (
+            "scripts.apply_generic_employer_origin_activation" in workflow
+            or "--source generic_origin" in workflow
+        )
+        generic_migration_effect = (
+            "scripts.apply_db_migrations" in workflow
+            and (
+                "generic_employer_origin" in workflow
+                or "MARKET_PARITY_MIGRATION" in workflow
+            )
+        )
+        if direct_generic_effect or generic_migration_effect:
+            offenders.append(path.name)
+
+    assert offenders == []
