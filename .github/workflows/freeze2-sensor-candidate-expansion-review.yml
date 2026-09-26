@@ -125,7 +125,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m pytest -q             tests/test_conservative_market_sensors.py             tests/test_freeze2_sensor_candidate_expansion_review.py             tests/test_candidate_expansion.py
+          "$RUNTIME_PYTHON" -m pytest -q             tests/test_conservative_market_sensors.py             tests/test_freeze2_sensor_candidate_expansion_review.py             tests/test_candidate_expansion_from_market_observations.py
           "$RUNTIME_PYTHON" -m ruff check             src/search_intelligence/conservative_market_sensors.py             scripts/run_freeze2_linkedin_indeed_market_sensors.py             scripts/run_freeze2_sensor_candidate_expansion_review.py             tests/test_conservative_market_sensors.py             tests/test_freeze2_sensor_candidate_expansion_review.py
 
       - name: Run read-only candidate expansion review
