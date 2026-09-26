@@ -2,7 +2,7 @@ from datetime import date
 
 
 EMPLOYER_ORIGIN_CAREER_SITE_SOURCE_TYPE = "employer_origin_career_site"
-MARKET_SENSOR_SOURCE_NAMES = {"bundesagentur_fuer_arbeit", "stepstone"}
+MARKET_SENSOR_SOURCE_NAMES = {"bundesagentur_fuer_arbeit", "stepstone", "indeed", "linkedin"}
 
 
 def parse_date(value: object) -> date | None:

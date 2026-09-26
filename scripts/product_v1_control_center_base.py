@@ -532,7 +532,9 @@ def load_product_v1_payload(
              AND capability_review.status = 'active'
             WHERE readiness.source_name NOT IN (
                 'bundesagentur_fuer_arbeit',
-                'stepstone'
+                'stepstone',
+                'indeed',
+                'linkedin'
             )
             ORDER BY
                 CASE product_readiness_status

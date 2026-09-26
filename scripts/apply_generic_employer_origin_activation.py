@@ -12,7 +12,7 @@ from psycopg.types.json import Jsonb
 
 from src.config import get_database_config
 
-SENSOR_SOURCE_NAMES = ("bundesagentur_fuer_arbeit", "stepstone")
+SENSOR_SOURCE_NAMES = ("bundesagentur_fuer_arbeit", "stepstone", "indeed", "linkedin")
 GENERIC_SOURCE_PREFIX = "generic_origin:"
 PROFILE_PREFIX = "generic_origin__"
 NEUTRAL_TRIGGER_TERM = "*"

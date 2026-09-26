@@ -133,7 +133,7 @@ def test_supported_source_patterns_include_personio() -> None:
 def test_market_sensor_rows_are_not_silver_product_inputs() -> None:
     import pytest
 
-    for source_name in ("stepstone", "bundesagentur_fuer_arbeit"):
+    for source_name in ("stepstone", "bundesagentur_fuer_arbeit", "indeed", "linkedin"):
         with pytest.raises(
             ValueError,
             match="Market sensor source cannot produce Silver jobs",
