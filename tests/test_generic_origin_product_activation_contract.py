@@ -9,6 +9,7 @@ CONNECTOR = Path("src/connectors/generic_employer_origin.py")
 QUALIFIER = Path("scripts/qualify_generic_employer_origin_connectors.py")
 WORKFLOW = Path(".github/workflows/p1-generic-origin-product-activate.yml")
 AUTHORITY = Path("docs/current/FREEZE-II-CONNECTOR-ACTIVATION-AUTHORITY.md")
+WORKFLOWS = Path(".github/workflows")
 
 
 def test_generic_active_source_projection_accepts_only_canonical_pass_state() -> None:
@@ -84,3 +85,21 @@ def test_product_activation_is_manual_and_repo_authority_gated() -> None:
     assert "sensor_expansion_complete: false" in authority
     assert "expanded_cohort_frozen: false" in authority
     assert "activation_allowed: false" in authority
+
+
+def test_freeze2_effect_authority_cannot_return_on_main_push_under_another_workflow() -> None:
+    forbidden_effect_markers = (
+        "scripts.apply_generic_employer_origin_activation",
+        "scripts.apply_db_migrations",
+        "--source generic_origin",
+    )
+    offenders: list[str] = []
+
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        workflow = path.read_text(encoding="utf-8")
+        if "push:" not in workflow or "branches: [main]" not in workflow:
+            continue
+        if any(marker in workflow for marker in forbidden_effect_markers):
+            offenders.append(path.name)
+
+    assert offenders == []
