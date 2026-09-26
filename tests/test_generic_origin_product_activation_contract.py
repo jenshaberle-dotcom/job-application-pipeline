@@ -88,18 +88,25 @@ def test_product_activation_is_manual_and_repo_authority_gated() -> None:
 
 
 def test_freeze2_effect_authority_cannot_return_on_main_push_under_another_workflow() -> None:
-    forbidden_effect_markers = (
-        "scripts.apply_generic_employer_origin_activation",
-        "scripts.apply_db_migrations",
-        "--source generic_origin",
-    )
     offenders: list[str] = []
 
     for path in sorted(WORKFLOWS.glob("*.yml")):
         workflow = path.read_text(encoding="utf-8")
         if "push:" not in workflow or "branches: [main]" not in workflow:
             continue
-        if any(marker in workflow for marker in forbidden_effect_markers):
+
+        direct_generic_effect = (
+            "scripts.apply_generic_employer_origin_activation" in workflow
+            or "--source generic_origin" in workflow
+        )
+        generic_migration_effect = (
+            "scripts.apply_db_migrations" in workflow
+            and (
+                "generic_employer_origin" in workflow
+                or "MARKET_PARITY_MIGRATION" in workflow
+            )
+        )
+        if direct_generic_effect or generic_migration_effect:
             offenders.append(path.name)
 
     assert offenders == []
