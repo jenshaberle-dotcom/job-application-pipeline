@@ -1,0 +1,222 @@
+name: Freeze-II sensor candidate expansion review
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: freeze2-sensor-candidate-expansion-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: Reuse sensor evidence and classify candidate expansion
+    if: >-
+      ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+          github.event.issue.number == 1038 &&
+          github.event.comment.user.login == 'jenshaberle-dotcom' &&
+          github.event.comment.author_association == 'OWNER' &&
+          startsWith(github.event.comment.body, '<!-- jap-freeze2-sensor-expansion-review:run:v1 -->') }}
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 30
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      SENSOR_DIR: /tmp/freeze2-sensor-expansion-input
+      REVIEW_OUTPUT: /tmp/freeze2-sensor-candidate-expansion-review.json
+      COMMENT_BODY: ${{ github.event.comment.body }}
+
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve source sensor run id
+        id: sensor
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$COMMENT_BODY" =~ sensor_run_id=([0-9]+) ]]; then
+            run_id="${BASH_REMATCH[1]}"
+          else
+            echo "Missing sensor_run_id=<numeric GitHub Actions run id>" >&2
+            exit 2
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "SENSOR_SOURCE_RUN_ID=$run_id"
+
+      - name: Download existing bounded sensor artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: freeze2-linkedin-indeed-market-sensors-${{ steps.sensor.outputs.run_id }}
+          path: ${{ env.SENSOR_DIR }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.sensor.outputs.run_id }}
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_RUNNER_MISMATCH")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "env_file",
+              "env_keys",
+              "interpreter",
+              "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Qualify S0.6 review contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" -m pytest -q             tests/test_conservative_market_sensors.py             tests/test_freeze2_sensor_candidate_expansion_review.py             tests/test_candidate_expansion.py
+          "$RUNTIME_PYTHON" -m ruff check             src/search_intelligence/conservative_market_sensors.py             scripts/run_freeze2_linkedin_indeed_market_sensors.py             scripts/run_freeze2_sensor_candidate_expansion_review.py             tests/test_conservative_market_sensors.py             tests/test_freeze2_sensor_candidate_expansion_review.py
+
+      - name: Run read-only candidate expansion review
+        shell: bash
+        run: |
+          set -euo pipefail
+          sensor_report="$SENSOR_DIR/freeze2-linkedin-indeed-market-sensors.json"
+          test -f "$sensor_report"
+          set -a
+          # shellcheck disable=SC1090
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$RUNTIME_PYTHON" -m scripts.run_freeze2_sensor_candidate_expansion_review             --sensor-report "$sensor_report"             --output "$REVIEW_OUTPUT"
+
+      - name: Upload S0.6 review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: freeze2-sensor-candidate-expansion-review-${{ github.run_id }}
+          path: ${{ env.REVIEW_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish S0.6 review to Freeze-II issue
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SENSOR_SOURCE_RUN_ID: ${{ steps.sensor.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          "$RUNTIME_PYTHON" - "$REVIEW_OUTPUT" <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import urllib.request
+
+          report = json.loads(Path(os.environ["REVIEW_OUTPUT"]).read_text(encoding="utf-8"))
+          summary = report["summary"]
+          items = report["review"]["items"]
+          lines = [
+              "<!-- jap-freeze2-sensor-expansion-review:v1 -->",
+              "## Freeze-II S0.6 — sensor candidate expansion review",
+              "",
+              f"- source SHA: `{os.environ['SOURCE_SHA']}`",
+              f"- workflow: https://github.com/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}",
+              f"- reused sensor run: `{os.environ['SENSOR_SOURCE_RUN_ID']}`",
+              f"- baseline Employer-Origin candidates: **{report['baseline_candidate_count']}**",
+              f"- sensor observations: **{summary['total_sensor_observation_count']}**",
+              f"- explicitly attributed observations: **{summary['attributed_observation_count']}**",
+              f"- unattributed/ambiguous observations: **{summary['unattributed_observation_count']}**",
+              f"- distinct attributed companies: **{summary['attributed_company_count']}**",
+              f"- create recommended: **{summary['review_create_recommended_count']}**",
+              f"- manual review: **{summary['review_manual_review_count']}**",
+              f"- already known: **{summary['review_already_known_count']}**",
+              f"- insufficient: **{summary['review_insufficient_evidence_count']}**",
+              f"- suppressed: **{summary['review_suppressed_count']}**",
+              "",
+              "Review items:",
+          ]
+          for item in items[:20]:
+              lines.append(
+                  f"- `{item['company_key']}` — {item['company_name']} — "
+                  f"**{item['decision']}** — evidence {item['evidence_count']} — "
+                  f"source `{item['source_name']}`"
+              )
+          lines.extend(
+              [
+                  "",
+                  "Boundary: reused existing sensor artifact; provider requests 0; "
+                  "DB writes 0; candidate creation 0; connector/source activation 0; "
+                  "aggregator URLs remain non-authoritative.",
+              ]
+          )
+          body = "\n".join(lines)
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text(body + "\n", encoding="utf-8")
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/issues/1038/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "JAP-Freeze-II-Sensor-Expansion-Review",
+                  "Content-Type": "application/json",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status != 201:
+                  raise SystemExit(f"ISSUE_COMMENT_HTTP_{response.status}")
+          PY
