@@ -22,7 +22,7 @@ def test_external_index_cohort_is_explicit_and_parser_authority_is_narrower():
         "meinestadt",
         "jobvector",
     )
-    assert FIXTURE_QUALIFIED_SOURCES == ("goodjobs", "xing", "get_in_it", "meinestadt")
+    assert FIXTURE_QUALIFIED_SOURCES == ("goodjobs", "xing", "get_in_it", "meinestadt", "jobvector")
 
 
 def test_query_builder_is_site_bounded_but_does_not_execute_transport():
@@ -151,19 +151,34 @@ def test_meinestadt_requires_numeric_detail_identity():
     ) == "unexpected_path"
 
 
-def test_jobvector_stays_shape_only_until_detail_contract_is_proven():
-    url = "https://www.jobvector.de/stellenangebote/123"
-    assert classify_external_index_result_shape(source="jobvector", url=url) == (
-        "shape_only_unqualified"
-    )
-    assert accept_external_index_result(
+def test_jobvector_current_detail_shape_has_deterministic_job_and_employer():
+    observation = accept_external_index_result(
         source="jobvector",
         provider="fixture",
-        url=url,
-        title="Data Engineer - Example GmbH",
-        snippet="Hannover",
+        url="https://www.jobvector.de/job/data-scientist-4aa83a032a236df6/",
+        title=(
+            "Data Engineer - Reporting, Datenanalyse, KI (m/w/d) | "
+            "Job in Bielefeld"
+        ),
+        snippet=(
+            "Data Engineer - Reporting, Datenanalyse, KI (m/w/d) eWolff GmbH "
+            "Bielefeld, Nordrhein-Westfalen Homeoffice möglich 19.09.2026"
+        ),
         observed_at_utc=OBSERVED,
-    ) is None
+    )
+    assert observation is not None
+    assert observation.title == "Data Engineer - Reporting, Datenanalyse, KI (m/w/d)"
+    assert observation.company_name == "eWolff GmbH"
+    assert observation.location == "Bielefeld"
+    assert observation.remote_signal is True
+    assert qualify_observation(observation) is not None
+
+
+def test_jobvector_aggregate_page_is_not_job_evidence():
+    assert classify_external_index_result_shape(
+        source="jobvector",
+        url="https://www.jobvector.de/jobs/data%2Bengineer/",
+    ) == "unexpected_path"
 
 
 def test_external_index_duplicate_reference_still_deduplicates_in_census():
