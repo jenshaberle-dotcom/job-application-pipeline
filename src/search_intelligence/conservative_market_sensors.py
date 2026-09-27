@@ -54,6 +54,8 @@ BOUNDARY = {
     "platform_url_persistence": 0,
     "platform_title_persistence": 0,
     "platform_snippet_persistence": 0,
+    "provider_raw_content_requests": 0,
+    "provider_query_personal_data": 0,
     "database_writes": 0,
     "bronze_writes": 0,
     "silver_writes": 0,
