@@ -34,3 +34,18 @@ def test_census_comparison_workflow_uses_read_only_runtime_and_no_board_credenti
         "GET_IN_IT_PASSWORD",
     ):
         assert forbidden not in text
+
+
+def test_census_comparison_workflow_is_freezable_before_blue_runner_assignment():
+    text = Path(
+        ".github/workflows/freeze2-job-first-census-comparison.yml"
+    ).read_text(encoding="utf-8")
+    lines = text.splitlines()
+    blue_index = next(
+        i for i, line in enumerate(lines)
+        if "runs-on:" in line and "job-pipeline-runtime-linux" in line
+    )
+    assert any(
+        "RCC_JAP_BLUE_ASSIGNMENT_FROZEN" in line
+        for line in lines[:blue_index]
+    )
