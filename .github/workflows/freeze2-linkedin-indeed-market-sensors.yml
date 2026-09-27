@@ -15,7 +15,7 @@ on:
       search_backend:
         description: "Replaceable search backend; paid provider is never automatic"
         required: true
-        default: bing_rss
+        default: none
         type: choice
         options:
           - duckduckgo_html
@@ -155,7 +155,7 @@ jobs:
             backend="${BASH_REMATCH[1]}"
           fi
           if [[ -z "$backend" ]]; then
-            backend="bing_rss"
+            backend="none"
           fi
           case "$backend" in
             duckduckgo_html|bing_rss|tavily|none) ;;
