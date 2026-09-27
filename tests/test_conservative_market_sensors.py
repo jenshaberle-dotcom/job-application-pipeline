@@ -29,10 +29,12 @@ def test_builds_site_bounded_queries_for_both_sensors() -> None:
     )
 
     assert len(linkedin) == 2
-    assert all("site:linkedin.com/jobs/view" in item.query for item in linkedin)
+    assert all("site:linkedin.com" in item.query for item in linkedin)
+    assert all("site:linkedin.com/jobs/view" not in item.query for item in linkedin)
     assert all('"Hannover"' in item.query for item in linkedin)
     assert len(indeed) == 1
-    assert "site:de.indeed.com/viewjob" in indeed[0].query
+    assert "site:de.indeed.com" in indeed[0].query
+    assert "site:de.indeed.com/viewjob" not in indeed[0].query
 
 
 
@@ -227,7 +229,8 @@ def test_active_sensor_implementation_has_no_direct_linkedin_transport_stack() -
 
     assert "search_public_web(" in runner
     assert "tavily_search(" not in runner
-    assert "site:linkedin.com/jobs/view" in module
+    assert '"search_site": "linkedin.com"' in module
+    assert '"path_markers": ("/jobs/view/",)' in module
 
 
 def test_market_sensor_uses_replaceable_zero_cost_first_search_backend() -> None:
