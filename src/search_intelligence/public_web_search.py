@@ -27,9 +27,10 @@ from src.search_intelligence.multi_origin_evidence import decode_search_redirect
 
 DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
 BING_RSS_URL = "https://www.bing.com/search"
+SEARXNG_BASE_URL_ENV = "SEARXNG_BASE_URL"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
-DEFAULT_SEARCH_BACKEND = "bing_rss"
-SUPPORTED_SEARCH_BACKENDS = ("duckduckgo_html", "bing_rss", "tavily")
+DEFAULT_SEARCH_BACKEND = "searxng_json"
+SUPPORTED_SEARCH_BACKENDS = ("duckduckgo_html", "bing_rss", "searxng_json", "tavily")
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,11 @@ BACKEND_POLICIES: Mapping[str, SearchBackendPolicy] = {
     ),
     "bing_rss": SearchBackendPolicy(
         name="bing_rss",
+        requires_secret=False,
+        paid_external_tool=False,
+    ),
+    "searxng_json": SearchBackendPolicy(
+        name="searxng_json",
         requires_secret=False,
         paid_external_tool=False,
     ),
@@ -138,6 +144,8 @@ def backend_available(provider: str) -> bool:
         return False
     if provider == "tavily":
         return not _missing_or_placeholder_secret(os.getenv("TAVILY_API_KEY"))
+    if provider == "searxng_json":
+        return bool((os.getenv(SEARXNG_BASE_URL_ENV) or "").strip())
     return True
 
 
@@ -294,6 +302,55 @@ def _bing_rss_search(
     )
 
 
+
+def _searxng_json_search(
+    query: str,
+    *,
+    max_results: int,
+    timeout_seconds: float,
+    request_get: Callable[..., requests.Response],
+) -> PublicSearchResponse:
+    base_url = (os.getenv(SEARXNG_BASE_URL_ENV) or "").strip().rstrip("/")
+    if not base_url:
+        return PublicSearchResponse(
+            provider="searxng_json", query=query, status="provider_unavailable",
+            results=(), request_count=0, error_type="missing_base_url",
+        )
+    try:
+        response = request_get(
+            base_url + "/search",
+            params={"q": query, "format": "json", "categories": "general"},
+            headers={"Accept": "application/json", "User-Agent": "job-application-pipeline-public-search/0.1 (bounded; discovery-only)"},
+            timeout=timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as exc:
+        return PublicSearchResponse(
+            provider="searxng_json", query=query, status="transport_error",
+            results=(), request_count=1, error_type=type(exc).__name__,
+        )
+    rows = payload.get("results", []) if isinstance(payload, dict) else []
+    results: list[PublicSearchResult] = []
+    seen: set[str] = set()
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        results.append(PublicSearchResult(
+            provider="searxng_json", query=query, url=url,
+            title=str(item.get("title") or ""), snippet=str(item.get("content") or ""),
+        ))
+        if len(results) >= max_results:
+            break
+    return PublicSearchResponse(
+        provider="searxng_json", query=query,
+        status="ok" if results else "zero_yield", results=tuple(results), request_count=1,
+    )
+
 def _tavily_search(
     query: str,
     *,
@@ -393,6 +450,13 @@ def search_public_web(
 
     if provider == "duckduckgo_html":
         return _duckduckgo_html_search(
+            query,
+            max_results=max_results,
+            timeout_seconds=timeout_seconds,
+            request_get=request_get,
+        )
+    if provider == "searxng_json":
+        return _searxng_json_search(
             query,
             max_results=max_results,
             timeout_seconds=timeout_seconds,
