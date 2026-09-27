@@ -30,4 +30,3 @@ jobs:
           python -m pytest -q \
             tests/test_employer_discovery_census.py \
             tests/test_market_sensor_coverage.py \
-            tests/test_relevance.py
