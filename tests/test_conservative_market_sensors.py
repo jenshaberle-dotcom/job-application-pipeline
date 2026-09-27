@@ -12,7 +12,7 @@ from src.search_intelligence.conservative_market_sensors import (
 )
 
 
-def test_builds_site_bounded_queries_for_both_sensors() -> None:
+def test_builds_declarative_url_hint_queries_for_both_sensors() -> None:
     linkedin = build_sensor_queries(
         sensor="linkedin",
         search_terms=["Data Engineer", "ML Engineer"],
@@ -29,12 +29,12 @@ def test_builds_site_bounded_queries_for_both_sensors() -> None:
     )
 
     assert len(linkedin) == 2
-    assert all("site:linkedin.com" in item.query for item in linkedin)
-    assert all("site:linkedin.com/jobs/view" not in item.query for item in linkedin)
+    assert all('"linkedin.com/jobs/view"' in item.query for item in linkedin)
+    assert all("site:linkedin.com" not in item.query for item in linkedin)
     assert all('"Hannover"' in item.query for item in linkedin)
     assert len(indeed) == 1
-    assert "site:de.indeed.com" in indeed[0].query
-    assert "site:de.indeed.com/viewjob" not in indeed[0].query
+    assert '"de.indeed.com/viewjob"' in indeed[0].query
+    assert "site:de.indeed.com" not in indeed[0].query
 
 
 
