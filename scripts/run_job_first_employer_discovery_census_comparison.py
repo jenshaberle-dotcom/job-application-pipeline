@@ -19,7 +19,8 @@ from psycopg.rows import dict_row
 
 from src.config import get_database_config
 from src.connectors.base import SearchProfile, SearchTerm
-from src.connectors.registry import SourceRole, build_default_connector_registry
+from src.connectors.bundesagentur import BundesagenturConnector
+from src.connectors.stepstone import StepStoneConnector
 from src.normalization.company_keys import normalize_company_key
 from src.search_intelligence.census_flight_authority import (
     CENSUS_EXTERNAL_INDEX_BACKENDS,
@@ -37,6 +38,7 @@ from src.search_intelligence.external_index_job_sensors import (
     accept_external_index_result,
     build_external_index_queries,
 )
+from src.search_intelligence.market_source_access import source_access_qualification
 from src.search_intelligence.public_web_search import (
     backend_available,
     search_public_web,
@@ -120,14 +122,17 @@ def _run_control_sources(
     page_size: int,
     observed_at_utc: str,
 ) -> tuple[list[Any], dict[str, dict[str, Any]]]:
-    registry = build_default_connector_registry()
+    connector_factories = {
+        "bundesagentur_fuer_arbeit": BundesagenturConnector,
+        "stepstone": StepStoneConnector,
+    }
     observations: list[Any] = []
     telemetry: dict[str, dict[str, Any]] = {}
 
     for source_name in CONTROL_SOURCES:
-        if registry.role_for(source_name) != SourceRole.SENSOR:
-            raise RuntimeError(f"{source_name} is not registered as a sensor")
-        connector = registry.create(source_name)
+        if not source_access_qualification(source_name).automation_authorized:
+            raise RuntimeError(f"{source_name} is not authorized for direct sensor access")
+        connector = connector_factories[source_name]()
         profile = SearchProfile(
             id=0,
             profile_name="job_first_census_comparison",
