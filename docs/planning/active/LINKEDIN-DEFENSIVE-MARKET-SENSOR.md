@@ -161,6 +161,11 @@ Bing RSS is evaluated because it returns structured XML without an API key or HT
 - https://blogs.bing.com/search/2005/1/RSS-Feeds-for-Search-Results/
 - https://learn.microsoft.com/en-us/answers/questions/351603/bing-search-results-to-rss-not-working
 
+Real Bing RSS proof `36316916122` returned 30 search results across six bounded queries, but all 30 were rejected as `unexpected_host`. This matches Bing's documented `site:` behavior: Bing may include results from other sites when it does not find enough relevant results on the requested site. JAP therefore keeps `site:` intent domain-scoped and performs the authoritative job-detail host/path acceptance after search; it does not encode platform path structure into the search-engine operator.
+
+Relevant Bing query-operator documentation:
+- https://github.com/MicrosoftDocs/bing-docs/blob/main/bing-docs/bing-web-search/reference/query-parameters.md
+
 If Bing RSS is not reliable enough, the next preferred lane is self-hosted/open SearXNG JSON before a paid provider becomes necessary:
 - https://docs.searxng.org/dev/search_api
 
