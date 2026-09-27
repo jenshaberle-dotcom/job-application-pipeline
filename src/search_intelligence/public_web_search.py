@@ -269,7 +269,8 @@ def _bing_rss_search(
     results: list[PublicSearchResult] = []
     seen: set[str] = set()
     for item in root.findall(".//item"):
-        url_value = " ".join(str(item.findtext("link") or "").split()).strip()
+        raw_url = " ".join(str(item.findtext("link") or "").split()).strip()
+        url_value = decode_search_redirect_url(raw_url)
         if not url_value or url_value in seen:
             continue
         seen.add(url_value)
