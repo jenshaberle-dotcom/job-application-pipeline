@@ -86,3 +86,22 @@ def test_jobposting_parent_is_detail_but_apply_action_is_not() -> None:
     detail = "https://karriere.example.invalid/de/jobposting/abcdef1234567890"
     assert job_detail_url_shape(detail)
     assert not job_detail_url_shape(detail + "/apply")
+
+
+def test_decode_search_redirect_url_decodes_bing_click_wrapper() -> None:
+    url = (
+        "https://www.bing.com/ck/a?"
+        "u=a1aHR0cHM6Ly9kZS5saW5rZWRpbi5jb20vam9icy92aWV3LzEyMzQ1Ni8"
+        "&ntb=1"
+    )
+
+    assert (
+        decode_search_redirect_url(url)
+        == "https://de.linkedin.com/jobs/view/123456/"
+    )
+
+
+def test_decode_search_redirect_url_does_not_treat_opaque_u_as_url() -> None:
+    url = "https://example.com/redirect?u=opaque-token"
+
+    assert decode_search_redirect_url(url) == url

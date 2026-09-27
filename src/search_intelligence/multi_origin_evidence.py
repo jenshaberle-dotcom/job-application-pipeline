@@ -9,6 +9,8 @@ not perform network I/O; scripts pass discovered/fetched URLs into these helpers
 
 from __future__ import annotations
 
+import base64
+import binascii
 from dataclasses import dataclass, field
 from enum import StrEnum
 from re import search, sub
@@ -116,17 +118,53 @@ def same_base_domain(url: str, reference_url: str) -> bool:
     return bool(host(url) and registrable_domain_like(url) == registrable_domain_like(reference_url))
 
 
+def _decode_bing_click_target(parsed_url: str) -> str | None:
+    parsed = urlparse(parsed_url)
+    normalized_host = (parsed.hostname or "").casefold().strip(".")
+    if not (
+        (normalized_host == "bing.com" or normalized_host.endswith(".bing.com"))
+        and parsed.path.casefold().startswith("/ck/")
+    ):
+        return None
+
+    query = parse_qs(parsed.query)
+    raw_values = query.get("u", [])
+    if not raw_values:
+        return None
+
+    raw = unquote(raw_values[0]).strip()
+    if not raw.startswith("a1") or len(raw) <= 2:
+        return None
+
+    payload = raw[2:]
+    payload += "=" * (-len(payload) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(payload.encode("ascii")).decode("utf-8")
+    except (binascii.Error, ValueError, UnicodeDecodeError):
+        return None
+    return normalize_url(decoded)
+
+
 def decode_search_redirect_url(raw_url: str, *, base_url: str | None = None) -> str | None:
     normalized = normalize_url(raw_url, base_url=base_url)
     if not normalized:
         return None
+
+    bing_target = _decode_bing_click_target(normalized)
+    if bing_target:
+        return bing_target
+
     parsed = urlparse(normalized)
     query = parse_qs(parsed.query)
     for key in ("uddg", "url", "u"):
-        if key in query and query[key]:
-            decoded = normalize_url(unquote(query[key][0]))
-            if decoded:
-                return decoded
+        if key not in query or not query[key]:
+            continue
+        embedded = unquote(query[key][0]).strip()
+        if not embedded.startswith(("http://", "https://", "//")):
+            continue
+        decoded = normalize_url(embedded)
+        if decoded:
+            return decoded
     return normalized
 
 
