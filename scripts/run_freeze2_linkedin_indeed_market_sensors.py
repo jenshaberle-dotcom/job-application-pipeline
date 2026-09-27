@@ -124,6 +124,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     report_sensors: dict[str, object] = {}
     total_requests = 0
     total_observations = 0
+    total_provider_errors = 0
 
     for sensor in requested_sensors:
         queries = build_sensor_queries(
@@ -158,6 +159,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                         )
                 except Exception as exc:  # noqa: BLE001 - sensor is best-effort by design.
                     provider_error_count += 1
+                    total_provider_errors += 1
                     print(
                         "market_sensor_warning:"
                         f" provider={args.provider}"
@@ -224,7 +226,14 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         "schema": "job_application_pipeline.freeze2_market_sensor_probe.v2",
         "mode": "discovery_only",
         "provider": args.provider,
-        "provider_available": provider_available,
+        "provider_available": (
+            provider_available
+            and not (
+                args.provider == "duckduckgo_html"
+                and total_requests > 0
+                and total_provider_errors == total_requests
+            )
+        ),
         "intent": {
             "search_terms": list(terms),
             "location_signals": list(locations),
@@ -235,6 +244,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "sensor_count": len(requested_sensors),
             "provider_request_count": total_requests,
             "accepted_observation_count": total_observations,
+            "provider_error_count": total_provider_errors,
         },
         "boundary": dict(BOUNDARY),
     }
