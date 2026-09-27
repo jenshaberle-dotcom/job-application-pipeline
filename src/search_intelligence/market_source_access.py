@@ -42,23 +42,27 @@ SOURCE_ACCESS = {
     ),
     "xing": SourceAccessQualification(
         source="xing",
-        automation_status="pending_review",
-        reason="terms_robots_and_technical_access_not_yet_qualified",
+        automation_status="withheld",
+        reason="direct_automation_requires_xing_authorized_interface",
+        public_origin="https://www.xing.com/jobs/",
     ),
     "meinestadt": SourceAccessQualification(
         source="meinestadt",
-        automation_status="pending_review",
-        reason="terms_robots_and_technical_access_not_yet_qualified",
+        automation_status="withheld",
+        reason="public_terms_explicitly_prohibit_scraping_or_comparable_techniques",
+        public_origin="https://www.meinestadt.de/",
     ),
     "get_in_it": SourceAccessQualification(
         source="get_in_it",
-        automation_status="pending_review",
-        reason="terms_robots_and_technical_access_not_yet_qualified",
+        automation_status="withheld",
+        reason="public_terms_prohibit_automated_queries_without_explicit_consent",
+        public_origin="https://www.get-in-it.de/",
     ),
     "jobvector": SourceAccessQualification(
         source="jobvector",
-        automation_status="pending_review",
-        reason="terms_robots_and_technical_access_not_yet_qualified",
+        automation_status="withheld",
+        reason="direct_automation_requires_explicit_interface_or_permission",
+        public_origin="https://www.jobvector.de/",
     ),
 }
 
