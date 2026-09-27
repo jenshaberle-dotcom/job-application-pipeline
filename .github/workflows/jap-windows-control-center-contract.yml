@@ -211,8 +211,13 @@ jobs:
           }
           "@ | Set-Content -Path (Join-Path $InstallRoot "current.json") -Encoding UTF8
 
-          & $Exe --stage-update --install-root $InstallRoot
-          $Exit = $LASTEXITCODE
+          $Process = Start-Process `
+            -FilePath $Exe `
+            -ArgumentList @("--stage-update", "--install-root", $InstallRoot) `
+            -WorkingDirectory $InstallRoot `
+            -Wait `
+            -PassThru
+          $Exit = $Process.ExitCode
           Write-Host "JAP_STAGE_NO_UPDATE_EXIT_CODE=$Exit"
           if ($Exit -ne 0) {
             $AgentLog = Join-Path $InstallRoot "logs\product-update-agent.log"
