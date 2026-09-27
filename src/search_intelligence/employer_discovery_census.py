@@ -52,6 +52,8 @@ class QualifiedJob:
     matching_roles: tuple[str, ...]
     local_match: bool
     remote_de_match: bool
+    location_confidence: str
+    location_reason: str
 
 
 def _as_silver_job(observation: MarketJobObservation) -> dict:
@@ -85,11 +87,32 @@ def qualify_observation(observation: MarketJobObservation) -> QualifiedJob | Non
         token in location for token in ("deutschland", "germany", "remote")
     )
 
-    # Silver accessibility is intentionally broader than the current JAP search
-    # profile. Employer discovery is narrower: a market job may admit an employer
-    # only when the job itself is Hannover-local or explicitly Germany-remote.
-    if not (local or remote_de):
+    # Discovery/Bronze is recall-oriented. Reject only when location evidence is
+    # strong enough to establish an out-of-profile onsite job. Ambiguous or missing
+    # location evidence survives for downstream employer-origin qualification.
+    known_outside_target = any(
+        token in location
+        for token in (
+            "berlin", "hamburg", "munich", "münchen", "cologne", "köln",
+            "frankfurt", "dublin", "ireland", "london", "united kingdom",
+        )
+    )
+    remote_hint = observation.remote_signal or "remote" in location
+    if known_outside_target and not remote_hint:
         return None
+
+    if local:
+        location_confidence = "high"
+        location_reason = "hannover_local"
+    elif remote_de:
+        location_confidence = "high"
+        location_reason = "explicit_germany_remote"
+    elif remote_hint:
+        location_confidence = "uncertain"
+        location_reason = "remote_hint_needs_origin_qualification"
+    else:
+        location_confidence = "uncertain"
+        location_reason = "location_unknown_needs_origin_qualification"
 
     return QualifiedJob(
         observation=observation,
@@ -97,6 +120,8 @@ def qualify_observation(observation: MarketJobObservation) -> QualifiedJob | Non
         matching_roles=roles,
         local_match=local,
         remote_de_match=remote_de,
+        location_confidence=location_confidence,
+        location_reason=location_reason,
     )
 
 
@@ -130,6 +155,11 @@ def build_employer_discovery_census(
                 "matching_roles": sorted({role for job in jobs for role in job.matching_roles}),
                 "local_matches": sum(job.local_match for job in jobs),
                 "remote_de_matches": sum(job.remote_de_match for job in jobs),
+                "location_confidence": (
+                    "high" if all(job.location_confidence == "high" for job in jobs)
+                    else "uncertain"
+                ),
+                "location_reasons": sorted({job.location_reason for job in jobs}),
                 "newest_seen": newest,
                 "evidence_sources": sorted({job.observation.source for job in jobs}),
                 "sample_job_hashes": sorted({job.observation.job_hash for job in jobs})[:3],
