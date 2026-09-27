@@ -25,7 +25,7 @@ def test_only_existing_ba_and_stepstone_paths_are_currently_authorized():
     assert authorized == ["bundesagentur_fuer_arbeit", "stepstone"]
 
 
-def test_unreviewed_boards_do_not_gain_automation_authority_by_cohort_membership():
-    for source in ("xing", "meinestadt", "get_in_it", "jobvector"):
-        assert source_access_qualification(source).automation_status == "pending_review"
+def test_reviewed_boards_do_not_gain_direct_automation_authority_by_cohort_membership():
+    for source in ("goodjobs", "xing", "meinestadt", "get_in_it", "jobvector"):
+        assert source_access_qualification(source).automation_status == "withheld"
         assert source_access_qualification(source).automation_authorized is False
