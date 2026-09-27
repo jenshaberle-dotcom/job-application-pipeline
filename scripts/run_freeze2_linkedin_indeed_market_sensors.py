@@ -3,7 +3,8 @@
 Default mode is provider=none and performs zero external requests. A real Tavily
 probe requires an explicit --provider tavily and TAVILY_API_KEY. The script reads
 current active sensor search intent from PostgreSQL under a read-only transaction
-and emits minimal discovery evidence only.
+and emits minimised discovery evidence only. Platform URLs, titles and snippets
+returned by the search provider are transient and are not written to the artifact.
 """
 
 from __future__ import annotations
@@ -185,7 +186,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         }
 
     return {
-        "schema": "job_application_pipeline.freeze2_market_sensor_probe.v1",
+        "schema": "job_application_pipeline.freeze2_market_sensor_probe.v2",
         "mode": "discovery_only",
         "provider": args.provider,
         "provider_available": provider_available,
@@ -275,6 +276,9 @@ def main(argv: list[str] | None = None) -> int:
     print("BRONZE_WRITES=0")
     print("SILVER_WRITES=0")
     print("PRODUCT_AUTHORITY=0")
+    print("PLATFORM_URL_PERSISTENCE=0")
+    print("PLATFORM_TITLE_PERSISTENCE=0")
+    print("PLATFORM_SNIPPET_PERSISTENCE=0")
     print(f"artifact={args.output}")
     return 0
 
