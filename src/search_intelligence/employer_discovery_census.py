@@ -12,7 +12,10 @@ import hashlib
 from typing import Iterable
 
 from src.normalization.company_keys import normalize_company_key
-from src.silver.relevance import get_role_matches, is_relevant_for_silver
+from src.silver.relevance import (
+    get_role_matches,
+    get_skill_matches,
+)
 
 CENSUS_SCHEMA = "job_application_pipeline.employer_discovery_census.v1"
 CORE_SENSORS = (
@@ -52,6 +55,8 @@ class QualifiedJob:
     matching_roles: tuple[str, ...]
     local_match: bool
     remote_de_match: bool
+    location_confidence: str
+    location_reason: str
 
 
 def _as_silver_job(observation: MarketJobObservation) -> dict:
@@ -75,21 +80,53 @@ def qualify_observation(observation: MarketJobObservation) -> QualifiedJob | Non
         return None
 
     raw_job = _as_silver_job(observation)
-    if not is_relevant_for_silver(raw_job):
-        return None
-
     roles = tuple(sorted(set(get_role_matches(raw_job))))
+    skills = tuple(sorted(set(get_skill_matches(raw_job))))
+    # Reuse canonical Silver role/skill semantics, but not Silver accessibility:
+    # Census discovery intentionally owns a more recall-oriented location policy.
+    if not roles and len(skills) < 2:
+        return None
     location = str(observation.location or "").casefold()
     local = "hannover" in location or "hanover" in location
     remote_de = observation.remote_signal and any(
         token in location for token in ("deutschland", "germany", "remote")
     )
+
+    # Discovery/Bronze is recall-oriented. Reject only when location evidence is
+    # strong enough to establish an out-of-profile onsite job. Ambiguous or missing
+    # location evidence survives for downstream employer-origin qualification.
+    known_outside_target = any(
+        token in location
+        for token in (
+            "berlin", "hamburg", "munich", "münchen", "cologne", "köln",
+            "frankfurt", "dublin", "ireland", "london", "united kingdom",
+        )
+    )
+    remote_hint = observation.remote_signal or "remote" in location
+    if known_outside_target and not remote_hint:
+        return None
+
+    if local:
+        location_confidence = "high"
+        location_reason = "hannover_local"
+    elif remote_de:
+        location_confidence = "high"
+        location_reason = "explicit_germany_remote"
+    elif remote_hint:
+        location_confidence = "uncertain"
+        location_reason = "remote_hint_needs_origin_qualification"
+    else:
+        location_confidence = "uncertain"
+        location_reason = "location_unknown_needs_origin_qualification"
+
     return QualifiedJob(
         observation=observation,
         company_key=normalize_company_key(company_name),
         matching_roles=roles,
         local_match=local,
         remote_de_match=remote_de,
+        location_confidence=location_confidence,
+        location_reason=location_reason,
     )
 
 
@@ -123,6 +160,11 @@ def build_employer_discovery_census(
                 "matching_roles": sorted({role for job in jobs for role in job.matching_roles}),
                 "local_matches": sum(job.local_match for job in jobs),
                 "remote_de_matches": sum(job.remote_de_match for job in jobs),
+                "location_confidence": (
+                    "high" if all(job.location_confidence == "high" for job in jobs)
+                    else "uncertain"
+                ),
+                "location_reasons": sorted({job.location_reason for job in jobs}),
                 "newest_seen": newest,
                 "evidence_sources": sorted({job.observation.source for job in jobs}),
                 "sample_job_hashes": sorted({job.observation.job_hash for job in jobs})[:3],
