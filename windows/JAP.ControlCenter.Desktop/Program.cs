@@ -450,6 +450,11 @@ internal sealed class MainWindow : Form
                     $"{exc.GetType().Name}: {exc.Message}");
             }
 
+            if (_allowClose || _stopInProgress)
+            {
+                return;
+            }
+
             if (healthy)
             {
                 if (_runtimeHealthFailureCount > 0)
