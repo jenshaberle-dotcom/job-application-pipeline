@@ -72,8 +72,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pytest -q             tests/test_freeze2_pre_candidate_origin_resolution.py             tests/test_origin_source_discovery_agent.py             tests/test_eo002d_origin_source_discovery_repair.py
-          python -m ruff check             scripts/run_freeze2_pre_candidate_origin_resolution.py             tests/test_freeze2_pre_candidate_origin_resolution.py
+          python -m pytest -q             tests/test_freeze2_pre_candidate_origin_resolution.py             tests/test_official_site_inventory_evidence.py             tests/test_origin_source_discovery_agent.py             tests/test_eo002d_origin_source_discovery_repair.py
+          python -m ruff check             src/search_intelligence/official_site_inventory_evidence.py             scripts/run_freeze2_pre_candidate_origin_resolution.py             tests/test_freeze2_pre_candidate_origin_resolution.py             tests/test_official_site_inventory_evidence.py
 
       - name: Run provider-free pre-candidate origin resolution
         shell: bash
@@ -81,7 +81,7 @@ jobs:
           set -euo pipefail
           review_json="$REVIEW_DIR/freeze2-sensor-candidate-expansion-review.json"
           test -f "$review_json"
-          python -m scripts.run_freeze2_pre_candidate_origin_resolution             --review-json "$review_json"             --output "$OUTPUT"             --target-location Hannover             --timeout-seconds 6             --http-request-cap 24             --max-generated-candidates 18             --wikidata-max-entities 3
+          python -m scripts.run_freeze2_pre_candidate_origin_resolution             --review-json "$review_json"             --output "$OUTPUT"             --target-location Hannover             --timeout-seconds 6             --http-request-cap 40             --max-generated-candidates 18             --wikidata-max-entities 3
 
       - name: Upload direct-origin evidence
         uses: actions/upload-artifact@v4
@@ -131,7 +131,8 @@ jobs:
                   f"**{item['resolution_state']}** — "
                   f"`{item.get('selected_url') or '-'}` — "
                   f"decision `{item['origin_decision']}` — "
-                  f"ATS `{','.join(item.get('ats_families') or []) or '-'}`"
+                  f"ATS `{','.join(item.get('ats_families') or []) or '-'}` — "
+                  f"inventory URLs **{(item.get('official_inventory') or {}).get('candidate_url_count', 0)}**"
               )
           lines.extend(
               [
