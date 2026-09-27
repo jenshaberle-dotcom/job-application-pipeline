@@ -17,7 +17,6 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-from scripts.run_origin_source_discovery_agent import load_local_env_file
 from src.config import get_database_config
 from src.connectors.base import SearchProfile, SearchTerm
 from src.connectors.registry import SourceRole, build_default_connector_registry
@@ -281,7 +280,6 @@ def _incremental_metrics(report: dict[str, Any]) -> dict[str, Any]:
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
-    load_local_env_file()
     authority = resolve_census_flight_authority(
         provider=args.provider,
         allow_paid_external_provider=args.allow_paid_external_provider,
