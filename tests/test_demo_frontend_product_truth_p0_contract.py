@@ -48,3 +48,13 @@ def test_global_fetch_is_never_monkeypatched() -> None:
     assert "installProductPayloadRuntimeAdapter" not in main
     assert "window.fetch =" not in adapter
     assert "response.clone().json()" not in adapter
+
+
+def test_product_truth_fail_closed_surface_retries_after_transport_recovery() -> None:
+    context = read("ProductTruthContext.tsx")
+
+    assert "if (!error) return;" in context
+    assert "window.setInterval" in context
+    assert "5_000" in context
+    assert "refreshProductTruth().catch(() => undefined)" in context
+    assert "[error, refreshProductTruth]" in context
