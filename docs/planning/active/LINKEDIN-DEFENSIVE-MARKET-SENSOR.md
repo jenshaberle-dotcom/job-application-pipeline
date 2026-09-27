@@ -146,11 +146,23 @@ The LinkedIn sensor owns **no search-provider implementation**. It emits bounded
 
 Current order:
 
-1. `duckduckgo_html` — default real backend; no API key and no paid-tool requirement;
-2. `tavily` — explicit optional backend/benchmark only;
-3. `none` — plan-only / zero external requests.
+1. `bing_rss` — current default candidate; keyless structured RSS and no paid-tool requirement;
+2. `duckduckgo_html` — retained diagnostic/free adapter, not default after real run `36316182144` returned zero accepted observations from six bounded queries;
+3. `tavily` — explicit optional residual/benchmark only;
+4. `none` — plan-only / zero external requests.
 
-There is no automatic fallback from the default backend to Tavily. A zero-yield or transport-error result is a valid bounded sensor outcome, not authorization to spend money.
+There is no automatic fallback from a free backend to Tavily. A zero-yield, challenge or transport-error result is a valid bounded sensor outcome, not authorization to spend money.
+
+The DDG result is intentionally **not** repaired with browser fingerprint impersonation, UA rotation, CAPTCHA handling or other anti-bot adaptation. Current public evidence reports HTTP 202/empty-result blocking for automated clients and SearXNG documents DDG's bot blocker/breaking-change risk:
+- https://github.com/nickclyde/duckduckgo-mcp-server/issues/46
+- https://github.com/searxng/searxng/blob/master/searx/engines/duckduckgo.py
+
+Bing RSS is evaluated because it returns structured XML without an API key or HTML result-page parsing. Microsoft historically documented RSS search-result feeds and the surface remains observable, but this is **not treated as a blanket commercial-use grant**. JAP's current use is personal/local; any commercial/public deployment requires a fresh terms review.
+- https://blogs.bing.com/search/2005/1/RSS-Feeds-for-Search-Results/
+- https://learn.microsoft.com/en-us/answers/questions/351603/bing-search-results-to-rss-not-working
+
+If Bing RSS is not reliable enough, the next preferred lane is self-hosted/open SearXNG JSON before a paid provider becomes necessary:
+- https://docs.searxng.org/dev/search_api
 
 Tavily was used for the first S0.5 real proof because that provider path already existed. It is not part of the LinkedIn architecture and is not required for future runs.
 
