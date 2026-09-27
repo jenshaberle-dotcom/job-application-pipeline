@@ -112,6 +112,8 @@ def test_sensor_boundary_has_no_product_or_platform_automation_authority() -> No
     assert BOUNDARY["platform_snippet_persistence"] == 0
     assert BOUNDARY["provider_raw_content_requests"] == 0
     assert BOUNDARY["provider_query_personal_data"] == 0
+    assert BOUNDARY["commercial_provider_required"] == 0
+    assert BOUNDARY["automatic_paid_fallback"] == 0
     assert BOUNDARY["database_writes"] == 0
     assert BOUNDARY["bronze_writes"] == 0
     assert BOUNDARY["silver_writes"] == 0
