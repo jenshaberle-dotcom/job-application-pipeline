@@ -4,9 +4,11 @@ The contract deliberately separates *search intent* from *transport*. Product
 logic must not depend on a paid provider. A backend may fail or return zero
 results without blocking the wider JAP pipeline.
 
-The default backend is DuckDuckGo's public HTML result surface because it needs
-no account, API key or paid plan. Tavily remains available only as an explicitly
-selected optional backend/benchmark; there is no automatic paid fallback.
+The default backend is Bing's keyless RSS result surface: structured XML, no
+account/API key and no paid plan. DuckDuckGo HTML remains a diagnostic/free
+adapter but is not default because current automated-client blocking can produce
+empty/challenge responses. Tavily remains explicit optional residual/benchmark
+only; there is no automatic paid fallback.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from src.search_intelligence.multi_origin_evidence import decode_search_redirect
 DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
 BING_RSS_URL = "https://www.bing.com/search"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
-DEFAULT_SEARCH_BACKEND = "duckduckgo_html"
+DEFAULT_SEARCH_BACKEND = "bing_rss"
 SUPPORTED_SEARCH_BACKENDS = ("duckduckgo_html", "bing_rss", "tavily")
 
 
