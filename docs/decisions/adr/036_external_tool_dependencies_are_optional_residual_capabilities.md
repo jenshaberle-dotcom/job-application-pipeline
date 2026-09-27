@@ -53,14 +53,14 @@ The conservative market sensor is split into three independent layers:
 - **search backend** — replaceable public-web transport;
 - **sensor specification** — declarative platform host/path acceptance and minimal company-signal extraction.
 
-Current backend order:
+Current backend authority:
 
-- default: `bing_rss` — keyless structured RSS, zero paid-tool requirement;
-- diagnostic/free adapter: `duckduckgo_html` — retained but not default after the real S0.5 proof returned zero yield and current 2026 evidence showed automated-client block/challenge behavior;
-- optional: `tavily` — explicit operator-selected residual/benchmark only;
-- `none` — plan-only / zero external requests.
+- default: `none` — zero external search requests and therefore zero vendor/billing dependency;
+- proven residual: `tavily` — explicit operator-selected search-index provider only;
+- diagnostic/free adapters: `duckduckgo_html` and `bing_rss` — retained for evidence/experiments but not production defaults after real qualification failed;
+- future official structured APIs may be admitted behind the same adapter contract after separate review.
 
-There is **no automatic fallback from a free backend to Tavily**. If Bing RSS is not sufficiently reliable, the next evaluated lane is a self-hosted/open alternative such as SearXNG before a paid provider can become necessary.
+There is **no automatic fallback to Tavily or any other paid/external provider**. A real market-expansion run must explicitly select its backend. If no provider is configured or paid, JAP continues to operate; only incremental market discovery is unavailable.
 
 LinkedIn therefore does not have a Tavily implementation. It has a platform specification consumed by the same general market-sensor/search-backend machinery as other discovery-only sources.
 
@@ -77,12 +77,15 @@ Each backend may report:
 
 The market sensor treats these as local discovery outcomes. They do not block JAP ingestion, Product V1, application tracking or drafting.
 
-If the default backend proves operationally unreliable, the response is:
+The free/self-controlled search investigation produced the following evidence:
 
-1. measure the failure mode;
-2. try a library/self-hosted/open alternative;
-3. only then evaluate an external API;
-4. keep the paid API optional unless evidence proves no viable self-controlled path exists.
+1. `duckduckgo_html`: real run `36316182144` produced 0 accepted observations from six queries; current external evidence shows automated-client HTTP-202/challenge behavior.
+2. `bing_rss`: real runs `36316916122` and `36317114804` each returned 30 results, all rejected as unexpected hosts even after simplifying search intent to a domain-only `site:` constraint.
+3. `ddgs`: library review found provider scraping, automatic backend fallback and optional proxy/Tor paths; some engines use randomized browser identities. It is not admitted into the defensive Core path.
+4. self-hosted SearXNG would add an operational service while still depending on upstream search-engine acquisition; it does not create an independent index and therefore does not remove the underlying reliability/policy dependency.
+5. Common Crawl is open/self-controlled but is a crawl URL/content archive rather than a current keyword/location search index, so it does not satisfy this market-sensor task.
+
+On that evidence, a structured external search API is a justified **residual capability**, but remains explicitly selected and non-authoritative.
 
 ## Security / legal boundary
 
