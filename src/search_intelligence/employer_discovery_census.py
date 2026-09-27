@@ -12,7 +12,10 @@ import hashlib
 from typing import Iterable
 
 from src.normalization.company_keys import normalize_company_key
-from src.silver.relevance import get_role_matches, is_relevant_for_silver
+from src.silver.relevance import (
+    get_role_matches,
+    get_skill_matches,
+)
 
 CENSUS_SCHEMA = "job_application_pipeline.employer_discovery_census.v1"
 CORE_SENSORS = (
@@ -77,10 +80,12 @@ def qualify_observation(observation: MarketJobObservation) -> QualifiedJob | Non
         return None
 
     raw_job = _as_silver_job(observation)
-    if not is_relevant_for_silver(raw_job):
-        return None
-
     roles = tuple(sorted(set(get_role_matches(raw_job))))
+    skills = tuple(sorted(set(get_skill_matches(raw_job))))
+    # Reuse canonical Silver role/skill semantics, but not Silver accessibility:
+    # Census discovery intentionally owns a more recall-oriented location policy.
+    if not roles and len(skills) < 2:
+        return None
     location = str(observation.location or "").casefold()
     local = "hannover" in location or "hanover" in location
     remote_de = observation.remote_signal and any(
