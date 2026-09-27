@@ -28,12 +28,12 @@ SENSOR_PLATFORMS = ("linkedin", "indeed")
 
 _PLATFORM_SPECS: dict[str, dict[str, object]] = {
     "linkedin": {
-        "site_query": "site:linkedin.com/jobs/view",
+        "search_site": "linkedin.com",
         "host_suffixes": ("linkedin.com",),
         "path_markers": ("/jobs/view/",),
     },
     "indeed": {
-        "site_query": "site:de.indeed.com/viewjob",
+        "search_site": "de.indeed.com",
         "host_suffixes": ("indeed.com",),
         "path_markers": ("/viewjob",),
     },
@@ -305,7 +305,7 @@ def build_sensor_queries(
     if not terms:
         return ()
 
-    site_query = str(_PLATFORM_SPECS[sensor]["site_query"])
+    site_query = f'site:{_PLATFORM_SPECS[sensor]["search_site"]}'
     result: list[SensorQuery] = []
     location_choices: tuple[str | None, ...] = locations or (None,)
 
