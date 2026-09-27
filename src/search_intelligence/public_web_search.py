@@ -41,6 +41,11 @@ class SearchBackendPolicy:
 
 
 BACKEND_POLICIES: Mapping[str, SearchBackendPolicy] = {
+    "none": SearchBackendPolicy(
+        name="none",
+        requires_secret=False,
+        paid_external_tool=False,
+    ),
     "duckduckgo_html": SearchBackendPolicy(
         name="duckduckgo_html",
         requires_secret=False,
