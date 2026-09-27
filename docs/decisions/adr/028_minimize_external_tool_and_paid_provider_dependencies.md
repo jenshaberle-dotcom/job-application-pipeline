@@ -75,9 +75,9 @@ The LinkedIn sensor is split into two independent concerns:
    - no direct LinkedIn HTTP/login/browser/unofficial API.
 
 2. **Generic public-search transport**
-   - current zero-cost/default candidate: bounded DuckDuckGo non-JavaScript HTML
-     search already used elsewhere in JAP;
-   - `provider=none` remains valid for planning/offline qualification;
+   - `provider=none` is the dependency-free runner default;
+   - the explicitly operator-triggered live workflow currently selects bounded
+     DuckDuckGo non-JavaScript HTML search already used elsewhere in JAP;
    - Tavily remains available only by explicit operator selection;
    - there is no automatic DuckDuckGo -> Tavily escalation.
 
