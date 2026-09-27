@@ -28,7 +28,7 @@ from src.search_intelligence.multi_origin_evidence import decode_search_redirect
 DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
 BING_RSS_URL = "https://www.bing.com/search"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
-DEFAULT_SEARCH_BACKEND = "bing_rss"
+DEFAULT_SEARCH_BACKEND = "none"
 SUPPORTED_SEARCH_BACKENDS = ("duckduckgo_html", "bing_rss", "tavily")
 
 
