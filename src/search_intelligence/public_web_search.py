@@ -22,7 +22,10 @@ from urllib.parse import urlencode
 
 import requests
 
-from src.search_intelligence.multi_origin_evidence import decode_search_redirect_url
+from src.search_intelligence.multi_origin_evidence import (
+    decode_search_redirect_url,
+    normalize_url,
+)
 
 
 DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
@@ -66,6 +69,7 @@ class PublicSearchResult:
     url: str
     title: str = ""
     snippet: str = ""
+    transport_link_kind: str = "direct"
 
 
 @dataclass(frozen=True)
@@ -117,6 +121,28 @@ class _DuckDuckGoResultParser(HTMLParser):
         self.rows.append((self._href, title))
         self._href = None
         self._text = []
+
+
+def _transport_link_kind(
+    *,
+    raw_url: str,
+    decoded_url: str,
+    backend_host_suffix: str,
+    redirect_path_prefix: str,
+    base_url: str | None = None,
+) -> str:
+    normalized_raw = normalize_url(raw_url, base_url=base_url)
+    if not normalized_raw:
+        return "invalid"
+    parsed = __import__("urllib.parse", fromlist=["urlparse"]).urlparse(normalized_raw)
+    raw_host = (parsed.hostname or "").casefold().strip(".")
+    is_backend_redirect = (
+        (raw_host == backend_host_suffix or raw_host.endswith("." + backend_host_suffix))
+        and parsed.path.casefold().startswith(redirect_path_prefix)
+    )
+    if not is_backend_redirect:
+        return "direct"
+    return "redirect_unwrapped" if decoded_url != normalized_raw else "redirect_unresolved"
 
 
 def _missing_or_placeholder_secret(value: str | None) -> bool:
@@ -189,6 +215,13 @@ def _duckduckgo_html_search(
                 url=decoded,
                 title=title,
                 snippet="",
+                transport_link_kind=_transport_link_kind(
+                    raw_url=raw_url,
+                    decoded_url=decoded,
+                    backend_host_suffix="duckduckgo.com",
+                    redirect_path_prefix="/l/",
+                    base_url=str(response.url),
+                ),
             )
         )
         if len(results) >= max_results:
@@ -281,6 +314,12 @@ def _bing_rss_search(
                 url=url_value,
                 title=" ".join(str(item.findtext("title") or "").split()),
                 snippet=" ".join(str(item.findtext("description") or "").split()),
+                transport_link_kind=_transport_link_kind(
+                    raw_url=raw_url,
+                    decoded_url=url_value,
+                    backend_host_suffix="bing.com",
+                    redirect_path_prefix="/ck/",
+                ),
             )
         )
         if len(results) >= max_results:
