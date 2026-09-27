@@ -193,7 +193,9 @@ def test_active_sensor_implementation_has_no_direct_linkedin_transport_stack() -
     ):
         assert forbidden not in active
 
+    assert "duckduckgo_html_search(" in runner
     assert "tavily_search(" in runner
+    assert 'default="duckduckgo_html"' in runner
     assert "site:linkedin.com/jobs/view" in module
 
 
@@ -209,3 +211,20 @@ def test_provider_path_stays_basic_without_raw_content_requests() -> None:
     assert '"include_answer": False' in provider
     assert '"include_raw_content": False' in provider
     assert "extract_depth" not in runner
+
+
+def test_paid_provider_is_explicit_optional_fallback_not_default() -> None:
+    runner = Path("scripts/run_freeze2_linkedin_indeed_market_sensors.py").read_text(
+        encoding="utf-8"
+    )
+    workflow = Path(
+        ".github/workflows/freeze2-linkedin-indeed-market-sensors.yml"
+    ).read_text(encoding="utf-8")
+
+    assert 'choices=("none", "duckduckgo_html", "tavily")' in runner
+    assert 'default="duckduckgo_html"' in runner
+    assert '"automatic_paid_fallback": False' in runner
+    assert "default: duckduckgo_html" in workflow
+    assert "PAID_PROVIDER_OPT_IN=YES" in workflow
+    assert '--provider "$SEARCH_BACKEND"' in workflow
+    assert "--provider tavily" not in workflow
