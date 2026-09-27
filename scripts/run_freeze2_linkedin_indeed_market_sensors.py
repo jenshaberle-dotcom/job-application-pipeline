@@ -141,6 +141,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         rejected_count = 0
         request_count = 0
         result_shape_counts: dict[str, int] = {}
+        transport_link_kind_counts: dict[str, int] = {}
 
         transport_status_counts: dict[str, int] = {}
         if args.provider != "none" and provider_available:
@@ -157,6 +158,9 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                     transport_status_counts.get(response.status, 0) + 1
                 )
                 for row in response.results:
+                    transport_link_kind_counts[row.transport_link_kind] = (
+                        transport_link_kind_counts.get(row.transport_link_kind, 0) + 1
+                    )
                     shape = classify_provider_result_shape(
                         sensor=sensor,
                         url=row.url,
@@ -193,6 +197,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "rejected_provider_result_count": rejected_count,
             "transport_status_counts": transport_status_counts,
             "result_shape_counts": result_shape_counts,
+            "transport_link_kind_counts": transport_link_kind_counts,
             "queries": [
                 {
                     "search_term": plan.search_term,
