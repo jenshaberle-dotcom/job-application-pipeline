@@ -102,7 +102,7 @@ def test_review_reuses_known_candidate_suppression_without_creating_candidates(
     assert report["boundary"]["candidate_creation"] == 0
 
 
-def test_groups_minimised_v2_sensor_artifact_without_raw_linkedin_content() -> None:
+def test_groups_minimised_v2_sensor_artifact() -> None:
     report = {
         "schema": "job_application_pipeline.freeze2_market_sensor_probe.v2",
         "provider": "tavily",
