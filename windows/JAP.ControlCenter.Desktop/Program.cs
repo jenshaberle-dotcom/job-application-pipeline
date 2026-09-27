@@ -233,6 +233,9 @@ internal sealed class MainWindow : Form
     private static readonly TimeSpan WebViewEnvironmentTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan WebViewControlTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan WebViewNavigationTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan RuntimeHealthInterval = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan RuntimeRecoveryCooldown = TimeSpan.FromSeconds(30);
+    private const int RuntimeFailuresBeforeRecovery = 2;
 
     private readonly string _installRoot;
     private readonly string _startupLog;
@@ -244,9 +247,13 @@ internal sealed class MainWindow : Form
     private readonly ProgressBar _progress;
     private readonly Label _elapsed;
     private readonly System.Windows.Forms.Timer _elapsedTimer;
+    private readonly System.Windows.Forms.Timer _runtimeHealthTimer;
     private readonly Stopwatch _startupWatch = new();
     private bool _allowClose;
     private bool _stopInProgress;
+    private bool _runtimeHealthCheckInProgress;
+    private int _runtimeHealthFailureCount;
+    private DateTimeOffset _nextRuntimeRecoveryAt = DateTimeOffset.MinValue;
 
     public MainWindow()
     {
@@ -370,6 +377,12 @@ internal sealed class MainWindow : Form
         };
         _elapsedTimer.Tick += (_, _) => UpdateElapsedLabel();
 
+        _runtimeHealthTimer = new System.Windows.Forms.Timer
+        {
+            Interval = (int)RuntimeHealthInterval.TotalMilliseconds
+        };
+        _runtimeHealthTimer.Tick += OnRuntimeHealthTick;
+
         Controls.Add(_webView);
         Controls.Add(_startupPanel);
         Shown += OnShown;
@@ -396,6 +409,9 @@ internal sealed class MainWindow : Form
             _startupPanel.Visible = false;
             _webView.Visible = true;
             _webView.BringToFront();
+            _runtimeHealthFailureCount = 0;
+            _nextRuntimeRecoveryAt = DateTimeOffset.MinValue;
+            _runtimeHealthTimer.Start();
         }
         catch (Exception exc)
         {
@@ -409,6 +425,110 @@ internal sealed class MainWindow : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             Close();
+        }
+    }
+
+    private async void OnRuntimeHealthTick(object? sender, EventArgs e)
+    {
+        if (_allowClose || _stopInProgress || _runtimeHealthCheckInProgress)
+        {
+            return;
+        }
+
+        _runtimeHealthCheckInProgress = true;
+        try
+        {
+            var healthy = false;
+            try
+            {
+                healthy = await _runtime.IsHealthyAsync();
+            }
+            catch (Exception exc)
+            {
+                WriteStartupPhase(
+                    "runtime_health_probe_failed",
+                    $"{exc.GetType().Name}: {exc.Message}");
+            }
+
+            if (_allowClose || _stopInProgress)
+            {
+                return;
+            }
+
+            if (healthy)
+            {
+                if (_runtimeHealthFailureCount > 0)
+                {
+                    WriteStartupPhase(
+                        "runtime_health_restored",
+                        $"failures={_runtimeHealthFailureCount}");
+                }
+                _runtimeHealthFailureCount = 0;
+                return;
+            }
+
+            _runtimeHealthFailureCount++;
+            WriteStartupPhase(
+                "runtime_health_unhealthy",
+                $"consecutive_failures={_runtimeHealthFailureCount}");
+
+            if (_runtimeHealthFailureCount < RuntimeFailuresBeforeRecovery
+                || DateTimeOffset.UtcNow < _nextRuntimeRecoveryAt)
+            {
+                return;
+            }
+
+            _nextRuntimeRecoveryAt = DateTimeOffset.UtcNow.Add(RuntimeRecoveryCooldown);
+            _runtimeHealthFailureCount = 0;
+            WriteStartupPhase(
+                "runtime_recovery_begin",
+                $"cooldown_seconds={RuntimeRecoveryCooldown.TotalSeconds:0}");
+
+            _runtimeHealthTimer.Stop();
+            _webView.Visible = false;
+            _startupPanel.Visible = true;
+            _startupPanel.BringToFront();
+            SetStartupPhase(
+                "runtime_recovery_start",
+                "JAP Runtime-Verbindung wurde unterbrochen. Wiederherstellung läuft …");
+
+            await StartManagedRuntimeAsync();
+            if (!await _runtime.IsHealthyAsync())
+            {
+                throw new InvalidOperationException(
+                    "JAP Runtime blieb nach dem Wiederherstellungsversuch nicht erreichbar.");
+            }
+
+            WriteStartupPhase("runtime_recovery_success");
+            SetStartupPhase(
+                "runtime_recovery_ready",
+                "JAP Runtime ist wieder bereit. Oberfläche wird neu geladen …");
+
+            var core = _webView.CoreWebView2
+                ?? throw new InvalidOperationException(
+                    "WebView2 ist während der Runtime-Wiederherstellung nicht verfügbar.");
+            core.Navigate(ProductUri.AbsoluteUri);
+            _startupPanel.Visible = false;
+            _webView.Visible = true;
+            _webView.BringToFront();
+        }
+        catch (Exception exc)
+        {
+            WriteStartupPhase("runtime_recovery_failed", exc.ToString());
+            _startupPanel.Visible = true;
+            _startupPanel.BringToFront();
+            _webView.Visible = false;
+            SetStartupPhase(
+                "runtime_recovery_wait",
+                "JAP Runtime konnte noch nicht wiederhergestellt werden. Neuer Versuch folgt automatisch …");
+        }
+        finally
+        {
+            _runtimeHealthCheckInProgress = false;
+            if (!_allowClose && !_stopInProgress)
+            {
+                _runtimeHealthTimer.Start();
+            }
         }
     }
 
@@ -597,6 +717,9 @@ internal sealed class MainWindow : Form
             "webview_environment_start" => ("Schritt 3 von 5 · Desktop-Engine vorbereiten", 52),
             "webview_control_start" => ("Schritt 4 von 5 · Desktop-Fenster initialisieren", 72),
             "product_navigation_start" => ("Schritt 5 von 5 · JAP Oberfläche laden", 88),
+            "runtime_recovery_start" => ("Runtime-Recovery · Verbindung wiederherstellen", 35),
+            "runtime_recovery_ready" => ("Runtime-Recovery · Oberfläche neu laden", 88),
+            "runtime_recovery_wait" => ("Runtime-Recovery · nächster Versuch", 20),
             "ready" => ("Bereit · JAP Control Center", 100),
             _ => ("JAP Control Center wird vorbereitet", 5)
         };
@@ -705,6 +828,7 @@ internal sealed class MainWindow : Form
         }
 
         _stopInProgress = true;
+        _runtimeHealthTimer.Stop();
         _elapsedTimer.Stop();
         WriteStartupPhase("shutdown_begin", "Desktop window hidden; managed runtime stop begins.");
         Hide();
@@ -741,6 +865,8 @@ internal sealed class MainWindow : Form
     {
         if (disposing)
         {
+            _runtimeHealthTimer.Stop();
+            _runtimeHealthTimer.Dispose();
             _runtime.Dispose();
         }
 

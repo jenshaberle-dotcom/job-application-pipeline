@@ -75,6 +75,16 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshProductTruth]);
 
+  useEffect(() => {
+    if (!error) return;
+
+    const retry = window.setInterval(() => {
+      void refreshProductTruth().catch(() => undefined);
+    }, 5_000);
+
+    return () => window.clearInterval(retry);
+  }, [error, refreshProductTruth]);
+
   const value = useMemo<ProductTruthContextValue>(
     () => ({ payload, error, refreshing, refreshProductTruth }),
     [payload, error, refreshing, refreshProductTruth],
