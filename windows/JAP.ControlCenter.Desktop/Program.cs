@@ -17,12 +17,13 @@ internal static class Program
     {
         if (args.Any(argument => string.Equals(argument, "--stage-update", StringComparison.OrdinalIgnoreCase)))
         {
-            return ProductUpdateAgent.RunFromCommandLineAsync(args).GetAwaiter().GetResult();
+            return ExitCommand(
+                ProductUpdateAgent.RunFromCommandLineAsync(args).GetAwaiter().GetResult());
         }
 
         if (args.Any(argument => string.Equals(argument, "--apply-update", StringComparison.OrdinalIgnoreCase)))
         {
-            return ProductUpdateApplier.RunFromCommandLine(args);
+            return ExitCommand(ProductUpdateApplier.RunFromCommandLine(args));
         }
 
         var installRoot = ResolveInstallRoot();
@@ -111,6 +112,12 @@ internal static class Program
                 mutex.ReleaseMutex();
             }
         }
+    }
+
+    private static int ExitCommand(int exitCode)
+    {
+        Environment.Exit(exitCode);
+        return exitCode;
     }
 
     private static bool IsProductUpdateHandoffInProgress()
