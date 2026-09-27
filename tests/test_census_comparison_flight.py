@@ -110,5 +110,6 @@ def test_comparison_script_has_no_write_or_direct_board_transport_authority():
         "requests.get",
         "requests.post",
         "run_origin_source_discovery_agent",
+        "src.connectors.registry",
     ):
         assert forbidden not in source
