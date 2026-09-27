@@ -110,6 +110,8 @@ def test_sensor_boundary_has_no_product_or_platform_automation_authority() -> No
     assert BOUNDARY["platform_url_persistence"] == 0
     assert BOUNDARY["platform_title_persistence"] == 0
     assert BOUNDARY["platform_snippet_persistence"] == 0
+    assert BOUNDARY["provider_raw_content_requests"] == 0
+    assert BOUNDARY["provider_query_personal_data"] == 0
     assert BOUNDARY["database_writes"] == 0
     assert BOUNDARY["bronze_writes"] == 0
     assert BOUNDARY["silver_writes"] == 0
@@ -193,3 +195,13 @@ def test_active_sensor_implementation_has_no_direct_linkedin_transport_stack() -
 
     assert "tavily_search(" in runner
     assert "site:linkedin.com/jobs/view" in module
+
+
+def test_provider_path_stays_basic_without_raw_content_requests() -> None:
+    runner = Path("scripts/run_freeze2_linkedin_indeed_market_sensors.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'search_depth="basic"' in runner
+    assert "include_raw_content" not in runner
+    assert "extract_depth" not in runner
