@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
 import requests
 
 from src.search_intelligence.public_web_search import (
     BACKEND_POLICIES,
     DEFAULT_SEARCH_BACKEND,
+    SUPPORTED_SEARCH_BACKENDS,
     backend_available,
     search_public_web,
 )
@@ -14,8 +16,6 @@ from src.search_intelligence.public_web_search import (
 
 @dataclass
 class _FakeResponse:
-    text: str = ""
-    url: str = "https://html.duckduckgo.com/html/"
     status_code: int = 200
     payload: object | None = None
 
@@ -29,88 +29,22 @@ class _FakeResponse:
         return self.payload
 
 
-def test_default_backend_is_zero_key_and_not_paid() -> None:
-    assert DEFAULT_SEARCH_BACKEND == "bing_rss"
-    policy = BACKEND_POLICIES[DEFAULT_SEARCH_BACKEND]
-    assert policy.requires_secret is False
-    assert policy.paid_external_tool is False
-    assert policy.automatic_fallback_allowed is False
+def test_default_market_search_backend_is_none() -> None:
+    assert DEFAULT_SEARCH_BACKEND == "none"
+    assert "none" not in BACKEND_POLICIES
+    assert "duckduckgo_html" not in SUPPORTED_SEARCH_BACKENDS
+    assert "bing_rss" not in SUPPORTED_SEARCH_BACKENDS
+    assert SUPPORTED_SEARCH_BACKENDS == ("tavily",)
 
 
-def test_duckduckgo_html_extracts_generic_result_without_platform_logic() -> None:
-    html = """
-    <html><body>
-      <a class="result__a"
-         href="/l/?uddg=https%3A%2F%2Fwww.linkedin.com%2Fjobs%2Fview%2F123456%2F">
-         HDI Group sucht AI Architect
-      </a>
-      <a class="result__a"
-         href="/l/?uddg=https%3A%2F%2Fexample.com%2Fcareers%2Fdata">
-         Example careers
-      </a>
-    </body></html>
-    """
-
-    calls: list[str] = []
-
-    def request_get(url: str, **_: object) -> _FakeResponse:
-        calls.append(url)
-        return _FakeResponse(text=html, url=url)
-
-    result = search_public_web(
-        provider="duckduckgo_html",
-        query='site:linkedin.com/jobs/view "AI Architect" "Hannover"',
-        max_results=5,
-        timeout_seconds=2.0,
-        request_get=request_get,
-    )
-
-    assert result.status == "ok"
-    assert result.request_count == 1
-    assert len(calls) == 1
-    assert [item.url for item in result.results] == [
-        "https://www.linkedin.com/jobs/view/123456/",
-        "https://example.com/careers/data",
-    ]
-    assert result.results[0].title == "HDI Group sucht AI Architect"
-    assert result.results[0].snippet == ""
-    assert result.results[0].provider == "duckduckgo_html"
-
-
-def test_default_backend_failure_never_calls_paid_backend() -> None:
-    post_calls = 0
-
-    def request_get(*_: object, **__: object) -> _FakeResponse:
-        raise requests.ConnectionError("offline")
-
-    def request_post(*_: object, **__: object) -> _FakeResponse:
-        nonlocal post_calls
-        post_calls += 1
-        return _FakeResponse(payload={"results": []})
-
-    result = search_public_web(
-        provider="duckduckgo_html",
-        query="bounded query",
-        max_results=5,
-        timeout_seconds=1.0,
-        request_get=request_get,
-        request_post=request_post,
-    )
-
-    assert result.status == "transport_error"
-    assert result.request_count == 1
-    assert result.results == ()
-    assert post_calls == 0
-
-
-def test_tavily_is_explicit_optional_backend(monkeypatch) -> None:
+def test_tavily_is_explicit_optional_residual_backend(monkeypatch) -> None:
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
 
-    assert backend_available("duckduckgo_html") is True
     assert backend_available("tavily") is False
-    assert BACKEND_POLICIES["tavily"].requires_secret is True
-    assert BACKEND_POLICIES["tavily"].paid_external_tool is True
-    assert BACKEND_POLICIES["tavily"].automatic_fallback_allowed is False
+    policy = BACKEND_POLICIES["tavily"]
+    assert policy.requires_secret is True
+    assert policy.paid_external_tool is True
+    assert policy.automatic_fallback_allowed is False
 
     result = search_public_web(
         provider="tavily",
@@ -123,91 +57,52 @@ def test_tavily_is_explicit_optional_backend(monkeypatch) -> None:
     assert result.results == ()
 
 
-def test_duckduckgo_http_202_empty_page_is_block_signal_not_zero_yield() -> None:
-    def request_get(url: str, **_: object) -> _FakeResponse:
+def test_tavily_request_stays_basic_without_raw_content(monkeypatch) -> None:
+    monkeypatch.setenv("TAVILY_API_KEY", "test-key")
+    calls: list[dict[str, object]] = []
+
+    def request_post(url: str, **kwargs: object) -> _FakeResponse:
+        calls.append({"url": url, **kwargs})
         return _FakeResponse(
-            text="<html><body><form id=\"challenge-form\"></form></body></html>",
-            url=url,
-            status_code=202,
+            payload={
+                "results": [
+                    {
+                        "url": "https://www.linkedin.com/jobs/view/123456/",
+                        "title": "HDI Group sucht AI Architect",
+                        "content": "Bounded public search snippet",
+                    }
+                ]
+            }
         )
 
     result = search_public_web(
-        provider="duckduckgo_html",
-        query="bounded query",
-        max_results=5,
-        timeout_seconds=1.0,
-        request_get=request_get,
-    )
-
-    assert result.status == "blocked_or_challenge"
-    assert result.request_count == 1
-    assert result.results == ()
-    assert result.error_type == "http_202"
-
-
-def test_bing_rss_parses_keyless_structured_results() -> None:
-    rss = """<?xml version="1.0" encoding="utf-8"?>
-    <rss version="2.0"><channel>
-      <item>
-        <title>HDI Group sucht AI Architect in Hannover | LinkedIn</title>
-        <link>https://de.linkedin.com/jobs/view/ai-architect-at-hdi-group-123456</link>
-        <description>HDI Group Hannover</description>
-      </item>
-      <item>
-        <title>Example careers</title>
-        <link>https://example.com/careers</link>
-        <description>Example</description>
-      </item>
-    </channel></rss>"""
-
-    calls: list[str] = []
-
-    def request_get(url: str, **_: object) -> _FakeResponse:
-        calls.append(url)
-        return _FakeResponse(text=rss, url=url)
-
-    result = search_public_web(
-        provider="bing_rss",
-        query='site:linkedin.com/jobs/view "AI Architect" "Hannover"',
+        provider="tavily",
+        query='"linkedin.com/jobs/view" "AI Architect" "Hannover" Germany',
         max_results=5,
         timeout_seconds=2.0,
-        request_get=request_get,
+        request_post=request_post,
     )
 
     assert result.status == "ok"
     assert result.request_count == 1
-    assert len(calls) == 1
-    assert "format=rss" in calls[0]
-    assert result.results[0].provider == "bing_rss"
-    assert result.results[0].url.startswith("https://de.linkedin.com/jobs/view/")
-    assert result.results[0].transport_link_kind == "direct"
-    assert result.results[0].title.startswith("HDI Group sucht AI Architect")
-    assert result.results[0].snippet == "HDI Group Hannover"
-
-
-def test_bing_rss_unwraps_click_tracking_before_returning_result() -> None:
-    rss = """<?xml version="1.0" encoding="utf-8"?>
-    <rss version="2.0"><channel>
-      <item>
-        <title>HDI Group sucht AI Architect in Hannover | LinkedIn</title>
-        <link>https://www.bing.com/ck/a?u=a1aHR0cHM6Ly9kZS5saW5rZWRpbi5jb20vam9icy92aWV3LzEyMzQ1Ni8&amp;ntb=1</link>
-        <description>HDI Group Hannover</description>
-      </item>
-    </channel></rss>"""
-
-    def request_get(url: str, **_: object) -> _FakeResponse:
-        return _FakeResponse(text=rss, url=url)
-
-    result = search_public_web(
-        provider="bing_rss",
-        query='site:linkedin.com "AI Architect" "Hannover"',
-        max_results=5,
-        timeout_seconds=2.0,
-        request_get=request_get,
-    )
-
-    assert result.status == "ok"
     assert len(result.results) == 1
-    assert result.results[0].url == "https://de.linkedin.com/jobs/view/123456/"
-    assert "bing.com/ck/" not in result.results[0].url
-    assert result.results[0].transport_link_kind == "redirect_unwrapped"
+    assert result.results[0].provider == "tavily"
+    assert result.results[0].transport_link_kind == "direct"
+
+    assert len(calls) == 1
+    payload = calls[0]["json"]
+    assert isinstance(payload, dict)
+    assert payload["search_depth"] == "basic"
+    assert payload["include_answer"] is False
+    assert payload["include_raw_content"] is False
+
+
+def test_removed_free_backends_are_not_silently_callable() -> None:
+    for provider in ("duckduckgo_html", "bing_rss"):
+        with pytest.raises(ValueError, match="Unsupported public search backend"):
+            search_public_web(
+                provider=provider,
+                query="bounded query",
+                max_results=5,
+                timeout_seconds=1.0,
+            )

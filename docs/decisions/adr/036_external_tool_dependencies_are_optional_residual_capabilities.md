@@ -37,7 +37,7 @@ A lower-numbered viable implementation is preferred when quality is sufficient.
 1. **No core pipeline path may require a paid external tool merely because it was convenient during development.**
 2. Paid/external backends must sit behind a replaceable interface or adapter.
 3. Failure, quota exhaustion or removal of an optional backend must not stop unrelated JAP product paths.
-4. A free/default backend may return zero yield or fail closed. That does not automatically authorize a paid fallback.
+4. The default market-sensor state may be no provider at all. A missing/unavailable optional backend is a valid local outcome and never authorizes another provider automatically.
 5. Paid fallback requires an explicit operator/configuration choice unless a separately reviewed authority says otherwise.
 6. Provider-specific response parsing belongs inside the provider adapter. Product/search intent and source/sensor logic must remain provider-independent.
 7. Source/platform-specific logic should be declarative where practical: host/path acceptance, source capabilities and minimal evidence extraction. It must not own transport credentials, retry/evasion behavior or billing assumptions.
@@ -53,16 +53,21 @@ The conservative market sensor is split into three independent layers:
 - **search backend** — replaceable public-web transport;
 - **sensor specification** — declarative platform host/path acceptance and minimal company-signal extraction.
 
-Current backend order:
+Current market-sensor provider authority:
 
-- default: `bing_rss` — keyless structured RSS, zero paid-tool requirement;
-- diagnostic/free adapter: `duckduckgo_html` — retained but not default after the real S0.5 proof returned zero yield and current 2026 evidence showed automated-client block/challenge behavior;
-- optional: `tavily` — explicit operator-selected residual/benchmark only;
-- `none` — plan-only / zero external requests.
+- default: `none` — zero external requests and zero provider dependency;
+- admitted residual adapter: `tavily` — explicit operator selection only; never automatic and never required by unrelated JAP paths.
 
-There is **no automatic fallback from a free backend to Tavily**. If Bing RSS is not sufficiently reliable, the next evaluated lane is a self-hosted/open alternative such as SearXNG before a paid provider can become necessary.
+The two zero-key experiments are **qualification history, not active backends**:
 
-LinkedIn therefore does not have a Tavily implementation. It has a platform specification consumed by the same general market-sensor/search-backend machinery as other discovery-only sources.
+- `duckduckgo_html`: real run `36316182144` made six bounded requests and yielded zero accepted observations; current automated-client challenge/block behavior is not worked around with impersonation, proxy rotation or CAPTCHA/evasion mechanics;
+- `bing_rss`: aggregate diagnostics proved the transport itself was reachable but unsuitable for strict LinkedIn job-detail discovery. Run `36325970818` returned 30 direct off-domain results; after a declarative quoted URL hint, run `36326241225` returned 30 direct LinkedIn-domain results but all 30 failed the required job-detail path.
+
+These failed experiments are removed from the active market-sensor adapter set rather than retained as misleading fallback authority.
+
+No automatic provider fallback exists. Future library/self-hosted/open alternatives require a separate evidence and legal/anti-evasion review before admission. The `ddgs` family is not admitted merely because it is a library: its browser-impersonation/proxy-oriented compatibility mechanisms conflict with the conservative GREEN boundary. A self-hosted service such as SearXNG is likewise not introduced until its operational value justifies another runtime dependency.
+
+LinkedIn therefore does not have a Tavily implementation. It has a platform specification consumed by generic search intent/result-validation machinery. Tavily is only one optional transport adapter around that generic contract.
 
 ## Reliability boundary
 
@@ -77,12 +82,14 @@ Each backend may report:
 
 The market sensor treats these as local discovery outcomes. They do not block JAP ingestion, Product V1, application tracking or drafting.
 
-If the default backend proves operationally unreliable, the response is:
+When a zero-cost/self-controlled candidate is evaluated:
 
 1. measure the failure mode;
-2. try a library/self-hosted/open alternative;
-3. only then evaluate an external API;
-4. keep the paid API optional unless evidence proves no viable self-controlled path exists.
+2. reject it rather than add evasion if reliability depends on anti-bot adaptation;
+3. evaluate another library/self-hosted/open alternative only when its operational and legal boundary is clear;
+4. keep any external API optional unless evidence proves that it is worth the explicit dependency.
+
+Failure to find a sufficiently reliable free backend does not make a paid provider part of Product truth; it may simply leave the optional sensor dormant.
 
 ## Security / legal boundary
 
@@ -109,15 +116,15 @@ Positive:
 
 Trade-offs:
 
-- free/public backends may be less stable or lower-yield;
-- JAP owns a small amount of generic provider-adapter code;
-- empirical quality must be measured before retiring a stronger optional provider.
+- the conservative sensor may be dormant when no explicitly selected provider is available;
+- JAP owns a small generic adapter boundary without pretending an unreliable free transport is production-ready;
+- external-provider quality and cost remain explicit operator choices.
 
 ## Validation
 
 A market-sensor backend change is acceptable only when:
 
-- the default path runs without Tavily credentials or any paid-search account;
+- the default path performs zero external provider requests and requires no credentials/account;
 - the paid provider is not called implicitly;
 - platform-specific sensor code contains no direct provider transport;
 - real proof records backend identity, request count and outcome;

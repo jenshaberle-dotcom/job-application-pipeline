@@ -1,9 +1,10 @@
 """Run bounded discovery-only market sensors over a replaceable search backend.
 
 Search intent, platform acceptance and provider transport are deliberately
-separate. The default real backend is zero-key/zero-paid-tool DuckDuckGo HTML.
-Tavily is an explicit optional backend only; failure of the default backend never
-triggers an automatic paid fallback.
+separate. The default is provider=none and performs zero external requests.
+Tavily is an explicit optional residual backend only; missing credentials, quota
+or provider availability never blocks unrelated JAP paths and never triggers a
+fallback.
 
 The script reads current active sensor intent from PostgreSQL under a read-only
 transaction and emits minimised discovery evidence only. Platform URLs, titles
@@ -257,8 +258,8 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("none", *SUPPORTED_SEARCH_BACKENDS),
         default=DEFAULT_SEARCH_BACKEND,
         help=(
-            "Replaceable search transport. Defaults to zero-key duckduckgo_html; "
-            "tavily is explicit optional fallback/benchmark only."
+            "Replaceable search transport. Defaults to none (zero requests); "
+            "tavily is an explicit optional residual backend only."
         ),
     )
     parser.add_argument("--max-terms", type=int, default=3)
