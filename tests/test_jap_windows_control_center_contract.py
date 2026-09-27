@@ -12,6 +12,8 @@ DESKTOP_ROOT = ROOT / "windows" / "JAP.ControlCenter.Desktop"
 DESKTOP_PROJECT = DESKTOP_ROOT / "JAP.ControlCenter.Desktop.csproj"
 DESKTOP_PROGRAM = DESKTOP_ROOT / "Program.cs"
 DESKTOP_RUNTIME = DESKTOP_ROOT / "ManagedRuntimeController.cs"
+DESKTOP_UPDATE_AGENT = DESKTOP_ROOT / "ProductUpdateAgent.cs"
+DESKTOP_UPDATE_COORDINATOR = DESKTOP_ROOT / "UpdateCoordinator.cs"
 DESKTOP_VERSION = DESKTOP_ROOT / "VERSION"
 DESKTOP_COMPATIBILITY = DESKTOP_ROOT / "UPDATE_COMPATIBILITY.json"
 DESKTOP_RELEASE_WORKFLOW = (
@@ -201,14 +203,21 @@ def test_desktop_runtime_liveness_watchdog_keeps_single_runtime_authority() -> N
     assert "Process.Start" not in program[program.index("private async void OnRuntimeHealthTick"):program.index("private async Task StartManagedRuntimeAsync")]
 
 
-def test_cli_modes_return_process_exit_codes_directly_from_winexe_entry_point() -> None:
-    program = _text(DESKTOP_PROGRAM)
+def test_stage_agent_receipt_is_authoritative_over_winexe_host_exit() -> None:
+    agent = _text(DESKTOP_UPDATE_AGENT)
+    coordinator = _text(DESKTOP_UPDATE_COORDINATOR)
 
-    assert "private static int Main(string[] args)" in program
-    assert "return ExitCommand(" in program
-    assert "ProductUpdateAgent.RunFromCommandLineAsync(args).GetAwaiter().GetResult()" in program
-    assert "ExitCommand(ProductUpdateApplier.RunFromCommandLine(args))" in program
-    assert "private static int ExitCommand(int exitCode)" in program
-    assert "Environment.Exit(exitCode);" in program
-    assert "Environment.ExitCode = ProductUpdateAgent" not in program
-    assert "Environment.ExitCode = ProductUpdateApplier" not in program
+    assert "windows_product_update_stage_result.v1" in agent
+    assert "--stage-request-id" in agent
+    assert "WriteStageResultAsync" in agent
+    assert '"product-update-stage-result.json"' in agent
+    assert "request_id = stageRequestId" in agent
+    assert "managed_exit_code = managedExitCode" in agent
+
+    assert "Guid.NewGuid().ToString(\"N\")" in coordinator
+    assert '"--stage-request-id"' in coordinator
+    assert "ReadStageResult(stageRequestId)" in coordinator
+    assert "stageResult is null || !stageResult.Success" in coordinator
+    assert "product_update_agent_host_exit_non_authoritative" in coordinator
+    assert "process.ExitCode != stageResult.ManagedExitCode" in coordinator
+    assert "product_update_agent_failed" in coordinator
