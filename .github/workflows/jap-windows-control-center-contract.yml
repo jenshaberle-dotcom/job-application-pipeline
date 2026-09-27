@@ -192,7 +192,7 @@ jobs:
           }
           Write-Host "JAP_DESKTOP_HOST_BUILD=PASS exe=$Exe"
 
-      - name: Prove WinExe stage no-update exit code is zero
+      - name: Prove WinExe stage completion receipt is authoritative
         shell: powershell
         run: |
           $Out = Join-Path $env:RUNNER_TEMP "jap-desktop-host"
@@ -211,31 +211,52 @@ jobs:
           }
           "@ | Set-Content -Path (Join-Path $InstallRoot "current.json") -Encoding UTF8
 
+          $RequestId = [guid]::NewGuid().ToString("N")
           $Process = Start-Process `
             -FilePath $Exe `
-            -ArgumentList @("--stage-update", "--install-root", $InstallRoot) `
+            -ArgumentList @(
+              "--stage-update",
+              "--install-root",
+              $InstallRoot,
+              "--stage-request-id",
+              $RequestId
+            ) `
             -WorkingDirectory $InstallRoot `
             -Wait `
             -PassThru
-          $Exit = $Process.ExitCode
-          Write-Host "JAP_STAGE_NO_UPDATE_EXIT_CODE=$Exit"
-          if ($Exit -ne 0) {
-            $AgentLog = Join-Path $InstallRoot "logs\product-update-agent.log"
-            if (Test-Path $AgentLog) {
-              Get-Content $AgentLog -Tail 40
-            }
-            throw "Expected --stage-update no-update process exit code 0, got $Exit"
+
+          Write-Host "JAP_STAGE_HOST_EXIT_CODE=$($Process.ExitCode)"
+
+          $ReceiptPath = Join-Path $InstallRoot "state\product-update-stage-result.json"
+          if (-not (Test-Path $ReceiptPath)) {
+            throw "Product update stage receipt is missing."
+          }
+          $Receipt = Get-Content $ReceiptPath -Raw | ConvertFrom-Json
+          if ($Receipt.schema -ne "job_application_pipeline.windows_product_update_stage_result.v1") {
+            throw "Product update stage receipt schema mismatch."
+          }
+          if ($Receipt.request_id -ne $RequestId) {
+            throw "Product update stage receipt request id mismatch."
+          }
+          if ($Receipt.success -ne $true) {
+            throw "Product update stage receipt did not report success."
+          }
+          if ($Receipt.result -ne "no_update") {
+            throw "Expected no_update stage result, got $($Receipt.result)"
+          }
+          if ([int]$Receipt.managed_exit_code -ne 0) {
+            throw "Managed update-agent exit contract was not success."
           }
 
           $AgentLog = Join-Path $InstallRoot "logs\product-update-agent.log"
           if (-not (Test-Path $AgentLog)) {
-            throw "Product update agent log missing from no-update process proof."
+            throw "Product update agent log missing from stage receipt proof."
           }
           $AgentText = Get-Content $AgentLog -Raw
           if ($AgentText -notmatch "stage_complete\s+result=no_update") {
             throw "Product update agent did not prove the no-update result."
           }
-          Write-Host "JAP_STAGE_NO_UPDATE_PROCESS_CONTRACT=PASS"
+          Write-Host "JAP_STAGE_RECEIPT_AUTHORITY_CONTRACT=PASS"
 
   wsl-wrapper-contract:
     name: Validate WSL wrapper and static contracts
