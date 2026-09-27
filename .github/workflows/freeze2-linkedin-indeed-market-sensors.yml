@@ -15,9 +15,10 @@ on:
       search_backend:
         description: "Replaceable search backend; paid provider is never automatic"
         required: true
-        default: bing_rss
+        default: searxng_json
         type: choice
         options:
+          - searxng_json
           - duckduckgo_html
           - bing_rss
           - tavily
@@ -55,6 +56,7 @@ jobs:
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       SENSOR_OUTPUT: /tmp/freeze2-linkedin-indeed-market-sensors.json
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      SEARXNG_BASE_URL: ${{ vars.SEARXNG_BASE_URL }}
       WORKFLOW_SENSOR_SCOPE: ${{ inputs.sensor_scope }}
       WORKFLOW_SEARCH_BACKEND: ${{ inputs.search_backend }}
       COMMENT_BODY: ${{ github.event.comment.body }}
@@ -151,11 +153,11 @@ jobs:
         run: |
           set -euo pipefail
           backend="${WORKFLOW_SEARCH_BACKEND:-}"
-          if [[ -z "$backend" && "${COMMENT_BODY:-}" =~ backend=(duckduckgo_html|bing_rss|tavily|none) ]]; then
+          if [[ -z "$backend" && "${COMMENT_BODY:-}" =~ backend=(searxng_json|searxng_json|duckduckgo_html|bing_rss|tavily|none) ]]; then
             backend="${BASH_REMATCH[1]}"
           fi
           if [[ -z "$backend" ]]; then
-            backend="bing_rss"
+            backend="searxng_json"
           fi
           case "$backend" in
             duckduckgo_html|bing_rss|tavily|none) ;;
