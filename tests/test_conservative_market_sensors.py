@@ -233,7 +233,7 @@ def test_active_sensor_implementation_has_no_direct_linkedin_transport_stack() -
     assert '"path_markers": ("/jobs/view/",)' in module
 
 
-def test_market_sensor_uses_replaceable_zero_cost_first_search_backend() -> None:
+def test_market_sensor_defaults_to_no_external_backend() -> None:
     runner = Path("scripts/run_freeze2_linkedin_indeed_market_sensors.py").read_text(
         encoding="utf-8"
     )
@@ -243,7 +243,10 @@ def test_market_sensor_uses_replaceable_zero_cost_first_search_backend() -> None
 
     assert "DEFAULT_SEARCH_BACKEND" in runner
     assert "default=DEFAULT_SEARCH_BACKEND" in runner
-    assert 'DEFAULT_SEARCH_BACKEND = "bing_rss"' in backend
+    assert 'DEFAULT_SEARCH_BACKEND = "none"' in backend
+    assert 'SUPPORTED_SEARCH_BACKENDS = ("tavily",)' in backend
+    assert "duckduckgo_html" not in backend
+    assert "bing_rss" not in backend
     assert 'if args.provider == "tavily"' not in runner
     assert '"include_answer": False' in backend
     assert '"include_raw_content": False' in backend
