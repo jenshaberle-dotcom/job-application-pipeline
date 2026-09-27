@@ -63,6 +63,7 @@ are used as active architecture anchors.
 | ADR-033 | Accepted | Current | Keep; Search Intelligence safety/security boundary remains active. | `docs/reference/security/safety_security_state_architecture.md` |
 | ADR-034 | Accepted | Current | Keep; one JAP product may coexist across local/offline and cloud runtimes while sharing product semantics and explicit succession evidence. | `docs/current/architecture.md` |
 | ADR-035 | Accepted for implementation | Current | Keep; scale employer-origin execution through portable work items and shared worker runtimes rather than per-employer deployments. | `docs/current/architecture.md`, `src/ingestion/connector_work_item.py` |
+| ADR-036 | Accepted | Current | Keep; external/paid tools are optional residual capabilities behind replaceable adapters, never silent core dependencies. | `docs/planning/active/LINKEDIN-DEFENSIVE-MARKET-SENSOR.md`, `src/search_intelligence/public_web_search.py` |
 
 ## Immediate follow-up queue
 
