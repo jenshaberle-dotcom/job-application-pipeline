@@ -214,5 +214,5 @@ def test_market_sensor_uses_replaceable_zero_cost_first_search_backend() -> None
     assert 'if args.provider == "tavily"' not in runner
     assert '"include_answer": False' in backend
     assert '"include_raw_content": False' in backend
-    assert "automatic_fallback_allowed=False" in backend
+    assert "automatic_fallback_allowed: bool = False" in backend
     assert "linkedin.com" not in backend
