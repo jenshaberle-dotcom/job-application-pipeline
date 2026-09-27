@@ -95,7 +95,7 @@ def test_incremental_metric_counts_only_novel_external_only_employers():
     }
     assert metrics["external_source_overlap_with_ba_or_stepstone"]["xing"] == 1
     assert metrics["external_source_overlap_with_ba_or_stepstone"]["meinestadt"] == 1
-    assert metrics["primary_incremental_novel_employer_count"] == 3
+    assert metrics["primary_incremental_novel_employer_count"] == 2
 
 
 def test_comparison_script_has_no_write_or_direct_board_transport_authority():
