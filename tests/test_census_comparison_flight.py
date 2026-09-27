@@ -1,7 +1,3 @@
-from argparse import Namespace
-
-import pytest
-
 from scripts.run_job_first_employer_discovery_census_comparison import (
     _incremental_metrics,
     _run_external_index_sources,
