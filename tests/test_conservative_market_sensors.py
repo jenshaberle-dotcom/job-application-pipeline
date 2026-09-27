@@ -201,7 +201,11 @@ def test_provider_path_stays_basic_without_raw_content_requests() -> None:
     runner = Path("scripts/run_freeze2_linkedin_indeed_market_sensors.py").read_text(
         encoding="utf-8"
     )
+    provider = Path("scripts/run_origin_source_discovery_agent.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'search_depth="basic"' in runner
-    assert "include_raw_content" not in runner
+    assert '"include_answer": False' in provider
+    assert '"include_raw_content": False' in provider
     assert "extract_depth" not in runner
