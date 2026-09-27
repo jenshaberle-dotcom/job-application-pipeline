@@ -1,7 +1,7 @@
 """Read-only job-first Employer Discovery Census for JAP Classic.
 
 Every employer admitted to the census must be backed by at least one current job
-observation that passes the canonical JAP Silver relevance gate. Sensor jobs have
+observation that passes JAP-owned role/skill relevance. Census accessibility is\nrecall-oriented and intentionally separate from Silver accessibility. Sensor jobs have
 discovery evidence authority only; this module performs no external requests and
 no database, Bronze, Silver, Product, ranking, Fit, application, or connector writes.
 """
@@ -21,7 +21,7 @@ CENSUS_SCHEMA = "job_application_pipeline.employer_discovery_census.v1"
 CORE_SENSORS = (
     "bundesagentur_fuer_arbeit",
     "stepstone",
-    "gutejobs",
+    "goodjobs",
     "xing",
     "meinestadt",
     "get_in_it",
