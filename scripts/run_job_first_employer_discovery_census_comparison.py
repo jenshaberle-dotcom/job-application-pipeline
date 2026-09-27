@@ -245,6 +245,7 @@ def _incremental_metrics(report: dict[str, Any]) -> dict[str, Any]:
     pairwise: dict[str, int] = defaultdict(int)
     incremental_by_source = {source: 0 for source in EXTERNAL_INDEX_SOURCES}
     overlap_with_control = {source: 0 for source in EXTERNAL_INDEX_SOURCES}
+    incremental_company_keys: set[str] = set()
 
     for row in rows:
         sources = set(row.get("evidence_sources") or [])
@@ -255,11 +256,17 @@ def _incremental_metrics(report: dict[str, Any]) -> dict[str, Any]:
 
         has_control = bool(sources & control)
         is_novel = row.get("origin_status") == "novel"
-        for source in sorted(sources & external):
+        external_sources = sources & external
+        for source in sorted(external_sources):
             if has_control:
                 overlap_with_control[source] += 1
             elif is_novel:
                 incremental_by_source[source] += 1
+
+        if is_novel and external_sources and not has_control:
+            company_key = str(row.get("company_key") or "").strip()
+            if company_key:
+                incremental_company_keys.add(company_key)
 
     return {
         "control_sources": list(CONTROL_SOURCES),
@@ -269,9 +276,7 @@ def _incremental_metrics(report: dict[str, Any]) -> dict[str, Any]:
         "novel_incremental_employers_vs_ba_stepstone_and_candidate_baseline": (
             incremental_by_source
         ),
-        "primary_incremental_novel_employer_count": sum(
-            incremental_by_source.values()
-        ),
+        "primary_incremental_novel_employer_count": len(incremental_company_keys),
     }
 
 
