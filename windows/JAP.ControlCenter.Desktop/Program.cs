@@ -13,18 +13,16 @@ internal static class Program
     private static readonly TimeSpan UpdateHandoffProbeTimeout = TimeSpan.FromSeconds(8);
 
     [STAThread]
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
         if (args.Any(argument => string.Equals(argument, "--stage-update", StringComparison.OrdinalIgnoreCase)))
         {
-            Environment.ExitCode = ProductUpdateAgent.RunFromCommandLineAsync(args).GetAwaiter().GetResult();
-            return;
+            return ProductUpdateAgent.RunFromCommandLineAsync(args).GetAwaiter().GetResult();
         }
 
         if (args.Any(argument => string.Equals(argument, "--apply-update", StringComparison.OrdinalIgnoreCase)))
         {
-            Environment.ExitCode = ProductUpdateApplier.RunFromCommandLine(args);
-            return;
+            return ProductUpdateApplier.RunFromCommandLine(args);
         }
 
         var installRoot = ResolveInstallRoot();
@@ -39,7 +37,7 @@ internal static class Program
                 "JAP Control Center",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
-            return;
+            return 0;
         }
 
         using var mutex = new Mutex(initiallyOwned: false, MutexName);
@@ -61,7 +59,7 @@ internal static class Program
                 {
                     if (WaitForExistingVisibleWindow(UpdateHandoffProbeTimeout))
                     {
-                        return;
+                        return 0;
                     }
 
                     MessageBox.Show(
@@ -69,12 +67,12 @@ internal static class Program
                         "JAP Control Center",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
-                    return;
+                    return 0;
                 }
 
                 if (TryActivateExistingVisibleWindow())
                 {
-                    return;
+                    return 0;
                 }
 
                 try
@@ -90,7 +88,7 @@ internal static class Program
                 {
                     if (TryActivateExistingVisibleWindow())
                     {
-                        return;
+                        return 0;
                     }
 
                     MessageBox.Show(
@@ -98,12 +96,13 @@ internal static class Program
                         "JAP Control Center",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
-                    return;
+                    return 0;
                 }
             }
 
             ApplicationConfiguration.Initialize();
             Application.Run(new UpdateAwareApplicationContext());
+            return 0;
         }
         finally
         {
