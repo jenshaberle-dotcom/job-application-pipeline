@@ -177,8 +177,8 @@ Although JAP's target is employer/job-market evidence rather than member profili
 
 - operator-triggered or separately reviewed low-frequency run;
 - provider-agnostic generic search transport;
-- keyless `duckduckgo_html` is the current zero-cost/default live backend;
-- `provider=none` remains valid for plan/offline qualification;
+- `provider=none` is the dependency-free runner default;
+- the explicitly operator-triggered live workflow currently selects keyless `duckduckgo_html`;
 - no automatic paid-provider fallback;
 - site-bounded query for public LinkedIn job-result references;
 - no request from JAP to linkedin.com;
