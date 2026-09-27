@@ -89,7 +89,7 @@ def qualify_observation(observation: MarketJobObservation) -> QualifiedJob | Non
     location = str(observation.location or "").casefold()
     local = "hannover" in location or "hanover" in location
     remote_de = observation.remote_signal and any(
-        token in location for token in ("deutschland", "germany", "remote")
+        token in location for token in ("deutschland", "germany")
     )
 
     # Discovery/Bronze is recall-oriented. Reject only when location evidence is
