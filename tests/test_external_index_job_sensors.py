@@ -22,7 +22,7 @@ def test_external_index_cohort_is_explicit_and_parser_authority_is_narrower():
         "meinestadt",
         "jobvector",
     )
-    assert FIXTURE_QUALIFIED_SOURCES == ("goodjobs", "xing", "get_in_it")
+    assert FIXTURE_QUALIFIED_SOURCES == ("goodjobs", "xing", "get_in_it", "meinestadt")
 
 
 def test_query_builder_is_site_bounded_but_does_not_execute_transport():
@@ -120,22 +120,50 @@ def test_get_in_it_explicit_title_company_structure_is_supported():
     assert qualified.local_match is True
 
 
-def test_shape_only_sources_cannot_create_observation_before_parser_proof():
-    for source, url in (
-        ("meinestadt", "https://jobs.meinestadt.de/hannover/standard?id=123"),
-        ("jobvector", "https://www.jobvector.de/stellenangebote/123"),
-    ):
-        assert classify_external_index_result_shape(source=source, url=url) == (
-            "shape_only_unqualified"
-        )
-        assert accept_external_index_result(
-            source=source,
-            provider="fixture",
-            url=url,
-            title="Data Engineer - Example GmbH",
-            snippet="Hannover",
-            observed_at_utc=OBSERVED,
-        ) is None
+def test_meinestadt_current_detail_shape_has_deterministic_job_and_employer():
+    observation = accept_external_index_result(
+        source="meinestadt",
+        provider="fixture",
+        url="https://jobs.meinestadt.de/hannover/standard?id=260037995",
+        title=(
+            "Stellenangebot: Data Engineer & Reporting Specialist (m/w/d) "
+            "Microsoft Fabric & Power BI in Hannover"
+        ),
+        snippet=(
+            "Data Engineer & Reporting Specialist (m/w/d) Microsoft Fabric & Power BI "
+            "Heise Gruppe GmbH & Co. KG Jetzt bewerben Anzeige vom: 12.09.2026"
+        ),
+        observed_at_utc=OBSERVED,
+    )
+    assert observation is not None
+    assert observation.title == (
+        "Data Engineer & Reporting Specialist (m/w/d) Microsoft Fabric & Power BI"
+    )
+    assert observation.company_name == "Heise Gruppe GmbH & Co. KG"
+    assert observation.location == "Hannover"
+    assert qualify_observation(observation) is not None
+
+
+def test_meinestadt_requires_numeric_detail_identity():
+    assert classify_external_index_result_shape(
+        source="meinestadt",
+        url="https://jobs.meinestadt.de/hannover/standard",
+    ) == "unexpected_path"
+
+
+def test_jobvector_stays_shape_only_until_detail_contract_is_proven():
+    url = "https://www.jobvector.de/stellenangebote/123"
+    assert classify_external_index_result_shape(source="jobvector", url=url) == (
+        "shape_only_unqualified"
+    )
+    assert accept_external_index_result(
+        source="jobvector",
+        provider="fixture",
+        url=url,
+        title="Data Engineer - Example GmbH",
+        snippet="Hannover",
+        observed_at_utc=OBSERVED,
+    ) is None
 
 
 def test_external_index_duplicate_reference_still_deduplicates_in_census():
