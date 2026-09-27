@@ -18,7 +18,7 @@ from html.parser import HTMLParser
 import os
 from typing import Callable, Mapping
 import xml.etree.ElementTree as ET
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import requests
 
@@ -134,7 +134,7 @@ def _transport_link_kind(
     normalized_raw = normalize_url(raw_url, base_url=base_url)
     if not normalized_raw:
         return "invalid"
-    parsed = __import__("urllib.parse", fromlist=["urlparse"]).urlparse(normalized_raw)
+    parsed = urlparse(normalized_raw)
     raw_host = (parsed.hostname or "").casefold().strip(".")
     is_backend_redirect = (
         (raw_host == backend_host_suffix or raw_host.endswith("." + backend_host_suffix))
