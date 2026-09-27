@@ -144,14 +144,13 @@ Architecture authority: `docs/decisions/adr/036_external_tool_dependencies_are_o
 
 The LinkedIn sensor owns **no search-provider implementation**. It emits bounded search intent and evaluates returned result metadata. Search transport is a replaceable backend shared with other discovery uses.
 
-Current order:
+Current authority:
 
-1. `bing_rss` — current default candidate; keyless structured RSS and no paid-tool requirement;
-2. `duckduckgo_html` — retained diagnostic/free adapter, not default after real run `36316182144` returned zero accepted observations from six bounded queries;
-3. `tavily` — explicit optional residual/benchmark only;
-4. `none` — plan-only / zero external requests.
+1. `none` — default; no external search request and no billing/provider dependency;
+2. `tavily` — current **proven residual** provider, used only when explicitly selected by the operator;
+3. `duckduckgo_html` / `bing_rss` — diagnostic free adapters retained for evidence, not default production transport.
 
-There is no automatic fallback from a free backend to Tavily. A zero-yield, challenge or transport-error result is a valid bounded sensor outcome, not authorization to spend money.
+There is no automatic fallback to Tavily or any other external provider. A zero-yield, challenge, transport error, missing key or exhausted budget is a valid market-sensor outcome and never blocks the JAP product.
 
 The DDG result is intentionally **not** repaired with browser fingerprint impersonation, UA rotation, CAPTCHA handling or other anti-bot adaptation. Current public evidence reports HTTP 202/empty-result blocking for automated clients and SearXNG documents DDG's bot blocker/breaking-change risk:
 - https://github.com/nickclyde/duckduckgo-mcp-server/issues/46
@@ -166,8 +165,10 @@ Real Bing RSS proof `36316916122` returned 30 search results across six bounded 
 Relevant Bing query-operator documentation:
 - https://github.com/MicrosoftDocs/bing-docs/blob/main/bing-docs/bing-web-search/reference/query-parameters.md
 
-If Bing RSS is not reliable enough, the next preferred lane is self-hosted/open SearXNG JSON before a paid provider becomes necessary:
+The free/self-hosted investigation did not yield a stronger Core transport. SearXNG remains useful as a research/self-hosting option, but it would add another service while inheriting upstream search-engine acquisition/block behavior, so JAP does not make it a mandatory dependency:
 - https://docs.searxng.org/dev/search_api
+
+The current residual-provider choice is therefore based on empirical utility, not architectural necessity. Tavily can be removed, replaced or left unconfigured without stopping JAP; already discovered companies proceed through direct Employer-Origin/ATS proof with zero further search-provider dependence.
 
 Tavily was used for the first S0.5 real proof because that provider path already existed. It is not part of the LinkedIn architecture and is not required for future runs.
 
