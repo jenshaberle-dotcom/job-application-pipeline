@@ -180,6 +180,7 @@ def test_bing_rss_parses_keyless_structured_results() -> None:
     assert "format=rss" in calls[0]
     assert result.results[0].provider == "bing_rss"
     assert result.results[0].url.startswith("https://de.linkedin.com/jobs/view/")
+    assert result.results[0].transport_link_kind == "direct"
     assert result.results[0].title.startswith("HDI Group sucht AI Architect")
     assert result.results[0].snippet == "HDI Group Hannover"
 
@@ -209,3 +210,4 @@ def test_bing_rss_unwraps_click_tracking_before_returning_result() -> None:
     assert len(result.results) == 1
     assert result.results[0].url == "https://de.linkedin.com/jobs/view/123456/"
     assert "bing.com/ck/" not in result.results[0].url
+    assert result.results[0].transport_link_kind == "redirect_unwrapped"
