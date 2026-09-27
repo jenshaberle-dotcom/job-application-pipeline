@@ -13,10 +13,15 @@ from src.search_intelligence.employer_discovery_census import (
 from src.search_intelligence.employer_discovery_census_adapter import (
     market_observation_from_raw_record,
 )
+from src.search_intelligence.market_source_access import SOURCE_ACCESS
 
 
 DEFAULT_OUTPUT = Path(".runtime/census/employer_discovery_census.json")
-DEFAULT_SOURCES = ("bundesagentur_fuer_arbeit", "stepstone")
+DEFAULT_SOURCES = tuple(
+    source
+    for source, qualification in SOURCE_ACCESS.items()
+    if qualification.automation_authorized
+)
 
 
 def run_census_flight(

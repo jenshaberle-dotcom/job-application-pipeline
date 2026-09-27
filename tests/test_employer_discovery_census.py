@@ -8,7 +8,7 @@ from src.search_intelligence.employer_discovery_census import (
 
 def job(**overrides):
     values = {
-        "source": "gutejobs",
+        "source": "goodjobs",
         "title": "Machine Learning Engineer",
         "company_name": "Example GmbH",
         "location": "Hannover",
@@ -23,7 +23,7 @@ def test_core_census_includes_old_and_new_boards():
     assert CORE_SENSORS == (
         "bundesagentur_fuer_arbeit",
         "stepstone",
-        "gutejobs",
+        "goodjobs",
         "xing",
         "meinestadt",
         "get_in_it",
@@ -65,7 +65,7 @@ def test_duplicate_company_across_boards_is_one_employer_with_two_jobs():
     assert report["employer_count"] == 1
     row = report["employers"][0]
     assert row["matching_job_count"] == 2
-    assert row["evidence_sources"] == ["gutejobs", "stepstone"]
+    assert row["evidence_sources"] == ["goodjobs", "stepstone"]
 
 
 def test_known_candidate_is_retained_as_evidence_but_not_novel():
@@ -74,7 +74,7 @@ def test_known_candidate_is_retained_as_evidence_but_not_novel():
     )
     assert report["employers"][0]["origin_status"] == "known_candidate"
     assert report["novel_employer_count"] == 0
-    assert report["source_metrics"]["gutejobs"]["novel_employers_vs_baseline"] == 0
+    assert report["source_metrics"]["goodjobs"]["novel_employers_vs_baseline"] == 0
 
 
 def test_local_and_germany_remote_are_counted_separately():
@@ -108,7 +108,7 @@ def test_source_metrics_measure_jobs_not_raw_company_signals():
             job(reference="unknown", company_name=None),
         ]
     )
-    metrics = report["source_metrics"]["gutejobs"]
+    metrics = report["source_metrics"]["goodjobs"]
     assert metrics["observed_jobs"] == 3
     assert metrics["qualifying_jobs"] == 1
     assert metrics["unique_qualifying_employers"] == 1
