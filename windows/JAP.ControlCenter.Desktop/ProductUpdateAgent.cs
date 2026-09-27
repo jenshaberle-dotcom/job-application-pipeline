@@ -12,6 +12,7 @@ internal static class ProductUpdateAgent
     private const string ExpectedRepository = "jenshaberle-dotcom/job-application-pipeline";
     private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v3";
     private const string PendingSchema = "job_application_pipeline.windows_product_update.v2";
+    private const string StageResultSchema = "job_application_pipeline.windows_product_update_stage_result.v1";
     private const string CompatibilityLine = "cgkb-product-local-1";
     private const string Policy = "product_local_latest_direct";
     private const string UpdateGeneration = "cgkb_product_local_v1";
@@ -28,6 +29,7 @@ internal static class ProductUpdateAgent
     public static async Task<int> RunFromCommandLineAsync(string[] args)
     {
         var installRoot = ResolveInstallRoot(args);
+        var stageRequestId = ResolveOptionalStageRequestId(args);
         var logPath = Path.Combine(installRoot, "logs", "product-update-agent.log");
         using var operationMutex = ProductUpdateOperation.CreateOperationMutex(installRoot);
         var ownsOperationMutex = false;
@@ -44,10 +46,19 @@ internal static class ProductUpdateAgent
 
             if (!ownsOperationMutex)
             {
+                const string skipped = "skipped:update_operation_in_progress";
                 WriteLog(
                     logPath,
                     "stage_skipped",
                     "reason=update_operation_in_progress");
+                await WriteStageResultAsync(
+                    installRoot,
+                    stageRequestId,
+                    success: true,
+                    result: skipped,
+                    managedExitCode: 0,
+                    errorType: null,
+                    errorMessage: null);
                 return 0;
             }
 
@@ -55,11 +66,34 @@ internal static class ProductUpdateAgent
             WriteLog(logPath, "stage_begin", $"install_root={installRoot}");
             var result = await StageLatestAsync(installRoot, logPath);
             WriteLog(logPath, "stage_complete", $"result={result}");
+            await WriteStageResultAsync(
+                installRoot,
+                stageRequestId,
+                success: true,
+                result,
+                managedExitCode: 0,
+                errorType: null,
+                errorMessage: null);
             return 0;
         }
         catch (Exception exc)
         {
             try { WriteLog(logPath, "stage_failed", exc.ToString()); } catch { }
+            try
+            {
+                await WriteStageResultAsync(
+                    installRoot,
+                    stageRequestId,
+                    success: false,
+                    result: "failed",
+                    managedExitCode: 2,
+                    errorType: exc.GetType().Name,
+                    errorMessage: exc.Message);
+            }
+            catch
+            {
+                // The original stage failure remains authoritative if diagnostics cannot be persisted.
+            }
             return 2;
         }
         finally
@@ -368,6 +402,57 @@ internal static class ProductUpdateAgent
     private static void DeleteDirectory(string path)
     {
         if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+    }
+
+    private static string? ResolveOptionalStageRequestId(string[] args)
+    {
+        for (var index = 0; index < args.Length - 1; index++)
+        {
+            if (!string.Equals(
+                    args[index],
+                    "--stage-request-id",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var raw = args[index + 1];
+            Require(
+                Guid.TryParseExact(raw, "N", out var requestId),
+                "Stage request id must be a 32-character GUID.");
+            return requestId.ToString("N");
+        }
+
+        return null;
+    }
+
+    private static async Task WriteStageResultAsync(
+        string installRoot,
+        string? stageRequestId,
+        bool success,
+        string result,
+        int managedExitCode,
+        string? errorType,
+        string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(stageRequestId))
+        {
+            return;
+        }
+
+        await WriteJsonAtomicAsync(
+            Path.Combine(installRoot, "state", "product-update-stage-result.json"),
+            new
+            {
+                schema = StageResultSchema,
+                request_id = stageRequestId,
+                success,
+                result,
+                managed_exit_code = managedExitCode,
+                error_type = errorType,
+                error_message = errorMessage,
+                completed_at = DateTimeOffset.UtcNow.ToString("O")
+            });
     }
 
     private static string ResolveInstallRoot(string[] args)
