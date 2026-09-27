@@ -341,6 +341,27 @@ def _path_allowed(sensor: str, path: str) -> bool:
     return any(marker in normalized for marker in markers)
 
 
+def classify_provider_result_shape(*, sensor: str, url: object) -> str:
+    """Classify only URL shape against the declarative sensor specification.
+
+    The result is intentionally aggregate-safe: callers can persist counters for
+    these labels without retaining a result URL, title, snippet or platform job id.
+    """
+
+    if sensor not in _PLATFORM_SPECS:
+        raise ValueError(f"Unsupported conservative market sensor: {sensor}")
+
+    raw_url = str(url or "").strip()
+    parsed = urlparse(raw_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return "invalid_url"
+    if not _host_allowed(sensor, parsed.netloc):
+        return "unexpected_host"
+    if not _path_allowed(sensor, parsed.path):
+        return "unexpected_path"
+    return "accepted_shape"
+
+
 def accept_provider_result(
     *,
     sensor: str,
@@ -358,13 +379,9 @@ def accept_provider_result(
         raise ValueError(f"Unsupported conservative market sensor: {sensor}")
 
     raw_url = str(url or "").strip()
+    if classify_provider_result_shape(sensor=sensor, url=raw_url) != "accepted_shape":
+        return None
     parsed = urlparse(raw_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return None
-    if not _host_allowed(sensor, parsed.netloc):
-        return None
-    if not _path_allowed(sensor, parsed.path):
-        return None
 
     title_signal = " ".join(str(title or "").split())[:300]
     snippet_signal = " ".join(str(snippet or "").split())[: max(0, snippet_limit)]

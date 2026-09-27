@@ -28,6 +28,7 @@ from src.search_intelligence.conservative_market_sensors import (
     SENSOR_PLATFORMS,
     accept_provider_result,
     build_sensor_queries,
+    classify_provider_result_shape,
     deduplicate_observations,
 )
 from src.search_intelligence.public_web_search import (
@@ -139,6 +140,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         accepted = []
         rejected_count = 0
         request_count = 0
+        result_shape_counts: dict[str, int] = {}
 
         transport_status_counts: dict[str, int] = {}
         if args.provider != "none" and provider_available:
@@ -155,6 +157,11 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                     transport_status_counts.get(response.status, 0) + 1
                 )
                 for row in response.results:
+                    shape = classify_provider_result_shape(
+                        sensor=sensor,
+                        url=row.url,
+                    )
+                    result_shape_counts[shape] = result_shape_counts.get(shape, 0) + 1
                     observation = accept_provider_result(
                         sensor=sensor,
                         provider=row.provider,
@@ -185,6 +192,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "accepted_observation_count": len(unique),
             "rejected_provider_result_count": rejected_count,
             "transport_status_counts": transport_status_counts,
+            "result_shape_counts": result_shape_counts,
             "queries": [
                 {
                     "search_term": plan.search_term,
@@ -297,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
             f"|requests={payload['provider_request_count']}"
             f"|observations={payload['accepted_observation_count']}"
             f"|rejected={payload['rejected_provider_result_count']}"
+            f"|shapes={json.dumps(payload['result_shape_counts'], sort_keys=True)}"
         )
     print(
         "TOTAL_PROVIDER_REQUESTS="

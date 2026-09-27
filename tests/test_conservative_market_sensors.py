@@ -6,6 +6,7 @@ from src.search_intelligence.conservative_market_sensors import (
     BOUNDARY,
     accept_provider_result,
     build_sensor_queries,
+    classify_provider_result_shape,
     deduplicate_observations,
     extract_observed_company_signal,
 )
@@ -33,6 +34,35 @@ def test_builds_site_bounded_queries_for_both_sensors() -> None:
     assert len(indeed) == 1
     assert "site:de.indeed.com/viewjob" in indeed[0].query
 
+
+
+
+def test_result_shape_diagnostics_are_aggregate_safe_and_declarative() -> None:
+    assert (
+        classify_provider_result_shape(
+            sensor="linkedin",
+            url="https://de.linkedin.com/jobs/view/ai-architect-123456/",
+        )
+        == "accepted_shape"
+    )
+    assert (
+        classify_provider_result_shape(
+            sensor="linkedin",
+            url="https://www.linkedin.com/jobs/search/?keywords=ai",
+        )
+        == "unexpected_path"
+    )
+    assert (
+        classify_provider_result_shape(
+            sensor="linkedin",
+            url="https://example.com/jobs/view/123456/",
+        )
+        == "unexpected_host"
+    )
+    assert (
+        classify_provider_result_shape(sensor="linkedin", url="not-a-url")
+        == "invalid_url"
+    )
 
 def test_accepts_only_expected_platform_host_and_job_path() -> None:
     accepted = accept_provider_result(
