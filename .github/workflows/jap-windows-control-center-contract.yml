@@ -192,6 +192,72 @@ jobs:
           }
           Write-Host "JAP_DESKTOP_HOST_BUILD=PASS exe=$Exe"
 
+      - name: Prove WinExe stage completion receipt is authoritative
+        shell: powershell
+        run: |
+          $Out = Join-Path $env:RUNNER_TEMP "jap-desktop-host"
+          $Exe = Join-Path $Out "JAP.ControlCenter.Desktop.exe"
+          $InstallRoot = Join-Path $env:RUNNER_TEMP "jap-stage-exit-contract"
+          Remove-Item -Recurse -Force $InstallRoot -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
+
+          @"
+          {
+            "schema": "job_application_pipeline.windows_control_center_install.v3",
+            "repository_id": 1230805345,
+            "repository": "jenshaberle-dotcom/job-application-pipeline",
+            "update_generation": "cgkb_product_local_v1",
+            "desktop_host_version": "99.0.0"
+          }
+          "@ | Set-Content -Path (Join-Path $InstallRoot "current.json") -Encoding UTF8
+
+          $RequestId = [guid]::NewGuid().ToString("N")
+          $Process = Start-Process `
+            -FilePath $Exe `
+            -ArgumentList @(
+              "--stage-update",
+              "--install-root",
+              $InstallRoot,
+              "--stage-request-id",
+              $RequestId
+            ) `
+            -WorkingDirectory $InstallRoot `
+            -Wait `
+            -PassThru
+
+          Write-Host "JAP_STAGE_HOST_EXIT_CODE=$($Process.ExitCode)"
+
+          $ReceiptPath = Join-Path $InstallRoot "state\product-update-stage-result.json"
+          if (-not (Test-Path $ReceiptPath)) {
+            throw "Product update stage receipt is missing."
+          }
+          $Receipt = Get-Content $ReceiptPath -Raw | ConvertFrom-Json
+          if ($Receipt.schema -ne "job_application_pipeline.windows_product_update_stage_result.v1") {
+            throw "Product update stage receipt schema mismatch."
+          }
+          if ($Receipt.request_id -ne $RequestId) {
+            throw "Product update stage receipt request id mismatch."
+          }
+          if ($Receipt.success -ne $true) {
+            throw "Product update stage receipt did not report success."
+          }
+          if ($Receipt.result -ne "no_update") {
+            throw "Expected no_update stage result, got $($Receipt.result)"
+          }
+          if ([int]$Receipt.managed_exit_code -ne 0) {
+            throw "Managed update-agent exit contract was not success."
+          }
+
+          $AgentLog = Join-Path $InstallRoot "logs\product-update-agent.log"
+          if (-not (Test-Path $AgentLog)) {
+            throw "Product update agent log missing from stage receipt proof."
+          }
+          $AgentText = Get-Content $AgentLog -Raw
+          if ($AgentText -notmatch "stage_complete\s+result=no_update") {
+            throw "Product update agent did not prove the no-update result."
+          }
+          Write-Host "JAP_STAGE_RECEIPT_AUTHORITY_CONTRACT=PASS"
+
   wsl-wrapper-contract:
     name: Validate WSL wrapper and static contracts
     runs-on: ubuntu-latest

@@ -8,6 +8,7 @@ internal sealed class UpdateCoordinator : IDisposable
     private const string PendingSchema = "job_application_pipeline.windows_product_update.v2";
     private const string SnoozeSchema = "job_application_pipeline.windows_update_snooze.v1";
     private const string ResultSchema = "job_application_pipeline.windows_update_result.v2";
+    private const string StageResultSchema = "job_application_pipeline.windows_product_update_stage_result.v1";
     private const string InstallSchema = "job_application_pipeline.windows_control_center_install.v3";
     private const string CompatibilityLine = "cgkb-product-local-1";
     private static readonly TimeSpan SnoozeDuration = TimeSpan.FromHours(6);
@@ -20,6 +21,7 @@ internal sealed class UpdateCoordinator : IDisposable
     private readonly string _acceptedPath;
     private readonly string _snoozePath;
     private readonly string _resultPath;
+    private readonly string _stageResultPath;
     private readonly string _eventLog;
     private readonly System.Windows.Forms.Timer _pollTimer;
     private bool _promptOpen;
@@ -37,6 +39,7 @@ internal sealed class UpdateCoordinator : IDisposable
         _acceptedPath = Path.Combine(stateRoot, "accepted-update.json");
         _snoozePath = Path.Combine(stateRoot, "update-snooze.json");
         _resultPath = Path.Combine(stateRoot, "update-result.json");
+        _stageResultPath = Path.Combine(stateRoot, "product-update-stage-result.json");
         _eventLog = Path.Combine(_installRoot, "logs", "desktop-host-update.log");
         _pollTimer = new System.Windows.Forms.Timer
         {
@@ -82,6 +85,9 @@ internal sealed class UpdateCoordinator : IDisposable
                 return;
             }
 
+            var stageRequestId = Guid.NewGuid().ToString("N");
+            TryDelete(_stageResultPath);
+
             var startInfo = new ProcessStartInfo
             {
                 FileName = executable,
@@ -92,14 +98,37 @@ internal sealed class UpdateCoordinator : IDisposable
             startInfo.ArgumentList.Add("--stage-update");
             startInfo.ArgumentList.Add("--install-root");
             startInfo.ArgumentList.Add(_installRoot);
+            startInfo.ArgumentList.Add("--stage-request-id");
+            startInfo.ArgumentList.Add(stageRequestId);
 
             using var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("JAP product update agent could not be started.");
             await process.WaitForExitAsync();
-            if (process.ExitCode != 0)
+
+            var stageResult = ReadStageResult(stageRequestId);
+            if (stageResult is null || !stageResult.Success)
             {
-                WriteEvent("product_update_agent_failed", $"exit_code={process.ExitCode}");
+                WriteEvent(
+                    "product_update_agent_failed",
+                    $"host_exit_code={process.ExitCode} receipt="
+                    + (stageResult is null
+                        ? "missing_or_mismatched"
+                        : $"failed:{stageResult.Result}:{stageResult.ErrorType}"));
                 return;
+            }
+
+            if (process.ExitCode != stageResult.ManagedExitCode)
+            {
+                WriteEvent(
+                    "product_update_agent_host_exit_non_authoritative",
+                    $"host_exit_code={process.ExitCode} managed_exit_code={stageResult.ManagedExitCode} "
+                    + $"result={stageResult.Result} request_id={stageRequestId}");
+            }
+            else
+            {
+                WriteEvent(
+                    "product_update_agent_complete",
+                    $"exit_code={process.ExitCode} result={stageResult.Result} request_id={stageRequestId}");
             }
 
             if (!_owner.IsDisposed && _owner.IsHandleCreated)
@@ -328,6 +357,45 @@ internal sealed class UpdateCoordinator : IDisposable
         }
     }
 
+    private StageResult? ReadStageResult(string expectedRequestId)
+    {
+        if (!File.Exists(_stageResultPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(_stageResultPath));
+            var root = document.RootElement;
+            if (GetString(root, "schema") != StageResultSchema
+                || GetString(root, "request_id") != expectedRequestId)
+            {
+                return null;
+            }
+
+            var success = root.TryGetProperty("success", out var successValue)
+                && successValue.ValueKind is JsonValueKind.True or JsonValueKind.False
+                && successValue.GetBoolean();
+            var managedExitCode = root.TryGetProperty("managed_exit_code", out var exitValue)
+                && exitValue.TryGetInt32(out var parsedExit)
+                ? parsedExit
+                : int.MinValue;
+
+            return new StageResult(
+                success,
+                GetString(root, "result"),
+                managedExitCode,
+                GetString(root, "error_type"),
+                GetString(root, "error_message"));
+        }
+        catch (Exception exc) when (exc is IOException or JsonException)
+        {
+            WriteEvent("product_update_stage_result_read_failed", exc.Message);
+            return null;
+        }
+    }
+
     private SnoozeState? ReadSnooze()
     {
         if (!File.Exists(_snoozePath))
@@ -519,6 +587,13 @@ internal sealed class UpdateCoordinator : IDisposable
         string InstallerSchema,
         string ApplyHelperExecutable,
         string ManifestJson);
+
+    private sealed record StageResult(
+        bool Success,
+        string Result,
+        int ManagedExitCode,
+        string ErrorType,
+        string ErrorMessage);
 
     private sealed record SnoozeState(
         DateTimeOffset SnoozeUntilUtc,
