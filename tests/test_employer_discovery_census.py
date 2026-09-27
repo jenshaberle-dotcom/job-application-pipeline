@@ -123,20 +123,25 @@ def test_relevant_role_onsite_munich_cannot_create_employer():
     assert report["employers"] == []
 
 
-def test_relevant_role_unknown_location_fails_closed():
+def test_relevant_role_unknown_location_survives_for_origin_qualification():
     report = build_employer_discovery_census(
         [job(location=None, title="Machine Learning Engineer")]
     )
-    assert report["qualifying_job_count"] == 0
-    assert report["employers"] == []
+    assert report["qualifying_job_count"] == 1
+    row = report["employers"][0]
+    assert row["location_confidence"] == "uncertain"
+    assert row["location_reasons"] == ["location_unknown_needs_origin_qualification"]
 
 
-def test_remote_word_without_explicit_remote_signal_fails_closed():
+def test_remote_hint_without_explicit_signal_survives_as_uncertain():
     report = build_employer_discovery_census(
         [job(location="Deutschland remote", remote_signal=False)]
     )
-    assert report["qualifying_job_count"] == 0
-    assert report["employers"] == []
+    assert report["qualifying_job_count"] == 1
+    row = report["employers"][0]
+    assert row["remote_de_matches"] == 0
+    assert row["location_confidence"] == "uncertain"
+    assert row["location_reasons"] == ["remote_hint_needs_origin_qualification"]
 
 
 def test_explicit_germany_remote_job_can_create_employer():
@@ -145,3 +150,11 @@ def test_explicit_germany_remote_job_can_create_employer():
     )
     assert report["qualifying_job_count"] == 1
     assert report["employers"][0]["remote_de_matches"] == 1
+
+
+def test_clear_out_of_target_onsite_job_still_fails_closed():
+    report = build_employer_discovery_census(
+        [job(location="Berlin", remote_signal=False)]
+    )
+    assert report["qualifying_job_count"] == 0
+    assert report["employers"] == []
