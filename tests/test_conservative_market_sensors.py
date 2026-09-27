@@ -243,7 +243,7 @@ def test_market_sensor_uses_replaceable_zero_cost_first_search_backend() -> None
 
     assert "DEFAULT_SEARCH_BACKEND" in runner
     assert "default=DEFAULT_SEARCH_BACKEND" in runner
-    assert 'DEFAULT_SEARCH_BACKEND = "bing_rss"' in backend
+    assert 'DEFAULT_SEARCH_BACKEND = "searxng_json"' in backend
     assert 'if args.provider == "tavily"' not in runner
     assert '"include_answer": False' in backend
     assert '"include_raw_content": False' in backend

@@ -1,7 +1,7 @@
 """Run bounded discovery-only market sensors over a replaceable search backend.
 
 Search intent, platform acceptance and provider transport are deliberately
-separate. The default real backend is zero-key/zero-paid-tool DuckDuckGo HTML.
+separate. The default real backend is an explicitly configured zero-paid-tool SearXNG JSON endpoint.
 Tavily is an explicit optional backend only; failure of the default backend never
 triggers an automatic paid fallback.
 
@@ -252,7 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("none", *SUPPORTED_SEARCH_BACKENDS),
         default=DEFAULT_SEARCH_BACKEND,
         help=(
-            "Replaceable search transport. Defaults to zero-key duckduckgo_html; "
+            "Replaceable search transport. Defaults to explicitly configured searxng_json; "
             "tavily is explicit optional fallback/benchmark only."
         ),
     )

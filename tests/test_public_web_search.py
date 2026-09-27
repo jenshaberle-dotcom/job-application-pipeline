@@ -30,7 +30,7 @@ class _FakeResponse:
 
 
 def test_default_backend_is_zero_key_and_not_paid() -> None:
-    assert DEFAULT_SEARCH_BACKEND == "bing_rss"
+    assert DEFAULT_SEARCH_BACKEND == "searxng_json"
     policy = BACKEND_POLICIES[DEFAULT_SEARCH_BACKEND]
     assert policy.requires_secret is False
     assert policy.paid_external_tool is False
@@ -182,3 +182,28 @@ def test_bing_rss_parses_keyless_structured_results() -> None:
     assert result.results[0].url.startswith("https://de.linkedin.com/jobs/view/")
     assert result.results[0].title.startswith("HDI Group sucht AI Architect")
     assert result.results[0].snippet == "HDI Group Hannover"
+
+
+def test_searxng_json_is_zero_paid_and_requires_explicit_runtime_endpoint(monkeypatch) -> None:
+    monkeypatch.delenv("SEARXNG_BASE_URL", raising=False)
+    assert BACKEND_POLICIES["searxng_json"].paid_external_tool is False
+    assert BACKEND_POLICIES["searxng_json"].automatic_fallback_allowed is False
+    assert backend_available("searxng_json") is False
+    result = search_public_web(provider="searxng_json", query="bounded query", max_results=5, timeout_seconds=1.0)
+    assert result.status == "provider_unavailable"
+    assert result.request_count == 0
+
+
+def test_searxng_json_parses_generic_results(monkeypatch) -> None:
+    monkeypatch.setenv("SEARXNG_BASE_URL", "http://127.0.0.1:8080")
+    calls = []
+    def request_get(url: str, **kwargs: object) -> _FakeResponse:
+        calls.append((url, kwargs))
+        return _FakeResponse(payload={"results": [{"url": "https://www.linkedin.com/jobs/view/123456/", "title": "AI Architect", "content": "Example"}]})
+    result = search_public_web(provider="searxng_json", query="site:linkedin.com AI Architect Hannover", max_results=5, timeout_seconds=2.0, request_get=request_get)
+    assert result.status == "ok"
+    assert result.request_count == 1
+    assert result.results[0].provider == "searxng_json"
+    assert result.results[0].url == "https://www.linkedin.com/jobs/view/123456/"
+    assert calls[0][0] == "http://127.0.0.1:8080/search"
+    assert calls[0][1]["params"]["format"] == "json"
