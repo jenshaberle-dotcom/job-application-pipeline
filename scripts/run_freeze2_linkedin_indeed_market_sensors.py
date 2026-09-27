@@ -1,8 +1,9 @@
 """Run bounded LinkedIn + Indeed discovery-only market sensors.
 
-Default live transport is the keyless DuckDuckGo HTML search surface already used
-elsewhere in JAP. Tavily remains an explicit optional paid fallback and is never
-selected automatically. provider=none performs zero external requests. The script reads
+Default mode is provider=none and performs zero external requests. The explicitly
+operator-triggered workflow selects the keyless DuckDuckGo HTML search surface for
+its live proof. Tavily remains an explicit optional paid fallback and is never
+selected automatically. The script reads
 current active sensor search intent from PostgreSQL under a read-only transaction
 and emits minimised discovery evidence only. Platform URLs, titles and snippets
 returned by the search provider are transient and are not written to the artifact.
@@ -250,10 +251,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--provider",
         choices=("none", "duckduckgo_html", "tavily"),
-        default="duckduckgo_html",
+        default="none",
         help=(
-            "Search transport. duckduckgo_html is the keyless best-effort default; "
-            "tavily is an explicit optional paid fallback and is never automatic."
+            "Search transport. none is the dependency-free default; duckduckgo_html is the "
+            "keyless best-effort live backend; Tavily is explicit optional fallback only."
         ),
     )
     parser.add_argument("--max-terms", type=int, default=3)
