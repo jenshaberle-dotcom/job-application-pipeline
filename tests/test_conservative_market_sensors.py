@@ -112,6 +112,8 @@ def test_sensor_boundary_has_no_product_or_platform_automation_authority() -> No
     assert BOUNDARY["platform_snippet_persistence"] == 0
     assert BOUNDARY["provider_raw_content_requests"] == 0
     assert BOUNDARY["provider_query_personal_data"] == 0
+    assert BOUNDARY["paid_external_tool_required"] is False
+    assert BOUNDARY["automatic_paid_fallback"] == 0
     assert BOUNDARY["database_writes"] == 0
     assert BOUNDARY["bronze_writes"] == 0
     assert BOUNDARY["silver_writes"] == 0
@@ -193,19 +195,23 @@ def test_active_sensor_implementation_has_no_direct_linkedin_transport_stack() -
     ):
         assert forbidden not in active
 
-    assert "tavily_search(" in runner
+    assert "search_public_web(" in runner
+    assert "tavily_search(" not in runner
     assert "site:linkedin.com/jobs/view" in module
 
 
-def test_provider_path_stays_basic_without_raw_content_requests() -> None:
+def test_market_sensor_uses_replaceable_zero_cost_first_search_backend() -> None:
     runner = Path("scripts/run_freeze2_linkedin_indeed_market_sensors.py").read_text(
         encoding="utf-8"
     )
-    provider = Path("scripts/run_origin_source_discovery_agent.py").read_text(
+    backend = Path("src/search_intelligence/public_web_search.py").read_text(
         encoding="utf-8"
     )
 
-    assert 'search_depth="basic"' in runner
-    assert '"include_answer": False' in provider
-    assert '"include_raw_content": False' in provider
-    assert "extract_depth" not in runner
+    assert "DEFAULT_SEARCH_BACKEND" in runner
+    assert 'DEFAULT_SEARCH_BACKEND = "duckduckgo_html"' in backend
+    assert '"paid_external_tool":' not in runner
+    assert '"include_answer": False' in backend
+    assert '"include_raw_content": False' in backend
+    assert "automatic_fallback_allowed=False" in backend
+    assert "linkedin.com" not in backend
