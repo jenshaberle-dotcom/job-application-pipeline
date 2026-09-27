@@ -55,11 +55,12 @@ The conservative market sensor is split into three independent layers:
 
 Current backend order:
 
-- default: `duckduckgo_html` — zero API key, zero paid-tool requirement;
-- optional: `tavily` — explicit operator-selected backend/benchmark only;
+- default: `bing_rss` — keyless structured RSS, zero paid-tool requirement;
+- diagnostic/free adapter: `duckduckgo_html` — retained but not default after the real S0.5 proof returned zero yield and current 2026 evidence showed automated-client block/challenge behavior;
+- optional: `tavily` — explicit operator-selected residual/benchmark only;
 - `none` — plan-only / zero external requests.
 
-There is **no automatic fallback from DuckDuckGo to Tavily**.
+There is **no automatic fallback from a free backend to Tavily**. If Bing RSS is not sufficiently reliable, the next evaluated lane is a self-hosted/open alternative such as SearXNG before a paid provider can become necessary.
 
 LinkedIn therefore does not have a Tavily implementation. It has a platform specification consumed by the same general market-sensor/search-backend machinery as other discovery-only sources.
 
@@ -116,7 +117,7 @@ Trade-offs:
 
 A market-sensor backend change is acceptable only when:
 
-- the default path runs without Tavily credentials;
+- the default path runs without Tavily credentials or any paid-search account;
 - the paid provider is not called implicitly;
 - platform-specific sensor code contains no direct provider transport;
 - real proof records backend identity, request count and outcome;
