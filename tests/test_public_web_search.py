@@ -30,8 +30,9 @@ class _FakeResponse:
 
 
 def test_default_backend_is_zero_key_and_not_paid() -> None:
-    assert DEFAULT_SEARCH_BACKEND == "bing_rss"
+    assert DEFAULT_SEARCH_BACKEND == "none"
     policy = BACKEND_POLICIES[DEFAULT_SEARCH_BACKEND]
+    assert policy.name == "none"
     assert policy.requires_secret is False
     assert policy.paid_external_tool is False
     assert policy.automatic_fallback_allowed is False
