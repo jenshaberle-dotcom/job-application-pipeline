@@ -85,6 +85,21 @@ Common mechanics include regular-account credentials, authenticated cookies, Lin
 
 JAP must not adopt these mechanics.
 
+### Enforcement / project-retreat evidence — RED-line evidence for JAP
+
+Examples reviewed:
+
+- AIHawk maintainer/project history:
+  https://github.com/feder-cr/feder-cr
+- AIHawk contributor/fork notice:
+  https://github.com/fittingIntelligence/jobs_applier_ai_agent_aihawk
+- AIHawk account-ban issue:
+  https://github.com/feder-cr/Jobs_Applier_AI_Agent_AIHawk/issues/81
+
+The AIHawk maintainer states that LinkedIn sent a cease-and-desist that caused the LinkedIn job-application automation to be shut down/removed. A contributor-maintained fork states that LinkedIn requested removal of platform links/automation and banned project contributors. Separate issues report account bans and Easy Apply limits associated with bot use.
+
+JAP interpretation: automated interaction/application is a materially more aggressive risk tier than passive market sensing. The project must not progress from discovery signals into LinkedIn browser/application automation.
+
 ### Direct automated HTTP is operationally brittle — RED for JAP
 
 Evidence reviewed:
