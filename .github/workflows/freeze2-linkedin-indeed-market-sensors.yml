@@ -126,7 +126,7 @@ jobs:
           name: freeze2-linkedin-indeed-market-sensors-${{ github.run_id }}
           path: ${{ env.SENSOR_OUTPUT }}
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 3
 
       - name: Publish aggregate sensor proof to Freeze-II issue
         shell: bash
@@ -168,7 +168,7 @@ jobs:
                   f"- total provider requests: **{report['summary']['provider_request_count']}**",
                   f"- total accepted observations: **{report['summary']['accepted_observation_count']}**",
                   "",
-                  "Boundary: discovery-only; no direct LinkedIn/Indeed HTTP, no login/browser automation, DB/Bronze/Silver/Product writes 0.",
+                  "Boundary: discovery-only; approved external search index only; no direct LinkedIn/Indeed HTTP, no login/browser/Voyager/guest-API/CAPTCHA/proxy automation; platform URL/title/snippet persistence 0; DB/Bronze/Silver/Product writes 0.",
               ]
           )
           body = "\n".join(lines)
