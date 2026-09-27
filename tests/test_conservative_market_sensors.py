@@ -73,7 +73,7 @@ def test_accepts_only_expected_platform_host_and_job_path() -> None:
     )
 
 
-def test_observation_is_bounded_deduplicated_and_persisted_without_platform_content() -> None:
+def test_persisted_observation_omits_platform_content() -> None:
     one = accept_provider_result(
         sensor="indeed",
         provider="tavily",
