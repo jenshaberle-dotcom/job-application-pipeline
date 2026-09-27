@@ -40,7 +40,7 @@ The campaign does not begin by adding ranking, Fit, UI or application features. 
 9. Deterministic structured or bounded visible evidence is first lane.
 10. ML/LLM may later propose Shadow evidence only; neither creates source truth.
 11. Fit/Combined/ranking authority does not expand until upstream gates pass.
-12. LinkedIn and Indeed are discovery/freshness sensors only. Direct platform HTTP, login automation, browser-session automation, unofficial/guest APIs, CAPTCHA handling, proxy/evasion mechanics, broad scraping and raw platform-content persistence remain prohibited. Search intent/platform acceptance is separate from transport: the default backend is replaceable zero-key/zero-paid-tool public search, paid external providers are explicit residual options only and may never be an automatic fallback. For LinkedIn, returned platform URL/title/snippet metadata is transient only and is reduced before persistence to derived company evidence plus a one-way reference hash. Search transport lowers direct-access exposure but is not treated as legal permission. See `docs/planning/active/LINKEDIN-DEFENSIVE-MARKET-SENSOR.md` and ADR-036.
+12. LinkedIn and Indeed are discovery/freshness sensors only. Direct platform HTTP, login automation, browser-session automation, unofficial/guest APIs, CAPTCHA handling, proxy/evasion mechanics, broad scraping and raw platform-content persistence remain prohibited. Search intent/platform acceptance is separate from transport: the default sensor backend is `none` and performs zero external requests; any real provider is an explicitly selected residual capability and may never be an automatic fallback or Product dependency. Failed free transports are removed rather than kept alive through anti-bot or platform-specific workarounds. For LinkedIn, returned platform URL/title/snippet metadata is transient only and is reduced before persistence to derived company evidence plus a one-way reference hash. Search transport lowers direct-access exposure but is not treated as legal permission. See `docs/planning/active/LINKEDIN-DEFENSIVE-MARKET-SENSOR.md` and ADR-036.
 13. LinkedIn/Indeed observations may create or prioritize employer/source candidates only. Aggregator URLs and job identities are discarded before Employer-Origin learning; the candidate must be resolved to a direct employer/ATS source before source proof.
 14. Candidate expansion precedes the connector-fleet denominator freeze. The S0 count of 67 is the initial population, not the final S1 denominator.
 
@@ -115,7 +115,7 @@ Transport contract:
 - no browser automation or CAPTCHA bypass;
 - no direct broad scraping;
 - no raw job-description persistence;
-- use a replaceable bounded public-search backend; zero-key/zero-paid-tool transport is the default, paid providers require explicit selection and never auto-fallback;
+- default to no external provider; any admitted backend requires explicit selection, remains replaceable and never auto-falls back to another provider;
 - for LinkedIn, raw provider URL/title/snippet metadata is process-transient and must not be written to the sensor artifact;
 - persist only minimal derived evidence: platform, provider, JAP-owned query/search intent, observed company signal + extraction rule/status, requested/coarse location signal, observed timestamp and one-way reference hash;
 - target no member/profile/recruiter/contact data;
@@ -299,9 +299,9 @@ The residual classifier remains an **implementation-ordering instrument**, not a
 
 ## Immediate next gate
 
-1. implement and qualify conservative LinkedIn + Indeed sensor plans using an approved search-provider/API transport only;
-2. run a bounded real sensor proof with explicit request/budget accounting;
-3. feed the resulting minimal company signals through known-candidate suppression and bounded candidate expansion;
+1. retain the qualified conservative LinkedIn + Indeed sensor contracts with provider default `none`;
+2. reuse the already-qualified bounded LinkedIn evidence and S0.6 review rather than paying/re-querying for duplicate evidence;
+3. resolve the remaining review companies to direct employer/ATS sources, suppress known candidates and promote only evidence-backed genuinely new candidates;
 4. freeze the expanded candidate cohort;
 5. start the generic connector-builder campaign against the whole frozen cohort, reporting ~95% generic-generation success as a strong target and 100% eventual smoke coverage;
 6. only after the live connector sweep broadens real vacancy evidence, re-enter metadata/extraction hardening and assess ML-data sufficiency.
