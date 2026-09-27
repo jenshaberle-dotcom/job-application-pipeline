@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from src.search_intelligence.conservative_market_sensors import (
     BOUNDARY,
     accept_provider_result,
@@ -71,7 +73,7 @@ def test_accepts_only_expected_platform_host_and_job_path() -> None:
     )
 
 
-def test_observation_is_bounded_and_deduplicated() -> None:
+def test_persisted_observation_omits_platform_content() -> None:
     one = accept_provider_result(
         sensor="indeed",
         provider="tavily",
@@ -86,12 +88,30 @@ def test_observation_is_bounded_and_deduplicated() -> None:
     assert len(one.snippet_signal) == 500
     assert deduplicate_observations([one, one]) == (one,)
 
+    persisted = one.as_dict()
+    assert "url" not in persisted
+    assert "title_signal" not in persisted
+    assert "snippet_signal" not in persisted
+    assert len(str(persisted["platform_reference_sha256"])) == 64
+    assert "abc" not in str(persisted["platform_reference_sha256"])
+
 
 def test_sensor_boundary_has_no_product_or_platform_automation_authority() -> None:
     assert BOUNDARY["direct_platform_http_requests"] == 0
     assert BOUNDARY["login_automation"] == 0
     assert BOUNDARY["browser_automation"] == 0
     assert BOUNDARY["raw_job_content_persistence"] == 0
+    assert BOUNDARY["anti_bot_evasion"] == 0
+    assert BOUNDARY["proxy_rotation"] == 0
+    assert BOUNDARY["unofficial_platform_api"] == 0
+    assert BOUNDARY["direct_guest_api"] == 0
+    assert BOUNDARY["member_profile_access"] == 0
+    assert BOUNDARY["personal_data_targeting"] == 0
+    assert BOUNDARY["platform_url_persistence"] == 0
+    assert BOUNDARY["platform_title_persistence"] == 0
+    assert BOUNDARY["platform_snippet_persistence"] == 0
+    assert BOUNDARY["provider_raw_content_requests"] == 0
+    assert BOUNDARY["provider_query_personal_data"] == 0
     assert BOUNDARY["database_writes"] == 0
     assert BOUNDARY["bronze_writes"] == 0
     assert BOUNDARY["silver_writes"] == 0
@@ -147,3 +167,45 @@ def test_accepted_observation_carries_explicit_company_and_intent() -> None:
     assert observation.location_signal == "Hannover"
     assert observation.observed_company_signal == "Sonova Gruppe"
     assert observation.company_signal_status == "explicit"
+
+
+def test_active_sensor_implementation_has_no_direct_linkedin_transport_stack() -> None:
+    module = Path("src/search_intelligence/conservative_market_sensors.py").read_text(
+        encoding="utf-8"
+    )
+    runner = Path("scripts/run_freeze2_linkedin_indeed_market_sensors.py").read_text(
+        encoding="utf-8"
+    )
+    active = module + "\n" + runner
+
+    for forbidden in (
+        "import requests",
+        "from requests",
+        "import httpx",
+        "from httpx",
+        "import aiohttp",
+        "from aiohttp",
+        "selenium",
+        "playwright",
+        "/voyager/api",
+        "/jobs-guest/",
+        "/uas/authenticate",
+    ):
+        assert forbidden not in active
+
+    assert "tavily_search(" in runner
+    assert "site:linkedin.com/jobs/view" in module
+
+
+def test_provider_path_stays_basic_without_raw_content_requests() -> None:
+    runner = Path("scripts/run_freeze2_linkedin_indeed_market_sensors.py").read_text(
+        encoding="utf-8"
+    )
+    provider = Path("scripts/run_origin_source_discovery_agent.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'search_depth="basic"' in runner
+    assert '"include_answer": False' in provider
+    assert '"include_raw_content": False' in provider
+    assert "extract_depth" not in runner

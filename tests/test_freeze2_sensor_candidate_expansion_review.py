@@ -100,3 +100,50 @@ def test_review_reuses_known_candidate_suppression_without_creating_candidates(
     assert report["boundary"]["external_provider_requests"] == 0
     assert report["boundary"]["database_writes"] == 0
     assert report["boundary"]["candidate_creation"] == 0
+
+
+def test_groups_minimised_v2_sensor_artifact() -> None:
+    report = {
+        "schema": "job_application_pipeline.freeze2_market_sensor_probe.v2",
+        "provider": "tavily",
+        "sensors": {
+            "linkedin": {
+                "queries": [
+                    {
+                        "search_term": "AI Architect",
+                        "location_signal": "Hannover",
+                        "query": 'site:linkedin.com/jobs/view "AI Architect" "Hannover" Germany',
+                    }
+                ],
+                "observations": [
+                    {
+                        "schema": "job_application_pipeline.conservative_market_sensor.v3",
+                        "sensor": "linkedin",
+                        "provider": "tavily",
+                        "query": 'site:linkedin.com/jobs/view "AI Architect" "Hannover" Germany',
+                        "host": "www.linkedin.com",
+                        "observed_at_utc": "2026-09-27T07:30:00+00:00",
+                        "search_term": "AI Architect",
+                        "location_signal": "Hannover",
+                        "observed_company_signal": "Awin",
+                        "company_signal_status": "explicit",
+                        "company_signal_rule": "linkedin_title_company_prefix",
+                        "platform_reference_sha256": "a" * 64,
+                        "authority": "discovery_only",
+                    }
+                ],
+            }
+        },
+    }
+
+    observations, metadata = bridge._build_company_observations(report)
+
+    assert metadata["total_sensor_observation_count"] == 1
+    assert metadata["attributed_observation_count"] == 1
+    assert metadata["unattributed_observation_count"] == 0
+    assert metadata["attributed_company_count"] == 1
+    assert observations[0].company_key == "awin"
+    assert observations[0].company_name == "Awin"
+    assert observations[0].search_terms == ("AI Architect",)
+    assert observations[0].sample_titles == ()
+    assert metadata["grouped_company_evidence"][0]["sample_titles"] == []

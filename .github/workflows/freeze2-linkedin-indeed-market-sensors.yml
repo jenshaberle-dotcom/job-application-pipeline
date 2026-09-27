@@ -2,6 +2,16 @@ name: Freeze-II LinkedIn Indeed market sensors
 
 on:
   workflow_dispatch:
+    inputs:
+      sensor_scope:
+        description: "Bounded market sensor scope"
+        required: true
+        default: linkedin
+        type: choice
+        options:
+          - linkedin
+          - indeed
+          - both
   issue_comment:
     types: [created]
 
@@ -35,6 +45,8 @@ jobs:
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       SENSOR_OUTPUT: /tmp/freeze2-linkedin-indeed-market-sensors.json
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      WORKFLOW_SENSOR_SCOPE: ${{ inputs.sensor_scope }}
+      COMMENT_BODY: ${{ github.event.comment.body }}
 
     steps:
       - name: Check out exact main
@@ -102,6 +114,27 @@ jobs:
           printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
           printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
 
+      - name: Resolve minimum requested sensor scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope="${WORKFLOW_SENSOR_SCOPE:-}"
+          if [[ -z "$scope" && "${COMMENT_BODY:-}" =~ sensor=(linkedin|indeed|both) ]]; then
+            scope="${BASH_REMATCH[1]}"
+          fi
+          if [[ -z "$scope" ]]; then
+            scope="linkedin"
+          fi
+          case "$scope" in
+            linkedin|indeed|both) ;;
+            *)
+              echo "Unsupported sensor scope: $scope" >&2
+              exit 2
+              ;;
+          esac
+          echo "SENSOR_SCOPE=$scope" >> "$GITHUB_ENV"
+          echo "SENSOR_SCOPE=$scope"
+
       - name: Qualify sensor contracts
         shell: bash
         run: |
@@ -118,7 +151,13 @@ jobs:
           source "$RUNTIME_ENV_FILE"
           set +a
           export PGOPTIONS="-c default_transaction_read_only=on"
-          "$RUNTIME_PYTHON" -m scripts.run_freeze2_linkedin_indeed_market_sensors             --provider tavily             --sensor linkedin             --sensor indeed             --max-terms 3             --max-locations 2             --max-results 5             --output "$SENSOR_OUTPUT"
+          sensor_args=()
+          case "$SENSOR_SCOPE" in
+            linkedin) sensor_args+=(--sensor linkedin) ;;
+            indeed) sensor_args+=(--sensor indeed) ;;
+            both) sensor_args+=(--sensor linkedin --sensor indeed) ;;
+          esac
+          "$RUNTIME_PYTHON" -m scripts.run_freeze2_linkedin_indeed_market_sensors             --provider tavily             "${sensor_args[@]}"             --max-terms 3             --max-locations 2             --max-results 5             --output "$SENSOR_OUTPUT"
 
       - name: Upload bounded sensor evidence
         uses: actions/upload-artifact@v4
@@ -126,7 +165,7 @@ jobs:
           name: freeze2-linkedin-indeed-market-sensors-${{ github.run_id }}
           path: ${{ env.SENSOR_OUTPUT }}
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 3
 
       - name: Publish aggregate sensor proof to Freeze-II issue
         shell: bash
@@ -146,7 +185,7 @@ jobs:
           report = json.loads(Path(os.environ["SENSOR_OUTPUT"]).read_text(encoding="utf-8"))
           lines = [
               "<!-- jap-freeze2-market-sensors:v1 -->",
-              "## Freeze-II — LinkedIn + Indeed conservative sensor proof",
+              "## Freeze-II — conservative market sensor proof",
               "",
               f"- source SHA: `{os.environ['SOURCE_SHA']}`",
               f"- workflow: https://github.com/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}",
@@ -168,7 +207,7 @@ jobs:
                   f"- total provider requests: **{report['summary']['provider_request_count']}**",
                   f"- total accepted observations: **{report['summary']['accepted_observation_count']}**",
                   "",
-                  "Boundary: discovery-only; no direct LinkedIn/Indeed HTTP, no login/browser automation, DB/Bronze/Silver/Product writes 0.",
+                  "Boundary: discovery-only; approved external search index only; no direct LinkedIn/Indeed HTTP, no login/browser/Voyager/guest-API/CAPTCHA/proxy automation; platform URL/title/snippet persistence 0; DB/Bronze/Silver/Product writes 0.",
               ]
           )
           body = "\n".join(lines)

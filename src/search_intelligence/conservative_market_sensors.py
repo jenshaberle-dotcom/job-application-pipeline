@@ -1,23 +1,28 @@
 """Conservative discovery-only market sensors for commercial aggregators.
 
 LinkedIn and Indeed are intentionally *not* ingestion connectors here. The sensor
-builds bounded site-restricted web-search queries and accepts only minimal public
-search-result evidence from the expected platform host/path.
+builds bounded site-restricted queries for an approved external search-index
+provider and accepts only minimal result metadata from the expected platform
+host/path.
 
-No platform page is fetched by this module. No login/browser automation is used.
-No result has Employer-Origin, Bronze, Silver, Product, ranking, Fit or application
-authority.
+No platform page is fetched by this module. No login/browser automation, unofficial
+platform API, CAPTCHA handling, proxy rotation, or anti-bot evasion is used.
+Provider-returned platform URL/title/snippet fields are transient process evidence:
+they are used only to derive a bounded company signal and a one-way reference hash,
+then omitted from persisted sensor artifacts. No result has Employer-Origin, Bronze,
+Silver, Product, ranking, Fit or application authority.
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
+import hashlib
 import re
 from typing import Iterable, Mapping, Sequence
 from urllib.parse import urlparse
 
 
-SENSOR_SCHEMA = "job_application_pipeline.conservative_market_sensor.v2"
+SENSOR_SCHEMA = "job_application_pipeline.conservative_market_sensor.v3"
 SENSOR_PLATFORMS = ("linkedin", "indeed")
 
 _PLATFORM_SPECS: dict[str, dict[str, object]] = {
@@ -39,7 +44,18 @@ BOUNDARY = {
     "login_automation": 0,
     "browser_automation": 0,
     "captcha_bypass": 0,
+    "anti_bot_evasion": 0,
+    "proxy_rotation": 0,
+    "unofficial_platform_api": 0,
+    "direct_guest_api": 0,
+    "member_profile_access": 0,
+    "personal_data_targeting": 0,
     "raw_job_content_persistence": 0,
+    "platform_url_persistence": 0,
+    "platform_title_persistence": 0,
+    "platform_snippet_persistence": 0,
+    "provider_raw_content_requests": 0,
+    "provider_query_personal_data": 0,
     "database_writes": 0,
     "bronze_writes": 0,
     "silver_writes": 0,
@@ -85,9 +101,31 @@ class SensorObservation:
     authority: str = "discovery_only"
 
     def as_dict(self) -> dict[str, object]:
-        payload = asdict(self)
-        payload["boundary"] = BOUNDARY
-        return payload
+        """Return only the persistable, minimised discovery record.
+
+        Raw platform URL/title/snippet metadata is deliberately excluded. The
+        one-way URL digest supports run-local dedup/audit correlation without
+        retaining a LinkedIn/Indeed deep link or platform job identifier.
+        """
+
+        return {
+            "schema": self.schema,
+            "sensor": self.sensor,
+            "provider": self.provider,
+            "query": self.query,
+            "host": self.host,
+            "observed_at_utc": self.observed_at_utc,
+            "search_term": self.search_term,
+            "location_signal": self.location_signal,
+            "observed_company_signal": self.observed_company_signal,
+            "company_signal_status": self.company_signal_status,
+            "company_signal_rule": self.company_signal_rule,
+            "platform_reference_sha256": hashlib.sha256(
+                self.url.encode("utf-8")
+            ).hexdigest(),
+            "authority": self.authority,
+            "boundary": dict(BOUNDARY),
+        }
 
 
 def _normalized_values(values: Iterable[object], *, limit: int) -> tuple[str, ...]:
