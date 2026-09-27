@@ -3,20 +3,12 @@ name: JAP product-local Windows release
 on:
   push:
     branches: [main]
+    # Immutable product tags are version-authoritative. A normal main push may
+    # publish a new generation only when the product VERSION itself changes.
+    # Runtime/source changes continue to be covered by Pipeline CI and are
+    # released together with the next explicit product version bump.
     paths:
-      - "VERSION"
-      - "windows/JAP.ControlCenter.Desktop/**"
-      - "frontend/control-center/**"
-      - "scripts/**"
-      - "src/**"
-      - "config/**"
-      - "contracts/**"
-      - "db/**"
-      - "install-jap-control-center.ps1"
-      - "Stop-JAP-Control-Center.ps1"
-      - "requirements.txt"
-      - "pyproject.toml"
-      - ".github/workflows/jap-windows-desktop-host-release.yml"
+      - "windows/JAP.ControlCenter.Desktop/VERSION"
   workflow_dispatch:
 
 permissions:
