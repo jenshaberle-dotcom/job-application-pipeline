@@ -197,7 +197,7 @@ def test_active_sensor_implementation_has_no_direct_linkedin_transport_stack() -
 
     assert "duckduckgo_html_search(" in runner
     assert "tavily_search(" in runner
-    assert 'default="duckduckgo_html"' in runner
+    assert 'default="none"' in runner
     assert "site:linkedin.com/jobs/view" in module
 
 
@@ -224,7 +224,7 @@ def test_paid_provider_is_explicit_optional_fallback_not_default() -> None:
     ).read_text(encoding="utf-8")
 
     assert 'choices=("none", "duckduckgo_html", "tavily")' in runner
-    assert 'default="duckduckgo_html"' in runner
+    assert 'default="none"' in runner
     assert '"automatic_paid_fallback": False' in runner
     assert "default: duckduckgo_html" in workflow
     assert "PAID_PROVIDER_OPT_IN=YES" in workflow
