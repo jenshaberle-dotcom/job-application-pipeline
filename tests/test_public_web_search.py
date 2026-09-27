@@ -182,3 +182,30 @@ def test_bing_rss_parses_keyless_structured_results() -> None:
     assert result.results[0].url.startswith("https://de.linkedin.com/jobs/view/")
     assert result.results[0].title.startswith("HDI Group sucht AI Architect")
     assert result.results[0].snippet == "HDI Group Hannover"
+
+
+def test_bing_rss_unwraps_click_tracking_before_returning_result() -> None:
+    rss = """<?xml version="1.0" encoding="utf-8"?>
+    <rss version="2.0"><channel>
+      <item>
+        <title>HDI Group sucht AI Architect in Hannover | LinkedIn</title>
+        <link>https://www.bing.com/ck/a?u=a1aHR0cHM6Ly9kZS5saW5rZWRpbi5jb20vam9icy92aWV3LzEyMzQ1Ni8&amp;ntb=1</link>
+        <description>HDI Group Hannover</description>
+      </item>
+    </channel></rss>"""
+
+    def request_get(url: str, **_: object) -> _FakeResponse:
+        return _FakeResponse(text=rss, url=url)
+
+    result = search_public_web(
+        provider="bing_rss",
+        query='site:linkedin.com "AI Architect" "Hannover"',
+        max_results=5,
+        timeout_seconds=2.0,
+        request_get=request_get,
+    )
+
+    assert result.status == "ok"
+    assert len(result.results) == 1
+    assert result.results[0].url == "https://de.linkedin.com/jobs/view/123456/"
+    assert "bing.com/ck/" not in result.results[0].url
