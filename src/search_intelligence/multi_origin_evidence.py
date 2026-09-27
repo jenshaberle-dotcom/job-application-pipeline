@@ -10,6 +10,7 @@ not perform network I/O; scripts pass discovered/fetched URLs into these helpers
 from __future__ import annotations
 
 import base64
+import binascii
 from dataclasses import dataclass, field
 from enum import StrEnum
 from re import search, sub
@@ -139,7 +140,7 @@ def _decode_bing_click_target(parsed_url: str) -> str | None:
     payload += "=" * (-len(payload) % 4)
     try:
         decoded = base64.urlsafe_b64decode(payload.encode("ascii")).decode("utf-8")
-    except (ValueError, UnicodeDecodeError):
+    except (binascii.Error, ValueError, UnicodeDecodeError):
         return None
     return normalize_url(decoded)
 
