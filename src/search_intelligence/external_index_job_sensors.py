@@ -286,9 +286,9 @@ def _meinestadt_fields(
     snippet: str,
     raw_url: str,
 ) -> tuple[str, str | None, str | None]:
-    cleaned = re.sub(r"^Stellenangebot:\\s*", "", title, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r"^Stellenangebot:\s*", "", title, flags=re.IGNORECASE).strip()
     location = None
-    match = re.match(r"^(?P<title>.+?)\\s+in\\s+(?P<location>[^|]{2,80})$", cleaned)
+    match = re.match(r"^(?P<title>.+?)\s+in\s+(?P<location>[^|]{2,80})$", cleaned)
     if match:
         job_title = match.group("title").strip()
         location = _clean(match.group("location"), limit=80)
@@ -298,7 +298,7 @@ def _meinestadt_fields(
     company = None
     if job_title:
         company_match = re.match(
-            rf"^{re.escape(job_title)}\\s+(?P<company>.+?)\\s+"
+            rf"^{re.escape(job_title)}\s+(?P<company>.+?)\s+"
             r"(?:Jetzt bewerben|Anzeige vom:)",
             snippet,
             flags=re.IGNORECASE,
@@ -317,7 +317,7 @@ def _meinestadt_fields(
 
 def _jobvector_fields(title: str, snippet: str) -> tuple[str, str | None, str | None]:
     match = re.match(
-        r"^(?P<title>.+?)\\s*\\|\\s*Job in (?P<location>.+?)$",
+        r"^(?P<title>.+?)\s*\|\s*Job in (?P<location>.+?)$",
         title,
         flags=re.IGNORECASE,
     )
@@ -330,8 +330,8 @@ def _jobvector_fields(title: str, snippet: str) -> tuple[str, str | None, str | 
 
     company = None
     patterns = (
-        rf"^{re.escape(job_title)}\\s+(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,100}}\\b{_LEGAL_ENTITY})\\b",
-        rf"(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,100}}\\b{_LEGAL_ENTITY})\\b",
+        rf"^{re.escape(job_title)}\s+(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,100}}\b{_LEGAL_ENTITY})\b",
+        rf"(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,100}}\b{_LEGAL_ENTITY})\b",
     )
     for pattern in patterns:
         found = re.search(pattern, snippet, flags=re.IGNORECASE)
