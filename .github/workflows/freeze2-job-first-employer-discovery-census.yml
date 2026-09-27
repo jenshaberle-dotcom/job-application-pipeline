@@ -7,12 +7,15 @@ on:
       - "src/search_intelligence/employer_discovery_census_adapter.py"
       - "src/search_intelligence/external_index_job_sensors.py"
       - "src/search_intelligence/market_source_access.py"
+      - "src/search_intelligence/census_flight_authority.py"
       - "scripts/run_job_first_employer_discovery_census.py"
+      - "scripts/run_job_first_employer_discovery_census_comparison.py"
       - "src/silver/relevance.py"
       - "tests/test_employer_discovery_census.py"
       - "tests/test_employer_discovery_census_adapter.py"
       - "tests/test_external_index_job_sensors.py"
       - "tests/test_job_first_employer_discovery_census_flight.py"
+      - "tests/test_census_comparison_flight.py"
       - "tests/test_market_source_access.py"
       - "tests/test_market_sensor_coverage.py"
       - ".github/workflows/freeze2-job-first-employer-discovery-census.yml"
@@ -40,5 +43,6 @@ jobs:
             tests/test_employer_discovery_census_adapter.py \
             tests/test_external_index_job_sensors.py \
             tests/test_job_first_employer_discovery_census_flight.py \
+            tests/test_census_comparison_flight.py \
             tests/test_market_source_access.py \
             tests/test_market_sensor_coverage.py
