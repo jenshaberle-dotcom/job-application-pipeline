@@ -68,8 +68,8 @@ SOURCE_SPECS: dict[str, ExternalIndexSourceSpec] = {
         source="jobvector",
         search_site="jobvector.de",
         host_suffix="jobvector.de",
-        url_hint="jobvector.de/",
-        extraction_status="shape_only",
+        url_hint="jobvector.de/job/",
+        extraction_status="fixture_qualified",
     ),
 }
 
@@ -177,8 +177,13 @@ def classify_external_index_result_shape(*, source: str, url: object) -> str:
         )
         return "accepted_shape" if detail_path and numeric_id else "unexpected_path"
 
-    # jobvector stays cohort-visible but parser authority is not yet proven.
-    return "shape_only_unqualified"
+    if source == "jobvector":
+        return (
+            "accepted_shape"
+            if re.fullmatch(r"/job/[a-z0-9%+._-]+/?", path)
+            else "unexpected_path"
+        )
+    raise AssertionError(f"Unhandled external-index source: {source}")
 
 
 def _clean(value: object, *, limit: int = 500) -> str:
@@ -309,6 +314,33 @@ def _meinestadt_fields(
 
     return job_title, company, location
 
+
+def _jobvector_fields(title: str, snippet: str) -> tuple[str, str | None, str | None]:
+    match = re.match(
+        r"^(?P<title>.+?)\\s*\\|\\s*Job in (?P<location>.+?)$",
+        title,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        job_title = match.group("title").strip()
+        location = _clean(match.group("location"), limit=80)
+    else:
+        job_title = title.strip()
+        location = _metadata_location(snippet)
+
+    company = None
+    patterns = (
+        rf"^{re.escape(job_title)}\\s+(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,100}}\\b{_LEGAL_ENTITY})\\b",
+        rf"(?P<company>[A-Za-zÄÖÜäöüß0-9&.'’+ -]{{1,100}}\\b{_LEGAL_ENTITY})\\b",
+    )
+    for pattern in patterns:
+        found = re.search(pattern, snippet, flags=re.IGNORECASE)
+        if found:
+            company = _clean_company(found.group("company"))
+            if company:
+                break
+    return job_title, company, location
+
 def accept_external_index_result(
     *,
     source: str,
@@ -341,6 +373,8 @@ def accept_external_index_result(
         job_title, company, location = _meinestadt_fields(
             title_signal, snippet_signal, raw_url
         )
+    elif source == "jobvector":
+        job_title, company, location = _jobvector_fields(title_signal, snippet_signal)
     else:
         return None
 
