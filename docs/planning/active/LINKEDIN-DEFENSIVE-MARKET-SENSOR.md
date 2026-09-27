@@ -144,32 +144,27 @@ Architecture authority: `docs/decisions/adr/036_external_tool_dependencies_are_o
 
 The LinkedIn sensor owns **no search-provider implementation**. It emits bounded search intent and evaluates returned result metadata. Search transport is a replaceable backend shared with other discovery uses.
 
-Current order:
+Current provider authority:
 
-1. `bing_rss` — current default candidate; keyless structured RSS and no paid-tool requirement;
-2. `duckduckgo_html` — retained diagnostic/free adapter, not default after real run `36316182144` returned zero accepted observations from six bounded queries;
-3. `tavily` — explicit optional residual/benchmark only;
-4. `none` — plan-only / zero external requests.
+1. `none` — **default**; zero external requests and zero provider dependency;
+2. `tavily` — explicit optional residual adapter only; operator-selected, never automatic and never required for unrelated JAP paths.
 
-There is no automatic fallback from a free backend to Tavily. A zero-yield, challenge or transport-error result is a valid bounded sensor outcome, not authorization to spend money.
+### Rejected qualification lanes
 
-The DDG result is intentionally **not** repaired with browser fingerprint impersonation, UA rotation, CAPTCHA handling or other anti-bot adaptation. Current public evidence reports HTTP 202/empty-result blocking for automated clients and SearXNG documents DDG's bot blocker/breaking-change risk:
+The zero-key experiments remain evidence, not active adapters:
+
+- **DuckDuckGo HTML:** run `36316182144` executed six bounded queries and returned zero accepted observations. Current automated-client challenge/block behavior is treated as a stop signal. JAP does not add browser impersonation, UA rotation, CAPTCHA handling, proxy rotation or other evasion to recover yield.
+- **Bing RSS:** the transport returned results reliably but not strict job-detail evidence. Aggregate-safe diagnostics eventually proved run `36325970818` returned 30 **direct off-domain** links; after switching to a declarative quoted URL hint, run `36326241225` returned 30 **direct LinkedIn-domain** links, but all 30 were `unexpected_path` rather than `/jobs/view/` detail pages. More Bing-specific query tuning is rejected as source/provider special logic.
+
+Relevant historical evidence remains useful:
 - https://github.com/nickclyde/duckduckgo-mcp-server/issues/46
 - https://github.com/searxng/searxng/blob/master/searx/engines/duckduckgo.py
-
-Bing RSS is evaluated because it returns structured XML without an API key or HTML result-page parsing. Microsoft historically documented RSS search-result feeds and the surface remains observable, but this is **not treated as a blanket commercial-use grant**. JAP's current use is personal/local; any commercial/public deployment requires a fresh terms review.
 - https://blogs.bing.com/search/2005/1/RSS-Feeds-for-Search-Results/
-- https://learn.microsoft.com/en-us/answers/questions/351603/bing-search-results-to-rss-not-working
-
-Real Bing RSS proof `36316916122` returned 30 search results across six bounded queries, but all 30 were rejected as `unexpected_host`. This matches Bing's documented `site:` behavior: Bing may include results from other sites when it does not find enough relevant results on the requested site. JAP therefore keeps `site:` intent domain-scoped and performs the authoritative job-detail host/path acceptance after search; it does not encode platform path structure into the search-engine operator.
-
-Relevant Bing query-operator documentation:
 - https://github.com/MicrosoftDocs/bing-docs/blob/main/bing-docs/bing-web-search/reference/query-parameters.md
 
-If Bing RSS is not reliable enough, the next preferred lane is self-hosted/open SearXNG JSON before a paid provider becomes necessary:
-- https://docs.searxng.org/dev/search_api
+A library is not automatically admissible merely because it avoids SaaS. The `ddgs` family is not admitted into the GREEN path because its search-engine compatibility model includes browser-impersonation/proxy-oriented mechanisms that conflict with JAP's anti-evasion boundary. Likewise, SearXNG is not installed merely to avoid Tavily: it would introduce another runtime service and largely delegates to external search engines. Either may be reconsidered only through a separate evidence/terms review.
 
-Tavily was used for the first S0.5 real proof because that provider path already existed. It is not part of the LinkedIn architecture and is not required for future runs.
+Tavily produced the first successful bounded S0.5 proof (`36304719205`) and therefore remains a known-working **optional** residual transport. Its absence, quota exhaustion or removal leaves the sensor dormant; it does not stop JAP.
 
 Reviewed Tavily sources remain relevant when Tavily is explicitly selected:
 
@@ -187,7 +182,7 @@ Regardless of backend:
 - search transport is not LinkedIn permission;
 - if a backend requires LinkedIn credentials, cookies, CAPTCHA solving, proxy/bypass features or other anti-bot evasion, that backend is inadmissible for this sensor.
 
-Current query inputs are limited to role/search terms, coarse location signals and the site restriction needed to find public LinkedIn job-result references.
+Current query inputs are limited to role/search terms, coarse location signals and a declarative public job-URL hint. They contain no applicant/account/contact context.
 
 ## EU/GDPR minimisation
 
@@ -208,8 +203,8 @@ Although JAP's target is employer/job-market evidence rather than member profili
 
 - operator-triggered or separately reviewed low-frequency run;
 - replaceable bounded public-search backend;
-- zero-key / zero-paid-tool backend is the default implementation;
-- paid backend selection is explicit and never an automatic fallback;
+- no external backend is the default implementation;
+- any real backend selection is explicit and never an automatic fallback;
 - site-bounded query for public LinkedIn job-result references;
 - no request from JAP to linkedin.com;
 - no account, cookie, token or browser session;
@@ -279,7 +274,7 @@ Current authority remains **no scheduled LinkedIn polling**. S0.5 is operator-tr
 
 Any recurring schedule requires a separate reviewed change. Default future design target, if admitted, is no more than one bounded market-sensor sweep per day, with explicit request/result budgets and no adaptive retry escalation.
 
-Zero yield and provider-unavailable are valid outcomes.
+Plan-only/no-provider, zero yield and provider-unavailable are valid outcomes.
 
 ## Fail-closed / kill switches
 
@@ -290,7 +285,7 @@ Disable the LinkedIn sensor rather than escalate access if any of the following 
 - the selected search backend begins requiring LinkedIn credentials, cookies, CAPTCHA solving, proxies or bypass features;
 - backend results expose member/profile/recruiter personal data beyond incidental transient text;
 - a backend cannot identify its data provenance or terms sufficiently for review;
-- repeated runs require higher request rates to remain useful;
+- useful operation would require escalating request rates, anti-bot adaptation or provider-specific tuning;
 - the sensor is proposed as Product job authority instead of employer-discovery evidence.
 
 ## Freeze-II consequence
