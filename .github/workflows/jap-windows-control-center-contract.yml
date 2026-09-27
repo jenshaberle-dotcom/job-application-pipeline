@@ -192,6 +192,46 @@ jobs:
           }
           Write-Host "JAP_DESKTOP_HOST_BUILD=PASS exe=$Exe"
 
+      - name: Prove WinExe stage no-update exit code is zero
+        shell: powershell
+        run: |
+          $Out = Join-Path $env:RUNNER_TEMP "jap-desktop-host"
+          $Exe = Join-Path $Out "JAP.ControlCenter.Desktop.exe"
+          $InstallRoot = Join-Path $env:RUNNER_TEMP "jap-stage-exit-contract"
+          Remove-Item -Recurse -Force $InstallRoot -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
+
+          @"
+          {
+            "schema": "job_application_pipeline.windows_control_center_install.v3",
+            "repository_id": 1230805345,
+            "repository": "jenshaberle-dotcom/job-application-pipeline",
+            "update_generation": "cgkb_product_local_v1",
+            "desktop_host_version": "99.0.0"
+          }
+          "@ | Set-Content -Path (Join-Path $InstallRoot "current.json") -Encoding UTF8
+
+          & $Exe --stage-update --install-root $InstallRoot
+          $Exit = $LASTEXITCODE
+          Write-Host "JAP_STAGE_NO_UPDATE_EXIT_CODE=$Exit"
+          if ($Exit -ne 0) {
+            $AgentLog = Join-Path $InstallRoot "logs\product-update-agent.log"
+            if (Test-Path $AgentLog) {
+              Get-Content $AgentLog -Tail 40
+            }
+            throw "Expected --stage-update no-update process exit code 0, got $Exit"
+          }
+
+          $AgentLog = Join-Path $InstallRoot "logs\product-update-agent.log"
+          if (-not (Test-Path $AgentLog)) {
+            throw "Product update agent log missing from no-update process proof."
+          }
+          $AgentText = Get-Content $AgentLog -Raw
+          if ($AgentText -notmatch "stage_complete\s+result=no_update") {
+            throw "Product update agent did not prove the no-update result."
+          }
+          Write-Host "JAP_STAGE_NO_UPDATE_PROCESS_CONTRACT=PASS"
+
   wsl-wrapper-contract:
     name: Validate WSL wrapper and static contracts
     runs-on: ubuntu-latest
