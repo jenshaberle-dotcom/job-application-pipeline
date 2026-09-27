@@ -113,3 +113,35 @@ def test_source_metrics_measure_jobs_not_raw_company_signals():
     assert metrics["qualifying_jobs"] == 1
     assert metrics["unique_qualifying_employers"] == 1
     assert metrics["employer_attribution_rate"] == 2 / 3
+
+
+def test_relevant_role_onsite_munich_cannot_create_employer():
+    report = build_employer_discovery_census(
+        [job(location="München", title="Machine Learning Engineer")]
+    )
+    assert report["qualifying_job_count"] == 0
+    assert report["employers"] == []
+
+
+def test_relevant_role_unknown_location_fails_closed():
+    report = build_employer_discovery_census(
+        [job(location=None, title="Machine Learning Engineer")]
+    )
+    assert report["qualifying_job_count"] == 0
+    assert report["employers"] == []
+
+
+def test_remote_word_without_explicit_remote_signal_fails_closed():
+    report = build_employer_discovery_census(
+        [job(location="Deutschland remote", remote_signal=False)]
+    )
+    assert report["qualifying_job_count"] == 0
+    assert report["employers"] == []
+
+
+def test_explicit_germany_remote_job_can_create_employer():
+    report = build_employer_discovery_census(
+        [job(location="Deutschland remote", remote_signal=True)]
+    )
+    assert report["qualifying_job_count"] == 1
+    assert report["employers"][0]["remote_de_matches"] == 1
