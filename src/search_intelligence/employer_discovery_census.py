@@ -84,6 +84,13 @@ def qualify_observation(observation: MarketJobObservation) -> QualifiedJob | Non
     remote_de = observation.remote_signal and any(
         token in location for token in ("deutschland", "germany", "remote")
     )
+
+    # Silver accessibility is intentionally broader than the current JAP search
+    # profile. Employer discovery is narrower: a market job may admit an employer
+    # only when the job itself is Hannover-local or explicitly Germany-remote.
+    if not (local or remote_de):
+        return None
+
     return QualifiedJob(
         observation=observation,
         company_key=normalize_company_key(company_name),
