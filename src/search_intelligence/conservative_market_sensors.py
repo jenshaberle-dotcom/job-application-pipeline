@@ -1,9 +1,10 @@
 """Conservative discovery-only market sensors for commercial aggregators.
 
 LinkedIn and Indeed are intentionally *not* ingestion connectors here. The sensor
-builds bounded site-restricted queries for an approved external search-index
-provider and accepts only minimal result metadata from the expected platform
-host/path.
+builds bounded site-restricted queries for a replaceable public-search backend
+and accepts only minimal result metadata from the expected platform host/path.
+Search transport is intentionally platform-independent; no sensor owns a paid
+provider dependency.
 
 No platform page is fetched by this module. No login/browser automation, unofficial
 platform API, CAPTCHA handling, proxy rotation, or anti-bot evasion is used.
@@ -56,6 +57,8 @@ BOUNDARY = {
     "platform_snippet_persistence": 0,
     "provider_raw_content_requests": 0,
     "provider_query_personal_data": 0,
+    "paid_external_tool_required": False,
+    "automatic_paid_fallback": 0,
     "database_writes": 0,
     "bronze_writes": 0,
     "silver_writes": 0,

@@ -1,10 +1,14 @@
-"""Run bounded LinkedIn + Indeed discovery-only market sensors.
+"""Run bounded discovery-only market sensors over a replaceable search backend.
 
-Default mode is provider=none and performs zero external requests. A real Tavily
-probe requires an explicit --provider tavily and TAVILY_API_KEY. The script reads
-current active sensor search intent from PostgreSQL under a read-only transaction
-and emits minimised discovery evidence only. Platform URLs, titles and snippets
-returned by the search provider are transient and are not written to the artifact.
+Search intent, platform acceptance and provider transport are deliberately
+separate. The default real backend is zero-key/zero-paid-tool DuckDuckGo HTML.
+Tavily is an explicit optional backend only; failure of the default backend never
+triggers an automatic paid fallback.
+
+The script reads current active sensor intent from PostgreSQL under a read-only
+transaction and emits minimised discovery evidence only. Platform URLs, titles
+and snippets returned by a backend are transient and are not written to the
+artifact.
 """
 
 from __future__ import annotations
@@ -12,17 +16,12 @@ from __future__ import annotations
 import argparse
 from datetime import UTC, datetime
 import json
-import os
 from pathlib import Path
 
 import psycopg
 from psycopg.rows import dict_row
 
-from scripts.run_origin_source_discovery_agent import (
-    _is_missing_or_placeholder_secret,
-    load_local_env_file,
-    tavily_search,
-)
+from scripts.run_origin_source_discovery_agent import load_local_env_file
 from src.config import get_database_config
 from src.search_intelligence.conservative_market_sensors import (
     BOUNDARY,
@@ -30,6 +29,13 @@ from src.search_intelligence.conservative_market_sensors import (
     accept_provider_result,
     build_sensor_queries,
     deduplicate_observations,
+)
+from src.search_intelligence.public_web_search import (
+    BACKEND_POLICIES,
+    DEFAULT_SEARCH_BACKEND,
+    SUPPORTED_SEARCH_BACKENDS,
+    backend_available,
+    search_public_web,
 )
 
 
@@ -114,7 +120,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     requested_sensors = tuple(dict.fromkeys(args.sensor or SENSOR_PLATFORMS))
     provider_available = (
         args.provider == "none"
-        or not _is_missing_or_placeholder_secret(os.getenv("TAVILY_API_KEY"))
+        or backend_available(args.provider)
     )
     observed_at = datetime.now(UTC).isoformat()
 
@@ -134,17 +140,21 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         rejected_count = 0
         request_count = 0
 
-        if args.provider == "tavily" and provider_available:
+        transport_status_counts: dict[str, int] = {}
+        if args.provider != "none" and provider_available:
             for plan in queries:
-                request_count += 1
-                total_requests += 1
-                rows = tavily_search(
-                    plan.query,
+                response = search_public_web(
+                    provider=args.provider,
+                    query=plan.query,
                     max_results=args.max_results,
                     timeout_seconds=args.timeout_seconds,
-                    search_depth="basic",
                 )
-                for row in rows:
+                request_count += response.request_count
+                total_requests += response.request_count
+                transport_status_counts[response.status] = (
+                    transport_status_counts.get(response.status, 0) + 1
+                )
+                for row in response.results:
                     observation = accept_provider_result(
                         sensor=sensor,
                         provider=row.provider,
@@ -174,6 +184,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "provider_request_count": request_count,
             "accepted_observation_count": len(unique),
             "rejected_provider_result_count": rejected_count,
+            "transport_status_counts": transport_status_counts,
             "queries": [
                 {
                     "search_term": plan.search_term,
@@ -190,6 +201,21 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         "mode": "discovery_only",
         "provider": args.provider,
         "provider_available": provider_available,
+        "provider_policy": (
+            {
+                "requires_secret": BACKEND_POLICIES[args.provider].requires_secret,
+                "paid_external_tool": BACKEND_POLICIES[args.provider].paid_external_tool,
+                "automatic_fallback_allowed": BACKEND_POLICIES[
+                    args.provider
+                ].automatic_fallback_allowed,
+            }
+            if args.provider in BACKEND_POLICIES
+            else {
+                "requires_secret": False,
+                "paid_external_tool": False,
+                "automatic_fallback_allowed": False,
+            }
+        ),
         "intent": {
             "search_terms": list(terms),
             "location_signals": list(locations),
@@ -213,7 +239,15 @@ def build_parser() -> argparse.ArgumentParser:
         choices=SENSOR_PLATFORMS,
         help="Sensor to run. Repeatable. Defaults to LinkedIn + Indeed.",
     )
-    parser.add_argument("--provider", choices=("none", "tavily"), default="none")
+    parser.add_argument(
+        "--provider",
+        choices=("none", *SUPPORTED_SEARCH_BACKENDS),
+        default=DEFAULT_SEARCH_BACKEND,
+        help=(
+            "Replaceable search transport. Defaults to zero-key duckduckgo_html; "
+            "tavily is explicit optional fallback/benchmark only."
+        ),
+    )
     parser.add_argument("--max-terms", type=int, default=3)
     parser.add_argument("--max-locations", type=int, default=2)
     parser.add_argument("--max-results", type=int, default=5)
