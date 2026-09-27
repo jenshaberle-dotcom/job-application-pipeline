@@ -56,6 +56,8 @@ BOUNDARY = {
     "platform_snippet_persistence": 0,
     "provider_raw_content_requests": 0,
     "provider_query_personal_data": 0,
+    "commercial_provider_required": 0,
+    "automatic_paid_fallback": 0,
     "database_writes": 0,
     "bronze_writes": 0,
     "silver_writes": 0,

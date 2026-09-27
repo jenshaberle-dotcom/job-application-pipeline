@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from argparse import Namespace
 from pathlib import Path
+
+from scripts import run_freeze2_linkedin_indeed_market_sensors as runner
 
 from src.search_intelligence.conservative_market_sensors import (
     BOUNDARY,
@@ -112,6 +115,8 @@ def test_sensor_boundary_has_no_product_or_platform_automation_authority() -> No
     assert BOUNDARY["platform_snippet_persistence"] == 0
     assert BOUNDARY["provider_raw_content_requests"] == 0
     assert BOUNDARY["provider_query_personal_data"] == 0
+    assert BOUNDARY["commercial_provider_required"] == 0
+    assert BOUNDARY["automatic_paid_fallback"] == 0
     assert BOUNDARY["database_writes"] == 0
     assert BOUNDARY["bronze_writes"] == 0
     assert BOUNDARY["silver_writes"] == 0
@@ -193,7 +198,9 @@ def test_active_sensor_implementation_has_no_direct_linkedin_transport_stack() -
     ):
         assert forbidden not in active
 
+    assert "duckduckgo_html_search(" in runner
     assert "tavily_search(" in runner
+    assert 'default="none"' in runner
     assert "site:linkedin.com/jobs/view" in module
 
 
@@ -209,3 +216,96 @@ def test_provider_path_stays_basic_without_raw_content_requests() -> None:
     assert '"include_answer": False' in provider
     assert '"include_raw_content": False' in provider
     assert "extract_depth" not in runner
+
+
+def test_paid_provider_is_explicit_optional_fallback_not_default() -> None:
+    runner = Path("scripts/run_freeze2_linkedin_indeed_market_sensors.py").read_text(
+        encoding="utf-8"
+    )
+    workflow = Path(
+        ".github/workflows/freeze2-linkedin-indeed-market-sensors.yml"
+    ).read_text(encoding="utf-8")
+
+    assert 'choices=("none", "duckduckgo_html", "tavily")' in runner
+    assert 'default="none"' in runner
+    assert '"automatic_paid_fallback": False' in runner
+    assert "default: duckduckgo_html" in workflow
+    assert "PAID_PROVIDER_OPT_IN=YES" in workflow
+    assert '--provider "$SEARCH_BACKEND"' in workflow
+    assert "--provider tavily" not in workflow
+
+
+def test_keyless_backend_failure_does_not_auto_call_paid_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner,
+        "_load_current_search_intent",
+        lambda **_: (("AI Architect",), ("Hannover",)),
+    )
+
+    paid_calls = []
+
+    def fail_keyless(*args, **kwargs):
+        raise RuntimeError("synthetic keyless outage")
+
+    def paid_provider(*args, **kwargs):
+        paid_calls.append((args, kwargs))
+        raise AssertionError("paid fallback must not be automatic")
+
+    monkeypatch.setattr(runner, "duckduckgo_html_search", fail_keyless)
+    monkeypatch.setattr(runner, "tavily_search", paid_provider)
+
+    report = runner.run(
+        Namespace(
+            provider="duckduckgo_html",
+            sensor=["linkedin"],
+            max_terms=1,
+            max_locations=1,
+            max_results=5,
+            timeout_seconds=1.0,
+        )
+    )
+
+    assert paid_calls == []
+    assert report["provider_available"] is False
+    assert report["summary"]["provider_request_count"] == 1
+    assert report["summary"]["provider_error_count"] == 1
+    assert report["sensors"]["linkedin"]["status"] == "provider_unavailable"
+    assert report["sensors"]["linkedin"]["automatic_paid_fallback"] is False
+
+
+def test_none_backend_performs_no_external_search(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner,
+        "_load_current_search_intent",
+        lambda **_: (("AI Architect",), ("Hannover",)),
+    )
+
+    monkeypatch.setattr(
+        runner,
+        "duckduckgo_html_search",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("keyless backend must not be called")
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "tavily_search",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("paid backend must not be called")
+        ),
+    )
+
+    report = runner.run(
+        Namespace(
+            provider="none",
+            sensor=["linkedin"],
+            max_terms=1,
+            max_locations=1,
+            max_results=5,
+            timeout_seconds=1.0,
+        )
+    )
+
+    assert report["provider_available"] is True
+    assert report["summary"]["provider_request_count"] == 0
+    assert report["sensors"]["linkedin"]["status"] == "plan_only"

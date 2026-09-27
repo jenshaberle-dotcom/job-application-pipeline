@@ -13,7 +13,7 @@ JAP may use LinkedIn only as a **defensive discovery/freshness sensor**.
 
 The production-authoritative path is:
 
-`approved external search index -> transient LinkedIn result metadata -> minimal derived company signal -> raw platform metadata discarded -> direct employer/ATS resolution -> normal Employer-Origin proof`
+`generic search transport -> transient LinkedIn result metadata -> minimal derived company signal -> raw platform metadata discarded -> direct employer/ATS resolution -> normal Employer-Origin proof`
 
 LinkedIn is never:
 
@@ -154,9 +154,9 @@ Engineering implications:
 - Tavily permits normal API integration for internal business use, but Customer remains responsible for lawful use and for not causing contractual or third-party-rights violations.
 - Tavily may process query data and use third-party public web indexes to provide results. Therefore JAP must not put applicant names, account credentials, contact data or other personal/sensitive user context into LinkedIn sensor queries.
 - JAP uses only the provider's basic search-result mode for this sensor. Raw-content/extraction modes are not admitted.
-- Tavily is transport, not LinkedIn permission. If Tavily changes its collection path so that LinkedIn credentials, cookies, CAPTCHA/proxy bypass or undisclosed scraping infrastructure become necessary, the LinkedIn sensor fails closed pending review.
+- Tavily is transport, not LinkedIn permission. It is an explicit optional paid fallback, never the default and never selected automatically. If Tavily changes its collection path so that LinkedIn credentials, cookies, CAPTCHA/proxy bypass or undisclosed scraping infrastructure become necessary, the LinkedIn sensor fails closed pending review.
 
-Current query inputs are limited to role/search terms, coarse location signals and the site-restriction needed to find public LinkedIn job-result references.
+The dependency order is governed by `docs/decisions/adr/028_minimize_external_tool_and_paid_provider_dependencies.md`: local deterministic capability -> first-party/source-near transport -> keyless/self-controlled generic transport -> explicit commercial fallback. Current query inputs are limited to role/search terms, coarse location signals and the site-restriction needed to find public LinkedIn job-result references.
 
 ## EU/GDPR minimisation
 
@@ -176,7 +176,10 @@ Although JAP's target is employer/job-market evidence rather than member profili
 ### GREEN — current Core path
 
 - operator-triggered or separately reviewed low-frequency run;
-- approved external search-index provider;
+- provider-agnostic generic search transport;
+- `provider=none` is the dependency-free runner default;
+- the explicitly operator-triggered live workflow currently selects keyless `duckduckgo_html`;
+- no automatic paid-provider fallback;
 - site-bounded query for public LinkedIn job-result references;
 - no request from JAP to linkedin.com;
 - no account, cookie, token or browser session;
@@ -202,7 +205,7 @@ This is **lower risk, not zero risk** because LinkedIn's User Agreement also add
 ### AMBER — separate review required
 
 - official LinkedIn API requiring partner approval;
-- managed scraping/API provider that itself retrieves LinkedIn data;
+- commercial search/scraping/API provider that itself retrieves LinkedIn data;
 - recurring automated cadence;
 - persistence of additional LinkedIn-derived fields;
 - any user-facing display of LinkedIn-derived content.

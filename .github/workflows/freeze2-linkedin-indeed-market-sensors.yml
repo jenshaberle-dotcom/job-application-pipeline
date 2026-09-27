@@ -12,6 +12,15 @@ on:
           - linkedin
           - indeed
           - both
+      search_backend:
+        description: "Generic search transport; Tavily is explicit paid fallback only"
+        required: true
+        default: duckduckgo_html
+        type: choice
+        options:
+          - duckduckgo_html
+          - none
+          - tavily
   issue_comment:
     types: [created]
 
@@ -46,6 +55,7 @@ jobs:
       SENSOR_OUTPUT: /tmp/freeze2-linkedin-indeed-market-sensors.json
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
       WORKFLOW_SENSOR_SCOPE: ${{ inputs.sensor_scope }}
+      WORKFLOW_SEARCH_BACKEND: ${{ inputs.search_backend }}
       COMMENT_BODY: ${{ github.event.comment.body }}
 
     steps:
@@ -135,12 +145,38 @@ jobs:
           echo "SENSOR_SCOPE=$scope" >> "$GITHUB_ENV"
           echo "SENSOR_SCOPE=$scope"
 
+      - name: Resolve provider-independent search backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend="${WORKFLOW_SEARCH_BACKEND:-}"
+          if [[ -z "$backend" && "${COMMENT_BODY:-}" =~ backend=(none|duckduckgo_html|tavily) ]]; then
+            backend="${BASH_REMATCH[1]}"
+          fi
+          if [[ -z "$backend" ]]; then
+            backend="duckduckgo_html"
+          fi
+          case "$backend" in
+            none|duckduckgo_html|tavily) ;;
+            *)
+              echo "Unsupported search backend: $backend" >&2
+              exit 2
+              ;;
+          esac
+          echo "SEARCH_BACKEND=$backend" >> "$GITHUB_ENV"
+          echo "SEARCH_BACKEND=$backend"
+          if [[ "$backend" == "tavily" ]]; then
+            echo "PAID_PROVIDER_OPT_IN=YES"
+          else
+            echo "PAID_PROVIDER_OPT_IN=NO"
+          fi
+
       - name: Qualify sensor contracts
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNTIME_PYTHON" -m pytest -q             tests/test_conservative_market_sensors.py             tests/test_silver_transformer_canonicalization.py
-          "$RUNTIME_PYTHON" -m ruff check             src/search_intelligence/conservative_market_sensors.py             scripts/run_freeze2_linkedin_indeed_market_sensors.py             tests/test_conservative_market_sensors.py
+          "$RUNTIME_PYTHON" -m pytest -q             tests/test_public_web_search.py             tests/test_conservative_market_sensors.py             tests/test_silver_transformer_canonicalization.py
+          "$RUNTIME_PYTHON" -m ruff check             src/search_intelligence/public_web_search.py             src/search_intelligence/conservative_market_sensors.py             scripts/run_freeze2_linkedin_indeed_market_sensors.py             tests/test_public_web_search.py             tests/test_conservative_market_sensors.py
 
       - name: Run conservative sensor proof
         shell: bash
@@ -157,7 +193,7 @@ jobs:
             indeed) sensor_args+=(--sensor indeed) ;;
             both) sensor_args+=(--sensor linkedin --sensor indeed) ;;
           esac
-          "$RUNTIME_PYTHON" -m scripts.run_freeze2_linkedin_indeed_market_sensors             --provider tavily             "${sensor_args[@]}"             --max-terms 3             --max-locations 2             --max-results 5             --output "$SENSOR_OUTPUT"
+          "$RUNTIME_PYTHON" -m scripts.run_freeze2_linkedin_indeed_market_sensors             --provider "$SEARCH_BACKEND"             "${sensor_args[@]}"             --max-terms 3             --max-locations 2             --max-results 5             --output "$SENSOR_OUTPUT"
 
       - name: Upload bounded sensor evidence
         uses: actions/upload-artifact@v4
@@ -200,14 +236,16 @@ jobs:
                   f"queries {payload['query_count']}, "
                   f"provider requests {payload['provider_request_count']}, "
                   f"accepted observations {payload['accepted_observation_count']}, "
-                  f"rejected results {payload['rejected_provider_result_count']}"
+                  f"rejected results {payload['rejected_provider_result_count']}, "
+                  f"provider errors {payload['provider_error_count']}"
               )
           lines.extend(
               [
                   f"- total provider requests: **{report['summary']['provider_request_count']}**",
                   f"- total accepted observations: **{report['summary']['accepted_observation_count']}**",
+                  "- automatic paid fallback: **0**",
                   "",
-                  "Boundary: discovery-only; approved external search index only; no direct LinkedIn/Indeed HTTP, no login/browser/Voyager/guest-API/CAPTCHA/proxy automation; platform URL/title/snippet persistence 0; DB/Bronze/Silver/Product writes 0.",
+                  "Boundary: discovery-only; provider-agnostic search transport; keyless DuckDuckGo HTML is default; Tavily requires explicit opt-in and is never an automatic fallback; no direct LinkedIn/Indeed HTTP, no login/browser/Voyager/guest-API/CAPTCHA/proxy automation; platform URL/title/snippet persistence 0; DB/Bronze/Silver/Product writes 0.",
               ]
           )
           body = "\n".join(lines)

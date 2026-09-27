@@ -1,7 +1,9 @@
 """Run bounded LinkedIn + Indeed discovery-only market sensors.
 
-Default mode is provider=none and performs zero external requests. A real Tavily
-probe requires an explicit --provider tavily and TAVILY_API_KEY. The script reads
+Default mode is provider=none and performs zero external requests. The explicitly
+operator-triggered workflow selects the keyless DuckDuckGo HTML search surface for
+its live proof. Tavily remains an explicit optional paid fallback and is never
+selected automatically. The script reads
 current active sensor search intent from PostgreSQL under a read-only transaction
 and emits minimised discovery evidence only. Platform URLs, titles and snippets
 returned by the search provider are transient and are not written to the artifact.
@@ -24,6 +26,7 @@ from scripts.run_origin_source_discovery_agent import (
     tavily_search,
 )
 from src.config import get_database_config
+from src.search_intelligence.public_web_search import duckduckgo_html_search
 from src.search_intelligence.conservative_market_sensors import (
     BOUNDARY,
     SENSOR_PLATFORMS,
@@ -113,7 +116,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
 
     requested_sensors = tuple(dict.fromkeys(args.sensor or SENSOR_PLATFORMS))
     provider_available = (
-        args.provider == "none"
+        args.provider in {"none", "duckduckgo_html"}
         or not _is_missing_or_placeholder_secret(os.getenv("TAVILY_API_KEY"))
     )
     observed_at = datetime.now(UTC).isoformat()
@@ -121,6 +124,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     report_sensors: dict[str, object] = {}
     total_requests = 0
     total_observations = 0
+    total_provider_errors = 0
 
     for sensor in requested_sensors:
         queries = build_sensor_queries(
@@ -134,16 +138,37 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         rejected_count = 0
         request_count = 0
 
-        if args.provider == "tavily" and provider_available:
+        provider_error_count = 0
+        if args.provider != "none" and provider_available:
             for plan in queries:
                 request_count += 1
                 total_requests += 1
-                rows = tavily_search(
-                    plan.query,
-                    max_results=args.max_results,
-                    timeout_seconds=args.timeout_seconds,
-                    search_depth="basic",
-                )
+                try:
+                    if args.provider == "duckduckgo_html":
+                        rows = duckduckgo_html_search(
+                            plan.query,
+                            max_results=max(args.max_results * 3, args.max_results),
+                            timeout_seconds=args.timeout_seconds,
+                        )
+                    else:
+                        rows = tavily_search(
+                            plan.query,
+                            max_results=args.max_results,
+                            timeout_seconds=args.timeout_seconds,
+                            search_depth="basic",
+                        )
+                except Exception as exc:  # noqa: BLE001 - sensor is best-effort by design.
+                    provider_error_count += 1
+                    total_provider_errors += 1
+                    print(
+                        "market_sensor_warning:"
+                        f" provider={args.provider}"
+                        f" sensor={sensor}"
+                        f" error={type(exc).__name__}"
+                    )
+                    continue
+
+                accepted_for_query = 0
                 for row in rows:
                     observation = accept_provider_result(
                         sensor=sensor,
@@ -158,15 +183,25 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                     )
                     if observation is None:
                         rejected_count += 1
-                    else:
-                        accepted.append(observation)
+                        continue
+                    accepted.append(observation)
+                    accepted_for_query += 1
+                    if accepted_for_query >= args.max_results:
+                        break
 
         unique = deduplicate_observations(accepted)
         total_observations += len(unique)
         report_sensors[sensor] = {
             "status": _status(
                 provider=args.provider,
-                provider_available=provider_available,
+                provider_available=(
+                    provider_available
+                    and not (
+                        args.provider == "duckduckgo_html"
+                        and request_count > 0
+                        and provider_error_count == request_count
+                    )
+                ),
                 query_count=len(queries),
                 observations=len(unique),
             ),
@@ -174,6 +209,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "provider_request_count": request_count,
             "accepted_observation_count": len(unique),
             "rejected_provider_result_count": rejected_count,
+            "provider_error_count": provider_error_count,
+            "automatic_paid_fallback": False,
             "queries": [
                 {
                     "search_term": plan.search_term,
@@ -189,7 +226,14 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         "schema": "job_application_pipeline.freeze2_market_sensor_probe.v2",
         "mode": "discovery_only",
         "provider": args.provider,
-        "provider_available": provider_available,
+        "provider_available": (
+            provider_available
+            and not (
+                args.provider == "duckduckgo_html"
+                and total_requests > 0
+                and total_provider_errors == total_requests
+            )
+        ),
         "intent": {
             "search_terms": list(terms),
             "location_signals": list(locations),
@@ -200,6 +244,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "sensor_count": len(requested_sensors),
             "provider_request_count": total_requests,
             "accepted_observation_count": total_observations,
+            "provider_error_count": total_provider_errors,
         },
         "boundary": dict(BOUNDARY),
     }
@@ -213,7 +258,15 @@ def build_parser() -> argparse.ArgumentParser:
         choices=SENSOR_PLATFORMS,
         help="Sensor to run. Repeatable. Defaults to LinkedIn + Indeed.",
     )
-    parser.add_argument("--provider", choices=("none", "tavily"), default="none")
+    parser.add_argument(
+        "--provider",
+        choices=("none", "duckduckgo_html", "tavily"),
+        default="none",
+        help=(
+            "Search transport. none is the dependency-free default; duckduckgo_html is the "
+            "keyless best-effort live backend; Tavily is explicit optional fallback only."
+        ),
+    )
     parser.add_argument("--max-terms", type=int, default=3)
     parser.add_argument("--max-locations", type=int, default=2)
     parser.add_argument("--max-results", type=int, default=5)
@@ -247,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
     print("============================================")
     print(f"PROVIDER={report['provider']}")
     print(f"PROVIDER_AVAILABLE={report['provider_available']}")
+    print("AUTOMATIC_PAID_FALLBACK=0")
     print(
         "INTENT_TERMS="
         + json.dumps(report["intent"]["search_terms"], ensure_ascii=False)
@@ -263,6 +317,7 @@ def main(argv: list[str] | None = None) -> int:
             f"|requests={payload['provider_request_count']}"
             f"|observations={payload['accepted_observation_count']}"
             f"|rejected={payload['rejected_provider_result_count']}"
+            f"|provider_errors={payload['provider_error_count']}"
         )
     print(
         "TOTAL_PROVIDER_REQUESTS="
