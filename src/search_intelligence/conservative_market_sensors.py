@@ -29,11 +29,13 @@ SENSOR_PLATFORMS = ("linkedin", "indeed")
 _PLATFORM_SPECS: dict[str, dict[str, object]] = {
     "linkedin": {
         "search_site": "linkedin.com",
+        "search_url_hint": "linkedin.com/jobs/view",
         "host_suffixes": ("linkedin.com",),
         "path_markers": ("/jobs/view/",),
     },
     "indeed": {
         "search_site": "de.indeed.com",
+        "search_url_hint": "de.indeed.com/viewjob",
         "host_suffixes": ("indeed.com",),
         "path_markers": ("/viewjob",),
     },
@@ -305,13 +307,13 @@ def build_sensor_queries(
     if not terms:
         return ()
 
-    site_query = f'site:{_PLATFORM_SPECS[sensor]["search_site"]}'
+    search_url_hint = str(_PLATFORM_SPECS[sensor]["search_url_hint"])
     result: list[SensorQuery] = []
     location_choices: tuple[str | None, ...] = locations or (None,)
 
     for term in terms:
         for location in location_choices:
-            pieces = [site_query, f'"{term}"']
+            pieces = [f'"{search_url_hint}"', f'"{term}"']
             if location:
                 pieces.append(f'"{location}"')
             pieces.append("Germany")
