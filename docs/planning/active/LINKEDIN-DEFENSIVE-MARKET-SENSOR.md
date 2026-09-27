@@ -13,7 +13,7 @@ JAP may use LinkedIn only as a **defensive discovery/freshness sensor**.
 
 The production-authoritative path is:
 
-`approved external search index -> transient LinkedIn result metadata -> minimal derived company signal -> raw platform metadata discarded -> direct employer/ATS resolution -> normal Employer-Origin proof`
+`replaceable bounded public-search backend -> transient LinkedIn result metadata -> minimal derived company signal -> raw platform metadata discarded -> direct employer/ATS resolution -> normal Employer-Origin proof`
 
 LinkedIn is never:
 
@@ -138,9 +138,23 @@ Authority:
 - if LinkedIn grants JAP explicit written/API permission for a suitable discovery endpoint, that official path becomes preferred;
 - until then, no unofficial API may impersonate an official API.
 
-## External search-provider boundary (Tavily)
+## Replaceable search-backend boundary
 
-Reviewed:
+Architecture authority: `docs/decisions/adr/036_external_tool_dependencies_are_optional_residual_capabilities.md`.
+
+The LinkedIn sensor owns **no search-provider implementation**. It emits bounded search intent and evaluates returned result metadata. Search transport is a replaceable backend shared with other discovery uses.
+
+Current order:
+
+1. `duckduckgo_html` — default real backend; no API key and no paid-tool requirement;
+2. `tavily` — explicit optional backend/benchmark only;
+3. `none` — plan-only / zero external requests.
+
+There is no automatic fallback from the default backend to Tavily. A zero-yield or transport-error result is a valid bounded sensor outcome, not authorization to spend money.
+
+Tavily was used for the first S0.5 real proof because that provider path already existed. It is not part of the LinkedIn architecture and is not required for future runs.
+
+Reviewed Tavily sources remain relevant when Tavily is explicitly selected:
 
 - Tavily Platform Terms (2026-05-04):
   https://www.tavily.com/terms
@@ -149,14 +163,14 @@ Reviewed:
 - Tavily Privacy Policy:
   https://www.tavily.com/privacy
 
-Engineering implications:
+Regardless of backend:
 
-- Tavily permits normal API integration for internal business use, but Customer remains responsible for lawful use and for not causing contractual or third-party-rights violations.
-- Tavily may process query data and use third-party public web indexes to provide results. Therefore JAP must not put applicant names, account credentials, contact data or other personal/sensitive user context into LinkedIn sensor queries.
-- JAP uses only the provider's basic search-result mode for this sensor. Raw-content/extraction modes are not admitted.
-- Tavily is transport, not LinkedIn permission. If Tavily changes its collection path so that LinkedIn credentials, cookies, CAPTCHA/proxy bypass or undisclosed scraping infrastructure become necessary, the LinkedIn sensor fails closed pending review.
+- JAP must not put applicant names, account credentials, contact data or other personal/sensitive user context into sensor queries;
+- raw-content/extraction modes are not admitted;
+- search transport is not LinkedIn permission;
+- if a backend requires LinkedIn credentials, cookies, CAPTCHA solving, proxy/bypass features or other anti-bot evasion, that backend is inadmissible for this sensor.
 
-Current query inputs are limited to role/search terms, coarse location signals and the site-restriction needed to find public LinkedIn job-result references.
+Current query inputs are limited to role/search terms, coarse location signals and the site restriction needed to find public LinkedIn job-result references.
 
 ## EU/GDPR minimisation
 
@@ -176,7 +190,9 @@ Although JAP's target is employer/job-market evidence rather than member profili
 ### GREEN — current Core path
 
 - operator-triggered or separately reviewed low-frequency run;
-- approved external search-index provider;
+- replaceable bounded public-search backend;
+- zero-key / zero-paid-tool backend is the default implementation;
+- paid backend selection is explicit and never an automatic fallback;
 - site-bounded query for public LinkedIn job-result references;
 - no request from JAP to linkedin.com;
 - no account, cookie, token or browser session;
@@ -197,7 +213,7 @@ Although JAP's target is employer/job-market evidence rather than member profili
 - direct employer/ATS resolution required before candidate/source proof;
 - LinkedIn evidence never becomes Product job truth.
 
-This is **lower risk, not zero risk** because LinkedIn's User Agreement also addresses data obtained through third-party search/data tools.
+This is **lower risk, not zero risk**. A search backend is transport, not permission, and its own terms/operational limits also remain relevant.
 
 ### AMBER — separate review required
 
@@ -254,9 +270,9 @@ Disable the LinkedIn sensor rather than escalate access if any of the following 
 
 - LinkedIn sends a cease-and-desist, complaint or explicit access objection;
 - current terms/robots/crawling rules become materially stricter for the admitted path;
-- the search provider begins requiring LinkedIn credentials, cookies, CAPTCHA solving, proxies or bypass features;
-- provider results expose member/profile/recruiter personal data beyond incidental transient text;
-- the provider cannot identify its data provenance or terms sufficiently for review;
+- the selected search backend begins requiring LinkedIn credentials, cookies, CAPTCHA solving, proxies or bypass features;
+- backend results expose member/profile/recruiter personal data beyond incidental transient text;
+- a backend cannot identify its data provenance or terms sufficiently for review;
 - repeated runs require higher request rates to remain useful;
 - the sensor is proposed as Product job authority instead of employer-discovery evidence.
 
@@ -264,6 +280,6 @@ Disable the LinkedIn sensor rather than escalate access if any of the following 
 
 The S0.5/S0.6 sequence remains:
 
-`search-index LinkedIn signal -> minimal derived company evidence -> known-candidate suppression -> direct employer/ATS resolution -> reviewed candidate promotion -> expanded-cohort freeze`
+`replaceable-search LinkedIn signal -> minimal derived company evidence -> known-candidate suppression -> direct employer/ATS resolution -> reviewed candidate promotion -> expanded-cohort freeze`
 
 The LinkedIn reference is discarded before Origin learning. Employer-Origin remains the only normal job/source authority.
