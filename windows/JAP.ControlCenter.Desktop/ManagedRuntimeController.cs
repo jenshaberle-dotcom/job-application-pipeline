@@ -161,6 +161,13 @@ internal sealed class ManagedRuntimeController : IDisposable
             $"JAP Runtime wurde nicht bereit. WSL-Logs: {stdout} und {stderr}.");
     }
 
+    public async Task<bool> IsHealthyAsync()
+    {
+        var config = ReadConfig(_installRoot);
+        var endpoint = await ProbeEndpointAsync(config.PinnedSha);
+        return endpoint.Healthy;
+    }
+
     public async Task<ProcessResult> StopAsync(TimeSpan timeout)
     {
         var config = ReadConfig(_installRoot);
