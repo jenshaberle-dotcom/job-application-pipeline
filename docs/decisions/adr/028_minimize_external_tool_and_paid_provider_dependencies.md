@@ -35,7 +35,7 @@ JAP uses the following dependency order:
 3. **Keyless or self-controlled generic transport**
    - reusable transport that is not specific to one employer/platform;
    - no paid account required;
-   - failure is an explicit \`unavailable\`/\`zero_yield\` outcome, never a reason to
+   - failure is an explicit `unavailable`/`zero_yield` outcome, never a reason to
      escalate automatically to a paid service.
 
 4. **Commercial external provider**
@@ -77,7 +77,7 @@ The LinkedIn sensor is split into two independent concerns:
 2. **Generic public-search transport**
    - current zero-cost/default candidate: bounded DuckDuckGo non-JavaScript HTML
      search already used elsewhere in JAP;
-   - \`provider=none\` remains valid for planning/offline qualification;
+   - `provider=none` remains valid for planning/offline qualification;
    - Tavily remains available only by explicit operator selection;
    - there is no automatic DuckDuckGo -> Tavily escalation.
 
