@@ -28,6 +28,9 @@ from scripts.run_origin_source_discovery_agent import (
 from src.search_intelligence.official_domain_evidence import (
     resolve_wikidata_official_domains,
 )
+from src.search_intelligence.official_site_inventory_evidence import (
+    discover_official_site_inventory,
+)
 from src.search_intelligence.origin_jobspace_discovery import (
     discover_official_origin_jobspace,
 )
@@ -131,10 +134,17 @@ def resolve_company(
         timeout_seconds=timeout_seconds,
         max_requests=http_request_cap,
     )
+    official_urls = [e.url for e in official]
+    inventory = discover_official_site_inventory(
+        company_name=company_name,
+        official_domain_urls=official_urls,
+        fetch_page=http.fetch_page,
+    )
     expanded = discover_official_origin_jobspace(
         company_key=company_key,
         company_name=company_name,
-        official_domain_urls=[e.url for e in official],
+        search_results=inventory.evidence,
+        official_domain_urls=official_urls,
         target_location=target_location,
         probe=http.probe,
         fetch_page=http.fetch_page,
@@ -159,6 +169,14 @@ def resolve_company(
         "discovered_jobspace_url_count": expanded.discovered_jobspace_url_count,
         "direct_http_request_count": http.request_count,
         "wikidata_status": wikidata_status,
+        "official_inventory": {
+            "official_root_count": inventory.official_root_count,
+            "robots_fetch_count": inventory.robots_fetch_count,
+            "sitemap_fetch_count": inventory.sitemap_fetch_count,
+            "sitemap_index_count": inventory.sitemap_index_count,
+            "sitemap_urlset_count": inventory.sitemap_urlset_count,
+            "candidate_url_count": inventory.candidate_url_count,
+        },
         "official_domain_evidence": [asdict(e) for e in official],
         "alternatives": [
             {
@@ -244,7 +262,9 @@ def main() -> int:
             "source_activation": 0,
             "bronze_silver_product_writes": 0,
             "aggregator_url_authority": 0,
-            "network_scope": "wikidata_p856_plus_bounded_direct_http_only",
+            "network_scope": (
+            "wikidata_p856_plus_official_robots_sitemaps_plus_bounded_direct_http"
+        ),
         },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
