@@ -4,9 +4,11 @@ The contract deliberately separates *search intent* from *transport*. Product
 logic must not depend on a paid provider. A backend may fail or return zero
 results without blocking the wider JAP pipeline.
 
-The default backend is DuckDuckGo's public HTML result surface because it needs
-no account, API key or paid plan. Tavily remains available only as an explicitly
-selected optional backend/benchmark; there is no automatic paid fallback.
+The default backend is Bing's keyless RSS result surface: structured XML, no
+account/API key and no paid plan. DuckDuckGo HTML remains a diagnostic/free
+adapter but is not default because current automated-client blocking can produce
+empty/challenge responses. Tavily remains explicit optional residual/benchmark
+only; there is no automatic paid fallback.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 import os
 from typing import Callable, Mapping
+import xml.etree.ElementTree as ET
 from urllib.parse import urlencode
 
 import requests
@@ -23,9 +26,10 @@ from src.search_intelligence.multi_origin_evidence import decode_search_redirect
 
 
 DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
+BING_RSS_URL = "https://www.bing.com/search"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
-DEFAULT_SEARCH_BACKEND = "duckduckgo_html"
-SUPPORTED_SEARCH_BACKENDS = ("duckduckgo_html", "tavily")
+DEFAULT_SEARCH_BACKEND = "bing_rss"
+SUPPORTED_SEARCH_BACKENDS = ("duckduckgo_html", "bing_rss", "tavily")
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,11 @@ class SearchBackendPolicy:
 BACKEND_POLICIES: Mapping[str, SearchBackendPolicy] = {
     "duckduckgo_html": SearchBackendPolicy(
         name="duckduckgo_html",
+        requires_secret=False,
+        paid_external_tool=False,
+    ),
+    "bing_rss": SearchBackendPolicy(
+        name="bing_rss",
         requires_secret=False,
         paid_external_tool=False,
     ),
@@ -185,8 +194,99 @@ def _duckduckgo_html_search(
         if len(results) >= max_results:
             break
 
+    if not results and (
+        response.status_code == 202
+        or "challenge-form" in (response.text or "").casefold()
+        or "anomaly" in (response.text or "").casefold()
+    ):
+        return PublicSearchResponse(
+            provider="duckduckgo_html",
+            query=query,
+            status="blocked_or_challenge",
+            results=(),
+            request_count=1,
+            error_type=f"http_{response.status_code}",
+        )
+
     return PublicSearchResponse(
         provider="duckduckgo_html",
+        query=query,
+        status="ok" if results else "zero_yield",
+        results=tuple(results),
+        request_count=1,
+    )
+
+
+def _bing_rss_search(
+    query: str,
+    *,
+    max_results: int,
+    timeout_seconds: float,
+    request_get: Callable[..., requests.Response],
+) -> PublicSearchResponse:
+    url = BING_RSS_URL + "?" + urlencode(
+        {
+            "q": query,
+            "format": "rss",
+            "count": max(1, min(max_results, 10)),
+        }
+    )
+    try:
+        response = request_get(
+            url,
+            headers={
+                "User-Agent": (
+                    "job-application-pipeline-public-search/0.1 "
+                    "(bounded; discovery-only; RSS client)"
+                ),
+                "Accept": "application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.1",
+            },
+            timeout=timeout_seconds,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return PublicSearchResponse(
+            provider="bing_rss",
+            query=query,
+            status="transport_error",
+            results=(),
+            request_count=1,
+            error_type=type(exc).__name__,
+        )
+
+    try:
+        root = ET.fromstring(response.text or "")
+    except ET.ParseError:
+        return PublicSearchResponse(
+            provider="bing_rss",
+            query=query,
+            status="invalid_response",
+            results=(),
+            request_count=1,
+            error_type="xml_parse_error",
+        )
+
+    results: list[PublicSearchResult] = []
+    seen: set[str] = set()
+    for item in root.findall(".//item"):
+        url_value = " ".join(str(item.findtext("link") or "").split()).strip()
+        if not url_value or url_value in seen:
+            continue
+        seen.add(url_value)
+        results.append(
+            PublicSearchResult(
+                provider="bing_rss",
+                query=query,
+                url=url_value,
+                title=" ".join(str(item.findtext("title") or "").split()),
+                snippet=" ".join(str(item.findtext("description") or "").split()),
+            )
+        )
+        if len(results) >= max_results:
+            break
+
+    return PublicSearchResponse(
+        provider="bing_rss",
         query=query,
         status="ok" if results else "zero_yield",
         results=tuple(results),
@@ -293,6 +393,13 @@ def search_public_web(
 
     if provider == "duckduckgo_html":
         return _duckduckgo_html_search(
+            query,
+            max_results=max_results,
+            timeout_seconds=timeout_seconds,
+            request_get=request_get,
+        )
+    if provider == "bing_rss":
+        return _bing_rss_search(
             query,
             max_results=max_results,
             timeout_seconds=timeout_seconds,
