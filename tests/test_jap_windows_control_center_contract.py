@@ -178,3 +178,24 @@ def test_powershell_bootstrap_and_stop_do_not_use_bash_line_continuations() -> N
     for path in (INSTALLER, STOPPER):
         lines = _text(path).splitlines()
         assert not any(line.rstrip().endswith("\\") for line in lines), path
+
+
+def test_desktop_runtime_liveness_watchdog_keeps_single_runtime_authority() -> None:
+    program = _text(DESKTOP_PROGRAM)
+    runtime = _text(DESKTOP_RUNTIME)
+
+    assert "RuntimeHealthInterval" in program
+    assert "RuntimeFailuresBeforeRecovery" in program
+    assert "_runtimeHealthTimer" in program
+    assert "OnRuntimeHealthTick" in program
+    assert "_runtime.IsHealthyAsync()" in program
+    assert "_runtime.EnsureStartedAsync(RuntimeStartTimeout)" in program
+    assert "runtime_recovery_begin" in program
+    assert "runtime_recovery_success" in program
+    assert "runtime_recovery_failed" in program
+    assert "RuntimeRecoveryCooldown" in program
+    assert "_runtimeHealthCheckInProgress" in program
+    assert "_runtimeHealthTimer.Stop()" in program
+    assert "public async Task<bool> IsHealthyAsync()" in runtime
+    assert "ProbeEndpointAsync(config.PinnedSha)" in runtime
+    assert "Process.Start" not in program[program.index("private async void OnRuntimeHealthTick"):program.index("private async Task StartManagedRuntimeAsync")]
