@@ -138,6 +138,26 @@ Authority:
 - if LinkedIn grants JAP explicit written/API permission for a suitable discovery endpoint, that official path becomes preferred;
 - until then, no unofficial API may impersonate an official API.
 
+## External search-provider boundary (Tavily)
+
+Reviewed:
+
+- Tavily Platform Terms (2026-05-04):
+  https://www.tavily.com/terms
+- Tavily Acceptable Use Policy (2026-05-05):
+  https://www.tavily.com/acceptable-use-policy
+- Tavily Privacy Policy:
+  https://www.tavily.com/privacy
+
+Engineering implications:
+
+- Tavily permits normal API integration for internal business use, but Customer remains responsible for lawful use and for not causing contractual or third-party-rights violations.
+- Tavily may process query data and use third-party public web indexes to provide results. Therefore JAP must not put applicant names, account credentials, contact data or other personal/sensitive user context into LinkedIn sensor queries.
+- JAP uses only the provider's basic search-result mode for this sensor. Raw-content/extraction modes are not admitted.
+- Tavily is transport, not LinkedIn permission. If Tavily changes its collection path so that LinkedIn credentials, cookies, CAPTCHA/proxy bypass or undisclosed scraping infrastructure become necessary, the LinkedIn sensor fails closed pending review.
+
+Current query inputs are limited to role/search terms, coarse location signals and the site-restriction needed to find public LinkedIn job-result references.
+
 ## EU/GDPR minimisation
 
 Reviewed:
