@@ -1,0 +1,36 @@
+from pathlib import Path
+
+
+def test_census_comparison_workflow_defaults_to_zero_provider_requests():
+    text = Path(
+        ".github/workflows/freeze2-job-first-census-comparison.yml"
+    ).read_text(encoding="utf-8")
+    assert "default: none" in text
+    assert "allow_paid_external_provider:" in text
+    assert "default: false" in text
+
+
+def test_census_comparison_workflow_requires_explicit_paid_provider_gate():
+    text = Path(
+        ".github/workflows/freeze2-job-first-census-comparison.yml"
+    ).read_text(encoding="utf-8")
+    assert "Enforce paid-provider double gate" in text
+    assert 'if [[ "$ALLOW_PAID_EXTERNAL_PROVIDER" != "true" ]]' in text
+    assert "--allow-paid-external-provider" in text
+
+
+def test_census_comparison_workflow_uses_read_only_runtime_and_no_board_credentials():
+    text = Path(
+        ".github/workflows/freeze2-job-first-census-comparison.yml"
+    ).read_text(encoding="utf-8")
+    assert 'PGOPTIONS="-c default_transaction_read_only=on"' in text
+    assert "TAVILY_API_KEY" in text
+    for forbidden in (
+        "XING_PASSWORD",
+        "XING_COOKIE",
+        "GOODJOBS_PASSWORD",
+        "MEINESTADT_PASSWORD",
+        "JOBVECTOR_PASSWORD",
+        "GET_IN_IT_PASSWORD",
+    ):
+        assert forbidden not in text
