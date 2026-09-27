@@ -234,7 +234,8 @@ jobs:
                   f"queries {payload['query_count']}, "
                   f"provider requests {payload['provider_request_count']}, "
                   f"accepted observations {payload['accepted_observation_count']}, "
-                  f"rejected results {payload['rejected_provider_result_count']}"
+                  f"rejected results {payload['rejected_provider_result_count']}, "
+                  f"result shapes {json.dumps(payload['result_shape_counts'], sort_keys=True)}"
               )
           lines.extend(
               [
