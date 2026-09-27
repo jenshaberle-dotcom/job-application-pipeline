@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import hashlib
 import re
 from typing import Sequence
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from src.search_intelligence.employer_discovery_census import MarketJobObservation
 
@@ -62,7 +62,7 @@ SOURCE_SPECS: dict[str, ExternalIndexSourceSpec] = {
         search_site="jobs.meinestadt.de",
         host_suffix="jobs.meinestadt.de",
         url_hint="jobs.meinestadt.de/",
-        extraction_status="shape_only",
+        extraction_status="fixture_qualified",
     ),
     "jobvector": ExternalIndexSourceSpec(
         source="jobvector",
@@ -169,9 +169,15 @@ def classify_external_index_result_shape(*, source: str, url: object) -> str:
             if re.match(r"^/jobsuche/p\d+(?:/|$)", path)
             else "unexpected_path"
         )
+    if source == "meinestadt":
+        query = parse_qs(parsed.query)
+        detail_path = re.fullmatch(r"/[^/]+/standard", path) is not None
+        numeric_id = bool(query.get("id")) and all(
+            str(value).isdigit() for value in query["id"]
+        )
+        return "accepted_shape" if detail_path and numeric_id else "unexpected_path"
 
-    # meinestadt/jobvector stay cohort-visible but parser authority is not yet
-    # proven. Shape-only sources cannot create MarketJobObservation rows.
+    # jobvector stays cohort-visible but parser authority is not yet proven.
     return "shape_only_unqualified"
 
 
@@ -269,6 +275,40 @@ def _get_in_it_fields(title: str, snippet: str) -> tuple[str, str | None, str | 
     return title, None, _metadata_location(snippet)
 
 
+
+def _meinestadt_fields(
+    title: str,
+    snippet: str,
+    raw_url: str,
+) -> tuple[str, str | None, str | None]:
+    cleaned = re.sub(r"^Stellenangebot:\\s*", "", title, flags=re.IGNORECASE).strip()
+    location = None
+    match = re.match(r"^(?P<title>.+?)\\s+in\\s+(?P<location>[^|]{2,80})$", cleaned)
+    if match:
+        job_title = match.group("title").strip()
+        location = _clean(match.group("location"), limit=80)
+    else:
+        job_title = cleaned
+
+    company = None
+    if job_title:
+        company_match = re.match(
+            rf"^{re.escape(job_title)}\\s+(?P<company>.+?)\\s+"
+            r"(?:Jetzt bewerben|Anzeige vom:)",
+            snippet,
+            flags=re.IGNORECASE,
+        )
+        if company_match:
+            company = _clean_company(company_match.group("company"))
+
+    if location is None:
+        parsed = urlparse(raw_url)
+        parts = [part for part in parsed.path.split("/") if part]
+        if parts:
+            location = parts[0].replace("-", " ").title()
+
+    return job_title, company, location
+
 def accept_external_index_result(
     *,
     source: str,
@@ -297,6 +337,10 @@ def accept_external_index_result(
         job_title, company, location = _xing_fields(title_signal, snippet_signal)
     elif source == "get_in_it":
         job_title, company, location = _get_in_it_fields(title_signal, snippet_signal)
+    elif source == "meinestadt":
+        job_title, company, location = _meinestadt_fields(
+            title_signal, snippet_signal, raw_url
+        )
     else:
         return None
 
