@@ -40,7 +40,7 @@ The campaign does not begin by adding ranking, Fit, UI or application features. 
 9. Deterministic structured or bounded visible evidence is first lane.
 10. ML/LLM may later propose Shadow evidence only; neither creates source truth.
 11. Fit/Combined/ranking authority does not expand until upstream gates pass.
-12. LinkedIn and Indeed are discovery/freshness sensors only. Direct login automation, browser-session automation, CAPTCHA handling, broad scraping and raw job-content persistence remain prohibited. Their admissible automated transport is a separately reviewed official API or an already-approved external web-search provider that returns minimal public search evidence.
+12. LinkedIn and Indeed are discovery/freshness sensors only. Direct platform HTTP, login automation, browser-session automation, unofficial/guest APIs, CAPTCHA handling, proxy/evasion mechanics, broad scraping and raw platform-content persistence remain prohibited. Their current admissible automated transport is an already-approved external web-search/index provider or a separately reviewed official API. For LinkedIn, provider-returned platform URL/title/snippet metadata is transient only and is reduced before persistence to derived company evidence plus a one-way reference hash. External search transport lowers direct-access exposure but is not treated as legal permission. See `docs/planning/active/LINKEDIN-DEFENSIVE-MARKET-SENSOR.md`.
 13. LinkedIn/Indeed observations may create or prioritize employer/source candidates only. Aggregator URLs and job identities are discarded before Employer-Origin learning; the candidate must be resolved to a direct employer/ATS source before source proof.
 14. Candidate expansion precedes the connector-fleet denominator freeze. The S0 count of 67 is the initial population, not the final S1 denominator.
 
@@ -115,9 +115,12 @@ Transport contract:
 - no browser automation or CAPTCHA bypass;
 - no direct broad scraping;
 - no raw job-description persistence;
-- use only a documented/approved API path or the project's already-approved bounded web-search provider path;
-- emit only minimal discovery evidence: platform, query, observed company, bounded title/location signal, public result URL/reference, observed timestamp;
-- discard aggregator URL/job identity before Employer-Origin URL-structure learning.
+- use only a documented/approved API path or the project's already-approved bounded web-search/index provider path;
+- for LinkedIn, raw provider URL/title/snippet metadata is process-transient and must not be written to the sensor artifact;
+- persist only minimal derived evidence: platform, provider, JAP-owned query/search intent, observed company signal + extraction rule/status, requested/coarse location signal, observed timestamp and one-way reference hash;
+- target no member/profile/recruiter/contact data;
+- discard aggregator URL/job identity before Employer-Origin URL-structure learning;
+- no recurring LinkedIn schedule is authorized by S0.5; the current sensor remains operator-triggered until a separate cadence review.
 
 Initial acceptance:
 
