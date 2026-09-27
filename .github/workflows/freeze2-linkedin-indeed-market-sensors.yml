@@ -15,13 +15,11 @@ on:
       search_backend:
         description: "Replaceable search backend; paid provider is never automatic"
         required: true
-        default: bing_rss
+        default: none
         type: choice
         options:
-          - duckduckgo_html
-          - bing_rss
-          - tavily
           - none
+          - tavily
   issue_comment:
     types: [created]
 
@@ -151,14 +149,14 @@ jobs:
         run: |
           set -euo pipefail
           backend="${WORKFLOW_SEARCH_BACKEND:-}"
-          if [[ -z "$backend" && "${COMMENT_BODY:-}" =~ backend=(duckduckgo_html|bing_rss|tavily|none) ]]; then
+          if [[ -z "$backend" && "${COMMENT_BODY:-}" =~ backend=(tavily|none) ]]; then
             backend="${BASH_REMATCH[1]}"
           fi
           if [[ -z "$backend" ]]; then
-            backend="bing_rss"
+            backend="none"
           fi
           case "$backend" in
-            duckduckgo_html|bing_rss|tavily|none) ;;
+            tavily|none) ;;
             *)
               echo "Unsupported search backend: $backend" >&2
               exit 2
