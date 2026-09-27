@@ -16,6 +16,8 @@ on:
         required: true
         default: false
         type: boolean
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -29,7 +31,15 @@ jobs:
     name: Read-only job-first Census comparison
     if: >-
       ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
-          github.ref == 'refs/heads/main' }}
+          (
+            (github.event_name == 'workflow_dispatch' &&
+             github.ref == 'refs/heads/main') ||
+            (github.event_name == 'issue_comment' &&
+             github.event.issue.number == 1066 &&
+             github.event.comment.user.login == 'jenshaberle-dotcom' &&
+             github.event.comment.author_association == 'OWNER' &&
+             startsWith(github.event.comment.body, '<!-- jap-freeze2-census-comparison:run:v1 -->'))
+          ) }}
     runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
     timeout-minutes: 30
     env:
@@ -38,8 +48,9 @@ jobs:
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       CENSUS_OUTPUT: /tmp/job-first-employer-discovery-census-comparison.json
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-      SEARCH_BACKEND: ${{ inputs.search_backend }}
-      ALLOW_PAID_EXTERNAL_PROVIDER: ${{ inputs.allow_paid_external_provider }}
+      WORKFLOW_SEARCH_BACKEND: ${{ inputs.search_backend }}
+      WORKFLOW_ALLOW_PAID_EXTERNAL_PROVIDER: ${{ inputs.allow_paid_external_provider }}
+      COMMENT_BODY: ${{ github.event.comment.body }}
 
     steps:
       - name: Check out exact main
@@ -106,6 +117,37 @@ jobs:
           test "${#values[@]}" -eq 2
           printf 'RUNTIME_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
           printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+
+      - name: Resolve explicit flight request
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend="${WORKFLOW_SEARCH_BACKEND:-}"
+          allow_paid="${WORKFLOW_ALLOW_PAID_EXTERNAL_PROVIDER:-}"
+
+          if [[ "${GITHUB_EVENT_NAME:-}" == "issue_comment" ]]; then
+            if [[ "${COMMENT_BODY:-}" =~ provider=(tavily|none) ]]; then
+              backend="${BASH_REMATCH[1]}"
+            else
+              echo "Issue-comment trigger requires provider=tavily|none." >&2
+              exit 2
+            fi
+            if [[ "${COMMENT_BODY:-}" =~ allow_paid=(true|false) ]]; then
+              allow_paid="${BASH_REMATCH[1]}"
+            else
+              allow_paid="false"
+            fi
+          fi
+
+          if [[ -z "$backend" ]]; then
+            backend="none"
+          fi
+          if [[ -z "$allow_paid" ]]; then
+            allow_paid="false"
+          fi
+
+          echo "SEARCH_BACKEND=$backend" >> "$GITHUB_ENV"
+          echo "ALLOW_PAID_EXTERNAL_PROVIDER=$allow_paid" >> "$GITHUB_ENV"
 
       - name: Enforce paid-provider double gate
         shell: bash
