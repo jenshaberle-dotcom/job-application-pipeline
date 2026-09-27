@@ -121,3 +121,64 @@ def test_tavily_is_explicit_optional_backend(monkeypatch) -> None:
     assert result.status == "provider_unavailable"
     assert result.request_count == 0
     assert result.results == ()
+
+
+def test_duckduckgo_http_202_empty_page_is_block_signal_not_zero_yield() -> None:
+    def request_get(url: str, **_: object) -> _FakeResponse:
+        return _FakeResponse(
+            text="<html><body><form id=\"challenge-form\"></form></body></html>",
+            url=url,
+            status_code=202,
+        )
+
+    result = search_public_web(
+        provider="duckduckgo_html",
+        query="bounded query",
+        max_results=5,
+        timeout_seconds=1.0,
+        request_get=request_get,
+    )
+
+    assert result.status == "blocked_or_challenge"
+    assert result.request_count == 1
+    assert result.results == ()
+    assert result.error_type == "http_202"
+
+
+def test_bing_rss_parses_keyless_structured_results() -> None:
+    rss = """<?xml version="1.0" encoding="utf-8"?>
+    <rss version="2.0"><channel>
+      <item>
+        <title>HDI Group sucht AI Architect in Hannover | LinkedIn</title>
+        <link>https://de.linkedin.com/jobs/view/ai-architect-at-hdi-group-123456</link>
+        <description>HDI Group Hannover</description>
+      </item>
+      <item>
+        <title>Example careers</title>
+        <link>https://example.com/careers</link>
+        <description>Example</description>
+      </item>
+    </channel></rss>"""
+
+    calls: list[str] = []
+
+    def request_get(url: str, **_: object) -> _FakeResponse:
+        calls.append(url)
+        return _FakeResponse(text=rss, url=url)
+
+    result = search_public_web(
+        provider="bing_rss",
+        query='site:linkedin.com/jobs/view "AI Architect" "Hannover"',
+        max_results=5,
+        timeout_seconds=2.0,
+        request_get=request_get,
+    )
+
+    assert result.status == "ok"
+    assert result.request_count == 1
+    assert len(calls) == 1
+    assert "format=rss" in calls[0]
+    assert result.results[0].provider == "bing_rss"
+    assert result.results[0].url.startswith("https://de.linkedin.com/jobs/view/")
+    assert result.results[0].title.startswith("HDI Group sucht AI Architect")
+    assert result.results[0].snippet == "HDI Group Hannover"
