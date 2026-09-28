@@ -193,7 +193,9 @@ def test_desktop_runtime_liveness_watchdog_keeps_single_runtime_authority() -> N
     assert "OnRuntimeHealthTick" in program
     assert "_runtime.IsHealthyAsync()" in program
     assert "_runtime.IsRuntimeListenerPresentAsync()" in program
-    assert "listenerPresent ? RuntimeSlowFailuresBeforeRecovery" in program
+    assert "listenerPresent" in program
+    assert "RuntimeSlowFailuresBeforeRecovery" in program
+    assert "recoveryThreshold" in program
     assert '"runtime_health_degraded"' in program
     assert "_runtime.EnsureStartedAsync(RuntimeStartTimeout)" in program
     assert "runtime_recovery_begin" in program
