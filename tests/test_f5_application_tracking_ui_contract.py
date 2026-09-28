@@ -25,8 +25,8 @@ def test_attention_banner_is_bound_to_real_review_required_count() -> None:
 
     assert "application.attention_candidate_count" in tracking
     assert "attentionMessage(application)" in tracking
-    assert "separat qualifizierter Evidence" in tracking
-    assert "Mindestens ein Mail-Signal ist nicht eindeutig genug" not in tracking
+    assert "separately qualified evidence" in tracking
+    assert "mail signal" in tracking
 
 
 def test_evidence_stays_compact_without_operator_debug_panel() -> None:
@@ -34,7 +34,7 @@ def test_evidence_stays_compact_without_operator_debug_panel() -> None:
     styles = _text(STYLES)
 
     assert "totalEvidence" in tracking
-    assert '${totalEvidence} qualifiziert' in tracking
+    assert '${totalEvidence} qualified' in tracking
     assert "Details & Evidence" not in tracking
     assert "f5-evidence-details" not in tracking
     assert ".f5-evidence-details" not in styles
@@ -44,11 +44,11 @@ def test_evidence_stays_compact_without_operator_debug_panel() -> None:
 def test_application_cards_surface_bounded_job_identity_metadata() -> None:
     tracking = _text(TRACKING)
 
-    assert "Arbeitgeber-Hinweis" in tracking
-    assert "Kommunikations-Domain" in tracking
-    assert "Job-/Bewerbungsquelle" in tracking
-    assert "Jobtitel fehlt" in tracking
-    assert "Arbeitgeber noch nicht ableitbar" in tracking
+    assert "Employer evidence" in tracking
+    assert "Communication domain" in tracking
+    assert "Job / application source" in tracking
+    assert "Job title missing" in tracking
+    assert "Employer not yet resolved" in tracking
     assert "application.counterparty_domain || application.sender_domain" in tracking
     assert "application.source_url" in tracking
 
@@ -59,8 +59,8 @@ def test_application_tracking_defaults_to_compact_rows_with_individual_and_globa
 
     assert "expandedIds" in tracking
     assert "toggleExpanded(application.application_id)" in tracking
-    assert "Alle aufklappen" in tracking
-    assert "Alle einklappen" in tracking
+    assert "Expand all" in tracking
+    assert "Collapse all" in tracking
     assert "f5-compact-row" in tracking
     assert "f5-expanded-body" in tracking
     assert 'aria-expanded={expanded}' in tracking
@@ -87,8 +87,8 @@ def test_application_tracking_reuses_exact_projected_link_for_reverse_navigation
     assert "tracking?.job_linkage?.exact_matches" in tracking
     assert "projectedJobByApplicationId" in tracking
     assert "projectedLink" in tracking
-    assert "Exakt read-only einem JAP-Job zugeordnet" in tracking
-    assert "In All jobs öffnen ↔" in tracking
+    assert "Read-only match to a JAP job" in tracking
+    assert "Open in All jobs ↔" in tracking
     assert ".f5-open-linked-job" in styles
 
 
@@ -107,7 +107,7 @@ def test_reverse_navigation_never_opens_wrong_job_outside_current_view() -> None
 
     assert "visibleJobIds" in tracking
     assert "linkedJobVisible" in tracking
-    assert "liegt aber außerhalb der aktuellen All-jobs-Sicht" in tracking
+    assert "outside the current All jobs view" in tracking
     assert ".f5-linked-job-outside-view" in styles
 
 
@@ -122,8 +122,8 @@ def test_unsolicited_application_uses_truthful_kind_instead_of_missing_title_err
     tracking = _text(TRACKING)
 
     assert "application_kind?: string | null" in tracking
-    assert 'application.application_kind === "unsolicited" ? "Initiativbewerbung" : null' in tracking
-    assert "<small>Bewerbungsart</small>{applicationKindLabel}" in tracking
+    assert 'application.application_kind === "unsolicited" ? "Unsolicited application" : null' in tracking
+    assert "<small>Application type</small>{applicationKindLabel}" in tracking
 
 
 def test_manual_application_entry_uses_date_only_and_staged_employer_job_selection() -> None:
@@ -131,11 +131,11 @@ def test_manual_application_entry_uses_date_only_and_staged_employer_job_selecti
 
     assert 'type="date"' in tracking
     assert 'type="datetime-local"' not in tracking
-    assert "Arbeitgeber auswählen …" in tracking
-    assert "Zuerst Arbeitgeber auswählen" in tracking
+    assert "Select employer …" in tracking
+    assert "Select employer first" in tracking
     assert 'disabled={!employer}' in tracking
     assert 'mode === "external"' in tracking
-    assert "Job nicht in JAP" in tracking
+    assert "Job not in JAP" in tracking
     assert "externalEmployer" in tracking
     assert "externalTitle" in tracking
     assert "submitted_on: submittedOn" in tracking
@@ -144,7 +144,7 @@ def test_manual_application_entry_uses_date_only_and_staged_employer_job_selecti
 def test_manual_reference_is_optional_and_backend_error_detail_is_visible() -> None:
     tracking = _text(TRACKING)
 
-    assert "Notiz / Referenz · optional" in tracking
+    assert "Note / reference · optional" in tracking
     assert "!reference.trim()" not in tracking
     assert "reference.trim() || undefined" in tracking
     assert "payload.message" in tracking
@@ -156,9 +156,9 @@ def test_manual_application_can_be_safely_undone_without_mail_truth_deletion() -
     styles = _text(STYLES)
 
     assert "remove_operator_submission_confirmation" in tracking
-    assert "Fehleintrag entfernen" in tracking
+    assert "Remove incorrect entry" in tracking
     assert "window.confirm" in tracking
-    assert "Mail- oder Lifecycle-Evidence wird dabei niemals gelöscht" in tracking
+    assert "Mailbox evidence and later lifecycle truth are preserved." in tracking
     assert "application.submission_authority_kind === \"operator_confirmation\"" in tracking
     assert "application.authoritative_event_count === 0" in tracking
     assert "await refreshProductTruth()" in tracking
@@ -171,8 +171,8 @@ def test_mailbox_application_with_missing_title_has_bounded_operator_correction(
 
     assert 'action: "correct_application_job_title"' in tracking
     assert "expected_employer_name: employer" in tracking
-    assert "Jobtitel fehlt" in tracking
-    assert "Titel speichern" in tracking
-    assert "Die Mailbox-Bestätigung enthält keinen Titel." in tracking
+    assert "Job title missing" in tracking
+    assert "Save title" in tracking
+    assert "The mailbox confirmation contains no title." in tracking
     assert "await refreshProductTruth()" in tracking
     assert ".f5-title-correction" in styles
