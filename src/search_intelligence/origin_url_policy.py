@@ -14,6 +14,24 @@ _AUTH_HOST_SEGMENTS = {"login", "signin", "sign-in", "auth", "sso", "oauth"}
 _AUTH_PATH_SEGMENTS = {"login", "signin", "sign-in", "auth", "sso", "oauth", "saml"}
 _AUTH_QUERY_KEYS = {"login", "signin", "auth", "sso", "oauth", "saml", "redirect_uri"}
 _AUTH_QUERY_VALUES = {"login", "signin", "sign-in", "sso", "oauth", "saml"}
+_STATIC_ASSET_EXTENSIONS = {
+    ".css",
+    ".js",
+    ".mjs",
+    ".map",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".webp",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".otf",
+    ".eot",
+}
 
 
 def _split_path_segments(path: str) -> tuple[str, ...]:
@@ -38,6 +56,10 @@ def has_disallowed_source_url_shape(url: str) -> str | None:
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
         return "candidate URL must use http or https"
+
+    path = (parsed.path or "").lower()
+    if any(path.endswith(extension) for extension in _STATIC_ASSET_EXTENSIONS):
+        return "candidate URL points to a static asset"
 
     host_segments = _split_host_segments(parsed.hostname)
     if any(segment in _AUTH_HOST_SEGMENTS for segment in host_segments):

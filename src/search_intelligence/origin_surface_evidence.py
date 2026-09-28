@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html.parser import HTMLParser
+import re
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 
@@ -144,7 +145,12 @@ def fingerprint_ats_url(url: str, *, source_attribute: str = "url") -> AtsFinger
 def _career_like_url(url: str) -> bool:
     parsed = urlsplit(url)
     haystack = f"{parsed.hostname or ''} {parsed.path or ''}".casefold()
-    return any(marker in haystack for marker in CAREER_URL_MARKERS)
+    tokens = tuple(re.findall(r"[a-z0-9]+", haystack))
+    return any(
+        token.startswith(marker)
+        for token in tokens
+        for marker in CAREER_URL_MARKERS
+    )
 
 
 def extract_origin_surface_evidence(
