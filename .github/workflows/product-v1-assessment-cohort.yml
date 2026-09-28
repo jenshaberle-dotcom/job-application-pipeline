@@ -1,0 +1,252 @@
+name: Product V1 assessment cohort
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-v1-assessment-cohort
+  cancel-in-progress: false
+
+jobs:
+  assess:
+    name: Reusable 10-job Fit cohort and Top 5
+    if: >-
+      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+      github.event.issue.number == 1113 &&
+      github.event.comment.user.login == 'jenshaberle-dotcom' &&
+      github.event.comment.author_association == 'OWNER' &&
+      startsWith(github.event.comment.body, '<!-- jap-product-assessment-cohort:apply:v1 -->')
+    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    timeout-minutes: 45
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_RUNNER_NAME: job-pipeline-runtime-linux
+      PLAN_OUTPUT: /tmp/jap-product-assessment-cohort-plan.json
+      APPLY_OUTPUT: /tmp/jap-product-assessment-cohort-apply.json
+      COHORT_APPROVAL_TOKEN: PRODUCT-V1-ASSESSMENT-COHORT-001
+
+    steps:
+      - name: Parse exact owner approval envelope
+        shell: bash
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          EVENT_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+
+          marker = "<!-- jap-product-assessment-cohort:apply:v1 -->"
+          lines = [line.strip() for line in os.environ["COMMENT_BODY"].splitlines() if line.strip()]
+          if not lines or lines[0] != marker:
+              raise SystemExit("ASSESSMENT_COHORT_APPROVAL_MARKER_MISMATCH")
+
+          values = {}
+          for line in lines[1:]:
+              if "=" not in line:
+                  raise SystemExit("ASSESSMENT_COHORT_APPROVAL_ENVELOPE_MALFORMED")
+              key, value = line.split("=", 1)
+              key = key.strip()
+              value = value.strip()
+              if key in values:
+                  raise SystemExit("ASSESSMENT_COHORT_APPROVAL_DUPLICATE_KEY:" + key)
+              values[key] = value
+
+          required = {"source_sha", "evaluated_target", "top5_target", "candidate_cap"}
+          if set(values) != required:
+              raise SystemExit("ASSESSMENT_COHORT_APPROVAL_KEYS_MISMATCH")
+
+          source_sha = values["source_sha"]
+          if re.fullmatch(r"[0-9a-f]{40}", source_sha) is None:
+              raise SystemExit("ASSESSMENT_COHORT_SOURCE_SHA_INVALID")
+          if source_sha != os.environ["EVENT_SOURCE_SHA"]:
+              raise SystemExit("ASSESSMENT_COHORT_SOURCE_NOT_CURRENT_MAIN")
+
+          evaluated_target = int(values["evaluated_target"])
+          top5_target = int(values["top5_target"])
+          candidate_cap = int(values["candidate_cap"])
+          if evaluated_target != 10:
+              raise SystemExit("ASSESSMENT_COHORT_EVALUATED_TARGET_MUST_BE_TEN")
+          if top5_target != 5:
+              raise SystemExit("ASSESSMENT_COHORT_TOP5_TARGET_MUST_BE_FIVE")
+          if not evaluated_target <= candidate_cap <= 15:
+              raise SystemExit("ASSESSMENT_COHORT_CANDIDATE_CAP_OUT_OF_BOUNDS")
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              handle.write(f"SOURCE_SHA={source_sha}\n")
+              handle.write(f"EVALUATED_TARGET={evaluated_target}\n")
+              handle.write(f"TOP5_TARGET={top5_target}\n")
+              handle.write(f"CANDIDATE_CAP={candidate_cap}\n")
+          print(
+              "ASSESSMENT_COHORT_APPROVAL=PASS "
+              f"source={source_sha} evaluated={evaluated_target} "
+              f"top5={top5_target} cap={candidate_cap}"
+          )
+          PY
+
+      - name: Check out exact approved main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove exact source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$SOURCE_SHA"
+          remote_main="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          test "$remote_main" = "$SOURCE_SHA"
+          echo "ASSESSMENT_COHORT_EXACT_SOURCE=PASS source=$actual"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: runner mismatch")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_CONTEXT_STALE: platform mismatch")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "env_file",
+              "env_keys",
+              "interpreter",
+              "interpreter_probe",
+              "capability:postgresql",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          env_file = context.get("EnvFile")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_QUALIFIED_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
+              raise SystemExit("ENV_OUTSIDE_QUALIFIED_CHECKOUT")
+          print(interpreter)
+          print(env_file)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          test -x "${values[0]}"
+          test -s "${values[1]}"
+          printf 'COHORT_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          echo "ASSESSMENT_COHORT_RCC_RUNTIME=PASS runner=${RUNNER_NAME:-unknown}"
+
+      - name: Prove reusable cohort imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$COHORT_PYTHON" -m pip check
+          "$COHORT_PYTHON" - <<'PY'
+          import scripts.run_product_v1_assessment_cohort
+          import src.search_intelligence.product_v1_assessment_evidence
+          import src.search_intelligence.product_v1_profile_fit_coverage
+          print("ASSESSMENT_COHORT_IMPORTS=PASS")
+          PY
+
+      - name: Read-only plan 10-job Fit cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+          "$COHORT_PYTHON" -m scripts.run_product_v1_assessment_cohort             --evaluated-target "$EVALUATED_TARGET"             --top5-target "$TOP5_TARGET"             --candidate-cap "$CANDIDATE_CAP"             --reviewed-by "product-cohort-plan:${GITHUB_ACTOR}"             --output "$PLAN_OUTPUT"
+          echo "ASSESSMENT_COHORT_PLAN=PASS"
+
+      - name: Apply existing Product authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          unset PGOPTIONS || true
+          "$COHORT_PYTHON" -m scripts.run_product_v1_assessment_cohort             --evaluated-target "$EVALUATED_TARGET"             --top5-target "$TOP5_TARGET"             --candidate-cap "$CANDIDATE_CAP"             --reviewed-by "product-cohort:${GITHUB_ACTOR}"             --apply             --approval-token "$COHORT_APPROVAL_TOKEN"             --output "$APPLY_OUTPUT"
+          echo "ASSESSMENT_COHORT_APPLY=PASS"
+
+      - name: Prove final Product truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$COHORT_PYTHON" - "$APPLY_OUTPUT" <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          if payload.get("schema") != "job_application_pipeline.product_v1_assessment_cohort.v1":
+              raise SystemExit("ASSESSMENT_COHORT_SCHEMA_MISMATCH")
+          if payload.get("target_met") is not True:
+              raise SystemExit("ASSESSMENT_COHORT_TARGET_NOT_MET")
+          final = payload.get("final") or {}
+          if int(final.get("profile_fit_complete_count") or 0) < 10:
+              raise SystemExit("ASSESSMENT_COHORT_COMPLETE_FIT_LT_10")
+          if int(final.get("profile_fit_passed_count") or 0) < 5:
+              raise SystemExit("ASSESSMENT_COHORT_PASSED_FIT_LT_5")
+          if int(final.get("rankable_job_count") or 0) < 5:
+              raise SystemExit("ASSESSMENT_COHORT_RANKABLE_LT_5")
+          if int(final.get("top_job_count") or 0) != 5:
+              raise SystemExit("ASSESSMENT_COHORT_TOP5_NOT_EXACTLY_5")
+          if final.get("top5_authority_violations"):
+              raise SystemExit("ASSESSMENT_COHORT_TOP5_AUTHORITY_VIOLATION")
+          print("ASSESSMENT_COHORT_PRODUCT_TRUTH=PASS")
+          for row in final.get("top_jobs") or []:
+              print(
+                  "TOP5_JOB="
+                  f"{row.get('product_rank')}|{row.get('silver_job_id')}|"
+                  f"{row.get('affinity_score')}|{row.get('company_name')}|{row.get('title')}"
+              )
+          PY
+
+      - name: Upload immutable cohort evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-v1-assessment-cohort-${{ github.run_id }}
+          path: |
+            /tmp/jap-product-assessment-cohort-plan.json
+            /tmp/jap-product-assessment-cohort-apply.json
+            .runtime/product/product_v1_assessment_cohort.json
+            .runtime/demo/demo_001_rankable_refill_materialization.json
+            .runtime/demo/demo_001_rankable_refill_apply.json
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 30
