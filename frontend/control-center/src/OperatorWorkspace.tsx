@@ -281,6 +281,16 @@ const fitFactorLabel: Record<string, string> = {
   hard_requirements: "requirements evidence",
 };
 
+const fitBlockerReasonLabel: Record<string, string> = {
+  approved_candidate_geography_preference_missing_or_ambiguous: "Candidate location/work preference not configured",
+  job_geography_work_model_or_commute_evidence_missing: "Job location/work-model evidence missing",
+  exact_current_candidate_fact_capability_review_missing: "Current skills comparison missing",
+  exact_current_candidate_fact_capability_review_invalid: "Current skills comparison invalid",
+  current_capability_evidence_required_for_seniority: "Seniority needs current skills evidence",
+  seniority_requirement_evidence_missing: "Seniority requirement evidence missing",
+  hard_requirement_evidence_missing: "Employment/language/hours evidence missing",
+};
+
 function affinityScore(job: Job): number | null {
   if (typeof job.affinity_score === "number") return job.affinity_score;
   if (typeof job.product_overall_quality_score === "number") return job.product_overall_quality_score;
@@ -907,6 +917,7 @@ type AssessmentCohortResponse = {
     top_job_count?: number;
   };
   fit_blocker_counts?: Record<string, number>;
+  fit_blocker_reason_counts?: Record<string, number>;
 };
 
 function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; refresh: () => Promise<void>; onReviewJobs: () => void }) {
@@ -964,6 +975,10 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
         .filter(([, count]) => count > 0)
         .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
         .map(([factor, count]) => `${fitFactorLabel[factor] || label(factor)}: ${count}`);
+      const blockerReasons = Object.entries(result.fit_blocker_reason_counts || {})
+        .filter(([, count]) => count > 0)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([reason, count]) => `${fitBlockerReasonLabel[reason] || label(reason)}: ${count}`);
       const baseStatus = [
         `${summary.profile_fit_complete_count ?? 0}/10 Candidate Fit complete`,
         `${summary.profile_fit_passed_count ?? 0} Fit passed`,
@@ -973,7 +988,10 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
       setAssessmentState({
         status: "incomplete",
         message: blockers.length
-          ? `${baseStatus} · Missing fit evidence — ${blockers.join(", ")}`
+          ? [
+              `${baseStatus} · Missing fit evidence — ${blockers.join(", ")}`,
+              blockerReasons.length ? `Why — ${blockerReasons.join(", ")}` : "",
+            ].filter(Boolean).join(" · ")
           : baseStatus,
       });
     } catch (reason) {
