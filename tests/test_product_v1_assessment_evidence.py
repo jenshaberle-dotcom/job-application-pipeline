@@ -156,3 +156,25 @@ def test_unknown_evidence_does_not_create_hard_filter_facts() -> None:
         "ranking_authority": False,
         "product_authority": False,
     }
+
+
+def test_german_permanent_employment_and_hyphenated_weekly_hours_are_reused_generically() -> None:
+    evidence = _extract(
+        description=(
+            "Wir bieten einen unbefristeten Arbeitsvertrag in einem hybriden Arbeiten Modell. "
+            "Die Position umfasst eine 38,5-Stunden-Woche. "
+            "Sehr gute Deutsch- und Englischkenntnisse sind erforderlich."
+        )
+    )
+
+    assert evidence.employment_type == "permanent"
+    assert evidence.weekly_hours_min == 38.5
+    assert evidence.weekly_hours_max == 38.5
+    assert evidence.work_model == "hybrid"
+
+
+def test_home_office_possibility_still_does_not_become_remote_authority() -> None:
+    evidence = _extract(description="Home Office ist nach dem Onboarding möglich.")
+
+    assert evidence.work_model == "unknown"
+    assert "work_model" in evidence.unresolved_fields
