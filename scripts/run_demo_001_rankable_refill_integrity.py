@@ -13,7 +13,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-from scripts.run_demo_001_rankable_refill_scout import (
+from scripts.run_product_v1_rankable_refill_scout import (
     _load_candidate_facts,
     _load_rows,
     scout,
