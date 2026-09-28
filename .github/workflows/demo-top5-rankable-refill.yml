@@ -103,13 +103,13 @@ jobs:
           test "$remote_main" = "$SOURCE_SHA"
           echo "TOP5_EXACT_SOURCE=PASS source=$actual"
 
-      - name: Resolve verified RCC database environment
+      - name: Resolve verified RCC runtime context
         shell: bash
         run: |
           set -euo pipefail
           context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
           test -f "$context_file"
-          env_file="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
           import json
           import sys
           from pathlib import PurePosixPath
@@ -138,34 +138,43 @@ jobs:
               "checkout_repository",
               "env_file",
               "env_keys",
+              "interpreter",
+              "interpreter_probe",
               "capability:postgresql",
           }
           failed = sorted(key for key in required if checks.get(key) != "PASS")
           if failed:
               raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
           checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
           env_file = context.get("EnvFile")
-          if PurePosixPath(checkout) not in PurePosixPath(env_file).parents:
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_QUALIFIED_CHECKOUT")
+          if root not in PurePosixPath(env_file).parents:
               raise SystemExit("ENV_OUTSIDE_QUALIFIED_CHECKOUT")
+          print(interpreter)
           print(env_file)
           PY
           )"
-          test -s "$env_file"
-          printf 'RUNTIME_ENV_FILE=%s\n' "$env_file" >> "$GITHUB_ENV"
-          echo "TOP5_RCC_DATABASE_ENV=PASS runner=${RUNNER_NAME:-unknown}"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 2
+          test -x "${values[0]}"
+          test -s "${values[1]}"
+          printf 'TOP5_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          echo "TOP5_RCC_RUNTIME=PASS runner=${RUNNER_NAME:-unknown}"
 
-      - name: Build isolated exact-source Python runtime
+      - name: Prove verified RCC Python dependencies
         shell: bash
         run: |
           set -euo pipefail
-          venv="$RUNNER_TEMP/jap-demo-top5-venv"
-          rm -rf "$venv"
-          python3 -m venv "$venv"
-          "$venv/bin/python" -m pip install --disable-pip-version-check --upgrade pip
-          "$venv/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
-          "$venv/bin/python" -m pip check
-          printf 'TOP5_PYTHON=%s\n' "$venv/bin/python" >> "$GITHUB_ENV"
-          echo "TOP5_EPHEMERAL_RUNTIME=PASS"
+          "$TOP5_PYTHON" -m pip check
+          "$TOP5_PYTHON" - <<'PY'
+          import psycopg
+          import requests
+          print("TOP5_RCC_PYTHON_IMPORTS=PASS")
+          PY
 
       - name: Scout real live Candidate-Fact-backed jobs
         shell: bash

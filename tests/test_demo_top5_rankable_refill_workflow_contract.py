@@ -79,3 +79,19 @@ def test_demo_top5_refill_captures_postflight_product_and_data_layers_truth() ->
     assert "POST_GOLD_ASSESSED=" in text
     assert "POST_GOLD_FRESHNESS=" in text
     assert "/tmp/jap-demo-top5-data-layers-after.json" in text
+
+
+
+def test_demo_top5_refill_reuses_verified_rcc_python_without_pypi_bootstrap() -> None:
+    text = _text()
+
+    assert "Resolve verified RCC runtime context" in text
+    assert '"interpreter"' in text
+    assert '"interpreter_probe"' in text
+    assert "INTERPRETER_OUTSIDE_QUALIFIED_CHECKOUT" in text
+    assert 'printf \'TOP5_PYTHON=%s\\n\'' in text
+    assert "TOP5_RCC_PYTHON_IMPORTS=PASS" in text
+
+    assert "python3 -m venv" not in text
+    assert "pip install --disable-pip-version-check -r requirements.txt" not in text
+    assert "pip install --disable-pip-version-check --upgrade pip" not in text
