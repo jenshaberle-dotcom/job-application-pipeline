@@ -54,6 +54,9 @@ READINESS_PRIORITY = {
     "hard_filter_evidence_required": 1,
     "assessment_required": 2,
 }
+REFILL_GEOGRAPHY_BUCKETS = frozenset(
+    {"hannover_explicit", "germany_remote", "commute_observed_acceptable"}
+)
 
 
 def _load_candidate_facts(conn: psycopg.Connection[Any]) -> tuple[CandidateFactSnapshot, ...]:
@@ -113,6 +116,7 @@ def _load_rows(
                 readiness.country,
                 readiness.work_model,
                 readiness.commute_minutes,
+                location_truth.structured_locations,
                 readiness.source_name,
                 readiness.source_url,
                 readiness.canonical_source_type,
@@ -124,6 +128,19 @@ def _load_rows(
                 readiness.overall_quality_score,
                 assessment.capability_fit_status
             FROM gold_product_v1_job_readiness readiness
+            LEFT JOIN LATERAL (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'city', location.city,
+                        'country_code', location.country_code,
+                        'is_primary', location.is_primary,
+                        'evidence_source', location.evidence_source
+                    )
+                    ORDER BY location.is_primary DESC, location.id
+                ) AS structured_locations
+                FROM silver_job_locations location
+                WHERE location.silver_job_id = readiness.silver_job_id
+            ) location_truth ON TRUE
             LEFT JOIN job_product_assessments assessment
               ON assessment.silver_job_id = readiness.silver_job_id
             WHERE readiness.lifecycle_status = 'active_confirmed'
@@ -183,6 +200,7 @@ def scout(
         silver_job_id = int(row["silver_job_id"])
         item: dict[str, object] = {str(key): value for key, value in row.items()}
         geography = classify_geography(dict(row))
+        geography_eligible = geography.bucket in REFILL_GEOGRAPHY_BUCKETS
         item.update(
             {
                 "live_outcome": "unverifiable",
@@ -194,7 +212,7 @@ def scout(
                 "role_relevant": classify_role_title(str(row.get("title") or "")) is not None,
                 "geography_bucket": geography.bucket,
                 "geography_reason": geography.reason,
-                "geography_eligible": geography.eligible_for_bounded_pool,
+                "geography_eligible": geography_eligible,
             }
         )
         try:
@@ -275,6 +293,8 @@ def main() -> int:
             "database_writes": False,
             "network_exact_detail_requests": len(rows),
             "provider_requests": 0,
+            "authoritative_silver_location_truth_used": True,
+            "geography_review_required_excluded": True,
             "explicit_outside_germany_excluded": True,
             "capability_fit_authority_created": False,
             "hard_filter_authority_created": False,
