@@ -152,7 +152,7 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
     available
       .map((job) => (job.company_name || "").trim())
       .filter(Boolean),
-  )).sort((left, right) => left.localeCompare(right, "de")), [available]);
+  )).sort((left, right) => left.localeCompare(right, "en")), [available]);
 
   const [mode, setMode] = useState<"jap" | "external">("jap");
   const [employer, setEmployer] = useState("");
@@ -170,7 +170,7 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
     () => employer
       ? available
           .filter((job) => (job.company_name || "").trim() === employer)
-          .sort((left, right) => (left.title || "").localeCompare(right.title || "", "de"))
+          .sort((left, right) => (left.title || "").localeCompare(right.title || "", "en"))
       : [],
     [available, employer],
   );
