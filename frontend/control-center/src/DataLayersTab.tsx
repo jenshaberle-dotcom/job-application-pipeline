@@ -58,20 +58,20 @@ const SERIES: Array<{
 }> = [
   {
     key: "bronze_new",
-    label: "Bronze new",
-    helper: "current jobs first persisted in Bronze",
+    label: "Raw evidence added",
+    helper: "Bronze · current jobs first persisted from source evidence",
     className: "bronze",
   },
   {
     key: "silver_normalized",
-    label: "Silver normalized",
-    helper: "current jobs normalized into Silver",
+    label: "Normalized",
+    helper: "Silver · current jobs normalized for product use",
     className: "silver",
   },
   {
     key: "gold_assessed",
-    label: "Gold assessed",
-    helper: "current jobs receiving Product assessment",
+    label: "Assessed",
+    helper: "Gold · current jobs with Product assessment",
     className: "gold",
   },
 ];
@@ -80,15 +80,19 @@ const ratioText = (value: number | null) =>
   value == null ? "—" : `${value.toFixed(1)}%`;
 
 function timeText(value: string | null) {
-  if (!value) return "No observation";
+  if (!value) return "No evidence yet";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) return value;
-  return parsed.toLocaleString(undefined, {
+  const ageMs = Math.max(0, Date.now() - parsed.valueOf());
+  const hours = Math.floor(ageMs / 3_600_000);
+  const age = hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+  const timestamp = parsed.toLocaleString(undefined, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
+  return `${timestamp} · ${age}`;
 }
 
 async function readDataLayers(signal?: AbortSignal): Promise<DataLayersPayload> {
@@ -204,22 +208,22 @@ function DataLayersScreen({
 }) {
   const layers = payload.layers;
   const stages = [
-    ["Bronze", layers.bronze_jobs, "current jobs with raw source lineage"],
-    ["Silver", layers.silver_jobs, "current normalized jobs"],
-    ["Gold", layers.gold_assessed, "current jobs with Product assessment"],
-    ["Rankable", layers.rankable_now, "current hard-gate pass"],
-    ["Top 5", layers.top_jobs_now, "current authoritative shortlist"],
+    ["Raw evidence", layers.bronze_jobs, "Bronze · current jobs with source lineage"],
+    ["Normalized", layers.silver_jobs, "Silver · current jobs normalized"],
+    ["Assessed", layers.gold_assessed, "Gold · current jobs with Product assessment"],
+    ["Ready to rank", layers.rankable_now, "current jobs with all ranking gates passed"],
+    ["Top 5", layers.top_jobs_now, "current shortlist"],
   ] as const;
 
   return (
     <div className="data-layers-screen ow-stack">
       <header className="ow-page-header dl-header">
         <div>
-          <span>Pipeline observability · one population</span>
+          <span>Current job data pipeline</span>
           <h1>Data Layers</h1>
           <p>
-            Bronze → Silver → Gold for the exact current <b>All jobs</b> population.
-            Historical rows stay in the database but are excluded from these primary counts.
+            See how the same current <b>All Jobs</b> set progresses from source evidence
+            to normalized job data, Product assessment and ranking readiness.
           </p>
         </div>
         <button
@@ -238,7 +242,7 @@ function DataLayersScreen({
             <span>{payload.population.label}</span>
             <h2>{payload.population.all_jobs.toLocaleString()} current jobs</h2>
           </div>
-          <p>Every stage below uses the same current population shown by <b>All jobs</b>.</p>
+          <p>Every stage uses the same current job set. Equal Raw and Normalized counts mean every visible job already has both source lineage and a normalized record.</p>
         </div>
         <div className="dl-funnel dl-funnel-current">
           {stages.map(([name, value, helper], index) => (
@@ -257,7 +261,7 @@ function DataLayersScreen({
           <div className="ow-card-title">
             <div>
               <span>Last {payload.window_days} days · independent scales</span>
-              <h2>Layer flow · current cohort</h2>
+              <h2>Recent processing activity</h2>
             </div>
           </div>
           <div className="dl-small-multiples">
@@ -266,7 +270,7 @@ function DataLayersScreen({
             ))}
           </div>
           <p className="dl-truth-note">
-            Each panel has its own vertical scale so Silver and Gold remain readable. All events are restricted to jobs in the current All jobs population. Repeat source sightings are intentionally not plotted here.
+            Each panel has its own vertical scale. Activity is restricted to the current All Jobs set, so this is processing history for today’s visible jobs rather than total database volume.
           </p>
         </article>
 
@@ -277,17 +281,17 @@ function DataLayersScreen({
             </div>
             <div className="dl-coverage">
               <div>
-                <span>Bronze → Silver</span>
+                <span>Raw evidence → Normalized</span>
                 <strong>{ratioText(payload.coverage.bronze_to_silver_pct)}</strong>
                 <i><b style={{ width: `${payload.coverage.bronze_to_silver_pct ?? 0}%` }} /></i>
               </div>
               <div>
-                <span>Silver → Gold</span>
+                <span>Normalized → Assessed</span>
                 <strong>{ratioText(payload.coverage.silver_to_gold_pct)}</strong>
                 <i><b style={{ width: `${payload.coverage.silver_to_gold_pct ?? 0}%` }} /></i>
               </div>
               <div>
-                <span>All jobs with Gold assessment</span>
+                <span>Current jobs assessed</span>
                 <strong>{ratioText(payload.coverage.all_jobs_gold_assessed_pct)}</strong>
                 <i><b style={{ width: `${payload.coverage.all_jobs_gold_assessed_pct ?? 0}%` }} /></i>
               </div>
@@ -295,20 +299,27 @@ function DataLayersScreen({
           </article>
           <article className="ow-card">
             <div className="ow-card-title">
-              <div><span>Current cohort</span><h2>Freshness</h2></div>
+              <div><span>Evidence timestamps</span><h2>Freshness</h2></div>
             </div>
             <div className="dl-freshness">
-              <div><span>Bronze observed</span><b>{timeText(payload.freshness.latest_bronze_observation_at)}</b></div>
-              <div><span>Silver normalized</span><b>{timeText(payload.freshness.latest_silver_normalized_at)}</b></div>
-              <div><span>Gold assessed</span><b>{timeText(payload.freshness.latest_gold_assessed_at)}</b></div>
+              <div><span>Latest source observation</span><b>{timeText(payload.freshness.latest_bronze_observation_at)}</b></div>
+              <div><span>Latest normalization</span><b>{timeText(payload.freshness.latest_silver_normalized_at)}</b></div>
+              <div><span>Latest Product assessment</span><b>{timeText(payload.freshness.latest_gold_assessed_at)}</b></div>
             </div>
+            <p className="dl-truth-note">These are evidence timestamps for the current jobs, not the time this dashboard was refreshed.</p>
+            {layers.gold_assessed < payload.population.all_jobs && (
+              <div className="ow-callout warn">
+                <b>Assessment gap</b>
+                <span>{payload.population.all_jobs - layers.gold_assessed} current jobs still need Product assessment. Candidate Fit and the Top 5 can only use jobs that have enough verified assessment evidence.</span>
+              </div>
+            )}
           </article>
         </div>
       </section>
 
       <footer className="dl-boundary">
-        <b>Truth boundary</b>
-        <span>Read-only · one current All jobs population · historical inventory excluded · repeat observations excluded · no migration · no source activation · no ranking/application authority.</span>
+        <b>Scope</b>
+        <span>Read-only · current All Jobs set only · historical inventory and repeat sightings are excluded from these headline counts.</span>
       </footer>
     </div>
   );
@@ -317,6 +328,7 @@ function DataLayersScreen({
 export default function DataLayersTab() {
   const [navRoot, setNavRoot] = useState<HTMLElement | null>(null);
   const [mainRoot, setMainRoot] = useState<HTMLElement | null>(null);
+  const [toplineRoot, setToplineRoot] = useState<HTMLElement | null>(null);
   const [active, setActive] = useState(false);
   const [payload, setPayload] = useState<DataLayersPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -330,9 +342,11 @@ export default function DataLayersTab() {
       if (cancelled) return false;
       const nav = document.querySelector<HTMLElement>(".ow-sidebar nav");
       const main = document.querySelector<HTMLElement>(".ow-main");
-      if (!nav || !main) return false;
+      const topline = document.querySelector<HTMLElement>(".ow-topline > div");
+      if (!nav || !main || !topline) return false;
       setNavRoot(nav);
       setMainRoot(main);
+      setToplineRoot(topline);
       return true;
     };
 
@@ -419,5 +433,9 @@ export default function DataLayersTab() {
       )
     : null;
 
-  return <>{nav}{screen}</>;
+  const topline = active && toplineRoot
+    ? createPortal(<b className="ow-overlay-topline-title">Data Layers</b>, toplineRoot)
+    : null;
+
+  return <>{nav}{screen}{topline}</>;
 }
