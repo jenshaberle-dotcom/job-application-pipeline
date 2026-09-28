@@ -16,6 +16,11 @@ on:
         required: true
         default: false
         type: boolean
+      max_external_requests:
+        description: "Paid-provider cost guard; full raster is never truncated"
+        required: true
+        default: "50"
+        type: string
   issue_comment:
     types: [created]
 
@@ -50,6 +55,7 @@ jobs:
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
       WORKFLOW_SEARCH_BACKEND: ${{ inputs.search_backend }}
       WORKFLOW_ALLOW_PAID_EXTERNAL_PROVIDER: ${{ inputs.allow_paid_external_provider }}
+      WORKFLOW_MAX_EXTERNAL_REQUESTS: ${{ inputs.max_external_requests }}
       COMMENT_BODY: ${{ github.event.comment.body }}
 
     steps:
@@ -124,6 +130,7 @@ jobs:
           set -euo pipefail
           backend="${WORKFLOW_SEARCH_BACKEND:-}"
           allow_paid="${WORKFLOW_ALLOW_PAID_EXTERNAL_PROVIDER:-}"
+          max_requests="${WORKFLOW_MAX_EXTERNAL_REQUESTS:-}"
 
           if [[ "${GITHUB_EVENT_NAME:-}" == "issue_comment" ]]; then
             if [[ "${COMMENT_BODY:-}" =~ provider=(tavily|none) ]]; then
@@ -137,6 +144,11 @@ jobs:
             else
               allow_paid="false"
             fi
+            if [[ "${COMMENT_BODY:-}" =~ max_requests=([0-9]+) ]]; then
+              max_requests="${BASH_REMATCH[1]}"
+            else
+              max_requests="50"
+            fi
           fi
 
           if [[ -z "$backend" ]]; then
@@ -145,9 +157,17 @@ jobs:
           if [[ -z "$allow_paid" ]]; then
             allow_paid="false"
           fi
+          if [[ -z "$max_requests" ]]; then
+            max_requests="50"
+          fi
+          if [[ ! "$max_requests" =~ ^[0-9]+$ ]] || (( max_requests < 1 )); then
+            echo "max_requests must be a positive integer." >&2
+            exit 2
+          fi
 
           echo "SEARCH_BACKEND=$backend" >> "$GITHUB_ENV"
           echo "ALLOW_PAID_EXTERNAL_PROVIDER=$allow_paid" >> "$GITHUB_ENV"
+          echo "MAX_EXTERNAL_REQUESTS=$max_requests" >> "$GITHUB_ENV"
 
       - name: Enforce paid-provider double gate
         shell: bash
@@ -196,11 +216,8 @@ jobs:
 
           args=(
             --provider "$SEARCH_BACKEND"
-            --max-terms 2
-            --max-locations 1
             --max-results 5
-            --radius-km 50
-            --page-size 10
+            --max-external-requests "$MAX_EXTERNAL_REQUESTS"
             --output "$CENSUS_OUTPUT"
           )
           if [[ "$ALLOW_PAID_EXTERNAL_PROVIDER" == "true" ]]; then
@@ -238,6 +255,11 @@ jobs:
               f"- authority: **{comparison['authority']['status']}**",
               f"- provider available: **{comparison['authority']['provider_available']}**",
               f"- candidate baseline: **{comparison['baseline_candidate_count']}**",
+              f"- control profiles: **{comparison['intent']['control_profile_count']}**",
+              f"- active search terms: **{len(comparison['intent']['search_terms'])}**",
+              f"- location signals: **{len(comparison['intent']['location_signals'])}**",
+              f"- planned external-index queries: **{sum(item['query_count'] for item in comparison['external_index_telemetry'].values())}**",
+              f"- external request budget: **{comparison['intent']['max_external_requests']}**",
               f"- observed jobs: **{report['observed_job_count']}**",
               f"- qualifying jobs: **{report['qualifying_job_count']}**",
               f"- qualifying employers: **{report['employer_count']}**",
