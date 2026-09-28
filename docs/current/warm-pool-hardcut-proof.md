@@ -20,9 +20,11 @@ Integrated hardcut main: `857534c4983398202714c83387af121d1e92115a`.
    with its tests. Check workflow references and registered workload inventory
    against files that actually exist. Re-run the complete suite and doc checks.
 
-The repository retains one workload target, the reusable assessment cohort.
-Negative guards and historical branch-disposition identifiers are not runnable
-allocation authority. Product source-health heartbeats are unrelated to runner
+The repository retains one RCC workload target, the reusable assessment cohort, plus one
+separate cardinality-blind Windows product release publisher. The publisher runs on
+GitHub-hosted `windows-latest` and provides packaging/publication only; it is not runner
+allocation authority. Negative guards and historical branch-disposition identifiers are
+not runnable allocation authority. Product source-health heartbeats are unrelated to runner
 capacity and retain their existing product semantics.
 
 ## Validation
@@ -73,8 +75,11 @@ second scheduler while those gates are completed.
 
 JAP Classic's explicit local assessment action remains separate from runner
 authority: it owns no allocation, scheduler or dispatch path and validates the
-cohort report before accepting its result. Release publication still requires an
-RCC-assigned Windows workload; a version bump alone currently publishes nothing.
+cohort report before accepting its result. Product release publication is likewise
+separate from workload allocation: the protected hosted Windows publisher builds and
+publishes immutable exact-source assets when `windows/JAP.ControlCenter.Desktop/VERSION`
+changes. Through the 2026-09-29 demo it must not be deleted or migrated; any post-demo
+RCC publication replacement must be proven before removing this update channel.
 
 ## Product acceptance follow-up
 
