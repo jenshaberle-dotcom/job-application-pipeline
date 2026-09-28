@@ -258,7 +258,7 @@ export default function F6TemplateReviewEditor({
       status: "waiting",
       phase: "queued",
       percent: 0,
-      message: "Finale Bewerbungsdateien werden vorbereitet.",
+      message: "Final application files are being prepared.",
     });
     setRenderElapsedSeconds(0);
     setRendering(true);
@@ -358,15 +358,15 @@ export default function F6TemplateReviewEditor({
           </div>
         </div>
         <button type="button" disabled={rendering || Boolean(error)} onClick={() => void renderFinishedPdf()}>
-          {rendering ? "PDF & Word werden erstellt…" : "Create finished application PDF"}
+          {rendering ? "Creating PDF & Word files…" : "Create finished application PDF"}
         </button>
       </div>
 
       {rendering && <div className="f6-export-progress" role="status" aria-live="polite">
         <div className="f6-export-progress-head">
           <div>
-            <strong>Deine Bewerbungsdateien werden erstellt</strong>
-            <span>{renderProgress?.message || "PDF und Word-Datei werden lokal aufgebaut und verifiziert."}</span>
+            <strong>Your application files are being created</strong>
+            <span>{renderProgress?.message || "PDF and Word files are being built and verified locally."}</span>
           </div>
           <b>{renderProgressPercent}%</b>
         </div>
@@ -380,12 +380,12 @@ export default function F6TemplateReviewEditor({
           <i style={{ width: `${Math.max(3, renderProgressPercent)}%` }} />
         </div>
         <div className="f6-export-progress-meta">
-          <span>Lokale Verarbeitung · keine Provider-Anfrage</span>
+          <span>Local processing · no provider request</span>
           <span>Elapsed {renderElapsedLabel}</span>
         </div>
         <small
-          title="JAP aktualisiert den Fortschritt nach real abgeschlossenen Schritten: Vorlagenbindung, PDF-Rendering, Pixelprüfung, Zusammenführung und Word-Erstellung."
-        >ⓘ Fortschritt basiert auf abgeschlossenen Dateierstellungs-Schritten.</small>
+          title="JAP updates progress after real completed steps: template binding, PDF rendering, pixel verification, merge, and Word creation."
+        >ⓘ Progress is based on completed file-generation steps.</small>
       </div>}
 
       {packagePdf && <div className="f6-final-package">
