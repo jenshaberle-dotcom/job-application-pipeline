@@ -61,6 +61,19 @@ def _validated_report(raw: object) -> dict[str, object]:
         raise AssessmentActionStop("assessment report root must be an object")
     if raw.get("schema") != COHORT_SCHEMA:
         raise AssessmentActionStop("assessment report schema mismatch")
+    if raw.get("mode") != "apply":
+        raise AssessmentActionStop("assessment report must prove apply mode")
+    targets = raw.get("targets")
+    if not isinstance(targets, Mapping) or {
+        "evaluated_jobs": targets.get("evaluated_jobs"),
+        "top5_jobs": targets.get("top5_jobs"),
+        "candidate_cap": targets.get("candidate_cap"),
+    } != {
+        "evaluated_jobs": 10,
+        "top5_jobs": 5,
+        "candidate_cap": 15,
+    }:
+        raise AssessmentActionStop("assessment report target contract mismatch")
 
     boundaries = raw.get("boundaries")
     if not isinstance(boundaries, Mapping):
@@ -146,16 +159,17 @@ def apply_assessment_action() -> dict[str, object]:
             "direct_top5_writes": 0,
         }
 
-    REPORT_ROOT.mkdir(parents=True, exist_ok=True)
-    fd, raw_staged = tempfile.mkstemp(
-        dir=REPORT_ROOT,
-        prefix=".control-center-assessment.",
-        suffix=".pending.json",
-    )
-    os.close(fd)
-    staged = Path(raw_staged)
-
+    staged: Path | None = None
     try:
+        REPORT_ROOT.mkdir(parents=True, exist_ok=True)
+        fd, raw_staged = tempfile.mkstemp(
+            dir=REPORT_ROOT,
+            prefix=".control-center-assessment.",
+            suffix=".pending.json",
+        )
+        os.close(fd)
+        staged = Path(raw_staged)
+
         try:
             completed = _run_cohort(output=staged)
         except subprocess.TimeoutExpired as exc:
@@ -172,16 +186,45 @@ def apply_assessment_action() -> dict[str, object]:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise AssessmentActionStop("assessment cohort produced invalid JSON") from exc
 
-        os.replace(staged, REPORT_PATH)
-
         final = report["final"]
         selection = report["selection"]
-        assert isinstance(final, Mapping)
-        assert isinstance(selection, Mapping)
+        if not isinstance(final, Mapping) or not isinstance(selection, Mapping):
+            raise AssessmentActionStop("assessment report lost final/selection evidence")
 
         target_met = report.get("target_met") is True
-        status = "complete" if target_met and completed.returncode == 0 else "incomplete"
+        if (completed.returncode == 0) != target_met:
+            raise AssessmentActionStop(
+                "assessment child exit code disagrees with target_met evidence"
+            )
+
         authority_exit = int(report.get("authority_pipeline_exit_code") or 0)
+        if target_met:
+            required_counts = {
+                "profile_fit_complete_count": 10,
+                "profile_fit_passed_count": 5,
+                "rankable_job_count": 5,
+                "top_job_count": 5,
+            }
+            for key, minimum in required_counts.items():
+                value = int(final.get(key) or 0)
+                if key == "top_job_count":
+                    if value != minimum:
+                        raise AssessmentActionStop("target_met contradicts Top-5 count")
+                elif value < minimum:
+                    raise AssessmentActionStop(
+                        f"target_met contradicts required {key}: {value}<{minimum}"
+                    )
+            if final.get("top5_authority_violations"):
+                raise AssessmentActionStop(
+                    "target_met contradicts Top-5 authority violations"
+                )
+
+        # Publish only validated evidence. Incomplete reports are useful operator
+        # diagnostics and do not grant Top-5 authority by themselves.
+        os.replace(staged, REPORT_PATH)
+        staged = None
+
+        status = "complete" if target_met else "incomplete"
         if authority_exit != 0:
             status = "blocked"
 
@@ -209,10 +252,11 @@ def apply_assessment_action() -> dict[str, object]:
             "mutation_scope": "existing_candidate_fit_hard_filter_and_ranking_authorities",
         }
     finally:
-        try:
-            staged.unlink()
-        except FileNotFoundError:
-            pass
+        if staged is not None:
+            try:
+                staged.unlink()
+            except FileNotFoundError:
+                pass
         _ACTION_LOCK.release()
 
 
