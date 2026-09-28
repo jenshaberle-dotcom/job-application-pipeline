@@ -91,6 +91,11 @@ def test_product_assessment_cohort_has_readonly_plan_before_apply() -> None:
     assert "physical_runner:" not in workflow
     assert "facade_runner:" not in workflow
     assert ("rcc-" + "general-linux-0") not in workflow
+    assert "runs_on_json" not in workflow
+    assert "reservation_id:" not in workflow
+    assert ".runtime/demo/" not in workflow
+    assert ".runtime/product/product_v1_rankable_refill_materialization.json" in workflow
+    assert ".runtime/product/product_v1_rankable_refill_apply.json" in workflow
 
 
 def test_product_assessment_cohort_uses_rcc_runtime_and_not_public_pip_bootstrap() -> None:
