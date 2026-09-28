@@ -41,6 +41,7 @@ Physically removed from JAP:
 - fixed Warm-Pool member selection;
 - repository-owned hosted/warm route selection;
 - retired Blue-runner workflow archive;
+- legacy workflow trigger authority files under `.github/triggers/`;
 - project-owned runner allocation contract;
 - local Windows scheduled-pipeline runner path;
 - old workflow-specific regression tests that could restore those authorities.
@@ -54,13 +55,14 @@ The three residual scans are complete on the residual-proof candidate; see
 Main changes through `c0e3002db601289592eddd28ef96225ddc992476` are integrated.
 This is local repository proof, not RCC live execution acceptance.
 
-Before merge/product execution, qualify a generic RCC handoff that accepts this
-repository's capability-only profile and exact assignment input contract.
-The inspected RCC main dispatcher still requires the removed consumer allocation
-contract and a PR-validation dispatch interface. RCC PR #671 moves the production
-control plane to a WSL-native host gate; it does not establish compatibility with
-this assessment workflow. See the exact gaps in the residual proof document.
-No RCC execution of the JAP assessment workload has been proven.
+The repository hardcut itself may merge once its own scans and regression tests
+pass; keeping stale runner authority on `main` is not a valid substitute for an
+external runtime acceptance proof. Live Product execution remains separately
+gated on a generic RCC handoff that accepts JAP's capability-only demand without
+restoring consumer-owned pool/facade allocation authority. The inspected RCC
+production adapter still expects the removed consumer allocation contract and a
+different dispatch interface. No RCC execution of the JAP assessment workload
+has been proven.
 
 The cohort acceptance now counts only selected, current Employer-Origin jobs.
 Failed Fit decisions count as evaluated, never passed. Duplicate Top-5 identities,
