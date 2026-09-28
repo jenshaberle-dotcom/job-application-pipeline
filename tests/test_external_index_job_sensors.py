@@ -50,6 +50,8 @@ def test_goodjobs_index_result_becomes_minimised_remote_evidence():
         title="(Senior) Data Engineer in Renewable Energie - Encavis GmbH",
         snippet="Hamburg | 100% Remote · Vollzeit · Job online bis 30.09.2026",
         observed_at_utc=OBSERVED,
+        search_term="Data Engineer",
+        location_signal="Deutschland remote",
     )
     assert observation is not None
     assert observation.title == "(Senior) Data Engineer in Renewable Energie"
@@ -57,6 +59,8 @@ def test_goodjobs_index_result_becomes_minimised_remote_evidence():
     assert observation.remote_signal is True
     assert observation.location == "Remote"
     assert observation.description == ""
+    assert observation.search_term == "Data Engineer"
+    assert observation.location_signal == "Deutschland remote"
     assert raw_url not in observation.reference
     assert observation.reference.startswith("external-index:")
 
