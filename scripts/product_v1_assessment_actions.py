@@ -89,6 +89,7 @@ def _validated_report(raw: object) -> dict[str, object]:
         "selection_requires_current_employer_origin": True,
         "selection_requires_exact_live_vacancy": True,
         "selection_requires_approved_candidate_fact_match": True,
+        "top5_must_be_subset_of_selected_ten": True,
         "candidate_fit_and_affinity_remain_separate": True,
         "numeric_candidate_fit_authority_created": False,
         "combined_score_authority_created": False,
