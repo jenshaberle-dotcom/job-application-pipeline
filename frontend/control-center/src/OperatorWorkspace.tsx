@@ -444,7 +444,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
 
     <section className="ow-overview-grid">
       <article className="ow-card ow-now-card">
-        <div className="ow-card-title"><div><span>Best current option</span><h2>{top ? top.title : "No rankable job yet"}</h2></div>{top && <strong>#{top.product_rank || 1}</strong>}</div>
+        <div className="ow-card-title"><div><span>Best current option</span><h2>{top ? top.title : "No job ready to rank yet"}</h2></div>{top && <strong>#{top.product_rank || 1}</strong>}</div>
         {top ? <>
           <p className="ow-job-meta">{employerName(top)} · {locationText(top)}</p>
           <div className="ow-fit-line"><b>{scoreText(top.overall_quality_score)}</b><span>overall match score</span></div>
@@ -676,7 +676,7 @@ function Jobs({
           ["unreviewed", "Unreviewed"],
           ["interesting", "Interesting"],
           ["not_relevant", "Not relevant"],
-          ["rankable", "Rankable"],
+          ["rankable", "Ready to rank"],
           ["applied", "Applied"],
         ] as Array<[JobFilter, string]>).map(([id, text]) =>
           <button
@@ -818,8 +818,8 @@ function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () =>
     ],
   );
   const selected = jobs.find((job) => job.silver_job_id === selectedId) || jobs[0] || null;
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Application shortlist</span><h1>Top 5</h1><p>Only authoritative rankable jobs. Empty slots stay empty.</p></div><strong className="ow-big-count">{jobs.length}/5</strong></header>
-    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small></span><strong>{scoreText(job.overall_quality_score)}</strong></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />}</section> : <section className="ow-card"><h2>No Top-5 job currently qualifies.</h2><p>The product does not fill the shortlist with weaker or stale jobs.</p></section>}
+  return <div className="ow-stack"><header className="ow-page-header"><div><span>Application shortlist</span><h1>Top 5</h1><p>Only current jobs with verified fit and ranking evidence appear here. Empty slots stay empty until a job qualifies.</p></div><strong className="ow-big-count">{jobs.length}/5</strong></header>
+    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small></span><strong>{scoreText(job.overall_quality_score)}</strong></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />}</section> : <section className="ow-card"><h2>No job currently qualifies for the Top 5.</h2><p>JAP only fills the shortlist with current jobs that have enough verified fit evidence.</p></section>}
   </div>;
 }
 
@@ -880,7 +880,7 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>Prepare documents for one job</span><h1>Application Builder</h1><p>Create a tailored CV and cover letter from your approved source documents, or start with a local fillable Word template. JAP never submits automatically.</p></div></header>
     <section className="ow-application-grid">
-      <article className="ow-card"><span className="ow-kicker">Application target</span><h2>{target?.title || "No current selectable job"}</h2>{target && <p>{employerName(target)} · {locationText(target)} · {top ? `${scoreText(top.overall_quality_score)} verified match score` : `${scoreText(target.overall_quality_score)} Affinity · operator selected`}</p>}<div className="ow-readiness"><div className={target ? "ready" : "blocked"}><i /><span>{top ? "Top-5 recommendation" : "Explicit current-job selection"}</span><b>{target ? "Ready for review drafting" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>CV source</span><b>{payload.application_sources_ready.base_cv ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Cover letter source</span><b>{payload.application_sources_ready.base_application_letter ? "Ready" : "Required"}</b></div></div><OpenApplicationButton silverJobId={target?.silver_job_id} disabled={!target || !docsReady} /></article>
+      <article className="ow-card"><span className="ow-kicker">Application target</span><h2>{target?.title || "No current selectable job"}</h2>{target && <p>{employerName(target)} · {locationText(target)} · {top ? `${scoreText(top.overall_quality_score)} verified match score` : `${scoreText(target.overall_quality_score)} Affinity · selected current job`}</p>}<div className="ow-readiness"><div className={target ? "ready" : "blocked"}><i /><span>{top ? "Top-5 recommendation" : "Explicit current-job selection"}</span><b>{target ? "Ready for review drafting" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>CV source</span><b>{payload.application_sources_ready.base_cv ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Cover letter source</span><b>{payload.application_sources_ready.base_application_letter ? "Ready" : "Required"}</b></div></div><OpenApplicationButton silverJobId={target?.silver_job_id} disabled={!target || !docsReady} /></article>
       <article className="ow-card ow-boundary-card"><span className="ow-kicker">Document layout</span><h2>{docsReady ? "Approved templates ready" : "Add your approved CV and cover letter"}</h2><p>Your source documents stay private. JAP preserves their layout and changes only the intended text areas.</p><ul><li>Layout and graphics stay unchanged</li><li>Only approved text areas may change</li><li>Profile facts and verified job evidence ground the content</li><li>No automatic apply, submit or send</li></ul></article>
     </section>
     <article className="ow-card">
@@ -1031,7 +1031,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
 function Operations({ payload }: { payload: ProductPayload }) {
   const overview = payload.source_connector_overview.summary;
   const stages: Array<[string, number]> = [["Known", overview.source_count], ["Implemented", overview.implemented_count], ["Validated", overview.validated_count], ["Approved", overview.final_approved_count], ["Registered", overview.registered_count], ["Active", overview.active_count], ["Ingested", overview.ingested_count]];
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Runtime truth</span><h1>Operations</h1><p>Observability and lifecycle health, separated from daily job review.</p></div></header><section className="ow-card"><h2>Source lifecycle</h2><div className="ow-pipeline">{stages.map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}</div></section><section className="ow-metrics"><Metric labelText="Current active" value={payload.summary.current_active_job_count} helper="all persisted vacancies" /><Metric labelText="Review scope current" value={payload.summary.review_scope_current_active_job_count ?? payload.job_readiness.filter(isCurrent).length} helper="current employer-origin vacancies" /><Metric labelText="Stale" value={payload.summary.stale_job_count} helper="historical refresh required" /><Metric labelText="Attention sources" value={overview.attention_count} helper="need action" /></section></div>;
+  return <div className="ow-stack"><header className="ow-page-header"><div><span>System status</span><h1>Operations</h1><p>Source updates and job freshness, separated from daily job review.</p></div></header><section className="ow-card"><h2>Source status</h2><div className="ow-pipeline">{stages.map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}</div></section><section className="ow-metrics"><Metric labelText="Current active" value={payload.summary.current_active_job_count} helper="all stored active vacancies" /><Metric labelText="Shown in All Jobs" value={payload.summary.review_scope_current_active_job_count ?? payload.job_readiness.filter(isCurrent).length} helper="current vacancies from employer sources" /><Metric labelText="Stale" value={payload.summary.stale_job_count} helper="historical refresh required" /><Metric labelText="Attention sources" value={overview.attention_count} helper="need action" /></section></div>;
 }
 
 const navItems: Array<{ id: View; label: string; glyph: string }> = [
@@ -1060,7 +1060,7 @@ export default function OperatorWorkspace() {
     setView("jobs");
   };
 
-  if (error) return <main className="ow-fatal"><div><span>Fail closed</span><h1>Control Center unavailable</h1><pre>{error}</pre></div></main>;
+  if (error) return <main className="ow-fatal"><div><span>Data unavailable</span><h1>Control Center unavailable</h1><pre>{error}</pre></div></main>;
   if (!payload) return <main className="ow-loading"><div /><p>Loading current job data…</p></main>;
 
   const navBadges: Partial<Record<View, number>> = {
