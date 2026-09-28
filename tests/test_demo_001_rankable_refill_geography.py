@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from scripts.run_demo_001_rankable_refill_apply import _selected_candidates
+from scripts.run_demo_001_rankable_refill_scout import _authoritative_geography
 from src.job_lifecycle_health import OUTCOME_SEEN_ACTIVE
 
 
@@ -43,3 +44,52 @@ def test_refill_scout_persists_geography_gate_and_source_fields() -> None:
     assert '"geography_eligible": geography.eligible_for_bounded_pool' in source
     assert 'and row["geography_eligible"]' in source
     assert '"explicit_outside_germany_excluded": True' in source
+
+
+def test_origin_location_country_excludes_explicit_mexico_even_when_legacy_is_unknown() -> None:
+    signal = _authoritative_geography(
+        {
+            "city": None,
+            "country": None,
+            "work_model": None,
+            "commute_minutes": None,
+            "origin_locations": [
+                {
+                    "city": "San Pedro Garza Garcia",
+                    "country_code": "MX",
+                    "is_primary": True,
+                    "evidence_source": "generic_origin_schema_job_location",
+                }
+            ],
+        }
+    )
+
+    assert signal.bucket == "outside_germany"
+    assert signal.eligible_for_bounded_pool is False
+    assert signal.reason == "structured_origin_locations_outside_germany"
+
+
+def test_multilocation_job_with_explicit_germany_location_remains_eligible() -> None:
+    signal = _authoritative_geography(
+        {
+            "origin_locations": [
+                {"city": "London", "country_code": "GB"},
+                {"city": "Berlin", "country_code": "DE"},
+            ]
+        }
+    )
+
+    assert signal.bucket == "germany_origin_location"
+    assert signal.eligible_for_bounded_pool is True
+    assert signal.reason == "structured_origin_location_in_germany"
+
+
+def test_scout_queries_persisted_origin_location_authority() -> None:
+    source = open(
+        "scripts/run_demo_001_rankable_refill_scout.py",
+        encoding="utf-8",
+    ).read()
+
+    assert "FROM silver_job_locations locations" in source
+    assert "origin_location_sidecar_precedes_legacy_geography" in source
+    assert "_authoritative_geography(row)" in source
