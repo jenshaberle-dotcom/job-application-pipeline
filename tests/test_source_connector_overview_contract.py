@@ -8,6 +8,7 @@ from src.search_intelligence.source_connector_overview import (
 
 API = Path("scripts/run_product_v1_control_center.py")
 APP = Path("frontend/control-center/src/App.tsx")
+WORKSPACE = Path("frontend/control-center/src/OperatorWorkspace.tsx")
 FINAL_APPROVAL_DIALOG = Path(
     "frontend/control-center/src/FinalApprovalReviewDialog.tsx"
 )
@@ -40,6 +41,7 @@ def test_product_payload_embeds_read_only_source_connector_overview() -> None:
         "historical_layers_are_not_live_sensor_health": True,
         "active_is_not_delivery": True,
         "not_implemented_is_inventory_not_attention": True,
+        "discovery_snapshot_is_not_product_authority": True,
         "generic_origin_source_validity_gate": "proof=PASS",
         "generic_origin_final_approval_gate": "retired",
         "generic_origin_job_admission_is_separate": True,
@@ -99,3 +101,13 @@ def test_final_approval_ui_reuses_only_the_reviewed_3a_action_and_refetches_trut
     assert "Confirmation" in dialog
     assert "approval_token" not in dialog
     assert "activateSource" not in dialog
+
+
+def test_operator_sources_surface_verified_discovery_yield_without_product_promotion() -> None:
+    source = WORKSPACE.read_text(encoding="utf-8")
+
+    assert "Latest verified discovery run" in source
+    assert "New employer leads" in source
+    assert "Employer verification pending" in source
+    assert "Discovery evidence only" in source
+    assert "No candidate creation, connector activation, Bronze/Silver write or Product-job promotion" in source

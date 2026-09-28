@@ -69,6 +69,37 @@ type SourceConnector = {
     access_status: string;
     coverage_target: boolean;
   };
+  discovery_evidence?: {
+    run_id: string;
+    source_sha: string;
+    observed_at_utc: string;
+    mode: string;
+    query_count: number;
+    search_term_count: number;
+    location_signals: string[];
+    observed_jobs: number;
+    qualifying_jobs: number;
+    unique_qualifying_employers: number;
+    incremental_novel_employers: number | null;
+    boundary: {
+      database_writes: number;
+      bronze_writes: number;
+      silver_writes: number;
+      product_writes: number;
+      candidate_creation: number;
+      connector_activation: number;
+    };
+    leads: Array<{
+      company_key: string;
+      company_name: string;
+      matching_job_count: number;
+      matching_roles: string[];
+      origin_status: string;
+      verification_status: string;
+      location_confidence: string;
+      location_summary: string;
+    }>;
+  } | null;
   activation: { status: string; active: boolean | null };
   search_profiles: { active_profile_count: number; profile_count: number };
   gates: {
@@ -152,6 +183,7 @@ type ProductPayload = {
       active_count: number;
       ingested_count: number;
       attention_count: number;
+      discovery_lead_count?: number;
     };
     sources: SourceConnector[];
   };
@@ -280,6 +312,19 @@ function isCoverageTarget(source: SourceConnector) {
 function sourcePurpose(source: SourceConnector) {
   if (isCoverageTarget(source)) return "Employer discovery target";
   return normalize(source.source_role) === "sensor" ? "Employer discovery" : "Job delivery";
+}
+
+function sourceActivityText(source: SourceConnector) {
+  const evidence = source.discovery_evidence;
+  if (evidence) {
+    return `${evidence.observed_jobs} observed · ${evidence.qualifying_jobs} qualifying`;
+  }
+  return `${source.last_ingestion.total_loaded} jobs on last check`;
+}
+
+function discoveryStatusText(value: string | undefined | null) {
+  if (normalize(value) === "employer_origin_verification_pending") return "Employer verification pending";
+  return label(value);
 }
 
 function buildApplicationByJobId(payload: ProductPayload): Map<number, LinkedApplication> {
@@ -1036,6 +1081,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     ["Delivering jobs", overview.active_last_run_loaded_count],
     ["Active · no current jobs", overview.active_last_run_zero_count],
     ["Discovery coverage", overview.discovery_coverage_count ?? overview.sensor_count],
+    ["New employer leads", overview.discovery_lead_count ?? 0],
     ["Needs attention", overview.attention_count],
   ] as Array<[string, number]>;
 
@@ -1054,8 +1100,61 @@ function Sources({ payload }: { payload: ProductPayload }) {
       ><span>{tab.label}</span><b>{tab.count}</b></button>)}
     </nav>
     <section className="ow-source-workspace">
-      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {source.last_ingestion.total_loaded} jobs on last check</small></span><b className="ow-source-row-state">{sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
-      {selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{sourceGroupDisplay(sourceGroup(selected))}</span><h2>{selected.source_label}</h2><div className="ow-source-facts"><div><span>Purpose</span><b>{sourcePurpose(selected)}</b></div><div><span>Connection</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Verified</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Ready for use</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Status</span><b>{label(selected.activation.status)}</b></div><div><span>Last check</span><b>{label(selected.last_ingestion.status)}</b></div><div><span>Jobs found</span><b>{selected.last_ingestion.total_loaded} found · {selected.last_ingestion.inserted_count} new</b></div><div><span>Search setup</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Data coverage</span><b>Raw {selected.layers.bronze_count} · normalized {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>Next step</b><span>{selected.next_action}</span></div> : isCoverageTarget(selected) ? <div className="ow-callout info"><b>Coverage target · not connected</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No action needed</b><span>This source is currently ready to use.</span></div>}</article>}
+      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {sourceActivityText(source)}</small></span><b className="ow-source-row-state">{sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
+      {selected && <article className="ow-card ow-source-detail">
+        <span className="ow-kicker">{sourceGroupDisplay(sourceGroup(selected))}</span>
+        <h2>{selected.source_label}</h2>
+
+        {selected.discovery_evidence && <section className="ow-source-discovery">
+          <div className="ow-discovery-head">
+            <div>
+              <span>Latest verified discovery run</span>
+              <b>{displayDate(selected.discovery_evidence.observed_at_utc)}</b>
+            </div>
+            <code>run {selected.discovery_evidence.run_id}</code>
+          </div>
+          <div className="ow-discovery-metrics">
+            <div><span>Observed</span><b>{selected.discovery_evidence.observed_jobs}</b></div>
+            <div><span>Qualifying</span><b>{selected.discovery_evidence.qualifying_jobs}</b></div>
+            <div><span>Employers</span><b>{selected.discovery_evidence.unique_qualifying_employers}</b></div>
+            <div><span>New leads</span><b>{selected.discovery_evidence.incremental_novel_employers ?? "—"}</b></div>
+          </div>
+          <p className="ow-discovery-scope">{selected.discovery_evidence.search_term_count} search terms · {selected.discovery_evidence.location_signals.join(" + ")} · {selected.discovery_evidence.query_count} bounded search executions</p>
+
+          {selected.discovery_evidence.leads.length > 0
+            ? <div className="ow-discovery-leads">
+                <div className="ow-discovery-section-title"><span>New employer leads</span><b>{selected.discovery_evidence.leads.length}</b></div>
+                {selected.discovery_evidence.leads.map((lead) => <article className="ow-discovery-lead" key={lead.company_key}>
+                  <div><span>Discovered employer</span><h3>{lead.company_name}</h3><p>{lead.matching_roles.join(" · ")} · {lead.matching_job_count} matching job</p></div>
+                  <Status value={discoveryStatusText(lead.verification_status)} />
+                  <small>{lead.location_summary}</small>
+                </article>)}
+              </div>
+            : <div className="ow-discovery-empty"><b>No incremental employer lead in this run</b><span>The sensor was checked, but produced no additional qualifying employer beyond the existing coverage.</span></div>}
+
+          <div className="ow-discovery-boundary">
+            <b>Discovery evidence only</b>
+            <span>No candidate creation, connector activation, Bronze/Silver write or Product-job promotion occurred in this run.</span>
+          </div>
+        </section>}
+
+        <div className="ow-source-facts">
+          <div><span>Purpose</span><b>{sourcePurpose(selected)}</b></div>
+          <div><span>Connection</span><b>{label(selected.connector.implementation_status)}</b></div>
+          <div><span>Verified</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div>
+          <div><span>Ready for use</span><b>{label(selected.gates.final_approval_gate.status)}</b></div>
+          <div><span>Status</span><b>{label(selected.activation.status)}</b></div>
+          <div><span>Last check</span><b>{selected.discovery_evidence ? "verified sensor flight" : label(selected.last_ingestion.status)}</b></div>
+          <div><span>Jobs found</span><b>{selected.discovery_evidence ? `${selected.discovery_evidence.qualifying_jobs} qualifying` : `${selected.last_ingestion.total_loaded} found · ${selected.last_ingestion.inserted_count} new`}</b></div>
+          <div><span>Search setup</span><b>{selected.discovery_evidence ? `${selected.discovery_evidence.search_term_count} terms · ${selected.discovery_evidence.location_signals.length} markets` : `${selected.search_profiles.active_profile_count}/${selected.search_profiles.profile_count} active`}</b></div>
+          <div><span>Data coverage</span><b>Raw {selected.layers.bronze_count} · normalized {selected.layers.silver_count}</b></div>
+        </div>
+        {selected.current_blocker
+          ? <div className="ow-callout warn"><b>Next step</b><span>{selected.next_action}</span></div>
+          : isCoverageTarget(selected)
+            ? <div className="ow-callout info"><b>Coverage target · not directly connected</b><span>Discovery evidence is obtained through the qualified external-index path. Employer leads still require direct Employer-Origin verification before Product promotion.</span></div>
+            : <div className="ow-callout good"><b>No action needed</b><span>This source is currently ready to use.</span></div>}
+      </article>}
     </section>
   </div>;
 }

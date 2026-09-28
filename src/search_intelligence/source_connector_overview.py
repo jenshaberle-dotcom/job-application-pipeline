@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
+from src.search_intelligence.market_discovery_snapshot import discovery_evidence_for_source
 from src.search_intelligence.market_sensor_catalog import CORE_SENSOR_CATALOG_BY_NAME
 
 
@@ -448,6 +449,7 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "active_count": 0,
             "ingested_count": 0,
             "attention_count": 0,
+            "discovery_lead_count": 0,
         },
         "sources": [],
         "boundaries": {
@@ -462,6 +464,7 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "historical_layers_are_not_live_sensor_health": True,
             "active_is_not_delivery": True,
             "not_implemented_is_inventory_not_attention": True,
+            "discovery_snapshot_is_not_product_authority": True,
             "generic_origin_source_validity_gate": "proof=PASS",
             "generic_origin_final_approval_gate": "retired",
             "generic_origin_job_admission_is_separate": True,
@@ -627,6 +630,7 @@ def build_source_connector_overview(
                     "activation is not delivery evidence"
                 )
 
+        discovery_evidence = discovery_evidence_for_source(source_name)
         company_name = str(_get(candidate, "company_name") or "").strip()
         source_type = str(_get(candidate, "source_type") or "").strip() or (
             "market_sensor"
@@ -647,6 +651,7 @@ def build_source_connector_overview(
                 "source_type": source_type,
                 "source_role": source_role,
                 "candidate_status": candidate_status,
+                "discovery_evidence": discovery_evidence,
                 "discovery_catalog": {
                     "catalogued": sensor_catalog is not None,
                     "access_status": (
@@ -807,6 +812,10 @@ def build_source_connector_overview(
         ),
         "attention_count": count_where(
             lambda s: s["current_blocker"] is not None
+        ),
+        "discovery_lead_count": sum(
+            len((source.get("discovery_evidence") or {}).get("leads") or [])
+            for source in sources
         ),
     }
     payload["sources"] = sources

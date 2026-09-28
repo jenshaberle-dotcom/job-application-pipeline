@@ -226,6 +226,7 @@ def test_market_discovery_catalog_surfaces_all_core_boards_without_fake_activati
 
     assert payload["summary"]["sensor_count"] == 2
     assert payload["summary"]["discovery_coverage_count"] == 7
+    assert payload["summary"]["discovery_lead_count"] == 1
 
     goodjobs = source_by_name(payload, "goodjobs")
     assert goodjobs["source_label"] == "GoodJobs"
@@ -237,6 +238,30 @@ def test_market_discovery_catalog_surfaces_all_core_boards_without_fake_activati
     assert goodjobs["activation"]["active"] is False
     assert goodjobs["current_blocker"] is None
     assert "Coverage target only" in goodjobs["next_action"]
+    evidence = goodjobs["discovery_evidence"]
+    assert evidence["run_id"] == "36398829769"
+    assert evidence["observed_jobs"] == 5
+    assert evidence["qualifying_jobs"] == 1
+    assert evidence["incremental_novel_employers"] == 1
+    assert evidence["boundary"]["product_writes"] == 0
+    assert evidence["boundary"]["candidate_creation"] == 0
+    assert evidence["leads"] == [
+        {
+            "company_key": "encavis",
+            "company_name": "Encavis GmbH",
+            "matching_job_count": 1,
+            "matching_roles": ["Data Engineer"],
+            "origin_status": "novel",
+            "verification_status": "employer_origin_verification_pending",
+            "location_confidence": "uncertain",
+            "location_summary": "Remote hint found; employer-origin confirmation still required.",
+        }
+    ]
+
+    xing = source_by_name(payload, "xing")
+    assert xing["discovery_evidence"]["query_count"] == 44
+    assert xing["discovery_evidence"]["observed_jobs"] == 0
+    assert xing["discovery_evidence"]["leads"] == []
 
     bundesagentur = source_by_name(payload, "bundesagentur_fuer_arbeit")
     stepstone = source_by_name(payload, "stepstone")
