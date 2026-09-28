@@ -109,7 +109,7 @@ The Control Center label action performs no provider request, model training, Ka
 
 ## Runtime availability
 
-Repository implementation and CI do not by themselves prove that the configured local PostgreSQL runtime has migration `101_create_job_review_relevance_label_events.sql` applied. A one-shot self-hosted read-only status workflow verifies migration tracking and pending filenames before any migration application is considered. Until that proof passes, the UI must honestly report capture unavailable when the label table/view are absent.
+Repository implementation and CI do not by themselves prove that the configured local PostgreSQL runtime has migration `101_create_job_review_relevance_label_events.sql` applied. A one-shot RCC-assigned read-only workload verifies migration tracking and pending filenames before any migration application is considered. Until that proof passes, the UI must honestly report capture unavailable when the label table/view are absent.
 
 ## Relationship to MLF-005
 
