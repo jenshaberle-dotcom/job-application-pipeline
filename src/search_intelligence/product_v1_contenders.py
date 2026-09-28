@@ -125,6 +125,8 @@ def classify_role_title(title: str) -> RoleSignal | None:
         bridge_signals.append("data_platform_engineer")
     if has_phrase(text, "analytics engineer"):
         bridge_signals.append("analytics_engineer")
+    if has_phrase(text, "analytics engineering"):
+        bridge_signals.append("analytics_engineering")
     if has_phrase(text, "data engineer"):
         bridge_signals.append("data_engineer")
 
