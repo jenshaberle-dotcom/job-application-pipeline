@@ -226,9 +226,9 @@ const canPrepareApplication = (stage: ApplicationStage | null | undefined) =>
 
 const fitFactorLabel: Record<string, string> = {
   geography_work_model_commute: "location / work model",
-  skills_capabilities: "capability evidence",
+  skills_capabilities: "skills evidence",
   seniority: "seniority evidence",
-  hard_requirements: "hard requirements",
+  hard_requirements: "requirements evidence",
 };
 
 function candidateFitText(job: Job) {
@@ -238,7 +238,7 @@ function candidateFitText(job: Job) {
   const missing = (job.profile_fit_missing_factors || [])
     .map((item) => fitFactorLabel[item] || label(item));
   if (missing.length) return `Needs ${missing.join(", ")}`;
-  return "Fit evidence incomplete";
+  return "More fit evidence needed";
 }
 
 function top5ReadinessText(job: Job) {
