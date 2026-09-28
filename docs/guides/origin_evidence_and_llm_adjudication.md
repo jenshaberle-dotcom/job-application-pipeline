@@ -21,7 +21,9 @@ bounded below `1.0` and includes the winner-versus-runner-up margin.
 
 ## Runtime contract
 
-The reusable evidence workflow runs in this order:
+The evidence workload is an RCC-assigned workload. JAP defines the bounded evidence/model demand and exact source; RCC owns capacity selection, reservation, assignment, dispatch verification and cleanup.
+
+The workload runs in this order:
 
 1. verify the immutable database snapshot and execute the Tavily benchmark;
 2. release the local PostgreSQL runtime lease;
@@ -60,8 +62,7 @@ The provider may not:
 
 ## Fixed three-model mini-campaign
 
-`reusable-origin-llm-model-campaign.yml` first produces one immutable evidence
-artifact and then runs these explicit model IDs on each matched case:
+The bounded model mini-campaign first produces one immutable evidence artifact and then runs these explicit model IDs on each matched case:
 
 1. `gpt-5.4-mini`;
 2. `gpt-5.6-terra`;
@@ -147,19 +148,6 @@ silently change models or repeat completed provider work.
 
 ## Operator activation
 
-A live model benchmark requires all of the following in the private runtime
-repository:
+A live model benchmark requires an explicitly approved provider envelope and an RCC-assigned exact-source workload. Repository-local runner selection, hosted fallback routing and private caller workflows are not execution authority.
 
-1. an `OPENAI_API_KEY` Actions secret;
-2. a caller pin to the accepted merge SHA of the public reusable workflow;
-3. `campaign_mode: benchmark`;
-4. the exact model order `gpt-5.4-mini,gpt-5.6-terra,gpt-5.5`;
-5. explicit acceptance of the 18-call and `$0.50` pessimistic ceiling.
-
-After reviewing the benchmark artifact, the operator may approve a proven route
-by changing `campaign_mode` to `adjudicate` and setting the recommended primary
-and escalation IDs. If the campaign does not prove escalation value, the
-production path must not add an escalation call merely because a larger model is
-available.
-
-Origin adoption remains a later, separate operator-approved slice.
+The operator may approve only the bounded provider/model/cost envelope. RCC independently owns runner allocation. Origin adoption remains a later, separate operator-approved Product slice.
