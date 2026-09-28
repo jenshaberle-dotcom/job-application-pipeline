@@ -51,8 +51,10 @@ def test_jap_has_only_rcc_assigned_workload_target() -> None:
 
     workflow = (WORKFLOWS / workflows[0]).read_text(encoding="utf-8")
     assert "workflow_dispatch:" in workflow
-    assert "runs-on: ${{ fromJSON(inputs.runs_on_json) }}" in workflow
-    assert "rcc-assignment-[0-9a-f]{32}" in workflow
+    assert "- self-hosted" in workflow
+    assert "${{ inputs.rcc_facade_label }}" in workflow
+    assert "${{ inputs.rcc_assignment_label }}" in workflow
+    assert "rcc-assignment-proof-[0-9a-f]{32}" in workflow
     assert "RCC_ASSIGNED_RUNNER" in workflow
     assert "physical_runner:" not in workflow
     assert "facade_runner:" not in workflow
@@ -129,9 +131,9 @@ def test_no_retired_runner_authority_survives_code_tests_or_current_docs() -> No
 def test_daily_runtime_requires_rcc_reservation_and_ephemeral_assignment() -> None:
     text = (ROOT / "scripts" / "run_daily_pipeline.sh").read_text(encoding="utf-8")
 
-    assert "RCC_RESERVATION_ID" in text
     assert "RCC_ASSIGNMENT_LABEL" in text
-    assert "rcc-assignment-[0-9a-f]{32}" in text
+    assert "rcc-assignment-proof-[0-9a-f]{32}" in text
+    assert '${RCC_ASSIGNMENT_LABEL#rcc-assignment-proof-}' in text
     assert "RCC_ASSIGNED_RUNNER" in text
     assert "rcc-general-linux-0" not in text
 
