@@ -21,7 +21,7 @@ def test_sources_inventory_is_clustered_into_counted_tabs() -> None:
         "Needs attention",
         "Delivering jobs",
         "Active · no jobs",
-        "Active sensors",
+        "Market discovery · active",
         "Coverage targets",
         "Setup pending",
         "Not connected",
