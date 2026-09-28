@@ -4,11 +4,13 @@ from scripts.run_job_first_employer_discovery_census_comparison import (
     RuntimeProfileIntent,
     _external_location_signals,
     _incremental_metrics,
+    _persist_external_market_evidence,
     _profile_intents_from_rows,
     _run_control_sources,
     _run_external_index_sources,
 )
 from src.connectors.base import SearchProfile
+from src.search_intelligence.employer_discovery_census import MarketJobObservation
 from src.search_intelligence.census_flight_authority import (
     resolve_census_flight_authority,
 )
@@ -371,18 +373,79 @@ def test_incremental_metric_counts_only_novel_external_only_employers():
     assert metrics["primary_incremental_novel_employer_count"] == 2
 
 
-def test_comparison_script_has_no_write_or_direct_board_transport_authority():
+def test_comparison_script_has_only_gated_market_evidence_write_authority():
     import scripts.run_job_first_employer_discovery_census_comparison as flight
 
     source = open(flight.__file__, encoding="utf-8").read().casefold()
+    assert "--write-market-evidence" in source
+    assert "save_market_evidence" in source
     for forbidden in (
         "insert into",
         "update employer_",
         "delete from",
         "conn.commit(",
+        "save_raw_job",
+        "create_discovery_candidate",
         "requests.get",
         "requests.post",
         "run_origin_source_discovery_agent",
         "src.connectors.registry",
     ):
         assert forbidden not in source
+
+
+def test_external_persistence_uses_same_minimized_market_evidence_boundary() -> None:
+    class FakeRepository:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def save_market_evidence(self, **kwargs):
+            self.calls.append(kwargs)
+            return len(self.calls)
+
+    repo = FakeRepository()
+    qualified = MarketJobObservation(
+        source="goodjobs",
+        title="Senior Data Engineer",
+        company_name="Example GmbH",
+        location="Hannover",
+        observed_at_utc="2026-09-28T06:30:00Z",
+        reference="external-index:qualified",
+        search_term="Data Engineer",
+        location_signal="Hannover",
+    )
+    rejected = MarketJobObservation(
+        source="goodjobs",
+        title="Marketing Manager",
+        company_name="Other GmbH",
+        location="Hannover",
+        observed_at_utc="2026-09-28T06:30:00Z",
+        reference="external-index:rejected",
+        search_term="Data Engineer",
+        location_signal="Hannover",
+    )
+
+    result = _persist_external_market_evidence(
+        [qualified, rejected],
+        repository=repo,
+    )
+
+    assert result == {
+        "qualified_observation_count": 1,
+        "market_evidence_write_count": 1,
+    }
+    assert len(repo.calls) == 1
+    call = repo.calls[0]
+    assert call["evidence_source"] == "market_sensor_ingestion"
+    assert call["evidence_kind"] == "market_sensor_company_sighting"
+    assert call["source_name"] == "goodjobs"
+    assert call["company_name"] == "Example GmbH"
+    assert call["search_profile_name"] == "job_first_employer_discovery_census"
+    assert call["search_term"] == "Data Engineer"
+    assert call["evidence_url"] is None
+    assert call["raw_job_external_id"] is None
+    assert call["ingestion_run_id"] is None
+    assert call["evidence"]["boundary"]["bronze_write"] is False
+    assert call["evidence"]["boundary"]["silver_write"] is False
+    assert call["evidence"]["boundary"]["product_write"] is False
+    assert call["evidence"]["boundary"]["candidate_creation"] is False
