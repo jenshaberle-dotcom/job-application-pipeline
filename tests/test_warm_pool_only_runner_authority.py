@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -56,6 +57,8 @@ def test_jap_has_only_rcc_assigned_workload_target() -> None:
     assert "${{ inputs.rcc_assignment_label }}" in workflow
     assert "rcc-assignment-proof-[0-9a-f]{32}" in workflow
     assert "RCC_ASSIGNED_RUNNER" in workflow
+    assert "runs_on_json" not in workflow
+    assert "reservation_id:" not in workflow
     assert "physical_runner:" not in workflow
     assert "facade_runner:" not in workflow
     assert "ubuntu-" not in workflow
@@ -102,6 +105,10 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
     assert demand["workflow_demands"] == {
         "product-v1-assessment-cohort.yml": "linux-base"
     }
+    package = ROOT / runtime["package_set"]["path"]
+    assert package.is_file()
+    assert hashlib.sha256(package.read_bytes()).hexdigest() == runtime["package_set"]["sha256"]
+
     assert demand["ownership"]["runner_profiles"] == "RCC"
     assert demand["ownership"]["allocation"] == "RCC"
     assert demand["ownership"]["qualification"] == "RCC"
