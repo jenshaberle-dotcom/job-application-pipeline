@@ -25,7 +25,7 @@ body.about-active .ow-overlay-topline-title {
 }
 
 /* The old demo/pilot label is planning residue, not operator-facing product identity. */
-.ow-topline > div > span {
+.ow-topline > div:first-child > span {
   display: none;
 }
 
