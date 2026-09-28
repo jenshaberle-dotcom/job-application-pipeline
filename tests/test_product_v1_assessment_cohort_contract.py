@@ -60,6 +60,8 @@ def test_product_assessment_cohort_target_is_ten_evaluated_and_exact_five_top_jo
 
     assert 'parser.add_argument("--evaluated-target", type=int, default=10)' in runner
     assert 'parser.add_argument("--top5-target", type=int, default=5)' in runner
+    assert 'parser.add_argument("--candidate-cap", type=int, default=10)' in runner
+    assert 'args.candidate_cap == args.evaluated_target' in runner
     assert 'int(final["profile_fit_complete_count"]) >= args.evaluated_target' in runner
     assert 'int(final["profile_fit_passed_count"]) >= args.top5_target' in runner
     assert 'int(final["rankable_job_count"]) >= args.top5_target' in runner
@@ -67,6 +69,9 @@ def test_product_assessment_cohort_target_is_ten_evaluated_and_exact_five_top_jo
 
     assert 'default: "10"' in workflow
     assert 'default: "5"' in workflow
+    assert 'candidate_cap:' in workflow
+    assert 'default: "10"' in workflow
+    assert 'test "$CANDIDATE_CAP" = "10"' in workflow
     assert 'test "$EVALUATED_TARGET" = "10"' in workflow
     assert 'test "$TOP5_TARGET" = "5"' in workflow
     assert "ASSESSMENT_COHORT_COMPLETE_FIT_LT_10" in workflow
