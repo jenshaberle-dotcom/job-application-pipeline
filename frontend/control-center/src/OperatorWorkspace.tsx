@@ -420,16 +420,16 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
 
   return <div className="ow-stack">
     <header className="ow-page-header">
-      <div><span>Overall</span><h1>What matters now</h1><p>Current Product V1 truth, reduced to the next useful decisions.</p></div>
+      <div><span>Overview</span><h1>What matters now</h1><p>Your current jobs, fit evidence and next useful actions at a glance.</p></div>
     </header>
 
     <section className="ow-metrics">
-      <Metric labelText="Current jobs" value={currentJobs.length} helper="confirmed active employer-origin vacancies" />
-      <Metric labelText="Profile Fit complete" value={payload.summary.profile_fit_complete_count ?? 0} helper="conclusive evidence-backed fit decisions" />
-      <Metric labelText="Needs fit evidence" value={payload.summary.profile_fit_insufficient_evidence_count ?? 0} helper="missing evidence, never negative fit" />
-      <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="existing Product gate; F4B remains separate" />
-      <Metric labelText="Top 5" value={`${payload.summary.top_job_count}/5`} helper="authoritative shortlist" />
-      <Metric labelText="Top-5 draft ready" value={payload.summary.application_ready_count} helper="strict recommendation-path eligibility; explicit operator selection is separate" />
+      <Metric labelText="Current jobs" value={currentJobs.length} helper="currently active jobs from verified employer sources" />
+      <Metric labelText="Candidate Fit complete" value={payload.summary.profile_fit_complete_count ?? 0} helper="jobs with enough evidence for a fit decision" />
+      <Metric labelText="Needs fit evidence" value={payload.summary.profile_fit_insufficient_evidence_count ?? 0} helper="jobs still missing evidence for a fit decision" />
+      <Metric labelText="Ready to rank" value={payload.summary.rankable_job_count} helper="jobs that passed all required checks" />
+      <Metric labelText="Top 5" value={`${payload.summary.top_job_count}/5`} helper="current shortlist" />
+      <Metric labelText="Ready to prepare" value={payload.summary.application_ready_count} helper="shortlisted jobs ready for document preparation" />
     </section>
 
     <section className="ow-overview-grid">
@@ -437,27 +437,27 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
         <div className="ow-card-title"><div><span>Best current option</span><h2>{top ? top.title : "No rankable job yet"}</h2></div>{top && <strong>#{top.product_rank || 1}</strong>}</div>
         {top ? <>
           <p className="ow-job-meta">{employerName(top)} · {locationText(top)}</p>
-          <div className="ow-fit-line"><b>{scoreText(top.overall_quality_score)}</b><span>authoritative Product score</span></div>
+          <div className="ow-fit-line"><b>{scoreText(top.overall_quality_score)}</b><span>overall match score</span></div>
           <div className="ow-actions"><button type="button" onClick={() => onNavigate("top5")}>Open Top 5</button>{topUrl && <a href={topUrl} target="_blank" rel="noreferrer">Original job ↗</a>}</div>
-        </> : <p className="ow-muted">The UI will not manufacture a recommendation.</p>}
+        </> : <p className="ow-muted">No job has enough verified evidence for the shortlist yet.</p>}
       </article>
 
       <article className="ow-card">
         <div className="ow-card-title"><div><span>Your feedback</span><h2>Relevance labels</h2></div><strong>{reviewed.length}</strong></div>
         <div className="ow-feedback-summary"><div><span>Interesting</span><b>{interesting}</b></div><div><span>Not relevant</span><b>{rejected}</b></div><div><span>Unreviewed</span><b>{payload.job_readiness.length - reviewed.length}</b></div></div>
-        <p className="ow-muted">These labels build personal relevance evidence; they do not directly rewrite ranking.</p>
+        <p className="ow-muted">Your labels capture what interests you. Candidate Fit is assessed separately from your preference.</p>
         <button type="button" className="ow-text-action" onClick={() => onNavigate("jobs")}>Review jobs →</button>
       </article>
 
       <article className="ow-card">
-        <div className="ow-card-title"><div><span>Application prep</span><h2>{docsReady ? "Template authority ready" : "Exact templates required"}</h2></div></div>
-        <div className="ow-readiness"><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact hash" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact hash" : "Required"}</b></div></div>
+        <div className="ow-card-title"><div><span>Application Builder</span><h2>{docsReady ? "Source documents ready" : "Source documents needed"}</h2></div></div>
+        <div className="ow-readiness"><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>CV</span><b>{payload.application_sources_ready.base_cv ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Cover letter</span><b>{payload.application_sources_ready.base_application_letter ? "Ready" : "Required"}</b></div></div>
         <button type="button" className="ow-text-action" onClick={() => onNavigate("application")}>Open Application Builder →</button>
       </article>
 
       <article className="ow-card">
-        <div className="ow-card-title"><div><span>Discovery health</span><h2>Origin review scope</h2></div></div>
-        <p>{currentJobs.length} current employer-origin vacancies are in the visible review scope. Market sensors and historical lifecycle memory stay separate.</p>
+        <div className="ow-card-title"><div><span>Job discovery</span><h2>Current coverage</h2></div></div>
+        <p>{currentJobs.length} active jobs from verified employer sources are currently available for review. Discovery channels continue to expand employer coverage in the background.</p>
         <div className="ow-actions"><button type="button" onClick={() => onNavigate("sources")}>Sources</button><button type="button" onClick={() => onNavigate("applications")}>Application Tracker</button></div>
       </article>
     </section>
@@ -539,13 +539,13 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
     : ([ ["Role affinity", job.overall_quality_score] ] as Array<[string, number | null | undefined]>);
 
   return <aside className="ow-job-detail">
-    <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
+    <div className="ow-detail-head"><span>Job #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
     <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} disabled={liveCheck.status === "checking"} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Application Tracker</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Candidate fit</span><b>{candidateFitText(job)}</b></div><div><span>Fit evidence</span><Status value={job.profile_fit_coverage_status === "profile_fit_complete" ? "complete" : "incomplete"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
-    <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
-    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Live availability</span><Status value={liveCheck.status === "checking" ? "checking" : liveCheck.status === "idle" ? "not checked" : liveCheck.status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
-    <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected explanation evidence.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected uncertainty.</p>}</div></section>
+    <section className="ow-score-card"><h3>{rankable ? "Match score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">More job-detail evidence is needed before this can become Candidate Fit or a ranking score.</p>}</section>
+    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Live availability</span><Status value={liveCheck.status === "checking" ? "checking" : liveCheck.status === "idle" ? "not checked" : liveCheck.status} /></div><div><span>Ranking readiness</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
+    <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No verified explanation available yet.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No unresolved fit question recorded.</p>}</div></section>
   </aside>;
 }
 
