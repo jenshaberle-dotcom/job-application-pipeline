@@ -450,7 +450,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
       </article>
 
       <article className="ow-card">
-        <div className="ow-card-title"><div><span>F6 Application</span><h2>{docsReady ? "Template authority ready" : "Exact templates required"}</h2></div></div>
+        <div className="ow-card-title"><div><span>Application prep</span><h2>{docsReady ? "Template authority ready" : "Exact templates required"}</h2></div></div>
         <div className="ow-readiness"><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact hash" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact hash" : "Required"}</b></div></div>
         <button type="button" className="ow-text-action" onClick={() => onNavigate("application")}>Open Application Builder →</button>
       </article>
@@ -540,7 +540,7 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
 
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} disabled={liveCheck.status === "checking"} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} disabled={liveCheck.status === "checking"} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Application Tracker</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Candidate fit</span><b>{candidateFitText(job)}</b></div><div><span>Fit evidence</span><Status value={job.profile_fit_coverage_status === "profile_fit_complete" ? "complete" : "incomplete"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
@@ -1033,7 +1033,7 @@ const navItems: Array<{ id: View; label: string; glyph: string }> = [
   { id: "overview", label: "Overall", glyph: "◉" },
   { id: "jobs", label: "All jobs", glyph: "≡" },
   { id: "top5", label: "Top 5", glyph: "★" },
-  { id: "application", label: "Application Builder", glyph: "↗" },
+  { id: "application", label: "Application Prep", glyph: "↗" },
   { id: "applications", label: "Application Tracker", glyph: "◎" },
   { id: "sources", label: "Sources", glyph: "⌁" },
   { id: "operations", label: "Operations", glyph: "⌘" },
