@@ -39,6 +39,11 @@ from src.search_intelligence.external_index_job_sensors import (
     accept_external_index_result,
     build_external_index_queries,
 )
+from src.search_intelligence.market_sensor_coverage import (
+    MarketSensorProfile,
+    supports_local_target,
+    supports_remote_nationwide_target,
+)
 from src.search_intelligence.market_source_access import source_access_qualification
 from src.search_intelligence.public_web_search import (
     backend_available,
@@ -107,6 +112,29 @@ def _profile_intents_from_rows(rows: list[dict[str, Any]]) -> tuple[RuntimeProfi
             key=lambda item: (str(item[2]).casefold(), str(item[1]).casefold(), int(item[0])),
         )
     )
+
+
+def _external_location_signals(
+    profile_intents: tuple[RuntimeProfileIntent, ...],
+) -> tuple[str, ...]:
+    """Project source-specific profiles into canonical Census market intents."""
+    profiles = tuple(
+        MarketSensorProfile(
+            profile_key=intent.profile.profile_name,
+            source_name=intent.profile.source_name,
+            search_location=intent.profile.search_location,
+            search_radius_km=intent.profile.search_radius_km,
+            search_terms=intent.search_terms,
+            is_active=True,
+        )
+        for intent in profile_intents
+    )
+    signals: list[str] = []
+    if any(supports_local_target(profile) for profile in profiles):
+        signals.append("Hannover")
+    if any(supports_remote_nationwide_target(profile) for profile in profiles):
+        signals.append("Deutschland remote")
+    return tuple(signals)
 
 
 def _load_runtime_state(
@@ -400,9 +428,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.provider == "none" or backend_available(args.provider)
     )
 
-    profile_intents, terms, locations, known_company_keys = _load_runtime_state()
+    profile_intents, terms, control_locations, known_company_keys = _load_runtime_state()
     if not terms:
         raise RuntimeError("No active Census search terms were found.")
+    external_locations = _external_location_signals(profile_intents)
+    if not external_locations:
+        raise RuntimeError("No canonical Census market-location intent was found.")
 
     observed_at = datetime.now(UTC).isoformat()
     controls, control_telemetry = _run_control_sources(
@@ -414,7 +445,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         provider_available=provider_available,
         external_requests_authorized=authority.external_requests_authorized,
         search_terms=terms,
-        locations=locations,
+        locations=external_locations,
         max_results=args.max_results,
         max_external_requests=args.max_external_requests,
         timeout_seconds=args.timeout_seconds,
@@ -436,7 +467,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         },
         "intent": {
             "search_terms": list(terms),
-            "location_signals": list(locations),
+            "location_signals": list(external_locations),
+            "control_location_signals": list(control_locations),
+            "external_location_signals": list(external_locations),
             "control_profile_count": len(profile_intents),
             "max_results": args.max_results,
             "max_external_requests": args.max_external_requests,
