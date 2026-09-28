@@ -14,7 +14,8 @@ Required product proof before the version bump:
 4. authoritative Top 5 contains exactly 5 jobs;
 5. no job IDs, employers, direct rank writes or demo-only promotion bypasses.
 
-The reusable Product target is `.github/workflows/product-v1-assessment-cohort.yml`.
+The reusable RCC Product workload target is `.github/workflows/product-v1-assessment-cohort.yml`.
+The separate `.github/workflows/jap-windows-desktop-host-release.yml` is product packaging/publication infrastructure only; it runs on GitHub-hosted `windows-latest` and owns no Warm-Pool allocation, facade or physical-runner authority.
 
 Canonical Product 10→5 implementation:
 
@@ -71,9 +72,11 @@ Physically removed from JAP:
 - local Windows scheduled-pipeline runner path;
 - old workflow-specific regression tests that could restore those authorities.
 
-The remaining assessment-cohort workflow is a **workload target only**. JAP now declares
+The assessment-cohort workflow is the **only RCC workload target**. JAP now declares
 its execution need through `.rcc/workload-demands.json`; RCC owns profile
 materialization, allocation, facade selection and capability provisioning. The consumer-owned runner-profile tree is physically absent.
+
+The Windows product release publisher is intentionally outside that workload topology: it only builds exact-source immutable desktop/runtime assets and publishes the GitHub Release. It must remain cardinality-blind and must never acquire self-hosted, facade or physical-member selection.
 
 Current demand mapping:
 
@@ -98,9 +101,9 @@ live execution acceptance.
 The repository hardcut itself is independent from runtime acceptance; keeping stale
 runner authority on `main` is not a valid substitute for external execution proof.
 RCC PR #674 has now merged the generic `RCC_WORKLOAD_DEMAND_V2 + EXACT_SOURCE_V1`
-adapter required by JAP. JAP's remaining workflow consumes only
+adapter required by JAP. JAP's RCC workload consumes only
 `source_sha + rcc_facade_label + rcc_assignment_label`; it does not choose a
-physical member or persistent facade.
+physical member or persistent facade. The product release publisher is not an RCC workload and does not consume these routing inputs.
 
 No RCC execution of the JAP assessment workload has been proven yet. The remaining
 RCC operational gates are profile prestage/qualification, read-only five-member
@@ -129,8 +132,9 @@ Product sequence:
    jobs and exactly 5 authoritative Top-5 jobs;
 3. verify the English Candidate Fit and Top 5 surfaces against that live Product truth;
 4. complete RCC demand-v2 prestage/registration and one exact-source cohort proof for
-   future automated/remote runs; separately qualify RCC-assigned Windows publication
-   before publishing version 1.2.2;
+   future automated/remote runs; keep the restored cardinality-blind hosted Windows
+   product publisher intact through the 2026-09-29 demo. Any later migration of publication
+   into RCC must prove the replacement before this update channel is removed;
 5. install and run the operator smoke for Sources, All Jobs, Candidate Fit and Top 5.
 
 Do not increment VERSION or claim populated Top 5 until the live assessment report has
