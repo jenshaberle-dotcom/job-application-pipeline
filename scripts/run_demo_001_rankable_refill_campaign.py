@@ -12,6 +12,8 @@ hard-filter result and never forces rank, Top-5, application or submission state
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 import subprocess
 import sys
 
@@ -29,6 +31,7 @@ from scripts.run_demo_001_rankable_refill_scout import (
     scout,
 )
 from scripts.run_product_v1_assessment_materialization import (
+    APPROVAL_TOKEN as MATERIALIZATION_APPROVAL_TOKEN,
     authorized_recurring_employer_origin_sources,
 )
 from src.config import get_database_config
@@ -38,6 +41,9 @@ from src.search_intelligence.product_v1_downstream_preview import (
 )
 
 APPROVAL_TOKEN = "DEMO-001-RANKABLE-REFILL-CAMPAIGN-001"
+MATERIALIZATION_OUTPUT = Path(
+    ".runtime/demo/demo_001_rankable_refill_materialization.json"
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,6 +71,76 @@ def _selected(candidate_cap: int) -> list[dict[str, object]]:
         )
         conn.rollback()
     return _selected_candidates(scout(rows=rows, facts=facts), candidate_cap=candidate_cap)
+
+
+def _materialize_missing(
+    selected: list[dict[str, object]],
+    *,
+    apply: bool,
+) -> tuple[int, int]:
+    missing_ids = [
+        int(row["silver_job_id"])
+        for row in selected
+        if str(row.get("product_readiness_status") or "") == "assessment_required"
+    ]
+    if not missing_ids:
+        print("ASSESSMENT_MATERIALIZATION=SKIP|none_missing")
+        return 0, 0
+
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.run_product_v1_assessment_materialization",
+    ]
+    for job_id in missing_ids:
+        command.extend(["--silver-job-id", str(job_id)])
+    command.extend(
+        [
+            "--role-relevant-only",
+            "--output",
+            str(MATERIALIZATION_OUTPUT),
+        ]
+    )
+    if apply:
+        command.extend(
+            [
+                "--apply",
+                "--approval-token",
+                MATERIALIZATION_APPROVAL_TOKEN,
+            ]
+        )
+
+    subprocess.run(command, check=True)
+    payload = json.loads(MATERIALIZATION_OUTPUT.read_text(encoding="utf-8"))
+    blocked = int(payload.get("blocked_count") or 0)
+    proposals = int(payload.get("proposal_count") or 0)
+    if blocked:
+        raise SystemExit(
+            f"assessment materialization blocked candidates: {blocked}"
+        )
+    if proposals != len(missing_ids):
+        raise SystemExit(
+            "assessment materialization candidate drift: "
+            f"expected={len(missing_ids)} proposals={proposals}"
+        )
+
+    inserted = 0
+    if apply:
+        apply_result = payload.get("apply_result") or {}
+        inserted = int(apply_result.get("inserted") or 0)
+        already = int(apply_result.get("already_materialized") or 0)
+        if inserted + already != len(missing_ids):
+            raise SystemExit(
+                "assessment materialization apply cardinality mismatch: "
+                f"expected={len(missing_ids)} inserted={inserted} already={already}"
+            )
+
+    print(
+        "ASSESSMENT_MATERIALIZATION="
+        f"{'APPLY' if apply else 'PLAN'}|candidates={len(missing_ids)}|"
+        f"proposals={proposals}|inserted={inserted}"
+    )
+    return proposals, inserted
 
 
 def _refresh_selected(
@@ -158,6 +234,20 @@ def main() -> int:
     print("=== DEMO-001 REFILL CAMPAIGN ===")
     print(f"MODE={'apply' if args.apply else 'plan'}")
     print(f"SELECTED={len(selected)}")
+    materialization_planned, materialized = _materialize_missing(
+        selected,
+        apply=args.apply,
+    )
+    print(f"ASSESSMENT_MATERIALIZATION_PLANNED={materialization_planned}")
+    print(f"ASSESSMENT_MATERIALIZED={materialized}")
+
+    if not args.apply and materialization_planned:
+        print("REFILL_DEFERRED=assessment_materialization_apply_required")
+        print("HARD_FILTER_OPERATOR_REVIEW_WRITES=0")
+        print("PROVIDER_REQUESTS=0")
+        print("DEMO_001_RANKABLE_REFILL_CAMPAIGN=PLAN_COMPLETE")
+        return 0
+
     planned, changed = _refresh_selected(
         selected,
         apply=args.apply,
