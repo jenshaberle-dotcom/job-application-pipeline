@@ -8,10 +8,9 @@ import subprocess
 
 SCRIPT = Path("scripts/run_daily_pipeline.sh").resolve()
 LOCAL_OSS_PROVISIONER = Path("scripts/ensure_pinned_local_oss_runtime.sh").resolve()
-WINDOWS_WRAPPER = Path("scripts/windows/run_scheduled_pipeline.ps1").resolve()
 REPOSITORY_ID = 1230805345
 REPOSITORY = "jenshaberle-dotcom/job-application-pipeline"
-RUNNER_NAME = "job-pipeline-runtime-linux"
+RUNNER_NAME = "rcc-general-linux-02--jap"
 
 
 def _prepare_fake_home(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -154,6 +153,7 @@ def _run_daily(
             "FAKE_SENSOR_EXIT": str(sensor_exit),
             "FAKE_SILVER_EXIT": str(silver_exit),
             "FAKE_SNAPSHOT_EXIT": str(snapshot_exit),
+            "RUNNER_NAME": RUNNER_NAME,
         }
     )
     completed = subprocess.run(
@@ -242,11 +242,12 @@ def test_stale_rcc_runtime_context_fails_closed_before_pipeline_work(tmp_path: P
 def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     daily = SCRIPT.read_text(encoding="utf-8")
     provisioner = LOCAL_OSS_PROVISIONER.read_text(encoding="utf-8")
-    wrapper = WINDOWS_WRAPPER.read_text(encoding="utf-8")
 
     assert '$HOME/projects/job-application-pipeline' not in daily
     assert "source .venv/bin/activate" not in daily
     assert "RCC_CONTEXT_FILE" in daily
+    assert "rcc-general-linux-0[1-5]--jap" in daily
+    assert "job-pipeline-runtime-linux" not in daily
     assert "RUNTIME_PYTHON" in daily
     assert "ensure_pinned_local_oss_runtime.sh" in daily
     assert ".runtime/local-oss-sites" in daily
@@ -256,7 +257,3 @@ def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     assert "sha256sum" in provisioner
     assert "--target" in provisioner
 
-    assert '~/projects/job-application-pipeline' not in wrapper
-    assert '[string]$ProjectPath' not in wrapper
-    assert "runtime-contexts/$RepositoryId-$RunnerName.json" in wrapper
-    assert "--cd $ProjectPath" in wrapper
