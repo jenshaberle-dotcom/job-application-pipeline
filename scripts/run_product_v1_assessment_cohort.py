@@ -252,7 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evaluated-target", type=int, default=10)
     parser.add_argument("--top5-target", type=int, default=5)
-    parser.add_argument("--candidate-cap", type=int, default=15)
+    parser.add_argument("--candidate-cap", type=int, default=10)
     parser.add_argument("--reviewed-by", default="jens")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
@@ -265,8 +265,8 @@ def main() -> int:
     _require(1 <= args.evaluated_target <= 25, "--evaluated-target must be between 1 and 25")
     _require(args.top5_target == 5, "--top5-target must be exactly 5")
     _require(
-        args.evaluated_target <= args.candidate_cap <= 15,
-        "--candidate-cap must be between evaluated-target and 15",
+        args.candidate_cap == args.evaluated_target,
+        "--candidate-cap must equal evaluated-target for the authoritative cohort",
     )
     reviewed_by = str(args.reviewed_by or "").strip()
     _require(bool(reviewed_by), "--reviewed-by must not be blank")
