@@ -452,7 +452,7 @@ def test_demo_user_language_hides_internal_readiness_and_template_terms() -> Non
     assert "Search setup" in operator
     assert "This source is currently ready to use." in operator
     assert "Search profiles" not in operator
-    assert "Only current jobs with verified fit and ranking evidence appear here." in operator
+    assert "Only current jobs with verified Candidate Fit and ranking evidence appear here." in operator
     assert "Ready to rank" in operator
     assert "Shown in All Jobs" in operator
 
