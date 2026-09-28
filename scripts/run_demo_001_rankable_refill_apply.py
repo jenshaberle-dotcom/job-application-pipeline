@@ -88,6 +88,8 @@ def _selected_candidates(
             continue
         if not bool(row.get("role_relevant")):
             continue
+        if row.get("geography_eligible") is not True:
+            continue
         matches = row.get("candidate_fact_matches")
         if not isinstance(matches, list) or not matches:
             continue
@@ -301,6 +303,7 @@ def main() -> int:
         "boundaries": {
             "live_exact_detail_reads": True,
             "provider_or_llm_requests": 0,
+            "explicit_outside_germany_excluded": True,
             "candidate_fact_mutation": False,
             "capability_fit_requires_approved_fact_and_exact_job_tag_match": True,
             "hard_filter_operator_review_writes": False,
