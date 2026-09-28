@@ -10,8 +10,8 @@ on:
     branches: [main]
     # Immutable product tags are version-authoritative. A normal main push may
     # publish a new generation only when the product VERSION itself changes.
-    # Runtime/source changes continue to be covered by Pipeline CI and are
-    # released together with the next explicit product version bump.
+    # Product/runtime changes are packaged only with an explicit VERSION bump;
+    # this publisher does not provide runtime workload or runner authority.
     paths:
       - "windows/JAP.ControlCenter.Desktop/VERSION"
   workflow_dispatch:
