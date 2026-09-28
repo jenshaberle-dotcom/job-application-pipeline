@@ -1,0 +1,11 @@
+{
+  "schema": "product_v1_candidate_fit_policy.v1",
+  "policy_version": "2026-09-28.1",
+  "status": "approved",
+  "geography": {
+    "regional_cities": ["hannover"],
+    "remote_countries": ["de"],
+    "work_models": ["remote", "hybrid", "onsite"],
+    "commute_max_minutes": 45
+  }
+}
