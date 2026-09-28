@@ -107,7 +107,7 @@ const stageLabel: Record<Stage, string> = {
 const channelLabel: Record<string, string> = {
   employer_portal: "Employer portal",
   email: "E-Mail",
-  external_platform: "Externe Plattform",
+  external_platform: "External platform",
   manual_other: "Other manual source",
 };
 
@@ -120,18 +120,18 @@ function localDateToday() {
 function formatDate(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function attentionMessage(application: TrackedApplication) {
   const count = application.attention_candidate_count;
   const total = application.evidence_candidates.length;
   if (count <= 0) return null;
-  const plural = count === 1 ? "Mail-Signal benötigt" : "Mail-Signale benötigen";
+  const plural = count === 1 ? "mail signal requires" : "mail signals require";
   if (application.observed_stage) {
-    return `${count} of ${total || count} ${plural} need review. The displayed status “${stageLabel[application.effective_stage]}” comes from separately qualified evidence.`;
+    return `${count} of ${total || count} ${plural} review. The displayed status “${stageLabel[application.effective_stage]}” comes from separately qualified evidence.`;
   }
-  return `${count} of ${total || count} ${plural} need review. Until resolved, the status remains on the existing authoritative truth.`;
+  return `${count} of ${total || count} ${plural} review. Until resolved, the status remains on the existing authoritative truth.`;
 }
 
 function StageStrip({ stage }: { stage: Stage }) {
@@ -242,7 +242,7 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
       setState("saved");
       setMessage(
         payload.status === "already_recorded"
-          ? "War bereits identisch erfasst."
+          ? "Already recorded with identical details."
           : external
             ? "External application was added to JAP."
             : "Recorded as already applied.",
@@ -250,7 +250,7 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
       await onRecorded();
     } catch (error) {
       setState("error");
-      setMessage(error instanceof Error ? error.message : "Erfassung fehlgeschlagen.");
+      setMessage(error instanceof Error ? error.message : "Could not record the application.");
     }
   }
 
@@ -259,8 +259,8 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
     <div className="f5-record-boundary"><b>Record existing truth only.</b> JAP does not submit an application or send email here. Later mailbox evidence should converge with this entry.</div>
 
     <div className="f5-record-mode" role="group" aria-label="Source of the manual application entry">
-      <button type="button" className={mode === "jap" ? "active" : ""} onClick={() => setMode("jap")}>JAP-Job</button>
-      <button type="button" className={mode === "external" ? "active" : ""} onClick={() => setMode("external")}>Job nicht in JAP</button>
+      <button type="button" className={mode === "jap" ? "active" : ""} onClick={() => setMode("jap")}>JAP job</button>
+      <button type="button" className={mode === "external" ? "active" : ""} onClick={() => setMode("external")}>Job not in JAP</button>
     </div>
 
     <div className="f5-record-grid">
@@ -279,12 +279,12 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
         </label>
       </> : <>
         <label>Employer
-          <input value={externalEmployer} maxLength={300} onChange={(event) => setExternalEmployer(event.target.value)} placeholder="z. B. CARIAD" />
+          <input value={externalEmployer} maxLength={300} onChange={(event) => setExternalEmployer(event.target.value)} placeholder="e.g. CARIAD" />
         </label>
-        <label>Jobtitel
-          <input value={externalTitle} maxLength={500} onChange={(event) => setExternalTitle(event.target.value)} placeholder="z. B. A.I. Reporting Specialist" />
+        <label>Job title
+          <input value={externalTitle} maxLength={500} onChange={(event) => setExternalTitle(event.target.value)} placeholder="e.g. A.I. Reporting Specialist" />
         </label>
-        <label>Job-Link · optional
+        <label>Job link · optional
           <input type="url" value={externalUrl} maxLength={1200} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://…" />
         </label>
       </>}
@@ -292,13 +292,13 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
       <label>Applied on
         <input type="date" value={submittedOn} max={localDateToday()} onChange={(event) => setSubmittedOn(event.target.value)} />
       </label>
-      <label>Weg
+      <label>Submission channel
         <select value={channel} onChange={(event) => setChannel(event.target.value)}>
           {Object.entries(channelLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
-      <label>Notiz / Referenz · optional
-        <input value={reference} maxLength={240} onChange={(event) => setReference(event.target.value)} placeholder="z. B. Portal-Bestätigung oder eigene Notiz" />
+      <label>Note / reference · optional
+        <input value={reference} maxLength={240} onChange={(event) => setReference(event.target.value)} placeholder="e.g. portal confirmation or your own note" />
       </label>
       <button type="button" disabled={state === "saving"} onClick={() => void record()}>{state === "saving" ? "Saving …" : "Add manually"}</button>
       {message && <p className={`f5-record-message ${state}`}>{message}</p>}
@@ -407,7 +407,7 @@ export default function F5ApplicationTracking({
       setTitleCorrectionState({
         applicationId,
         status: "error",
-        message: "Bitte einen Jobtitel eintragen.",
+        message: "Enter a job title.",
       });
       return;
     }
@@ -441,14 +441,14 @@ export default function F5ApplicationTracking({
       setTitleCorrectionState({
         applicationId,
         status: "saved",
-        message: "Jobtitel gespeichert.",
+        message: "Job title saved.",
       });
       await refreshProductTruth();
     } catch (error) {
       setTitleCorrectionState({
         applicationId,
         status: "error",
-        message: error instanceof Error ? error.message : "Jobtitel konnte nicht gespeichert werden.",
+        message: error instanceof Error ? error.message : "Could not save the job title.",
       });
     }
   }
@@ -504,7 +504,7 @@ export default function F5ApplicationTracking({
       setCorrectionState({
         applicationId,
         status: "error",
-        message: error instanceof Error ? error.message : "Korrektur fehlgeschlagen.",
+        message: error instanceof Error ? error.message : "Correction failed.",
       });
     }
   }
@@ -521,7 +521,7 @@ export default function F5ApplicationTracking({
     });
   }
 
-  if (!tracking?.available) return <section className="f5-tracking-shell"><div className="f5-empty"><h2>Application Tracking noch nicht verfügbar</h2><p>Die F5-Datenstruktur ist in diesem Runtime-Zustand nicht verfügbar.</p></div></section>;
+  if (!tracking?.available) return <section className="f5-tracking-shell"><div className="f5-empty"><h2>Application Tracker is not available yet</h2><p>Application tracking data is not available in the current runtime state.</p></div></section>;
 
   return <section className="f5-tracking-shell" aria-label="Mailbox-first application tracking">
     <header className="f5-tracking-head">
@@ -550,7 +550,7 @@ export default function F5ApplicationTracking({
         const linkedJobVisible = linkedJobId != null && visibleJobIds.has(linkedJobId);
         const applicationKindLabel = application.application_kind === "unsolicited" ? "Unsolicited application" : null;
         const missingJobTitle = !application.title && !applicationKindLabel;
-        const jobTitle = application.title || applicationKindLabel || (linkedJobId ? `Job ${linkedJobId}` : "Jobtitel fehlt");
+        const jobTitle = application.title || applicationKindLabel || (linkedJobId ? `Job ${linkedJobId}` : "Job title missing");
         const canUndoManualSubmission =
           application.submission_authority_kind === "operator_confirmation" &&
           application.authoritative_event_count === 0 &&
@@ -584,10 +584,10 @@ export default function F5ApplicationTracking({
             <StageStrip stage={application.effective_stage} />
             <div className="f5-card-meta"><span><small>Last observed</small>{formatDate(application.observed_at || application.discovered_at)}</span><span><small>Signal</small>{application.observed_event_class || "—"}</span><span><small>Evidence</small>{application.attention_candidate_count ? `${application.attention_candidate_count} review · ${totalEvidence} total` : totalEvidence ? `${totalEvidence} qualified` : "none"}</span></div>
             <div className="f5-job-meta">
-              <span><small>Entdeckt</small>{formatDate(application.discovered_at)}</span>
+              <span><small>Discovered</small>{formatDate(application.discovered_at)}</span>
               {applicationKindLabel ? <span><small>Application type</small>{applicationKindLabel}</span> : null}
               <span><small>Employer evidence</small>{application.employer_evidence_source || "—"}</span>
-              <span><small>Kommunikations-Domain</small>{application.counterparty_domain || application.sender_domain || "—"}</span>
+              <span><small>Communication domain</small>{application.counterparty_domain || application.sender_domain || "—"}</span>
               {application.source_url ? <a href={application.source_url} target="_blank" rel="noreferrer"><small>Job / application source</small>Open ↗</a> : <span><small>Job / application source</small>—</span>}
             </div>
             {linkedJobVisible && linkedJobId != null && onOpenJob
@@ -598,7 +598,7 @@ export default function F5ApplicationTracking({
             {warning && <div className="f5-attention-note">{warning}</div>}
             {missingJobTitle && application.discovery_kind === "mailbox_observed" && <div className="f5-title-correction">
               <div>
-                <b>Jobtitel fehlt</b>
+                <b>Job title missing</b>
                 <small>The mailbox confirmation contains no title. Add only the job title you actually applied for.</small>
               </div>
               <input
@@ -608,7 +608,7 @@ export default function F5ApplicationTracking({
                   ...current,
                   [application.application_id]: event.target.value,
                 }))}
-                placeholder="Jobtitel"
+                placeholder="Job title"
               />
               <button
                 type="button"
