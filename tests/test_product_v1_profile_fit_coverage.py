@@ -55,6 +55,72 @@ def test_structured_approved_preference_and_current_evidence_can_complete_positi
     assert result["profile_fit_failed_factors"] == []
 
 
+def test_remote_job_can_match_country_while_regional_cities_remain_configured() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            city="Berlin",
+            country="Germany",
+            work_model="remote",
+            commute_minutes=None,
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.city.braunschweig",
+            "profile-fit.city.wolfsburg",
+            "profile-fit.country.de",
+            "profile-fit.work-model.remote",
+            "profile-fit.work-model.hybrid",
+            "profile-fit.work-model.onsite",
+            "profile-fit.commute.max-60",
+        ],
+    )
+
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == PASSED
+    assert result["profile_fit_missing_factors"] == []
+
+
+def test_non_remote_job_still_requires_regional_city_when_country_is_also_allowed() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            city="Berlin",
+            country="Germany",
+            work_model="hybrid",
+            commute_minutes=20,
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.country.de",
+            "profile-fit.work-model.remote",
+            "profile-fit.work-model.hybrid",
+        ],
+    )
+
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == FAILED
+    assert result["profile_fit_failed_factors"] == ["geography_work_model_commute"]
+
+
+def test_remote_job_outside_allowed_country_fails_even_if_city_scope_exists() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            city="Vienna",
+            country="Austria",
+            work_model="remote",
+            commute_minutes=None,
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.country.de",
+            "profile-fit.work-model.remote",
+        ],
+    )
+
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == FAILED
+    assert result["profile_fit_failed_factors"] == ["geography_work_model_commute"]
+
+
 def test_negative_geography_is_conclusive_and_not_misreported_as_missing() -> None:
     result = build_profile_fit_coverage(
         _row(city="Berlin"),

@@ -14,6 +14,11 @@ Supported preference tags are intentionally small and deterministic:
 - ``profile-fit.work-model.remote|hybrid|onsite``
 - ``profile-fit.commute.max-<minutes>``
 
+When city and country tags are both approved, the policy is interpreted as a
+regional-or-remote boundary: onsite/hybrid jobs must match an approved city,
+while remote jobs may match an approved country. Commute limits apply only to
+non-remote jobs.
+
 The Product API receives only factor statuses and generic reason codes; Candidate
 Fact statements, provenance references and raw preference-tag values are never
 emitted.
@@ -127,7 +132,25 @@ def _geography_factor(
     missing = False
     failed = False
 
-    if policy.cities:
+    work_model = _token(row.get("work_model"))
+    if policy.work_models:
+        if not work_model or work_model == "unknown":
+            missing = True
+        elif work_model not in policy.work_models:
+            failed = True
+
+    # When both city and country preferences exist, they intentionally express a
+    # regional-or-remote boundary: non-remote jobs must match an approved city,
+    # while remote jobs may match an approved country. This avoids turning
+    # "regional onsite/hybrid OR country-wide remote" into an accidental AND.
+    remote_country_scope = work_model == "remote" and bool(policy.countries)
+    if remote_country_scope:
+        country = _country_token(row.get("country"))
+        if not country:
+            missing = True
+        elif country not in policy.countries:
+            failed = True
+    elif policy.cities:
         city = _token(row.get("city"))
         if not city:
             missing = True
@@ -140,14 +163,9 @@ def _geography_factor(
         elif country not in policy.countries:
             failed = True
 
-    if policy.work_models:
-        work_model = _token(row.get("work_model"))
-        if not work_model or work_model == "unknown":
-            missing = True
-        elif work_model not in policy.work_models:
-            failed = True
-
-    if policy.commute_max_minutes is not None:
+    # Commute is only meaningful for a physical commute. Fully remote jobs do
+    # not become unknown/failed because no commute time exists.
+    if policy.commute_max_minutes is not None and work_model != "remote":
         commute = row.get("commute_minutes")
         if not isinstance(commute, int):
             missing = True
