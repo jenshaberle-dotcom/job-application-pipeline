@@ -8,7 +8,7 @@ from src.search_intelligence.market_discovery_snapshot import discovery_evidence
 from src.search_intelligence.market_sensor_catalog import CORE_SENSOR_CATALOG_BY_NAME
 
 
-SCHEMA_VERSION = "pipeline.source_connector_overview.v4"
+SCHEMA_VERSION = "pipeline.source_connector_overview.v5"
 GENERIC_SOURCE_PREFIX = "generic_origin:"
 
 
@@ -450,6 +450,7 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "ingested_count": 0,
             "attention_count": 0,
             "discovery_lead_count": 0,
+            "verified_discovery_evidence_count": 0,
         },
         "sources": [],
         "boundaries": {
@@ -816,6 +817,9 @@ def build_source_connector_overview(
         "discovery_lead_count": sum(
             len((source.get("discovery_evidence") or {}).get("leads") or [])
             for source in sources
+        ),
+        "verified_discovery_evidence_count": count_where(
+            lambda s: isinstance(s.get("discovery_evidence"), Mapping)
         ),
     }
     payload["sources"] = sources
