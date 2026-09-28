@@ -151,12 +151,12 @@ def _daily_current_counts(
         "gold": (
             {"job_product_assessments"},
             """
-            SELECT assessed_at::date AS observed_date, count(*)::bigint
+            SELECT coalesce(updated_at, assessed_at)::date AS observed_date, count(*)::bigint
             FROM job_product_assessments
             WHERE silver_job_id = ANY(%s)
-              AND assessed_at >= %s
-              AND assessed_at < %s
-            GROUP BY assessed_at::date
+              AND coalesce(updated_at, assessed_at) >= %s
+              AND coalesce(updated_at, assessed_at) < %s
+            GROUP BY coalesce(updated_at, assessed_at)::date
             ORDER BY observed_date
             """,
         ),
@@ -209,7 +209,7 @@ def _current_freshness(
         if _relation_exists(conn, "job_product_assessments"):
             cur.execute(
                 """
-                SELECT max(assessed_at)
+                SELECT max(coalesce(updated_at, assessed_at))
                 FROM job_product_assessments
                 WHERE silver_job_id = ANY(%s)
                 """,
