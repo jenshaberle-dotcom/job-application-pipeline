@@ -37,6 +37,10 @@ def test_generic_refill_authority_contains_no_demo_dependency() -> None:
     assert "run_product_v1_rankable_refill_scout" in campaign
     assert "run_product_v1_rankable_refill_apply" in campaign
 
+    scout = _text("run_product_v1_rankable_refill_scout.py")
+    assert '"blocked_hard_filter": 3' in scout
+    assert "'blocked_hard_filter'" in scout
+
 
 def test_demo_entrypoints_are_compatibility_only() -> None:
     for name in COMPAT:
