@@ -121,7 +121,7 @@ jobs:
           from pathlib import Path
           import sys
 
-          required = ("extruct", "trafilatura")
+          required = ("extruct", "trafilatura", "pymupdf")
           found = {}
           for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
               line = raw.strip()
@@ -139,15 +139,17 @@ jobs:
               print(found[name])
           PY
           )
-          test "${#specs[@]}" -eq 2
+          test "${#specs[@]}" -eq 3
           digest="$(printf '%s\n' "${specs[@]}" | sha256sum | awk '{print $1}')"
           site="$HOME/.cache/DeepOceanInfrastructure/JobApplicationPipeline/LocalOss/$digest"
           test -d "$site"
           PYTHONPATH="$site${PYTHONPATH:+:$PYTHONPATH}" "$RCC_CANARY_PYTHON" - <<'PY'
           import extruct
           import trafilatura
+          import pymupdf
           assert extruct is not None
           assert trafilatura is not None
+          assert pymupdf is not None
           PY
           printf 'PYTHONPATH=%s:%s\n' "$site" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
           echo "JAP_PERSISTENT_LOCAL_OSS=PASS digest=$digest site=$site"
