@@ -313,6 +313,7 @@ jobs:
           name: demo-top5-rankable-refill-${{ github.run_id }}
           path: |
             /tmp/jap-demo-top5-scout.json
+            .runtime/demo/demo_001_rankable_refill_materialization.json
             /tmp/jap-demo-top5-apply.json
             /tmp/jap-demo-top5-data-layers-after.json
           if-no-files-found: warn
