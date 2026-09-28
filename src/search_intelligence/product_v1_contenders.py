@@ -184,7 +184,7 @@ def classify_geography(row: dict) -> GeographySignal:
             reason="structured_country_outside_germany",
         )
 
-    if city in {"hannover", "hanover"}:
+    if has_phrase(city, "hannover") or has_phrase(city, "hanover"):
         return GeographySignal(
             bucket="hannover_explicit",
             tier_order=0,
