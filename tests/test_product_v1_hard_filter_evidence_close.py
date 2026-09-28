@@ -147,6 +147,18 @@ def test_closer_refuses_deterministic_failure(monkeypatch) -> None:
     }
 
 
+def test_closer_refuses_full_time_when_policy_window_does_not_cover_35_to_40(
+    monkeypatch,
+) -> None:
+    _install_common(monkeypatch)
+    monkeypatch.setattr(closer, "_policy_weekly_window", lambda: (20.0, 25.0))
+
+    reviews, diagnostics = closer.build_evidence_reviews([42])
+
+    assert reviews == ()
+    assert diagnostics[0]["reason"] == "approved_weekly_hours_policy_not_full_time_compatible"
+
+
 def test_closer_refuses_missing_full_time_evidence(monkeypatch) -> None:
     _install_common(
         monkeypatch,
