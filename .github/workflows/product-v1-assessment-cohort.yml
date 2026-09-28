@@ -81,7 +81,7 @@ jobs:
       - name: Check out exact approved main
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.source_sha }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -93,6 +93,7 @@ jobs:
           test "$actual" = "$SOURCE_SHA"
           remote_main="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
           test "$remote_main" = "$SOURCE_SHA"
+          test "$GITHUB_SHA" = "$SOURCE_SHA"
           echo "ASSESSMENT_COHORT_EXACT_SOURCE=PASS source=$actual"
 
       - name: Resolve verified RCC runtime context
@@ -177,7 +178,7 @@ jobs:
           source "$RUNTIME_ENV_FILE"
           set +a
           export PGOPTIONS="-c default_transaction_read_only=on"
-          "$COHORT_PYTHON" -m scripts.run_product_v1_assessment_cohort             --evaluated-target "$EVALUATED_TARGET"             --top5-target "$TOP5_TARGET"             --candidate-cap "$CANDIDATE_CAP"             --reviewed-by "product-cohort-plan:${GITHUB_ACTOR}"             --output "$PLAN_OUTPUT"
+          "$COHORT_PYTHON" -m scripts.run_product_v1_assessment_cohort             --evaluated-target "$EVALUATED_TARGET"             --top5-target "$TOP5_TARGET"             --candidate-cap "$CANDIDATE_CAP"             --reviewed-by "product-cohort-plan:rcc"             --output "$PLAN_OUTPUT"
           echo "ASSESSMENT_COHORT_PLAN=PASS"
 
       - name: Apply existing Product authorities
@@ -188,7 +189,7 @@ jobs:
           source "$RUNTIME_ENV_FILE"
           set +a
           unset PGOPTIONS || true
-          "$COHORT_PYTHON" -m scripts.run_product_v1_assessment_cohort             --evaluated-target "$EVALUATED_TARGET"             --top5-target "$TOP5_TARGET"             --candidate-cap "$CANDIDATE_CAP"             --reviewed-by "product-cohort:${GITHUB_ACTOR}"             --apply             --approval-token "$COHORT_APPROVAL_TOKEN"             --output "$APPLY_OUTPUT"
+          "$COHORT_PYTHON" -m scripts.run_product_v1_assessment_cohort             --evaluated-target "$EVALUATED_TARGET"             --top5-target "$TOP5_TARGET"             --candidate-cap "$CANDIDATE_CAP"             --reviewed-by "product-cohort:rcc"             --apply             --approval-token "$COHORT_APPROVAL_TOKEN"             --output "$APPLY_OUTPUT"
           echo "ASSESSMENT_COHORT_APPLY=PASS"
 
       - name: Prove final Product truth
