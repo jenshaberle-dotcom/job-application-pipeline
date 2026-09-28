@@ -21,6 +21,10 @@ def test_product_assessment_cohort_is_reusable_not_job_specific() -> None:
     assert "profile_fit_decision" in runner
     assert "affinity_authority_status" in runner
     assert "is_employer_origin_review_source" in runner
+    assert "run_product_v1_rankable_refill_apply" in runner
+    assert "run_product_v1_rankable_refill_campaign" in runner
+    assert "run_product_v1_rankable_refill_scout" in runner
+    assert "run_demo_001_rankable_refill" not in runner
 
     for forbidden in (
         "TARGET_IDS",
