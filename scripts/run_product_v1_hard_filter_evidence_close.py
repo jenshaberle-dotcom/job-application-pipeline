@@ -15,9 +15,14 @@ from __future__ import annotations
 
 import re
 from typing import Mapping, Sequence
+from urllib.parse import urlparse
 
 from scripts import run_product_v1_hard_filter_review as hard_review
 from scripts import run_product_v1_ranking_score_review as ranking_review
+from scripts.run_product_v1_assessment_materialization import (
+    authorized_recurring_employer_origin_sources,
+)
+from src.ingestion.repository import JobIngestionRepository
 from src.search_intelligence.product_v1_assessment_evidence import (
     extract_product_v1_assessment_evidence,
     normalize_job_text,
@@ -35,6 +40,18 @@ _FULL_TIME_RE = re.compile(
 
 class ProductHardFilterEvidenceCloseStop(RuntimeError):
     """Fail closed when current evidence cannot authorize a review."""
+
+
+def _same_origin(left: str, right: str) -> bool:
+    left_url = urlparse(left)
+    right_url = urlparse(right)
+    return (
+        left_url.scheme.lower() == right_url.scheme.lower() == "https"
+        and bool(left_url.hostname)
+        and bool(right_url.hostname)
+        and left_url.hostname.lower() == right_url.hostname.lower()
+        and (left_url.port or 443) == (right_url.port or 443)
+    )
 
 
 def _policy_weekly_window() -> tuple[float, float]:
@@ -75,6 +92,9 @@ def build_evidence_reviews(
         conn.rollback()
 
     policy_min, policy_max = _policy_weekly_window()
+    authorized_sources = set(
+        authorized_recurring_employer_origin_sources(JobIngestionRepository())
+    )
     reviews: list[hard_review.ReviewRequest] = []
     diagnostics: list[dict[str, object]] = []
 
@@ -83,6 +103,15 @@ def build_evidence_reviews(
         rank_row = ranking_rows.get(job_id)
         if row is None or rank_row is None:
             diagnostics.append({"silver_job_id": job_id, "status": "blocked", "reason": "current_product_row_missing"})
+            continue
+
+        source_name = str(row.get("source_name") or "")
+        if source_name not in authorized_sources:
+            diagnostics.append({
+                "silver_job_id": job_id,
+                "status": "blocked",
+                "reason": "employer_origin_authority_missing",
+            })
             continue
 
         deterministic = str(row.get("deterministic_hard_filter_status") or "unknown")
@@ -114,6 +143,13 @@ def build_evidence_reviews(
             diagnostics.append({"silver_job_id": job_id, "status": "blocked", "reason": "source_url_missing"})
             continue
         final_url, _page_title, detail_text = fetch_public_https_detail_text(source_url)
+        if not _same_origin(source_url, final_url):
+            diagnostics.append({
+                "silver_job_id": job_id,
+                "status": "blocked",
+                "reason": "cross_origin_detail_redirect",
+            })
+            continue
         text = normalize_job_text(detail_text)
         if _FULL_TIME_RE.search(text) is None:
             diagnostics.append({"silver_job_id": job_id, "status": "blocked", "reason": "explicit_full_time_evidence_missing"})
