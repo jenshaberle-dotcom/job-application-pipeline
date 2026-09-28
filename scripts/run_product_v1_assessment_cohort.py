@@ -178,6 +178,14 @@ def _current_product_truth(
     top_ids = [int(row.get("silver_job_id") or 0) for row in top]
     if len(set(top_ids)) != len(top_ids) or any(job_id <= 0 for job_id in top_ids):
         top_violations.append({"reason": "invalid_or_duplicate_top_job_identity"})
+    outside_cohort = sorted(job_id for job_id in top_ids if job_id not in selected_ids)
+    if outside_cohort:
+        top_violations.append(
+            {
+                "reason": "top_job_outside_selected_assessment_cohort",
+                "silver_job_ids": outside_cohort,
+            }
+        )
     if sorted(int(row.get("product_rank") or 0) for row in top) != list(
         range(1, len(top) + 1)
     ):
@@ -338,6 +346,7 @@ def main() -> int:
             "selection_requires_current_employer_origin": True,
             "selection_requires_exact_live_vacancy": True,
             "selection_requires_approved_candidate_fact_match": True,
+            "top5_must_be_subset_of_selected_ten": True,
             "candidate_fit_and_affinity_remain_separate": True,
             "numeric_candidate_fit_authority_created": False,
             "combined_score_authority_created": False,
