@@ -18,11 +18,11 @@ def test_all_jobs_reuses_f5_effective_stage_by_silver_job_identity() -> None:
     assert "applicationByJobId" in source
     assert "application.silver_job_id" in source
     assert "application.effective_stage" in source
-    assert '["applied", "Beworben"]' in source
+    assert '["applied", "Applied"]' in source
     assert 'if (filter === "applied")' in source
     assert "isAppliedStage(application.effective_stage)" in source
     assert "<span>Application</span>" in source
-    assert ">Open Applications</button>" in source
+    assert ">Open Application Tracker</button>" in source
 
 
 def test_job_list_application_marker_uses_existing_f5_read_model_only() -> None:
@@ -41,7 +41,7 @@ def test_all_jobs_accepts_exact_read_only_projected_linkage_without_persisting()
     assert "job_linkage?:" in source
     assert "job_linkage?.exact_matches" in source
     assert 'linkage_status: "exact_projected"' in source
-    assert "DB-Link noch nicht persistiert" in source
+    assert "the DB link is not persisted yet" in source
     assert "database_writes" in source
 
 
@@ -59,8 +59,8 @@ def test_all_jobs_pending_evidence_is_not_a_warning_storm() -> None:
 def test_unlinked_application_status_is_explicitly_unknown_not_negative() -> None:
     source = _text(WORKSPACE)
 
-    assert ">Ungeklärt</span>" in source
-    assert "nicht gleichbedeutend mit 'nicht beworben'" in source
+    assert ">Unresolved</span>" in source
+    assert "This does not mean that no application was submitted." in source
 
 
 def test_job_application_navigation_is_internal_persistent_state_not_event_bridge() -> None:
@@ -85,7 +85,7 @@ def test_linkage_is_bidirectional_inside_application() -> None:
     assert "onOpenJob?: (silverJobId: number) => void" in tracking
     assert "projectedJobByApplicationId" in tracking
     assert "application.silver_job_id ?? projectedJobByApplicationId.get" in tracking
-    assert "In All jobs öffnen ↔" in tracking
+    assert "Open in All jobs ↔" in tracking
     assert "onOpenJob(linkedJobId)" in tracking
 
 
@@ -95,7 +95,7 @@ def test_application_status_cell_is_a_direct_read_only_drilldown() -> None:
 
     assert "ow-application-status linked" in source
     assert "event.stopPropagation()" in source
-    assert "Klicken, um die Bewerbung zu öffnen." in source
+    assert "Click to open the application." in source
     assert ".ow-application-status.linked" in styles
     assert "record_operator_confirmed_submission" not in source
 
@@ -119,7 +119,7 @@ def test_job_detail_preserves_1_0_79_application_navigation_affordances() -> Non
     assert ">Open original ↗</a>" in source
     assert "<OpenApplicationButton silverJobId={job.silver_job_id}" in source
     assert 'disabled={liveCheck.status === "checking"}' in source
-    assert ">Open Applications</button>" in source
+    assert ">Open Application Tracker</button>" in source
     assert "hasPersistedActiveLifecycle(job)" in source
     assert "demo_live_verified" in source
 
