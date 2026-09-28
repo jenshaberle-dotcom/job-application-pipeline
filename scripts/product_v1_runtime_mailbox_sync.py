@@ -84,6 +84,91 @@ def _write_status(payload: dict[str, object]) -> None:
         staged.unlink(missing_ok=True)
 
 
+def _run_runtime_git(root: Path, *args: str, timeout: int = 60) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(root), *args],
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "git_failed").strip()[-1000:]
+        raise MailboxRuntimeSyncError(
+            f"private_runtime_git_failed:{' '.join(args)}:{detail}"
+        )
+    return completed.stdout.strip()
+
+
+def _expected_runtime_origin(value: str) -> bool:
+    normalized = value.strip().rstrip("/")
+    if normalized.endswith(".git"):
+        normalized = normalized[:-4]
+    return normalized in {
+        "https://github.com/jenshaberle-dotcom/job-pipeline-runtime",
+        "git@github.com:jenshaberle-dotcom/job-pipeline-runtime",
+        "ssh://git@github.com/jenshaberle-dotcom/job-pipeline-runtime",
+    }
+
+
+def _adopt_private_runtime_main() -> dict[str, object]:
+    """Fast-forward the canonical private runtime before consuming its bridge."""
+
+    root = _runtime_root()
+    if not (root / ".git").is_dir():
+        raise MailboxRuntimeSyncError(f"private_runtime_checkout_missing:{root}")
+
+    branch = _run_runtime_git(root, "branch", "--show-current")
+    if branch != "main":
+        raise MailboxRuntimeSyncError(
+            f"private_runtime_branch_mismatch:expected=main:actual={branch or 'DETACHED'}"
+        )
+
+    dirty = _run_runtime_git(root, "status", "--porcelain", "--untracked-files=all")
+    if dirty:
+        raise MailboxRuntimeSyncError("private_runtime_checkout_dirty")
+
+    origin = _run_runtime_git(root, "remote", "get-url", "origin")
+    if not _expected_runtime_origin(origin):
+        raise MailboxRuntimeSyncError("private_runtime_origin_mismatch")
+
+    before = _run_runtime_git(root, "rev-parse", "HEAD")
+    _run_runtime_git(
+        root,
+        "fetch",
+        "origin",
+        "refs/heads/main:refs/remotes/origin/main",
+        timeout=90,
+    )
+    remote = _run_runtime_git(root, "rev-parse", "refs/remotes/origin/main")
+
+    if before != remote:
+        _run_runtime_git(
+            root,
+            "merge-base",
+            "--is-ancestor",
+            "HEAD",
+            "refs/remotes/origin/main",
+        )
+        _run_runtime_git(root, "merge", "--ff-only", "refs/remotes/origin/main")
+
+    after = _run_runtime_git(root, "rev-parse", "HEAD")
+    if after != remote:
+        raise MailboxRuntimeSyncError(
+            f"private_runtime_adoption_mismatch:expected={remote}:actual={after}"
+        )
+    if _run_runtime_git(root, "status", "--porcelain", "--untracked-files=all"):
+        raise MailboxRuntimeSyncError("private_runtime_dirty_after_adoption")
+
+    return {
+        "private_runtime_before_sha": before,
+        "private_runtime_after_sha": after,
+        "private_runtime_updated": before != after,
+        "private_runtime_branch": "main",
+        "private_runtime_adoption": "fast_forward_only",
+    }
+
+
 def _scan_normalized(output: Path) -> dict[str, object]:
     bridge = _runtime_root() / "scripts" / "f5_gmail_readonly_bridge.py"
     if not bridge.is_file():
@@ -206,6 +291,7 @@ def sync_mailbox(*, reason: str) -> dict[str, object]:
         ) as handle:
             normalized = Path(handle.name)
         try:
+            runtime = _adopt_private_runtime_main()
             scan = _scan_normalized(normalized)
             rows = _load_rows(normalized)
             applied = _apply_idempotent(rows)
@@ -216,6 +302,7 @@ def sync_mailbox(*, reason: str) -> dict[str, object]:
                 "started_at": started.isoformat(),
                 "finished_at": datetime.now(timezone.utc).isoformat(),
                 "normalized_rows": len(rows),
+                **runtime,
                 **scan,
                 **applied,
                 "gmail_scope": "gmail.readonly",
