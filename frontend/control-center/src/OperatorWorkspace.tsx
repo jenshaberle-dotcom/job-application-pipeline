@@ -60,8 +60,14 @@ type SourceConnector = {
   current_blocker?: string | null;
   next_action: string;
   connector: {
+    implemented: boolean;
     implementation_status: string;
     registration_status: string;
+  };
+  discovery_catalog?: {
+    catalogued: boolean;
+    access_status: string;
+    coverage_target: boolean;
   };
   activation: { status: string; active: boolean | null };
   search_profiles: { active_profile_count: number; profile_count: number };
@@ -132,6 +138,8 @@ type ProductPayload = {
     summary: {
       source_count: number;
       sensor_count: number;
+      discovery_coverage_count?: number;
+      active_sensor_count?: number;
       healthy_sensor_count: number;
       employer_origin_count: number;
       employer_origin_active_count: number;
@@ -166,7 +174,7 @@ type ProductPayload = {
 };
 
 type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "operations";
-type JobFilter = "unreviewed" | "interesting" | "not_relevant" | "rankable" | "applied" | "all";
+type JobFilter = "unreviewed" | "interesting" | "not_relevant" | "needs_assessment" | "rankable" | "applied" | "all";
 type JobSort =
   | "newest"
   | "oldest"
@@ -183,7 +191,7 @@ type JobSort =
   | "gate_asc"
   | "gate_desc";
 type SortColumn = "fit" | "review" | "job" | "location" | "published" | "observed" | "gate";
-type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Pending" | "Not implemented";
+type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Coverage targets" | "Pending" | "Not implemented";
 type SourceTab = "All" | SourceGroup;
 
 function downloadBase64Document(contentBase64: string, filename: string, mimeType: string) {
@@ -256,13 +264,21 @@ function sourceGroupDisplay(group: SourceGroup) {
     "Needs attention": "Needs attention",
     "Delivering now": "Delivering jobs",
     "Active, 0 current jobs": "Active · no current jobs",
-    "Market sensors": "Market discovery",
+    "Market sensors": "Market discovery · active",
+    "Coverage targets": "Coverage targets",
     "Pending": "Setup pending",
     "Not implemented": "Not connected",
   } as Record<SourceGroup, string>)[group];
 }
 
+function isCoverageTarget(source: SourceConnector) {
+  return normalize(source.source_role) === "sensor"
+    && source.discovery_catalog?.coverage_target === true
+    && source.connector.implemented !== true;
+}
+
 function sourcePurpose(source: SourceConnector) {
+  if (isCoverageTarget(source)) return "Employer discovery target";
   return normalize(source.source_role) === "sensor" ? "Employer discovery" : "Job delivery";
 }
 
@@ -565,22 +581,30 @@ function Jobs({
   selectedJobId,
   onSelectJob,
   onOpenApplication,
+  requestedFilter,
 }: {
   payload: ProductPayload;
   refresh: () => Promise<void>;
   selectedJobId: number | null;
   onSelectJob: (silverJobId: number) => void;
   onOpenApplication: (applicationId: number | null) => void;
+  requestedFilter?: JobFilter | null;
 }) {
   const [filter, setFilter] = useState<JobFilter>("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<JobSort>("fit_desc");
 
   useEffect(() => {
-    if (selectedJobId == null) return;
+    if (!requestedFilter) return;
+    setFilter(requestedFilter);
+    setSearch("");
+  }, [requestedFilter]);
+
+  useEffect(() => {
+    if (selectedJobId == null || requestedFilter) return;
     setFilter("all");
     setSearch("");
-  }, [selectedJobId]);
+  }, [requestedFilter, selectedJobId]);
   const applicationByJobId = useMemo(
     () => buildApplicationByJobId(payload),
     [
@@ -597,6 +621,7 @@ function Jobs({
         if (filter === "unreviewed" && job.review_label) return false;
         if (filter === "interesting" && job.review_label?.label !== "interesting") return false;
         if (filter === "not_relevant" && job.review_label?.label !== "not_relevant") return false;
+        if (filter === "needs_assessment" && normalize(job.product_readiness_status) !== "assessment_required") return false;
         if (filter === "rankable" && job.product_readiness_status !== "rankable") return false;
         if (filter === "applied") {
           const application = applicationByJobId.get(job.silver_job_id);
@@ -625,6 +650,9 @@ function Jobs({
     ).length,
     not_relevant: payload.job_readiness.filter(
       (job) => job.review_label?.label === "not_relevant"
+    ).length,
+    needs_assessment: payload.job_readiness.filter(
+      (job) => normalize(job.product_readiness_status) === "assessment_required"
     ).length,
     rankable: payload.job_readiness.filter(
       (job) => job.product_readiness_status === "rankable"
@@ -676,6 +704,7 @@ function Jobs({
           ["unreviewed", "Unreviewed"],
           ["interesting", "Interesting"],
           ["not_relevant", "Not relevant"],
+          ["needs_assessment", "Needs assessment"],
           ["rankable", "Ready to rank"],
           ["applied", "Applied"],
         ] as Array<[JobFilter, string]>).map(([id, text]) =>
@@ -807,7 +836,7 @@ function Jobs({
   </div>;
 }
 
-function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () => Promise<void> }) {
+function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; refresh: () => Promise<void>; onReviewJobs: () => void }) {
   const jobs = payload.top_jobs.filter(isCurrent).slice(0, 5);
   const [selectedId, setSelectedId] = useState<number | null>(jobs[0]?.silver_job_id ?? null);
   const applicationByJobId = useMemo(
@@ -819,7 +848,7 @@ function TopFive({ payload, refresh }: { payload: ProductPayload; refresh: () =>
   );
   const selected = jobs.find((job) => job.silver_job_id === selectedId) || jobs[0] || null;
   return <div className="ow-stack"><header className="ow-page-header"><div><span>Application shortlist</span><h1>Top 5</h1><p>Only current jobs with verified fit and ranking evidence appear here. Empty slots stay empty until a job qualifies.</p></div><strong className="ow-big-count">{jobs.length}/5</strong></header>
-    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small></span><strong>{scoreText(job.overall_quality_score)}</strong></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />}</section> : <section className="ow-card"><h2>No job currently qualifies for the Top 5.</h2><p>JAP only fills the shortlist with current jobs that have enough verified fit evidence.</p></section>}
+    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small></span><strong>{scoreText(job.overall_quality_score)}</strong></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />}</section> : <section className="ow-card"><h2>No job currently qualifies for the Top 5.</h2><p>JAP only fills the shortlist with current jobs that have enough verified fit evidence.</p><button type="button" className="ow-text-action" onClick={onReviewJobs}>Review current jobs blocking the shortlist →</button></section>}
   </div>;
 }
 
@@ -949,6 +978,7 @@ function Applications({
 }
 function sourceGroup(source: SourceConnector): SourceGroup {
   if (source.current_blocker) return "Needs attention";
+  if (isCoverageTarget(source)) return "Coverage targets";
   if (normalize(source.source_role) === "sensor") return "Market sensors";
   if (source.activation.active === true) {
     if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded > 0) return "Delivering now";
@@ -962,7 +992,7 @@ function sourceGroup(source: SourceConnector): SourceGroup {
 function Sources({ payload }: { payload: ProductPayload }) {
   const sources = payload.source_connector_overview.sources;
   const overview = payload.source_connector_overview.summary;
-  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Pending", "Not implemented"];
+  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Coverage targets", "Pending", "Not implemented"];
   const groupCounts = Object.fromEntries(
     groups.map((group) => [group, sources.filter((source) => sourceGroup(source) === group).length]),
   ) as Record<SourceGroup, number>;
@@ -974,6 +1004,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     sources.find((source) => sourceGroup(source) === "Delivering now")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Active, 0 current jobs")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Market sensors")?.source_name ||
+    sources.find((source) => sourceGroup(source) === "Coverage targets")?.source_name ||
     sources[0]?.source_name || ""
   );
   const sourceTabs: Array<{ id: SourceTab; label: string; count: number }> = [
@@ -981,7 +1012,8 @@ function Sources({ payload }: { payload: ProductPayload }) {
     { id: "Needs attention", label: "Needs attention", count: groupCounts["Needs attention"] },
     { id: "Delivering now", label: "Delivering jobs", count: groupCounts["Delivering now"] },
     { id: "Active, 0 current jobs", label: "Active · no jobs", count: groupCounts["Active, 0 current jobs"] },
-    { id: "Market sensors", label: "Market discovery", count: groupCounts["Market sensors"] },
+    { id: "Market sensors", label: "Market discovery · active", count: groupCounts["Market sensors"] },
+    { id: "Coverage targets", label: "Coverage targets", count: groupCounts["Coverage targets"] },
     { id: "Pending", label: "Setup pending", count: groupCounts.Pending },
     { id: "Not implemented", label: "Not connected", count: groupCounts["Not implemented"] },
   ];
@@ -1003,7 +1035,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     ["Employer sources", overview.employer_origin_count],
     ["Delivering jobs", overview.active_last_run_loaded_count],
     ["Active · no current jobs", overview.active_last_run_zero_count],
-    ["Discovery sources", overview.sensor_count],
+    ["Discovery coverage", overview.discovery_coverage_count ?? overview.sensor_count],
     ["Needs attention", overview.attention_count],
   ] as Array<[string, number]>;
 
@@ -1023,7 +1055,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     </nav>
     <section className="ow-source-workspace">
       <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {source.last_ingestion.total_loaded} jobs on last check</small></span><b className="ow-source-row-state">{sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
-      {selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{sourceGroupDisplay(sourceGroup(selected))}</span><h2>{selected.source_label}</h2><div className="ow-source-facts"><div><span>Purpose</span><b>{sourcePurpose(selected)}</b></div><div><span>Connection</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Verified</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Ready for use</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Status</span><b>{label(selected.activation.status)}</b></div><div><span>Last check</span><b>{label(selected.last_ingestion.status)}</b></div><div><span>Jobs found</span><b>{selected.last_ingestion.total_loaded} found · {selected.last_ingestion.inserted_count} new</b></div><div><span>Search setup</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Data coverage</span><b>Raw {selected.layers.bronze_count} · normalized {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>Needs attention</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No action needed</b><span>This source is currently ready to use.</span></div>}</article>}
+      {selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{sourceGroupDisplay(sourceGroup(selected))}</span><h2>{selected.source_label}</h2><div className="ow-source-facts"><div><span>Purpose</span><b>{sourcePurpose(selected)}</b></div><div><span>Connection</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Verified</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Ready for use</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Status</span><b>{label(selected.activation.status)}</b></div><div><span>Last check</span><b>{label(selected.last_ingestion.status)}</b></div><div><span>Jobs found</span><b>{selected.last_ingestion.total_loaded} found · {selected.last_ingestion.inserted_count} new</b></div><div><span>Search setup</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Data coverage</span><b>Raw {selected.layers.bronze_count} · normalized {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>Next step</b><span>{selected.next_action}</span></div> : isCoverageTarget(selected) ? <div className="ow-callout info"><b>Coverage target · not connected</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No action needed</b><span>This source is currently ready to use.</span></div>}</article>}
     </section>
   </div>;
 }
@@ -1049,6 +1081,7 @@ export default function OperatorWorkspace() {
   const [view, setView] = useState<View>("overview");
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
+  const [requestedJobFilter, setRequestedJobFilter] = useState<JobFilter | null>(null);
 
   const refresh = refreshProductTruth;
   const openApplication = (applicationId: number | null) => {
@@ -1056,9 +1089,25 @@ export default function OperatorWorkspace() {
     setView("applications");
   };
   const openJob = (silverJobId: number) => {
+    setRequestedJobFilter(null);
     setSelectedJobId(silverJobId);
     setView("jobs");
   };
+  const openJobs = (filter: JobFilter | null = null) => {
+    setSelectedJobId(null);
+    setRequestedJobFilter(filter);
+    setView("jobs");
+  };
+
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const detail = (event as CustomEvent<{ view?: View; jobFilter?: JobFilter }>).detail;
+      if (detail?.view !== "jobs") return;
+      openJobs(detail.jobFilter || null);
+    };
+    window.addEventListener("jap:navigate", navigate);
+    return () => window.removeEventListener("jap:navigate", navigate);
+  }, []);
 
   if (error) return <main className="ow-fatal"><div><span>Data unavailable</span><h1>Control Center unavailable</h1><pre>{error}</pre></div></main>;
   if (!payload) return <main className="ow-loading"><div /><p>Loading current job data…</p></main>;
@@ -1072,18 +1121,18 @@ export default function OperatorWorkspace() {
   return <div className="ow-shell">
     <aside className="ow-sidebar">
       <div className="ow-brand"><div>DO</div><span><b>Deep Ocean</b><small>Intelligence</small></span></div>
-      <nav aria-label="Primary navigation">{navItems.map((item, index) => <div key={item.id} className={index === 5 ? "ow-nav-break" : undefined}><button type="button" className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.glyph}</i><span>{item.label}</span>{navBadges[item.id] != null && <b>{navBadges[item.id]}</b>}</button></div>)}</nav>
+      <nav aria-label="Primary navigation">{navItems.map((item, index) => <div key={item.id} className={index === 5 ? "ow-nav-break" : undefined}><button type="button" className={view === item.id ? "active" : ""} onClick={() => item.id === "jobs" ? openJobs(null) : setView(item.id)}><i>{item.glyph}</i><span>{item.label}</span>{navBadges[item.id] != null && <b>{navBadges[item.id]}</b>}</button></div>)}</nav>
       <footer><span><i /> Live data</span><small>Review-first · no automatic applications</small></footer>
     </aside>
     <div className="ow-content-shell">
       <header className="ow-topline">
         <div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Live job data</span></div>
         <div className="ow-topline-actions">
-          {refreshWarning && <span className="ow-refresh-warning" role="status" title={refreshWarning}>Mailbox sync needs attention</span>}
+          {refreshWarning && <><span className="ow-refresh-warning" role="status" title={refreshWarning}>Mailbox sync needs attention</span><button type="button" title={refreshWarning} onClick={() => setView("applications")}>Review tracker →</button></>}
           <button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button>
         </div>
       </header>
-      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} onOpenApplication={openApplication} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} focusApplicationId={selectedApplicationId} onOpenJob={openJob} onSelectApplication={setSelectedApplicationId} refresh={refresh} />}{view === "sources" && <Sources payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
+      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} onOpenApplication={openApplication} requestedFilter={requestedJobFilter} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} onReviewJobs={() => openJobs(null)} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} focusApplicationId={selectedApplicationId} onOpenJob={openJob} onSelectApplication={setSelectedApplicationId} refresh={refresh} />}{view === "sources" && <Sources payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
 }

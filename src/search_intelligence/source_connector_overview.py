@@ -4,8 +4,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
+from src.search_intelligence.market_sensor_catalog import CORE_SENSOR_CATALOG_BY_NAME
 
-SCHEMA_VERSION = "pipeline.source_connector_overview.v3"
+
+SCHEMA_VERSION = "pipeline.source_connector_overview.v4"
 GENERIC_SOURCE_PREFIX = "generic_origin:"
 
 
@@ -432,6 +434,8 @@ def empty_source_connector_overview() -> dict[str, Any]:
         "summary": {
             "source_count": 0,
             "sensor_count": 0,
+            "discovery_coverage_count": 0,
+            "active_sensor_count": 0,
             "healthy_sensor_count": 0,
             "employer_origin_count": 0,
             "employer_origin_active_count": 0,
@@ -454,6 +458,7 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "unknown_is_not_success": True,
             "registration_is_not_activation": True,
             "sensor_gates_are_role_specific": True,
+            "sensor_catalog_is_not_activation": True,
             "historical_layers_are_not_live_sensor_health": True,
             "active_is_not_delivery": True,
             "not_implemented_is_inventory_not_attention": True,
@@ -488,6 +493,7 @@ def build_source_connector_overview(
     runs_by_source = _by_source(ingestion_runs)
     layers_by_source = _by_source(layer_presence)
     source_names = set(getattr(registry, "exact_factories", {}).keys())
+    source_names.update(CORE_SENSOR_CATALOG_BY_NAME)
     for rows in (
         candidates_by_source,
         profiles_by_source,
@@ -502,7 +508,8 @@ def build_source_connector_overview(
         profile = profiles_by_source.get(source_name)
         run = runs_by_source.get(source_name)
         layers = layers_by_source.get(source_name)
-        source_role = _source_role(registry, source_name)
+        sensor_catalog = CORE_SENSOR_CATALOG_BY_NAME.get(source_name)
+        source_role = "sensor" if sensor_catalog is not None else _source_role(registry, source_name)
         registration = _registration(registry, source_name)
         profile_count = _count(profile, "profile_count")
         active_count = _count(profile, "active_profile_count")
@@ -555,7 +562,10 @@ def build_source_connector_overview(
             run=run,
             run_health=run_health,
         )
-        candidate_status = str(_get(candidate, "candidate_status") or "unknown")
+        candidate_status = str(
+            _get(candidate, "candidate_status")
+            or ("coverage_target" if sensor_catalog is not None else "unknown")
+        )
         candidate_id = int(
             _get(candidate, "candidate_id") or _get(candidate, "id") or 0
         ) or None
@@ -587,6 +597,9 @@ def build_source_connector_overview(
             source_role=source_role,
             source_name=source_name,
         )
+        if sensor_catalog is not None and not implemented:
+            next_action = str(sensor_catalog["next_action"])
+
         latest_run = str(run_health.get("latest_run_status") or "unknown")
         if (
             blocker == "no_persisted_ingestion"
@@ -629,10 +642,20 @@ def build_source_connector_overview(
                 "candidate_id": candidate_id,
                 "source_name": source_name,
                 "source_label": company_name
+                or (str(sensor_catalog["label"]) if sensor_catalog is not None else "")
                 or source_name.replace(":", " · ").replace("_", " ").title(),
                 "source_type": source_type,
                 "source_role": source_role,
                 "candidate_status": candidate_status,
+                "discovery_catalog": {
+                    "catalogued": sensor_catalog is not None,
+                    "access_status": (
+                        str(sensor_catalog["access_status"])
+                        if sensor_catalog is not None
+                        else "not_applicable"
+                    ),
+                    "coverage_target": sensor_catalog is not None,
+                },
                 "connector": {
                     "implemented": implemented,
                     "implementation_status": (
@@ -727,7 +750,17 @@ def build_source_connector_overview(
     payload = empty_source_connector_overview()
     payload["summary"] = {
         "source_count": len(sources),
-        "sensor_count": count_where(lambda s: s["source_role"] == "sensor"),
+        "sensor_count": count_where(
+            lambda s: s["source_role"] == "sensor"
+            and bool(s["connector"]["implemented"])
+        ),
+        "discovery_coverage_count": count_where(
+            lambda s: bool(s["discovery_catalog"]["catalogued"])
+        ),
+        "active_sensor_count": count_where(
+            lambda s: s["source_role"] == "sensor"
+            and s["activation"]["active"] is True
+        ),
         "healthy_sensor_count": count_where(
             lambda s: s["source_role"] == "sensor"
             and s["activation"]["active"] is True

@@ -311,6 +311,13 @@ function DataLayersScreen({
               <div className="ow-callout warn">
                 <b>Assessment gap</b>
                 <span>{payload.population.all_jobs - layers.gold_assessed} current jobs still need assessment. Candidate Fit and the Top 5 can only use jobs with enough verified evidence.</span>
+                <button
+                  type="button"
+                  className="ow-text-action"
+                  onClick={() => window.dispatchEvent(new CustomEvent("jap:navigate", { detail: { view: "jobs", jobFilter: "needs_assessment" } }))}
+                >
+                  Review jobs needing assessment →
+                </button>
               </div>
             )}
           </article>

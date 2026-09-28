@@ -96,7 +96,17 @@ jobs:
           if context.get("Platform") != "linux-wsl":
               raise SystemExit("RUNTIME_PLATFORM_MISMATCH")
           if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
-              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+              failure = context.get("PrimaryFailure") or "RUNTIME_CONTEXT_NOT_PASS"
+              failed_checks = sorted(
+                  str(item.get("Id"))
+                  for item in context.get("Checks", [])
+                  if isinstance(item, dict) and item.get("Status") != "PASS"
+              )
+              validated_at = context.get("ValidatedAt") or ""
+              raise SystemExit(
+                  "RUNTIME_CONTEXT_NOT_PASS:"
+                  + f"primary={failure}:failed={','.join(failed_checks)}:validated_at={validated_at}"
+              )
           checks = {
               item.get("Id"): item.get("Status")
               for item in context.get("Checks", [])

@@ -12,21 +12,13 @@ import hashlib
 from typing import Iterable
 
 from src.normalization.company_keys import normalize_company_key
+from src.search_intelligence.market_sensor_catalog import CORE_SENSORS
 from src.silver.relevance import (
     get_role_matches,
     get_skill_matches,
 )
 
 CENSUS_SCHEMA = "job_application_pipeline.employer_discovery_census.v1"
-CORE_SENSORS = (
-    "bundesagentur_fuer_arbeit",
-    "stepstone",
-    "goodjobs",
-    "xing",
-    "meinestadt",
-    "get_in_it",
-    "jobvector",
-)
 RESIDUAL_SENSORS = ("jooble", "adzuna", "linkedin", "indeed")
 
 

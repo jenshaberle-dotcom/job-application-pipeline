@@ -36,6 +36,7 @@ def test_product_payload_embeds_read_only_source_connector_overview() -> None:
         "unknown_is_not_success": True,
         "registration_is_not_activation": True,
         "sensor_gates_are_role_specific": True,
+        "sensor_catalog_is_not_activation": True,
         "historical_layers_are_not_live_sensor_health": True,
         "active_is_not_delivery": True,
         "not_implemented_is_inventory_not_attention": True,
