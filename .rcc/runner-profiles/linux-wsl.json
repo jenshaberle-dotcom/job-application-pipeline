@@ -1,11 +1,9 @@
 {
   "schema_version": 1,
-  "profile_id": "job-pipeline-runtime-linux-warm",
-  "profile_version": 3,
+  "profile_id": "jap-general-linux-warm",
+  "profile_version": 1,
   "platform": "linux-wsl",
-  "runner_labels": [
-    "job-pipeline-runtime-linux"
-  ],
+  "runner_labels": [],
   "requirements": [
     {
       "id": "python",
@@ -18,5 +16,5 @@
       "hash": "617352a994089a5e438dee31bf012183f535bfbe647d3b14e718352176e11e69"
     }
   ],
-  "profile_hash": "62dda18c8360e15ae054cdb4e0420effcca26a04a7f6ac751a9332fd966001e7"
+  "profile_hash": "3e232f2ebc20eecb9b087bc0c494a13cdb10bb29e10066aa6f232b973299e248"
 }
