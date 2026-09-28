@@ -86,7 +86,8 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
     assert "check_documentation_references.py" in pr_workflow
     assert "check_documentation_architecture.py" in pr_workflow
     assert "validate_ci_contract.py" in pr_workflow
-    assert "ruff check" in pr_workflow
+    assert "PR_RUFF" in pr_workflow
+    assert '"$PR_RUFF" check' in pr_workflow
     assert "ubuntu-" not in pr_workflow
     assert "windows-" not in pr_workflow
     assert "rcc-general-linux-0" not in pr_workflow
