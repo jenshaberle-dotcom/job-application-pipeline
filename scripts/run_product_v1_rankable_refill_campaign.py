@@ -243,7 +243,7 @@ def main() -> int:
 
     if not args.apply and materialization_planned:
         print("REFILL_DEFERRED=assessment_materialization_apply_required")
-        print("HARD_FILTER_OPERATOR_REVIEW_WRITES=0")
+        print("HARD_FILTER_OPERATOR_AUTO_PASS=0")
         print("PROVIDER_REQUESTS=0")
         print("PRODUCT_V1_RANKABLE_REFILL_CAMPAIGN=PLAN_COMPLETE")
         return 0
@@ -255,7 +255,7 @@ def main() -> int:
     )
     print(f"ASSESSMENT_REFRESH_PLANNED={planned}")
     print(f"ASSESSMENT_REFRESH_CHANGED={changed}")
-    print("HARD_FILTER_OPERATOR_REVIEW_WRITES=0")
+    print("HARD_FILTER_OPERATOR_AUTO_PASS=0")
     print("PROVIDER_REQUESTS=0")
 
     if not args.apply and planned:
