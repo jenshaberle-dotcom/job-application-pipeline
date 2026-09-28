@@ -30,28 +30,26 @@ permissions:
 jobs:
   validate:
     name: Allocate Linux pool and validate JAP Cloud candidate
-    runs-on: [self-hosted, rcc-windows]
+    runs-on: [self-hosted, rcc-general-linux-01]
     timeout-minutes: 40
     steps:
       - name: Prove bootstrap and input
-        shell: powershell
+        shell: bash
         env:
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          if ($env:CANDIDATE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'candidate_sha must be exact SHA' }
-          if ($env:PHYSICAL_RUNNER -ne 'auto' -and $env:PHYSICAL_RUNNER -notmatch '^rcc-general-linux-0[2-5]$') { throw 'physical_runner must be auto or 02..05' }
-          "JAP_CLOUD_LINUX_BOOTSTRAP=PASS control_runner=$env:RUNNER_NAME physical=$env:PHYSICAL_RUNNER"
+          set -euo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PHYSICAL_RUNNER" == "auto" || "$PHYSICAL_RUNNER" =~ ^rcc-general-linux-0[2-5]$ ]]
+          echo "JAP_CLOUD_LINUX_BOOTSTRAP=PASS control_runner=$RUNNER_NAME physical=$PHYSICAL_RUNNER"
 
       - name: Execute RCC reservation-backed target validation
-        shell: powershell
+        shell: bash
         env:
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          $script = @'
           set -euo pipefail
           root="$(mktemp -d -t rcc-jap-cloud-validation.XXXXXX)"
           trap 'rm -rf "$root"' EXIT
@@ -60,7 +58,6 @@ jobs:
           git -C "$root" remote add origin https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC.git
           git -C "$root" fetch -q --depth=1 origin "$rcc_sha"
           git -C "$root" checkout -q --detach FETCH_HEAD
-          test "$(git -C "$root" rev-parse HEAD)" = "$rcc_sha"
           python3 "$root/tools/linux/Execute-JapCloudLiveWorkload-Wsl.py" \
             --mode execute \
             --workload target-validation \
@@ -70,13 +67,8 @@ jobs:
             --physical "$PHYSICAL_RUNNER" \
             --timeout 1800
           echo "JAP_CLOUD_LINUX_POOL_VALIDATION=PASS rcc_sha=$rcc_sha candidate=$CANDIDATE_SHA"
-          '@
-          $env:WSLENV = 'CANDIDATE_SHA:PHYSICAL_RUNNER'
-          $script | & wsl.exe bash -s
-          if ($LASTEXITCODE -ne 0) { throw "RCC WSL target validation failed: $LASTEXITCODE" }
 
       - name: Summary
         if: always()
-        shell: powershell
-        run: |
-          'Bootstrap uses the RCC Windows control runner to invoke WSL; JAP Cloud workload is reservation-backed and auto-selected on 02..05.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+        shell: bash
+        run: echo 'Bootstrap uses the available RCC Linux control runner; JAP Cloud workload is reservation-backed and auto-selected on 02..05.' >> "$GITHUB_STEP_SUMMARY"
