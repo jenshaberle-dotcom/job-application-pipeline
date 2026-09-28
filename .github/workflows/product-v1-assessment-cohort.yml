@@ -41,13 +41,7 @@ concurrency:
 jobs:
   assess:
     name: Reusable 10-job Fit cohort and Top 5
-    if: >-
-      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
-      github.event.issue.number == 1113 &&
-      github.event.comment.user.login == 'jenshaberle-dotcom' &&
-      github.event.comment.author_association == 'OWNER' &&
-      startsWith(github.event.comment.body, '<!-- jap-product-assessment-cohort:apply:v1 -->')
-    runs-on: [self-hosted, Linux, X64, job-pipeline-runtime-linux]
+    runs-on: ${{ fromJSON(inputs.runs_on_json) }}
     timeout-minutes: 45
     env:
       RCC_REPOSITORY_ID: "1230805345"
