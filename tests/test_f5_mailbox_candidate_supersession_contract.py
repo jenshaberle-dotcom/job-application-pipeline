@@ -150,6 +150,58 @@ def test_same_message_reclassification_supersedes_one_active_interpretation() ->
     assert plan.candidate_supersessions == 1
 
 
+
+def test_continental_real_mail_reclassification_supersedes_stale_acknowledgement() -> None:
+    payload = _row(
+        message_reference="continental-rejection-1",
+        thread_reference="continental-thread",
+        observed_at="2026-09-22T08:16:26+00:00",
+        subject=(
+            "Your Application at Continental – (Senior) MLOps Engineer (m/f/d) "
+            "- REF97172N"
+        ),
+        text_excerpt=(
+            "I am getting back to your application and would like to thank you for "
+            "your interest for the position of (Senior) MLOps Engineer (m/f/d). "
+            "Unfortunately, I have to inform you today, that other applicants are "
+            "better suited to this position due to their qualification and "
+            "professional experience."
+        ),
+        sender_domain="recruiting.continental.com",
+        counterparty_domain="recruiting.continental.com",
+        employer_name="Continental",
+        job_title="(Senior) MLOps Engineer (m/f/d)",
+    )
+    observation = parse_normalized_mailbox_observation(payload)
+    current = classify_application_evidence(
+        subject=observation.subject,
+        text_excerpt=observation.text_excerpt,
+        sender_domain=observation.sender_domain,
+    )
+    source_key = source_message_identity_key(observation)
+    application_key = "mailbox-application:continental-existing"
+    active = {
+        source_key: ActiveCandidate(
+            source_identity_key=source_key,
+            evidence_fingerprint="stale-acknowledgement-fingerprint",
+            candidate_class="application_acknowledgement",
+            application_key=application_key,
+        )
+    }
+
+    plan = plan_rows(
+        [payload],
+        existing_application_keys={application_key},
+        active_candidates=active,
+    )
+
+    assert current.candidate_class == "rejection"
+    assert plan.application_inserts == 0
+    assert plan.candidate_inserts == 0
+    assert plan.candidate_noops == 0
+    assert plan.candidate_supersessions == 1
+    assert plan.class_counts == {"rejection": 1}
+
 def test_other_mail_is_not_planned_for_persistence() -> None:
     plan = plan_rows(
         [

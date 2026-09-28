@@ -182,6 +182,7 @@ def match_existing_application_identity(
         if len(thread_matches) > 1:
             return None, True, "ambiguous_mailbox_thread"
 
+    title_norm = normalize_title(job_title)
     domain = str(counterparty_domain or "").casefold().strip(" .")
     if domain:
         domain_matches = [
@@ -189,13 +190,13 @@ def match_existing_application_identity(
             if item.counterparty_domain
             and item.counterparty_domain.casefold().strip(" .") == domain
         ]
-        if len(domain_matches) == 1:
+        if len(domain_matches) == 1 and not title_norm:
             return domain_matches[0].application_key, False, "unique_counterparty_domain"
-        if len(domain_matches) > 1 and not normalize_title(job_title):
+        if len(domain_matches) > 1 and not title_norm:
             return None, True, "ambiguous_counterparty_domain"
 
     employer_norm = normalize_company(employer_name)
-    if not employer_norm or not normalize_title(job_title):
+    if not employer_norm or not title_norm:
         return None, False, None
 
     title_matches = [

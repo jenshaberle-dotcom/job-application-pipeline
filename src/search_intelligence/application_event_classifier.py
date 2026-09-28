@@ -52,6 +52,16 @@ _RULES: dict[str, tuple[tuple[str, str], ...]] = {
         (r"\bnicht\s+berücksichtigen\b", "nicht berücksichtigen"),
         (r"\bnot\s+(?:be\s+)?moving\s+forward\b", "not moving forward"),
         (r"\bregret\s+to\s+inform\b", "regret to inform"),
+        (
+            r"\bunfortunately\b.{0,220}\b(?:other|another)\s+applicants?\b"
+            r".{0,220}\bbetter\s+suited\b",
+            "unfortunately / other applicants better suited",
+        ),
+        (
+            r"\b(?:other|another)\s+applicants?\b.{0,220}"
+            r"\b(?:better|more)\s+(?:suited|qualified)\b",
+            "other applicants better suited",
+        ),
         (r"\bunsuccessful\b", "unsuccessful"),
     ),
     "offer_signal": (
