@@ -106,6 +106,41 @@ def test_lifecycle_passed_active_candidate_is_monitor_only() -> None:
     assert item.command is None
 
 
+def test_missing_url_does_not_override_active_controlled_lifecycle_authority() -> None:
+    item = classify_queue_item(
+        candidate(
+            "finanz_informatik",
+            status="active_controlled",
+            candidate_url=None,
+        ),
+        {},
+        target_location="hannover",
+        reviewed_by="product-v1-audit",
+        allow_repair=False,
+    )
+
+    assert item.next_action == "run_source_lifecycle_tracking"
+
+
+def test_missing_url_does_not_override_blocked_stop_boundary() -> None:
+    blocked = CandidateSummary(
+        **{
+            **candidate("ratiodata", candidate_url=None).__dict__,
+            "status": "abort_documented",
+            "risk_level": "blocked",
+        }
+    )
+    item = classify_queue_item(
+        blocked,
+        {},
+        target_location="hannover",
+        reviewed_by="product-v1-audit",
+        allow_repair=True,
+    )
+
+    assert item.next_action == "run_pipeline_stop_reassessment"
+
+
 def test_missing_candidate_url_routes_to_read_only_origin_discovery_before_preconnector() -> None:
     item = classify_queue_item(
         candidate(
