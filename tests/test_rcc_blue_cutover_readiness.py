@@ -10,6 +10,7 @@ FREEZE_GUARD = "RCC_JAP_BLUE_ASSIGNMENT_FROZEN"
 GREEN_FACADE = "rcc-general-linux-01--jap"
 
 EXPECTED_ACTIVE_BLUE = {
+    "demo-top5-rankable-refill.yml",
     "f5-application-lifecycle-reconciliation.yml",
     "f5-candidate-supersession-preflight.yml",
     "f6-initial-assessment-materialization.yml",
