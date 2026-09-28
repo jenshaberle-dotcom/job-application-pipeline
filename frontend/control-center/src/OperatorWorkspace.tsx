@@ -138,6 +138,7 @@ type ProductPayload = {
     summary: {
       source_count: number;
       sensor_count: number;
+      discovery_coverage_count?: number;
       active_sensor_count?: number;
       healthy_sensor_count: number;
       employer_origin_count: number;
@@ -263,7 +264,7 @@ function sourceGroupDisplay(group: SourceGroup) {
     "Needs attention": "Needs attention",
     "Delivering now": "Delivering jobs",
     "Active, 0 current jobs": "Active · no current jobs",
-    "Market sensors": "Active market sensors",
+    "Market sensors": "Market discovery · active",
     "Coverage targets": "Coverage targets",
     "Pending": "Setup pending",
     "Not implemented": "Not connected",
@@ -589,7 +590,7 @@ function Jobs({
   onOpenApplication: (applicationId: number | null) => void;
   requestedFilter?: JobFilter | null;
 }) {
-  const [filter, setFilter] = useState<JobFilter>(requestedFilter || "all");
+  const [filter, setFilter] = useState<JobFilter>("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<JobSort>("fit_desc");
 
@@ -1011,7 +1012,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     { id: "Needs attention", label: "Needs attention", count: groupCounts["Needs attention"] },
     { id: "Delivering now", label: "Delivering jobs", count: groupCounts["Delivering now"] },
     { id: "Active, 0 current jobs", label: "Active · no jobs", count: groupCounts["Active, 0 current jobs"] },
-    { id: "Market sensors", label: "Active sensors", count: groupCounts["Market sensors"] },
+    { id: "Market sensors", label: "Market discovery · active", count: groupCounts["Market sensors"] },
     { id: "Coverage targets", label: "Coverage targets", count: groupCounts["Coverage targets"] },
     { id: "Pending", label: "Setup pending", count: groupCounts.Pending },
     { id: "Not implemented", label: "Not connected", count: groupCounts["Not implemented"] },
@@ -1034,7 +1035,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     ["Employer sources", overview.employer_origin_count],
     ["Delivering jobs", overview.active_last_run_loaded_count],
     ["Active · no current jobs", overview.active_last_run_zero_count],
-    ["Discovery coverage", overview.sensor_count],
+    ["Discovery coverage", overview.discovery_coverage_count ?? overview.sensor_count],
     ["Needs attention", overview.attention_count],
   ] as Array<[string, number]>;
 
