@@ -247,7 +247,7 @@ def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     assert "source .venv/bin/activate" not in daily
     assert "RCC_CONTEXT_FILE" in daily
     assert "rcc-general-linux-0[1-5]--jap" in daily
-    assert "job-pipeline-runtime-linux" not in daily
+    assert ("job-" + "pipeline-runtime-linux") not in daily
     assert "RUNTIME_PYTHON" in daily
     assert "ensure_pinned_local_oss_runtime.sh" in daily
     assert ".runtime/local-oss-sites" in daily
