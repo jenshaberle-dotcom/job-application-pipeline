@@ -235,7 +235,8 @@ internal sealed class MainWindow : Form
     private static readonly TimeSpan WebViewNavigationTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan RuntimeHealthInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan RuntimeRecoveryCooldown = TimeSpan.FromSeconds(30);
-    private const int RuntimeFailuresBeforeRecovery = 2;
+    private const int RuntimeFailuresBeforeRecovery = 3;
+    private const int RuntimeDegradedFailuresBeforeRecovery = 10;
 
     private readonly string _installRoot;
     private readonly string _startupLog;
@@ -468,11 +469,29 @@ internal sealed class MainWindow : Form
             }
 
             _runtimeHealthFailureCount++;
-            WriteStartupPhase(
-                "runtime_health_unhealthy",
-                $"consecutive_failures={_runtimeHealthFailureCount}");
+            var listenerPresent = false;
+            try
+            {
+                listenerPresent = await _runtime.IsRuntimeListenerPresentAsync();
+            }
+            catch (Exception exc)
+            {
+                WriteStartupPhase(
+                    "runtime_listener_probe_failed",
+                    $"{exc.GetType().Name}: {exc.Message}");
+            }
 
-            if (_runtimeHealthFailureCount < RuntimeFailuresBeforeRecovery
+            var recoveryThreshold = listenerPresent
+                ? RuntimeDegradedFailuresBeforeRecovery
+                : RuntimeFailuresBeforeRecovery;
+
+            WriteStartupPhase(
+                listenerPresent ? "runtime_health_degraded" : "runtime_health_unhealthy",
+                $"consecutive_failures={_runtimeHealthFailureCount} "
+                + $"listener_present={listenerPresent.ToString().ToLowerInvariant()} "
+                + $"recovery_threshold={recoveryThreshold}");
+
+            if (_runtimeHealthFailureCount < recoveryThreshold
                 || DateTimeOffset.UtcNow < _nextRuntimeRecoveryAt)
             {
                 return;
