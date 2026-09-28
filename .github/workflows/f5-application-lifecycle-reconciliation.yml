@@ -87,7 +87,7 @@ jobs:
   qualify:
     name: F5 lifecycle exact-head qualification
     if: >-
-      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+      vars.RCC_JAP_LEGACY_DIRECT_ASSIGNMENT_ALLOWED == 'true' && vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
       (github.event_name != 'issue_comment' ||
        (github.event.issue.number == 737 &&
         github.event.comment.user.login == 'jenshaberle-dotcom' &&
