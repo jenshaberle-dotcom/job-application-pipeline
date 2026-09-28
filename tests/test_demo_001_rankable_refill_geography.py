@@ -41,8 +41,11 @@ def test_refill_scout_persists_geography_gate_and_source_fields() -> None:
     assert "readiness.country" in source
     assert "readiness.work_model" in source
     assert "readiness.commute_minutes" in source
-    assert '"geography_eligible": geography.eligible_for_bounded_pool' in source
+    assert "REFILL_GEOGRAPHY_BUCKETS" in source
+    assert '"geography_eligible": geography_eligible' in source
     assert 'and row["geography_eligible"]' in source
+    assert '"positive_profile_geography_required_for_refill": True' in source
+    assert '"geography_review_required_excluded": True' in source
     assert '"explicit_outside_germany_excluded": True' in source
 
 
@@ -69,7 +72,7 @@ def test_origin_location_country_excludes_explicit_mexico_even_when_legacy_is_un
     assert signal.reason == "structured_origin_locations_outside_germany"
 
 
-def test_multilocation_job_with_explicit_germany_location_remains_eligible() -> None:
+def test_germany_location_without_remote_hannover_or_commute_stays_review_required() -> None:
     signal = _authoritative_geography(
         {
             "origin_locations": [
@@ -79,9 +82,35 @@ def test_multilocation_job_with_explicit_germany_location_remains_eligible() -> 
         }
     )
 
-    assert signal.bucket == "germany_origin_location"
+    assert signal.bucket == "commute_or_geography_review_required"
     assert signal.eligible_for_bounded_pool is True
-    assert signal.reason == "structured_origin_location_in_germany"
+    assert signal.reason == "structured_germany_location_without_hannover_remote_or_commute"
+
+
+def test_structured_hannover_location_is_positive_profile_geography() -> None:
+    signal = _authoritative_geography(
+        {
+            "origin_locations": [
+                {"city": "Hannover", "country_code": "DE"},
+            ]
+        }
+    )
+
+    assert signal.bucket == "hannover_explicit"
+    assert signal.eligible_for_bounded_pool is True
+
+
+def test_structured_bundesweit_location_is_germany_remote_profile_geography() -> None:
+    signal = _authoritative_geography(
+        {
+            "origin_locations": [
+                {"city": "Bundesweit", "country_code": "DE"},
+            ]
+        }
+    )
+
+    assert signal.bucket == "germany_remote"
+    assert signal.eligible_for_bounded_pool is True
 
 
 def test_scout_queries_persisted_origin_location_authority() -> None:

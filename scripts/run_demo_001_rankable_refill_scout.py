@@ -56,30 +56,82 @@ READINESS_PRIORITY = {
     "hard_filter_evidence_required": 1,
     "assessment_required": 2,
 }
+REFILL_GEOGRAPHY_BUCKETS = frozenset(
+    {"hannover_explicit", "germany_remote", "commute_observed_acceptable"}
+)
 
 
 def _authoritative_geography(row: Mapping[str, object]) -> GeographySignal:
     locations = row.get("origin_locations")
     if isinstance(locations, list):
-        country_codes = {
-            str(item.get("country_code") or "").strip().upper()
+        normalized_locations = [
+            {
+                "city": " ".join(str(item.get("city") or "").split()).strip().casefold(),
+                "country_code": str(item.get("country_code") or "").strip().upper(),
+            }
             for item in locations
             if isinstance(item, Mapping)
+            and str(item.get("city") or "").strip()
             and str(item.get("country_code") or "").strip()
-        }
-        if country_codes:
-            if any(is_germany_country(code) for code in country_codes):
+        ]
+        if normalized_locations:
+            german_locations = [
+                item
+                for item in normalized_locations
+                if is_germany_country(item["country_code"])
+            ]
+            if not german_locations:
                 return GeographySignal(
-                    bucket="germany_origin_location",
+                    bucket="outside_germany",
+                    tier_order=99,
+                    eligible_for_bounded_pool=False,
+                    reason="structured_origin_locations_outside_germany",
+                )
+
+            if any(
+                item["city"] in {"hannover", "hanover"}
+                for item in german_locations
+            ):
+                return GeographySignal(
+                    bucket="hannover_explicit",
+                    tier_order=0,
+                    eligible_for_bounded_pool=True,
+                    reason="structured_origin_location_hannover",
+                )
+
+            work_model = " ".join(
+                str(row.get("work_model") or "").split()
+            ).strip().casefold()
+            if work_model == "remote" or any(
+                item["city"] in {
+                    "bundesweit",
+                    "deutschlandweit",
+                    "deutschland",
+                    "germany",
+                }
+                for item in german_locations
+            ):
+                return GeographySignal(
+                    bucket="germany_remote",
                     tier_order=1,
                     eligible_for_bounded_pool=True,
-                    reason="structured_origin_location_in_germany",
+                    reason="structured_origin_germany_wide_or_remote",
                 )
+
+            commute = row.get("commute_minutes")
+            if isinstance(commute, int) and commute <= 45:
+                return GeographySignal(
+                    bucket="commute_observed_acceptable",
+                    tier_order=1,
+                    eligible_for_bounded_pool=True,
+                    reason="observed_commute_at_or_below_45_minutes",
+                )
+
             return GeographySignal(
-                bucket="outside_germany",
-                tier_order=99,
-                eligible_for_bounded_pool=False,
-                reason="structured_origin_locations_outside_germany",
+                bucket="commute_or_geography_review_required",
+                tier_order=2,
+                eligible_for_bounded_pool=True,
+                reason="structured_germany_location_without_hannover_remote_or_commute",
             )
     return classify_geography(dict(row))
 
@@ -227,6 +279,7 @@ def scout(
         silver_job_id = int(row["silver_job_id"])
         item: dict[str, object] = {str(key): value for key, value in row.items()}
         geography = _authoritative_geography(row)
+        geography_eligible = geography.bucket in REFILL_GEOGRAPHY_BUCKETS
         item.update(
             {
                 "live_outcome": "unverifiable",
@@ -238,7 +291,7 @@ def scout(
                 "role_relevant": classify_role_title(str(row.get("title") or "")) is not None,
                 "geography_bucket": geography.bucket,
                 "geography_reason": geography.reason,
-                "geography_eligible": geography.eligible_for_bounded_pool,
+                "geography_eligible": geography_eligible,
             }
         )
         try:
@@ -320,6 +373,8 @@ def main() -> int:
             "network_exact_detail_requests": len(rows),
             "provider_requests": 0,
             "origin_location_sidecar_precedes_legacy_geography": True,
+            "positive_profile_geography_required_for_refill": True,
+            "geography_review_required_excluded": True,
             "explicit_outside_germany_excluded": True,
             "capability_fit_authority_created": False,
             "hard_filter_authority_created": False,
