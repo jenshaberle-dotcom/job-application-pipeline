@@ -251,7 +251,7 @@ _LANGUAGE_PATTERNS = {
 
 _WORK_MODEL_PATTERNS = (
     ("hybrid", re.compile(r"\b(?:hybrid(?:\s+(?:work|working|model|setup|arrangement))?|hybrides?\s+arbeiten)\b", re.IGNORECASE)),
-    ("remote", re.compile(r"\b(?:(?:fully|100\s*%)\s+remote|remote\s+(?:work|working|position|role)|home\s*office|homeoffice|mobiles?\s+arbeiten|mobile\s+work)\b", re.IGNORECASE)),
+    ("remote", re.compile(r"\b(?:(?:fully|100\s*%)\s+remote|remote\s+(?:work|working|position|role)|(?:vollstaendig|vollständig|komplett)\s+remote)\b", re.IGNORECASE)),
     ("onsite", re.compile(r"\b(?:on[- ]?site|onsite|vor\s+ort)\b", re.IGNORECASE)),
 )
 
