@@ -31,6 +31,12 @@ def test_top5_keeps_candidate_fit_separate_from_affinity() -> None:
     assert "after Candidate Fit and the normal ranking gates are verified" in source
     assert ".ow-top5-fit" in css
     assert ".ow-top5-affinity" in css
+    assert 'fetch("/api/v1/product-v1/assessment-cohort"' in source
+    assert 'action: "refresh_candidate_fit_and_top5"' in source
+    assert 'confirmation: "evaluate_current_jobs"' in source
+    assert "Evaluate current jobs" in source
+    assert "Candidate Fit &amp; Top 5" in source
+    assert ".ow-top5-header-actions" in css
 
 
 def test_every_job_table_heading_is_a_sort_control_and_gate_stays_in_grid() -> None:
