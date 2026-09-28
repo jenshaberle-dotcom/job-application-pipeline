@@ -906,6 +906,7 @@ type AssessmentCohortResponse = {
     rankable_job_count?: number;
     top_job_count?: number;
   };
+  fit_blocker_counts?: Record<string, number>;
 };
 
 function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; refresh: () => Promise<void>; onReviewJobs: () => void }) {
@@ -959,14 +960,21 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
         });
         return;
       }
+      const blockers = Object.entries(result.fit_blocker_counts || {})
+        .filter(([, count]) => count > 0)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([factor, count]) => `${fitFactorLabel[factor] || label(factor)}: ${count}`);
+      const baseStatus = [
+        `${summary.profile_fit_complete_count ?? 0}/10 Candidate Fit complete`,
+        `${summary.profile_fit_passed_count ?? 0} Fit passed`,
+        `${summary.rankable_job_count ?? 0} ready to rank`,
+        `${summary.top_job_count ?? 0}/5 Top 5`,
+      ].join(" · ");
       setAssessmentState({
         status: "incomplete",
-        message: [
-          `${summary.profile_fit_complete_count ?? 0}/10 Candidate Fit complete`,
-          `${summary.profile_fit_passed_count ?? 0} Fit passed`,
-          `${summary.rankable_job_count ?? 0} ready to rank`,
-          `${summary.top_job_count ?? 0}/5 Top 5`,
-        ].join(" · "),
+        message: blockers.length
+          ? `${baseStatus} · Missing fit evidence — ${blockers.join(", ")}`
+          : baseStatus,
       });
     } catch (reason) {
       setAssessmentState({
