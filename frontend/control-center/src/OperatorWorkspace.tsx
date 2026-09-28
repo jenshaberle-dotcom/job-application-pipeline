@@ -1009,7 +1009,7 @@ const navItems: Array<{ id: View; label: string; glyph: string }> = [
 ];
 
 export default function OperatorWorkspace() {
-  const { payload, error, refreshing, refreshProductTruth } = useProductTruth<ProductPayload>();
+  const { payload, error, refreshing, refreshWarning, refreshProductTruth } = useProductTruth<ProductPayload>();
   const [view, setView] = useState<View>("overview");
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
@@ -1041,7 +1041,13 @@ export default function OperatorWorkspace() {
       <footer><span><i /> DB truth</span><small>Product V1 · review-first</small></footer>
     </aside>
     <div className="ow-content-shell">
-      <header className="ow-topline"><div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Product V1 · live pipeline</span></div><button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button></header>
+      <header className="ow-topline">
+        <div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Product V1 · live pipeline</span></div>
+        <div className="ow-topline-actions">
+          {refreshWarning && <span className="ow-refresh-warning" role="status" title={refreshWarning}>Mailbox-Sync nicht aktuell</span>}
+          <button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button>
+        </div>
+      </header>
       <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} onOpenApplication={openApplication} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} focusApplicationId={selectedApplicationId} onOpenJob={openJob} onSelectApplication={setSelectedApplicationId} refresh={refresh} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
