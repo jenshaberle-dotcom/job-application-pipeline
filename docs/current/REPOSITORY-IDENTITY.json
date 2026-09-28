@@ -21,9 +21,9 @@
       {
         "repository_id": 1316856786,
         "canonical_name": "jenshaberle-dotcom/job-pipeline-runtime",
-        "role": "runtime_and_operational_authority_source",
+        "role": "private_evidence_and_application_mailbox_source",
         "may_supply_product_authority": false,
-        "may_supply_runtime_authority": true,
+        "may_supply_runtime_authority": false,
         "may_supply_evidence_authority": true,
         "may_supply_reentry_authority": false,
         "may_be_mutation_target": false

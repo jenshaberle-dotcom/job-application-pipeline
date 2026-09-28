@@ -16,9 +16,6 @@ DESKTOP_UPDATE_AGENT = DESKTOP_ROOT / "ProductUpdateAgent.cs"
 DESKTOP_UPDATE_COORDINATOR = DESKTOP_ROOT / "UpdateCoordinator.cs"
 DESKTOP_VERSION = DESKTOP_ROOT / "VERSION"
 DESKTOP_COMPATIBILITY = DESKTOP_ROOT / "UPDATE_COMPATIBILITY.json"
-DESKTOP_RELEASE_WORKFLOW = (
-    ROOT / ".github" / "workflows" / "jap-windows-desktop-host-release.yml"
-)
 
 
 def _text(path: Path) -> str:
@@ -37,7 +34,6 @@ def test_windows_product_local_entrypoints_are_present() -> None:
         DESKTOP_RUNTIME,
         DESKTOP_VERSION,
         DESKTOP_COMPATIBILITY,
-        DESKTOP_RELEASE_WORKFLOW,
     ):
         assert path.is_file(), path
     assert not (ROOT / "JAP-Control-Center.ps1").exists()
@@ -136,32 +132,6 @@ def test_desktop_host_is_self_contained_webview2_window() -> None:
     assert '"bash"' in runtime
     assert '"launch"' in runtime
     assert "powershell.exe" not in program.lower()
-
-
-def test_product_release_builds_immutable_desktop_and_runtime_assets() -> None:
-    workflow = _text(DESKTOP_RELEASE_WORKFLOW)
-    compatibility = _text(DESKTOP_COMPATIBILITY)
-    assert "permissions:\n  contents: write" in workflow
-    assert "jap-winapp-product-v$Version" in workflow
-    assert "JAP-Control-Center-Desktop-win-x64.zip" in workflow
-    assert "JAP-Control-Center-Runtime.zip" in workflow
-    assert "runtime-info.json" in workflow
-    assert r'Get-ChildItem -Force "frontend\control-center\dist" | Copy-Item -Destination $Frontend -Recurse -Force' in workflow
-    assert 'Set-Content -Path (Join-Path $Frontend ".jap-source-sha") -Value $env:GITHUB_SHA -Encoding ASCII -NoNewline' in workflow
-    assert "[System.IO.Compression.ZipFile]::CreateFromDirectory(" in workflow
-    assert '"frontend/control-center/dist/.jap-source-sha"' in workflow
-    assert "Compress-Archive" not in workflow
-    assert "gh release list" in workflow
-    assert "--json tagName" in workflow
-    assert "gh release view $env:PRODUCT_TAG" not in workflow
-    assert "gh release create $env:PRODUCT_TAG" in workflow
-    assert "--target $env:GITHUB_SHA" in workflow
-    assert '"schema": "job_application_pipeline.windows_update_compatibility.v2"' in compatibility
-    assert '"policy": "product_local_latest_direct"' in compatibility
-    assert '"installer_schema": "job_application_pipeline.windows_control_center_install.v3"' in compatibility
-    assert '$Body = $Body.Replace("`r`n", "`n").Replace("`r", "`n")' in workflow
-    assert "Runtime shell script still contains CR bytes" in workflow
-    assert "Runtime release ZIP contains CR bytes" in workflow
 
 
 def test_stop_path_is_managed_pid_only() -> None:

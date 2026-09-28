@@ -150,11 +150,17 @@ def _current_product_truth(
         and str(row.get("lifecycle_status") or "") == "active_confirmed"
     ]
     selected = [
-        row for row in jobs if int(row.get("silver_job_id") or 0) in selected_ids
+        row for row in jobs
+        if int(row.get("silver_job_id") or 0) in selected_ids
+        and is_employer_origin_review_source(row)
     ]
+    selected_unique = {
+        int(row["silver_job_id"]): row for row in selected
+    }
+    _require(len(selected_unique) == len(selected), "duplicate selected Product job identity")
     complete = [
         row
-        for row in jobs
+        for row in selected
         if str(row.get("profile_fit_coverage_status") or "") == "profile_fit_complete"
         and str(row.get("profile_fit_decision") or "") in {"passed", "failed"}
     ]
@@ -163,12 +169,19 @@ def _current_product_truth(
     ]
     rankable = [
         row
-        for row in jobs
+        for row in selected
         if str(row.get("product_readiness_status") or "") == "rankable"
     ]
     top = [row for row in payload.get("top_jobs", []) if isinstance(row, Mapping)]
 
     top_violations: list[dict[str, object]] = []
+    top_ids = [int(row.get("silver_job_id") or 0) for row in top]
+    if len(set(top_ids)) != len(top_ids) or any(job_id <= 0 for job_id in top_ids):
+        top_violations.append({"reason": "invalid_or_duplicate_top_job_identity"})
+    if sorted(int(row.get("product_rank") or 0) for row in top) != list(
+        range(1, len(top) + 1)
+    ):
+        top_violations.append({"reason": "non_contiguous_top_job_ranks"})
     for row in top:
         if (
             str(row.get("lifecycle_status") or "") != "active_confirmed"
@@ -352,6 +365,8 @@ def main() -> int:
 
     if args.apply and not target_met:
         raise SystemExit("PRODUCT_V1_ASSESSMENT_COHORT_TARGET_NOT_MET")
+    if authority_exit != 0:
+        raise SystemExit(f"PRODUCT_V1_ASSESSMENT_COHORT_AUTHORITY_FAILED:{authority_exit}")
     if not enough_candidates:
         raise SystemExit(
             f"PRODUCT_V1_ASSESSMENT_COHORT_INSUFFICIENT_CANDIDATES:"

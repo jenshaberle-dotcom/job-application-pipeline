@@ -49,7 +49,9 @@
     "remote_main": "41c855c3858b40a3d2d1d7b84dc8d6488f81d2a9",
     "canonical_checkout_clean": true,
     "persistent_worktree_count": 1,
-    "remaining_local_branches": ["main"],
+    "remaining_local_branches": [
+      "main"
+    ],
     "non_main_project_worktrees": 0,
     "dirty_unpushed_divergent_detached_or_ambiguous_state": false,
     "remote_branches_deleted": 0,
@@ -81,14 +83,14 @@
   },
   "remaining_blockers": [],
   "downstream": {
-    "state": "WAITING_FOR_PORTFOLIO_ALL_PROJECTS_PASS",
+    "state": "RCC_SHARED_POOL_ONLY",
     "project_restart_gate_passed": true,
     "sequence": [
-      "FINISH_WARMRUNNER_FLEET_MIGRATION_INCLUDING_SLEEP_MODE",
-      "DRJ_STRICT_PRE_EFFECT_DELETION_PREFLIGHT",
-      "WARMRUNNER_ONLY_EXECUTION_CONVERGENCE",
-      "RESUME_ACTIVE_PROJECT_DEVELOPMENT"
+      "RCC_SHARED_POOL_ADMISSION_ONLY",
+      "RCC_RESERVATION_AND_EPHEMERAL_ASSIGNMENT",
+      "EXACT_SOURCE_WORKLOAD_EXECUTION",
+      "RCC_CLEANUP_AND_RESERVATION_RELEASE"
     ],
-    "project_next_after_portfolio_restart": "ACQ-676 V6 65-candidate deterministic benchmark"
+    "project_next_after_portfolio_restart": "JAP_1_2_2_PRODUCT_GATE"
   }
 }
