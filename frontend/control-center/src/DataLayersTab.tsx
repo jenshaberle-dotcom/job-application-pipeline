@@ -427,7 +427,7 @@ export default function DataLayersTab() {
         ) : payload ? (
           <DataLayersScreen payload={payload} refreshing={refreshing} refresh={() => void load()} />
         ) : (
-          <div className="data-layers-screen dl-loading"><div /><p>Reading current Bronze / Silver / Gold truth…</p></div>
+          <div className="data-layers-screen dl-loading"><div /><p>Loading current job data layers…</p></div>
         ),
         mainRoot,
       )
