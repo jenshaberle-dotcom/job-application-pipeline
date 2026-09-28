@@ -15,6 +15,7 @@ on:
       - "scripts/product_v1_f5_application_tracking_runtime.py"
       - "scripts/product_v1_f5_application_actions.py"
       - "scripts/product_v1_f5_mailbox_ingest.py"
+      - "scripts/product_v1_runtime_mailbox_sync.py"
       - "scripts/run_product_v1_f5_mailbox_batch_preflight.py"
       - "scripts/run_product_v1_f5_mailbox_persistence_preflight.py"
       - "scripts/run_product_v1_f5_mailbox_persistence_apply.py"
@@ -37,6 +38,7 @@ on:
       - "tests/test_product_v1_f5_application_tracking_runtime.py"
       - "tests/test_product_v1_f5_application_actions.py"
       - "tests/test_product_v1_f5_mailbox_ingest.py"
+      - "tests/test_product_v1_runtime_mailbox_sync.py"
       - "tests/test_product_v1_f5_mailbox_batch_preflight.py"
       - "tests/test_application_event_classifier.py"
       - "frontend/control-center/src/F5ApplicationTracking.tsx"
@@ -209,6 +211,7 @@ jobs:
             scripts/product_v1_f5_application_tracking_runtime.py \
             scripts/product_v1_f5_application_actions.py \
             scripts/product_v1_f5_mailbox_ingest.py \
+            scripts/product_v1_runtime_mailbox_sync.py \
             scripts/run_product_v1_f5_mailbox_batch_preflight.py \
             scripts/run_product_v1_f5_mailbox_persistence_preflight.py \
             scripts/run_product_v1_f5_mailbox_persistence_apply.py \
@@ -235,6 +238,7 @@ jobs:
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
             tests/test_product_v1_f5_mailbox_ingest.py \
+            tests/test_product_v1_runtime_mailbox_sync.py \
             tests/test_product_v1_f5_mailbox_batch_preflight.py \
             tests/test_application_event_classifier.py
           "$RUNTIME_PYTHON" -m ruff check \
@@ -246,6 +250,7 @@ jobs:
             scripts/product_v1_f5_application_tracking_runtime.py \
             scripts/product_v1_f5_application_actions.py \
             scripts/product_v1_f5_mailbox_ingest.py \
+            scripts/product_v1_runtime_mailbox_sync.py \
             scripts/run_product_v1_f5_mailbox_batch_preflight.py \
             scripts/run_product_v1_f5_mailbox_persistence_preflight.py \
             scripts/run_product_v1_f5_mailbox_persistence_apply.py \
@@ -266,6 +271,7 @@ jobs:
             tests/test_product_v1_f5_application_tracking_runtime.py \
             tests/test_product_v1_f5_application_actions.py \
             tests/test_product_v1_f5_mailbox_ingest.py \
+            tests/test_product_v1_runtime_mailbox_sync.py \
             tests/test_product_v1_f5_mailbox_batch_preflight.py \
             tests/test_application_event_classifier.py
 
