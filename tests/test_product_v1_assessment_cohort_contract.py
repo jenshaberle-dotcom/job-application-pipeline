@@ -46,6 +46,8 @@ def test_product_assessment_cohort_keeps_fit_and_ranking_authorities_separate() 
     assert '"direct_top5_writes": False' in runner
     assert '"direct_rank_writes": False' in runner
     assert '"hard_filter_operator_auto_pass": False' in runner
+    assert '"top5_must_be_subset_of_selected_ten": True' in runner
+    assert '"top_job_outside_selected_assessment_cohort"' in runner
     assert '"candidate_fit_and_affinity_remain_separate": True' in runner
     assert '"numeric_candidate_fit_authority_created": False' in runner
     assert '"combined_score_authority_created": False' in runner
