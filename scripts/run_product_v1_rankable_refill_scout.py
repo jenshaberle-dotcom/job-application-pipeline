@@ -57,11 +57,6 @@ READINESS_PRIORITY = {
     "assessment_required": 2,
     "blocked_hard_filter": 3,
 }
-REFILL_GEOGRAPHY_BUCKETS = frozenset(
-    {"hannover_explicit", "germany_remote", "commute_observed_acceptable"}
-)
-
-
 def _authoritative_geography(row: Mapping[str, object]) -> GeographySignal:
     locations = row.get("origin_locations")
     if isinstance(locations, list):
@@ -285,7 +280,7 @@ def scout(
         silver_job_id = int(row["silver_job_id"])
         item: dict[str, object] = {str(key): value for key, value in row.items()}
         geography = _authoritative_geography(row)
-        geography_eligible = geography.bucket in REFILL_GEOGRAPHY_BUCKETS
+        geography_eligible = geography.eligible_for_bounded_pool
         item.update(
             {
                 "live_outcome": "unverifiable",
@@ -379,8 +374,8 @@ def main() -> int:
             "network_exact_detail_requests": len(rows),
             "provider_requests": 0,
             "origin_location_sidecar_precedes_legacy_geography": True,
-            "positive_profile_geography_required_for_refill": True,
-            "geography_review_required_excluded": True,
+            "bounded_pool_geography_authority_reused": True,
+            "geography_review_required_excluded": False,
             "explicit_outside_germany_excluded": True,
             "capability_fit_authority_created": False,
             "hard_filter_authority_created": False,
