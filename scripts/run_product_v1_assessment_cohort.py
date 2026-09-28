@@ -28,7 +28,7 @@ from psycopg.rows import dict_row
 
 from scripts.product_v1_control_center_base import load_product_v1_payload
 from scripts.run_product_v1_rankable_refill_apply import _selected_candidates
-from scripts.run_demo_001_rankable_refill_campaign import (
+from scripts.run_product_v1_rankable_refill_campaign import (
     APPROVAL_TOKEN as RANKABLE_REFILL_APPROVAL_TOKEN,
 )
 from scripts.run_product_v1_rankable_refill_scout import (
@@ -131,7 +131,7 @@ def _run_existing_authorities(
             [
                 "--apply",
                 "--approval-token",
-                LEGACY_CAMPAIGN_APPROVAL_TOKEN,
+                RANKABLE_REFILL_APPROVAL_TOKEN,
             ]
         )
     completed = subprocess.run(command, check=False)
