@@ -21,7 +21,9 @@ from src.ingestion.recurring_lifecycle_health import (
 from src.ingestion.repository import JobIngestionRepository
 from src.ingestion.run_stage_telemetry import record_ingestion_stage_counts
 from src.job_lifecycle_health import JobLifecycleHealthRepository
-from src.search_intelligence.company_vocabulary import extract_vocabulary_terms
+from src.search_intelligence.market_sensor_evidence_contract import (
+    build_market_sensor_evidence_payload,
+)
 
 
 MISSING_DISPLAY_VALUE = "<missing>"
@@ -99,36 +101,17 @@ def record_market_sensor_evidence(
             continue
 
         display_title = get_record_display_title(record)
-        vocabulary_terms = (
-            extract_vocabulary_terms(display_title)
-            if display_title != MISSING_DISPLAY_VALUE
-            else ()
-        )
-        evidence_id = recorder(
-            evidence_source="market_sensor_ingestion",
-            evidence_kind="market_sensor_company_sighting",
+        payload = build_market_sensor_evidence_payload(
             source_name=source_name,
             company_name=company_name,
-            title=" ".join(vocabulary_terms),
-            evidence_url=None,
+            display_title=(
+                None if display_title == MISSING_DISPLAY_VALUE else display_title
+            ),
             search_profile_name=profile_name,
             search_term=search_term,
             ingestion_run_id=ingestion_run_id,
-            raw_job_external_id=None,
-            evidence={
-                "boundary": {
-                    "company_identity_only": True,
-                    "vocabulary_only": True,
-                    "sensor_url_forwarded": False,
-                    "raw_job_identity_forwarded": False,
-                    "bronze_write": False,
-                    "silver_write": False,
-                    "source_activation": False,
-                    "scheduler_change": False,
-                },
-                "vocabulary_terms": list(vocabulary_terms),
-            },
         )
+        evidence_id = recorder(**payload)
         if evidence_id is not None:
             written += 1
     return written
