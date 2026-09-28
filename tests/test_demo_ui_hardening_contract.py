@@ -37,8 +37,12 @@ def test_top5_keeps_candidate_fit_separate_from_affinity() -> None:
     assert "Evaluate current jobs" in source
     assert "Candidate Fit &amp; Top 5" in source
     assert "fit_blocker_counts?: Record<string, number>" in source
+    assert "fit_blocker_reason_counts?: Record<string, number>" in source
     assert "Missing fit evidence —" in source
+    assert "Why —" in source
     assert "fitFactorLabel[factor]" in source
+    assert "Candidate location/work preference not configured" in source
+    assert "Job location/work-model evidence missing" in source
     assert ".ow-top5-header-actions" in css
 
 

@@ -19,6 +19,7 @@ def test_product_assessment_cohort_is_reusable_not_job_specific() -> None:
     assert "--candidate-cap" in runner
     assert "profile_fit_complete" in runner
     assert "profile_fit_decision" in runner
+    assert '"profile_fit_factors": row.get("profile_fit_factors")' in runner
     assert "affinity_authority_status" in runner
     assert "is_employer_origin_review_source" in runner
     assert "run_product_v1_rankable_refill_apply" in runner

@@ -225,6 +225,7 @@ def _current_product_truth(
                 "profile_fit_coverage_status": row.get("profile_fit_coverage_status"),
                 "profile_fit_decision": row.get("profile_fit_decision"),
                 "profile_fit_missing_factors": row.get("profile_fit_missing_factors"),
+                "profile_fit_factors": row.get("profile_fit_factors"),
                 "hard_filter_status": row.get("hard_filter_status"),
                 "product_readiness_status": row.get("product_readiness_status"),
                 "affinity_score": row.get("affinity_score"),

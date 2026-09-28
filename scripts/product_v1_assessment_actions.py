@@ -121,6 +121,19 @@ FIT_FACTOR_NAMES = frozenset(
 )
 
 
+FIT_BLOCKER_REASONS = frozenset(
+    {
+        "approved_candidate_geography_preference_missing_or_ambiguous",
+        "job_geography_work_model_or_commute_evidence_missing",
+        "exact_current_candidate_fact_capability_review_missing",
+        "exact_current_candidate_fact_capability_review_invalid",
+        "current_capability_evidence_required_for_seniority",
+        "seniority_requirement_evidence_missing",
+        "hard_requirement_evidence_missing",
+    }
+)
+
+
 def _fit_blocker_counts(final: Mapping[str, object]) -> dict[str, int]:
     counts: dict[str, int] = {}
     selected = final.get("selected")
@@ -137,6 +150,32 @@ def _fit_blocker_counts(final: Mapping[str, object]) -> dict[str, int]:
             if factor not in FIT_FACTOR_NAMES:
                 continue
             counts[factor] = counts.get(factor, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
+def _fit_blocker_reason_counts(final: Mapping[str, object]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    selected = final.get("selected")
+    if not isinstance(selected, list):
+        return counts
+    for row in selected:
+        if not isinstance(row, Mapping):
+            continue
+        missing = row.get("profile_fit_missing_factors")
+        factors = row.get("profile_fit_factors")
+        if not isinstance(missing, (list, tuple)) or not isinstance(factors, Mapping):
+            continue
+        for raw_factor in missing:
+            factor = str(raw_factor or "").strip()
+            if factor not in FIT_FACTOR_NAMES:
+                continue
+            detail = factors.get(factor)
+            if not isinstance(detail, Mapping):
+                continue
+            reason = str(detail.get("reason") or "").strip()
+            if reason not in FIT_BLOCKER_REASONS:
+                continue
+            counts[reason] = counts.get(reason, 0) + 1
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
@@ -273,6 +312,7 @@ def apply_assessment_action() -> dict[str, object]:
             },
             "selected_readiness_counts": dict(final.get("selected_readiness_counts") or {}),
             "fit_blocker_counts": _fit_blocker_counts(final),
+            "fit_blocker_reason_counts": _fit_blocker_reason_counts(final),
             "top5_authority_violations": list(final.get("top5_authority_violations") or []),
             "provider_requests": 0,
             "direct_rank_writes": 0,
