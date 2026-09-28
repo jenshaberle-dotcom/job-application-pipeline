@@ -166,6 +166,7 @@ type ProductPayload = {
     }>;
   };
   source_connector_overview: {
+    schema_version?: string;
     summary: {
       source_count: number;
       sensor_count: number;
@@ -184,6 +185,7 @@ type ProductPayload = {
       ingested_count: number;
       attention_count: number;
       discovery_lead_count?: number;
+      verified_discovery_evidence_count?: number;
     };
     sources: SourceConnector[];
   };
@@ -223,7 +225,7 @@ type JobSort =
   | "gate_asc"
   | "gate_desc";
 type SortColumn = "fit" | "review" | "job" | "location" | "published" | "observed" | "gate";
-type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Coverage targets" | "Pending" | "Not implemented";
+type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Pending" | "Not implemented";
 type SourceTab = "All" | SourceGroup;
 
 function downloadBase64Document(contentBase64: string, filename: string, mimeType: string) {
@@ -296,8 +298,7 @@ function sourceGroupDisplay(group: SourceGroup) {
     "Needs attention": "Needs attention",
     "Delivering now": "Delivering jobs",
     "Active, 0 current jobs": "Active · no current jobs",
-    "Market sensors": "Market discovery · active",
-    "Coverage targets": "Coverage targets",
+    "Market sensors": "Market discovery",
     "Pending": "Setup pending",
     "Not implemented": "Not connected",
   } as Record<SourceGroup, string>)[group];
@@ -1023,7 +1024,6 @@ function Applications({
 }
 function sourceGroup(source: SourceConnector): SourceGroup {
   if (source.current_blocker) return "Needs attention";
-  if (isCoverageTarget(source)) return "Coverage targets";
   if (normalize(source.source_role) === "sensor") return "Market sensors";
   if (source.activation.active === true) {
     if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded > 0) return "Delivering now";
@@ -1037,7 +1037,7 @@ function sourceGroup(source: SourceConnector): SourceGroup {
 function Sources({ payload }: { payload: ProductPayload }) {
   const sources = payload.source_connector_overview.sources;
   const overview = payload.source_connector_overview.summary;
-  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Coverage targets", "Pending", "Not implemented"];
+  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Pending", "Not implemented"];
   const groupCounts = Object.fromEntries(
     groups.map((group) => [group, sources.filter((source) => sourceGroup(source) === group).length]),
   ) as Record<SourceGroup, number>;
@@ -1049,7 +1049,6 @@ function Sources({ payload }: { payload: ProductPayload }) {
     sources.find((source) => sourceGroup(source) === "Delivering now")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Active, 0 current jobs")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Market sensors")?.source_name ||
-    sources.find((source) => sourceGroup(source) === "Coverage targets")?.source_name ||
     sources[0]?.source_name || ""
   );
   const sourceTabs: Array<{ id: SourceTab; label: string; count: number }> = [
@@ -1057,8 +1056,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     { id: "Needs attention", label: "Needs attention", count: groupCounts["Needs attention"] },
     { id: "Delivering now", label: "Delivering jobs", count: groupCounts["Delivering now"] },
     { id: "Active, 0 current jobs", label: "Active · no jobs", count: groupCounts["Active, 0 current jobs"] },
-    { id: "Market sensors", label: "Market discovery · active", count: groupCounts["Market sensors"] },
-    { id: "Coverage targets", label: "Coverage targets", count: groupCounts["Coverage targets"] },
+    { id: "Market sensors", label: "Market discovery", count: groupCounts["Market sensors"] },
     { id: "Pending", label: "Setup pending", count: groupCounts.Pending },
     { id: "Not implemented", label: "Not connected", count: groupCounts["Not implemented"] },
   ];
@@ -1076,6 +1074,9 @@ function Sources({ payload }: { payload: ProductPayload }) {
     visible.find((source) => source.source_name === selectedName) ||
     visible[0] ||
     null;
+  const sensorContractReady =
+    payload.source_connector_overview.schema_version === "pipeline.source_connector_overview.v5"
+    && (overview.verified_discovery_evidence_count ?? 0) >= 7;
   const summaryTruth = [
     ["Employer sources", overview.employer_origin_count],
     ["Delivering jobs", overview.active_last_run_loaded_count],
@@ -1087,6 +1088,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
 
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>Where jobs come from</span><h1>Sources</h1><p>See which employer sources currently deliver jobs, which discovery channels expand coverage and where attention is needed.</p></div><strong className="ow-big-count">{sources.length}</strong></header>
+    {!sensorContractReady && <div className="ow-callout warn"><b>Market discovery runtime mismatch</b><span>The installed UI expects the v5 market-sensor evidence contract. Restart/update the JAP runtime before trusting discovery counts or sensor yield.</span></div>}
     <section className="ow-source-summary-strip">
       {summaryTruth.map(([name, value]) => <div key={name}><span>{name}</span><b>{value}</b></div>)}
     </section>
@@ -1100,7 +1102,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
       ><span>{tab.label}</span><b>{tab.count}</b></button>)}
     </nav>
     <section className="ow-source-workspace">
-      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {sourceActivityText(source)}</small></span><b className="ow-source-row-state">{sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
+      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {sourceActivityText(source)}</small></span><b className="ow-source-row-state">{isCoverageTarget(source) ? "Coverage target" : sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
       {selected && <article className="ow-card ow-source-detail">
         <span className="ow-kicker">{sourceGroupDisplay(sourceGroup(selected))}</span>
         <h2>{selected.source_label}</h2>
