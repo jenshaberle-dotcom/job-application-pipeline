@@ -64,11 +64,13 @@ def test_redundant_operations_and_data_layer_source_health_surfaces_are_removed(
 def test_data_layers_uses_one_current_population_and_omits_repeat_observation_chart() -> None:
     data_layers = DATA_LAYERS.read_text(encoding="utf-8")
 
-    assert "one population" in data_layers
-    assert "exact current <b>All jobs</b> population" in data_layers
-    assert "Every stage below uses the same current population" in data_layers
-    assert "Layer flow · current cohort" in data_layers
-    assert "Repeat source sightings are intentionally not plotted here" in data_layers
+    assert "same current <b>All Jobs</b> set" in data_layers
+    assert "Every stage uses the same current job set" in data_layers
+    assert "Recent processing activity" in data_layers
+    assert "processing history for today’s visible jobs rather than total database volume" in data_layers
+    assert "Raw evidence" in data_layers
+    assert "Normalized" in data_layers
+    assert "Assessed" in data_layers
     assert "bronze_observations" not in data_layers
     assert "Persisted inventory" not in data_layers
     assert "persisted Gold outside current All jobs" not in data_layers
