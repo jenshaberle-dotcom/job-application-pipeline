@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
-PROFILE = ROOT / ".rcc" / "runner-profiles" / "linux-wsl.json"
+DEMAND = ROOT / ".rcc" / "workload-demands.json"
 TRIGGERS = ROOT / ".github" / "triggers"
 
 
@@ -24,6 +24,8 @@ def _forbidden_tokens() -> tuple[str, ...]:
         "trusted-local-" + "product-campaign.yml",
         "rcc-real-" + "warm-canary.yml",
         ".rcc/" + "runner-contract.json",
+        ".rcc/" + "runner-profiles/",
+        "jap-general-" + "linux-warm",
         "run_" + "scheduled_pipeline.ps1",
         "rcc-general-linux-01" + "--jap",
         "RCC_" + "PHYSICAL_RUNNER",
@@ -59,17 +61,48 @@ def test_jap_has_only_rcc_assigned_workload_target() -> None:
     assert "rcc-general-linux-0" not in workflow
 
 
-def test_project_owned_runner_allocation_contract_is_physically_absent() -> None:
+def test_project_owned_runner_allocation_and_profiles_are_physically_absent() -> None:
     assert not (ROOT / ".rcc" / "runner-contract.json").exists()
+    assert not (ROOT / ".rcc" / "runner-profiles").exists()
 
-    profile = json.loads(PROFILE.read_text(encoding="utf-8"))
-    assert profile["profile_id"] == "jap-general-linux-warm"
-    assert "runner_labels" not in profile
-    assert "runner_role" not in profile
-    assert "routing_group" not in profile
-    assert profile["profile_hash"] == (
-        "1419b2268a4daad29640a5871727da63dcb78f96c50e390f16e783228889f14e"
-    )
+    demand = json.loads(DEMAND.read_text(encoding="utf-8"))
+    assert demand["schema_version"] == "ped.rcc_workload_demands.v2"
+    assert demand["repository_id"] == 1230805345
+    assert demand["repository"] == "jenshaberle-dotcom/job-application-pipeline"
+
+    authority = demand["authority"]
+    assert authority["allocation"] == "RCC_AUTO_ONLY"
+    assert authority["reservation"] == "RCC_ATOMIC"
+    assert authority["physical_selection"] == "RCC_ONLY"
+    assert authority["facade_selection"] == "RCC_ONLY"
+    assert authority["profile_materialization"] == "RCC_ONLY"
+    assert authority["capability_provisioning"] == "RCC_ONLY"
+    assert authority["github_hosted_fallback"] is False
+    assert authority["broad_project_routing"] is False
+    assert authority["ephemeral_assignment_required"] is True
+    assert authority["consumer_runner_lifecycle"] is False
+    assert authority["consumer_runner_profile_ownership"] is False
+
+    runtime = demand["project_runtime"]["python"]
+    assert runtime["version"] == "3.12.14"
+    assert runtime["package_set"] == {
+        "path": ".rcc/python-package-sets/jap-warm-v1.txt",
+        "sha256": "617352a994089a5e438dee31bf012183f535bfbe647d3b14e718352176e11e69",
+    }
+
+    assert demand["demand_profiles"] == {
+        "linux-base": {
+            "platform": "linux-wsl",
+            "runtime": ["python-project"],
+            "capabilities": [],
+        }
+    }
+    assert demand["workflow_demands"] == {
+        "product-v1-assessment-cohort.yml": "linux-base"
+    }
+    assert demand["ownership"]["runner_profiles"] == "RCC"
+    assert demand["ownership"]["allocation"] == "RCC"
+    assert demand["ownership"]["qualification"] == "RCC"
 
 
 def test_legacy_workflow_trigger_authority_is_physically_absent() -> None:
