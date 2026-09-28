@@ -134,6 +134,7 @@ function AboutScreen({
 export default function AboutPanel() {
   const [navRoot, setNavRoot] = useState<HTMLElement | null>(null);
   const [mainRoot, setMainRoot] = useState<HTMLElement | null>(null);
+  const [toplineRoot, setToplineRoot] = useState<HTMLElement | null>(null);
   const [active, setActive] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [codex, setCodex] = useState<CodexStatus | null>(null);
@@ -147,9 +148,11 @@ export default function AboutPanel() {
       if (cancelled) return false;
       const nav = document.querySelector<HTMLElement>(".ow-sidebar nav");
       const main = document.querySelector<HTMLElement>(".ow-main");
-      if (!nav || !main) return false;
+      const topline = document.querySelector<HTMLElement>(".ow-topline > div");
+      if (!nav || !main || !topline) return false;
       setNavRoot(nav);
       setMainRoot(main);
+      setToplineRoot(topline);
       return true;
     };
 
@@ -219,5 +222,9 @@ export default function AboutPanel() {
     ? createPortal(<AboutScreen info={info} codex={codex} error={error} />, mainRoot)
     : null;
 
-  return <>{nav}{screen}</>;
+  const topline = active && toplineRoot
+    ? createPortal(<b className="ow-overlay-topline-title">About</b>, toplineRoot)
+    : null;
+
+  return <>{nav}{screen}{topline}</>;
 }
