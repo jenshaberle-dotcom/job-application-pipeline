@@ -72,7 +72,7 @@ def test_project_owned_runner_allocation_contract_is_physically_absent() -> None
     assert profile["profile_id"] == "jap-general-linux-warm"
     assert profile["runner_labels"] == []
     assert profile["profile_hash"] == (
-        "3e232f2ebc20eecb9b087bc0c494a13cdb10bb29e10066aa6f232b973299e248"
+        "1419b2268a4daad29640a5871727da63dcb78f96c50e390f16e783228889f14e"
     )
 
 
