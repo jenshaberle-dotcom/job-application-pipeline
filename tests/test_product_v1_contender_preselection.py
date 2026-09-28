@@ -97,6 +97,14 @@ def test_hannover_structured_city_is_best_geography_bucket() -> None:
     assert signal.eligible_for_bounded_pool is True
 
 
+def test_composite_location_with_explicit_hannover_is_local_evidence() -> None:
+    signal = classify_geography(
+        row(1, "Data Engineer", city="Hannover | bundesweit", country=None)
+    )
+    assert signal.bucket == "hannover_explicit"
+    assert signal.eligible_for_bounded_pool is True
+
+
 def test_germany_remote_uses_existing_structured_assessment() -> None:
     signal = classify_geography(
         row(1, "Data Engineer", city="Berlin", country="Germany", work_model="remote")
