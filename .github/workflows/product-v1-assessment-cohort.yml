@@ -59,64 +59,24 @@ jobs:
       COHORT_APPROVAL_TOKEN: PRODUCT-V1-ASSESSMENT-COHORT-001
 
     steps:
-      - name: Parse exact owner approval envelope
+      - name: Prove exact RCC reservation handoff
         shell: bash
         env:
-          COMMENT_BODY: ${{ github.event.comment.body }}
-          EVENT_SOURCE_SHA: ${{ github.sha }}
+          RUNS_ON_JSON: '${{ inputs.runs_on_json }}'
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import os
-          import re
-
-          marker = "<!-- jap-product-assessment-cohort:apply:v1 -->"
-          lines = [line.strip() for line in os.environ["COMMENT_BODY"].splitlines() if line.strip()]
-          if not lines or lines[0] != marker:
-              raise SystemExit("ASSESSMENT_COHORT_APPROVAL_MARKER_MISMATCH")
-
-          values = {}
-          for line in lines[1:]:
-              if "=" not in line:
-                  raise SystemExit("ASSESSMENT_COHORT_APPROVAL_ENVELOPE_MALFORMED")
-              key, value = line.split("=", 1)
-              key = key.strip()
-              value = value.strip()
-              if key in values:
-                  raise SystemExit("ASSESSMENT_COHORT_APPROVAL_DUPLICATE_KEY:" + key)
-              values[key] = value
-
-          required = {"source_sha", "evaluated_target", "top5_target", "candidate_cap"}
-          if set(values) != required:
-              raise SystemExit("ASSESSMENT_COHORT_APPROVAL_KEYS_MISMATCH")
-
-          source_sha = values["source_sha"]
-          if re.fullmatch(r"[0-9a-f]{40}", source_sha) is None:
-              raise SystemExit("ASSESSMENT_COHORT_SOURCE_SHA_INVALID")
-          if source_sha != os.environ["EVENT_SOURCE_SHA"]:
-              raise SystemExit("ASSESSMENT_COHORT_SOURCE_NOT_CURRENT_MAIN")
-
-          evaluated_target = int(values["evaluated_target"])
-          top5_target = int(values["top5_target"])
-          candidate_cap = int(values["candidate_cap"])
-          if evaluated_target != 10:
-              raise SystemExit("ASSESSMENT_COHORT_EVALUATED_TARGET_MUST_BE_TEN")
-          if top5_target != 5:
-              raise SystemExit("ASSESSMENT_COHORT_TOP5_TARGET_MUST_BE_FIVE")
-          if not evaluated_target <= candidate_cap <= 15:
-              raise SystemExit("ASSESSMENT_COHORT_CANDIDATE_CAP_OUT_OF_BOUNDS")
-
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
-              handle.write(f"SOURCE_SHA={source_sha}\n")
-              handle.write(f"EVALUATED_TARGET={evaluated_target}\n")
-              handle.write(f"TOP5_TARGET={top5_target}\n")
-              handle.write(f"CANDIDATE_CAP={candidate_cap}\n")
-          print(
-              "ASSESSMENT_COHORT_APPROVAL=PASS "
-              f"source={source_sha} evaluated={evaluated_target} "
-              f"top5={top5_target} cap={candidate_cap}"
-          )
-          PY
+          test -n "$RCC_RESERVATION_ID"
+          [[ "$RCC_RESERVATION_ID" =~ ^[0-9a-f-]{16,64}$ ]]
+          [[ "$RCC_PHYSICAL_RUNNER" =~ ^rcc-general-linux-0[1-5]$ ]]
+          test "$RCC_FACADE_RUNNER" = "$RCC_PHYSICAL_RUNNER--jap"
+          test "$RUNNER_NAME" = "$RCC_FACADE_RUNNER"
+          test "$RUNS_ON_JSON" = "[\"self-hosted\",\"$RCC_FACADE_RUNNER\"]"
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$EVALUATED_TARGET" = "10"
+          test "$TOP5_TARGET" = "5"
+          test "$CANDIDATE_CAP" -ge 10
+          test "$CANDIDATE_CAP" -le 15
+          echo "ASSESSMENT_COHORT_RCC_HANDOFF=PASS reservation=$RCC_RESERVATION_ID physical=$RCC_PHYSICAL_RUNNER facade=$RCC_FACADE_RUNNER"
 
       - name: Check out exact approved main
         uses: actions/checkout@v4
