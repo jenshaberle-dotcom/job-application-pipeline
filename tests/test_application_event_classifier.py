@@ -32,6 +32,45 @@ def test_rejection_dominates_acknowledgement_language_in_same_message() -> None:
     assert result.confidence == 0.97
 
 
+
+def test_continental_real_rejection_language_dominates_acknowledgement_context() -> None:
+    result = classify_application_evidence(
+        subject=(
+            "Your Application at Continental – (Senior) MLOps Engineer (m/f/d) "
+            "- REF97172N"
+        ),
+        text_excerpt=(
+            "I am getting back to your application and would like to thank you for "
+            "your interest for the position of (Senior) MLOps Engineer (m/f/d). "
+            "Unfortunately, I have to inform you today, that other applicants are "
+            "better suited to this position due to their qualification and "
+            "professional experience."
+        ),
+        sender_domain="recruiting.continental.com",
+    )
+
+    assert result.candidate_class == "rejection"
+    assert result.reason_code == "deterministic_rejection"
+    assert result.confidence == 0.97
+    assert "other applicants better suited" in " ".join(result.matched_terms)
+
+
+def test_hornet_real_rejection_language_remains_rejection() -> None:
+    result = classify_application_evidence(
+        subject="Deine Bewerbung bei Hornetsecurity als AI Automation Architect - SDLC",
+        text_excerpt=(
+            "Vielen Dank nochmal für die Übersendung deiner Bewerbungsunterlagen. "
+            "Trotz des positiven Eindrucks müssen wir dir leider mitteilen, dass es "
+            "dieses Mal nicht geklappt hat. In diesem Fall waren Mitbewerber dir "
+            "einen kleinen Schritt voraus."
+        ),
+        sender_domain="hornetsecurity.com",
+    )
+
+    assert result.candidate_class == "rejection"
+    assert result.reason_code == "deterministic_rejection"
+    assert result.confidence == 0.97
+
 def test_bounded_rejection_signal_recovers_truncated_metadata_snippet() -> None:
     result = classify_application_evidence(
         subject="Capgemini - Rückmeldung zu deinem Bewerbungsprozess",
