@@ -71,7 +71,7 @@ def _validated_report(raw: object) -> dict[str, object]:
     } != {
         "evaluated_jobs": 10,
         "top5_jobs": 5,
-        "candidate_cap": 15,
+        "candidate_cap": 10,
     }:
         raise AssessmentActionStop("assessment report target contract mismatch")
 
@@ -194,7 +194,7 @@ def _run_cohort(*, output: Path) -> subprocess.CompletedProcess[str]:
         "--top5-target",
         "5",
         "--candidate-cap",
-        "15",
+        "10",
         "--reviewed-by",
         "control-center:operator",
         "--apply",
