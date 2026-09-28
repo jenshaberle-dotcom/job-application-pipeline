@@ -576,6 +576,7 @@ def search_results_to_origin_candidates(
         normalized = normalize_candidate_url(result.url)
         if normalized is None:
             continue
+        candidate_count_before = len(candidates)
         _append_url(
             candidates,
             seen,
@@ -584,8 +585,10 @@ def search_results_to_origin_candidates(
             reason=f"web search result from {result.provider}",
             priority=source_priority,
         )
-        # `_append_url` normalizes only by the exact URL string, so attach context
-        # after insertion. This keeps the function's duplicate behavior stable.
+        # Rejected or duplicate URLs are intentionally not appended. Only attach
+        # search context when this result actually created the candidate.
+        if len(candidates) == candidate_count_before:
+            continue
         candidates[-1] = OriginDiscoveryCandidate(
             url=candidates[-1].url,
             provider=candidates[-1].provider,
