@@ -882,7 +882,7 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
           documentType="base_cv"
           title="Canonical CV"
           ready={payload.application_sources_ready.base_cv}
-          canonicalFilename={cvTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Lebenslauf.pdf"}
+          canonicalFilename={cvTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Resume.pdf"}
           canonicalSha256={cvTemplate?.sha256 || ""}
           onUploaded={refresh}
         />
@@ -890,7 +890,7 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
           documentType="base_application_letter"
           title="Canonical letter"
           ready={payload.application_sources_ready.base_application_letter}
-          canonicalFilename={letterTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Anschreiben.pdf"}
+          canonicalFilename={letterTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Cover_Letter.pdf"}
           canonicalSha256={letterTemplate?.sha256 || ""}
           onUploaded={refresh}
         />
