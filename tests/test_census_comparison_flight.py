@@ -1,7 +1,13 @@
+import pytest
+
 from scripts.run_job_first_employer_discovery_census_comparison import (
+    RuntimeProfileIntent,
     _incremental_metrics,
+    _profile_intents_from_rows,
+    _run_control_sources,
     _run_external_index_sources,
 )
+from src.connectors.base import SearchProfile
 from src.search_intelligence.census_flight_authority import (
     resolve_census_flight_authority,
 )
@@ -28,7 +34,156 @@ def test_tavily_requires_explicit_paid_provider_opt_in():
     assert allowed.paid_external_tool is True
 
 
-def test_external_index_plan_only_performs_zero_provider_requests(monkeypatch):
+def test_profile_intents_preserve_all_active_terms_and_source_specific_profiles():
+    rows = [
+        {
+            "id": 1,
+            "profile_name": "ba_data_engineer_30629_50km",
+            "source_name": "bundesagentur_fuer_arbeit",
+            "search_location": "30629",
+            "search_radius_km": 50,
+            "offer_type": 1,
+            "page_size": 25,
+            "search_term": term,
+        }
+        for term in (
+            "Agentic AI",
+            "AI Architect",
+            "Data Engineer",
+            "ML Engineer",
+            "MLOps Engineer",
+        )
+    ] + [
+        {
+            "id": 2,
+            "profile_name": "stepstone_data_engineer_hannover",
+            "source_name": "stepstone",
+            "search_location": "Hannover",
+            "search_radius_km": None,
+            "offer_type": None,
+            "page_size": 25,
+            "search_term": term,
+        }
+        for term in (
+            "AI Platform Engineer",
+            "Analytics Engineer",
+            "Data Platform Engineer",
+            "Machine Learning Engineer",
+        )
+    ]
+
+    intents = _profile_intents_from_rows(rows)
+    assert len(intents) == 2
+
+    ba = next(
+        item
+        for item in intents
+        if item.profile.source_name == "bundesagentur_fuer_arbeit"
+    )
+    stepstone = next(
+        item for item in intents if item.profile.source_name == "stepstone"
+    )
+
+    assert len(ba.search_terms) == 5
+    assert set(ba.search_terms) == {
+        "Agentic AI",
+        "AI Architect",
+        "Data Engineer",
+        "ML Engineer",
+        "MLOps Engineer",
+    }
+    assert ba.profile.search_location == "30629"
+    assert ba.profile.search_radius_km == 50
+    assert ba.profile.offer_type == 1
+    assert ba.profile.page_size == 25
+
+    assert len(stepstone.search_terms) == 4
+    assert stepstone.profile.search_location == "Hannover"
+    assert stepstone.profile.search_radius_km is None
+    assert stepstone.profile.offer_type is None
+    assert stepstone.profile.page_size == 25
+
+
+def test_control_sources_receive_their_own_profile_authority(monkeypatch):
+    calls: list[tuple[str, str | None, int | None, str]] = []
+
+    class FakeBA:
+        def fetch_jobs(self, profile, search_term):
+            calls.append(
+                (
+                    profile.source_name,
+                    profile.search_location,
+                    profile.search_radius_km,
+                    search_term.search_term,
+                )
+            )
+            return [], "https://example.invalid/ba"
+
+    class FakeStepStone:
+        def fetch_jobs(self, profile, search_term):
+            calls.append(
+                (
+                    profile.source_name,
+                    profile.search_location,
+                    profile.search_radius_km,
+                    search_term.search_term,
+                )
+            )
+            return [], "https://example.invalid/stepstone"
+
+    monkeypatch.setattr(
+        "scripts.run_job_first_employer_discovery_census_comparison."
+        "BundesagenturConnector",
+        FakeBA,
+    )
+    monkeypatch.setattr(
+        "scripts.run_job_first_employer_discovery_census_comparison."
+        "StepStoneConnector",
+        FakeStepStone,
+    )
+
+    intents = (
+        RuntimeProfileIntent(
+            profile=SearchProfile(
+                id=1,
+                profile_name="ba",
+                source_name="bundesagentur_fuer_arbeit",
+                search_location="30629",
+                search_radius_km=50,
+                offer_type=1,
+                page_size=25,
+            ),
+            search_terms=("Data Engineer", "ML Engineer"),
+        ),
+        RuntimeProfileIntent(
+            profile=SearchProfile(
+                id=2,
+                profile_name="stepstone",
+                source_name="stepstone",
+                search_location="Hannover",
+                search_radius_km=None,
+                offer_type=None,
+                page_size=25,
+            ),
+            search_terms=("Analytics Engineer",),
+        ),
+    )
+
+    observations, telemetry = _run_control_sources(
+        profile_intents=intents,
+        observed_at_utc="2026-09-28T06:30:00Z",
+    )
+    assert observations == []
+    assert calls == [
+        ("bundesagentur_fuer_arbeit", "30629", 50, "Data Engineer"),
+        ("bundesagentur_fuer_arbeit", "30629", 50, "ML Engineer"),
+        ("stepstone", "Hannover", None, "Analytics Engineer"),
+    ]
+    assert telemetry["bundesagentur_fuer_arbeit"]["fetch_invocations"] == 2
+    assert telemetry["stepstone"]["fetch_invocations"] == 1
+
+
+def test_external_index_plan_only_preserves_full_raster_with_zero_requests(monkeypatch):
     def forbidden_search(**kwargs):
         raise AssertionError("provider must not be called in plan-only mode")
 
@@ -40,17 +195,57 @@ def test_external_index_plan_only_performs_zero_provider_requests(monkeypatch):
         provider="none",
         provider_available=True,
         external_requests_authorized=False,
-        search_terms=("Data Engineer",),
-        locations=("Hannover",),
+        search_terms=("Data Engineer", "ML Engineer", "MLOps Engineer"),
+        locations=("30629", "Hannover"),
         max_results=5,
+        max_external_requests=1,
         timeout_seconds=1.0,
-        observed_at_utc="2026-09-27T20:40:00Z",
+        observed_at_utc="2026-09-28T06:30:00Z",
     )
     assert observations == []
     assert sum(
         row["provider_request_count"] for row in telemetry.values()
     ) == 0
+    assert sum(row["query_count"] for row in telemetry.values()) == 30
+    assert all(row["full_raster_preserved"] is True for row in telemetry.values())
     assert all(row["direct_board_requests"] == 0 for row in telemetry.values())
+
+
+def test_paid_budget_refuses_full_raster_before_first_provider_request(monkeypatch):
+    calls = {"count": 0}
+
+    def forbidden_search(**kwargs):
+        calls["count"] += 1
+        raise AssertionError("budget gate must stop before provider request 1")
+
+    monkeypatch.setattr(
+        "scripts.run_job_first_employer_discovery_census_comparison.search_public_web",
+        forbidden_search,
+    )
+
+    with pytest.raises(RuntimeError, match="refusing to truncate search intent"):
+        _run_external_index_sources(
+            provider="tavily",
+            provider_available=True,
+            external_requests_authorized=True,
+            search_terms=("Data Engineer", "ML Engineer"),
+            locations=("Hannover",),
+            max_results=5,
+            max_external_requests=1,
+            timeout_seconds=1.0,
+            observed_at_utc="2026-09-28T06:30:00Z",
+        )
+    assert calls["count"] == 0
+
+
+def test_comparison_runner_contains_no_hidden_search_term_or_location_limit():
+    import scripts.run_job_first_employer_discovery_census_comparison as flight
+
+    source = open(flight.__file__, encoding="utf-8").read()
+    assert "--max-terms" not in source
+    assert "--max-locations" not in source
+    assert "LIMIT %s" not in source
+    assert "refusing to truncate search intent" in source
 
 
 def test_incremental_metric_counts_only_novel_external_only_employers():
