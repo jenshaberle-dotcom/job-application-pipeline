@@ -1,10 +1,12 @@
 """Serve the canonical Product V1 Control Center.
 
 The canonical launcher preserves the reviewed read models and deterministic
-downstream evidence-preview GET endpoint. Two narrowly allowlisted POST actions
-are exposed: the existing employer-origin final-approval gate and append-only
-operator review relevance labels. Neither action can perform connector
-registration, activation, ingestion, provider, ranking or application behavior.
+downstream evidence-preview GET endpoint. POST actions are narrowly allowlisted:
+the existing employer-origin final-approval gate, append-only operator review
+relevance labels, and one explicit local Product assessment refresh. The
+assessment refresh may invoke the existing Candidate Fit, hard-filter and
+ranking authorities, but cannot select runners, call providers, write ranks
+directly or create a combined Candidate-Fit/Affinity score.
 """
 
 from __future__ import annotations
@@ -26,6 +28,12 @@ if not __package__:  # direct ``python scripts/...`` execution
         sys.path.insert(0, str(root))
 
 from scripts import product_v1_control_center_base as _base
+from scripts.product_v1_assessment_actions import (
+    ASSESSMENT_ACTION_PATH,
+    AssessmentActionStop,
+    apply_assessment_action,
+    parse_assessment_action_payload,
+)
 from scripts.product_v1_control_center_actions import (
     ControlCenterActionStop,
     FINAL_APPROVAL_ACTION_PATH,
@@ -384,7 +392,7 @@ def load_product_v1_payload() -> dict[str, object]:
 
 
 class ProductV1Handler(_base.ProductV1Handler):
-    """Canonical read-mostly handler with two reviewed low-authority POST actions."""
+    """Canonical handler with reviewed, explicitly bounded operator POST actions."""
 
     server_version = "DeepOceanProductV1/0.6"
 
@@ -530,10 +538,51 @@ class ProductV1Handler(_base.ProductV1Handler):
         )
         self._send_json(result, status=status)
 
+    def _post_assessment_cohort(self) -> None:
+        try:
+            parse_assessment_action_payload(self._read_action_payload())
+        except AssessmentActionStop as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "provider_requests": 0,
+                    "direct_rank_writes": 0,
+                    "direct_top5_writes": 0,
+                },
+                status=HTTPStatus.BAD_REQUEST,
+            )
+            return
+
+        try:
+            result = apply_assessment_action()
+        except AssessmentActionStop as exc:
+            self._send_json(
+                {
+                    "status": "blocked",
+                    "reason": str(exc),
+                    "provider_requests": 0,
+                    "direct_rank_writes": 0,
+                    "direct_top5_writes": 0,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
+            return
+
+        status = (
+            HTTPStatus.OK
+            if result.get("status") in {"complete", "incomplete", "already_running"}
+            else HTTPStatus.CONFLICT
+        )
+        self._send_json(result, status=status)
+
     def do_POST(self) -> None:  # noqa: N802 - exact reviewed action allowlist
         parsed = urlparse(self.path)
         if parsed.path == JOB_REVIEW_LABEL_ACTION_PATH:
             self._post_job_review_label()
+            return
+        if parsed.path == ASSESSMENT_ACTION_PATH:
+            self._post_assessment_cohort()
             return
         if parsed.path != FINAL_APPROVAL_ACTION_PATH:
             self._send_json(
@@ -591,8 +640,8 @@ def run_server(args: argparse.Namespace) -> None:
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
     print(f"Deep Ocean Product V1 Control Center: http://{args.host}:{args.port}/")
     print(
-        "Boundary: read models + observed opportunities + deterministic evidence preview + reviewed final-approval and append-only review-label actions; "
-        "no provider call, connector registration, source activation, ingestion, ranking mutation, model training or application submission."
+        "Boundary: read models + observed opportunities + deterministic evidence preview + reviewed final-approval/review-label actions + explicit local 10-to-5 assessment refresh; "
+        "no provider call, runner selection, direct rank/Top-5 write, combined fit score, model training or application submission."
     )
     try:
         server.serve_forever()

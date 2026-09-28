@@ -895,9 +895,26 @@ function Jobs({
   </div>;
 }
 
+type AssessmentCohortResponse = {
+  status?: "complete" | "incomplete" | "already_running" | "blocked";
+  target_met?: boolean;
+  reason?: string;
+  summary?: {
+    selected_count?: number;
+    profile_fit_complete_count?: number;
+    profile_fit_passed_count?: number;
+    rankable_job_count?: number;
+    top_job_count?: number;
+  };
+};
+
 function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; refresh: () => Promise<void>; onReviewJobs: () => void }) {
   const jobs = payload.top_jobs.filter(isCurrent).slice(0, 5);
   const [selectedId, setSelectedId] = useState<number | null>(jobs[0]?.silver_job_id ?? null);
+  const [assessmentState, setAssessmentState] = useState<{
+    status: "idle" | "running" | "complete" | "incomplete" | "error";
+    message?: string;
+  }>({ status: "idle" });
   const applicationByJobId = useMemo(
     () => buildApplicationByJobId(payload),
     [
@@ -906,8 +923,127 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
     ],
   );
   const selected = jobs.find((job) => job.silver_job_id === selectedId) || jobs[0] || null;
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Application shortlist</span><h1>Top 5</h1><p>Only current jobs with verified Candidate Fit and ranking evidence appear here. Affinity stays visible as a separate preference signal.</p></div><strong className="ow-big-count">{jobs.length}/5</strong></header>
-    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span className="ow-top5-copy"><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small><span className="ow-top5-fit">{candidateFitText(job)}</span></span><span className="ow-top5-affinity"><small>Affinity</small><strong>{scoreText(affinityScore(job))}</strong></span></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />}</section> : <section className="ow-card"><h2>No job currently qualifies for the Top 5.</h2><p>JAP only fills the shortlist with current jobs after Candidate Fit and the normal ranking gates are verified.</p><button type="button" className="ow-text-action" onClick={onReviewJobs}>Review current jobs blocking the shortlist →</button></section>}
+
+  const runAssessment = async () => {
+    setAssessmentState({
+      status: "running",
+      message: "Evaluating current jobs with the existing Candidate Fit and ranking authorities…",
+    });
+    try {
+      const response = await fetch("/api/v1/product-v1/assessment-cohort", {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "refresh_candidate_fit_and_top5",
+          confirmation: "evaluate_current_jobs",
+        }),
+      });
+      const result = await response.json() as AssessmentCohortResponse;
+      if (!response.ok) {
+        throw new Error(result.reason || `Assessment refresh returned ${response.status}`);
+      }
+      if (result.status === "already_running") {
+        setAssessmentState({
+          status: "incomplete",
+          message: "A Candidate Fit and Top 5 evaluation is already running. Refresh again after it finishes.",
+        });
+        return;
+      }
+
+      await refresh();
+      const summary = result.summary || {};
+      if (result.target_met) {
+        setAssessmentState({
+          status: "complete",
+          message: "Candidate Fit is current and the authoritative Top 5 contains five qualified jobs.",
+        });
+        return;
+      }
+      setAssessmentState({
+        status: "incomplete",
+        message: [
+          `${summary.profile_fit_complete_count ?? 0}/10 Candidate Fit complete`,
+          `${summary.profile_fit_passed_count ?? 0} Fit passed`,
+          `${summary.rankable_job_count ?? 0} ready to rank`,
+          `${summary.top_job_count ?? 0}/5 Top 5`,
+        ].join(" · "),
+      });
+    } catch (reason) {
+      setAssessmentState({
+        status: "error",
+        message: reason instanceof Error ? reason.message : String(reason),
+      });
+    }
+  };
+
+  const assessmentTone =
+    assessmentState.status === "complete"
+      ? "good"
+      : assessmentState.status === "incomplete" || assessmentState.status === "error"
+        ? "warn"
+        : "info";
+
+  return <div className="ow-stack">
+    <header className="ow-page-header">
+      <div>
+        <span>Application shortlist</span>
+        <h1>Top 5</h1>
+        <p>Only current jobs with verified Candidate Fit and ranking evidence appear here. Affinity stays visible as a separate preference signal.</p>
+      </div>
+      <div className="ow-top5-header-actions">
+        <strong className="ow-big-count">{jobs.length}/5</strong>
+        <button
+          type="button"
+          className="ow-primary"
+          disabled={assessmentState.status === "running"}
+          onClick={() => void runAssessment()}
+        >
+          {assessmentState.status === "running" ? "Evaluating…" : "Evaluate current jobs"}
+        </button>
+      </div>
+    </header>
+
+    {assessmentState.status !== "idle" && <div className={`ow-callout ${assessmentTone}`}>
+      <b>Candidate Fit &amp; Top 5</b>
+      <span>{assessmentState.message}</span>
+    </div>}
+
+    {jobs.length
+      ? <section className="ow-top5-workspace">
+          <div className="ow-top5-list">{jobs.map((job, index) => <button
+            type="button"
+            key={job.silver_job_id}
+            className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""}
+            onClick={() => setSelectedId(job.silver_job_id)}
+          >
+            <span className="ow-rank">#{job.product_rank || index + 1}</span>
+            <span className="ow-top5-copy">
+              <b>{job.title}</b>
+              <small>{employerName(job)} · {locationText(job)}</small>
+              <span className="ow-top5-fit">{candidateFitText(job)}</span>
+            </span>
+            <span className="ow-top5-affinity">
+              <small>Affinity</small>
+              <strong>{scoreText(affinityScore(job))}</strong>
+            </span>
+          </button>)}</div>
+          {selected && <JobDetail
+            job={selected}
+            payload={payload}
+            refresh={refresh}
+            applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null}
+          />}
+        </section>
+      : <section className="ow-card">
+          <h2>No job currently qualifies for the Top 5.</h2>
+          <p>JAP only fills the shortlist with current jobs after Candidate Fit and the normal ranking gates are verified.</p>
+          <div className="ow-actions">
+            <button type="button" className="ow-primary" disabled={assessmentState.status === "running"} onClick={() => void runAssessment()}>
+              {assessmentState.status === "running" ? "Evaluating…" : "Evaluate current jobs"}
+            </button>
+            <button type="button" className="ow-text-action" onClick={onReviewJobs}>Review current jobs blocking the shortlist →</button>
+          </div>
+        </section>}
   </div>;
 }
 

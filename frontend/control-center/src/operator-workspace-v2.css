@@ -161,6 +161,10 @@ button, input { font: inherit; }
 .ow-evidence ul { padding-left: 14px; margin: 7px 0 0; }
 .ow-evidence li, .ow-evidence p { color: #9eb8c8; font-size: 8px; line-height: 1.45; }
 
+.ow-top5-header-actions { display: flex; align-items: center; gap: 10px; }
+.ow-top5-header-actions .ow-big-count { min-width: 48px; text-align: right; }
+.ow-top5-header-actions .ow-primary { white-space: nowrap; }
+
 .ow-top5-list { display: flex; flex-direction: column; gap: 8px; }
 .ow-top5-list > button { width: 100%; min-height: 92px; display: grid; grid-template-columns: 48px minmax(0, 1fr) 74px; gap: 10px; align-items: center; text-align: left; padding: 12px; border: 1px solid var(--ow-line); border-radius: 9px; background: #0b2130; color: white; cursor: pointer; }
 .ow-top5-list > button.selected { border-color: #2f829f; background: #103146; }
