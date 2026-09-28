@@ -176,6 +176,51 @@ def classify_geography(row: dict) -> GeographySignal:
     work_model = normalize_text(row.get("work_model"))
     commute = row.get("commute_minutes")
 
+    structured_locations = row.get("structured_locations")
+    locations: list[tuple[str, str]] = []
+    if isinstance(structured_locations, (list, tuple)):
+        for item in structured_locations:
+            if not isinstance(item, dict):
+                continue
+            location_city = normalize_text(item.get("city"))
+            location_country = normalize_text(item.get("country_code"))
+            if location_city and location_country:
+                locations.append((location_city, location_country))
+
+    if locations:
+        german_locations = [
+            (location_city, location_country)
+            for location_city, location_country in locations
+            if is_germany_country(location_country)
+        ]
+        if not german_locations:
+            return GeographySignal(
+                bucket="outside_germany",
+                tier_order=99,
+                eligible_for_bounded_pool=False,
+                reason="authoritative_silver_locations_outside_germany",
+            )
+        if any(
+            location_city in {"hannover", "hanover"}
+            for location_city, _location_country in german_locations
+        ):
+            return GeographySignal(
+                bucket="hannover_explicit",
+                tier_order=0,
+                eligible_for_bounded_pool=True,
+                reason="authoritative_silver_location_hannover",
+            )
+        if work_model == "remote" or any(
+            location_city in {"bundesweit", "deutschlandweit", "germany", "deutschland"}
+            for location_city, _location_country in german_locations
+        ):
+            return GeographySignal(
+                bucket="germany_remote",
+                tier_order=1,
+                eligible_for_bounded_pool=True,
+                reason="authoritative_silver_germany_wide_or_remote",
+            )
+
     if country and not is_germany_country(country):
         return GeographySignal(
             bucket="outside_germany",
