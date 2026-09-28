@@ -44,6 +44,7 @@ READ_ONLY_BOUNDARY: dict[str, bool] = {
 
 ACTION_SAFETY_ZONE: dict[str, str] = {
     "monitor_source_lifecycle": "SZ0_READ_ONLY",
+    "run_origin_source_discovery": "SZ0_READ_ONLY",
     "run_source_lifecycle_tracking": "SZ2_EVIDENCE_AND_GATES",
     "run_registration_execution_plan_agent": "SZ3_CONNECTOR_REGISTRATION_PLAN",
     "run_connector_validation_agent": "SZ3_CONNECTOR_ARTIFACT_REVIEW",
@@ -172,6 +173,24 @@ def build_lifecycle_command(*, company_key: str, reviewed_by: str) -> str:
     return (
         "python -m scripts.run_employer_origin_source_lifecycle_tracking_agent "
         f"--company-key {company_key} --reviewed-by {reviewed_by}"
+    )
+
+
+def build_origin_discovery_command(
+    *,
+    company_key: str,
+    target_location: str,
+    reviewed_by: str,
+) -> str:
+    return (
+        "python -m scripts.run_origin_source_discovery_agent "
+        f"--company-key {company_key} "
+        f"--target-location {target_location} "
+        f"--reviewed-by {reviewed_by} "
+        "--official-domain-provider wikidata "
+        "--search-provider tavily "
+        "--search-query-limit 4 "
+        "--search-max-results 5"
     )
 
 
@@ -327,6 +346,22 @@ def classify_queue_item(
             ),
             priority=37,
             command=build_stopper_reassessment_command(
+                company_key=candidate.company_key,
+                target_location=target_location,
+                reviewed_by=reviewed_by,
+            ),
+        )
+
+    if not str(candidate.candidate_url or "").strip():
+        return QueueItem(
+            candidate=candidate,
+            next_action="run_origin_source_discovery",
+            reason=(
+                "candidate has no persisted employer-origin URL; read-only origin discovery "
+                "must run before preconnector gates that require candidate_url"
+            ),
+            priority=32,
+            command=build_origin_discovery_command(
                 company_key=candidate.company_key,
                 target_location=target_location,
                 reviewed_by=reviewed_by,
