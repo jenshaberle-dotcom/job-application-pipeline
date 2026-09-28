@@ -525,7 +525,7 @@ export default function F5ApplicationTracking({
 
   return <section className="f5-tracking-shell" aria-label="Mailbox-first application tracking">
     <header className="f5-tracking-head">
-      <div><span>F5 · Mailbox Application Tracking</span><h2>Bewerbungen</h2><p>Die Mailbox entdeckt und verfolgt Bewerbungen. Unsichere Signale landen in Prüfen; autoritative Korrekturen bleiben separat.</p></div>
+      <div><span>Bewerbungsstatus · Mailbox-gestützt</span><h2>Bewerbungen</h2><p>Die Mailbox entdeckt und verfolgt Bewerbungen. Unsichere Signale landen in Prüfen; autoritative Korrekturen bleiben separat.</p></div>
       <div className="f5-summary-pills"><b>{tracking.summary.application_count}<small>gesamt</small></b><b>{tracking.summary.mailbox_discovered_count || 0}<small>aus Mailbox</small></b><b className={tracking.summary.attention_count ? "attention" : ""}>{tracking.summary.attention_count}<small>prüfen</small></b></div>
     </header>
 
@@ -580,7 +580,7 @@ export default function F5ApplicationTracking({
             <span className="f5-expand-indicator" aria-hidden="true">{expanded ? "⌃" : "⌄"}</span>
           </button>
           {expanded && <div className="f5-expanded-body">
-            <div className="f5-card-head"><div><span>{employer}</span><h3>{jobTitle}</h3><small>{application.silver_job_id != null ? "Mit JAP-Job verknüpft" : projectedLink ? "Exakt read-only einem JAP-Job zugeordnet" : "Außerhalb JAP entdeckt"}</small></div><b className={`f5-stage-badge ${application.effective_stage}`}>{stageLabel[application.effective_stage]}</b></div>
+            <div className="f5-card-head"><div><span>{employer}</span><h3>{jobTitle}</h3><small>{application.silver_job_id != null ? "Mit JAP-Job verknüpft" : projectedLink ? "Exakt read-only einem JAP-Job zugeordnet" : "Außerhalb JAP entdeckt"}</small></div></div>
             <StageStrip stage={application.effective_stage} />
             <div className="f5-card-meta"><span><small>Zuletzt beobachtet</small>{formatDate(application.observed_at || application.discovered_at)}</span><span><small>Signal</small>{application.observed_event_class || "—"}</span><span><small>Evidence</small>{application.attention_candidate_count ? `${application.attention_candidate_count} prüfen · ${totalEvidence} gesamt` : totalEvidence ? `${totalEvidence} qualifiziert` : "keine"}</span></div>
             <div className="f5-job-meta">
