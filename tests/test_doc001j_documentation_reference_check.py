@@ -82,3 +82,22 @@ def test_doc001j_ignores_dependency_markdown_below_node_modules(tmp_path: Path) 
 
     assert report.checked_markdown_files == 1
     assert report.unresolved_count == 0
+
+
+def test_doc001j_ignores_generated_runtime_markdown(tmp_path: Path) -> None:
+    _write(tmp_path / "docs" / "README.md", "# Docs\n")
+    _write(
+        tmp_path
+        / ".runtime"
+        / "local-oss-sites"
+        / "fixture"
+        / "dependency"
+        / "ai"
+        / "best_practices.md",
+        "# Generated dependency docs\n\nSee `docs/grammar.md`.\n",
+    )
+
+    report = collect_documentation_references(tmp_path)
+
+    assert report.checked_markdown_files == 1
+    assert report.unresolved_count == 0
