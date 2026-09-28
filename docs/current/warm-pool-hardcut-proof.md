@@ -2,7 +2,7 @@
 
 Date: 2026-09-28. Scope: JAP Classic repository candidate, not live host state.
 Starting hardcut: `7d10b0b992fce98035b0cc78710547fd71d6ff07`.
-Integrated main: `c0e3002db601289592eddd28ef96225ddc992476`.
+Integrated hardcut main: `857534c4983398202714c83387af121d1e92115a`.
 
 ## Three scan rounds
 
@@ -51,8 +51,10 @@ and five authoritative Top-5 jobs remain unproven.
 Inspection of RCC `main` on 2026-09-28 found a contract mismatch. Its current
 production adapter still requires a consumer-owned allocation contract and the
 older PR-validation dispatch shape. That external mismatch does not justify
-retaining stale allocation authority inside JAP. It gates live workload execution,
-not the repository hardcut merge. The remaining interface gaps are:
+retaining stale allocation authority inside JAP. It gates **RCC-dispatched**
+workload execution, not the repository hardcut merge and not an explicit local
+operator invocation of the generic Product cohort. The remaining RCC interface
+gaps are:
 
 | Boundary | RCC production adapter | JAP assessment workload |
 | --- | --- | --- |
@@ -64,9 +66,11 @@ not the repository hardcut merge. The remaining interface gaps are:
 
 These must be reconciled in the shared RCC handoff before dispatch. Do not restore
 consumer allocation, old trigger files or a second scheduler to make the interfaces
-appear compatible. The host execution and runtime-context qualification remain required.
-Release publication also requires an RCC-assigned Windows workload; a version
-bump alone currently publishes nothing.
+appear compatible. The host execution and runtime-context qualification remain required for RCC
+automation. JAP Classic's explicit local assessment action is not runner authority:
+it owns no allocation, scheduler or dispatch path and validates the cohort report
+before accepting its result. Release publication still requires an RCC-assigned
+Windows workload; a version bump alone currently publishes nothing.
 
 ## Product acceptance follow-up
 
@@ -74,7 +78,10 @@ The assessment report now counts complete/passed/rankable jobs only within its
 selected current Employer-Origin cohort, rejects duplicate selected identities,
 and rejects duplicate Top-5 identities or non-contiguous ranks. A failed nested
 authority also fails the read-only plan instead of allowing the workflow to apply.
-One Product payload supplies the postflight projections.
+One Product payload supplies the postflight projections. The Control Center now has
+an explicit local operator action that invokes this same generic cohort with fixed
+10/5/15 targets and refuses report drift such as provider use, direct rank/Top-5
+writes, numeric Candidate Fit or a combined Fit/Affinity score.
 
 Targeted validation: 19 tests passed across cohort behavior, workflow contract and
 repository-wide retired-authority guards. The original 3812-test full-suite result
