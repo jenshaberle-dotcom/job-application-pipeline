@@ -165,7 +165,7 @@ type ProductPayload = {
   };
 };
 
-type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "approvals" | "operations";
+type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "operations";
 type JobFilter = "unreviewed" | "interesting" | "not_relevant" | "rankable" | "applied" | "all";
 type JobSort =
   | "newest"
@@ -1018,11 +1018,6 @@ function Sources({ payload }: { payload: ProductPayload }) {
   </div>;
 }
 
-function Approvals({ payload }: { payload: ProductPayload }) {
-  const waiting = payload.source_connector_overview.sources.filter((source) => source.current_blocker === "final_approval_incomplete");
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Human authority</span><h1>Approvals</h1><p>Only real authority decisions belong here. Technical work stays in Sources.</p></div><strong className="ow-big-count">{waiting.length}</strong></header><section className="ow-approval-grid"><article className="ow-card"><h2>{waiting.length ? "Final source approvals" : "Nothing waiting"}</h2>{waiting.length ? waiting.map((source) => <div className="ow-approval-row" key={source.source_name}><span><b>{source.source_label}</b><small>{source.next_action}</small></span><Status value="approval_required" /></div>) : <p className="ow-muted">No source approval decision is currently waiting.</p>}</article><article className="ow-card"><h2>Product-level gates</h2>{payload.operator_blockers.length ? payload.operator_blockers.map((blocker) => <div className="ow-approval-row" key={blocker.code}><span><b>{blocker.title}</b><small>{blocker.detail}</small></span></div>) : <p className="ow-muted">No product-level approval blocker.</p>}</article></section></div>;
-}
-
 function Operations({ payload }: { payload: ProductPayload }) {
   const overview = payload.source_connector_overview.summary;
   const stages: Array<[string, number]> = [["Known", overview.source_count], ["Implemented", overview.implemented_count], ["Validated", overview.validated_count], ["Approved", overview.final_approved_count], ["Registered", overview.registered_count], ["Active", overview.active_count], ["Ingested", overview.ingested_count]];
@@ -1078,7 +1073,7 @@ export default function OperatorWorkspace() {
           <button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button>
         </div>
       </header>
-      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} onOpenApplication={openApplication} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} focusApplicationId={selectedApplicationId} onOpenJob={openJob} onSelectApplication={setSelectedApplicationId} refresh={refresh} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
+      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} onOpenApplication={openApplication} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} focusApplicationId={selectedApplicationId} onOpenJob={openJob} onSelectApplication={setSelectedApplicationId} refresh={refresh} />}{view === "sources" && <Sources payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
 }
