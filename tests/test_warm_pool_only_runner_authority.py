@@ -70,7 +70,9 @@ def test_project_owned_runner_allocation_contract_is_physically_absent() -> None
 
     profile = json.loads(PROFILE.read_text(encoding="utf-8"))
     assert profile["profile_id"] == "jap-general-linux-warm"
-    assert profile["runner_labels"] == []
+    assert "runner_labels" not in profile
+    assert "runner_role" not in profile
+    assert "routing_group" not in profile
     assert profile["profile_hash"] == (
         "1419b2268a4daad29640a5871727da63dcb78f96c50e390f16e783228889f14e"
     )
