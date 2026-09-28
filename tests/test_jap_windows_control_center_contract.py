@@ -169,8 +169,11 @@ def test_stop_path_is_managed_pid_only() -> None:
     runner = _text(WSL_RUNNER)
     assert "--stop" in windows
     assert "managed_pid" in runner
+    assert "current_generation_pid" in runner
     assert '"/proc/$pid/cmdline"' in runner
     assert "scripts/run_product_v1_live_demo.py" in runner
+    assert "JAP_WINDOWS_APP_PRIOR_GENERATION_RUNTIME=STOPPING" in runner
+    assert "JAP_WINDOWS_APP_PRIOR_GENERATION_RUNTIME=STOPPED" in runner
     assert 'kill "$pid"' in runner
     assert "pkill" not in runner
     assert "killall" not in runner
