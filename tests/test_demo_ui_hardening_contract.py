@@ -20,6 +20,19 @@ def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile
     assert "Affinity" in source
 
 
+def test_top5_keeps_candidate_fit_separate_from_affinity() -> None:
+    source = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+    css = (FRONTEND / "operator-workspace-v2.css").read_text(encoding="utf-8")
+
+    assert "Only current jobs with verified Candidate Fit and ranking evidence appear here." in source
+    assert "Affinity stays visible as a separate preference signal." in source
+    assert '<span className="ow-top5-fit">{candidateFitText(job)}</span>' in source
+    assert '<span className="ow-top5-affinity"><small>Affinity</small>' in source
+    assert "after Candidate Fit and the normal ranking gates are verified" in source
+    assert ".ow-top5-fit" in css
+    assert ".ow-top5-affinity" in css
+
+
 def test_every_job_table_heading_is_a_sort_control_and_gate_stays_in_grid() -> None:
     source = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
     css = (FRONTEND / "operator-demo-hardening.css").read_text(encoding="utf-8")
@@ -439,7 +452,7 @@ def test_demo_user_language_hides_internal_readiness_and_template_terms() -> Non
     assert "Search setup" in operator
     assert "This source is currently ready to use." in operator
     assert "Search profiles" not in operator
-    assert "Only current jobs with verified fit and ranking evidence appear here." in operator
+    assert "Only current jobs with verified Candidate Fit and ranking evidence appear here." in operator
     assert "Ready to rank" in operator
     assert "Shown in All Jobs" in operator
 
