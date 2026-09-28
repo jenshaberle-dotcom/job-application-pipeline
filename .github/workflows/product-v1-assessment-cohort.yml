@@ -46,7 +46,6 @@ jobs:
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
-      RCC_RUNNER_NAME: job-pipeline-runtime-linux
       RCC_RESERVATION_ID: ${{ inputs.reservation_id }}
       RCC_PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
       RCC_FACADE_RUNNER: ${{ inputs.facade_runner }}
@@ -100,9 +99,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_FACADE_RUNNER}.json}"
           test -f "$context_file"
-          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_RUNNER_NAME" <<'PY'
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_FACADE_RUNNER" <<'PY'
           import json
           import sys
           from pathlib import PurePosixPath
