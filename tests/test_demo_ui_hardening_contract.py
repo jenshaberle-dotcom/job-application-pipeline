@@ -36,6 +36,9 @@ def test_top5_keeps_candidate_fit_separate_from_affinity() -> None:
     assert 'confirmation: "evaluate_current_jobs"' in source
     assert "Evaluate current jobs" in source
     assert "Candidate Fit &amp; Top 5" in source
+    assert "fit_blocker_counts?: Record<string, number>" in source
+    assert "Missing fit evidence —" in source
+    assert "fitFactorLabel[factor]" in source
     assert ".ow-top5-header-actions" in css
 
 
