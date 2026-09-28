@@ -19,6 +19,7 @@ def candidate(
     company_key: str = "hdi",
     status: str = "candidate",
     candidate_id: int = 1,
+    candidate_url: str | None = "https://careers.example.test/jobs",
 ) -> CandidateSummary:
     return CandidateSummary(
         candidate_id=candidate_id,
@@ -34,6 +35,7 @@ def candidate(
         manual_review_gate_count=0,
         passed_gate_count=0,
         total_gate_count=0,
+        candidate_url=candidate_url,
     )
 
 
@@ -102,6 +104,63 @@ def test_lifecycle_passed_active_candidate_is_monitor_only() -> None:
 
     assert item.next_action == "monitor_source_lifecycle"
     assert item.command is None
+
+
+def test_missing_url_does_not_override_active_controlled_lifecycle_authority() -> None:
+    item = classify_queue_item(
+        candidate(
+            "finanz_informatik",
+            status="active_controlled",
+            candidate_url=None,
+        ),
+        {},
+        target_location="hannover",
+        reviewed_by="product-v1-audit",
+        allow_repair=False,
+    )
+
+    assert item.next_action == "run_source_lifecycle_tracking"
+
+
+def test_missing_url_does_not_override_blocked_stop_boundary() -> None:
+    blocked = CandidateSummary(
+        **{
+            **candidate("ratiodata", candidate_url=None).__dict__,
+            "status": "abort_documented",
+            "risk_level": "blocked",
+        }
+    )
+    item = classify_queue_item(
+        blocked,
+        {},
+        target_location="hannover",
+        reviewed_by="product-v1-audit",
+        allow_repair=True,
+    )
+
+    assert item.next_action == "run_pipeline_stop_reassessment"
+
+
+def test_missing_candidate_url_routes_to_read_only_origin_discovery_before_preconnector() -> None:
+    item = classify_queue_item(
+        candidate(
+            "technische_informationsbibliothek_tib",
+            status="discovery",
+            candidate_url=None,
+        ),
+        {},
+        target_location="hannover",
+        reviewed_by="product-v1-audit",
+        allow_repair=False,
+    )
+
+    assert item.next_action == "run_origin_source_discovery"
+    assert item.priority == 32
+    assert item.command is not None
+    assert "scripts.run_origin_source_discovery_agent" in item.command
+    assert "--official-domain-provider wikidata" in item.command
+    assert "--search-provider tavily" in item.command
+    assert "run_employer_origin_agent_chain" not in item.command
 
 
 def test_blocked_detail_evidence_without_repair_is_manual_review_stop() -> None:
