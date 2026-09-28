@@ -589,11 +589,11 @@ export default function ApplicationWorkspace() {
   return <div className="demo-application-backdrop" role="presentation" onMouseDown={(event) => {
     if (event.currentTarget === event.target) setOpen(false);
   }}>
-    <section className="demo-application-workspace" role="dialog" aria-modal="true" aria-label="Application Workspace">
+    <section className="demo-application-workspace" role="dialog" aria-modal="true" aria-label="Application Builder">
       <header className="demo-application-header">
         <div>
           <span className="demo-eyebrow">Application Builder</span>
-          <h1>Application Workspace</h1>
+          <h1>Application Builder</h1>
           <p>The job you selected stays the application target. Change it only explicitly.</p>
         </div>
         <button type="button" className="demo-close" onClick={() => { setChooserOpen(false); setOpen(false); }}>×</button>
@@ -618,7 +618,7 @@ export default function ApplicationWorkspace() {
         <main className="demo-application-main">
           {selectedJob && <section className="demo-selected-job">
             <div className="demo-selected-copy">
-              <span className="demo-eyebrow">{selectedJob.product_rank ? "Selected Top-5 recommendation" : "Operator-selected current job"}</span>
+              <span className="demo-eyebrow">{selectedJob.product_rank ? "Selected Top-5 recommendation" : "Selected current job"}</span>
               <h2>{selectedJob.title}</h2>
               <p>{selectedJob.company_name} · {selectedJob.city || "Location unconfirmed"}</p>
             </div>
@@ -675,7 +675,7 @@ export default function ApplicationWorkspace() {
           {!selectedJob && <div className="demo-error"><b>Exact target unavailable</b><span>The requested job is no longer selectable. Close this workspace and choose another job from All jobs.</span></div>}
 
           {loading && <div className="demo-loading">Loading the current vacancy, your profile evidence and source documents…</div>}
-          {error && <div className="demo-error"><b>Fail closed</b><span>{error}</span></div>}
+          {error && <div className="demo-error"><b>Cannot continue safely</b><span>{error}</span></div>}
 
           {!loading && workspace && <div className="demo-application-grid">
             <article className="demo-workspace-card demo-context-card">
@@ -789,8 +789,8 @@ export default function ApplicationWorkspace() {
                 <div className="demo-drafting-telemetry">
                   <span>{codexStatus?.model || "gpt-5.6-sol"} · reasoning {codexStatus?.reasoning_effort || "high"}</span>
                   <span>{(draftProgress?.provider_request || 0) > 0
-                    ? `Provider request ${draftProgress?.provider_request}/${draftProgress?.provider_request_limit || 3}`
-                    : "Provider request pending"}</span>
+                    ? `AI drafting pass ${draftProgress?.provider_request}/${draftProgress?.provider_request_limit || 3}`
+                    : "AI drafting ready"}</span>
                   <span>Elapsed {draftElapsedLabel}</span>
                 </div>
                 <small
@@ -850,7 +850,7 @@ export default function ApplicationWorkspace() {
                   {draft.draft_mode === "codex_embedded_v1"
                     ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · reasoning {draft.codex_reasoning_effort || codexStatus?.reasoning_effort || "configured"} · {draft.codex_version || "version unavailable"} · current CV + current letter + vacancy</small></div></div>
                     : <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>}
-                  <footer><span>Codex/provider requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>Layout repairs: {draft.layout_repair_attempts ?? 0} Codex · {draft.automatic_layout_repairs?.length ?? 0} safe local</span><span>Semantic repairs: {draft.automatic_semantic_repairs?.length ?? 0} safe local</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
+                  <footer><span>AI requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>Layout checks: {draft.layout_repair_attempts ?? 0} AI · {draft.automatic_layout_repairs?.length ?? 0} local</span><span>Content checks: {draft.automatic_semantic_repairs?.length ?? 0}</span><span>Submission actions: {draft.submission_writes ?? 0}</span><span>Email send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
               </> : <div className="demo-empty-draft">
                 <strong>Document generation is review-first.</strong>
