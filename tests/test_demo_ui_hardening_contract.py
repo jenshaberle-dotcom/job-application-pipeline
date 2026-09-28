@@ -10,7 +10,7 @@ def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile
 
     assert "Role affinity · preliminary" in source
     assert "More job-detail evidence is needed before this can become Candidate Fit or a ranking score." in source
-    assert "authoritative Product score" in source
+    assert "verified match score" in source
     assert "Candidate fit" in source
     assert "Fit evidence" in source
     assert "Needs capability evidence" in source or "capability evidence" in source
@@ -66,6 +66,10 @@ def test_sources_separate_delivery_zero_yield_sensors_and_attention() -> None:
     assert "Not connected" in source
     assert "ow-source-summary-strip" in source
     assert "ow-source-group-title" in source
+    assert "jobs on last check" in source
+    assert "ow-source-row-state" in source
+    assert "<small>{source.source_name}</small>" not in source
+    assert "No action needed" in source
 
 
 def test_data_layers_waits_for_workspace_with_mutation_observer() -> None:
@@ -78,12 +82,16 @@ def test_data_layers_waits_for_workspace_with_mutation_observer() -> None:
     assert "window.setTimeout(bindRoots, 50)" not in source
 
 
-def test_application_workspace_is_f6_template_authoritative_and_has_no_legacy_download_renderer() -> None:
+def test_application_workspace_keeps_verified_template_semantics_without_internal_ui_jargon() -> None:
     source = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
-    assert "F6 template authority" in source
-    assert "PDF remains exact template authority" in source
-    assert "current CV, current application letter and exact vacancy together" in source
+    assert "template_authority?:" in source
+    assert "JAP keeps the PDF layout fixed" in source
+    assert "Drafting used the current CV, current cover letter and exact vacancy together." in source
+    assert "Document templates" in source
+    assert "Document generation is review-first." in source
+    assert "F6 template authority" not in source
+    assert "PDF remains exact template authority" not in source
     assert "template_bound_renderer_pending" not in source
     assert "downloadDraftFile" not in source
     assert 'key === "cv_docx"' not in source
@@ -215,7 +223,7 @@ def test_selected_job_is_exact_live_revalidated_and_closed_truth_refreshes_ui() 
 def test_all_jobs_is_the_current_employer_origin_review_scope() -> None:
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
-    assert '["all", "All jobs"]' in operator
+    assert '["all", "All Jobs"]' in operator
     assert '["current", "Current"]' not in operator
     assert "jobs: payload.job_readiness.length" in operator
     assert "Current employer-origin vacancies only." in operator
@@ -226,7 +234,9 @@ def test_application_workspace_separates_live_vacancy_from_employer_origin_autho
     workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
     assert "Live vacancy verified" in workspace
-    assert "Employer-Origin authority" in workspace
+    assert "Employer source" in workspace
+    assert "Verification required" in workspace
+    assert "Employer-Origin authority" not in workspace
     assert "Employer-origin verified" not in workspace
     assert "workspace?.workspace?.target?.employer_origin_authorized === true" in workspace
 
@@ -296,7 +306,8 @@ def test_active_application_workspace_has_product_identity_not_demo001_branding(
 
     assert "DEMO-001" not in workspace
     assert "DemoApplicationWorkspace" not in workspace
-    assert "PRODUCT V1 · APPLICATION" in workspace
+    assert "Application Builder" in workspace
+    assert "PRODUCT V1 · APPLICATION" not in workspace
     assert 'aria-label="Application preparation journey"' in workspace
     assert 'import ApplicationWorkspace from "./ApplicationWorkspace";' in main
     assert "<ApplicationWorkspace />" in main
