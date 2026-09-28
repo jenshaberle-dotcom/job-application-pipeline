@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from scripts.run_demo_001_rankable_refill_apply import _selected_candidates
-from scripts.run_demo_001_rankable_refill_scout import _authoritative_geography
+from scripts.run_product_v1_rankable_refill_apply import _selected_candidates
+from scripts.run_product_v1_rankable_refill_scout import _authoritative_geography
 from src.job_lifecycle_health import OUTCOME_SEEN_ACTIVE
 
 
@@ -33,7 +33,7 @@ def test_refill_selection_excludes_explicit_outside_germany_candidate() -> None:
 
 def test_refill_scout_persists_geography_gate_and_source_fields() -> None:
     source = open(
-        "scripts/run_demo_001_rankable_refill_scout.py",
+        "scripts/run_product_v1_rankable_refill_scout.py",
         encoding="utf-8",
     ).read()
 
@@ -130,7 +130,7 @@ def test_structured_germany_location_with_remote_work_model_qualifies() -> None:
 
 def test_scout_queries_persisted_origin_location_authority() -> None:
     source = open(
-        "scripts/run_demo_001_rankable_refill_scout.py",
+        "scripts/run_product_v1_rankable_refill_scout.py",
         encoding="utf-8",
     ).read()
 

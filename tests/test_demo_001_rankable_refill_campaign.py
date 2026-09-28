@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import scripts.run_demo_001_rankable_refill_campaign as campaign
+import scripts.run_product_v1_rankable_refill_campaign as campaign
 
 
 def _selected_rows() -> list[dict[str, object]]:
@@ -105,7 +105,7 @@ def test_materialization_apply_reuses_generic_insert_only_authority(
 
 def test_campaign_has_no_direct_assessment_or_ranking_sql() -> None:
     source = Path(
-        "scripts/run_demo_001_rankable_refill_campaign.py"
+        "scripts/run_product_v1_rankable_refill_campaign.py"
     ).read_text(encoding="utf-8").casefold()
 
     assert "insert into job_product_assessments" not in source
@@ -113,4 +113,4 @@ def test_campaign_has_no_direct_assessment_or_ranking_sql() -> None:
     assert "insert into gold_product_v1_top_jobs" not in source
     assert "update gold_product_v1_top_jobs" not in source
     assert "scripts.run_product_v1_assessment_materialization" in source
-    assert "scripts.run_demo_001_rankable_refill_apply" in source
+    assert "scripts.run_product_v1_rankable_refill_apply" in source
