@@ -60,8 +60,10 @@ def test_product_assessment_cohort_target_is_ten_evaluated_and_exact_five_top_jo
     assert 'int(final["rankable_job_count"]) >= args.top5_target' in runner
     assert 'int(final["top_job_count"]) == args.top5_target' in runner
 
-    assert "ASSESSMENT_COHORT_EVALUATED_TARGET_MUST_BE_TEN" in workflow
-    assert "ASSESSMENT_COHORT_TOP5_TARGET_MUST_BE_FIVE" in workflow
+    assert 'default: "10"' in workflow
+    assert 'default: "5"' in workflow
+    assert 'test "$EVALUATED_TARGET" = "10"' in workflow
+    assert 'test "$TOP5_TARGET" = "5"' in workflow
     assert "ASSESSMENT_COHORT_COMPLETE_FIT_LT_10" in workflow
     assert "ASSESSMENT_COHORT_TOP5_NOT_EXACTLY_5" in workflow
 
@@ -75,9 +77,11 @@ def test_product_assessment_cohort_has_readonly_plan_before_apply() -> None:
     assert plan < apply < prove
     assert 'PGOPTIONS="-c default_transaction_read_only=on"' in workflow
     assert "unset PGOPTIONS || true" in workflow
-    assert "<!-- jap-product-assessment-cohort:apply:v1 -->" in workflow
-    assert "github.event.issue.number == 1113" in workflow
-    assert "github.event.comment.author_association == 'OWNER'" in workflow
+    assert "workflow_dispatch:" in workflow
+    assert "Prove exact RCC reservation handoff" in workflow
+    assert "fromJSON(inputs.runs_on_json)" in workflow
+    assert 'test "$RUNNER_NAME" = "$RCC_FACADE_RUNNER"' in workflow
+    assert 'test "$RCC_FACADE_RUNNER" = "$RCC_PHYSICAL_RUNNER--jap"' in workflow
 
 
 def test_product_assessment_cohort_uses_rcc_runtime_and_not_public_pip_bootstrap() -> None:
