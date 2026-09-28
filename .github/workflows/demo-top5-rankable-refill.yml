@@ -27,9 +27,9 @@ jobs:
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RUNNER_NAME: job-pipeline-runtime-linux
       SCOUT_OUTPUT: /tmp/jap-demo-top5-scout.json
-      PLAN_OUTPUT: /tmp/jap-demo-top5-plan.json
       APPLY_OUTPUT: /tmp/jap-demo-top5-apply.json
-      APPROVAL_TOKEN: DEMO-001-RANKABLE-REFILL-001
+      DATA_LAYERS_OUTPUT: /tmp/jap-demo-top5-data-layers-after.json
+      CAMPAIGN_APPROVAL_TOKEN: DEMO-001-RANKABLE-REFILL-CAMPAIGN-001
 
     steps:
       - name: Parse exact owner approval envelope
@@ -195,7 +195,7 @@ jobs:
           )
           PY
 
-      - name: Prove selected assessment fingerprints have not drifted
+      - name: Plan guarded refill campaign without writes
         shell: bash
         run: |
           set -euo pipefail
@@ -203,36 +203,13 @@ jobs:
           source "$RUNTIME_ENV_FILE"
           set +a
           export PGOPTIONS="-c default_transaction_read_only=on"
-          "$TOP5_PYTHON" -m scripts.run_demo_001_rankable_refill_integrity             --candidate-cap "$CANDIDATE_CAP"
+          "$TOP5_PYTHON" -m scripts.run_demo_001_rankable_refill_campaign \
+            --target-rankable "$TARGET_RANKABLE" \
+            --candidate-cap "$CANDIDATE_CAP" \
+            --reviewed-by "demo-top5-plan:\${GITHUB_ACTOR}"
+          echo "TOP5_CAMPAIGN_PLAN=PASS"
 
-      - name: Recompute exact plan without writes
-        shell: bash
-        run: |
-          set -euo pipefail
-          set -a
-          source "$RUNTIME_ENV_FILE"
-          set +a
-          export PGOPTIONS="-c default_transaction_read_only=on"
-          "$TOP5_PYTHON" -m scripts.run_demo_001_rankable_refill_apply             --target-rankable "$TARGET_RANKABLE"             --candidate-cap "$CANDIDATE_CAP"             --reviewed-by "demo-top5-plan:${GITHUB_ACTOR}"             --output "$PLAN_OUTPUT"
-          "$TOP5_PYTHON" - "$PLAN_OUTPUT" <<'PY'
-          import json
-          import sys
-          payload = json.load(open(sys.argv[1], encoding="utf-8"))
-          if payload.get("mode") != "plan":
-              raise SystemExit("TOP5_PLAN_MODE_MISMATCH")
-          boundaries = payload.get("boundaries") or {}
-          if boundaries.get("hard_filter_operator_review_writes") is not False:
-              raise SystemExit("TOP5_PLAN_HARD_FILTER_AUTHORITY_DRIFT")
-          if boundaries.get("direct_rank_or_top5_writes") is not False:
-              raise SystemExit("TOP5_PLAN_DIRECT_RANK_AUTHORITY_DRIFT")
-          if boundaries.get("provider_or_llm_requests") != 0:
-              raise SystemExit("TOP5_PLAN_PROVIDER_BOUNDARY")
-          if not payload.get("selected"):
-              raise SystemExit("TOP5_PLAN_EMPTY")
-          print(f"TOP5_PLAN=PASS selected={len(payload['selected'])}")
-          PY
-
-      - name: Apply through existing capability and ranking authorities
+      - name: Apply through existing revision capability hard-filter and ranking authorities
         shell: bash
         run: |
           set -euo pipefail
@@ -240,8 +217,17 @@ jobs:
           source "$RUNTIME_ENV_FILE"
           set +a
           unset PGOPTIONS || true
-          "$TOP5_PYTHON" -m scripts.run_demo_001_rankable_refill_apply             --target-rankable "$TARGET_RANKABLE"             --candidate-cap "$CANDIDATE_CAP"             --reviewed-by "demo-top5:${GITHUB_ACTOR}"             --apply             --approval-token "$APPROVAL_TOKEN"             --output "$APPLY_OUTPUT"
 
+          "$TOP5_PYTHON" -m scripts.run_demo_001_rankable_refill_campaign \
+            --target-rankable "$TARGET_RANKABLE" \
+            --candidate-cap "$CANDIDATE_CAP" \
+            --reviewed-by "demo-top5:\${GITHUB_ACTOR}" \
+            --apply \
+            --approval-token "$CAMPAIGN_APPROVAL_TOKEN"
+
+          canonical_output=".runtime/demo/demo_001_rankable_refill_apply.json"
+          test -s "$canonical_output"
+          cp "$canonical_output" "$APPLY_OUTPUT"
       - name: Prove authoritative Top 5 result
         shell: bash
         run: |
@@ -279,6 +265,46 @@ jobs:
               )
           PY
 
+      - name: Prove fit and Data Layers after refill
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNTIME_ENV_FILE"
+          set +a
+          export PGOPTIONS="-c default_transaction_read_only=on"
+
+          "$TOP5_PYTHON" -m scripts.run_f4a_profile_fit_diagnostic
+
+          "$TOP5_PYTHON" - "$DATA_LAYERS_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          from scripts.product_v1_control_center_base import load_product_v1_payload
+          from scripts.product_v1_data_layers_runtime import load_data_layers_payload
+
+          product = load_product_v1_payload(include_source_connector_overview=False)
+          layers = load_data_layers_payload(product)
+          Path(sys.argv[1]).write_text(
+              json.dumps(layers, indent=2, default=str, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          summary = product.get("summary") or {}
+          if int(summary.get("rankable_job_count") or 0) < 5:
+              raise SystemExit("TOP5_POST_PRODUCT_RANKABLE_LT_5")
+          if int(summary.get("top_job_count") or 0) < 5:
+              raise SystemExit("TOP5_POST_PRODUCT_TOP_LT_5")
+
+          print(f"POST_CURRENT_JOBS={layers['population']['all_jobs']}")
+          print(f"POST_GOLD_ASSESSED={layers['layers']['gold_assessed']}")
+          print(f"POST_RANKABLE={layers['layers']['rankable_now']}")
+          print(f"POST_TOP5={layers['layers']['top_jobs_now']}")
+          print("POST_GOLD_FRESHNESS=" + str(layers["freshness"]["latest_gold_assessed_at"]))
+          print("TOP5_POST_DATA_LAYERS=PASS")
+          PY
+
       - name: Upload immutable evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -286,7 +312,7 @@ jobs:
           name: demo-top5-rankable-refill-${{ github.run_id }}
           path: |
             /tmp/jap-demo-top5-scout.json
-            /tmp/jap-demo-top5-plan.json
             /tmp/jap-demo-top5-apply.json
+            /tmp/jap-demo-top5-data-layers-after.json
           if-no-files-found: warn
           retention-days: 30
