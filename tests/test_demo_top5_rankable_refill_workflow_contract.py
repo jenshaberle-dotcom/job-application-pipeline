@@ -91,6 +91,8 @@ def test_demo_top5_refill_reuses_verified_rcc_python_without_pypi_bootstrap() ->
     assert "INTERPRETER_OUTSIDE_QUALIFIED_CHECKOUT" in text
     assert 'printf \'TOP5_PYTHON=%s\\n\'' in text
     assert "TOP5_RCC_PYTHON_IMPORTS=PASS" in text
+    assert "import scripts.run_demo_001_rankable_refill_scout" in text
+    assert "import scripts.run_demo_001_rankable_refill_campaign" in text
 
     assert "python3 -m venv" not in text
     assert "pip install --disable-pip-version-check -r requirements.txt" not in text
