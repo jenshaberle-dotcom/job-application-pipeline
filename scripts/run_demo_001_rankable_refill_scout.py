@@ -33,7 +33,10 @@ from src.search_intelligence.product_v1_application_context import (
     CandidateFactSnapshot,
     _job_references_for_fact,
 )
-from src.search_intelligence.product_v1_contenders import classify_role_title
+from src.search_intelligence.product_v1_contenders import (
+    classify_geography,
+    classify_role_title,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,6 +109,10 @@ def _load_rows(
                 readiness.silver_job_id,
                 readiness.company_name,
                 readiness.title,
+                readiness.city,
+                readiness.country,
+                readiness.work_model,
+                readiness.commute_minutes,
                 readiness.source_name,
                 readiness.source_url,
                 readiness.canonical_source_type,
@@ -175,6 +182,7 @@ def scout(
     for row in rows:
         silver_job_id = int(row["silver_job_id"])
         item: dict[str, object] = {str(key): value for key, value in row.items()}
+        geography = classify_geography(dict(row))
         item.update(
             {
                 "live_outcome": "unverifiable",
@@ -184,6 +192,9 @@ def scout(
                 "matched_capability_tags": [],
                 "candidate_fact_matches": [],
                 "role_relevant": classify_role_title(str(row.get("title") or "")) is not None,
+                "geography_bucket": geography.bucket,
+                "geography_reason": geography.reason,
+                "geography_eligible": geography.eligible_for_bounded_pool,
             }
         )
         try:
@@ -209,6 +220,7 @@ def scout(
         key=lambda item: (
             0 if item.get("live_outcome") == OUTCOME_SEEN_ACTIVE else 1,
             0 if item.get("role_relevant") else 1,
+            0 if item.get("geography_eligible") else 1,
             READINESS_PRIORITY.get(str(item.get("product_readiness_status") or ""), 9),
             -int(item.get("matched_fact_count") or 0),
             -len(item.get("matched_capability_tags") or []),
@@ -245,7 +257,9 @@ def main() -> int:
     strong = [
         row
         for row in live
-        if row["role_relevant"] and int(row["matched_fact_count"] or 0) > 0
+        if row["role_relevant"]
+        and row["geography_eligible"]
+        and int(row["matched_fact_count"] or 0) > 0
     ]
     payload = {
         "schema": "job_application_pipeline.demo_001_rankable_refill_scout.v1",
@@ -261,6 +275,7 @@ def main() -> int:
             "database_writes": False,
             "network_exact_detail_requests": len(rows),
             "provider_requests": 0,
+            "explicit_outside_germany_excluded": True,
             "capability_fit_authority_created": False,
             "hard_filter_authority_created": False,
             "ranking_authority_created": False,
@@ -283,8 +298,8 @@ def main() -> int:
         print(
             "CANDIDATE="
             f"{row['silver_job_id']}|{row['live_outcome']}|"
-            f"{row['product_readiness_status']}|facts={row['matched_fact_count']}|"
-            f"tags={','.join(row['matched_capability_tags'])}|"
+            f"{row['product_readiness_status']}|geo={row['geography_bucket']}|"
+            f"facts={row['matched_fact_count']}|tags={','.join(row['matched_capability_tags'])}|"
             f"{row['source_name']}|{row['company_name']}|{row['title']}|"
             f"{row['live_final_url'] or row['source_url']}"
         )
