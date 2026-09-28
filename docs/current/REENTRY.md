@@ -4,9 +4,9 @@ Updated for the 1.2.2 runner hard cut.
 
 ## Current product target
 
-JAP Classic 1.2.2 is not released yet.
+JAP Classic 1.2.2 is the current live-inspection/demo candidate. Publishing it does not itself prove the 10-to-5 Product target.
 
-Required product proof before the version bump:
+Required product proof before claiming the 1.2.2 Product target complete:
 
 1. all seven market sensors visible in Sources with verified discovery evidence;
 2. at least 10 current Employer-Origin jobs with complete Candidate Fit decisions;
@@ -137,5 +137,5 @@ Product sequence:
    into RCC must prove the replacement before this update channel is removed;
 5. install and run the operator smoke for Sources, All Jobs, Candidate Fit and Top 5.
 
-Do not increment VERSION or claim populated Top 5 until the live assessment report has
-`target_met=true`.
+Do not claim populated Top 5 or Product-target completion until the live assessment report has
+`target_met=true`. The 1.2.2 package may be published beforehand for exact-product live inspection.
