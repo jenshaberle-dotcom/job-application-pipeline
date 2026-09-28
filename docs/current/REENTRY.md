@@ -98,7 +98,7 @@ JAP Classic may run the same generic assessment cohort locally through the expli
 Control Center operator action `/api/v1/product-v1/assessment-cohort`. That path
 selects no runner, creates no scheduler and restores no repository allocation
 authority; it delegates only to the existing Candidate Fit, hard-filter and ranking
-authorities. Its child report must prove apply mode, exact 10/5/15 targets, zero
+authorities. Its child report must prove apply mode, exact 10/5/10 targets, zero
 provider requests, zero direct rank/Top-5 writes and no combined score before the
 Control Center accepts the result.
 
