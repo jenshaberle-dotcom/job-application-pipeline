@@ -17,7 +17,7 @@ jobs:
   diagnose:
     name: Read-only recurring ingestion diagnosis
     if: >-
-      ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+      ${{ vars.RCC_JAP_LEGACY_DIRECT_ASSIGNMENT_ALLOWED == 'true' && vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
           (
             (github.event_name == 'workflow_dispatch' &&
              github.ref == 'refs/heads/main') ||
