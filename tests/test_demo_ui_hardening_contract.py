@@ -9,7 +9,7 @@ def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile
     source = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
     assert "Role affinity · preliminary" in source
-    assert "Detail check required" in source
+    assert "More job-detail evidence is needed before this can become Candidate Fit or a ranking score." in source
     assert "authoritative Product score" in source
     assert "Candidate fit" in source
     assert "Fit evidence" in source
