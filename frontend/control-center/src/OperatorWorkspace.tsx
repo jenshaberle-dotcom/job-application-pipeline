@@ -779,7 +779,7 @@ function Jobs({
                 </span>
               : <span
                   className="ow-application-status none"
-                  title="No safe match exists between this JAP job and a known application. This does not mean 'not applied'."
+                  title="No safe match exists between this JAP job and a known application. This does not mean that no application was submitted."
                 >Unresolved</span>}
           </button>;
         })}
@@ -1028,7 +1028,7 @@ const navItems: Array<{ id: View; label: string; glyph: string }> = [
   { id: "overview", label: "Overall", glyph: "◉" },
   { id: "jobs", label: "All jobs", glyph: "≡" },
   { id: "top5", label: "Top 5", glyph: "★" },
-  { id: "application", label: "Application Prep", glyph: "↗" },
+  { id: "application", label: "Application Builder", glyph: "↗" },
   { id: "applications", label: "Application Tracker", glyph: "◎" },
   { id: "sources", label: "Sources", glyph: "⌁" },
   { id: "operations", label: "Operations", glyph: "⌘" },
