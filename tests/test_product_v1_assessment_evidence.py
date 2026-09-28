@@ -58,6 +58,36 @@ def test_extracts_source_grounded_hard_filter_evidence() -> None:
         assert reference.span_end > reference.span_start
 
 
+def test_required_language_phrases_are_detected_without_job_specific_rules() -> None:
+    english = _extract(description="English is required for this position.")
+    german = _extract(description="Deutschkenntnisse mindestens C1 werden erwartet.")
+
+    assert english.required_languages == ("en",)
+    assert english.assessment_patch()["language_evidence_status"] == "observed"
+    assert german.required_languages == ("de",)
+    assert german.assessment_patch()["language_evidence_status"] == "observed"
+
+
+def test_common_language_skill_wording_is_detected() -> None:
+    pair = _extract(
+        description="German and English language skills are part of the requirements."
+    )
+    german = _extract(description="Gute Deutschkenntnisse werden vorausgesetzt.")
+    english = _extract(description="Good English language skills are required.")
+
+    assert pair.required_languages == ("de", "en")
+    assert german.required_languages == ("de",)
+    assert english.required_languages == ("en",)
+
+
+def test_german_std_per_week_is_numeric_weekly_hours_evidence() -> None:
+    evidence = _extract(description="Die Position umfasst 38 Std. pro Woche.")
+
+    assert evidence.weekly_hours_min == 38
+    assert evidence.weekly_hours_max == 38
+    assert evidence.assessment_patch()["weekly_hours_evidence_status"] == "observed"
+
+
 def test_distinct_weekly_hours_observations_still_fail_closed() -> None:
     evidence = _extract(
         description=(

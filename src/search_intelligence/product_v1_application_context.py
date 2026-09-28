@@ -302,6 +302,14 @@ def _normalize_capability_tag(value: str) -> str:
 
 
 def _tag_pattern(tag: str) -> re.Pattern[str]:
+    # Candidate capability tags remain exact semantic atoms, but common
+    # separators between the same atoms are orthographic variants rather than
+    # different capabilities: "machine-learning" == "machine learning".
+    if tag and tag[0] not in " ._/-" and tag[-1] not in " ._/-":
+        parts = [part for part in re.split(r"[\s._/-]+", tag) if part]
+        if len(parts) > 1:
+            body = r"[\s._/-]+".join(re.escape(part) for part in parts)
+            return re.compile(rf"(?<![\w]){body}(?![\w])", re.IGNORECASE)
     escaped = re.escape(tag).replace(r"\ ", r"\s+")
     return re.compile(rf"(?<![\w]){escaped}(?![\w])", re.IGNORECASE)
 

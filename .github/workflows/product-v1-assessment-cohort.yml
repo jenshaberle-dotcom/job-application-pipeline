@@ -22,7 +22,7 @@ on:
         type: string
       candidate_cap:
         required: true
-        default: "15"
+        default: "10"
         type: string
 
 permissions:
@@ -65,8 +65,7 @@ jobs:
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$EVALUATED_TARGET" = "10"
           test "$TOP5_TARGET" = "5"
-          test "$CANDIDATE_CAP" -ge 10
-          test "$CANDIDATE_CAP" -le 15
+          test "$CANDIDATE_CAP" = "10"
           printf 'RCC_ASSIGNED_RUNNER=%s\n' "$RUNNER_NAME" >> "$GITHUB_ENV"
           echo "ASSESSMENT_COHORT_RCC_HANDOFF=PASS facade=$RCC_EXPECTED_FACADE assignment=$RCC_ASSIGNMENT_LABEL runner=$RUNNER_NAME"
 

@@ -228,6 +228,16 @@ _LANGUAGE_PAIR_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
+        r"\b(?:german\s+(?:and|&)\s+english|english\s+(?:and|&)\s+german)"
+        r"(?:\s+language)?\s+skills?\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:deutsch[- ]?\s*(?:und|&)\s*englisch|englisch[- ]?\s*(?:und|&)\s*deutsch)"
+        r"(?:kenntnisse|\s+in\s+wort\s+und\s+schrift)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"\b(?:fließend(?:e[rsnm]?)?|verhandlungssicher(?:e[rsnm]?)?|sehr\s+gute[rsnm]?)\s+"
         r"(?:deutsch\s+(?:und|&)\s+englisch|englisch\s+(?:und|&)\s+deutsch)\b",
         re.IGNORECASE,
@@ -238,12 +248,18 @@ _LANGUAGE_PATTERNS = {
     "de": (
         re.compile(r"\b(?:fluent|business[- ]fluent|very good|excellent)\s+german\b", re.IGNORECASE),
         re.compile(r"\bgerman(?:\s+language)?(?:\s+skills?)?(?:\s+at)?(?:\s+level)?\s+(?:b2|c1|c2)\b", re.IGNORECASE),
-        re.compile(r"\b(?:fließend(?:e[rsnm]?)?|verhandlungssicher(?:e[rsnm]?)?|sehr\s+gute[rsnm]?)\s+deutsch(?:kenntnisse)?\b", re.IGNORECASE),
+        re.compile(r"\b(?:fließend(?:e[rsnm]?)?|verhandlungssicher(?:e[rsnm]?)?|sehr\s+gute[rsnm]?|gute[rsnm]?)\s+deutsch(?:kenntnisse)?\b", re.IGNORECASE),
+        re.compile(r"\bgute\s+deutschkenntnisse\b", re.IGNORECASE),
         re.compile(r"\bdeutsch(?:kenntnisse)?\s+(?:auf\s+)?(?:b2|c1|c2)[- ]?niveau\b", re.IGNORECASE),
+        re.compile(r"\bdeutsch(?:kenntnisse)?\s+(?:sind\s+)?(?:erforderlich|notwendig|vorausgesetzt)\b", re.IGNORECASE),
+        re.compile(r"\bdeutsch(?:kenntnisse)?[^.!?;]{0,40}\b(?:b2|c1|c2)\b", re.IGNORECASE),
     ),
     "en": (
-        re.compile(r"\b(?:fluent|business[- ]fluent|very good|excellent)\s+english\b", re.IGNORECASE),
+        re.compile(r"\b(?:fluent|business[- ]fluent|very good|good|excellent)\s+english\b", re.IGNORECASE),
+        re.compile(r"\bgood\s+english\s+(?:language\s+)?skills?\b", re.IGNORECASE),
         re.compile(r"\benglish(?:\s+language)?(?:\s+skills?)?(?:\s+at)?(?:\s+level)?\s+(?:b2|c1|c2)\b", re.IGNORECASE),
+        re.compile(r"\benglish(?:\s+language)?(?:\s+skills?)?\s+(?:is|are)\s+(?:required|mandatory|essential)\b", re.IGNORECASE),
+        re.compile(r"\b(?:required|mandatory|essential)\s+english(?:\s+language)?(?:\s+skills?)?\b", re.IGNORECASE),
         re.compile(r"\b(?:fließend(?:e[rsnm]?)?|verhandlungssicher(?:e[rsnm]?)?|sehr\s+gute[rsnm]?)\s+englisch(?:kenntnisse)?\b", re.IGNORECASE),
         re.compile(r"\benglisch(?:kenntnisse)?\s+(?:auf\s+)?(?:b2|c1|c2)[- ]?niveau\b", re.IGNORECASE),
     ),
@@ -278,12 +294,12 @@ _REQUIREMENTS_SENIORITY_PATTERNS = tuple(
 _WEEKLY_HOURS_PATTERNS = (
     re.compile(
         r"\b(?P<min>\d{1,2}(?:[.,]\d+)?)\s*(?:-|–|—|to|bis)\s*"
-        r"(?P<max>\d{1,2}(?:[.,]\d+)?)\s*(?:hours?|hrs?|stunden|wochenstunden)"
+        r"(?P<max>\d{1,2}(?:[.,]\d+)?)\s*(?:hours?|hrs?|std\.?|stunden|wochenstunden)"
         r"(?:\s*(?:per\s+week|weekly|pro\s+woche|wöchentlich|/\s*woche))?\b",
         re.IGNORECASE,
     ),
     re.compile(
-        r"\b(?P<single>\d{1,2}(?:[.,]\d+)?)\s*(?:hours?|hrs?|stunden)\s*"
+        r"\b(?P<single>\d{1,2}(?:[.,]\d+)?)\s*(?:hours?|hrs?|std\.?|stunden)\s*"
         r"(?:per\s+week|weekly|pro\s+woche|wöchentlich|/\s*woche)\b",
         re.IGNORECASE,
     ),

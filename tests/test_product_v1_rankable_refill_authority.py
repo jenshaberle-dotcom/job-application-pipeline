@@ -7,6 +7,7 @@ SCRIPTS = ROOT / "scripts"
 GENERIC = (
     "run_product_v1_rankable_refill_scout.py",
     "run_product_v1_rankable_refill_apply.py",
+    "run_product_v1_hard_filter_evidence_close.py",
     "run_product_v1_rankable_refill_campaign.py",
 )
 COMPAT = (
@@ -28,12 +29,21 @@ def test_generic_refill_authority_contains_no_demo_dependency() -> None:
         assert "DEMO_001_RANKABLE_REFILL" not in source
         assert "DEMO-001-RANKABLE-REFILL" not in source
 
-    assert "run_product_v1_rankable_refill_scout" in _text(
-        "run_product_v1_rankable_refill_apply.py"
-    )
+    apply = _text("run_product_v1_rankable_refill_apply.py")
+    assert "run_product_v1_rankable_refill_scout" in apply
+    assert "run_product_v1_hard_filter_evidence_close" in apply
+    assert "close_hard_filter_unknowns" in apply
     campaign = _text("run_product_v1_rankable_refill_campaign.py")
     assert "run_product_v1_rankable_refill_scout" in campaign
     assert "run_product_v1_rankable_refill_apply" in campaign
+
+    scout = _text("run_product_v1_rankable_refill_scout.py")
+    assert '"blocked_hard_filter": 3' in scout
+    assert "'blocked_hard_filter'" in scout
+
+
+def test_job_specific_demo_hard_filter_closer_is_physically_absent() -> None:
+    assert not (SCRIPTS / "run_demo_001_hard_filter_evidence_close.py").exists()
 
 
 def test_demo_entrypoints_are_compatibility_only() -> None:

@@ -80,26 +80,123 @@ def test_remote_job_can_match_country_while_regional_cities_remain_configured() 
     assert result["profile_fit_missing_factors"] == []
 
 
-def test_non_remote_job_still_requires_regional_city_when_country_is_also_allowed() -> None:
+def test_remote_country_can_come_from_structured_origin_location_sidecar() -> None:
     result = build_profile_fit_coverage(
         _row(
-            city="Berlin",
+            city="Remote",
+            country="",
+            work_model="remote",
+            commute_minutes=None,
+            origin_locations=[
+                {
+                    "city": "Berlin",
+                    "country_code": "DE",
+                    "is_primary": True,
+                    "evidence_source": "employer_origin",
+                }
+            ],
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.country.de",
+            "profile-fit.work-model.remote",
+            "profile-fit.commute.max-45",
+        ],
+    )
+
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == PASSED
+
+
+def test_commutable_region_can_use_sidecar_country_when_readiness_country_is_missing() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            city="Braunschweig",
+            country="",
+            work_model="hybrid",
+            commute_minutes=40,
+            origin_locations=[
+                {
+                    "city": "Braunschweig",
+                    "country_code": "DE",
+                    "is_primary": True,
+                    "evidence_source": "employer_origin",
+                }
+            ],
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.country.de",
+            "profile-fit.work-model.hybrid",
+            "profile-fit.commute.max-45",
+        ],
+    )
+
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == PASSED
+
+
+def test_non_anchor_city_can_pass_with_authoritative_commute_inside_country() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            city="Braunschweig",
             country="Germany",
             work_model="hybrid",
-            commute_minutes=20,
+            commute_minutes=40,
         ),
         candidate_preference_tags=[
             "profile-fit.city.hannover",
             "profile-fit.country.de",
             "profile-fit.work-model.remote",
             "profile-fit.work-model.hybrid",
+            "profile-fit.commute.max-45",
+        ],
+    )
+
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == PASSED
+
+
+def test_non_anchor_city_without_commute_evidence_remains_unknown() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            city="Braunschweig",
+            country="Germany",
+            work_model="hybrid",
+            commute_minutes=None,
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.country.de",
+            "profile-fit.work-model.hybrid",
+            "profile-fit.commute.max-45",
+        ],
+    )
+
+    assert result["profile_fit_coverage_status"] == INSUFFICIENT_EVIDENCE
+    assert result["profile_fit_decision"] == "unknown"
+    assert result["profile_fit_factors"]["geography_work_model_commute"]["status"] == "unknown"
+
+
+def test_non_anchor_city_beyond_commute_limit_fails() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            city="Berlin",
+            country="Germany",
+            work_model="hybrid",
+            commute_minutes=180,
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.country.de",
+            "profile-fit.work-model.hybrid",
+            "profile-fit.commute.max-45",
         ],
     )
 
     assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
     assert result["profile_fit_decision"] == FAILED
     assert result["profile_fit_failed_factors"] == ["geography_work_model_commute"]
-
 
 def test_remote_job_outside_allowed_country_fails_even_if_city_scope_exists() -> None:
     result = build_profile_fit_coverage(

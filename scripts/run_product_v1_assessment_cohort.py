@@ -178,6 +178,14 @@ def _current_product_truth(
     top_ids = [int(row.get("silver_job_id") or 0) for row in top]
     if len(set(top_ids)) != len(top_ids) or any(job_id <= 0 for job_id in top_ids):
         top_violations.append({"reason": "invalid_or_duplicate_top_job_identity"})
+    outside_cohort = sorted(job_id for job_id in top_ids if job_id not in selected_ids)
+    if outside_cohort:
+        top_violations.append(
+            {
+                "reason": "top_job_outside_selected_assessment_cohort",
+                "silver_job_ids": outside_cohort,
+            }
+        )
     if sorted(int(row.get("product_rank") or 0) for row in top) != list(
         range(1, len(top) + 1)
     ):
@@ -252,7 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evaluated-target", type=int, default=10)
     parser.add_argument("--top5-target", type=int, default=5)
-    parser.add_argument("--candidate-cap", type=int, default=15)
+    parser.add_argument("--candidate-cap", type=int, default=10)
     parser.add_argument("--reviewed-by", default="jens")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
@@ -265,8 +273,8 @@ def main() -> int:
     _require(1 <= args.evaluated_target <= 25, "--evaluated-target must be between 1 and 25")
     _require(args.top5_target == 5, "--top5-target must be exactly 5")
     _require(
-        args.evaluated_target <= args.candidate_cap <= 15,
-        "--candidate-cap must be between evaluated-target and 15",
+        args.candidate_cap == args.evaluated_target,
+        "--candidate-cap must equal evaluated-target for the authoritative cohort",
     )
     reviewed_by = str(args.reviewed_by or "").strip()
     _require(bool(reviewed_by), "--reviewed-by must not be blank")
@@ -338,6 +346,7 @@ def main() -> int:
             "selection_requires_current_employer_origin": True,
             "selection_requires_exact_live_vacancy": True,
             "selection_requires_approved_candidate_fact_match": True,
+            "top5_must_be_subset_of_selected_ten": True,
             "candidate_fit_and_affinity_remain_separate": True,
             "numeric_candidate_fit_authority_created": False,
             "combined_score_authority_created": False,

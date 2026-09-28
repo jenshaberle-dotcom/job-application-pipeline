@@ -46,6 +46,8 @@ def test_product_assessment_cohort_keeps_fit_and_ranking_authorities_separate() 
     assert '"direct_top5_writes": False' in runner
     assert '"direct_rank_writes": False' in runner
     assert '"hard_filter_operator_auto_pass": False' in runner
+    assert '"top5_must_be_subset_of_selected_ten": True' in runner
+    assert '"top_job_outside_selected_assessment_cohort"' in runner
     assert '"candidate_fit_and_affinity_remain_separate": True' in runner
     assert '"numeric_candidate_fit_authority_created": False' in runner
     assert '"combined_score_authority_created": False' in runner
@@ -60,6 +62,8 @@ def test_product_assessment_cohort_target_is_ten_evaluated_and_exact_five_top_jo
 
     assert 'parser.add_argument("--evaluated-target", type=int, default=10)' in runner
     assert 'parser.add_argument("--top5-target", type=int, default=5)' in runner
+    assert 'parser.add_argument("--candidate-cap", type=int, default=10)' in runner
+    assert 'args.candidate_cap == args.evaluated_target' in runner
     assert 'int(final["profile_fit_complete_count"]) >= args.evaluated_target' in runner
     assert 'int(final["profile_fit_passed_count"]) >= args.top5_target' in runner
     assert 'int(final["rankable_job_count"]) >= args.top5_target' in runner
@@ -67,6 +71,9 @@ def test_product_assessment_cohort_target_is_ten_evaluated_and_exact_five_top_jo
 
     assert 'default: "10"' in workflow
     assert 'default: "5"' in workflow
+    assert 'candidate_cap:' in workflow
+    assert 'default: "10"' in workflow
+    assert 'test "$CANDIDATE_CAP" = "10"' in workflow
     assert 'test "$EVALUATED_TARGET" = "10"' in workflow
     assert 'test "$TOP5_TARGET" = "5"' in workflow
     assert "ASSESSMENT_COHORT_COMPLETE_FIT_LT_10" in workflow

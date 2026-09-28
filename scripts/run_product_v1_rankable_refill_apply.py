@@ -28,6 +28,9 @@ from psycopg.rows import dict_row
 
 from scripts import run_product_v1_capability_fit_review as capability_review
 from scripts import run_product_v1_ranking_score_review as ranking_review
+from scripts.run_product_v1_hard_filter_evidence_close import (
+    close_hard_filter_unknowns,
+)
 from scripts.run_product_v1_rankable_refill_scout import (
     _load_candidate_facts,
     _load_rows,
@@ -297,7 +300,8 @@ def main() -> int:
             for row in selected
         ],
         "capability_review_count": len(cap_requests),
-        "hard_filter_operator_reviews_created": 0,
+        "hard_filter_evidence_review_count": 0,
+        "hard_filter_evidence_reviews_inserted": 0,
         "ranking_review_count": 0,
         "final": None,
         "boundaries": {
@@ -306,7 +310,8 @@ def main() -> int:
             "explicit_outside_germany_excluded": True,
             "candidate_fact_mutation": False,
             "capability_fit_requires_approved_fact_and_exact_job_tag_match": True,
-            "hard_filter_operator_review_writes": False,
+            "hard_filter_evidence_review_writes": bool(args.apply),
+            "hard_filter_operator_auto_pass": False,
             "deterministic_hard_filter_override": False,
             "ranking_only_after_canonical_hard_filter_passed": True,
             "direct_rank_or_top5_writes": False,
@@ -349,6 +354,19 @@ def main() -> int:
         else:
             report["capability_changed"] = 0
             report["capability_unchanged"] = 0
+
+        hard_filter_close = close_hard_filter_unknowns(
+            selected_ids,
+            reviewed_by=reviewed_by,
+            apply=True,
+        )
+        report["hard_filter_evidence_close"] = _json_safe(hard_filter_close)
+        report["hard_filter_evidence_review_count"] = int(
+            hard_filter_close.get("review_count") or 0
+        )
+        report["hard_filter_evidence_reviews_inserted"] = int(
+            hard_filter_close.get("inserted") or 0
+        )
 
         with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
             hard_filter = _hard_filter_rows(conn, selected_ids)
@@ -410,6 +428,8 @@ def main() -> int:
                 f"employment={row['employment_status']}|languages={row['language_status']}|"
                 f"hours={row['weekly_hours_status']}|seniority={row['seniority_status']}"
             )
+        print(f"HARD_FILTER_EVIDENCE_REVIEWS={report['hard_filter_evidence_review_count']}")
+        print(f"HARD_FILTER_EVIDENCE_INSERTED={report['hard_filter_evidence_reviews_inserted']}")
         print(f"RANKING_CHANGED={report['ranking_changed']}")
         final = report["final"]
         print(f"TOTAL_RANKABLE={final['total_rankable']}")
@@ -424,10 +444,10 @@ def main() -> int:
             )
     else:
         print(f"CAPABILITY_PLAN={len(report.get('capability_plan') or [])}")
-        print("HARD_FILTER_OPERATOR_REVIEWS=0")
+        print("HARD_FILTER_EVIDENCE_REVIEWS_PREAUTHORIZED=0")
         print("RANKING_PREAUTHORIZED=0")
     print("PROVIDER_REQUESTS=0")
-    print("HARD_FILTER_OPERATOR_REVIEW_WRITES=0")
+    print("HARD_FILTER_OPERATOR_AUTO_PASS=0")
     print(f"artifact={args.output.resolve()}")
     print("PRODUCT_V1_RANKABLE_REFILL=COMPLETE")
     return 0
