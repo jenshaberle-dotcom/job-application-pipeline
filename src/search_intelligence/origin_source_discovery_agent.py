@@ -834,6 +834,22 @@ def assess_origin_candidate(
     if normalized is None:
         return OriginDiscoveryAssessment(candidate, None, None, None, None, 0.0, 0.0, 0.0, "reject", "blocked", ("invalid URL",))
 
+    disallowed_shape = has_disallowed_source_url_shape(normalized)
+    if disallowed_shape is not None:
+        return OriginDiscoveryAssessment(
+            candidate,
+            None,
+            normalized,
+            normalized,
+            urlparse(normalized).hostname,
+            0.0,
+            0.0,
+            0.0,
+            "reject",
+            "blocked",
+            (disallowed_shape,),
+        )
+
     parsed = urlparse(normalized)
     if parsed.scheme != "https":
         return OriginDiscoveryAssessment(candidate, None, normalized, normalized, parsed.hostname, 0.0, 0.0, 0.0, "reject", "high", ("HTTPS required",))
