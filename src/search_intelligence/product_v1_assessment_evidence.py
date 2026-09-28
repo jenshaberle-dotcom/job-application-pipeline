@@ -299,7 +299,7 @@ _WEEKLY_HOURS_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
-        r"\b(?P<single>\d{1,2}(?:[.,]\d+)?)\s*(?:hours?|hrs?|stunden)\s*"
+        r"\b(?P<single>\d{1,2}(?:[.,]\d+)?)\s*(?:hours?|hrs?|std\.?|stunden)\s*"
         r"(?:per\s+week|weekly|pro\s+woche|wöchentlich|/\s*woche)\b",
         re.IGNORECASE,
     ),
