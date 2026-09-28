@@ -119,8 +119,6 @@ jobs:
               "repository_identity",
               "checkout",
               "checkout_repository",
-              "env_file",
-              "env_keys",
               "interpreter",
               "interpreter_probe",
           }
@@ -129,22 +127,17 @@ jobs:
               raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
           checkout = context.get("CheckoutRoot")
           interpreter = context.get("Interpreter")
-          env_file = context.get("EnvFile")
           root = PurePosixPath(checkout)
           if root not in PurePosixPath(interpreter).parents:
               raise SystemExit("INTERPRETER_OUTSIDE_QUALIFIED_CHECKOUT")
-          if root not in PurePosixPath(env_file).parents:
-              raise SystemExit("ENV_OUTSIDE_QUALIFIED_CHECKOUT")
           print(interpreter)
-          print(env_file)
           PY
           )"
           mapfile -t values <<< "$context_output"
-          test "${#values[@]}" -eq 2
+          test "${#values[@]}" -eq 1
           test -x "${values[0]}"
-          test -s "${values[1]}"
           printf 'PR_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
-          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          printf 'PR_RUFF=%s\n' "$(dirname "${values[0]}")/ruff" >> "$GITHUB_ENV"
           echo "JAP_PR_RCC_RUNTIME=PASS runner=$RUNNER_NAME"
 
       - name: Prove qualified Python environment
@@ -152,19 +145,15 @@ jobs:
         run: |
           set -euo pipefail
           "$PR_PYTHON" -m pip check
-          "$PR_PYTHON" - <<'PY'
-          import pytest
-          import ruff
-          print("JAP_PR_PYTHON_ENV=PASS")
-          PY
+          "$PR_PYTHON" -m pytest --version
+          test -x "$PR_RUFF"
+          "$PR_RUFF" --version
+          echo "JAP_PR_PYTHON_ENV=PASS"
 
       - name: Run full pytest
         shell: bash
         run: |
           set -euo pipefail
-          set -a
-          source "$RUNTIME_ENV_FILE"
-          set +a
           "$PR_PYTHON" -m pytest -q
           echo "JAP_PR_PYTEST=PASS"
 
@@ -190,7 +179,7 @@ jobs:
             test -f "$path" && existing+=("$path")
           done
           if [ "${#existing[@]}" -gt 0 ]; then
-            "$PR_PYTHON" -m ruff check "${existing[@]}"
+            "$PR_RUFF" check "${existing[@]}"
           fi
           echo "JAP_PR_CHANGED_RUFF=PASS count=${#existing[@]}"
 
