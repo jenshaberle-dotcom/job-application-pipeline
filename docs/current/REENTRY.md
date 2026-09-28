@@ -57,8 +57,15 @@ This is local repository proof, not RCC live execution acceptance.
 Before merge/product execution, qualify a generic RCC handoff that accepts this
 repository's capability-only profile and exact assignment input contract.
 The inspected RCC main dispatcher still requires the removed consumer allocation
-contract. The inspected RCC hardcut dispatcher ends at its pre-dispatch boundary.
-Neither observation proves execution of the JAP assessment workload.
+contract and a PR-validation dispatch interface. RCC PR #671 moves the production
+control plane to a WSL-native host gate; it does not establish compatibility with
+this assessment workflow. See the exact gaps in the residual proof document.
+No RCC execution of the JAP assessment workload has been proven.
+
+The cohort acceptance now counts only selected, current Employer-Origin jobs.
+Failed Fit decisions count as evaluated, never passed. Duplicate Top-5 identities,
+non-contiguous ranks and failed plan authorities fail closed. These are local
+regression checks, not evidence that the live database meets the 10-to-5 target.
 
 Product sequence after that gate:
 

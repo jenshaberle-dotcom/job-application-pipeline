@@ -47,10 +47,34 @@ are introduced by this change.
 No database or live workload ran during this scan. Ten complete Fit decisions
 and five authoritative Top-5 jobs remain unproven.
 
-Inspection of RCC on 2026-09-28 found a contract mismatch: its main production
-adapter requires a consumer-owned allocation contract, while its hardcut branch
-adapter stops before activation/dispatch. The JAP workload requires an RCC
-reservation, ephemeral assignment and exact main source identity. Qualify their
-shared contract and execute via the actual RCC host before claiming live success.
+Inspection of RCC on 2026-09-28 found a contract mismatch. The current production
+adapter still requires a consumer-owned allocation contract. RCC PR #671 moves
+the control plane to a WSL-native operator gate, but does not resolve the following
+JAP interface gaps:
+
+| Boundary | RCC production adapter | JAP assessment workload |
+| --- | --- | --- |
+| Demand | consumer allocation slots and physical/facade inventory | capability-only profile |
+| Source | open PR head plus trusted workflow main | exact approved main |
+| Dispatch | expected ref/head, correlation and facade/assignment labels | reservation ID, selector JSON and source SHA |
+| Assignment | ephemeral proof-label format | ephemeral assignment-label format |
+| Run identity | correlation in workflow display title | no correlated run title yet |
+
+These must be reconciled in the shared RCC handoff before dispatch. Do not restore
+consumer allocation or add a second scheduler to make the interfaces appear
+compatible. The host execution and runtime-context qualification remain required.
 Release publication also requires an RCC-assigned Windows workload; a version
 bump alone currently publishes nothing.
+
+## Product acceptance follow-up
+
+The assessment report now counts complete/passed/rankable jobs only within its
+selected current Employer-Origin cohort, rejects duplicate selected identities,
+and rejects duplicate Top-5 identities or non-contiguous ranks. A failed nested
+authority also fails the read-only plan instead of allowing the workflow to apply.
+One Product payload supplies the postflight projections.
+
+Targeted validation: 19 tests passed across cohort behavior, workflow contract and
+repository-wide retired-authority guards. The original 3812-test full-suite result
+above belongs to the residual-proof baseline; no live database or runner effects
+were performed for this follow-up.
