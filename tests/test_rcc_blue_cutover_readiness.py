@@ -24,7 +24,6 @@ EXPECTED_ACTIVE_BLUE = {
     "p1-generic-origin-product-activate.yml",
     "p1-generic-origin-product-proof.yml",
     "p1-generic-origin-systematic-search.yml",
-    "product-v1-assessment-cohort.yml",
     "trusted-local-product-campaign.yml",
 }
 
