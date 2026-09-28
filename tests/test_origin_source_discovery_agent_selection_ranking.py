@@ -93,5 +93,8 @@ def test_ranking_rejects_static_asset_even_when_context_and_probe_look_career_li
     )
 
     assert result.selected_url == "https://www.jobs.ivv.de/"
-    rejected_urls = {item.normalized_url for item in result.rejected}
-    assert "https://jobs.ivv.de/templates/ivv_oevb/styles/base.css" in rejected_urls
+    assessed_urls = {
+        item.normalized_url
+        for item in (*result.alternatives, *result.rejected)
+    }
+    assert "https://jobs.ivv.de/templates/ivv_oevb/styles/base.css" not in assessed_urls
