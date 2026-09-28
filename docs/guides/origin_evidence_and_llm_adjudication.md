@@ -26,7 +26,7 @@ The evidence workload is an RCC-assigned workload. JAP defines the bounded evide
 The workload runs in this order:
 
 1. verify the immutable database snapshot and execute the Tavily benchmark;
-2. release the local PostgreSQL runtime lease;
+2. close the read-only snapshot transaction before external evidence requests;
 3. inspect at most the configured number of public HTTPS candidates;
 4. produce `origin-evidence-adjudication.json`;
 5. optionally call the OpenAI Responses API only within an explicit request and

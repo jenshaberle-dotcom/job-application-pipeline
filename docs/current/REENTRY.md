@@ -49,13 +49,23 @@ The remaining assessment-cohort workflow is a **workload target only**. It recei
 
 ## Current next gate
 
-Finish the three hard-cut deep scans and merge only when the residual scan proves that the JAP execution surface contains no old runner authority.
+The three residual scans are complete on the residual-proof candidate; see
+`docs/current/warm-pool-hardcut-proof.md` for scope, fixes and validation.
+Main changes through `c0e3002db601289592eddd28ef96225ddc992476` are integrated.
+This is local repository proof, not RCC live execution acceptance.
 
-After that:
+Before merge/product execution, qualify a generic RCC handoff that accepts this
+repository's capability-only profile and exact assignment input contract.
+The inspected RCC main dispatcher still requires the removed consumer allocation
+contract. The inspected RCC hardcut dispatcher ends at its pre-dispatch boundary.
+Neither observation proves execution of the JAP assessment workload.
 
-1. complete/use the generic RCC production handoff;
-2. run the 10→5 Product flight on exact JAP main;
-3. repair only reusable Product/evidence blockers;
-4. set VERSION to 1.2.2;
-5. rebuild release publication as an RCC-assigned Windows workload;
-6. install and run the operator smoke for Sources, All Jobs, Candidate Fit and Top 5.
+Product sequence after that gate:
+
+1. run the reusable 10→5 assessment workload on exact JAP main;
+2. repair reusable evidence blockers while retaining all Fit/hard-filter gates;
+3. verify the existing English Candidate Fit and Top 5 surfaces against live data;
+4. qualify RCC-assigned Windows publication before publishing version 1.2.2;
+5. install and run the operator smoke for Sources, All Jobs, Candidate Fit and Top 5.
+
+Do not increment VERSION or claim populated Top 5 from static/local tests.

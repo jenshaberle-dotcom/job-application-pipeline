@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import subprocess
 from pathlib import Path
 
 
@@ -25,32 +27,23 @@ def _forbidden_tokens() -> tuple[str, ...]:
         "rcc-general-linux-01" + "--jap",
         "RCC_" + "PHYSICAL_RUNNER",
         "RCC_" + "FACADE_RUNNER",
+        "origin_provider_" + "snapshot_runner",
+        "origin_" + "runtime_lease",
+        "origin_provider_" + "tools_checklist",
     )
 
 
 def _text_files() -> list[Path]:
-    roots = [
-        ROOT / ".github",
-        ROOT / ".rcc",
-        ROOT / "docs" / "current",
-        ROOT / "docs" / "planning" / "active",
-        ROOT / "scripts",
-        ROOT / "tests",
-    ]
-    result: list[Path] = []
-    for base in roots:
-        if not base.exists():
-            continue
-        for path in base.rglob("*"):
-            if path.is_file() and path.suffix.lower() in {
-                ".md", ".txt", ".json", ".yml", ".yaml", ".py", ".sh", ".ps1"
-            }:
-                result.append(path)
-    return result
+    # Git inventory includes root contracts, src, Windows assets and all docs,
+    # including archives. Generated files and local environments are not authority.
+    names = subprocess.check_output(
+        ["git", "ls-files", "-z"], cwd=ROOT
+    ).decode("utf-8").split("\0")
+    return [ROOT / name for name in names if name and (ROOT / name).is_file()]
 
 
 def test_jap_has_only_rcc_assigned_workload_target() -> None:
-    workflows = sorted(path.name for path in WORKFLOWS.glob("*.yml"))
+    workflows = sorted(path.name for path in WORKFLOWS.iterdir())
     assert workflows == ["product-v1-assessment-cohort.yml"]
 
     workflow = (WORKFLOWS / workflows[0]).read_text(encoding="utf-8")
@@ -83,7 +76,10 @@ def test_no_retired_runner_authority_survives_code_tests_or_current_docs() -> No
     tokens = _forbidden_tokens()
 
     for path in _text_files():
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeError:
+            continue
         for token in tokens:
             if token in text:
                 offenders.append(f"{path.relative_to(ROOT)}::{token}")
@@ -97,5 +93,27 @@ def test_daily_runtime_requires_rcc_reservation_and_ephemeral_assignment() -> No
     assert "RCC_RESERVATION_ID" in text
     assert "RCC_ASSIGNMENT_LABEL" in text
     assert "rcc-assignment-[0-9a-f]{32}" in text
-    assert "RCC_RUNTIME_RUNNER_NAME" in text
+    assert "RCC_ASSIGNED_RUNNER" in text
     assert "rcc-general-linux-0" not in text
+
+
+def test_registered_workloads_match_physical_workflows() -> None:
+    contract = json.loads((ROOT / "PROJECT-DRJ.json").read_text(encoding="utf-8"))
+    registered = contract["github_actions"]["managed_workflows"]
+    assert {entry["path"] for entry in registered} == {
+        str(path.relative_to(ROOT)) for path in WORKFLOWS.iterdir() if path.is_file()
+    }
+    assert all(entry["manual_dispatch"] for entry in registered)
+
+
+def test_workflow_references_do_not_reanimate_deleted_execution_paths() -> None:
+    offenders = []
+    for path in _text_files():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeError:
+            continue
+        for reference in re.findall(r"\.github/workflows/[\w.-]+\.ya?ml", text):
+            if not (ROOT / reference).is_file():
+                offenders.append(f"{path.relative_to(ROOT)}::{reference}")
+    assert offenders == []

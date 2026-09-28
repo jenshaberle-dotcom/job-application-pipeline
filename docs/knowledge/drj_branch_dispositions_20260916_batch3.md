@@ -42,7 +42,6 @@ Authority boundary for this review: branch age, naming, inactivity, or temporary
 - unique history disposition: `HARVESTED`
 - unique content at review: one temporary JAP warm-runtime probe workflow.
 - exact execution evidence: Actions run `34356910371`, job `102483805186`, completed `success` on the exact branch head.
-- harvested observations from the pre-setup probe: runner `job-pipeline-runtime-warm-01-linux` on Linux; `python` was not in PATH; `node` was not in PATH; `npm` resolved through `/mnt/c/Program Files/nodejs/npm` and reported 10.9.3; the runner tool cache already contained Node `22.23.2` at `_work/_tool/node/22.23.2/x64/bin/node`.
 - interpretation: this was a bounded diagnostic used to establish the pre-setup runtime state. The diagnostic result is now durable here and in the immutable successful Actions run; the temporary workflow itself has no continuing execution role.
 
 ## Still intentionally unresolved / preserved

@@ -17,20 +17,15 @@ A GitHub **pre-release flag** and the semantic version are separate concerns. A 
 
 ## Release authority
 
-The canonical publisher is `.github/workflows/release.yml` on `main`.
+Release publication is currently **blocked pending an RCC-assigned Windows
+workload and exact-source qualification**. No active publisher exists in this
+repository. A version-file change or release request does not publish a release.
 
-Preferred release path is GitOps:
-
-1. prepare curated notes under `.github/release-notes/` when a milestone needs them;
-2. add exactly one versioned request under `.github/release-requests/vX.Y.Z.json` through a normal PR;
-3. merge the request to `main` only after normal PR CI/re-entry gates are green;
-4. the Release Management workflow starts from that `main` push;
-5. it waits for successful `Pipeline CI` and `Pipeline re-entry target identity` push runs for the exact release-request merge SHA;
-6. it validates the version and request schema, refuses an existing tag, binds the tag to that exact `main` SHA and publishes the GitHub Release.
-
-`workflow_dispatch` remains available as an operator fallback, but it uses the same exact-main and quality-gate rules.
-
-Do not create ad-hoc product tags from feature branches.
+Prepare notes and requests through a normal PR. Publication must use the RCC
+admission, reservation, assignment, verification and cleanup contract in
+`docs/current/ci-max-execution.md`. The publisher must bind immutable artifacts
+and tags to the validated main SHA. Do not restore retired execution workflows
+or create ad-hoc product tags from feature branches.
 
 ### Release request schema
 
@@ -64,7 +59,10 @@ Example:
 }
 ```
 
-Store it as `.github/release-promotions/v0.1.0-demo.1.json` through a normal PR. After merge, Release Management waits for the exact-SHA quality gates, verifies that both tag and GitHub Release already exist, and changes only the GitHub pre-release visibility flag. It does not recreate, move or overwrite the tag and it does not rewrite release notes.
+Store it as `.github/release-promotions/v0.1.0-demo.1.json` through a normal PR.
+Requests remain inert until RCC-assigned publication is qualified. A promotion
+must verify the existing immutable tag and release, and change only visibility;
+it must not recreate tags or rewrite notes.
 
 Promotion does **not** imply production readiness. Product maturity remains defined by the version, release name, release notes, known limitations and explicit product decisions.
 
@@ -105,7 +103,7 @@ Runtime facts that are not shipped in Git must be labeled as operator validation
 Before publishing or promoting a release:
 
 - the governing request must already be merged to `main`;
-- normal repository CI and re-entry identity must be green for the exact request/promotion target;
+- RCC-assigned repository validation and re-entry identity must pass for the exact request/promotion target;
 - local-only runtime claims must have a current operator proof when the release notes depend on them;
 - known material limitations must be stated rather than hidden;
 - an existing version tag is immutable and must never be overwritten.

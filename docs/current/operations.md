@@ -12,7 +12,7 @@ Current operator entry points:
 - `../guides/testing.md` for test expectations.
 - `../reference/governance/workflow/validate001_unified_validation_command.md` and `scripts/run_validate001_unified_validation.py` for the unified local validation entry point.
 - `../reference/operations/db_migration_tracking.md` for migration tracking.
-- `../reference/operations/windows_scheduler_watchdog.md` for scheduler context.
+- `ci-max-execution.md` for exclusive RCC workload execution authority.
 
 The former generated chat-continuation restart mechanism is retired and
 archived as a bad idea. Continuity comes from direct repository inspection,
@@ -62,8 +62,9 @@ independently from live GitHub repository metadata.
 - Machine-readable identity authority:
   `docs/current/REPOSITORY-IDENTITY.json`.
 - The Pipeline execution target is immutable GitHub repository ID `1230805345`.
-- `job-pipeline-runtime` is a related runtime/evidence authority source, not the
-  Pipeline mutation target.
+- `job-pipeline-runtime` is a related private evidence/application-mailbox
+  source, not the Pipeline mutation target or runner allocation authority.
+  RCC exclusively owns workload execution admission and allocation.
 - A repository-ID mismatch fails closed as
   `REENTRY_CONTRACT_TARGET_MISMATCH` or
   `RELATED_REPOSITORY_NOT_EXECUTION_TARGET`.

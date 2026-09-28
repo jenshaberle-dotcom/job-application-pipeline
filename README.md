@@ -40,6 +40,13 @@ Market signals -> candidates -> origin/detail evidence -> gates/stops/repair
 - Agent-like behavior needs clear boundaries and auditability.
 - Open product decisions remain open.
 
+## Workload execution
+
+RCC exclusively admits and assigns Warm-Pool workloads. JAP declares product
+work and capability requirements; it does not allocate runners. Current
+execution authority: `docs/current/ci-max-execution.md`.
+Current product gate and remaining live qualification: `docs/current/REENTRY.md`.
+
 ## Documentation
 Start with `docs/README.md`.
 

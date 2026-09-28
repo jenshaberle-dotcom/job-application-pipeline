@@ -1,6 +1,7 @@
 # ADR-035: Define Connector Control Plane and Shared Execution Runtime
 
 Status: Accepted for implementation
+Execution authority updated: RCC only, 2026-09-28
 Date: 2026-09-20
 
 ## Context
@@ -14,7 +15,7 @@ The scalable unit must therefore not be one permanently running service per empl
 - exact profile execution through `python -m src.ingest_jobs --profile ...`;
 - source roles separating `employer_origin` from sensors;
 - ingestion-run and observation lineage;
-- a private `job-pipeline-runtime` repository that owns secrets-bound execution, scheduler integration, runner routing and exact-SHA runtime evidence.
+- RCC-owned workload admission, capacity selection, reservation, exact assignment and execution verification.
 
 JAP Cloud also needs continuously refreshed shared catalog data. Reimplementing connectors, product source semantics or runtime authority in the cloud repository would create a second JAP product/runtime truth.
 
@@ -99,35 +100,17 @@ It contains no credentials, fetched job payloads, CV data or user-owned Cloud st
 
 The deterministic work ID makes a scheduler retry or queue redelivery identifiable without making the acquisition result itself silently idempotent.
 
-### Runtime repository reuse
+### Execution authority
 
-`jenshaberle-dotcom/job-pipeline-runtime` remains the private operational companion for JAP.
+RCC exclusively owns workload execution admission, member selection, reservation,
+assignment, dispatch verification and cleanup. JAP supplies exact source identity,
+capability requirements and bounded product effects. See
+`docs/current/ci-max-execution.md`.
 
-The following runtime concepts are reused directly:
-
-- product/runtime authority separation;
-- immutable repository identity;
-- exact Pipeline SHA binding;
-- private secret boundary;
-- explicit effect authority;
-- finite timeout/retry policy;
-- concurrency control;
-- runner capability routing;
-- execution/result provenance;
-- exact-profile execution.
-
-The current local execution transport is **not** the long-term cloud scheduler transport.
-
-The following mechanisms are local/runtime-specific and must not be copied 1:1 into the cloud data plane:
-
-- Windows Task Scheduler;
-- a persistent local WSL checkout as the cloud execution state;
-- local PostgreSQL as the cloud catalog store;
-- GitHub issue comments as a high-throughput connector queue;
-- one monolithic sequential daily process as the scale-out execution model;
-- one GitHub Actions workflow invocation per employer as normal recurring operation.
-
-Those remain valid for local JAP and bounded operational/proof paths.
+The private companion repository may retain application-mailbox and evidence
+functions. It does not allocate runners or supply a parallel scheduler transport.
+Connector provenance, finite retries, secret boundaries and exact-profile
+execution remain product requirements across transports.
 
 ### Cloud adaptation
 
@@ -135,13 +118,9 @@ JAP Cloud consumes the same connector/product contract and acquisition logic thr
 
 The cloud runtime is expected to replace only transport/infrastructure concerns:
 
-```text
-local scheduler        -> cloud scheduler
-local invocation       -> queue/work item
-warm local runner      -> shared cloud worker pool
-PostgreSQL repository  -> Azure shared-catalog persistence adapter
-local secrets/env      -> cloud managed identity/secret boundary
-```
+Infrastructure adapters must preserve RCC execution admission and exact-source
+provenance. Any future cloud data-plane scheduler requires a separately approved
+contract; this ADR grants no alternative workload execution path.
 
 The connector's meaning, source identity, acquisition evidence and downstream JAP semantics do not change.
 
@@ -174,7 +153,7 @@ The scheduler may use source-specific cadence, backoff and freshness information
 
 1. One employer connector definition does not imply one always-on service.
 2. Product/source semantics remain authoritative in `job-application-pipeline`.
-3. `job-pipeline-runtime` remains an operational/runtime authority, not a product authority.
+3. RCC owns workload execution authority; JAP owns product semantics.
 4. Cloud workers consume exact versioned Origin contracts/code.
 5. Queue messages contain identifiers and provenance, not secrets or large raw payloads.
 6. Connector retries are finite and observable.
@@ -186,6 +165,6 @@ The scheduler may use source-specific cadence, backoff and freshness information
 ## Consequences
 
 - Existing connector genericity work remains valuable and becomes the scale mechanism rather than being replaced.
-- The Runtime repository is reused substantially, but its local host/scheduler mechanics are not treated as cloud architecture.
+- Private evidence and mailbox reuse does not create execution authority.
 - The next cloud implementation step is a shared-catalog connector worker adapter around the portable work-item contract and Origin acquisition code.
-- The existing sequential daily runner remains valid for local JAP until a separately proven work-item scheduler supersedes it there.
+- The sequential daily workload requires RCC admission and exact assignment.
