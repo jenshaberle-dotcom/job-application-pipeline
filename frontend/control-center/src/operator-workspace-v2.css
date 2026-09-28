@@ -162,12 +162,16 @@ button, input { font: inherit; }
 .ow-evidence li, .ow-evidence p { color: #9eb8c8; font-size: 8px; line-height: 1.45; }
 
 .ow-top5-list { display: flex; flex-direction: column; gap: 8px; }
-.ow-top5-list > button { width: 100%; min-height: 82px; display: grid; grid-template-columns: 48px 1fr 58px; gap: 10px; align-items: center; text-align: left; padding: 12px; border: 1px solid var(--ow-line); border-radius: 9px; background: #0b2130; color: white; cursor: pointer; }
+.ow-top5-list > button { width: 100%; min-height: 92px; display: grid; grid-template-columns: 48px minmax(0, 1fr) 74px; gap: 10px; align-items: center; text-align: left; padding: 12px; border: 1px solid var(--ow-line); border-radius: 9px; background: #0b2130; color: white; cursor: pointer; }
 .ow-top5-list > button.selected { border-color: #2f829f; background: #103146; }
-.ow-top5-list > button > span:nth-child(2) { display: flex; flex-direction: column; gap: 5px; }
+.ow-top5-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ow-top5-copy > b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ow-top5-list b { font-size: 12px; }
 .ow-top5-list small { color: var(--ow-muted); font-size: 9px; }
-.ow-top5-list > button > strong { color: var(--ow-violet); font-size: 15px; }
+.ow-top5-fit { width: fit-content; border: 1px solid #237e66; border-radius: 10px; background: #0b302c; color: var(--ow-green); padding: 2px 7px; font-size: 8px; font-weight: 800; }
+.ow-top5-affinity { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
+.ow-top5-affinity small { text-transform: uppercase; letter-spacing: .04em; font-size: 7px; }
+.ow-top5-affinity strong { color: var(--ow-violet); font-size: 15px; }
 .ow-rank { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #2b6e88; color: var(--ow-cyan); font-weight: 800; }
 
 .ow-application-grid, .ow-approval-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
