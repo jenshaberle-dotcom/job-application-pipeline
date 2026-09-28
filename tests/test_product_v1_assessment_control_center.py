@@ -18,7 +18,7 @@ def _report(*, target_met: bool = True, combined_score: bool = False) -> dict[st
         "targets": {
             "evaluated_jobs": 10,
             "top5_jobs": 5,
-            "candidate_cap": 15,
+            "candidate_cap": 10,
         },
         "selection": {
             "selected_count": 10,
@@ -129,7 +129,7 @@ def test_child_command_is_fixed_to_generic_10_to_5_apply_contract(
     ]
     assert command[command.index("--evaluated-target") + 1] == "10"
     assert command[command.index("--top5-target") + 1] == "5"
-    assert command[command.index("--candidate-cap") + 1] == "15"
+    assert command[command.index("--candidate-cap") + 1] == "10"
     assert "--apply" in command
     assert "--approval-token" in command
     assert command[command.index("--output") + 1] == str(output)
@@ -191,7 +191,7 @@ def test_report_rejects_target_contract_drift() -> None:
     report["targets"] = {
         "evaluated_jobs": 10,
         "top5_jobs": 4,
-        "candidate_cap": 15,
+        "candidate_cap": 10,
     }
 
     with pytest.raises(actions.AssessmentActionStop, match="target contract mismatch"):
