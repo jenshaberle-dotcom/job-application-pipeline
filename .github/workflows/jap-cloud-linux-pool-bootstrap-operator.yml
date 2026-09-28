@@ -40,7 +40,9 @@ jobs:
           PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ($env:CANDIDATE_SHA -notmatch '^[0-9a-f]{40}
+          if ($env:CANDIDATE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'candidate_sha must be exact SHA' }
+          if ($env:PHYSICAL_RUNNER -ne 'auto' -and $env:PHYSICAL_RUNNER -notmatch '^rcc-general-linux-0[2-5]$') { throw 'physical_runner must be auto or 02..05' }
+          "JAP_CLOUD_LINUX_BOOTSTRAP=PASS control_runner=$env:RUNNER_NAME physical=$env:PHYSICAL_RUNNER"
 
       - name: Execute RCC reservation-backed target validation
         shell: powershell
@@ -75,69 +77,6 @@ jobs:
 
       - name: Summary
         if: always()
-        shell: bash
-        run: echo 'Bootstrap uses the RCC Windows control runner to invoke WSL; JAP Cloud workload is reservation-backed and auto-selected on 02..05.' >> "$GITHUB_STEP_SUMMARY"
-) { throw 'candidate_sha must be exact SHA' }
-          if ($env:PHYSICAL_RUNNER -ne 'auto' -and $env:PHYSICAL_RUNNER -notmatch '^rcc-general-linux-0[2-5]
-
-      - name: Execute RCC reservation-backed target validation
-        shell: bash
-        env:
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-          PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
+        shell: powershell
         run: |
-          set -euo pipefail
-          root="$(mktemp -d -t rcc-jap-cloud-validation.XXXXXX)"
-          trap 'rm -rf "$root"' EXIT
-          rcc_sha="$(gh api repos/jenshaberle-dotcom/Runner-Control-Center---RCC/commits/main --jq .sha)"
-          git -C "$root" init -q
-          git -C "$root" remote add origin https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC.git
-          git -C "$root" fetch -q --depth=1 origin "$rcc_sha"
-          git -C "$root" checkout -q --detach FETCH_HEAD
-          test "$(git -C "$root" rev-parse HEAD)" = "$rcc_sha"
-          python3 "$root/tools/linux/Execute-JapCloudLiveWorkload-Wsl.py" \
-            --mode execute \
-            --workload target-validation \
-            --rcc-root "$root" \
-            --rcc-sha "$rcc_sha" \
-            --cloud-sha "$CANDIDATE_SHA" \
-            --physical "$PHYSICAL_RUNNER" \
-            --timeout 1800
-          echo "JAP_CLOUD_LINUX_POOL_VALIDATION=PASS rcc_sha=$rcc_sha candidate=$CANDIDATE_SHA"
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: echo 'Bootstrap uses the serving JAP01 Linux facade only as control plane; JAP Cloud workload remains exact reservation-backed on 02..05.' >> "$GITHUB_STEP_SUMMARY"
-) { throw 'physical_runner must be auto or 02..05' }
-          "JAP_CLOUD_LINUX_BOOTSTRAP=PASS control_runner=$env:RUNNER_NAME physical=$env:PHYSICAL_RUNNER"
-
-      - name: Execute RCC reservation-backed target validation
-        shell: bash
-        env:
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-          PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
-        run: |
-          set -euo pipefail
-          root="$(mktemp -d -t rcc-jap-cloud-validation.XXXXXX)"
-          trap 'rm -rf "$root"' EXIT
-          rcc_sha="$(gh api repos/jenshaberle-dotcom/Runner-Control-Center---RCC/commits/main --jq .sha)"
-          git -C "$root" init -q
-          git -C "$root" remote add origin https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC.git
-          git -C "$root" fetch -q --depth=1 origin "$rcc_sha"
-          git -C "$root" checkout -q --detach FETCH_HEAD
-          test "$(git -C "$root" rev-parse HEAD)" = "$rcc_sha"
-          python3 "$root/tools/linux/Execute-JapCloudLiveWorkload-Wsl.py" \
-            --mode execute \
-            --workload target-validation \
-            --rcc-root "$root" \
-            --rcc-sha "$rcc_sha" \
-            --cloud-sha "$CANDIDATE_SHA" \
-            --physical "$PHYSICAL_RUNNER" \
-            --timeout 1800
-          echo "JAP_CLOUD_LINUX_POOL_VALIDATION=PASS rcc_sha=$rcc_sha candidate=$CANDIDATE_SHA"
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: echo 'Bootstrap uses the serving JAP01 Linux facade only as control plane; JAP Cloud workload remains exact reservation-backed on 02..05.' >> "$GITHUB_STEP_SUMMARY"
+          'Bootstrap uses the RCC Windows control runner to invoke WSL; JAP Cloud workload is reservation-backed and auto-selected on 02..05.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
