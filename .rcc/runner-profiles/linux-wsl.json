@@ -3,7 +3,6 @@
   "profile_id": "jap-general-linux-warm",
   "profile_version": 1,
   "platform": "linux-wsl",
-  "runner_labels": [],
   "requirements": [
     {
       "id": "python",
@@ -16,5 +15,5 @@
       "hash": "617352a994089a5e438dee31bf012183f535bfbe647d3b14e718352176e11e69"
     }
   ],
-  "profile_hash": "3e232f2ebc20eecb9b087bc0c494a13cdb10bb29e10066aa6f232b973299e248"
+  "profile_hash": "1419b2268a4daad29640a5871727da63dcb78f96c50e390f16e783228889f14e"
 }
