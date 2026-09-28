@@ -434,6 +434,7 @@ def empty_source_connector_overview() -> dict[str, Any]:
         "summary": {
             "source_count": 0,
             "sensor_count": 0,
+            "discovery_coverage_count": 0,
             "active_sensor_count": 0,
             "healthy_sensor_count": 0,
             "employer_origin_count": 0,
@@ -749,7 +750,13 @@ def build_source_connector_overview(
     payload = empty_source_connector_overview()
     payload["summary"] = {
         "source_count": len(sources),
-        "sensor_count": count_where(lambda s: s["source_role"] == "sensor"),
+        "sensor_count": count_where(
+            lambda s: s["source_role"] == "sensor"
+            and bool(s["connector"]["implemented"])
+        ),
+        "discovery_coverage_count": count_where(
+            lambda s: bool(s["discovery_catalog"]["catalogued"])
+        ),
         "active_sensor_count": count_where(
             lambda s: s["source_role"] == "sensor"
             and s["activation"]["active"] is True
