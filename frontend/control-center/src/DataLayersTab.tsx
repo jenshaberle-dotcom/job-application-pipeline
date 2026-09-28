@@ -307,10 +307,10 @@ function DataLayersScreen({
               <div><span>Latest Product assessment</span><b>{timeText(payload.freshness.latest_gold_assessed_at)}</b></div>
             </div>
             <p className="dl-truth-note">These are evidence timestamps for the current jobs, not the time this dashboard was refreshed.</p>
-            {layers.gold_assessed === 0 && (
+            {layers.gold_assessed < payload.population.all_jobs && (
               <div className="ow-callout warn">
                 <b>Assessment gap</b>
-                <span>No current jobs have a persisted Gold assessment yet. Candidate Fit and the authoritative Top 5 remain incomplete until real assessments pass their evidence gates.</span>
+                <span>{payload.population.all_jobs - layers.gold_assessed} current jobs still need Product assessment. Candidate Fit and the Top 5 can only use jobs that have enough verified assessment evidence.</span>
               </div>
             )}
           </article>
