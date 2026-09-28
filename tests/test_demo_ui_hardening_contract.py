@@ -11,8 +11,9 @@ def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile
     assert "Role affinity · preliminary" in source
     assert "Detail check required" in source
     assert "authoritative Product score" in source
-    assert "Profile Fit coverage" in source
-    assert "Profile Fit decision" in source
+    assert "Candidate fit" in source
+    assert "Fit evidence" in source
+    assert "Needs capability evidence" in source or "capability evidence" in source
     assert "authoritative profile fit" not in source
     assert "Affinity" in source
 
@@ -51,7 +52,7 @@ def test_sources_separate_delivery_zero_yield_sensors_and_attention() -> None:
     ):
         assert group in source
     for summary in (
-        "Employer origins",
+        "Employer sources",
         "active_last_run_loaded_count",
         "active_last_run_zero_count",
         "sensor_count",
@@ -59,8 +60,10 @@ def test_sources_separate_delivery_zero_yield_sensors_and_attention() -> None:
     ):
         assert summary in source
     assert "source.source_role" in source
-    assert "Latest run" in source
-    assert "Latest load" in source
+    assert "Last check" in source
+    assert "Jobs found" in source
+    assert "Market discovery" in source
+    assert "Not connected" in source
     assert "ow-source-summary-strip" in source
     assert "ow-source-group-title" in source
 
@@ -119,9 +122,9 @@ def test_f6_c_review_surface_edits_only_declared_zones_and_exports_locally() -> 
     assert "application-package-downloads.css" not in workspace + editor + styles
     assert "/api/v1/product-v1/f6-template-export-progress?request_id=" in editor
     assert "request_id: requestId" in editor
-    assert "Deine Bewerbungsdateien werden erstellt" in editor
-    assert "Lokale Verarbeitung · keine Provider-Anfrage" in editor
-    assert "Fortschritt basiert auf abgeschlossenen Dateierstellungs-Schritten" in editor
+    assert "Your application files are being created" in editor
+    assert "Local processing · no provider request" in editor
+    assert "Progress is based on completed file-generation steps" in editor
     assert ".f6-export-progress-track" in styles
 
 
@@ -317,8 +320,8 @@ def test_no_upload_path_offers_provider_free_fillable_word_starter() -> None:
 
     assert "/api/v1/product-v1/application-starter-template" in operator
     assert "Download fillable Word starter" in operator
-    assert "sends nothing to an LLM" in operator
-    assert "fallback document, not pixel-authoritative F6 source material" in operator
+    assert "sends nothing to an AI provider" in operator
+    assert "local fillable Word starter" in operator
 
 
 
@@ -328,10 +331,10 @@ def test_application_workspace_shows_live_quality_drafting_progress() -> None:
 
     assert "/api/v1/product-v1/application-draft-progress?request_id=" in workspace
     assert "request_id: requestId" in workspace
-    assert "Deine Bewerbungsunterlagen werden erstellt" in workspace
+    assert "Your application documents are being created" in workspace
     assert "Provider request" in workspace
     assert "Elapsed {draftElapsedLabel}" in workspace
-    assert "Fortschritt basiert auf abgeschlossenen JAP-Arbeitsschritten" in workspace
+    assert "Progress is based on completed JAP steps" in workspace
     assert "Semantic repairs:" in workspace
     assert 'role="progressbar"' in workspace
     assert ".demo-drafting-progress-track" in styles
@@ -350,10 +353,54 @@ def test_portal_tabs_keep_operator_topline_identity_in_sync() -> None:
 def test_application_tracking_uses_product_copy_and_avoids_duplicate_expanded_stage_badge() -> None:
     source = (FRONTEND / "F5ApplicationTracking.tsx").read_text(encoding="utf-8")
 
-    assert "Bewerbungsstatus · Mailbox-gestützt" in source
+    assert "Application lifecycle · mailbox-assisted" in source
+    assert "<h2>Application Tracker</h2>" in source
     assert "F5 · Mailbox Application Tracking" not in source
 
     expanded = source.split('{expanded && <div className="f5-expanded-body">', 1)[1]
     card_head = expanded.split("<StageStrip", 1)[0]
     assert "f5-stage-badge" not in card_head
     assert "<StageStrip stage={application.effective_stage} />" in expanded
+
+
+
+def test_primary_navigation_distinguishes_building_from_tracking_applications() -> None:
+    source = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+
+    assert '{ id: "application", label: "Application Builder"' in source
+    assert '{ id: "applications", label: "Application Tracker"' in source
+    nav = source.split("const navItems:", 1)[1].split("];", 1)[0]
+    assert 'label: "Application"' not in nav
+    assert 'label: "Applications"' not in nav
+    assert 'label: "Approvals"' not in nav
+    assert 'view === "approvals"' not in source
+
+
+def test_control_center_user_facing_copy_stays_english() -> None:
+    files = sorted(FRONTEND.glob("*.tsx"))
+    combined = "\n".join(path.read_text(encoding="utf-8") for path in files)
+    combined = combined.replace("Hornetsecurity_Jens_Haberle_Lebenslauf.pdf", "")
+    combined = combined.replace("Hornetsecurity_Jens_Haberle_Anschreiben.pdf", "")
+
+    forbidden = (
+        "Bewerbung",
+        "Bewerbungen",
+        "Bewerbungs",
+        "Arbeitgeber",
+        "Beworben",
+        "Erkannt",
+        "Antwort",
+        "Angebot",
+        "Geschlossen",
+        "Prüfen",
+        "Fehleintrag",
+        "Manuell erfassen",
+        "Öffnen",
+        "Ungeklärt",
+        "Fortschritt basiert",
+        "Deine Bewerbungs",
+        "Lokale Verarbeitung",
+        "Mailbox-Sync nicht aktuell",
+    )
+    for token in forbidden:
+        assert token not in combined, token
