@@ -168,6 +168,11 @@ internal sealed class ManagedRuntimeController : IDisposable
         return endpoint.Healthy;
     }
 
+    public Task<bool> IsRuntimeListenerPresentAsync()
+    {
+        return IsPortOpenAsync(Port);
+    }
+
     public async Task<ProcessResult> StopAsync(TimeSpan timeout)
     {
         var config = ReadConfig(_installRoot);
