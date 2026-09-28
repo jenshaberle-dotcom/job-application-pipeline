@@ -121,7 +121,7 @@ def surface_contract_evidence() -> dict[str, object]:
         "operations_reuses_source_lifecycle_summary": (
             "function Operations" in workspace
             and "const overview = payload.source_connector_overview.summary" in workspace
-            and "<h2>Source lifecycle</h2>" in workspace
+            and "<h2>Source status</h2>" in workspace
         ),
         "operations_top_level_hidden": (
             '.includes("Operations")' in source_health

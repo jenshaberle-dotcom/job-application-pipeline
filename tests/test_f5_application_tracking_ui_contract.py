@@ -88,7 +88,7 @@ def test_application_tracking_reuses_exact_projected_link_for_reverse_navigation
     assert "projectedJobByApplicationId" in tracking
     assert "projectedLink" in tracking
     assert "Read-only match to a JAP job" in tracking
-    assert "Open in All jobs ↔" in tracking
+    assert "Open in All Jobs ↔" in tracking
     assert ".f5-open-linked-job" in styles
 
 
@@ -107,7 +107,7 @@ def test_reverse_navigation_never_opens_wrong_job_outside_current_view() -> None
 
     assert "visibleJobIds" in tracking
     assert "linkedJobVisible" in tracking
-    assert "outside the current All jobs view" in tracking
+    assert "outside the current All Jobs view" in tracking
     assert ".f5-linked-job-outside-view" in styles
 
 

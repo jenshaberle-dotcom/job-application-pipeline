@@ -591,9 +591,9 @@ export default function F5ApplicationTracking({
               {application.source_url ? <a href={application.source_url} target="_blank" rel="noreferrer"><small>Job / application source</small>Open ↗</a> : <span><small>Job / application source</small>—</span>}
             </div>
             {linkedJobVisible && linkedJobId != null && onOpenJob
-              ? <button type="button" className="f5-open-linked-job" onClick={() => onOpenJob(linkedJobId)}>Open in All jobs ↔</button>
+              ? <button type="button" className="f5-open-linked-job" onClick={() => onOpenJob(linkedJobId)}>Open in All Jobs ↔</button>
               : linkedJobId != null
-                ? <div className="f5-linked-job-outside-view">Silver #{linkedJobId} is linked but outside the current All jobs view.</div>
+                ? <div className="f5-linked-job-outside-view">Job #{linkedJobId} is linked but outside the current All Jobs view.</div>
                 : null}
             {warning && <div className="f5-attention-note">{warning}</div>}
             {missingJobTitle && application.discovery_kind === "mailbox_observed" && <div className="f5-title-correction">

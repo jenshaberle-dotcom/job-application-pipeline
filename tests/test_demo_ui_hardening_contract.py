@@ -10,10 +10,12 @@ def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile
 
     assert "Role affinity · preliminary" in source
     assert "More job-detail evidence is needed before this can become Candidate Fit or a ranking score." in source
-    assert "authoritative Product score" in source
+    assert "verified match score" in source
     assert "Candidate fit" in source
     assert "Fit evidence" in source
-    assert "Needs capability evidence" in source or "capability evidence" in source
+    assert "skills evidence" in source
+    assert "requirements evidence" in source
+    assert "More fit evidence needed" in source
     assert "authoritative profile fit" not in source
     assert "Affinity" in source
 
@@ -66,6 +68,10 @@ def test_sources_separate_delivery_zero_yield_sensors_and_attention() -> None:
     assert "Not connected" in source
     assert "ow-source-summary-strip" in source
     assert "ow-source-group-title" in source
+    assert "jobs on last check" in source
+    assert "ow-source-row-state" in source
+    assert "<small>{source.source_name}</small>" not in source
+    assert "No action needed" in source
 
 
 def test_data_layers_waits_for_workspace_with_mutation_observer() -> None:
@@ -78,12 +84,16 @@ def test_data_layers_waits_for_workspace_with_mutation_observer() -> None:
     assert "window.setTimeout(bindRoots, 50)" not in source
 
 
-def test_application_workspace_is_f6_template_authoritative_and_has_no_legacy_download_renderer() -> None:
+def test_application_workspace_keeps_verified_template_semantics_without_internal_ui_jargon() -> None:
     source = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
-    assert "F6 template authority" in source
-    assert "PDF remains exact template authority" in source
-    assert "current CV, current application letter and exact vacancy together" in source
+    assert "template_authority?:" in source
+    assert "JAP keeps the PDF layout fixed" in source
+    assert "Drafting used the current CV, current cover letter and exact vacancy together." in source
+    assert "Document templates" in source
+    assert "Document generation is review-first." in source
+    assert "F6 template authority" not in source
+    assert "PDF remains exact template authority" not in source
     assert "template_bound_renderer_pending" not in source
     assert "downloadDraftFile" not in source
     assert 'key === "cv_docx"' not in source
@@ -139,9 +149,9 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
     assert 'job.demo_live_verified === true' not in workspace
     assert 'job.origin_validation_status === "validated"' not in workspace
     assert 'job.hard_filter_status !== "failed"' in workspace
-    assert "Operator-selected current job" in workspace
+    assert "Selected current job" in workspace
     assert "Selected Top-5 recommendation" in workspace
-    assert "Operator-selected current job" in workspace
+    assert "Selected current job" in workspace
     assert 'detail?.silverJobId' in workspace
     assert "The job you selected stays the application target" in workspace
     assert 'aria-label="Change application target"' in workspace
@@ -215,7 +225,7 @@ def test_selected_job_is_exact_live_revalidated_and_closed_truth_refreshes_ui() 
 def test_all_jobs_is_the_current_employer_origin_review_scope() -> None:
     operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
-    assert '["all", "All jobs"]' in operator
+    assert '["all", "All Jobs"]' in operator
     assert '["current", "Current"]' not in operator
     assert "jobs: payload.job_readiness.length" in operator
     assert "Current employer-origin vacancies only." in operator
@@ -226,7 +236,9 @@ def test_application_workspace_separates_live_vacancy_from_employer_origin_autho
     workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
 
     assert "Live vacancy verified" in workspace
-    assert "Employer-Origin authority" in workspace
+    assert "Employer source" in workspace
+    assert "Verification required" in workspace
+    assert "Employer-Origin authority" not in workspace
     assert "Employer-origin verified" not in workspace
     assert "workspace?.workspace?.target?.employer_origin_authorized === true" in workspace
 
@@ -296,7 +308,8 @@ def test_active_application_workspace_has_product_identity_not_demo001_branding(
 
     assert "DEMO-001" not in workspace
     assert "DemoApplicationWorkspace" not in workspace
-    assert "PRODUCT V1 · APPLICATION" in workspace
+    assert "Application Builder" in workspace
+    assert "PRODUCT V1 · APPLICATION" not in workspace
     assert 'aria-label="Application preparation journey"' in workspace
     assert 'import ApplicationWorkspace from "./ApplicationWorkspace";' in main
     assert "<ApplicationWorkspace />" in main
@@ -332,10 +345,11 @@ def test_application_workspace_shows_live_quality_drafting_progress() -> None:
     assert "/api/v1/product-v1/application-draft-progress?request_id=" in workspace
     assert "request_id: requestId" in workspace
     assert "Your application documents are being created" in workspace
-    assert "Provider request" in workspace
+    assert "AI drafting pass" in workspace
+    assert "AI drafting ready" in workspace
     assert "Elapsed {draftElapsedLabel}" in workspace
     assert "Progress is based on completed JAP steps" in workspace
-    assert "Semantic repairs:" in workspace
+    assert "Content checks:" in workspace
     assert 'role="progressbar"' in workspace
     assert ".demo-drafting-progress-track" in styles
 
@@ -404,3 +418,70 @@ def test_control_center_user_facing_copy_stays_english() -> None:
     )
     for token in forbidden:
         assert token not in combined, token
+
+
+
+def test_demo_user_language_hides_internal_readiness_and_template_terms() -> None:
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    tracker = (FRONTEND / "F5ApplicationTracking.tsx").read_text(encoding="utf-8")
+    data_layers = (FRONTEND / "DataLayersTab.tsx").read_text(encoding="utf-8")
+
+    assert 'sortHeader("gate", "Candidate Fit")' in operator
+    assert "Ready for Top 5" in operator
+    assert "Requirements evidence needed" in operator
+    assert "Top 5 readiness" in operator
+    assert "verified match score" in operator
+    assert "CV source" in operator
+    assert "Cover letter source" in operator
+    assert "Review-first · no automatic applications" in operator
+    assert "Loading current job data…" in operator
+    assert "Search setup" in operator
+    assert "This source is currently ready to use." in operator
+    assert "Search profiles" not in operator
+    assert "Only current jobs with verified fit and ranking evidence appear here." in operator
+    assert "Ready to rank" in operator
+    assert "Shown in All Jobs" in operator
+
+    visible_forbidden = (
+        "Authoritative Product score",
+        "Canonical CV",
+        "Canonical letter",
+        "Exact authority",
+        "Product V1 · review-first",
+        "Reading Product V1 truth",
+        "Only authoritative rankable jobs",
+        "Runtime truth",
+        "Review scope current",
+    )
+    for token in visible_forbidden:
+        assert token not in operator
+
+    assert "Employer source" in workspace
+    assert "Profile evidence" in workspace
+    assert "Source documents" in workspace
+    assert "Document templates" in workspace
+    assert "Document generation is review-first." in workspace
+    assert "Application Builder" in workspace
+    assert "AI drafting pass" in workspace
+    assert "Content checks:" in workspace
+    for token in (
+        "Employer-Origin authority",
+        "Candidate facts",
+        "F6 templates",
+        "F6 template authority",
+        "F6 is review-first",
+        "Operator-selected current job",
+        "Provider request",
+        "Semantic repairs:",
+        "DB writes:",
+    ):
+        assert token not in workspace
+
+    assert "Silver #{linkedJobId}" not in tracker
+    assert "Job #{linkedJobId}" in tracker
+    assert "Loading current job data layers…" in data_layers
+    assert "Latest job assessment" in data_layers
+    assert "completed job assessment" in data_layers
+    assert "Product assessment" not in data_layers
+    assert "ranking gates" not in data_layers

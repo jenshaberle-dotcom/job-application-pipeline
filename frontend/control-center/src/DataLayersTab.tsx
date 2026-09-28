@@ -71,7 +71,7 @@ const SERIES: Array<{
   {
     key: "gold_assessed",
     label: "Assessed",
-    helper: "Gold · current jobs with Product assessment",
+    helper: "Gold · current jobs with completed job assessment",
     className: "gold",
   },
 ];
@@ -210,8 +210,8 @@ function DataLayersScreen({
   const stages = [
     ["Raw evidence", layers.bronze_jobs, "Bronze · current jobs with source lineage"],
     ["Normalized", layers.silver_jobs, "Silver · current jobs normalized"],
-    ["Assessed", layers.gold_assessed, "Gold · current jobs with Product assessment"],
-    ["Ready to rank", layers.rankable_now, "current jobs with all ranking gates passed"],
+    ["Assessed", layers.gold_assessed, "Gold · current jobs with completed job assessment"],
+    ["Ready to rank", layers.rankable_now, "current jobs with all required checks passed"],
     ["Top 5", layers.top_jobs_now, "current shortlist"],
   ] as const;
 
@@ -223,7 +223,7 @@ function DataLayersScreen({
           <h1>Data Layers</h1>
           <p>
             See how the same current <b>All Jobs</b> set progresses from source evidence
-            to normalized job data, Product assessment and ranking readiness.
+            to normalized job data, job assessment and ranking readiness.
           </p>
         </div>
         <button
@@ -304,13 +304,13 @@ function DataLayersScreen({
             <div className="dl-freshness">
               <div><span>Latest source observation</span><b>{timeText(payload.freshness.latest_bronze_observation_at)}</b></div>
               <div><span>Latest normalization</span><b>{timeText(payload.freshness.latest_silver_normalized_at)}</b></div>
-              <div><span>Latest Product assessment</span><b>{timeText(payload.freshness.latest_gold_assessed_at)}</b></div>
+              <div><span>Latest job assessment</span><b>{timeText(payload.freshness.latest_gold_assessed_at)}</b></div>
             </div>
             <p className="dl-truth-note">These are evidence timestamps for the current jobs, not the time this dashboard was refreshed.</p>
             {layers.gold_assessed < payload.population.all_jobs && (
               <div className="ow-callout warn">
                 <b>Assessment gap</b>
-                <span>{payload.population.all_jobs - layers.gold_assessed} current jobs still need Product assessment. Candidate Fit and the Top 5 can only use jobs that have enough verified assessment evidence.</span>
+                <span>{payload.population.all_jobs - layers.gold_assessed} current jobs still need assessment. Candidate Fit and the Top 5 can only use jobs with enough verified evidence.</span>
               </div>
             )}
           </article>
@@ -420,14 +420,14 @@ export default function DataLayersTab() {
         error ? (
           <div className="data-layers-screen ow-stack">
             <header className="ow-page-header">
-              <div><span>Fail closed</span><h1>Data Layers unavailable</h1><p>{error}</p></div>
+              <div><span>Data unavailable</span><h1>Data Layers unavailable</h1><p>{error}</p></div>
               <button type="button" className="dl-refresh" onClick={() => void load()}>Retry</button>
             </header>
           </div>
         ) : payload ? (
           <DataLayersScreen payload={payload} refreshing={refreshing} refresh={() => void load()} />
         ) : (
-          <div className="data-layers-screen dl-loading"><div /><p>Reading current Bronze / Silver / Gold truth…</p></div>
+          <div className="data-layers-screen dl-loading"><div /><p>Loading current job data layers…</p></div>
         ),
         mainRoot,
       )
