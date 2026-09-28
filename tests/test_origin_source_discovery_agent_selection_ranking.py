@@ -67,3 +67,31 @@ def test_ranking_prefers_stronger_corporate_identity_over_workwise() -> None:
     )
 
     assert result.selected_url == "https://wertgarantie-group.com/karriere"
+
+
+def test_ranking_rejects_static_asset_even_when_context_and_probe_look_career_like() -> None:
+    result = discover_origin_source(
+        company_key="ivv",
+        company_name="ivv GmbH",
+        search_results=[
+            {
+                "url": "https://jobs.ivv.de/templates/ivv_oevb/styles/base.css",
+                "title": "ivv GmbH careers",
+                "snippet": "ivv GmbH Karriere Jobs",
+                "query": '"ivv GmbH" Karriere Jobs Hannover',
+                "provider": "test",
+            },
+            {
+                "url": "https://www.jobs.ivv.de/",
+                "title": "Aktuelle Stellenangebote bei ivv!",
+                "snippet": "ivv GmbH Karriere Jobs",
+                "query": '"ivv GmbH" Karriere Jobs Hannover',
+                "provider": "test",
+            },
+        ],
+        probe=fake_probe,
+    )
+
+    assert result.selected_url == "https://www.jobs.ivv.de/"
+    rejected_urls = {item.normalized_url for item in result.rejected}
+    assert "https://jobs.ivv.de/templates/ivv_oevb/styles/base.css" in rejected_urls
