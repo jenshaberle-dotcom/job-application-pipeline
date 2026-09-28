@@ -133,10 +133,10 @@ def surface_contract_evidence() -> dict[str, object]:
             and "<h2>Source contribution</h2>" in layers
         ),
         "data_layers_owns_bronze_silver_gold_flow": (
-            "Layer flow" in layers
-            and "Bronze new" in layers
-            and "Silver normalized" in layers
-            and "Gold assessed" in layers
+            "Recent processing activity" in layers
+            and "Raw evidence added" in layers
+            and 'label: "Normalized"' in layers
+            and 'label: "Assessed"' in layers
         ),
         "data_layers_separates_persisted_and_current_scope": (
             "Persisted inventory" in layers and "Current Product scope" in layers
