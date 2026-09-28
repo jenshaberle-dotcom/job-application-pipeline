@@ -76,6 +76,51 @@ def test_assessment_payload_is_exact_and_never_accepts_authority_tokens() -> Non
         )
 
 
+def test_child_command_is_fixed_to_generic_10_to_5_apply_contract(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def run(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(args=command, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(actions.subprocess, "run", run)
+    output = tmp_path / "cohort.json"
+
+    actions._run_cohort(output=output)
+
+    command = captured["command"]
+    assert command[:3] == [
+        actions.sys.executable,
+        "-m",
+        "scripts.run_product_v1_assessment_cohort",
+    ]
+    assert command[command.index("--evaluated-target") + 1] == "10"
+    assert command[command.index("--top5-target") + 1] == "5"
+    assert command[command.index("--candidate-cap") + 1] == "15"
+    assert "--apply" in command
+    assert "--approval-token" in command
+    assert command[command.index("--output") + 1] == str(output)
+    assert captured["cwd"] == actions.ROOT
+    assert captured["timeout"] == 2700
+    assert captured["check"] is False
+
+
+def test_report_rejects_target_contract_drift() -> None:
+    report = _report()
+    report["targets"] = {
+        "evaluated_jobs": 10,
+        "top5_jobs": 4,
+        "candidate_cap": 15,
+    }
+
+    with pytest.raises(actions.AssessmentActionStop, match="target contract mismatch"):
+        actions._validated_report(report)
+
+
 def test_local_assessment_reuses_existing_authorities_and_publishes_bounded_result(
     monkeypatch,
     tmp_path: Path,
