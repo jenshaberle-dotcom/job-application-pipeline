@@ -48,9 +48,12 @@ def _text_files() -> list[Path]:
 
 def test_jap_has_only_rcc_assigned_workload_target() -> None:
     workflows = sorted(path.name for path in WORKFLOWS.iterdir())
-    assert workflows == ["product-v1-assessment-cohort.yml"]
+    assert workflows == [
+        "jap-windows-desktop-host-release.yml",
+        "product-v1-assessment-cohort.yml",
+    ]
 
-    workflow = (WORKFLOWS / workflows[0]).read_text(encoding="utf-8")
+    workflow = (WORKFLOWS / "product-v1-assessment-cohort.yml").read_text(encoding="utf-8")
     assert "workflow_dispatch:" in workflow
     assert "- self-hosted" in workflow
     assert "${{ inputs.rcc_facade_label }}" in workflow
@@ -64,6 +67,32 @@ def test_jap_has_only_rcc_assigned_workload_target() -> None:
     assert "ubuntu-" not in workflow
     assert "windows-" not in workflow
     assert "rcc-general-linux-0" not in workflow
+
+
+def test_product_release_publisher_is_cardinality_blind_and_hosted() -> None:
+    release = (WORKFLOWS / "jap-windows-desktop-host-release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "name: JAP product-local Windows release" in release
+    assert "workflow_dispatch:" in release
+    assert '      - "windows/JAP.ControlCenter.Desktop/VERSION"' in release
+    assert "runs-on: windows-latest" in release
+    assert "jap-winapp-product-v" in release
+    assert "JAP-Control-Center-Desktop-win-x64.zip" in release
+    assert "JAP-Control-Center-Runtime.zip" in release
+
+    for forbidden in (
+        "self-hosted",
+        "rcc-general-",
+        "job-pipeline-runtime-",
+        "rcc_facade_label",
+        "rcc_assignment_label",
+        "physical_runner",
+        "facade_runner",
+        "runs_on_json",
+    ):
+        assert forbidden not in release
 
 
 def test_project_owned_runner_allocation_and_profiles_are_physically_absent() -> None:
