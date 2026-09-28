@@ -86,7 +86,7 @@ function timeText(value: string | null) {
   const ageMs = Math.max(0, Date.now() - parsed.valueOf());
   const hours = Math.floor(ageMs / 3_600_000);
   const age = hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
-  const timestamp = parsed.toLocaleString(undefined, {
+  const timestamp = parsed.toLocaleString("en-GB", {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -147,7 +147,7 @@ function MiniFlowChart({
           <span>{series.helper}</span>
         </div>
         <div>
-          <b>{latest == null ? "—" : latest.toLocaleString()}</b>
+          <b>{latest == null ? "—" : latest.toLocaleString("en-GB")}</b>
           <small>latest day</small>
         </div>
       </div>
