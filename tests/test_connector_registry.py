@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import pytest
 
 from src.connectors.generic_employer_origin import GenericEmployerOriginConnector
@@ -27,6 +30,24 @@ def test_source_family_and_target_are_explicit() -> None:
     with pytest.raises(ValueError):
         source_target("generic_origin:")
 
+
+
+def test_source_role_lookup_does_not_import_optional_connector_parsers() -> None:
+    script = """
+import sys
+sys.modules["extruct"] = None
+from src.connectors.registry import SourceRole, source_role
+assert source_role("generic_origin:example") == SourceRole.EMPLOYER_ORIGIN
+print("REGISTRY_ROLE_IMPORT=PASS")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "REGISTRY_ROLE_IMPORT=PASS" in result.stdout
 
 def test_default_registry_exposes_one_generic_employer_origin_family() -> None:
     connector = create_connector("generic_origin:finanz_informatik")
