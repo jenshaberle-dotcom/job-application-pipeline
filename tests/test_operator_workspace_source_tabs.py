@@ -21,7 +21,8 @@ def test_sources_inventory_is_clustered_into_counted_tabs() -> None:
         "Needs attention",
         "Delivering jobs",
         "Active · no jobs",
-        "Market discovery",
+        "Active sensors",
+        "Coverage targets",
         "Setup pending",
         "Not connected",
     ):
@@ -38,3 +39,16 @@ def test_linked_active_application_marks_full_job_row_green() -> None:
     assert 'applicationActive ? "application-active" : ""' in workspace
     assert ".ow-job-list > button.application-active" in css
     assert "var(--ow-green)" in css
+
+
+def test_demo_warnings_have_visible_remediation_paths() -> None:
+    workspace = _text(WORKSPACE)
+    data_layers = (
+        ROOT / "frontend" / "control-center" / "src" / "DataLayersTab.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "Review tracker →" in workspace
+    assert "Review current jobs blocking the shortlist →" in workspace
+    assert '"needs_assessment"' in workspace
+    assert "Review jobs needing assessment →" in data_layers
+    assert 'new CustomEvent("jap:navigate"' in data_layers
