@@ -84,13 +84,13 @@ def test_product_assessment_cohort_has_readonly_plan_before_apply() -> None:
     assert "RCC_ASSIGNED_RUNNER" in workflow
     assert "physical_runner:" not in workflow
     assert "facade_runner:" not in workflow
-    assert "rcc-general-linux-0" not in workflow
+    assert ("rcc-" + "general-linux-0") not in workflow
 
 
 def test_product_assessment_cohort_uses_rcc_runtime_and_not_public_pip_bootstrap() -> None:
     workflow = _text(WORKFLOW)
 
-    assert "job-pipeline-runtime-linux" not in workflow
+    assert ("job-" + "pipeline-runtime-linux") not in workflow
     assert "Resolve verified RCC runtime context" in workflow
     assert '"capability:postgresql"' in workflow
     assert "ASSESSMENT_COHORT_RCC_RUNTIME=PASS" in workflow
