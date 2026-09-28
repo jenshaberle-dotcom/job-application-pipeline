@@ -12,8 +12,9 @@ Integrated main: `c0e3002db601289592eddd28ef96225ddc992476`.
    file, including root contracts, source, Windows assets and archived docs.
 2. **References and competing authority:** compare deleted paths with all tracked
    text and inspect release, DRJ, re-entry, planning and ADR authority. Remove
-   obsolete publisher claims, workflow registrations, private scheduler authority
-   and tests demanding deleted transports. Preserve product/affinity tests.
+   obsolete publisher claims, workflow registrations, private scheduler authority,
+   legacy `.github/triggers/` effect markers and tests demanding deleted transports.
+   Preserve product/affinity tests.
 3. **Executable validation and recurrence:** collect and execute the entire suite,
    removing the remaining orphan snapshot transport test and unused lease module
    with its tests. Check workflow references and registered workload inventory
@@ -47,10 +48,11 @@ are introduced by this change.
 No database or live workload ran during this scan. Ten complete Fit decisions
 and five authoritative Top-5 jobs remain unproven.
 
-Inspection of RCC on 2026-09-28 found a contract mismatch. The current production
-adapter still requires a consumer-owned allocation contract. RCC PR #671 moves
-the control plane to a WSL-native operator gate, but does not resolve the following
-JAP interface gaps:
+Inspection of RCC `main` on 2026-09-28 found a contract mismatch. Its current
+production adapter still requires a consumer-owned allocation contract and the
+older PR-validation dispatch shape. That external mismatch does not justify
+retaining stale allocation authority inside JAP. It gates live workload execution,
+not the repository hardcut merge. The remaining interface gaps are:
 
 | Boundary | RCC production adapter | JAP assessment workload |
 | --- | --- | --- |
@@ -61,8 +63,8 @@ JAP interface gaps:
 | Run identity | correlation in workflow display title | no correlated run title yet |
 
 These must be reconciled in the shared RCC handoff before dispatch. Do not restore
-consumer allocation or add a second scheduler to make the interfaces appear
-compatible. The host execution and runtime-context qualification remain required.
+consumer allocation, old trigger files or a second scheduler to make the interfaces
+appear compatible. The host execution and runtime-context qualification remain required.
 Release publication also requires an RCC-assigned Windows workload; a version
 bump alone currently publishes nothing.
 
