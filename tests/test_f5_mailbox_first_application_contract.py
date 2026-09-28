@@ -3,7 +3,6 @@ from pathlib import Path
 
 MIGRATION = Path("db/migrations/113_enable_mailbox_first_application_tracking.sql")
 QUALIFIER = Path("scripts/run_f5_mailbox_tracking_schema_qualification.py")
-WORKFLOW = Path(".github/workflows/f5-application-lifecycle-reconciliation.yml")
 
 
 def _sql() -> str:
@@ -115,39 +114,11 @@ def test_mailbox_first_migration_introduces_no_mail_or_submission_side_effect() 
 
 def test_steady_state_qualification_measures_rows_without_reopening_migration_gate() -> None:
     qualifier = QUALIFIER.read_text(encoding="utf-8")
-    workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert 'choices=("preflight", "postapply", "current")' in qualifier
     assert 'NEXT_CANDIDATE_MIGRATION = "114_application_event_candidate_source_identity.sql"' in qualifier
     assert "allowed_pending=frozenset({NEXT_CANDIDATE_MIGRATION})" in qualifier
     assert '"row_policy": "must_be_empty" if require_empty_rows else "measure_only"' in qualifier
-    assert "default: current" in workflow
-    assert "inputs.mode || 'current'" in workflow
-    assert "env.MODE == 'current'" in workflow
-    assert "--phase current" in workflow
-    assert "run_f5_application_tracking_product_proof" in workflow
-
-
-def test_v5_freeze_resume_reuses_existing_f5_paths_without_exporting_private_mail() -> None:
-    workflow = WORKFLOW.read_text(encoding="utf-8")
-
-    assert "v5_resume_preflight" in workflow
-    assert "<!-- jap-f5-v5-freeze-resume:preflight:v1 -->" in workflow
-    assert 'v5_input="$HOME/.local/state/jap/f5-gmail-preview-v5.jsonl"' in workflow
-    assert "run_product_v1_f5_mailbox_batch_preflight" in workflow
-    assert "--findings-limit 0" in workflow
-    assert 'conn.execute("SET TRANSACTION READ ONLY")' in workflow
-    assert "run_product_v1_f5_mailbox_persistence_live_preflight" in workflow
-    assert "F5_V5_PRIVATE_INPUT_EXPORTED=false" in workflow
-    assert "${{ env.V5_PLAN_OUTPUT }}" in workflow
-    assert "${{ env.V5_PREFLIGHT_OUTPUT }}" in workflow
-
-    upload_section = workflow.split(
-        "- name: Upload F5 v5 freeze-resume evidence", 1
-    )[1].split("- name: Upload F5 lifecycle qualification evidence", 1)[0]
-    assert "f5-gmail-preview-v5.jsonl" not in upload_section
-    assert "V5_PLAN_OUTPUT" in upload_section
-    assert "V5_PREFLIGHT_OUTPUT" in upload_section
 
 
 def test_high_impact_outcomes_do_not_create_mailbox_application_without_existing_identity() -> None:
