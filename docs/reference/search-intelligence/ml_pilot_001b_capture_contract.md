@@ -10,6 +10,6 @@ A successful action may append only `job_review_relevance_label_events`. It cann
 
 Repeated identical judgment on unchanged canonical Silver evidence is idempotent. Corrections append a new event that supersedes the prior event. Product V1 reloads persisted DB truth after each action instead of treating browser state as authority.
 
-The repository implementation and CI are complete. Operational label capture still requires migration `101_create_job_review_relevance_label_events.sql` to be present in the configured local PostgreSQL runtime. A one-shot read-only self-hosted status proof checks that runtime state before any migration application is considered.
+The repository implementation and CI are complete. Operational label capture still requires migration `101_create_job_review_relevance_label_events.sql` to be present in the configured local PostgreSQL runtime. A one-shot RCC-assigned read-only workload checks that runtime state before any migration application is considered.
 
 MLF-005 remains mandatory before collected labels may be materialized into a supervised dataset/split or used for model training.
