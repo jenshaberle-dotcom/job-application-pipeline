@@ -3,13 +3,13 @@ name: Product V1 assessment cohort
 on:
   workflow_dispatch:
     inputs:
-      reservation_id:
-        required: true
-        type: string
-      runs_on_json:
-        required: true
-        type: string
       source_sha:
+        required: true
+        type: string
+      rcc_facade_label:
+        required: true
+        type: string
+      rcc_assignment_label:
         required: true
         type: string
       evaluated_target:
@@ -35,12 +35,16 @@ concurrency:
 jobs:
   assess:
     name: Reusable 10-job Fit cohort and Top 5
-    runs-on: ${{ fromJSON(inputs.runs_on_json) }}
+    runs-on:
+      - self-hosted
+      - ${{ inputs.rcc_facade_label }}
+      - ${{ inputs.rcc_assignment_label }}
     timeout-minutes: 45
     env:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
-      RCC_RESERVATION_ID: ${{ inputs.reservation_id }}
+      RCC_EXPECTED_FACADE: ${{ inputs.rcc_facade_label }}
+      RCC_ASSIGNMENT_LABEL: ${{ inputs.rcc_assignment_label }}
       SOURCE_SHA: ${{ inputs.source_sha }}
       EVALUATED_TARGET: ${{ inputs.evaluated_target }}
       TOP5_TARGET: ${{ inputs.top5_target }}
@@ -50,34 +54,21 @@ jobs:
       COHORT_APPROVAL_TOKEN: PRODUCT-V1-ASSESSMENT-COHORT-001
 
     steps:
-      - name: Prove exact RCC reservation handoff
+      - name: Prove exact RCC assignment handoff
         shell: bash
-        env:
-          RUNS_ON_JSON: '${{ inputs.runs_on_json }}'
         run: |
           set -euo pipefail
-          test -n "$RCC_RESERVATION_ID"
-          [[ "$RCC_RESERVATION_ID" =~ ^[0-9a-f-]{16,64}$ ]]
-          assigned_label="$(python3 - <<'PY'
-          import json, os, re
-          value = json.loads(os.environ["RUNS_ON_JSON"])
-          if not isinstance(value, list) or len(value) != 2 or value[0] != "self-hosted":
-              raise SystemExit("ASSESSMENT_COHORT_SELECTOR_INVALID")
-          label = str(value[1])
-          if re.fullmatch(r"rcc-assignment-[0-9a-f]{32}", label) is None:
-              raise SystemExit("ASSESSMENT_COHORT_ASSIGNMENT_LABEL_INVALID")
-          print(label)
-          PY
-          )"
           test -n "$RUNNER_NAME"
-          printf 'RCC_ASSIGNED_RUNNER=%s\n' "$RUNNER_NAME" >> "$GITHUB_ENV"
-          printf 'RCC_ASSIGNMENT_LABEL=%s\n' "$assigned_label" >> "$GITHUB_ENV"
+          test -n "$RCC_EXPECTED_FACADE"
+          test "$RUNNER_NAME" = "$RCC_EXPECTED_FACADE"
+          [[ "$RCC_ASSIGNMENT_LABEL" =~ ^rcc-assignment-proof-[0-9a-f]{32}$ ]]
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$EVALUATED_TARGET" = "10"
           test "$TOP5_TARGET" = "5"
           test "$CANDIDATE_CAP" -ge 10
           test "$CANDIDATE_CAP" -le 15
-          echo "ASSESSMENT_COHORT_RCC_HANDOFF=PASS reservation=$RCC_RESERVATION_ID assignment=$assigned_label runner=$RUNNER_NAME"
+          printf 'RCC_ASSIGNED_RUNNER=%s\n' "$RUNNER_NAME" >> "$GITHUB_ENV"
+          echo "ASSESSMENT_COHORT_RCC_HANDOFF=PASS facade=$RCC_EXPECTED_FACADE assignment=$RCC_ASSIGNMENT_LABEL runner=$RUNNER_NAME"
 
       - name: Check out exact approved main
         uses: actions/checkout@v4
@@ -235,8 +226,8 @@ jobs:
             /tmp/jap-product-assessment-cohort-plan.json
             /tmp/jap-product-assessment-cohort-apply.json
             .runtime/product/product_v1_assessment_cohort.json
-            .runtime/demo/demo_001_rankable_refill_materialization.json
-            .runtime/demo/demo_001_rankable_refill_apply.json
+            .runtime/product/product_v1_rankable_refill_materialization.json
+            .runtime/product/product_v1_rankable_refill_apply.json
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 30
