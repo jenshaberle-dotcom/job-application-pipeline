@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 PROFILE = ROOT / ".rcc" / "runner-profiles" / "linux-wsl.json"
+TRIGGERS = ROOT / ".github" / "triggers"
 
 
 def _forbidden_tokens() -> tuple[str, ...]:
@@ -69,6 +70,11 @@ def test_project_owned_runner_allocation_contract_is_physically_absent() -> None
     assert profile["profile_hash"] == (
         "1419b2268a4daad29640a5871727da63dcb78f96c50e390f16e783228889f14e"
     )
+
+
+def test_legacy_workflow_trigger_authority_is_physically_absent() -> None:
+    trigger_files = sorted(path.name for path in TRIGGERS.iterdir() if path.is_file())
+    assert trigger_files == [".gitkeep"]
 
 
 def test_no_retired_runner_authority_survives_code_tests_or_current_docs() -> None:
