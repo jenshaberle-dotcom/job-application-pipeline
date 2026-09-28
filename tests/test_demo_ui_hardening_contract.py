@@ -13,7 +13,9 @@ def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile
     assert "verified match score" in source
     assert "Candidate fit" in source
     assert "Fit evidence" in source
-    assert "Needs capability evidence" in source or "capability evidence" in source
+    assert "skills evidence" in source
+    assert "requirements evidence" in source
+    assert "More fit evidence needed" in source
     assert "authoritative profile fit" not in source
     assert "Affinity" in source
 
