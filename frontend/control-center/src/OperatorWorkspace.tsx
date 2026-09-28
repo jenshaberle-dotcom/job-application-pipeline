@@ -661,7 +661,7 @@ function Jobs({
     <header className="ow-page-header">
       <div>
         <span>Review surface</span>
-        <h1>All jobs</h1>
+        <h1>All Jobs</h1>
         <p>
           Current employer-origin vacancies only. Market sensors and historical jobs remain auditable outside this review list.
           A real Profile Fit exists only after detail evidence, capability fit and hard gates.
@@ -672,7 +672,7 @@ function Jobs({
     <section className="ow-job-toolbar">
       <div className="ow-filter-row">
         {([
-          ["all", "All jobs"],
+          ["all", "All Jobs"],
           ["unreviewed", "Unreviewed"],
           ["interesting", "Interesting"],
           ["not_relevant", "Not relevant"],
