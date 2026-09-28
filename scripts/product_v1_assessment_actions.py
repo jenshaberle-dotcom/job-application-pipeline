@@ -111,6 +111,35 @@ def _validated_report(raw: object) -> dict[str, object]:
     return raw
 
 
+FIT_FACTOR_NAMES = frozenset(
+    {
+        "geography_work_model_commute",
+        "skills_capabilities",
+        "seniority",
+        "hard_requirements",
+    }
+)
+
+
+def _fit_blocker_counts(final: Mapping[str, object]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    selected = final.get("selected")
+    if not isinstance(selected, list):
+        return counts
+    for row in selected:
+        if not isinstance(row, Mapping):
+            continue
+        missing = row.get("profile_fit_missing_factors")
+        if not isinstance(missing, (list, tuple)):
+            continue
+        for raw in missing:
+            factor = str(raw or "").strip()
+            if factor not in FIT_FACTOR_NAMES:
+                continue
+            counts[factor] = counts.get(factor, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
 def _run_cohort(*, output: Path) -> subprocess.CompletedProcess[str]:
     # Lazy import avoids turning the read path into an eager dependency on the
     # assessment stack. The token is server-side authority and is never accepted
@@ -243,6 +272,7 @@ def apply_assessment_action() -> dict[str, object]:
                 "top_job_count": int(final.get("top_job_count") or 0),
             },
             "selected_readiness_counts": dict(final.get("selected_readiness_counts") or {}),
+            "fit_blocker_counts": _fit_blocker_counts(final),
             "top5_authority_violations": list(final.get("top5_authority_violations") or []),
             "provider_requests": 0,
             "direct_rank_writes": 0,
