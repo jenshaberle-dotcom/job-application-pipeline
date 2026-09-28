@@ -251,6 +251,8 @@ def apply_assessment_action() -> dict[str, object]:
             "combined_score_created": False,
             "mutation_scope": "existing_candidate_fit_hard_filter_and_ranking_authorities",
         }
+    except OSError as exc:
+        raise AssessmentActionStop("assessment local runtime/storage failure") from exc
     finally:
         if staged is not None:
             try:
