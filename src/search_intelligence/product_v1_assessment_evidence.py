@@ -194,7 +194,10 @@ _EMPLOYMENT_PATTERNS = (
         "permanent",
         re.compile(
             r"\b(?:permanent\s+(?:employment|position|contract|role)|"
-            r"unbefristet(?:e[rsnm]?\s+(?:anstellung|vertrag|position))?|festanstellung)\b",
+            r"unbefristet(?:e[rsnm]?|er|es|en)?\s+"
+            r"(?:anstellung|arbeitsvertrag|arbeitsverhaeltnis|arbeitsverhältnis|"
+            r"beschaeftigungsverhaeltnis|beschäftigungsverhältnis|stelle|vertrag|position)|"
+            r"festanstellung|festvertrag)\b",
             re.IGNORECASE,
         ),
     ),
@@ -247,8 +250,8 @@ _LANGUAGE_PATTERNS = {
 }
 
 _WORK_MODEL_PATTERNS = (
-    ("hybrid", re.compile(r"\bhybrid(?:\s+(?:work|working|model|setup|arrangement))?\b", re.IGNORECASE)),
-    ("remote", re.compile(r"\b(?:(?:fully|100\s*%)\s+remote|remote\s+(?:work|working|position|role))\b", re.IGNORECASE)),
+    ("hybrid", re.compile(r"\b(?:hybrid(?:\s+(?:work|working|model|setup|arrangement))?|hybrides?\s+arbeiten)\b", re.IGNORECASE)),
+    ("remote", re.compile(r"\b(?:(?:fully|100\s*%)\s+remote|remote\s+(?:work|working|position|role)|home\s*office|homeoffice|mobiles?\s+arbeiten|mobile\s+work)\b", re.IGNORECASE)),
     ("onsite", re.compile(r"\b(?:on[- ]?site|onsite|vor\s+ort)\b", re.IGNORECASE)),
 )
 
@@ -285,6 +288,9 @@ _WEEKLY_HOURS_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(r"\b(?P<single>\d{1,2}(?:[.,]\d+)?)\s*wochenstunden\b", re.IGNORECASE),
+    re.compile(r"\b(?P<single>\d{1,2}(?:[.,]\d+)?)\s*[- ]?stunden[- ]?woche\b", re.IGNORECASE),
+    re.compile(r"\b(?P<single>\d{1,2}(?:[.,]\d+)?)\s*[- ]?hour\s+week\b", re.IGNORECASE),
+    re.compile(r"\bweekly\s+working\s+time\s+(?:of\s+)?(?P<single>\d{1,2}(?:[.,]\d+)?)\s*hours?\b", re.IGNORECASE),
 )
 
 
