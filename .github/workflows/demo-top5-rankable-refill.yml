@@ -206,7 +206,7 @@ jobs:
           "$TOP5_PYTHON" -m scripts.run_demo_001_rankable_refill_campaign \
             --target-rankable "$TARGET_RANKABLE" \
             --candidate-cap "$CANDIDATE_CAP" \
-            --reviewed-by "demo-top5-plan:\${GITHUB_ACTOR}"
+            --reviewed-by "demo-top5-plan:${GITHUB_ACTOR}"
           echo "TOP5_CAMPAIGN_PLAN=PASS"
 
       - name: Apply through existing revision capability hard-filter and ranking authorities
@@ -221,13 +221,14 @@ jobs:
           "$TOP5_PYTHON" -m scripts.run_demo_001_rankable_refill_campaign \
             --target-rankable "$TARGET_RANKABLE" \
             --candidate-cap "$CANDIDATE_CAP" \
-            --reviewed-by "demo-top5:\${GITHUB_ACTOR}" \
+            --reviewed-by "demo-top5:${GITHUB_ACTOR}" \
             --apply \
             --approval-token "$CAMPAIGN_APPROVAL_TOKEN"
 
           canonical_output=".runtime/demo/demo_001_rankable_refill_apply.json"
           test -s "$canonical_output"
           cp "$canonical_output" "$APPLY_OUTPUT"
+
       - name: Prove authoritative Top 5 result
         shell: bash
         run: |
