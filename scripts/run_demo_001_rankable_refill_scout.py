@@ -102,20 +102,12 @@ def _authoritative_geography(row: Mapping[str, object]) -> GeographySignal:
             work_model = " ".join(
                 str(row.get("work_model") or "").split()
             ).strip().casefold()
-            if work_model == "remote" or any(
-                item["city"] in {
-                    "bundesweit",
-                    "deutschlandweit",
-                    "deutschland",
-                    "germany",
-                }
-                for item in german_locations
-            ):
+            if work_model == "remote":
                 return GeographySignal(
                     bucket="germany_remote",
                     tier_order=1,
                     eligible_for_bounded_pool=True,
-                    reason="structured_origin_germany_wide_or_remote",
+                    reason="structured_origin_remote_in_germany",
                 )
 
             commute = row.get("commute_minutes")
