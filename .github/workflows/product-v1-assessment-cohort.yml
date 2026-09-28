@@ -1,8 +1,35 @@
 name: Product V1 assessment cohort
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      reservation_id:
+        required: true
+        type: string
+      physical_runner:
+        required: true
+        type: string
+      facade_runner:
+        required: true
+        type: string
+      runs_on_json:
+        required: true
+        type: string
+      source_sha:
+        required: true
+        type: string
+      evaluated_target:
+        required: true
+        default: "10"
+        type: string
+      top5_target:
+        required: true
+        default: "5"
+        type: string
+      candidate_cap:
+        required: true
+        default: "15"
+        type: string
 
 permissions:
   contents: read
