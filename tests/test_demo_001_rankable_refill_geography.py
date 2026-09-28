@@ -100,12 +100,27 @@ def test_structured_hannover_location_is_positive_profile_geography() -> None:
     assert signal.eligible_for_bounded_pool is True
 
 
-def test_structured_bundesweit_location_is_germany_remote_profile_geography() -> None:
+def test_structured_bundesweit_location_without_remote_stays_review_required() -> None:
     signal = _authoritative_geography(
         {
             "origin_locations": [
                 {"city": "Bundesweit", "country_code": "DE"},
-            ]
+            ],
+            "work_model": "onsite",
+        }
+    )
+
+    assert signal.bucket == "commute_or_geography_review_required"
+    assert signal.eligible_for_bounded_pool is True
+
+
+def test_structured_germany_location_with_remote_work_model_qualifies() -> None:
+    signal = _authoritative_geography(
+        {
+            "origin_locations": [
+                {"city": "Berlin", "country_code": "DE"},
+            ],
+            "work_model": "remote",
         }
     )
 
