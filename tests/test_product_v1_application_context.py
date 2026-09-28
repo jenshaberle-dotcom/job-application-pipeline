@@ -112,6 +112,42 @@ def test_ready_context_binds_top5_job_approved_docs_and_candidate_facts() -> Non
     assert all(document["fact_authority"] == "false" for document in manifest["documents"])
 
 
+def test_capability_tag_separator_variants_keep_exact_semantics() -> None:
+    context = build_product_v1_application_context(
+        target=_target(
+            detail_text=(
+                "We need machine learning engineering, CI/CD automation and Python."
+            )
+        ),
+        candidate_profile_status="approved",
+        candidate_profile_sha256="7" * 64,
+        candidate_facts=(
+            _fact(
+                "ml",
+                "I build machine-learning systems.",
+                ("machine-learning",),
+            ),
+            _fact(
+                "cicd",
+                "I build CI/CD automation.",
+                ("ci/cd",),
+            ),
+        ),
+        source_documents=(
+            _document("base_cv", "CV"),
+            _document("base_application_letter", "Letter"),
+        ),
+        as_of_date=TODAY,
+    )
+
+    assert [entry.fact_key for entry in context.claim_plan] == ["cicd", "ml"]
+    assert {
+        tag
+        for entry in context.claim_plan
+        for tag in entry.matched_capability_tags
+    } == {"ci/cd", "machine-learning"}
+
+
 def test_non_top5_or_non_rankable_job_is_blocked() -> None:
     context = build_product_v1_application_context(
         target=_target(product_rank=6, product_readiness_status="hard_filter_decision_required"),
