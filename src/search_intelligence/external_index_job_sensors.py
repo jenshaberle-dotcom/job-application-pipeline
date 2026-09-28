@@ -123,10 +123,21 @@ def build_external_index_queries(
     queries: list[ExternalIndexQuery] = []
     for term in terms:
         for location in choices:
-            parts = [f'"{spec.url_hint}"', f'"{term}"']
-            if location:
-                parts.append(f'"{location}"')
-            parts.append("Germany")
+            # Search transport should constrain the result domain, not ask for a
+            # URL fragment as ordinary page text. Result URL shape remains a
+            # separate deterministic acceptance gate below.
+            parts = [f"site:{spec.search_site}", f'"{term}"']
+            location_folded = str(location or "").casefold()
+            if location and "remote" in location_folded and any(
+                token in location_folded for token in ("deutschland", "germany")
+            ):
+                # "Deutschland remote" is JAP's canonical market intent, not a
+                # phrase we expect boards to render verbatim.
+                parts.extend(("remote", "Germany"))
+            elif location:
+                parts.extend((f'"{location}"', "Germany"))
+            else:
+                parts.append("Germany")
             queries.append(
                 ExternalIndexQuery(
                     source=source,
