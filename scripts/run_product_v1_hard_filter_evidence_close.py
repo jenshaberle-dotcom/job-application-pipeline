@@ -92,6 +92,7 @@ def build_evidence_reviews(
         conn.rollback()
 
     policy_min, policy_max = _policy_weekly_window()
+    full_time_policy_compatible = policy_min <= 35.0 and policy_max >= 40.0
     authorized_sources = set(
         authorized_recurring_employer_origin_sources(JobIngestionRepository())
     )
@@ -153,6 +154,13 @@ def build_evidence_reviews(
         text = normalize_job_text(detail_text)
         if _FULL_TIME_RE.search(text) is None:
             diagnostics.append({"silver_job_id": job_id, "status": "blocked", "reason": "explicit_full_time_evidence_missing"})
+            continue
+        if not full_time_policy_compatible:
+            diagnostics.append({
+                "silver_job_id": job_id,
+                "status": "blocked",
+                "reason": "approved_weekly_hours_policy_not_full_time_compatible",
+            })
             continue
 
         evidence = extract_product_v1_assessment_evidence(
