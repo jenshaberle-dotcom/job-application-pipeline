@@ -1,0 +1,76 @@
+name: JAP Cloud Linux pool bootstrap operator
+run-name: JAP Cloud Linux validation ${{ inputs.candidate_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact JAP Cloud candidate commit
+        required: true
+        type: string
+      physical_runner:
+        description: Auto-select free 02..05, or diagnostic override
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - rcc-general-linux-02
+          - rcc-general-linux-03
+          - rcc-general-linux-04
+          - rcc-general-linux-05
+
+concurrency:
+  group: jap-cloud-linux-pool-bootstrap-operator
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Allocate Linux pool and validate JAP Cloud candidate
+    runs-on: [self-hosted, rcc-general-linux-01--jap]
+    timeout-minutes: 40
+    steps:
+      - name: Prove bootstrap and input
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME" == "rcc-general-linux-01--jap" ]]
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PHYSICAL_RUNNER" == "auto" || "$PHYSICAL_RUNNER" =~ ^rcc-general-linux-0[2-5]$ ]]
+          echo "JAP_CLOUD_LINUX_BOOTSTRAP=PASS runner=$RUNNER_NAME physical=$PHYSICAL_RUNNER"
+
+      - name: Execute RCC reservation-backed target validation
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d -t rcc-jap-cloud-validation.XXXXXX)"
+          trap 'rm -rf "$root"' EXIT
+          rcc_sha="$(gh api repos/jenshaberle-dotcom/Runner-Control-Center---RCC/commits/main --jq .sha)"
+          git -C "$root" init -q
+          git -C "$root" remote add origin https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC.git
+          git -C "$root" fetch -q --depth=1 origin "$rcc_sha"
+          git -C "$root" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$root" rev-parse HEAD)" = "$rcc_sha"
+          python3 "$root/tools/linux/Execute-JapCloudLiveWorkload-Wsl.py" \
+            --mode execute \
+            --workload target-validation \
+            --rcc-root "$root" \
+            --rcc-sha "$rcc_sha" \
+            --cloud-sha "$CANDIDATE_SHA" \
+            --physical "$PHYSICAL_RUNNER" \
+            --timeout 1800
+          echo "JAP_CLOUD_LINUX_POOL_VALIDATION=PASS rcc_sha=$rcc_sha candidate=$CANDIDATE_SHA"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: echo 'Bootstrap uses the serving JAP01 Linux facade only as control plane; JAP Cloud workload remains exact reservation-backed on 02..05.' >> "$GITHUB_STEP_SUMMARY"
