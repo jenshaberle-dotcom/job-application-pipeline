@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_ASSIGNED_RUNNER}.json}"
           test -f "$context_file"
-          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_FACADE_RUNNER" <<'PY'
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_ASSIGNED_RUNNER" <<'PY'
           import json
           import sys
           from pathlib import PurePosixPath
