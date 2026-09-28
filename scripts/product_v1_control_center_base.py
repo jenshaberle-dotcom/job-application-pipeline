@@ -24,6 +24,9 @@ from src.search_intelligence.product_v1 import (
     RankingPolicy,
     rank_product_jobs,
 )
+from src.search_intelligence.product_v1_candidate_fit_policy import (
+    load_candidate_fit_preference_policy,
+)
 from src.search_intelligence.product_v1_service import build_product_v1_payload
 from src.search_intelligence.source_connector_overview import (
     build_source_connector_overview,
@@ -69,33 +72,41 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     return ()
 
 
+def _tracked_profile_fit_preference_tags() -> tuple[str, ...]:
+    policy = load_candidate_fit_preference_policy(
+        ROOT / "config" / "product_v1_candidate_fit_policy.json"
+    )
+    return policy.preference_tags()
+
+
 def _load_profile_fit_preference_tags(
     conn: psycopg.Connection[object],
 ) -> tuple[str, ...]:
-    if not _relation_exists(conn, "candidate_fact_profiles") or not _relation_exists(
+    private_tags: tuple[str, ...] = ()
+    if _relation_exists(conn, "candidate_fact_profiles") and _relation_exists(
         conn, "candidate_facts"
     ):
-        return ()
-    rows = _fetch_all(
-        conn,
-        """
-        SELECT DISTINCT lower(btrim(tag.value)) AS tag
-        FROM candidate_fact_profiles profile
-        JOIN candidate_facts fact
-          ON fact.profile_key = profile.profile_key
-        CROSS JOIN LATERAL jsonb_array_elements_text(fact.capability_tags) tag(value)
-        WHERE profile.profile_key = 'default'
-          AND profile.status = 'approved'
-          AND fact.approval_status = 'approved'
-          AND fact.evidence_class = 'operator_preference'
-          AND fact.category IN ('preference', 'boundary')
-          AND (fact.valid_from IS NULL OR fact.valid_from <= current_date)
-          AND (fact.valid_until IS NULL OR fact.valid_until >= current_date)
-          AND lower(btrim(tag.value)) LIKE 'profile-fit.%'
-        ORDER BY tag
-        """,
-    )
-    return tuple(str(row["tag"]) for row in rows if row.get("tag"))
+        rows = _fetch_all(
+            conn,
+            """
+            SELECT DISTINCT lower(btrim(tag.value)) AS tag
+            FROM candidate_fact_profiles profile
+            JOIN candidate_facts fact
+              ON fact.profile_key = profile.profile_key
+            CROSS JOIN LATERAL jsonb_array_elements_text(fact.capability_tags) tag(value)
+            WHERE profile.profile_key = 'default'
+              AND profile.status = 'approved'
+              AND fact.approval_status = 'approved'
+              AND fact.evidence_class = 'operator_preference'
+              AND fact.category IN ('preference', 'boundary')
+              AND (fact.valid_from IS NULL OR fact.valid_from <= current_date)
+              AND (fact.valid_until IS NULL OR fact.valid_until >= current_date)
+              AND lower(btrim(tag.value)) LIKE 'profile-fit.%'
+            ORDER BY tag
+            """,
+        )
+        private_tags = tuple(str(row["tag"]) for row in rows if row.get("tag"))
+    return private_tags or _tracked_profile_fit_preference_tags()
 
 
 def _build_top_jobs(
