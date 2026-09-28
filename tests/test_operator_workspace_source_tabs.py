@@ -21,12 +21,15 @@ def test_sources_inventory_is_clustered_into_counted_tabs() -> None:
         "Needs attention",
         "Delivering jobs",
         "Active · no jobs",
-        "Market discovery · active",
-        "Coverage targets",
+        "Market discovery",
         "Setup pending",
         "Not connected",
     ):
         assert label in workspace
+    assert '"Coverage targets"' not in workspace
+    assert "Market discovery runtime mismatch" in workspace
+    assert "pipeline.source_connector_overview.v5" in workspace
+    assert "verified_discovery_evidence_count" in workspace
     assert ".ow-source-tabs button.active" in css
     assert ".ow-source-group-title" in css
 

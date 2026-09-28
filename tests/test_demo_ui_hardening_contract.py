@@ -8,9 +8,9 @@ FRONTEND = ROOT / "frontend" / "control-center" / "src"
 def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile_fit() -> None:
     source = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
 
-    assert "Role affinity · preliminary" in source
-    assert "More job-detail evidence is needed before this can become Candidate Fit or a ranking score." in source
-    assert "verified match score" in source
+    assert "<h3>Affinity</h3>" in source
+    assert "Affinity is not authoritative yet. Candidate Fit is evaluated separately above." in source
+    assert "Affinity ranking score" in source
     assert "Candidate fit" in source
     assert "Fit evidence" in source
     assert "skills evidence" in source
@@ -431,7 +431,7 @@ def test_demo_user_language_hides_internal_readiness_and_template_terms() -> Non
     assert "Ready for Top 5" in operator
     assert "Requirements evidence needed" in operator
     assert "Top 5 readiness" in operator
-    assert "verified match score" in operator
+    assert "Affinity ranking score" in operator
     assert "CV source" in operator
     assert "Cover letter source" in operator
     assert "Review-first · no automatic applications" in operator

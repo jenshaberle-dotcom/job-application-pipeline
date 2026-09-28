@@ -39,12 +39,22 @@ require_nonempty state_root "$STATE_ROOT"
 mkdir -p "$STATE_ROOT"
 
 managed_pid() {
+  # The PID file is stable product state across immutable runtime generations.
+  # A process remains JAP-managed even when its cwd belongs to the previous
+  # generation.  Requiring cwd == the new runtime root here caused the updater to
+  # orphan the previous API process on port 8780 while the new frontend started.
   [[ -f "$PID_FILE" ]] || return 1
-  local pid cmdline cwd expected_cwd
+  local pid cmdline
   pid="$(tr -dc '0-9' < "$PID_FILE")"
   [[ -n "$pid" && -r "/proc/$pid/cmdline" ]] || return 1
   cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
   [[ "$cmdline" == *"scripts/run_product_v1_live_demo.py"* ]] || return 1
+  printf '%s' "$pid"
+}
+
+current_generation_pid() {
+  local pid cwd expected_cwd
+  pid="$(managed_pid)" || return 1
   cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
   expected_cwd="$(readlink -f "$RUNTIME_ROOT" 2>/dev/null || true)"
   [[ -n "$expected_cwd" && "$cwd" == "$expected_cwd" ]] || return 1
@@ -168,8 +178,14 @@ IFS='|' read -r codex_version codex_binary_sha <<<"$codex_identity"
 [[ "$codex_version" == "0.154.0" ]] || fail bundled_codex_version_mismatch
 chmod 0755 "$CODEX_BINARY" || fail bundled_codex_not_executable
 
-if pid="$(managed_pid 2>/dev/null)"; then
+if pid="$(current_generation_pid 2>/dev/null)"; then
   fail "managed_runtime_already_running_pid_${pid}"
+fi
+if pid="$(managed_pid 2>/dev/null)"; then
+  prior_cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
+  printf 'JAP_WINDOWS_APP_PRIOR_GENERATION_RUNTIME=STOPPING pid=%s cwd=%s\n' "$pid" "$prior_cwd"
+  stop_managed
+  printf 'JAP_WINDOWS_APP_PRIOR_GENERATION_RUNTIME=STOPPED pid=%s\n' "$pid"
 fi
 rm -f "$PID_FILE"
 

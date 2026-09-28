@@ -42,11 +42,9 @@ on:
       - "tests/test_product_v1_f5_mailbox_batch_preflight.py"
       - "tests/test_application_event_classifier.py"
       - "frontend/control-center/src/F5ApplicationTracking.tsx"
-      - "frontend/control-center/src/OperatorWorkspace.tsx"
       - "frontend/control-center/src/operator-workspace-v2.css"
       - "frontend/control-center/src/f5-application-tracking.css"
       - "frontend/control-center/src/DemoProductPolish.tsx"
-      - "docs/current/REENTRY.md"
       - "docs/planning/active/F5-APPLICATION-LIFECYCLE-TRACKING.md"
   issue_comment:
     types: [created]
@@ -81,13 +79,13 @@ permissions:
 
 concurrency:
   group: f5-application-lifecycle-qualification-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   qualify:
     name: F5 lifecycle exact-head qualification
     if: >-
-      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+      vars.RCC_JAP_LEGACY_DIRECT_ASSIGNMENT_ALLOWED == 'true' && vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
       (github.event_name != 'issue_comment' ||
        (github.event.issue.number == 737 &&
         github.event.comment.user.login == 'jenshaberle-dotcom' &&

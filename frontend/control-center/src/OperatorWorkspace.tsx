@@ -27,6 +27,14 @@ type Job = {
   hard_filter_status?: string;
   overall_quality_score?: number | null;
   product_overall_quality_score?: number | null;
+  affinity_score?: number | null;
+  affinity_authority_status?: string | null;
+  affinity_components?: {
+    profile_direction?: number | null;
+    reliability_focus?: number | null;
+    data_focus?: number | null;
+    evidence_quality?: number | null;
+  };
   display_fit_score?: number | null;
   display_fit_scope?: string | null;
   profile_direction_score?: number | null;
@@ -166,6 +174,7 @@ type ProductPayload = {
     }>;
   };
   source_connector_overview: {
+    schema_version?: string;
     summary: {
       source_count: number;
       sensor_count: number;
@@ -184,6 +193,7 @@ type ProductPayload = {
       ingested_count: number;
       attention_count: number;
       discovery_lead_count?: number;
+      verified_discovery_evidence_count?: number;
     };
     sources: SourceConnector[];
   };
@@ -223,7 +233,7 @@ type JobSort =
   | "gate_asc"
   | "gate_desc";
 type SortColumn = "fit" | "review" | "job" | "location" | "published" | "observed" | "gate";
-type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Coverage targets" | "Pending" | "Not implemented";
+type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Pending" | "Not implemented";
 type SourceTab = "All" | SourceGroup;
 
 function downloadBase64Document(contentBase64: string, filename: string, mimeType: string) {
@@ -271,6 +281,12 @@ const fitFactorLabel: Record<string, string> = {
   hard_requirements: "requirements evidence",
 };
 
+function affinityScore(job: Job): number | null {
+  if (typeof job.affinity_score === "number") return job.affinity_score;
+  if (typeof job.product_overall_quality_score === "number") return job.product_overall_quality_score;
+  return null;
+}
+
 function candidateFitText(job: Job) {
   const decision = normalize(job.profile_fit_decision);
   if (decision === "passed") return "Fit confirmed";
@@ -296,8 +312,7 @@ function sourceGroupDisplay(group: SourceGroup) {
     "Needs attention": "Needs attention",
     "Delivering now": "Delivering jobs",
     "Active, 0 current jobs": "Active · no current jobs",
-    "Market sensors": "Market discovery · active",
-    "Coverage targets": "Coverage targets",
+    "Market sensors": "Market discovery",
     "Pending": "Setup pending",
     "Not implemented": "Not connected",
   } as Record<SourceGroup, string>)[group];
@@ -394,8 +409,8 @@ const compareText = (left: string, right: string) => left.localeCompare(right, "
 
 function compareJobs(a: Job, b: Job, sort: JobSort) {
   if (sort === "fit_desc" || sort === "fit_asc") {
-    const aFit = a.overall_quality_score ?? -1;
-    const bFit = b.overall_quality_score ?? -1;
+    const aFit = affinityScore(a) ?? -1;
+    const bFit = affinityScore(b) ?? -1;
     const fitDelta = sort === "fit_desc" ? bFit - aFit : aFit - bFit;
     if (fitDelta !== 0) return fitDelta;
   }
@@ -508,7 +523,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
         <div className="ow-card-title"><div><span>Best current option</span><h2>{top ? top.title : "No job ready to rank yet"}</h2></div>{top && <strong>#{top.product_rank || 1}</strong>}</div>
         {top ? <>
           <p className="ow-job-meta">{employerName(top)} · {locationText(top)}</p>
-          <div className="ow-fit-line"><b>{scoreText(top.overall_quality_score)}</b><span>overall match score</span></div>
+          <div className="ow-fit-line"><b>{scoreText(affinityScore(top))}</b><span>Affinity ranking score</span></div>
           <div className="ow-actions"><button type="button" onClick={() => onNavigate("top5")}>Open Top 5</button>{topUrl && <a href={topUrl} target="_blank" rel="noreferrer">Original job ↗</a>}</div>
         </> : <p className="ow-muted">No job has enough verified evidence for the shortlist yet.</p>}
       </article>
@@ -599,22 +614,21 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
     ["Seniority", profileFitFactors.seniority?.status],
     ["Hard requirements", profileFitFactors.hard_requirements?.status],
   ] as Array<[string, string | undefined]>;
-  const scoreRows = rankable
-    ? ([
-        ["Overall", job.overall_quality_score],
-        ["Profile direction", job.profile_direction_score],
-        ["Data focus", job.data_focus_score],
-        ["Reliability", job.reliability_focus_score],
-        ["Evidence quality", job.evidence_quality_score],
-      ] as Array<[string, number | null | undefined]>)
-    : ([ ["Role affinity", job.overall_quality_score] ] as Array<[string, number | null | undefined]>);
+  const affinity = affinityScore(job);
+  const scoreRows = ([
+    ["Affinity", affinity],
+    ["Profile direction", job.affinity_components?.profile_direction ?? job.profile_direction_score],
+    ["Data focus", job.affinity_components?.data_focus ?? job.data_focus_score],
+    ["Reliability", job.affinity_components?.reliability_focus ?? job.reliability_focus_score],
+    ["Evidence quality", job.affinity_components?.evidence_quality ?? job.evidence_quality_score],
+  ] as Array<[string, number | null | undefined]>);
 
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Job #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
     <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} disabled={liveCheck.status === "checking"} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Application Tracker</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Candidate fit</span><b>{candidateFitText(job)}</b></div><div><span>Fit evidence</span><Status value={job.profile_fit_coverage_status === "profile_fit_complete" ? "complete" : "incomplete"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
-    <section className="ow-score-card"><h3>{rankable ? "Match score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">More job-detail evidence is needed before this can become Candidate Fit or a ranking score.</p>}</section>
+    <section className="ow-score-card"><h3>Affinity</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{job.affinity_authority_status !== "authoritative" && <p className="ow-score-note">Affinity is not authoritative yet. Candidate Fit is evaluated separately above.</p>}</section>
     <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Live availability</span><Status value={liveCheck.status === "checking" ? "checking" : liveCheck.status === "idle" ? "not checked" : liveCheck.status} /></div><div><span>Top 5 readiness</span><b>{top5ReadinessText(job)}</b></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
     <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No verified explanation available yet.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No unresolved fit question recorded.</p>}</div></section>
   </aside>;
@@ -825,7 +839,7 @@ function Jobs({
             ].filter(Boolean).join(" ")}
             onClick={() => onSelectJob(job.silver_job_id)}
           >
-            <strong title={isRankable(job) ? "Verified ranking score" : "Role affinity only · more fit evidence needed"}>{scoreText(job.overall_quality_score)}</strong>
+            <strong title={isRankable(job) ? "Verified ranking score" : "Role affinity only · more fit evidence needed"}>{scoreText(affinityScore(job))}</strong>
             <Status value={job.review_label?.label || "unreviewed"} />
 
             <span className="ow-job-name">
@@ -893,7 +907,7 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
   );
   const selected = jobs.find((job) => job.silver_job_id === selectedId) || jobs[0] || null;
   return <div className="ow-stack"><header className="ow-page-header"><div><span>Application shortlist</span><h1>Top 5</h1><p>Only current jobs with verified fit and ranking evidence appear here. Empty slots stay empty until a job qualifies.</p></div><strong className="ow-big-count">{jobs.length}/5</strong></header>
-    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small></span><strong>{scoreText(job.overall_quality_score)}</strong></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />}</section> : <section className="ow-card"><h2>No job currently qualifies for the Top 5.</h2><p>JAP only fills the shortlist with current jobs that have enough verified fit evidence.</p><button type="button" className="ow-text-action" onClick={onReviewJobs}>Review current jobs blocking the shortlist →</button></section>}
+    {jobs.length ? <section className="ow-top5-workspace"><div className="ow-top5-list">{jobs.map((job, index) => <button type="button" key={job.silver_job_id} className={selected?.silver_job_id === job.silver_job_id ? "selected" : ""} onClick={() => setSelectedId(job.silver_job_id)}><span className="ow-rank">#{job.product_rank || index + 1}</span><span><b>{job.title}</b><small>{employerName(job)} · {locationText(job)}</small></span><strong>{scoreText(affinityScore(job))}</strong></button>)}</div>{selected && <JobDetail job={selected} payload={payload} refresh={refresh} applicationStage={applicationByJobId.get(selected.silver_job_id)?.effective_stage || null} />}</section> : <section className="ow-card"><h2>No job currently qualifies for the Top 5.</h2><p>JAP only fills the shortlist with current jobs that have enough verified fit evidence.</p><button type="button" className="ow-text-action" onClick={onReviewJobs}>Review current jobs blocking the shortlist →</button></section>}
   </div>;
 }
 
@@ -954,7 +968,7 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>Prepare documents for one job</span><h1>Application Builder</h1><p>Create a tailored CV and cover letter from your approved source documents, or start with a local fillable Word template. JAP never submits automatically.</p></div></header>
     <section className="ow-application-grid">
-      <article className="ow-card"><span className="ow-kicker">Application target</span><h2>{target?.title || "No current selectable job"}</h2>{target && <p>{employerName(target)} · {locationText(target)} · {top ? `${scoreText(top.overall_quality_score)} verified match score` : `${scoreText(target.overall_quality_score)} Affinity · selected current job`}</p>}<div className="ow-readiness"><div className={target ? "ready" : "blocked"}><i /><span>{top ? "Top-5 recommendation" : "Explicit current-job selection"}</span><b>{target ? "Ready for review drafting" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>CV source</span><b>{payload.application_sources_ready.base_cv ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Cover letter source</span><b>{payload.application_sources_ready.base_application_letter ? "Ready" : "Required"}</b></div></div><OpenApplicationButton silverJobId={target?.silver_job_id} disabled={!target || !docsReady} /></article>
+      <article className="ow-card"><span className="ow-kicker">Application target</span><h2>{target?.title || "No current selectable job"}</h2>{target && <p>{employerName(target)} · {locationText(target)} · {top ? `${scoreText(affinityScore(top))} Affinity · Top-5 rank` : `${scoreText(affinityScore(target))} Affinity · selected current job`}</p>}<div className="ow-readiness"><div className={target ? "ready" : "blocked"}><i /><span>{top ? "Top-5 recommendation" : "Explicit current-job selection"}</span><b>{target ? "Ready for review drafting" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>CV source</span><b>{payload.application_sources_ready.base_cv ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Cover letter source</span><b>{payload.application_sources_ready.base_application_letter ? "Ready" : "Required"}</b></div></div><OpenApplicationButton silverJobId={target?.silver_job_id} disabled={!target || !docsReady} /></article>
       <article className="ow-card ow-boundary-card"><span className="ow-kicker">Document layout</span><h2>{docsReady ? "Approved templates ready" : "Add your approved CV and cover letter"}</h2><p>Your source documents stay private. JAP preserves their layout and changes only the intended text areas.</p><ul><li>Layout and graphics stay unchanged</li><li>Only approved text areas may change</li><li>Profile facts and verified job evidence ground the content</li><li>No automatic apply, submit or send</li></ul></article>
     </section>
     <article className="ow-card">
@@ -1023,7 +1037,6 @@ function Applications({
 }
 function sourceGroup(source: SourceConnector): SourceGroup {
   if (source.current_blocker) return "Needs attention";
-  if (isCoverageTarget(source)) return "Coverage targets";
   if (normalize(source.source_role) === "sensor") return "Market sensors";
   if (source.activation.active === true) {
     if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded > 0) return "Delivering now";
@@ -1037,7 +1050,7 @@ function sourceGroup(source: SourceConnector): SourceGroup {
 function Sources({ payload }: { payload: ProductPayload }) {
   const sources = payload.source_connector_overview.sources;
   const overview = payload.source_connector_overview.summary;
-  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Coverage targets", "Pending", "Not implemented"];
+  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Pending", "Not implemented"];
   const groupCounts = Object.fromEntries(
     groups.map((group) => [group, sources.filter((source) => sourceGroup(source) === group).length]),
   ) as Record<SourceGroup, number>;
@@ -1049,7 +1062,6 @@ function Sources({ payload }: { payload: ProductPayload }) {
     sources.find((source) => sourceGroup(source) === "Delivering now")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Active, 0 current jobs")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Market sensors")?.source_name ||
-    sources.find((source) => sourceGroup(source) === "Coverage targets")?.source_name ||
     sources[0]?.source_name || ""
   );
   const sourceTabs: Array<{ id: SourceTab; label: string; count: number }> = [
@@ -1057,8 +1069,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     { id: "Needs attention", label: "Needs attention", count: groupCounts["Needs attention"] },
     { id: "Delivering now", label: "Delivering jobs", count: groupCounts["Delivering now"] },
     { id: "Active, 0 current jobs", label: "Active · no jobs", count: groupCounts["Active, 0 current jobs"] },
-    { id: "Market sensors", label: "Market discovery · active", count: groupCounts["Market sensors"] },
-    { id: "Coverage targets", label: "Coverage targets", count: groupCounts["Coverage targets"] },
+    { id: "Market sensors", label: "Market discovery", count: groupCounts["Market sensors"] },
     { id: "Pending", label: "Setup pending", count: groupCounts.Pending },
     { id: "Not implemented", label: "Not connected", count: groupCounts["Not implemented"] },
   ];
@@ -1076,6 +1087,9 @@ function Sources({ payload }: { payload: ProductPayload }) {
     visible.find((source) => source.source_name === selectedName) ||
     visible[0] ||
     null;
+  const sensorContractReady =
+    payload.source_connector_overview.schema_version === "pipeline.source_connector_overview.v5"
+    && (overview.verified_discovery_evidence_count ?? 0) >= 7;
   const summaryTruth = [
     ["Employer sources", overview.employer_origin_count],
     ["Delivering jobs", overview.active_last_run_loaded_count],
@@ -1087,6 +1101,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
 
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>Where jobs come from</span><h1>Sources</h1><p>See which employer sources currently deliver jobs, which discovery channels expand coverage and where attention is needed.</p></div><strong className="ow-big-count">{sources.length}</strong></header>
+    {!sensorContractReady && <div className="ow-callout warn"><b>Market discovery runtime mismatch</b><span>The installed UI expects the v5 market-sensor evidence contract. Restart/update the JAP runtime before trusting discovery counts or sensor yield.</span></div>}
     <section className="ow-source-summary-strip">
       {summaryTruth.map(([name, value]) => <div key={name}><span>{name}</span><b>{value}</b></div>)}
     </section>
@@ -1100,7 +1115,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
       ><span>{tab.label}</span><b>{tab.count}</b></button>)}
     </nav>
     <section className="ow-source-workspace">
-      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {sourceActivityText(source)}</small></span><b className="ow-source-row-state">{sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
+      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {sourceActivityText(source)}</small></span><b className="ow-source-row-state">{isCoverageTarget(source) ? "Coverage target" : sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
       {selected && <article className="ow-card ow-source-detail">
         <span className="ow-kicker">{sourceGroupDisplay(sourceGroup(selected))}</span>
         <h2>{selected.source_label}</h2>

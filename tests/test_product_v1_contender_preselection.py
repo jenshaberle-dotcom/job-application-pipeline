@@ -57,6 +57,8 @@ def row(
         ("Analytics Engineer", "bridge"),
         ("Analytics Engineering Lead", "bridge"),
         ("Analytics Engineering Manager", "bridge"),
+        ("Data Scientist", "bridge"),
+        ("Senior Data Scientist", "bridge"),
         ("AI Reliability Engineer", "strategic_probe"),
         ("Data Reliability Specialist", "strategic_probe"),
     ],
@@ -75,7 +77,6 @@ def test_approved_product_title_families_qualify(title: str, tier: str) -> None:
         "Backend Engineer",
         "Cloud Engineer",
         "Software Engineer",
-        "Data Scientist",
         "Power BI Platform Engineer",
     ],
 )

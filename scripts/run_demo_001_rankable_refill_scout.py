@@ -72,13 +72,23 @@ def _authoritative_geography(row: Mapping[str, object]) -> GeographySignal:
             for item in locations
             if isinstance(item, Mapping)
             and str(item.get("city") or "").strip()
-            and str(item.get("country_code") or "").strip()
         ]
         if normalized_locations:
+            # Hannover itself is unambiguous enough to remain authoritative even
+            # when an ATS omitted the country-code sidecar.  Other cities still
+            # require explicit country evidence before we infer Germany.
+            if any(item["city"] in {"hannover", "hanover"} for item in normalized_locations):
+                return GeographySignal(
+                    bucket="hannover_explicit",
+                    tier_order=0,
+                    eligible_for_bounded_pool=True,
+                    reason="structured_origin_location_hannover",
+                )
+
             german_locations = [
                 item
                 for item in normalized_locations
-                if is_germany_country(item["country_code"])
+                if item["country_code"] and is_germany_country(item["country_code"])
             ]
             if not german_locations:
                 return GeographySignal(

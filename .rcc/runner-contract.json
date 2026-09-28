@@ -29,9 +29,11 @@
       "platform": "linux-wsl",
       "desired_count": 1,
       "min_active": 0,
-      "max_active": 1,
+      "max_active": 5,
       "sleep_allowed": true,
-      "routing_labels": ["job-pipeline-runtime-linux"],
+      "routing_labels": [
+        "job-pipeline-runtime-linux"
+      ],
       "profile_id": "job-pipeline-runtime-linux-warm",
       "runtime_capabilities": []
     }
