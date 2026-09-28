@@ -592,7 +592,7 @@ export default function ApplicationWorkspace() {
     <section className="demo-application-workspace" role="dialog" aria-modal="true" aria-label="Application Workspace">
       <header className="demo-application-header">
         <div>
-          <span className="demo-eyebrow">PRODUCT V1 · APPLICATION</span>
+          <span className="demo-eyebrow">Application Builder</span>
           <h1>Application Workspace</h1>
           <p>The job you selected stays the application target. Change it only explicitly.</p>
         </div>
