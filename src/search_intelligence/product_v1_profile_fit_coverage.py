@@ -122,6 +122,25 @@ def parse_candidate_geography_policy(tags: Iterable[str]) -> CandidateGeographyP
     )
 
 
+def _origin_location_tokens(
+    row: Mapping[str, object],
+) -> tuple[frozenset[str], frozenset[str]]:
+    raw = row.get("origin_locations")
+    cities: set[str] = set()
+    countries: set[str] = set()
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, Mapping):
+                continue
+            city = _token(item.get("city"))
+            country = _country_token(item.get("country_code"))
+            if city:
+                cities.add(city)
+            if country:
+                countries.add(country)
+    return frozenset(cities), frozenset(countries)
+
+
 def _geography_factor(
     row: Mapping[str, object],
     policy: CandidateGeographyPolicy,
@@ -131,6 +150,7 @@ def _geography_factor(
 
     missing = False
     failed = False
+    origin_cities, origin_countries = _origin_location_tokens(row)
 
     work_model = _token(row.get("work_model"))
     if policy.work_models:
@@ -146,15 +166,18 @@ def _geography_factor(
     remote_country_scope = work_model == "remote" and bool(policy.countries)
     if remote_country_scope:
         country = _country_token(row.get("country"))
-        if not country:
+        countries = ({country} if country else set()) | set(origin_countries)
+        if not countries:
             missing = True
-        elif country not in policy.countries:
+        elif not (countries & set(policy.countries)):
             failed = True
     elif policy.cities:
         city = _token(row.get("city"))
         country = _country_token(row.get("country"))
+        cities = ({city} if city else set()) | set(origin_cities)
+        countries = ({country} if country else set()) | set(origin_countries)
         commute = row.get("commute_minutes")
-        city_matches = bool(city) and city in policy.cities
+        city_matches = bool(cities & set(policy.cities))
 
         if city_matches:
             if policy.commute_max_minutes is not None:
@@ -163,7 +186,7 @@ def _geography_factor(
                 elif commute > policy.commute_max_minutes:
                     failed = True
         elif policy.commute_max_minutes is None:
-            if not city:
+            if not cities:
                 missing = True
             else:
                 failed = True
@@ -177,15 +200,16 @@ def _geography_factor(
             # Commute evidence can extend the regional anchor only inside an
             # approved country; this prevents a short but cross-border example
             # from silently becoming in-scope.
-            if not country:
+            if not countries:
                 missing = True
-            elif country not in policy.countries:
+            elif not (countries & set(policy.countries)):
                 failed = True
     elif policy.countries:
         country = _country_token(row.get("country"))
-        if not country:
+        countries = ({country} if country else set()) | set(origin_countries)
+        if not countries:
             missing = True
-        elif country not in policy.countries:
+        elif not (countries & set(policy.countries)):
             failed = True
 
     if failed:
