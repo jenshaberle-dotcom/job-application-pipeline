@@ -944,8 +944,8 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
       }
       if (result.status === "already_running") {
         setAssessmentState({
-          status: "running",
-          message: "A Candidate Fit and Top 5 evaluation is already running.",
+          status: "incomplete",
+          message: "A Candidate Fit and Top 5 evaluation is already running. Refresh again after it finishes.",
         });
         return;
       }
