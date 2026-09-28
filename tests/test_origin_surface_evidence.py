@@ -82,3 +82,32 @@ def test_non_http_and_non_job_links_are_ignored() -> None:
     assert evidence.jobspace_urls == ("https://jobs.lever.co/example",)
     assert len(evidence.ats_fingerprints) == 1
     assert evidence.ats_fingerprints[0].family == "lever"
+
+
+def test_bestellen_path_does_not_masquerade_as_stellen_jobspace() -> None:
+    html = """
+    <html><body>
+      <a href="/de/ausleihen-bestellen">Ausleihen & Bestellen</a>
+      <a href="/de/ausleihen-bestellen/tib-dokumentlieferung">Dokumentlieferung</a>
+      <a href="/de/die-tib/karriere-und-ausbildung/stellenangebote">Stellenangebote</a>
+      <a href="/stellenmarkt">Stellenmarkt</a>
+      <a href="/jobalert.html">Jobalert</a>
+    </body></html>
+    """
+
+    evidence = extract_origin_surface_evidence(
+        html=html,
+        base_url="https://www.tib.eu/",
+    )
+
+    assert "https://www.tib.eu/de/ausleihen-bestellen" not in evidence.jobspace_urls
+    assert (
+        "https://www.tib.eu/de/ausleihen-bestellen/tib-dokumentlieferung"
+        not in evidence.jobspace_urls
+    )
+    assert (
+        "https://www.tib.eu/de/die-tib/karriere-und-ausbildung/stellenangebote"
+        in evidence.jobspace_urls
+    )
+    assert "https://www.tib.eu/stellenmarkt" in evidence.jobspace_urls
+    assert "https://www.tib.eu/jobalert.html" in evidence.jobspace_urls
