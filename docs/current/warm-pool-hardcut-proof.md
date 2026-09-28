@@ -62,7 +62,7 @@ same target model instead of preserving a consumer-owned execution profile:
 
 For JAP `linux-base`, RCC must materialize profile
 `rcc-demand-jap-linux-base` with hash
-`a0be1d17ce9bbeeb104bbcf0a9f3c9619a9797b9b410be61fd8a1686973396ed`.
+`b08aaffd6a5da737b20570a7ed3b5b1bfc3eea11f0efeeb216e5a9d2a030c70e`.
 
 The contract is now structurally compatible, but live acceptance remains unproven.
 RCC must still prestage/qualify the demand profile, run the read-only registration
