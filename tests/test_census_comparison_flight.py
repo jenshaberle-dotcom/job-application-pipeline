@@ -2,6 +2,7 @@ import pytest
 
 from scripts.run_job_first_employer_discovery_census_comparison import (
     RuntimeProfileIntent,
+    _external_location_signals,
     _incremental_metrics,
     _profile_intents_from_rows,
     _run_control_sources,
@@ -103,6 +104,83 @@ def test_profile_intents_preserve_all_active_terms_and_source_specific_profiles(
     assert stepstone.profile.offer_type is None
     assert stepstone.profile.page_size == 25
 
+
+
+def test_external_market_intents_canonicalize_local_and_remote_profiles():
+    intents = (
+        RuntimeProfileIntent(
+            profile=SearchProfile(
+                id=1,
+                profile_name="ba_data_engineer_30629_50km",
+                source_name="bundesagentur_fuer_arbeit",
+                search_location="30629",
+                search_radius_km=50,
+                offer_type=1,
+                page_size=10,
+            ),
+            search_terms=("Data Engineer",),
+        ),
+        RuntimeProfileIntent(
+            profile=SearchProfile(
+                id=2,
+                profile_name="ba_data_engineering_remote_nationwide_review",
+                source_name="bundesagentur_fuer_arbeit",
+                search_location=None,
+                search_radius_km=None,
+                offer_type=1,
+                page_size=10,
+            ),
+            search_terms=("Data Engineer", "Analytics Engineer"),
+        ),
+        RuntimeProfileIntent(
+            profile=SearchProfile(
+                id=3,
+                profile_name="stepstone_data_engineer_hannover",
+                source_name="stepstone",
+                search_location="Hannover",
+                search_radius_km=None,
+                offer_type=None,
+                page_size=25,
+            ),
+            search_terms=("Machine Learning Engineer",),
+        ),
+    )
+
+    assert _external_location_signals(intents) == (
+        "Hannover",
+        "Deutschland remote",
+    )
+
+
+def test_external_market_intents_do_not_duplicate_postcode_and_hannover():
+    intents = (
+        RuntimeProfileIntent(
+            profile=SearchProfile(
+                id=1,
+                profile_name="ba_data_engineer_30629_50km",
+                source_name="bundesagentur_fuer_arbeit",
+                search_location="30629",
+                search_radius_km=50,
+                offer_type=1,
+                page_size=10,
+            ),
+            search_terms=("Data Engineer",),
+        ),
+        RuntimeProfileIntent(
+            profile=SearchProfile(
+                id=2,
+                profile_name="stepstone_data_engineer_hannover",
+                source_name="stepstone",
+                search_location="Hannover",
+                search_radius_km=None,
+                offer_type=None,
+                page_size=25,
+            ),
+            search_terms=("Analytics Engineer",),
+        ),
+    )
+
+    assert _external_location_signals(intents) == ("Hannover",)
 
 def test_control_sources_receive_their_own_profile_authority(monkeypatch):
     calls: list[tuple[str, str | None, int | None, str]] = []
