@@ -34,8 +34,10 @@ from src.search_intelligence.product_v1_application_context import (
     _job_references_for_fact,
 )
 from src.search_intelligence.product_v1_contenders import (
+    GeographySignal,
     classify_geography,
     classify_role_title,
+    is_germany_country,
 )
 
 
@@ -54,6 +56,32 @@ READINESS_PRIORITY = {
     "hard_filter_evidence_required": 1,
     "assessment_required": 2,
 }
+
+
+def _authoritative_geography(row: Mapping[str, object]) -> GeographySignal:
+    locations = row.get("origin_locations")
+    if isinstance(locations, list):
+        country_codes = {
+            str(item.get("country_code") or "").strip().upper()
+            for item in locations
+            if isinstance(item, Mapping)
+            and str(item.get("country_code") or "").strip()
+        }
+        if country_codes:
+            if any(is_germany_country(code) for code in country_codes):
+                return GeographySignal(
+                    bucket="germany_origin_location",
+                    tier_order=1,
+                    eligible_for_bounded_pool=True,
+                    reason="structured_origin_location_in_germany",
+                )
+            return GeographySignal(
+                bucket="outside_germany",
+                tier_order=99,
+                eligible_for_bounded_pool=False,
+                reason="structured_origin_locations_outside_germany",
+            )
+    return classify_geography(dict(row))
 
 
 def _load_candidate_facts(conn: psycopg.Connection[Any]) -> tuple[CandidateFactSnapshot, ...]:
@@ -113,6 +141,22 @@ def _load_rows(
                 readiness.country,
                 readiness.work_model,
                 readiness.commute_minutes,
+                COALESCE(
+                    (
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'city', locations.city,
+                                'country_code', locations.country_code,
+                                'is_primary', locations.is_primary,
+                                'evidence_source', locations.evidence_source
+                            )
+                            ORDER BY locations.is_primary DESC, locations.city, locations.country_code
+                        )
+                        FROM silver_job_locations locations
+                        WHERE locations.silver_job_id = readiness.silver_job_id
+                    ),
+                    '[]'::jsonb
+                ) AS origin_locations,
                 readiness.source_name,
                 readiness.source_url,
                 readiness.canonical_source_type,
@@ -182,7 +226,7 @@ def scout(
     for row in rows:
         silver_job_id = int(row["silver_job_id"])
         item: dict[str, object] = {str(key): value for key, value in row.items()}
-        geography = classify_geography(dict(row))
+        geography = _authoritative_geography(row)
         item.update(
             {
                 "live_outcome": "unverifiable",
@@ -275,6 +319,7 @@ def main() -> int:
             "database_writes": False,
             "network_exact_detail_requests": len(rows),
             "provider_requests": 0,
+            "origin_location_sidecar_precedes_legacy_geography": True,
             "explicit_outside_germany_excluded": True,
             "capability_fit_authority_created": False,
             "hard_filter_authority_created": False,
