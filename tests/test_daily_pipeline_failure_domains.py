@@ -12,7 +12,7 @@ REPOSITORY_ID = 1230805345
 REPOSITORY = "jenshaberle-dotcom/job-application-pipeline"
 RUNNER_NAME = "assigned-jap-runner"
 RESERVATION_ID = "0123456789abcdef0123456789abcdef"
-ASSIGNMENT_LABEL = "rcc-assignment-0123456789abcdef0123456789abcdef"
+ASSIGNMENT_LABEL = "rcc-assignment-proof-0123456789abcdef0123456789abcdef"
 
 
 def _prepare_fake_home(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -132,6 +132,7 @@ def _run_daily(
     snapshot_exit: int = 0,
     context_status: str = "PASS",
     remove_context: bool = False,
+    include_reservation: bool = True,
 ) -> tuple[subprocess.CompletedProcess[str], list[str], str]:
     home, call_log, context_file = _prepare_fake_home(tmp_path)
     if remove_context:
@@ -156,10 +157,13 @@ def _run_daily(
             "FAKE_SILVER_EXIT": str(silver_exit),
             "FAKE_SNAPSHOT_EXIT": str(snapshot_exit),
             "RUNNER_NAME": RUNNER_NAME,
-            "RCC_RESERVATION_ID": RESERVATION_ID,
             "RCC_ASSIGNMENT_LABEL": ASSIGNMENT_LABEL,
         }
     )
+    if include_reservation:
+        env["RCC_RESERVATION_ID"] = RESERVATION_ID
+    else:
+        env.pop("RCC_RESERVATION_ID", None)
     completed = subprocess.run(
         ["bash", str(SCRIPT)],
         env=env,
@@ -243,6 +247,19 @@ def test_stale_rcc_runtime_context_fails_closed_before_pipeline_work(tmp_path: P
     assert "RCC runtime context rejected" in log_text
 
 
+def test_assignment_proof_derives_reservation_identity_when_not_supplied(
+    tmp_path: Path,
+) -> None:
+    completed, calls, log_text = _run_daily(
+        tmp_path,
+        include_reservation=False,
+    )
+
+    assert completed.returncode == 0
+    assert calls
+    assert "START daily job pipeline" in log_text
+
+
 def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     daily = SCRIPT.read_text(encoding="utf-8")
     provisioner = LOCAL_OSS_PROVISIONER.read_text(encoding="utf-8")
@@ -251,7 +268,7 @@ def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     assert "source .venv/bin/activate" not in daily
     assert "RCC_CONTEXT_FILE" in daily
     assert "RCC_ASSIGNMENT_LABEL" in daily
-    assert "rcc-assignment-[0-9a-f]{32}" in daily
+    assert "rcc-assignment-proof-[0-9a-f]{32}" in daily
     assert "rcc-general-linux-0" not in daily
     assert ("job-" + "pipeline-runtime-linux") not in daily
     assert "RUNTIME_PYTHON" in daily

@@ -48,29 +48,33 @@ are introduced by this change.
 No database or live workload ran during this scan. Ten complete Fit decisions
 and five authoritative Top-5 jobs remain unproven.
 
-Inspection of RCC `main` on 2026-09-28 found a contract mismatch. Its current
-production adapter still requires a consumer-owned allocation contract and the
-older PR-validation dispatch shape. That external mismatch does not justify
-retaining stale allocation authority inside JAP. It gates **RCC-dispatched**
-workload execution, not the repository hardcut merge and not an explicit local
-operator invocation of the generic Product cohort. The remaining RCC interface
-gaps are:
+RCC PR #674 has since merged the generic demand-only adapter. JAP now uses the
+same target model instead of preserving a consumer-owned execution profile:
 
-| Boundary | RCC production adapter | JAP assessment workload |
-| --- | --- | --- |
-| Demand | consumer allocation slots and physical/facade inventory | capability-only profile |
-| Source | open PR head plus trusted workflow main | exact approved main |
-| Dispatch | expected ref/head, correlation and facade/assignment labels | reservation ID, selector JSON and source SHA |
-| Assignment | ephemeral proof-label format | ephemeral assignment-label format |
-| Run identity | correlation in workflow display title | no correlated run title yet |
+| Boundary | Current authority |
+| --- | --- |
+| Demand | JAP declares `.rcc/workload-demands.json`; RCC materializes the execution profile |
+| Source | exact `source_sha` |
+| Dispatch | RCC supplies exact facade label + ephemeral assignment-proof label |
+| Assignment | `rcc-assignment-proof-<reservation-id>` |
+| Allocation/profile | RCC-only |
+| Consumer runner profile | physically absent |
 
-These must be reconciled in the shared RCC handoff before dispatch. Do not restore
-consumer allocation, old trigger files or a second scheduler to make the interfaces
-appear compatible. The host execution and runtime-context qualification remain required for RCC
-automation. JAP Classic's explicit local assessment action is not runner authority:
-it owns no allocation, scheduler or dispatch path and validates the cohort report
-before accepting its result. Release publication still requires an RCC-assigned
-Windows workload; a version bump alone currently publishes nothing.
+For JAP `linux-base`, RCC must materialize profile
+`rcc-demand-jap-linux-base` with hash
+`b08aaffd6a5da737b20570a7ed3b5b1bfc3eea11f0efeeb216e5a9d2a030c70e`.
+
+The contract is now structurally compatible, but live acceptance remains unproven.
+RCC must still prestage/qualify the demand profile, run the read-only registration
+preflight, receive fresh effect authority, register the exact facades and execute
+one exact-source workload with deterministic cleanup. JAP must not restore a
+runner contract, consumer runner profile, broad labels, fixed member choice or a
+second scheduler while those gates are completed.
+
+JAP Classic's explicit local assessment action remains separate from runner
+authority: it owns no allocation, scheduler or dispatch path and validates the
+cohort report before accepting its result. Release publication still requires an
+RCC-assigned Windows workload; a version bump alone currently publishes nothing.
 
 ## Product acceptance follow-up
 

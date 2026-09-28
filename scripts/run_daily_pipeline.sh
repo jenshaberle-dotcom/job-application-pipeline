@@ -7,14 +7,22 @@ RCC_REPOSITORY="jenshaberle-dotcom/job-application-pipeline"
 RCC_ASSIGNED_RUNNER="${RCC_ASSIGNED_RUNNER:-${RUNNER_NAME:-}}"
 RCC_RESERVATION_ID="${RCC_RESERVATION_ID:-}"
 RCC_ASSIGNMENT_LABEL="${RCC_ASSIGNMENT_LABEL:-}"
-if [[ -z "$RCC_ASSIGNED_RUNNER" || -z "$RCC_RESERVATION_ID" || -z "$RCC_ASSIGNMENT_LABEL" ]]; then
-  printf 'ERROR RCC assignment context required; runner=%s reservation=%s assignment=%s\n'     "${RCC_ASSIGNED_RUNNER:-unset}" "${RCC_RESERVATION_ID:-unset}" "${RCC_ASSIGNMENT_LABEL:-unset}" >&2
+if [[ -z "$RCC_ASSIGNED_RUNNER" || -z "$RCC_ASSIGNMENT_LABEL" ]]; then
+  printf 'ERROR RCC assignment context required; runner=%s assignment=%s\n' \
+    "${RCC_ASSIGNED_RUNNER:-unset}" "${RCC_ASSIGNMENT_LABEL:-unset}" >&2
   exit 1
 fi
-if [[ ! "$RCC_ASSIGNMENT_LABEL" =~ ^rcc-assignment-[0-9a-f]{32}$ ]]; then
-  printf 'ERROR RCC ephemeral assignment label invalid: %s\n' "$RCC_ASSIGNMENT_LABEL" >&2
+if [[ ! "$RCC_ASSIGNMENT_LABEL" =~ ^rcc-assignment-proof-[0-9a-f]{32}$ ]]; then
+  printf 'ERROR RCC ephemeral assignment proof invalid: %s\n' "$RCC_ASSIGNMENT_LABEL" >&2
   exit 1
 fi
+DERIVED_RESERVATION_ID="${RCC_ASSIGNMENT_LABEL#rcc-assignment-proof-}"
+if [[ -n "$RCC_RESERVATION_ID" && "$RCC_RESERVATION_ID" != "$DERIVED_RESERVATION_ID" ]]; then
+  printf 'ERROR RCC reservation/assignment identity mismatch: reservation=%s assignment=%s\n' \
+    "$RCC_RESERVATION_ID" "$RCC_ASSIGNMENT_LABEL" >&2
+  exit 1
+fi
+RCC_RESERVATION_ID="${RCC_RESERVATION_ID:-$DERIVED_RESERVATION_ID}"
 RCC_CONTEXT_FILE="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_ASSIGNED_RUNNER}.json}"
 LOG_DIR="$HOME/job-pipeline-logs"
 LOCK_DIR="/tmp/job-pipeline-daily.lock"

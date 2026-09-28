@@ -82,13 +82,20 @@ def test_product_assessment_cohort_has_readonly_plan_before_apply() -> None:
     assert 'PGOPTIONS="-c default_transaction_read_only=on"' in workflow
     assert "unset PGOPTIONS || true" in workflow
     assert "workflow_dispatch:" in workflow
-    assert "Prove exact RCC reservation handoff" in workflow
-    assert "fromJSON(inputs.runs_on_json)" in workflow
-    assert "rcc-assignment-[0-9a-f]{32}" in workflow
+    assert "Prove exact RCC assignment handoff" in workflow
+    assert "- self-hosted" in workflow
+    assert "${{ inputs.rcc_facade_label }}" in workflow
+    assert "${{ inputs.rcc_assignment_label }}" in workflow
+    assert "rcc-assignment-proof-[0-9a-f]{32}" in workflow
     assert "RCC_ASSIGNED_RUNNER" in workflow
     assert "physical_runner:" not in workflow
     assert "facade_runner:" not in workflow
     assert ("rcc-" + "general-linux-0") not in workflow
+    assert "runs_on_json" not in workflow
+    assert "reservation_id:" not in workflow
+    assert ".runtime/demo/" not in workflow
+    assert ".runtime/product/product_v1_rankable_refill_materialization.json" in workflow
+    assert ".runtime/product/product_v1_rankable_refill_apply.json" in workflow
 
 
 def test_product_assessment_cohort_uses_rcc_runtime_and_not_public_pip_bootstrap() -> None:

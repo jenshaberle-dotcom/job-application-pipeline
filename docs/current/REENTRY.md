@@ -58,7 +58,20 @@ Physically removed from JAP:
 - local Windows scheduled-pipeline runner path;
 - old workflow-specific regression tests that could restore those authorities.
 
-The remaining assessment-cohort workflow is a **workload target only**. It receives RCC's exact assignment and does not choose pool topology.
+The remaining assessment-cohort workflow is a **workload target only**. JAP now declares
+its execution need through `.rcc/workload-demands.json`; RCC owns profile
+materialization, allocation, facade selection and capability provisioning. The consumer-owned runner-profile tree is physically absent.
+
+Current demand mapping:
+
+```text
+product-v1-assessment-cohort.yml
+→ linux-base
+→ platform linux-wsl
+→ runtime python-project
+→ RCC materializes rcc-demand-jap-linux-base
+→ expected materialized profile hash b08aaffd6a5da737b20570a7ed3b5b1bfc3eea11f0efeeb216e5a9d2a030c70e
+```
 
 ## Current next gate
 
@@ -69,14 +82,17 @@ the Candidate-Fit/Top-5 projection clarification is merged as
 `717ae8654c3cff6641fdbcb1567935276cf55608`. This is repository proof, not RCC
 live execution acceptance.
 
-The repository hardcut itself may merge once its own scans and regression tests
-pass; keeping stale runner authority on `main` is not a valid substitute for an
-external runtime acceptance proof. **RCC-dispatched automation** remains separately
-gated on a generic RCC handoff that accepts JAP's capability-only demand without
-restoring consumer-owned pool/facade allocation authority. The inspected RCC
-production adapter still expects the removed consumer allocation contract and a
-different dispatch interface. No RCC execution of the JAP assessment workload
-has been proven.
+The repository hardcut itself is independent from runtime acceptance; keeping stale
+runner authority on `main` is not a valid substitute for external execution proof.
+RCC PR #674 has now merged the generic `RCC_WORKLOAD_DEMAND_V2 + EXACT_SOURCE_V1`
+adapter required by JAP. JAP's remaining workflow consumes only
+`source_sha + rcc_facade_label + rcc_assignment_label`; it does not choose a
+physical member or persistent facade.
+
+No RCC execution of the JAP assessment workload has been proven yet. The remaining
+RCC operational gates are profile prestage/qualification, read-only five-member
+registration preflight, fresh operator registration authority, facade registration,
+and then one exact-source production dispatch with cleanup proof.
 
 JAP Classic may run the same generic assessment cohort locally through the explicit
 Control Center operator action `/api/v1/product-v1/assessment-cohort`. That path
@@ -99,8 +115,9 @@ Product sequence:
    the validated report proves 10 complete Fit decisions, at least 5 Fit-passed/rankable
    jobs and exactly 5 authoritative Top-5 jobs;
 3. verify the English Candidate Fit and Top 5 surfaces against that live Product truth;
-4. separately reconcile the generic RCC handoff for future automated/remote cohort runs
-   and qualify RCC-assigned Windows publication before publishing version 1.2.2;
+4. complete RCC demand-v2 prestage/registration and one exact-source cohort proof for
+   future automated/remote runs; separately qualify RCC-assigned Windows publication
+   before publishing version 1.2.2;
 5. install and run the operator smoke for Sources, All Jobs, Candidate Fit and Top 5.
 
 Do not increment VERSION or claim populated Top 5 until the live assessment report has

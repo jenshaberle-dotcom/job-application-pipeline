@@ -1,0 +1,53 @@
+{
+  "schema_version": "ped.rcc_workload_demands.v2",
+  "repository_id": 1230805345,
+  "repository": "jenshaberle-dotcom/job-application-pipeline",
+  "authority": {
+    "allocation": "RCC_AUTO_ONLY",
+    "reservation": "RCC_ATOMIC",
+    "physical_selection": "RCC_ONLY",
+    "facade_selection": "RCC_ONLY",
+    "profile_materialization": "RCC_ONLY",
+    "capability_provisioning": "RCC_ONLY",
+    "github_hosted_fallback": false,
+    "broad_project_routing": false,
+    "ephemeral_assignment_required": true,
+    "consumer_runner_lifecycle": false,
+    "consumer_runner_profile_ownership": false
+  },
+  "project_runtime": {
+    "python": {
+      "version": "3.12.14",
+      "package_set": {
+        "path": ".rcc/python-package-sets/jap-product-v1.txt",
+        "sha256": "617352a994089a5e438dee31bf012183f535bfbe647d3b14e718352176e11e69"
+      }
+    }
+  },
+  "demand_profiles": {
+    "linux-base": {
+      "platform": "linux-wsl",
+      "runtime": ["python-project"],
+      "capabilities": []
+    }
+  },
+  "workflow_demands": {
+    "product-v1-assessment-cohort.yml": "linux-base"
+  },
+  "persistent_state_boundary": {
+    "allowed": ["generated-artifacts", "data-only-env", "local-service-endpoints"],
+    "forbidden": ["source-authority", "python-executable", "toolchain-executable", "runner-selection", "runner-lifecycle"]
+  },
+  "ownership": {
+    "demand_declaration": "JAP",
+    "project_dependency_lock": "JAP",
+    "runner_profiles": "RCC",
+    "allocation": "RCC",
+    "reservation": "RCC",
+    "facade_activation": "RCC",
+    "capability_materialization": "RCC",
+    "qualification": "RCC",
+    "persistent_cache": "RCC_VERIFIED_CONTENT_ADDRESSED_ONLY",
+    "credentials": "HOST_OR_EXTERNAL_SECRET_STORE"
+  }
+}
