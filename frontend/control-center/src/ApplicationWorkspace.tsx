@@ -674,7 +674,7 @@ export default function ApplicationWorkspace() {
 
           {!selectedJob && <div className="demo-error"><b>Exact target unavailable</b><span>The requested job is no longer selectable. Close this workspace and choose another job from All jobs.</span></div>}
 
-          {loading && <div className="demo-loading">Binding live vacancy evidence, Candidate Facts and approved source documents…</div>}
+          {loading && <div className="demo-loading">Loading the current vacancy, your profile evidence and source documents…</div>}
           {error && <div className="demo-error"><b>Fail closed</b><span>{error}</span></div>}
 
           {!loading && workspace && <div className="demo-application-grid">
@@ -686,9 +686,9 @@ export default function ApplicationWorkspace() {
 
               <div className="demo-readiness-list">
                 <div className={readinessTone(vacancyReady)}><i /><span>Vacancy</span><b>{vacancyReady ? "Live vacancy verified" : "Evidence required"}</b></div>
-                <div className={readinessTone(originAuthorized)}><i /><span>Employer-Origin authority</span><b>{originAuthorized ? "Verified" : "Authority required"}</b></div>
-                <div className={readinessTone(candidateFactsReady)}><i /><span>Candidate facts</span><b>{candidateFactsReady ? `${claimPlan.length} matched claims` : "Matches required"}</b></div>
-                <div className={readinessTone(documentsReady)}><i /><span>F6 templates</span><b>{documentsReady ? "2/2 exact authority" : `${documents.length}/2 exact`}</b></div>
+                <div className={readinessTone(originAuthorized)}><i /><span>Employer source</span><b>{originAuthorized ? "Verified" : "Verification required"}</b></div>
+                <div className={readinessTone(candidateFactsReady)}><i /><span>Profile evidence</span><b>{candidateFactsReady ? `${claimPlan.length} matched facts` : "Evidence required"}</b></div>
+                <div className={readinessTone(documentsReady)}><i /><span>Source documents</span><b>{documentsReady ? "2/2 verified" : `${documents.length}/2 verified`}</b></div>
                 <div className={readinessTone(!codexRequired || codexReady)}><i /><span>Drafting mode</span><b>{!codexRequired
                   ? "Local only · no LLM transfer"
                   : codexReady
@@ -720,7 +720,7 @@ export default function ApplicationWorkspace() {
                 <span>{codexStatus?.installed
                   ? `Bundled Codex ${codexStatus.version || ""} is present, but this WSL runtime is not signed in with ChatGPT.`
                   : "The bundled Codex runtime could not be verified."}</span>
-                <span>JAP will not switch to API-key billing and will not generate deterministic filler text.</span>
+                <span>JAP will not switch to API-key billing and will not invent fallback application content.</span>
                 {codexStatus?.installed && <button type="button" onClick={() => void startCodexLogin()}>
                   {codexLogin?.status === "starting" || codexLogin?.status === "awaiting_user"
                     ? "ChatGPT sign-in in progress"
@@ -806,22 +806,22 @@ export default function ApplicationWorkspace() {
                     ? "Codex allowance / credits unavailable"
                     : "Codex could not create the draft"}</b>
                 <span>{draft.reason || "No application text was generated."}</span>
-                <small>No deterministic filler is substituted. The selected job, template authority and review-only boundary remain unchanged.</small>
+                <small>No fallback text is inserted. The selected job, approved document layout and review-only workflow remain unchanged.</small>
                 {draft.layout_overflows?.length ? <small>Automatic fit diagnostics: {draft.layout_overflows.join(", ")}</small> : null}
                 {draft.automatic_layout_repairs?.length ? <small>Automatic safe repairs already applied: {draft.automatic_layout_repairs.join(", ")}</small> : null}
               </div>}
 
               {draft?.status === "draft_for_review" && draft.package ? <>
                 <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
-                {draft.base_cv_text_shared_with_codex && draft.base_application_letter_text_shared_with_codex && <p className="demo-provider-context-note">Quality-first Codex received the current CV, current application letter and exact vacancy together. CV/Candidate Facts remain factual authority; the previous letter is style/structure reference only and its old employer, recipient, role and date are explicitly stale. No submission or send action occurred.</p>}
+                {draft.base_cv_text_shared_with_codex && draft.base_application_letter_text_shared_with_codex && <p className="demo-provider-context-note">Drafting used the current CV, current cover letter and exact vacancy together. Your profile evidence remains the factual basis; the previous letter is style/structure reference only. No submission or send action occurred.</p>}
                 {draft.draft_mode === "local_private_edit" && <p className="demo-provider-context-note">Local-only mode made zero LLM/provider requests. Existing descriptive wording stays local and unchanged until you edit it; JAP only prepares target/date metadata automatically, then the same exact PDF renderer verifies the result.</p>}
                 {draft.base_document_text_shared_with_provider && <p className="demo-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
-                {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain bound to approved Candidate Facts and exact vacancy evidence.</p>}
+                {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain grounded in approved profile evidence and the exact vacancy.</p>}
 
                 <section className="demo-application-downloads">
-                  <header><strong>F6 template authority</strong><span>{templateAuthority?.status === "ready" ? "2/2 exact private PDFs verified" : "exact templates required"}</span></header>
-                  <p className="demo-boundary-note">PDF remains exact template authority: JAP replaces text inside declared zones and verifies every pixel outside them. Portrait, signature image, rules and geometry remain frozen; date/recipient/subject are replaced in-place rather than overlaid.</p>
+                  <header><strong>Document templates</strong><span>{templateAuthority?.status === "ready" ? "2/2 private PDFs verified" : "source templates required"}</span></header>
+                  <p className="demo-boundary-note">JAP keeps the PDF layout fixed, edits only the intended text areas and verifies the surrounding layout. Portrait, signature, rules and geometry remain unchanged.</p>
                 </section>
 
                 <section className="demo-document">
@@ -853,8 +853,8 @@ export default function ApplicationWorkspace() {
                   <footer><span>Codex/provider requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>Layout repairs: {draft.layout_repair_attempts ?? 0} Codex · {draft.automatic_layout_repairs?.length ?? 0} safe local</span><span>Semantic repairs: {draft.automatic_semantic_repairs?.length ?? 0} safe local</span><span>DB writes: {draft.database_writes ?? 0}</span><span>Submission writes: {draft.submission_writes ?? 0}</span><span>Send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
               </> : <div className="demo-empty-draft">
-                <strong>F6 is review-first and template-authoritative.</strong>
-                <p>When factual context and both exact templates are ready, the system may draft text for review. The qualified template-bound renderer then enables explicit local PDF review/export without changing submission authority.</p>
+                <strong>Document generation is review-first.</strong>
+                <p>When factual context and both exact templates are ready, the system may draft text for review. The verified renderer then enables local PDF review and export without submitting anything.</p>
               </div>}
             </article>
           </div>}
