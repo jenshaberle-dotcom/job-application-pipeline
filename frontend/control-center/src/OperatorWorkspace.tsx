@@ -165,7 +165,7 @@ type ProductPayload = {
   };
 };
 
-type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "approvals" | "operations";
+type View = "overview" | "jobs" | "top5" | "application" | "applications" | "sources" | "operations";
 type JobFilter = "unreviewed" | "interesting" | "not_relevant" | "rankable" | "applied" | "all";
 type JobSort =
   | "newest"
@@ -213,16 +213,48 @@ const locationText = (job: Job) => job.city || job.country || (normalize(job.wor
 const reviewText = (job: Job) => job.review_label?.label || "unreviewed";
 const gateText = (job: Job) => job.product_readiness_status || "unknown";
 const applicationStageLabel: Record<ApplicationStage, string> = {
-  prepared: "Erkannt",
-  applied: "Beworben",
-  reply: "Antwort",
+  prepared: "Detected",
+  applied: "Applied",
+  reply: "Reply",
   interview: "Interview",
-  offer: "Angebot",
-  closed: "Geschlossen",
+  offer: "Offer",
+  closed: "Closed",
 };
 const isAppliedStage = (stage: ApplicationStage) => stage !== "prepared";
 const canPrepareApplication = (stage: ApplicationStage | null | undefined) =>
   stage == null || stage === "prepared";
+
+const fitFactorLabel: Record<string, string> = {
+  geography_work_model_commute: "location / work model",
+  skills_capabilities: "capability evidence",
+  seniority: "seniority evidence",
+  hard_requirements: "hard requirements",
+};
+
+function candidateFitText(job: Job) {
+  const decision = normalize(job.profile_fit_decision);
+  if (decision === "passed") return "Fit confirmed";
+  if (decision === "failed") return "Fit conflict";
+  const missing = (job.profile_fit_missing_factors || [])
+    .map((item) => fitFactorLabel[item] || label(item));
+  if (missing.length) return `Needs ${missing.join(", ")}`;
+  return "Fit evidence incomplete";
+}
+
+function sourceGroupDisplay(group: SourceGroup) {
+  return ({
+    "Needs attention": "Needs attention",
+    "Delivering now": "Delivering jobs",
+    "Active, 0 current jobs": "Active · no current jobs",
+    "Market sensors": "Market discovery",
+    "Pending": "Setup pending",
+    "Not implemented": "Not connected",
+  } as Record<SourceGroup, string>)[group];
+}
+
+function sourcePurpose(source: SourceConnector) {
+  return normalize(source.source_role) === "sensor" ? "Employer discovery" : "Job delivery";
+}
 
 function buildApplicationByJobId(payload: ProductPayload): Map<number, LinkedApplication> {
   const linked = new Map<number, LinkedApplication>();
@@ -388,16 +420,16 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
 
   return <div className="ow-stack">
     <header className="ow-page-header">
-      <div><span>Overall</span><h1>What matters now</h1><p>Current Product V1 truth, reduced to the next useful decisions.</p></div>
+      <div><span>Overview</span><h1>What matters now</h1><p>Your current jobs, fit evidence and next useful actions at a glance.</p></div>
     </header>
 
     <section className="ow-metrics">
-      <Metric labelText="Current jobs" value={currentJobs.length} helper="confirmed active employer-origin vacancies" />
-      <Metric labelText="Profile Fit complete" value={payload.summary.profile_fit_complete_count ?? 0} helper="conclusive evidence-backed fit decisions" />
-      <Metric labelText="Needs fit evidence" value={payload.summary.profile_fit_insufficient_evidence_count ?? 0} helper="missing evidence, never negative fit" />
-      <Metric labelText="Rankable" value={payload.summary.rankable_job_count} helper="existing Product gate; F4B remains separate" />
-      <Metric labelText="Top 5" value={`${payload.summary.top_job_count}/5`} helper="authoritative shortlist" />
-      <Metric labelText="Top-5 draft ready" value={payload.summary.application_ready_count} helper="strict recommendation-path eligibility; explicit operator selection is separate" />
+      <Metric labelText="Current jobs" value={currentJobs.length} helper="currently active jobs from verified employer sources" />
+      <Metric labelText="Candidate Fit complete" value={payload.summary.profile_fit_complete_count ?? 0} helper="jobs with enough evidence for a fit decision" />
+      <Metric labelText="Needs fit evidence" value={payload.summary.profile_fit_insufficient_evidence_count ?? 0} helper="jobs still missing evidence for a fit decision" />
+      <Metric labelText="Ready to rank" value={payload.summary.rankable_job_count} helper="jobs that passed all required checks" />
+      <Metric labelText="Top 5" value={`${payload.summary.top_job_count}/5`} helper="current shortlist" />
+      <Metric labelText="Ready to prepare" value={payload.summary.application_ready_count} helper="shortlisted jobs ready for document preparation" />
     </section>
 
     <section className="ow-overview-grid">
@@ -405,28 +437,28 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
         <div className="ow-card-title"><div><span>Best current option</span><h2>{top ? top.title : "No rankable job yet"}</h2></div>{top && <strong>#{top.product_rank || 1}</strong>}</div>
         {top ? <>
           <p className="ow-job-meta">{employerName(top)} · {locationText(top)}</p>
-          <div className="ow-fit-line"><b>{scoreText(top.overall_quality_score)}</b><span>authoritative Product score</span></div>
+          <div className="ow-fit-line"><b>{scoreText(top.overall_quality_score)}</b><span>overall match score</span></div>
           <div className="ow-actions"><button type="button" onClick={() => onNavigate("top5")}>Open Top 5</button>{topUrl && <a href={topUrl} target="_blank" rel="noreferrer">Original job ↗</a>}</div>
-        </> : <p className="ow-muted">The UI will not manufacture a recommendation.</p>}
+        </> : <p className="ow-muted">No job has enough verified evidence for the shortlist yet.</p>}
       </article>
 
       <article className="ow-card">
         <div className="ow-card-title"><div><span>Your feedback</span><h2>Relevance labels</h2></div><strong>{reviewed.length}</strong></div>
         <div className="ow-feedback-summary"><div><span>Interesting</span><b>{interesting}</b></div><div><span>Not relevant</span><b>{rejected}</b></div><div><span>Unreviewed</span><b>{payload.job_readiness.length - reviewed.length}</b></div></div>
-        <p className="ow-muted">These labels build personal relevance evidence; they do not directly rewrite ranking.</p>
+        <p className="ow-muted">Your labels capture what interests you. Candidate Fit is assessed separately from your preference.</p>
         <button type="button" className="ow-text-action" onClick={() => onNavigate("jobs")}>Review jobs →</button>
       </article>
 
       <article className="ow-card">
-        <div className="ow-card-title"><div><span>F6 Application</span><h2>{docsReady ? "Template authority ready" : "Exact templates required"}</h2></div></div>
-        <div className="ow-readiness"><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact hash" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact hash" : "Required"}</b></div></div>
-        <button type="button" className="ow-text-action" onClick={() => onNavigate("application")}>Open application step →</button>
+        <div className="ow-card-title"><div><span>Application Builder</span><h2>{docsReady ? "Source documents ready" : "Source documents needed"}</h2></div></div>
+        <div className="ow-readiness"><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>CV</span><b>{payload.application_sources_ready.base_cv ? "Ready" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Cover letter</span><b>{payload.application_sources_ready.base_application_letter ? "Ready" : "Required"}</b></div></div>
+        <button type="button" className="ow-text-action" onClick={() => onNavigate("application")}>Open Application Builder →</button>
       </article>
 
       <article className="ow-card">
-        <div className="ow-card-title"><div><span>Discovery health</span><h2>Origin review scope</h2></div></div>
-        <p>{currentJobs.length} current employer-origin vacancies are in the visible review scope. Market sensors and historical lifecycle memory stay separate.</p>
-        <div className="ow-actions"><button type="button" onClick={() => onNavigate("sources")}>Sources</button><button type="button" onClick={() => onNavigate("applications")}>Applications</button></div>
+        <div className="ow-card-title"><div><span>Job discovery</span><h2>Current coverage</h2></div></div>
+        <p>{currentJobs.length} active jobs from verified employer sources are currently available for review. Discovery channels continue to expand employer coverage in the background.</p>
+        <div className="ow-actions"><button type="button" onClick={() => onNavigate("sources")}>Sources</button><button type="button" onClick={() => onNavigate("applications")}>Application Tracker</button></div>
       </article>
     </section>
   </div>;
@@ -507,13 +539,13 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
     : ([ ["Role affinity", job.overall_quality_score] ] as Array<[string, number | null | undefined]>);
 
   return <aside className="ow-job-detail">
-    <div className="ow-detail-head"><span>Silver #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
-    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} disabled={liveCheck.status === "checking"} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Applications</button>}</div>
+    <div className="ow-detail-head"><span>Job #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
+    <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} disabled={liveCheck.status === "checking"} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Application Tracker</button>}</div>
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
-    <section className="ow-facts"><div><span>Profile Fit coverage</span><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /></div><div><span>Profile Fit decision</span><Status value={job.profile_fit_decision || "unknown"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
-    <section className="ow-score-card"><h3>{rankable ? "Product score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">Detail check required. This preliminary signal uses review-scope evidence and is not capability-fit or Product V1 ranking authority.</p>}</section>
-    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Live availability</span><Status value={liveCheck.status === "checking" ? "checking" : liveCheck.status === "idle" ? "not checked" : liveCheck.status} /></div><div><span>Product gate</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
-    <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected explanation evidence.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No projected uncertainty.</p>}</div></section>
+    <section className="ow-facts"><div><span>Candidate fit</span><b>{candidateFitText(job)}</b></div><div><span>Fit evidence</span><Status value={job.profile_fit_coverage_status === "profile_fit_complete" ? "complete" : "incomplete"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
+    <section className="ow-score-card"><h3>{rankable ? "Match score" : "Role affinity · preliminary"}</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{!rankable && <p className="ow-score-note">More job-detail evidence is needed before this can become Candidate Fit or a ranking score.</p>}</section>
+    <section className="ow-facts"><div><span>Lifecycle</span><Status value={job.lifecycle_status} /></div><div><span>Live availability</span><Status value={liveCheck.status === "checking" ? "checking" : liveCheck.status === "idle" ? "not checked" : liveCheck.status} /></div><div><span>Ranking readiness</span><Status value={job.product_readiness_status} /></div><div><span>Application</span>{applicationStage ? <b className={`ow-application-status ${applicationStage}`}>{applicationStageLabel[applicationStage]}</b> : <b>—</b>}</div><div><span>Work model</span><b>{label(job.work_model)}</b></div><div><span>Commute</span><b>{job.commute_minutes == null ? "—" : `${job.commute_minutes} min`}</b></div><div><span>Published</span><b>{displayDate(job.publication_date)}</b></div><div><span>First JAP observed</span><b>{displayDate(job.first_jap_observed_at)}</b></div></section>
+    <section className="ow-evidence"><div><span>Verified</span>{job.explanations?.length ? <ul>{job.explanations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No verified explanation available yet.</p>}</div><div><span>Unknown / review</span>{job.uncertainties?.length ? <ul>{job.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No unresolved fit question recorded.</p>}</div></section>
   </aside>;
 }
 
@@ -635,7 +667,7 @@ function Jobs({
           ["interesting", "Interesting"],
           ["not_relevant", "Not relevant"],
           ["rankable", "Rankable"],
-          ["applied", "Beworben"],
+          ["applied", "Applied"],
         ] as Array<[JobFilter, string]>).map(([id, text]) =>
           <button
             type="button"
@@ -688,7 +720,7 @@ function Jobs({
           {sortHeader("location", "Location")}
           {sortHeader("published", "Published")}
           {sortHeader("observed", "First JAP observed")}
-          {sortHeader("gate", "Gate")}
+          {sortHeader("gate", "Fit / readiness")}
           <span>Application</span>
         </div>
 
@@ -730,7 +762,7 @@ function Jobs({
               {displayDate(job.first_jap_observed_at)}
             </span>
 
-            <span className="ow-gate-state"><Status value={job.profile_fit_coverage_status || "insufficient_evidence"} /><Status value={job.product_readiness_status} /></span>
+            <span className="ow-gate-state"><span className="ow-fit-summary">{candidateFitText(job)}</span><Status value={job.product_readiness_status} /></span>
 
             {linkedApplication
               ? <span
@@ -740,15 +772,15 @@ function Jobs({
                     onOpenApplication(linkedApplication.application_id ?? null);
                   }}
                   title={linkedApplication.linkage_status === "exact_projected"
-                    ? "Exakt aus Mailbox-Evidence zu diesem JAP-Job zugeordnet; DB-Link noch nicht persistiert. Klicken, um die Bewerbung zu öffnen."
-                    : "Persistierte Application-Verknüpfung. Klicken, um die Bewerbung zu öffnen."}
+                    ? "Exactly matched from mailbox evidence to this JAP job; the DB link is not persisted yet. Click to open the application."
+                    : "Persisted application link. Click to open the application."}
                 >
                   {applicationStageLabel[linkedApplication.effective_stage]}
                 </span>
               : <span
                   className="ow-application-status none"
-                  title="Keine sichere Zuordnung zwischen diesem JAP-Job und einer bekannten Bewerbung. Das ist nicht gleichbedeutend mit 'nicht beworben'."
-                >Ungeklärt</span>}
+                  title="No safe match exists between this JAP job and a known application. This does not mean that no application was submitted."
+                >Unresolved</span>}
           </button>;
         })}
 
@@ -825,7 +857,7 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
       }
       downloadBase64Document(
         result.docx_base64,
-        result.download_filename || "JAP_Ausfuellbare_Bewerbungsvorlage.docx",
+        result.download_filename || "JAP_Fillable_Application_Template.docx",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       );
     } catch (reason) {
@@ -836,21 +868,21 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
   };
 
   return <div className="ow-stack">
-    <header className="ow-page-header"><div><span>F6 · Quality-first application preparation</span><h1>Application</h1><p>Use your own exact private CV + letter for pixel-preserving adaptation, or download the provider-free fillable Word starter when you do not have source documents yet. Never auto-submit.</p></div></header>
+    <header className="ow-page-header"><div><span>Prepare documents for one job</span><h1>Application Builder</h1><p>Create a tailored CV and cover letter from your approved source documents, or start with a local fillable Word template. JAP never submits automatically.</p></div></header>
     <section className="ow-application-grid">
       <article className="ow-card"><span className="ow-kicker">Application target</span><h2>{target?.title || "No current selectable job"}</h2>{target && <p>{employerName(target)} · {locationText(target)} · {top ? `${scoreText(top.overall_quality_score)} authoritative Product score` : `${scoreText(target.overall_quality_score)} Affinity · operator selected`}</p>}<div className="ow-readiness"><div className={target ? "ready" : "blocked"}><i /><span>{top ? "Top-5 recommendation" : "Explicit current-job selection"}</span><b>{target ? "Ready for review drafting" : "Required"}</b></div><div className={payload.application_sources_ready.base_cv ? "ready" : "blocked"}><i /><span>Canonical CV</span><b>{payload.application_sources_ready.base_cv ? "Exact authority" : "Required"}</b></div><div className={payload.application_sources_ready.base_application_letter ? "ready" : "blocked"}><i /><span>Canonical letter</span><b>{payload.application_sources_ready.base_application_letter ? "Exact authority" : "Required"}</b></div></div><OpenApplicationButton silverJobId={target?.silver_job_id} disabled={!target || !docsReady} /></article>
-      <article className="ow-card ow-boundary-card"><span className="ow-kicker">F6 layout boundary</span><h2>{docsReady ? "Pixel-bound template authority active" : "Install the two exact F6 PDFs"}</h2><p>The PDF binaries remain private, but their SHA-256 hashes, page geometry and editable text zones are frozen in repo truth. Arbitrary replacement layouts are no longer accepted.</p><ul><li>Layout and graphics are immutable</li><li>Only declared text zones may change</li><li>Candidate Facts and exact Origin evidence are content authority</li><li>No legacy renderer, hidden auto-apply, submit or send</li></ul></article>
+      <article className="ow-card ow-boundary-card"><span className="ow-kicker">Document layout</span><h2>{docsReady ? "Approved templates ready" : "Add your approved CV and cover letter"}</h2><p>Your source documents stay private. JAP preserves their layout and changes only the intended text areas.</p><ul><li>Layout and graphics stay unchanged</li><li>Only approved text areas may change</li><li>Profile facts and verified job evidence ground the content</li><li>No automatic apply, submit or send</li></ul></article>
     </section>
     <article className="ow-card">
-      <span className="ow-kicker">F6 template authority</span>
-      <h2>Own exact layouts when available · local starter when not</h2>
-      <p>The installed private PDFs remain the only pixel-authoritative templates for automatic F6 rendering. A user without them is not stranded: JAP can provide a fillable local Word starter with no LLM/provider request and no claim of PDF template authority.</p>
+      <span className="ow-kicker">Source documents</span>
+      <h2>Use your own layout or start from a local template</h2>
+      <p>Your approved PDF sources remain the layout reference for automatic document creation. If you do not have them yet, JAP can create a fillable local Word starter without contacting an AI provider.</p>
       <div className="ow-document-grid">
         <ApplicationSourceUpload
           documentType="base_cv"
           title="Canonical CV"
           ready={payload.application_sources_ready.base_cv}
-          canonicalFilename={cvTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Lebenslauf.pdf"}
+          canonicalFilename={cvTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Resume.pdf"}
           canonicalSha256={cvTemplate?.sha256 || ""}
           onUploaded={refresh}
         />
@@ -858,14 +890,14 @@ function Application({ payload, refresh }: { payload: ProductPayload; refresh: (
           documentType="base_application_letter"
           title="Canonical letter"
           ready={payload.application_sources_ready.base_application_letter}
-          canonicalFilename={letterTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Anschreiben.pdf"}
+          canonicalFilename={letterTemplate?.canonical_filename || "Hornetsecurity_Jens_Haberle_Cover_Letter.pdf"}
           canonicalSha256={letterTemplate?.sha256 || ""}
           onUploaded={refresh}
         />
       </div>
       <div className="ow-callout">
-        <b>No own CV/letter available?</b>
-        <span>Download a fillable Word starter locally. It contains placeholders only, sends nothing to an LLM and can be completed manually. It is a fallback document, not pixel-authoritative F6 source material.</span>
+        <b>No source CV or cover letter available?</b>
+        <span>Download a local fillable Word starter. It contains placeholders only, sends nothing to an AI provider and can be completed manually.</span>
         <button type="button" disabled={starterLoading} onClick={() => void downloadStarterTemplate()}>
           {starterLoading ? "Building local Word template…" : "Download fillable Word starter"}
         </button>
@@ -891,9 +923,9 @@ function Applications({
   return <div className="ow-stack">
     <header className="ow-page-header">
       <div>
-        <span>After preparation</span>
-        <h1>Applications</h1>
-        <p>One shared Product truth snapshot connects mailbox application history and the All jobs review surface in both directions.</p>
+        <span>After you apply</span>
+        <h1>Application Tracker</h1>
+        <p>Track submitted applications, replies, interviews and outcomes. Mailbox evidence and All Jobs stay linked without guessing across different vacancies.</p>
       </div>
     </header>
     <F5ApplicationTracking
@@ -935,13 +967,13 @@ function Sources({ payload }: { payload: ProductPayload }) {
     sources[0]?.source_name || ""
   );
   const sourceTabs: Array<{ id: SourceTab; label: string; count: number }> = [
-    { id: "All", label: "All", count: sources.length },
-    { id: "Needs attention", label: "Attention", count: groupCounts["Needs attention"] },
-    { id: "Delivering now", label: "Delivering", count: groupCounts["Delivering now"] },
-    { id: "Active, 0 current jobs", label: "Active · 0 jobs", count: groupCounts["Active, 0 current jobs"] },
-    { id: "Market sensors", label: "Sensors", count: groupCounts["Market sensors"] },
-    { id: "Pending", label: "Pending", count: groupCounts.Pending },
-    { id: "Not implemented", label: "Not implemented", count: groupCounts["Not implemented"] },
+    { id: "All", label: "All sources", count: sources.length },
+    { id: "Needs attention", label: "Needs attention", count: groupCounts["Needs attention"] },
+    { id: "Delivering now", label: "Delivering jobs", count: groupCounts["Delivering now"] },
+    { id: "Active, 0 current jobs", label: "Active · no jobs", count: groupCounts["Active, 0 current jobs"] },
+    { id: "Market sensors", label: "Market discovery", count: groupCounts["Market sensors"] },
+    { id: "Pending", label: "Setup pending", count: groupCounts.Pending },
+    { id: "Not implemented", label: "Not connected", count: groupCounts["Not implemented"] },
   ];
   const visibleGroups = groups
     .filter((group) => activeTab === "All" || activeTab === group)
@@ -958,15 +990,15 @@ function Sources({ payload }: { payload: ProductPayload }) {
     visible[0] ||
     null;
   const summaryTruth = [
-    ["Employer origins", overview.employer_origin_count],
-    ["Delivering now", overview.active_last_run_loaded_count],
-    ["Active, 0 current jobs", overview.active_last_run_zero_count],
-    ["Market sensors", overview.sensor_count],
+    ["Employer sources", overview.employer_origin_count],
+    ["Delivering jobs", overview.active_last_run_loaded_count],
+    ["Active · no current jobs", overview.active_last_run_zero_count],
+    ["Discovery sources", overview.sensor_count],
     ["Needs attention", overview.attention_count],
   ] as Array<[string, number]>;
 
   return <div className="ow-stack">
-    <header className="ow-page-header"><div><span>Source control</span><h1>Sources</h1><p>Employer-origin delivery, zero-yield activation, market sensors and real blockers are separate truths. Use the tabs to keep the source inventory compact.</p></div><strong className="ow-big-count">{sources.length}</strong></header>
+    <header className="ow-page-header"><div><span>Where jobs come from</span><h1>Sources</h1><p>See which employer sources currently deliver jobs, which discovery channels expand coverage and where attention is needed.</p></div><strong className="ow-big-count">{sources.length}</strong></header>
     <section className="ow-source-summary-strip">
       {summaryTruth.map(([name, value]) => <div key={name}><span>{name}</span><b>{value}</b></div>)}
     </section>
@@ -980,15 +1012,10 @@ function Sources({ payload }: { payload: ProductPayload }) {
       ><span>{tab.label}</span><b>{tab.count}</b></button>)}
     </nav>
     <section className="ow-source-workspace">
-      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{group}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{source.source_name}</small></span><Status value={source.current_blocker || source.activation.status} /></button>)}</div>)}</div>
-      {selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{sourceGroup(selected)} · {selected.source_type}</span><h2>{selected.source_label}</h2><code>{selected.source_name}</code><div className="ow-source-facts"><div><span>Role</span><b>{label(selected.source_role)}</b></div><div><span>Implementation</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Validation</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Approval</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Activation</span><b>{label(selected.activation.status)}</b></div><div><span>Latest run</span><b>{label(selected.last_ingestion.status)}</b></div><div><span>Latest load</span><b>{selected.last_ingestion.total_loaded} loaded · {selected.last_ingestion.inserted_count} inserted</b></div><div><span>Profiles</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Layers</span><b>Bronze {selected.layers.bronze_count} · Silver {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>{label(selected.current_blocker)}</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No current blocker</b><span>{selected.next_action}</span></div>}</article>}
+      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{source.source_name}</small></span><Status value={source.current_blocker || source.activation.status} /></button>)}</div>)}</div>
+      {selected && <article className="ow-card ow-source-detail"><span className="ow-kicker">{sourceGroupDisplay(sourceGroup(selected))}</span><h2>{selected.source_label}</h2><div className="ow-source-facts"><div><span>Purpose</span><b>{sourcePurpose(selected)}</b></div><div><span>Connection</span><b>{label(selected.connector.implementation_status)}</b></div><div><span>Verified</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div><div><span>Ready for use</span><b>{label(selected.gates.final_approval_gate.status)}</b></div><div><span>Status</span><b>{label(selected.activation.status)}</b></div><div><span>Last check</span><b>{label(selected.last_ingestion.status)}</b></div><div><span>Jobs found</span><b>{selected.last_ingestion.total_loaded} found · {selected.last_ingestion.inserted_count} new</b></div><div><span>Search profiles</span><b>{selected.search_profiles.active_profile_count}/{selected.search_profiles.profile_count} active</b></div><div><span>Data coverage</span><b>Raw {selected.layers.bronze_count} · normalized {selected.layers.silver_count}</b></div></div>{selected.current_blocker ? <div className="ow-callout warn"><b>{label(selected.current_blocker)}</b><span>{selected.next_action}</span></div> : <div className="ow-callout good"><b>No current blocker</b><span>{selected.next_action}</span></div>}</article>}
     </section>
   </div>;
-}
-
-function Approvals({ payload }: { payload: ProductPayload }) {
-  const waiting = payload.source_connector_overview.sources.filter((source) => source.current_blocker === "final_approval_incomplete");
-  return <div className="ow-stack"><header className="ow-page-header"><div><span>Human authority</span><h1>Approvals</h1><p>Only real authority decisions belong here. Technical work stays in Sources.</p></div><strong className="ow-big-count">{waiting.length}</strong></header><section className="ow-approval-grid"><article className="ow-card"><h2>{waiting.length ? "Final source approvals" : "Nothing waiting"}</h2>{waiting.length ? waiting.map((source) => <div className="ow-approval-row" key={source.source_name}><span><b>{source.source_label}</b><small>{source.next_action}</small></span><Status value="approval_required" /></div>) : <p className="ow-muted">No source approval decision is currently waiting.</p>}</article><article className="ow-card"><h2>Product-level gates</h2>{payload.operator_blockers.length ? payload.operator_blockers.map((blocker) => <div className="ow-approval-row" key={blocker.code}><span><b>{blocker.title}</b><small>{blocker.detail}</small></span></div>) : <p className="ow-muted">No product-level approval blocker.</p>}</article></section></div>;
 }
 
 function Operations({ payload }: { payload: ProductPayload }) {
@@ -1001,15 +1028,14 @@ const navItems: Array<{ id: View; label: string; glyph: string }> = [
   { id: "overview", label: "Overall", glyph: "◉" },
   { id: "jobs", label: "All jobs", glyph: "≡" },
   { id: "top5", label: "Top 5", glyph: "★" },
-  { id: "application", label: "Application", glyph: "↗" },
-  { id: "applications", label: "Applications", glyph: "◎" },
+  { id: "application", label: "Application Builder", glyph: "↗" },
+  { id: "applications", label: "Application Tracker", glyph: "◎" },
   { id: "sources", label: "Sources", glyph: "⌁" },
-  { id: "approvals", label: "Approvals", glyph: "✓" },
   { id: "operations", label: "Operations", glyph: "⌘" },
 ];
 
 export default function OperatorWorkspace() {
-  const { payload, error, refreshing, refreshProductTruth } = useProductTruth<ProductPayload>();
+  const { payload, error, refreshing, refreshWarning, refreshProductTruth } = useProductTruth<ProductPayload>();
   const [view, setView] = useState<View>("overview");
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
@@ -1030,7 +1056,6 @@ export default function OperatorWorkspace() {
   const navBadges: Partial<Record<View, number>> = {
     jobs: payload.job_readiness.length,
     top5: payload.summary.top_job_count,
-    approvals: payload.source_connector_overview.sources.filter((source) => source.current_blocker === "final_approval_incomplete").length,
     sources: payload.source_connector_overview.summary.attention_count,
   };
 
@@ -1041,8 +1066,14 @@ export default function OperatorWorkspace() {
       <footer><span><i /> DB truth</span><small>Product V1 · review-first</small></footer>
     </aside>
     <div className="ow-content-shell">
-      <header className="ow-topline"><div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Product V1 · live pipeline</span></div><button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button></header>
-      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} onOpenApplication={openApplication} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} focusApplicationId={selectedApplicationId} onOpenJob={openJob} onSelectApplication={setSelectedApplicationId} refresh={refresh} />}{view === "sources" && <Sources payload={payload} />}{view === "approvals" && <Approvals payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
+      <header className="ow-topline">
+        <div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Product V1 · live pipeline</span></div>
+        <div className="ow-topline-actions">
+          {refreshWarning && <span className="ow-refresh-warning" role="status" title={refreshWarning}>Mailbox sync needs attention</span>}
+          <button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button>
+        </div>
+      </header>
+      <main className="ow-main">{view === "overview" && <Overview payload={payload} onNavigate={setView} />}{view === "jobs" && <Jobs payload={payload} refresh={refresh} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} onOpenApplication={openApplication} />}{view === "top5" && <TopFive payload={payload} refresh={refresh} />}{view === "application" && <Application payload={payload} refresh={refresh} />}{view === "applications" && <Applications payload={payload} focusApplicationId={selectedApplicationId} onOpenJob={openJob} onSelectApplication={setSelectedApplicationId} refresh={refresh} />}{view === "sources" && <Sources payload={payload} />}{view === "operations" && <Operations payload={payload} />}</main>
     </div>
   </div>;
 }
