@@ -84,7 +84,7 @@ Acceptance requires the command to complete without DB writes and to produce a l
 
 The package bytes and job rows must remain local. Do not upload them to GitHub, Actions artifacts, chat, Kaggle or another provider as part of this proof. Repository truth may later record only the bounded aggregate receipt/fingerprints needed for re-entry.
 
-A one-shot workflow, `.github/workflows/mlf005-live-db-proof.yml`, may satisfy this gate only when it runs on the registered `job-pipeline-runtime-linux` self-hosted runner, resolves the PASS RCC runtime context, authenticates and fast-forwards the persistent checkout to the exact triggering `main` SHA, executes the existing local-only materializer, and publishes only the allowlisted aggregate proof. The workflow is path-triggered only by its own addition/change so it does not become recurring ML execution.
+The live DB proof may satisfy this gate only as an RCC-assigned workload on exact current `main`. JAP supplies the bounded proof demand and source SHA; RCC supplies reservation, exact Warm-Pool assignment and cleanup. The proof must execute the existing local-only materializer and publish only the allowlisted aggregate evidence. No project-owned runner label, fixed facade, hosted fallback or local scheduler is authority for this gate.
 
 The operator has explicitly allowed `ML-PILOT-001A/B` label evidence capture to start before this proof so useful ground truth can accumulate. This is not a waiver of MLF-005 for training: until the live proof exists, do not materialize supervised job/label datasets, create train/validation/test splits, or train a model from the collected labels. Do not activate provider/GPU execution.
 
