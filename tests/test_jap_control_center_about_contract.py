@@ -24,6 +24,8 @@ def test_about_is_operator_tab_with_installed_app_identity() -> None:
     assert "<AboutPanel />" in main
     assert 'document.querySelector<HTMLElement>(".ow-sidebar nav")' in about
     assert 'document.querySelector<HTMLElement>(".ow-main")' in about
+    assert 'document.querySelector<HTMLElement>(".ow-topline > div")' in about
+    assert '<b className="ow-overlay-topline-title">About</b>' in about
     assert "new MutationObserver(" in about
     assert "attempts < 80" not in about
     assert '<i>ⓘ</i><span>About</span>' in about
@@ -52,7 +54,7 @@ def test_dynamic_operator_tabs_wait_for_workspace_without_time_budget() -> None:
 
 def test_demo_pilot_badge_is_hidden_from_operator_header() -> None:
     css = _text(ABOUT_CSS)
-    assert ".ow-topline > div > span" in css
+    assert ".ow-topline > div:first-child > span" in css
     assert "display: none" in css
 
 
@@ -102,3 +104,9 @@ def test_failed_python_frontend_prewarm_surface_is_removed() -> None:
     assert '"--prepare-frontend-only"' not in launcher
     assert "args.prepare_frontend_only" not in launcher
     assert "JAP_FRONTEND_PREPARE=PASS" not in launcher
+
+
+def test_about_overlay_owns_topline_title_while_active() -> None:
+    css = _text(ABOUT_CSS)
+    assert "body.about-active .ow-topline > div > b:not(.ow-overlay-topline-title)" in css
+    assert "body.about-active .ow-overlay-topline-title" in css
