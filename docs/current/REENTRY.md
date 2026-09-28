@@ -16,17 +16,30 @@ Required product proof before the version bump:
 
 The reusable Product target is `.github/workflows/product-v1-assessment-cohort.yml`.
 
-Canonical Product refill implementation:
+Canonical Product 10→5 implementation:
 
 ```text
 run_product_v1_assessment_cohort
+→ select exactly 10 current Employer-Origin jobs
 → run_product_v1_rankable_refill_campaign
-→ run_product_v1_rankable_refill_apply
-→ run_product_v1_rankable_refill_scout
+   → generic scout / exact-detail refresh
+   → run_product_v1_rankable_refill_apply
+      → Candidate-Fact-backed capability review
+      → run_product_v1_hard_filter_evidence_close
+      → canonical ranking-score review
+→ verify 10 complete Candidate Fit decisions
+→ verify at least 5 Fit-passed + rankable jobs
+→ verify exact Top 5 is a subset of the selected 10
 ```
 
+Candidate geography/work-model preferences come first from approved private
+`operator_preference` Candidate Facts. If none exist, the tracked approved
+`config/product_v1_candidate_fit_policy.json` supplies the reusable product
+boundary (regional anchor/commute plus country-wide remote).
+
 The old `run_demo_001_rankable_refill_*` names are compatibility entrypoints only.
-They must not regain Product logic or become dependencies of the canonical chain.
+The old job-specific DEMO-001 hard-filter closer is physically removed. Demo
+entrypoints must not regain Product logic or become dependencies of the canonical chain.
 
 ## Runner authority hard cut
 
