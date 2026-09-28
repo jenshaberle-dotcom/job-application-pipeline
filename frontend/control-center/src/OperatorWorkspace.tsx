@@ -312,14 +312,14 @@ const displayDate = (value: string | null | undefined) => {
   if (!value) return "—";
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return value;
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   }).format(new Date(parsed));
 };
 
-const compareText = (left: string, right: string) => left.localeCompare(right, "de", { sensitivity: "base" });
+const compareText = (left: string, right: string) => left.localeCompare(right, "en", { sensitivity: "base" });
 
 function compareJobs(a: Job, b: Job, sort: JobSort) {
   if (sort === "fit_desc" || sort === "fit_asc") {
