@@ -147,9 +147,9 @@ def test_application_drafting_separates_top5_recommendation_from_operator_select
     assert 'job.demo_live_verified === true' not in workspace
     assert 'job.origin_validation_status === "validated"' not in workspace
     assert 'job.hard_filter_status !== "failed"' in workspace
-    assert "Operator-selected current job" in workspace
+    assert "Selected current job" in workspace
     assert "Selected Top-5 recommendation" in workspace
-    assert "Operator-selected current job" in workspace
+    assert "Selected current job" in workspace
     assert 'detail?.silverJobId' in workspace
     assert "The job you selected stays the application target" in workspace
     assert 'aria-label="Change application target"' in workspace
@@ -343,10 +343,11 @@ def test_application_workspace_shows_live_quality_drafting_progress() -> None:
     assert "/api/v1/product-v1/application-draft-progress?request_id=" in workspace
     assert "request_id: requestId" in workspace
     assert "Your application documents are being created" in workspace
-    assert "Provider request" in workspace
+    assert "AI drafting pass" in workspace
+    assert "AI drafting ready" in workspace
     assert "Elapsed {draftElapsedLabel}" in workspace
     assert "Progress is based on completed JAP steps" in workspace
-    assert "Semantic repairs:" in workspace
+    assert "Content checks:" in workspace
     assert 'role="progressbar"' in workspace
     assert ".demo-drafting-progress-track" in styles
 
@@ -433,6 +434,9 @@ def test_demo_user_language_hides_internal_readiness_and_template_terms() -> Non
     assert "Cover letter source" in operator
     assert "Review-first · no automatic applications" in operator
     assert "Loading current job data…" in operator
+    assert "Only current jobs with verified fit and ranking evidence appear here." in operator
+    assert "Ready to rank" in operator
+    assert "Shown in All Jobs" in operator
 
     visible_forbidden = (
         "Authoritative Product score",
@@ -441,6 +445,9 @@ def test_demo_user_language_hides_internal_readiness_and_template_terms() -> Non
         "Exact authority",
         "Product V1 · review-first",
         "Reading Product V1 truth",
+        "Only authoritative rankable jobs",
+        "Runtime truth",
+        "Review scope current",
     )
     for token in visible_forbidden:
         assert token not in operator
@@ -450,15 +457,26 @@ def test_demo_user_language_hides_internal_readiness_and_template_terms() -> Non
     assert "Source documents" in workspace
     assert "Document templates" in workspace
     assert "Document generation is review-first." in workspace
+    assert "Application Builder" in workspace
+    assert "AI drafting pass" in workspace
+    assert "Content checks:" in workspace
     for token in (
         "Employer-Origin authority",
         "Candidate facts",
         "F6 templates",
         "F6 template authority",
         "F6 is review-first",
+        "Operator-selected current job",
+        "Provider request",
+        "Semantic repairs:",
+        "DB writes:",
     ):
         assert token not in workspace
 
     assert "Silver #{linkedJobId}" not in tracker
     assert "Job #{linkedJobId}" in tracker
     assert "Loading current job data layers…" in data_layers
+    assert "Latest job assessment" in data_layers
+    assert "completed job assessment" in data_layers
+    assert "Product assessment" not in data_layers
+    assert "ranking gates" not in data_layers
