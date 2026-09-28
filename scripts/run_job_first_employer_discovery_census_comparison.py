@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
 from pathlib import Path
@@ -49,53 +50,101 @@ CONTROL_SOURCES = ("bundesagentur_fuer_arbeit", "stepstone")
 DEFAULT_OUTPUT = Path("/tmp/job-first-employer-discovery-census-comparison.json")
 
 
+@dataclass(frozen=True)
+class RuntimeProfileIntent:
+    profile: SearchProfile
+    search_terms: tuple[str, ...]
+
+
+def _profile_intents_from_rows(rows: list[dict[str, Any]]) -> tuple[RuntimeProfileIntent, ...]:
+    grouped: dict[tuple[object, ...], set[str]] = {}
+    profile_values: dict[tuple[object, ...], SearchProfile] = {}
+
+    for row in rows:
+        term = str(row.get("search_term") or "").strip()
+        if not term:
+            continue
+        key = (
+            int(row["id"]),
+            str(row["profile_name"]),
+            str(row["source_name"]),
+            row.get("search_location"),
+            row.get("search_radius_km"),
+            row.get("offer_type"),
+            int(row["page_size"]),
+        )
+        profile_values[key] = SearchProfile(
+            id=int(row["id"]),
+            profile_name=str(row["profile_name"]),
+            source_name=str(row["source_name"]),
+            search_location=(
+                str(row["search_location"]).strip()
+                if row.get("search_location") is not None
+                and str(row["search_location"]).strip()
+                else None
+            ),
+            search_radius_km=(
+                int(row["search_radius_km"])
+                if row.get("search_radius_km") is not None
+                else None
+            ),
+            offer_type=(
+                int(row["offer_type"])
+                if row.get("offer_type") is not None
+                else None
+            ),
+            page_size=int(row["page_size"]),
+        )
+        grouped.setdefault(key, set()).add(term)
+
+    return tuple(
+        RuntimeProfileIntent(
+            profile=profile_values[key],
+            search_terms=tuple(sorted(grouped[key], key=str.casefold)),
+        )
+        for key in sorted(
+            grouped,
+            key=lambda item: (str(item[2]).casefold(), str(item[1]).casefold(), int(item[0])),
+        )
+    )
+
+
 def _load_runtime_state(
-    *,
-    max_terms: int,
-    max_locations: int,
-) -> tuple[tuple[str, ...], tuple[str, ...], set[str]]:
-    """Read current search intent and candidate baseline once under one RO tx."""
+) -> tuple[tuple[RuntimeProfileIntent, ...], tuple[str, ...], tuple[str, ...], set[str]]:
+    """Read the complete active control raster and candidate baseline once."""
     with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 cur.execute("SET TRANSACTION READ ONLY")
                 cur.execute(
                     """
-                    SELECT DISTINCT term.search_term
-                    FROM search_terms term
-                    JOIN search_profiles profile
-                      ON profile.id = term.search_profile_id
-                    WHERE term.is_active = TRUE
-                      AND profile.is_active = TRUE
-                      AND profile.source_name = ANY(%s)
-                    ORDER BY term.search_term
-                    LIMIT %s
-                    """,
-                    (list(CONTROL_SOURCES), max_terms),
-                )
-                terms = tuple(
-                    str(row["search_term"]).strip()
-                    for row in cur.fetchall()
-                    if str(row.get("search_term") or "").strip()
-                )
-
-                cur.execute(
-                    """
-                    SELECT DISTINCT profile.search_location
+                    SELECT
+                        profile.id,
+                        profile.profile_name,
+                        profile.source_name,
+                        profile.search_location,
+                        profile.search_radius_km,
+                        profile.offer_type,
+                        profile.page_size,
+                        COALESCE(term.search_term, profile.search_term) AS search_term
                     FROM search_profiles profile
+                    LEFT JOIN search_terms term
+                      ON term.search_profile_id = profile.id
+                     AND term.is_active = TRUE
                     WHERE profile.is_active = TRUE
                       AND profile.source_name = ANY(%s)
-                      AND NULLIF(btrim(profile.search_location), '') IS NOT NULL
-                    ORDER BY profile.search_location
-                    LIMIT %s
+                      AND NULLIF(
+                            btrim(COALESCE(term.search_term, profile.search_term, '')),
+                            ''
+                          ) IS NOT NULL
+                    ORDER BY
+                        profile.source_name,
+                        profile.profile_name,
+                        search_term
                     """,
-                    (list(CONTROL_SOURCES), max_locations),
+                    (list(CONTROL_SOURCES),),
                 )
-                locations = tuple(
-                    str(row["search_location"]).strip()
-                    for row in cur.fetchall()
-                    if str(row.get("search_location") or "").strip()
-                )
+                intents = _profile_intents_from_rows(list(cur.fetchall()))
 
                 cur.execute(
                     """
@@ -111,15 +160,33 @@ def _load_runtime_state(
                     if row.get("company_key")
                 }
         conn.rollback()
-    return terms, locations, {key for key in known if key}
+
+    search_terms = tuple(
+        sorted(
+            {
+                term
+                for intent in intents
+                for term in intent.search_terms
+            },
+            key=str.casefold,
+        )
+    )
+    locations = tuple(
+        sorted(
+            {
+                intent.profile.search_location
+                for intent in intents
+                if intent.profile.search_location
+            },
+            key=str.casefold,
+        )
+    )
+    return intents, search_terms, locations, {key for key in known if key}
 
 
 def _run_control_sources(
     *,
-    search_terms: tuple[str, ...],
-    location: str,
-    radius_km: int,
-    page_size: int,
+    profile_intents: tuple[RuntimeProfileIntent, ...],
     observed_at_utc: str,
 ) -> tuple[list[Any], dict[str, dict[str, Any]]]:
     connector_factories = {
@@ -129,40 +196,62 @@ def _run_control_sources(
     observations: list[Any] = []
     telemetry: dict[str, dict[str, Any]] = {}
 
+    intents_by_source: dict[str, list[RuntimeProfileIntent]] = defaultdict(list)
+    for intent in profile_intents:
+        intents_by_source[intent.profile.source_name].append(intent)
+
     for source_name in CONTROL_SOURCES:
         if not source_access_qualification(source_name).automation_authorized:
             raise RuntimeError(f"{source_name} is not authorized for direct sensor access")
         connector = connector_factories[source_name]()
-        profile = SearchProfile(
-            id=0,
-            profile_name="job_first_census_comparison",
-            source_name=source_name,
-            search_location=location,
-            search_radius_km=radius_km,
-            offer_type=1,
-            page_size=page_size,
-        )
         source_obs = []
         errors: list[str] = []
         fetch_invocations = 0
-        for term in search_terms:
-            try:
-                fetch_invocations += 1
-                records, _ = connector.fetch_jobs(profile, SearchTerm(term))
-            except Exception as exc:
-                errors.append(f"{type(exc).__name__}: {exc}")
-                continue
-            source_obs.extend(
-                market_observation_from_raw_record(
-                    record,
-                    observed_at_utc=observed_at_utc,
+        profile_telemetry: list[dict[str, Any]] = []
+
+        for intent in intents_by_source.get(source_name, []):
+            profile_fetches = 0
+            profile_observations_before = len(source_obs)
+            for term in intent.search_terms:
+                try:
+                    fetch_invocations += 1
+                    profile_fetches += 1
+                    records, _ = connector.fetch_jobs(
+                        intent.profile,
+                        SearchTerm(term),
+                    )
+                except Exception as exc:
+                    errors.append(
+                        f"{intent.profile.profile_name}|{term}|"
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                    continue
+                source_obs.extend(
+                    market_observation_from_raw_record(
+                        record,
+                        observed_at_utc=observed_at_utc,
+                    )
+                    for record in records
                 )
-                for record in records
+
+            profile_telemetry.append(
+                {
+                    "profile_name": intent.profile.profile_name,
+                    "location": intent.profile.search_location,
+                    "radius_km": intent.profile.search_radius_km,
+                    "offer_type": intent.profile.offer_type,
+                    "page_size": intent.profile.page_size,
+                    "search_term_count": len(intent.search_terms),
+                    "fetch_invocations": profile_fetches,
+                    "observations": len(source_obs) - profile_observations_before,
+                }
             )
 
         observations.extend(source_obs)
         telemetry[source_name] = {
             "mode": "registered_connector",
+            "profile_count": len(intents_by_source.get(source_name, [])),
+            "profiles": profile_telemetry,
             "fetch_invocations": fetch_invocations,
             "observations": len(source_obs),
             "errors": errors,
@@ -172,7 +261,6 @@ def _run_control_sources(
                 "may issue additional bounded HTTP requests"
             ),
         }
-
     return observations, telemetry
 
 
@@ -184,20 +272,37 @@ def _run_external_index_sources(
     search_terms: tuple[str, ...],
     locations: tuple[str, ...],
     max_results: int,
+    max_external_requests: int,
     timeout_seconds: float,
     observed_at_utc: str,
 ) -> tuple[list[Any], dict[str, dict[str, Any]]]:
     observations: list[Any] = []
     telemetry: dict[str, dict[str, Any]] = {}
-
-    for source in EXTERNAL_INDEX_SOURCES:
-        plans = build_external_index_queries(
+    plans_by_source = {
+        source: build_external_index_queries(
             source=source,
             search_terms=search_terms,
             location_signals=locations,
             max_terms=len(search_terms),
             max_locations=len(locations),
         )
+        for source in EXTERNAL_INDEX_SOURCES
+    }
+    planned_request_count = sum(len(plans) for plans in plans_by_source.values())
+
+    if (
+        external_requests_authorized
+        and provider_available
+        and planned_request_count > max_external_requests
+    ):
+        raise RuntimeError(
+            "Full external-index raster requires "
+            f"{planned_request_count} provider requests, exceeding explicit "
+            f"flight budget {max_external_requests}; refusing to truncate search intent."
+        )
+
+    for source in EXTERNAL_INDEX_SOURCES:
+        plans = plans_by_source[source]
         accepted = []
         result_shape_rejected = 0
         provider_request_count = 0
@@ -231,6 +336,8 @@ def _run_external_index_sources(
         telemetry[source] = {
             "mode": "external_index_only",
             "query_count": len(plans),
+            "full_raster_preserved": True,
+            "provider_request_budget": max_external_requests,
             "provider_request_count": provider_request_count,
             "accepted_observations": len(accepted),
             "rejected_provider_results": result_shape_rejected,
@@ -293,21 +400,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.provider == "none" or backend_available(args.provider)
     )
 
-    terms, locations, known_company_keys = _load_runtime_state(
-        max_terms=args.max_terms,
-        max_locations=args.max_locations,
-    )
+    profile_intents, terms, locations, known_company_keys = _load_runtime_state()
     if not terms:
         raise RuntimeError("No active Census search terms were found.")
-    if not locations:
-        locations = ("Hannover",)
 
     observed_at = datetime.now(UTC).isoformat()
     controls, control_telemetry = _run_control_sources(
-        search_terms=terms,
-        location=locations[0],
-        radius_km=args.radius_km,
-        page_size=args.page_size,
+        profile_intents=profile_intents,
         observed_at_utc=observed_at,
     )
     indexed, index_telemetry = _run_external_index_sources(
@@ -317,6 +416,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         search_terms=terms,
         locations=locations,
         max_results=args.max_results,
+        max_external_requests=args.max_external_requests,
         timeout_seconds=args.timeout_seconds,
         observed_at_utc=observed_at,
     )
@@ -337,9 +437,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "intent": {
             "search_terms": list(terms),
             "location_signals": list(locations),
-            "radius_km": args.radius_km,
-            "page_size": args.page_size,
+            "control_profile_count": len(profile_intents),
             "max_results": args.max_results,
+            "max_external_requests": args.max_external_requests,
         },
         "baseline_candidate_count": len(known_company_keys),
         "control_telemetry": control_telemetry,
@@ -370,11 +470,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Required together with a paid provider before any provider request.",
     )
-    parser.add_argument("--max-terms", type=int, default=2)
-    parser.add_argument("--max-locations", type=int, default=1)
     parser.add_argument("--max-results", type=int, default=5)
-    parser.add_argument("--radius-km", type=int, default=50)
-    parser.add_argument("--page-size", type=int, default=10)
+    parser.add_argument(
+        "--max-external-requests",
+        type=int,
+        default=50,
+        help=(
+            "Cost guard for paid external-index flights. The full active search "
+            "raster is never truncated; the flight fails before provider calls "
+            "when this budget is too small."
+        ),
+    )
     parser.add_argument("--timeout-seconds", type=float, default=20.0)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     return parser
@@ -382,14 +488,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    if not 1 <= args.max_terms <= 4:
-        raise SystemExit("--max-terms must be between 1 and 4")
-    if not 1 <= args.max_locations <= 2:
-        raise SystemExit("--max-locations must be between 1 and 2")
     if not 1 <= args.max_results <= 10:
         raise SystemExit("--max-results must be between 1 and 10")
-    if not 1 <= args.page_size <= 25:
-        raise SystemExit("--page-size must be between 1 and 25")
+    if args.max_external_requests < 1:
+        raise SystemExit("--max-external-requests must be >= 1")
     if args.provider != "none" and not args.allow_paid_external_provider:
         raise SystemExit(
             "External provider selected without --allow-paid-external-provider"
@@ -415,6 +517,9 @@ def main() -> int:
     )
     print(f"PROVIDER_AVAILABLE={comparison['authority']['provider_available']}")
     print(f"BASELINE_CANDIDATES={comparison['baseline_candidate_count']}")
+    print(f"CONTROL_PROFILES={comparison['intent']['control_profile_count']}")
+    print(f"SEARCH_TERMS={len(comparison['intent']['search_terms'])}")
+    print(f"LOCATION_SIGNALS={len(comparison['intent']['location_signals'])}")
     print(f"OBSERVED_JOBS={report['observed_job_count']}")
     print(f"QUALIFYING_JOBS={report['qualifying_job_count']}")
     print(f"EMPLOYERS={report['employer_count']}")
