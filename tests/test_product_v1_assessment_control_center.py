@@ -15,6 +15,11 @@ def _report(*, target_met: bool = True, combined_score: bool = False) -> dict[st
     return {
         "schema": actions.COHORT_SCHEMA,
         "mode": "apply",
+        "targets": {
+            "evaluated_jobs": 10,
+            "top5_jobs": 5,
+            "candidate_cap": 15,
+        },
         "selection": {
             "selected_count": 10,
             "enough_candidates": True,
@@ -105,6 +110,35 @@ def test_local_assessment_reuses_existing_authorities_and_publishes_bounded_resu
         "rankable_job_count": 5,
         "top_job_count": 5,
     }
+    assert actions.REPORT_PATH.is_file()
+
+
+def test_incomplete_bounded_assessment_is_published_as_diagnostics(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(actions, "REPORT_ROOT", tmp_path)
+    monkeypatch.setattr(actions, "REPORT_PATH", tmp_path / "current.json")
+
+    def run(*, output: Path) -> subprocess.CompletedProcess[str]:
+        output.write_text(
+            json.dumps(_report(target_met=False)) + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            args=["assessment"],
+            returncode=1,
+            stdout="TARGET_MET=false",
+            stderr="",
+        )
+
+    monkeypatch.setattr(actions, "_run_cohort", run)
+
+    result = actions.apply_assessment_action()
+
+    assert result["status"] == "incomplete"
+    assert result["target_met"] is False
+    assert result["summary"]["top_job_count"] == 4
     assert actions.REPORT_PATH.is_file()
 
 
