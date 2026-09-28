@@ -1,0 +1,197 @@
+name: JAP RCC PR validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+      expected_ref:
+        required: true
+        type: string
+      expected_head_sha:
+        required: true
+        type: string
+      correlation_id:
+        required: true
+        type: string
+      rcc_facade_label:
+        required: true
+        type: string
+      rcc_assignment_label:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: jap-rcc-pr-validation-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Exact PR repository validation
+    runs-on:
+      - self-hosted
+      - ${{ inputs.rcc_facade_label }}
+      - ${{ inputs.rcc_assignment_label }}
+    timeout-minutes: 45
+    env:
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      RCC_EXPECTED_FACADE: ${{ inputs.rcc_facade_label }}
+      RCC_ASSIGNMENT_LABEL: ${{ inputs.rcc_assignment_label }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+      EXPECTED_REF: ${{ inputs.expected_ref }}
+      EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+      CORRELATION_ID: ${{ inputs.correlation_id }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Prove exact RCC assignment handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RUNNER_NAME"
+          test "$RUNNER_NAME" = "$RCC_EXPECTED_FACADE"
+          [[ "$RCC_ASSIGNMENT_LABEL" =~ ^rcc-assignment-proof-[0-9a-f]{32}$ ]]
+          [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+          test -n "$EXPECTED_REF"
+          test -n "$CORRELATION_ID"
+          printf 'RCC_ASSIGNED_RUNNER=%s\n' "$RUNNER_NAME" >> "$GITHUB_ENV"
+          echo "JAP_PR_RCC_HANDOFF=PASS facade=$RCC_EXPECTED_FACADE assignment=$RCC_ASSIGNMENT_LABEL runner=$RUNNER_NAME"
+
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact PR identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD_SHA"
+          mapfile -t pr_identity < <(
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER"               --jq '.head.sha, .head.ref, .head.repo.full_name'
+          )
+          test "${#pr_identity[@]}" -eq 3
+          test "${pr_identity[0]}" = "$EXPECTED_HEAD_SHA"
+          test "${pr_identity[1]}" = "$EXPECTED_REF"
+          test "${pr_identity[2]}" = "$GITHUB_REPOSITORY"
+          echo "JAP_PR_EXACT_SOURCE=PASS pr=$PR_NUMBER source=$actual ref=$EXPECTED_REF"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_ASSIGNED_RUNNER}.json}"
+          test -f "$context_file"
+          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_ASSIGNED_RUNNER" <<'PY'
+          import json
+          import sys
+          from pathlib import PurePosixPath
+
+          path, repo_id, repository, runner = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              context = json.load(handle)
+          if context.get("RepositoryId") != int(repo_id):
+              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
+          if context.get("Repository") != repository:
+              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
+          if context.get("RunnerName") != runner:
+              raise SystemExit("RUNTIME_CONTEXT_STALE: runner mismatch")
+          if context.get("Platform") != "linux-wsl":
+              raise SystemExit("RUNTIME_CONTEXT_STALE: platform mismatch")
+          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
+              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
+          checks = {
+              item.get("Id"): item.get("Status")
+              for item in context.get("Checks", [])
+              if isinstance(item, dict)
+          }
+          required = {
+              "repository_identity",
+              "checkout",
+              "checkout_repository",
+              "interpreter",
+              "interpreter_probe",
+          }
+          failed = sorted(key for key in required if checks.get(key) != "PASS")
+          if failed:
+              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
+          checkout = context.get("CheckoutRoot")
+          interpreter = context.get("Interpreter")
+          root = PurePosixPath(checkout)
+          if root not in PurePosixPath(interpreter).parents:
+              raise SystemExit("INTERPRETER_OUTSIDE_QUALIFIED_CHECKOUT")
+          print(interpreter)
+          PY
+          )"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 1
+          test -x "${values[0]}"
+          printf 'PR_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          printf 'PR_RUFF=%s\n' "$(dirname "${values[0]}")/ruff" >> "$GITHUB_ENV"
+          echo "JAP_PR_RCC_RUNTIME=PASS runner=$RUNNER_NAME"
+
+      - name: Prove qualified Python environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$PR_PYTHON" -m pip check
+          "$PR_PYTHON" -m pytest --version
+          test -x "$PR_RUFF"
+          "$PR_RUFF" --version
+          echo "JAP_PR_PYTHON_ENV=PASS"
+
+      - name: Run full pytest
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$PR_PYTHON" -m pytest -q
+          echo "JAP_PR_PYTEST=PASS"
+
+      - name: Validate repository and documentation contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$PR_PYTHON" scripts/check_documentation_references.py
+          "$PR_PYTHON" scripts/check_documentation_architecture.py
+          "$PR_PYTHON" scripts/validate_ci_contract.py
+          echo "JAP_PR_REPOSITORY_CONTRACTS=PASS"
+
+      - name: Ruff changed Python files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          mapfile -t changed_python < <(
+            git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py'
+          )
+          existing=()
+          for path in "${changed_python[@]}"; do
+            test -f "$path" && existing+=("$path")
+          done
+          if [ "${#existing[@]}" -gt 0 ]; then
+            "$PR_RUFF" check "${existing[@]}"
+          fi
+          echo "JAP_PR_CHANGED_RUFF=PASS count=${#existing[@]}"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### JAP RCC PR validation"
+            echo "- PR: #$PR_NUMBER"
+            echo "- Expected head: `$EXPECTED_HEAD_SHA`"
+            echo "- Correlation: `$CORRELATION_ID`"
+            echo "- Runner: `${RUNNER_NAME:-unknown}`"
+            echo "- No hosted fallback or consumer runner selection is permitted."
+          } >> "$GITHUB_STEP_SUMMARY"

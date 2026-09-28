@@ -14,7 +14,7 @@ Required product proof before claiming the 1.2.2 Product target complete:
 4. authoritative Top 5 contains exactly 5 jobs;
 5. no job IDs, employers, direct rank writes or demo-only promotion bypasses.
 
-The reusable RCC Product workload target is `.github/workflows/product-v1-assessment-cohort.yml`.
+The RCC workload targets are `.github/workflows/pr-validation.yml` for exact-PR repository validation and `.github/workflows/product-v1-assessment-cohort.yml` for the Product 10→5 assessment. Both declare only workload demand; RCC owns allocation, reservation, facade selection and ephemeral assignment.
 The separate `.github/workflows/jap-windows-desktop-host-release.yml` is product packaging/publication infrastructure only; it runs on GitHub-hosted `windows-latest` and owns no Warm-Pool allocation, facade or physical-runner authority.
 
 Canonical Product 10→5 implementation:
@@ -72,15 +72,20 @@ Physically removed from JAP:
 - local Windows scheduled-pipeline runner path;
 - old workflow-specific regression tests that could restore those authorities.
 
-The assessment-cohort workflow is the **only RCC workload target**. JAP now declares
-its execution need through `.rcc/workload-demands.json`; RCC owns profile
-materialization, allocation, facade selection and capability provisioning. The consumer-owned runner-profile tree is physically absent.
+JAP has exactly two RCC workload targets: exact-PR repository validation and the
+Product assessment cohort. Both map through `.rcc/workload-demands.json` to the
+same RCC-owned `linux-base` demand. RCC owns profile materialization, allocation,
+facade selection and capability provisioning. The consumer-owned runner-profile
+tree is physically absent.
 
 The Windows product release publisher is intentionally outside that workload topology: it only builds exact-source immutable desktop/runtime assets and publishes the GitHub Release. It must remain cardinality-blind and must never acquire self-hosted, facade or physical-member selection.
 
 Current demand mapping:
 
 ```text
+pr-validation.yml
+→ linux-base
+
 product-v1-assessment-cohort.yml
 → linux-base
 → platform linux-wsl

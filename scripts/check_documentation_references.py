@@ -29,6 +29,7 @@ from urllib.parse import unquote
 
 EXCLUDED_PARTS = {
     ".git",
+    ".runtime",
     ".venv",
     "__pycache__",
     ".pytest_cache",

@@ -32,6 +32,7 @@
     }
   },
   "workflow_demands": {
+    "pr-validation.yml": "linux-base",
     "product-v1-assessment-cohort.yml": "linux-base"
   },
   "persistent_state_boundary": {

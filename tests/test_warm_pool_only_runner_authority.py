@@ -46,10 +46,11 @@ def _text_files() -> list[Path]:
     return [ROOT / name for name in names if name and (ROOT / name).is_file()]
 
 
-def test_jap_has_only_rcc_assigned_workload_target() -> None:
+def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
     workflows = sorted(path.name for path in WORKFLOWS.iterdir())
     assert workflows == [
         "jap-windows-desktop-host-release.yml",
+        "pr-validation.yml",
         "product-v1-assessment-cohort.yml",
     ]
 
@@ -67,6 +68,32 @@ def test_jap_has_only_rcc_assigned_workload_target() -> None:
     assert "ubuntu-" not in workflow
     assert "windows-" not in workflow
     assert "rcc-general-linux-0" not in workflow
+
+
+    pr_workflow = (WORKFLOWS / "pr-validation.yml").read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in pr_workflow
+    assert "pr_number:" in pr_workflow
+    assert "expected_ref:" in pr_workflow
+    assert "expected_head_sha:" in pr_workflow
+    assert "correlation_id:" in pr_workflow
+    assert "rcc_facade_label:" in pr_workflow
+    assert "rcc_assignment_label:" in pr_workflow
+    assert "- self-hosted" in pr_workflow
+    assert "${{ inputs.rcc_facade_label }}" in pr_workflow
+    assert "${{ inputs.rcc_assignment_label }}" in pr_workflow
+    assert "rcc-assignment-proof-[0-9a-f]{32}" in pr_workflow
+    assert "pytest -q" in pr_workflow
+    assert "check_documentation_references.py" in pr_workflow
+    assert "check_documentation_architecture.py" in pr_workflow
+    assert "validate_ci_contract.py" in pr_workflow
+    assert "PR_RUFF" in pr_workflow
+    assert '"$PR_RUFF" check' in pr_workflow
+    assert "ubuntu-" not in pr_workflow
+    assert "windows-" not in pr_workflow
+    assert "rcc-general-linux-0" not in pr_workflow
+    assert "runs_on_json" not in pr_workflow
+    assert "physical_runner:" not in pr_workflow
+    assert "facade_runner:" not in pr_workflow
 
 
 def test_product_release_publisher_is_cardinality_blind_and_hosted() -> None:
@@ -133,7 +160,8 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
         }
     }
     assert demand["workflow_demands"] == {
-        "product-v1-assessment-cohort.yml": "linux-base"
+        "pr-validation.yml": "linux-base",
+        "product-v1-assessment-cohort.yml": "linux-base",
     }
     package = ROOT / runtime["package_set"]["path"]
     assert package.is_file()

@@ -20,8 +20,9 @@ Integrated hardcut main: `857534c4983398202714c83387af121d1e92115a`.
    with its tests. Check workflow references and registered workload inventory
    against files that actually exist. Re-run the complete suite and doc checks.
 
-The repository retains one RCC workload target, the reusable assessment cohort, plus one
-separate cardinality-blind Windows product release publisher. The publisher runs on
+The repository retains two RCC workload targets: exact-PR repository validation and
+the reusable assessment cohort, plus one separate cardinality-blind Windows product
+release publisher. The publisher runs on
 GitHub-hosted `windows-latest` and provides packaging/publication only; it is not runner
 allocation authority. Negative guards and historical branch-disposition identifiers are
 not runnable allocation authority. Product source-health heartbeats are unrelated to runner
@@ -48,7 +49,9 @@ Product authorities. No company/job IDs, score blending or direct rank writes
 are introduced by this change.
 
 No database or live workload ran during this scan. Ten complete Fit decisions
-and five authoritative Top-5 jobs remain unproven.
+and five authoritative Top-5 jobs remain unproven. The later PR-validation
+bootstrap restores a repository-test workload through the same RCC demand-only
+authority instead of restoring project-owned runner routing.
 
 RCC PR #674 has since merged the generic demand-only adapter. JAP now uses the
 same target model instead of preserving a consumer-owned execution profile:
