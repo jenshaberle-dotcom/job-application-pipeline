@@ -335,3 +335,25 @@ def test_application_workspace_shows_live_quality_drafting_progress() -> None:
     assert "Semantic repairs:" in workspace
     assert 'role="progressbar"' in workspace
     assert ".demo-drafting-progress-track" in styles
+
+
+def test_portal_tabs_keep_operator_topline_identity_in_sync() -> None:
+    data_layers = (FRONTEND / "DataLayersTab.tsx").read_text(encoding="utf-8")
+    data_css = (FRONTEND / "data-layers-tab.css").read_text(encoding="utf-8")
+
+    assert 'document.querySelector<HTMLElement>(".ow-topline > div")' in data_layers
+    assert '<b className="ow-overlay-topline-title">Data Layers</b>' in data_layers
+    assert "body.data-layers-active .ow-topline > div > b:not(.ow-overlay-topline-title)" in data_css
+    assert "body.data-layers-active .ow-overlay-topline-title" in data_css
+
+
+def test_application_tracking_uses_product_copy_and_avoids_duplicate_expanded_stage_badge() -> None:
+    source = (FRONTEND / "F5ApplicationTracking.tsx").read_text(encoding="utf-8")
+
+    assert "Bewerbungsstatus · Mailbox-gestützt" in source
+    assert "F5 · Mailbox Application Tracking" not in source
+
+    expanded = source.split('{expanded && <div className="f5-expanded-body">', 1)[1]
+    card_head = expanded.split("<StageStrip", 1)[0]
+    assert "f5-stage-badge" not in card_head
+    assert "<StageStrip stage={application.effective_stage} />" in expanded
