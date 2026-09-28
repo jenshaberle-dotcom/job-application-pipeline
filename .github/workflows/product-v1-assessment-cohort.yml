@@ -6,12 +6,6 @@ on:
       reservation_id:
         required: true
         type: string
-      physical_runner:
-        required: true
-        type: string
-      facade_runner:
-        required: true
-        type: string
       runs_on_json:
         required: true
         type: string
@@ -47,8 +41,6 @@ jobs:
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
       RCC_RESERVATION_ID: ${{ inputs.reservation_id }}
-      RCC_PHYSICAL_RUNNER: ${{ inputs.physical_runner }}
-      RCC_FACADE_RUNNER: ${{ inputs.facade_runner }}
       SOURCE_SHA: ${{ inputs.source_sha }}
       EVALUATED_TARGET: ${{ inputs.evaluated_target }}
       TOP5_TARGET: ${{ inputs.top5_target }}
@@ -66,16 +58,26 @@ jobs:
           set -euo pipefail
           test -n "$RCC_RESERVATION_ID"
           [[ "$RCC_RESERVATION_ID" =~ ^[0-9a-f-]{16,64}$ ]]
-          [[ "$RCC_PHYSICAL_RUNNER" =~ ^rcc-general-linux-0[1-5]$ ]]
-          test "$RCC_FACADE_RUNNER" = "$RCC_PHYSICAL_RUNNER--jap"
-          test "$RUNNER_NAME" = "$RCC_FACADE_RUNNER"
-          test "$RUNS_ON_JSON" = "[\"self-hosted\",\"$RCC_FACADE_RUNNER\"]"
+          assigned_label="$(python3 - <<'PY'
+          import json, os, re
+          value = json.loads(os.environ["RUNS_ON_JSON"])
+          if not isinstance(value, list) or len(value) != 2 or value[0] != "self-hosted":
+              raise SystemExit("ASSESSMENT_COHORT_SELECTOR_INVALID")
+          label = str(value[1])
+          if re.fullmatch(r"rcc-assignment-[0-9a-f]{32}", label) is None:
+              raise SystemExit("ASSESSMENT_COHORT_ASSIGNMENT_LABEL_INVALID")
+          print(label)
+          PY
+          )"
+          test -n "$RUNNER_NAME"
+          printf 'RCC_ASSIGNED_RUNNER=%s\n' "$RUNNER_NAME" >> "$GITHUB_ENV"
+          printf 'RCC_ASSIGNMENT_LABEL=%s\n' "$assigned_label" >> "$GITHUB_ENV"
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$EVALUATED_TARGET" = "10"
           test "$TOP5_TARGET" = "5"
           test "$CANDIDATE_CAP" -ge 10
           test "$CANDIDATE_CAP" -le 15
-          echo "ASSESSMENT_COHORT_RCC_HANDOFF=PASS reservation=$RCC_RESERVATION_ID physical=$RCC_PHYSICAL_RUNNER facade=$RCC_FACADE_RUNNER"
+          echo "ASSESSMENT_COHORT_RCC_HANDOFF=PASS reservation=$RCC_RESERVATION_ID assignment=$assigned_label runner=$RUNNER_NAME"
 
       - name: Check out exact approved main
         uses: actions/checkout@v4
@@ -99,7 +101,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_FACADE_RUNNER}.json}"
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_ASSIGNED_RUNNER}.json}"
           test -f "$context_file"
           context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_FACADE_RUNNER" <<'PY'
           import json
