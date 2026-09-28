@@ -224,7 +224,8 @@ def test_unavailable_runtime_truth_is_unknown_not_optimistically_absent() -> Non
 def test_market_discovery_catalog_surfaces_all_core_boards_without_fake_activation() -> None:
     payload = build_source_connector_overview(registry=build_default_connector_registry())
 
-    assert payload["summary"]["sensor_count"] == 7
+    assert payload["summary"]["sensor_count"] == 2
+    assert payload["summary"]["discovery_coverage_count"] == 7
 
     goodjobs = source_by_name(payload, "goodjobs")
     assert goodjobs["source_label"] == "GoodJobs"
