@@ -126,6 +126,43 @@ def test_structured_non_germany_is_excluded_from_product_lane() -> None:
     assert signal.eligible_for_bounded_pool is False
 
 
+def test_authoritative_silver_location_overrides_missing_legacy_country() -> None:
+    target = row(1, "Data Engineer", city=None, country=None)
+    target["structured_locations"] = [
+        {"city": "San Pedro Garza Garcia", "country_code": "MX"}
+    ]
+
+    signal = classify_geography(target)
+
+    assert signal.bucket == "outside_germany"
+    assert signal.eligible_for_bounded_pool is False
+    assert signal.reason == "authoritative_silver_locations_outside_germany"
+
+
+def test_authoritative_silver_hannover_location_qualifies() -> None:
+    target = row(1, "Data Engineer", city=None, country=None)
+    target["structured_locations"] = [
+        {"city": "Hannover", "country_code": "DE"}
+    ]
+
+    signal = classify_geography(target)
+
+    assert signal.bucket == "hannover_explicit"
+    assert signal.eligible_for_bounded_pool is True
+
+
+def test_authoritative_germany_wide_location_is_remote_profile_signal() -> None:
+    target = row(1, "AI Engineer", city=None, country=None)
+    target["structured_locations"] = [
+        {"city": "Bundesweit", "country_code": "DE"}
+    ]
+
+    signal = classify_geography(target)
+
+    assert signal.bucket == "germany_remote"
+    assert signal.eligible_for_bounded_pool is True
+
+
 def test_exact_health_probe_requires_employer_origin_and_absolute_http_url() -> None:
     assert exact_health_probe_eligible(row(1, "Data Engineer")) is True
     assert (
