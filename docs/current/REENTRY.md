@@ -60,8 +60,7 @@ Physically removed from JAP:
 
 The remaining assessment-cohort workflow is a **workload target only**. JAP now declares
 its execution need through `.rcc/workload-demands.json`; RCC owns profile
-materialization, allocation, facade selection and capability provisioning. The
-consumer-owned `.rcc/runner-profiles/` tree is physically absent.
+materialization, allocation, facade selection and capability provisioning. The consumer-owned runner-profile tree is physically absent.
 
 Current demand mapping:
 
@@ -71,7 +70,7 @@ product-v1-assessment-cohort.yml
 → platform linux-wsl
 → runtime python-project
 → RCC materializes rcc-demand-jap-linux-base
-→ expected materialized profile hash a0be1d17ce9bbeeb104bbcf0a9f3c9619a9797b9b410be61fd8a1686973396ed
+→ expected materialized profile hash b08aaffd6a5da737b20570a7ed3b5b1bfc3eea11f0efeeb216e5a9d2a030c70e
 ```
 
 ## Current next gate
