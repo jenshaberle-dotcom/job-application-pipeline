@@ -317,6 +317,7 @@ function DataLayersScreen({
 export default function DataLayersTab() {
   const [navRoot, setNavRoot] = useState<HTMLElement | null>(null);
   const [mainRoot, setMainRoot] = useState<HTMLElement | null>(null);
+  const [toplineRoot, setToplineRoot] = useState<HTMLElement | null>(null);
   const [active, setActive] = useState(false);
   const [payload, setPayload] = useState<DataLayersPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -330,9 +331,11 @@ export default function DataLayersTab() {
       if (cancelled) return false;
       const nav = document.querySelector<HTMLElement>(".ow-sidebar nav");
       const main = document.querySelector<HTMLElement>(".ow-main");
-      if (!nav || !main) return false;
+      const topline = document.querySelector<HTMLElement>(".ow-topline > div");
+      if (!nav || !main || !topline) return false;
       setNavRoot(nav);
       setMainRoot(main);
+      setToplineRoot(topline);
       return true;
     };
 
@@ -419,5 +422,9 @@ export default function DataLayersTab() {
       )
     : null;
 
-  return <>{nav}{screen}</>;
+  const topline = active && toplineRoot
+    ? createPortal(<b className="ow-overlay-topline-title">Data Layers</b>, toplineRoot)
+    : null;
+
+  return <>{nav}{screen}{topline}</>;
 }
