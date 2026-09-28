@@ -384,8 +384,8 @@ export default function F6TemplateReviewEditor({
           <span>Elapsed {renderElapsedLabel}</span>
         </div>
         <small
-          title="JAP aktualisiert den Fortschritt nach real abgeschlossenen Schritten: Vorlagenbindung, PDF-Rendering, Pixelprüfung, Zusammenführung und Word-Erstellung."
-        >ⓘ Fortschritt basiert auf abgeschlossenen Dateierstellungs-Schritten.</small>
+          title="JAP updates progress after real completed steps: template binding, PDF rendering, pixel verification, merge, and Word creation."
+        >ⓘ Progress is based on completed file-generation steps.</small>
       </div>}
 
       {packagePdf && <div className="f6-final-package">
