@@ -16,8 +16,16 @@ body.about-active .ow-main > :not(.about-screen) {
   display: none !important;
 }
 
+body.about-active .ow-topline > div > b:not(.ow-overlay-topline-title) {
+  display: none;
+}
+
+body.about-active .ow-overlay-topline-title {
+  display: inline;
+}
+
 /* The old demo/pilot label is planning residue, not operator-facing product identity. */
-.ow-topline > div > span {
+.ow-topline > div:first-child > span {
   display: none;
 }
 
