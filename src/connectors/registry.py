@@ -5,15 +5,6 @@ from enum import StrEnum
 from typing import Protocol
 
 from src.connectors.base import JobSourceConnector
-from src.connectors.bundesagentur import BundesagenturConnector
-from src.connectors.generic_employer_origin_product_bite import (
-    GenericEmployerOriginProductBiteConnector,
-)
-from src.connectors.greenhouse import GreenhouseConnector
-from src.connectors.personio import PersonioConnector
-from src.connectors.stepstone import StepStoneConnector
-from src.connectors.successfactors import SuccessFactorsConnector
-
 
 class ConnectorFactory(Protocol):
     def __call__(self, source_name: str) -> JobSourceConnector: ...
@@ -147,28 +138,42 @@ def source_target(source_name: str) -> str:
 
 
 def bundesagentur_factory(source_name: str) -> JobSourceConnector:
+    from src.connectors.bundesagentur import BundesagenturConnector
+
     del source_name
     return BundesagenturConnector()
 
 
 def greenhouse_factory(source_name: str) -> JobSourceConnector:
+    from src.connectors.greenhouse import GreenhouseConnector
+
     return GreenhouseConnector(board_token=source_target(source_name))
 
 
 def personio_factory(source_name: str) -> JobSourceConnector:
+    from src.connectors.personio import PersonioConnector
+
     return PersonioConnector(target_key=source_target(source_name))
 
 
 def stepstone_factory(source_name: str) -> JobSourceConnector:
+    from src.connectors.stepstone import StepStoneConnector
+
     del source_name
     return StepStoneConnector()
 
 
 def successfactors_factory(source_name: str) -> JobSourceConnector:
+    from src.connectors.successfactors import SuccessFactorsConnector
+
     return SuccessFactorsConnector(target_key=source_target(source_name))
 
 
 def generic_origin_factory(source_name: str) -> JobSourceConnector:
+    from src.connectors.generic_employer_origin_product_bite import (
+        GenericEmployerOriginProductBiteConnector,
+    )
+
     return GenericEmployerOriginProductBiteConnector(
         company_key=source_target(source_name),
         source_name=source_name,

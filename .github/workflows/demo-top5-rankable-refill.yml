@@ -173,6 +173,8 @@ jobs:
           "$TOP5_PYTHON" - <<'PY'
           import psycopg
           import requests
+          import scripts.run_demo_001_rankable_refill_campaign
+          import scripts.run_demo_001_rankable_refill_scout
           print("TOP5_RCC_PYTHON_IMPORTS=PASS")
           PY
 
