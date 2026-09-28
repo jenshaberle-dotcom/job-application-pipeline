@@ -32,11 +32,43 @@ def test_query_builder_is_site_bounded_but_does_not_execute_transport():
         location_signals=["Hannover"],
     )
     assert len(queries) == 1
-    assert '"goodjobs.eu/jobs/"' in queries[0].query
+    assert "site:goodjobs.eu" in queries[0].query
     assert '"Data Engineer"' in queries[0].query
     assert '"Hannover"' in queries[0].query
     assert "Germany" in queries[0].query
+    assert '"goodjobs.eu/jobs/"' not in queries[0].query
 
+
+
+def test_remote_market_intent_is_not_queried_as_literal_product_phrase():
+    queries = build_external_index_queries(
+        source="xing",
+        search_terms=["MLOps Engineer"],
+        location_signals=["Deutschland remote"],
+    )
+    assert len(queries) == 1
+    assert "site:xing.com" in queries[0].query
+    assert '"MLOps Engineer"' in queries[0].query
+    assert "remote" in queries[0].query
+    assert "Germany" in queries[0].query
+    assert '"Deutschland remote"' not in queries[0].query
+
+
+def test_each_external_source_uses_real_site_constraint():
+    expected = {
+        "goodjobs": "site:goodjobs.eu",
+        "xing": "site:xing.com",
+        "get_in_it": "site:get-in-it.de",
+        "meinestadt": "site:jobs.meinestadt.de",
+        "jobvector": "site:jobvector.de",
+    }
+    for source, site in expected.items():
+        query = build_external_index_queries(
+            source=source,
+            search_terms=["Data Engineer"],
+            location_signals=["Hannover"],
+        )[0]
+        assert site in query.query
 
 def test_goodjobs_index_result_becomes_minimised_remote_evidence():
     raw_url = (

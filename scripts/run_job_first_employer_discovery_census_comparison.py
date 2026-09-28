@@ -38,6 +38,7 @@ from src.search_intelligence.external_index_job_sensors import (
     EXTERNAL_INDEX_SOURCES,
     accept_external_index_result,
     build_external_index_queries,
+    classify_external_index_result_shape,
 )
 from src.search_intelligence.market_sensor_coverage import (
     MarketSensorProfile,
@@ -332,9 +333,11 @@ def _run_external_index_sources(
     for source in EXTERNAL_INDEX_SOURCES:
         plans = plans_by_source[source]
         accepted = []
-        result_shape_rejected = 0
+        rejected_provider_results = 0
+        provider_results_seen = 0
         provider_request_count = 0
         transport_status_counts: dict[str, int] = defaultdict(int)
+        rejection_reason_counts: dict[str, int] = defaultdict(int)
 
         if external_requests_authorized and provider_available:
             for plan in plans:
@@ -347,6 +350,16 @@ def _run_external_index_sources(
                 provider_request_count += response.request_count
                 transport_status_counts[response.status] += 1
                 for row in response.results:
+                    provider_results_seen += 1
+                    shape = classify_external_index_result_shape(
+                        source=source,
+                        url=row.url,
+                    )
+                    if shape != "accepted_shape":
+                        rejected_provider_results += 1
+                        rejection_reason_counts[shape] += 1
+                        continue
+
                     observation = accept_external_index_result(
                         source=source,
                         provider=row.provider,
@@ -356,7 +369,8 @@ def _run_external_index_sources(
                         observed_at_utc=observed_at_utc,
                     )
                     if observation is None:
-                        result_shape_rejected += 1
+                        rejected_provider_results += 1
+                        rejection_reason_counts["extraction_rejected"] += 1
                         continue
                     accepted.append(observation)
 
@@ -367,8 +381,10 @@ def _run_external_index_sources(
             "full_raster_preserved": True,
             "provider_request_budget": max_external_requests,
             "provider_request_count": provider_request_count,
+            "provider_results_seen": provider_results_seen,
             "accepted_observations": len(accepted),
-            "rejected_provider_results": result_shape_rejected,
+            "rejected_provider_results": rejected_provider_results,
+            "rejection_reason_counts": dict(sorted(rejection_reason_counts.items())),
             "transport_status_counts": dict(sorted(transport_status_counts.items())),
             "direct_board_requests": 0,
         }
