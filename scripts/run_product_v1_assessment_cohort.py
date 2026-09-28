@@ -41,7 +41,7 @@ from scripts.run_product_v1_assessment_materialization import (
 )
 from src.config import get_database_config
 from src.ingestion.repository import JobIngestionRepository
-from src.search_intelligence.product_v1_job_presentation_runtime import (
+from scripts.product_v1_job_presentation_runtime import (
     is_employer_origin_review_source,
 )
 
