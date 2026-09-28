@@ -26,11 +26,24 @@ def _report(*, target_met: bool = True, combined_score: bool = False) -> dict[st
         },
         "authority_pipeline_exit_code": 0,
         "final": {
-            "profile_fit_complete_count": 10,
-            "profile_fit_passed_count": 6,
-            "rankable_job_count": 5,
+            "profile_fit_complete_count": 10 if target_met else 6,
+            "profile_fit_passed_count": 6 if target_met else 4,
+            "rankable_job_count": 5 if target_met else 4,
             "top_job_count": 5 if target_met else 4,
-            "selected_readiness_counts": {"rankable": 5},
+            "selected_readiness_counts": {"rankable": 5 if target_met else 4},
+            "selected": [] if target_met else [
+                {
+                    "profile_fit_missing_factors": [
+                        "geography_work_model_commute",
+                        "hard_requirements",
+                    ],
+                },
+                {
+                    "profile_fit_missing_factors": [
+                        "geography_work_model_commute",
+                    ],
+                },
+            ],
             "top5_authority_violations": [],
         },
         "target_met": target_met,
@@ -109,6 +122,25 @@ def test_child_command_is_fixed_to_generic_10_to_5_apply_contract(
     assert captured["check"] is False
 
 
+def test_fit_blocker_counts_ignores_unknown_diagnostic_keys() -> None:
+    assert actions._fit_blocker_counts(
+        {
+            "selected": [
+                {
+                    "profile_fit_missing_factors": [
+                        "skills_capabilities",
+                        "unexpected_internal_factor",
+                    ]
+                },
+                {"profile_fit_missing_factors": ["skills_capabilities", "seniority"]},
+            ]
+        }
+    ) == {
+        "skills_capabilities": 2,
+        "seniority": 1,
+    }
+
+
 def test_report_rejects_target_contract_drift() -> None:
     report = _report()
     report["targets"] = {
@@ -184,6 +216,10 @@ def test_incomplete_bounded_assessment_is_published_as_diagnostics(
     assert result["status"] == "incomplete"
     assert result["target_met"] is False
     assert result["summary"]["top_job_count"] == 4
+    assert result["fit_blocker_counts"] == {
+        "geography_work_model_commute": 2,
+        "hard_requirements": 1,
+    }
     assert actions.REPORT_PATH.is_file()
 
 
