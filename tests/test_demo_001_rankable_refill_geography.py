@@ -40,6 +40,11 @@ def test_refill_scout_persists_geography_gate_and_source_fields() -> None:
     assert "readiness.country" in source
     assert "readiness.work_model" in source
     assert "readiness.commute_minutes" in source
-    assert '"geography_eligible": geography.eligible_for_bounded_pool' in source
+    assert "FROM silver_job_locations location" in source
+    assert "location_truth.structured_locations" in source
+    assert "REFILL_GEOGRAPHY_BUCKETS" in source
+    assert '"geography_eligible": geography_eligible' in source
     assert 'and row["geography_eligible"]' in source
+    assert '"authoritative_silver_location_truth_used": True' in source
+    assert '"geography_review_required_excluded": True' in source
     assert '"explicit_outside_germany_excluded": True' in source
