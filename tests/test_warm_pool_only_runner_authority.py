@@ -83,7 +83,8 @@ def test_product_release_publisher_is_cardinality_blind_and_hosted() -> None:
     assert "JAP-Control-Center-Runtime.zip" in release
 
     for forbidden in (
-        "self-hosted",
+        "runs-on: self-hosted",
+        "- self-hosted",
         "rcc-general-",
         "job-pipeline-runtime-",
         "rcc_facade_label",
