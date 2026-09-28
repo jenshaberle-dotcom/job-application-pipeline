@@ -175,7 +175,7 @@ jobs:
   apply:
     name: Apply approved resolved-origin candidate cohort
     if: >-
-      ${{ vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
+      ${{ vars.RCC_JAP_LEGACY_DIRECT_ASSIGNMENT_ALLOWED == 'true' && vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
           github.event.issue.number == 1038 &&
           github.event.comment.user.login == 'jenshaberle-dotcom' &&
           github.event.comment.author_association == 'OWNER' &&
