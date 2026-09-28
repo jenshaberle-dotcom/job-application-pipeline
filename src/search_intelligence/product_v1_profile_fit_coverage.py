@@ -15,9 +15,9 @@ Supported preference tags are intentionally small and deterministic:
 - ``profile-fit.commute.max-<minutes>``
 
 When city and country tags are both approved, the policy is interpreted as a
-regional-or-remote boundary: onsite/hybrid jobs must match an approved city,
-while remote jobs may match an approved country. Commute limits apply only to
-non-remote jobs.
+regional-or-remote boundary: onsite/hybrid jobs may match an approved regional
+anchor city or prove that they are within the configured commute limit; remote
+jobs may match an approved country. Commute limits apply only to non-remote jobs.
 
 The Product API receives only factor statuses and generic reason codes; Candidate
 Fact statements, provenance references and raw preference-tag values are never
@@ -139,10 +139,10 @@ def _geography_factor(
         elif work_model not in policy.work_models:
             failed = True
 
-    # When both city and country preferences exist, they intentionally express a
-    # regional-or-remote boundary: non-remote jobs must match an approved city,
-    # while remote jobs may match an approved country. This avoids turning
-    # "regional onsite/hybrid OR country-wide remote" into an accidental AND.
+    # City tags are regional anchors, not municipal-boundary allowlists.
+    # Together with a commute limit they express "anchor city OR proven
+    # commutable surrounding area". Country tags additionally admit fully
+    # remote jobs anywhere in the approved country.
     remote_country_scope = work_model == "remote" and bool(policy.countries)
     if remote_country_scope:
         country = _country_token(row.get("country"))
@@ -152,24 +152,40 @@ def _geography_factor(
             failed = True
     elif policy.cities:
         city = _token(row.get("city"))
-        if not city:
+        country = _country_token(row.get("country"))
+        commute = row.get("commute_minutes")
+        city_matches = bool(city) and city in policy.cities
+
+        if city_matches:
+            if policy.commute_max_minutes is not None:
+                if not isinstance(commute, int):
+                    missing = True
+                elif commute > policy.commute_max_minutes:
+                    failed = True
+        elif policy.commute_max_minutes is None:
+            if not city:
+                missing = True
+            else:
+                failed = True
+        elif not isinstance(commute, int):
+            # A non-anchor city may still be acceptable when it is commutable;
+            # without commute evidence that question is genuinely unresolved.
             missing = True
-        elif city not in policy.cities:
+        elif commute > policy.commute_max_minutes:
             failed = True
+        elif policy.countries:
+            # Commute evidence can extend the regional anchor only inside an
+            # approved country; this prevents a short but cross-border example
+            # from silently becoming in-scope.
+            if not country:
+                missing = True
+            elif country not in policy.countries:
+                failed = True
     elif policy.countries:
         country = _country_token(row.get("country"))
         if not country:
             missing = True
         elif country not in policy.countries:
-            failed = True
-
-    # Commute is only meaningful for a physical commute. Fully remote jobs do
-    # not become unknown/failed because no commute time exists.
-    if policy.commute_max_minutes is not None and work_model != "remote":
-        commute = row.get("commute_minutes")
-        if not isinstance(commute, int):
-            missing = True
-        elif commute > policy.commute_max_minutes:
             failed = True
 
     if failed:
