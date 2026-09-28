@@ -219,3 +219,25 @@ def test_unavailable_runtime_truth_is_unknown_not_optimistically_absent() -> Non
     assert source["lifecycle"]["activation"] == "unknown"
     assert source["lifecycle"]["ingestion"] == "unknown"
     assert source["current_blocker"] == "activation_truth_unavailable"
+
+
+def test_market_discovery_catalog_surfaces_all_core_boards_without_fake_activation() -> None:
+    payload = build_source_connector_overview(registry=build_default_connector_registry())
+
+    assert payload["summary"]["sensor_count"] == 7
+
+    goodjobs = source_by_name(payload, "goodjobs")
+    assert goodjobs["source_label"] == "GoodJobs"
+    assert goodjobs["source_role"] == "sensor"
+    assert goodjobs["candidate_status"] == "coverage_target"
+    assert goodjobs["discovery_catalog"]["catalogued"] is True
+    assert goodjobs["discovery_catalog"]["access_status"] == "withheld"
+    assert goodjobs["connector"]["implemented"] is False
+    assert goodjobs["activation"]["active"] is False
+    assert goodjobs["current_blocker"] is None
+    assert "Coverage target only" in goodjobs["next_action"]
+
+    bundesagentur = source_by_name(payload, "bundesagentur_fuer_arbeit")
+    stepstone = source_by_name(payload, "stepstone")
+    assert bundesagentur["connector"]["implemented"] is True
+    assert stepstone["connector"]["implemented"] is True
