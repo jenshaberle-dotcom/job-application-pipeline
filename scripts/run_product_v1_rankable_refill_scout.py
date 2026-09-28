@@ -55,6 +55,7 @@ READINESS_PRIORITY = {
     "rankable": 0,
     "hard_filter_evidence_required": 1,
     "assessment_required": 2,
+    "blocked_hard_filter": 3,
 }
 REFILL_GEOGRAPHY_BUCKETS = frozenset(
     {"hannover_explicit", "germany_remote", "commute_observed_acceptable"}
@@ -229,14 +230,17 @@ def _load_rows(
               AND readiness.product_readiness_status IN (
                     'assessment_required',
                     'hard_filter_evidence_required',
-                    'rankable'
+                    'rankable',
+                    'blocked_hard_filter'
               )
               AND NULLIF(btrim(readiness.source_url), '') IS NOT NULL
             ORDER BY
                 CASE readiness.product_readiness_status
                     WHEN 'rankable' THEN 0
                     WHEN 'hard_filter_evidence_required' THEN 1
-                    ELSE 2
+                    WHEN 'assessment_required' THEN 2
+                    WHEN 'blocked_hard_filter' THEN 3
+                    ELSE 4
                 END,
                 readiness.overall_quality_score DESC NULLS LAST,
                 readiness.silver_job_id DESC
