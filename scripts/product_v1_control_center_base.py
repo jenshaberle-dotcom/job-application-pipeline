@@ -6,6 +6,7 @@ source activation, candidate mutation, application submission or scheduler write
 from __future__ import annotations
 
 import argparse
+from datetime import date, datetime
 import json
 import mimetypes
 import os
@@ -35,6 +36,14 @@ from src.search_intelligence.source_connector_overview import (
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FRONTEND_DIST = ROOT / "frontend" / "control-center" / "dist"
+
+
+def _json_default(value: object) -> str:
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    raise TypeError(
+        f"Object of type {type(value).__name__} is not JSON serializable"
+    )
 
 
 def _relation_exists(
@@ -661,7 +670,10 @@ class ProductV1Handler(BaseHTTPRequestHandler):
         self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
     ) -> None:
         body = json.dumps(
-            payload, ensure_ascii=False, sort_keys=True
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            default=_json_default,
         ).encode("utf-8")
         self._send_bytes(
             body,
