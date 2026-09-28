@@ -64,7 +64,7 @@ const dateTime = (value: string | null | undefined) => {
   if (!value) return "No evidence";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) return value;
-  return parsed.toLocaleString(undefined, {
+  return parsed.toLocaleString("en-GB", {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
