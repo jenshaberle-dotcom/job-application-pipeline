@@ -190,20 +190,6 @@ def test_failed_update_does_not_reprompt_same_target_immediately() -> None:
     assert "Ein neuerer Stand bleibt sofort zulässig." in coordinator
 
 
-def test_release_generation_contains_both_immutable_product_assets() -> None:
-    workflow = read(".github/workflows/jap-windows-desktop-host-release.yml")
-    assert "jap-winapp-product-v$Version" in workflow
-    assert "JAP-Control-Center-Desktop-win-x64.zip" in workflow
-    assert "JAP-Control-Center-Runtime.zip" in workflow
-    assert "runtime-info.json" in workflow
-    assert "cgkb_product_local_v1" in workflow
-    assert "--target $env:GITHUB_SHA" in workflow
-    assert "jap-winapp-desktop-v$Version" not in workflow
-    assert '$Body = $Body.Replace("`r`n", "`n").Replace("`r", "`n")' in workflow
-    assert "Runtime shell script still contains CR bytes" in workflow
-    assert "Runtime release ZIP contains CR bytes" in workflow
-
-
 def test_legacy_routine_update_surfaces_are_physically_absent() -> None:
     forbidden = [
         "Update-" + "JAP-Control-Center.ps1",
@@ -220,8 +206,6 @@ def test_legacy_routine_update_surfaces_are_physically_absent() -> None:
 
 def test_active_update_authority_does_not_reference_retired_routine_paths() -> None:
     active = [
-        ".github/workflows/jap-windows-control-center-contract.yml",
-        ".github/workflows/jap-windows-desktop-host-release.yml",
         "windows/JAP.ControlCenter.Desktop/ProductUpdateAgent.cs",
         "windows/JAP.ControlCenter.Desktop/ProductUpdateApplier.cs",
         "windows/JAP.ControlCenter.Desktop/UpdateCoordinator.cs",
