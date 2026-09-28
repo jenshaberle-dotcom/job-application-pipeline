@@ -130,3 +130,13 @@ def test_heartbeat_canary_and_ci_have_no_legacy_blue_assignment() -> None:
     print("JAP_PIPELINE_GREEN_SELECTOR=PASS")
 
 
+
+
+def test_f5_exact_head_qualification_does_not_build_stale_queue_on_generic_ui_commits() -> None:
+    workflow = _text(WORKFLOWS / "f5-application-lifecycle-reconciliation.yml")
+
+    assert "cancel-in-progress: true" in workflow
+    pull_request_block = workflow.split("pull_request:", 1)[1].split("issue_comment:", 1)[0]
+    assert '"frontend/control-center/src/F5ApplicationTracking.tsx"' in pull_request_block
+    assert '"frontend/control-center/src/OperatorWorkspace.tsx"' not in pull_request_block
+    assert '"docs/current/REENTRY.md"' not in pull_request_block
