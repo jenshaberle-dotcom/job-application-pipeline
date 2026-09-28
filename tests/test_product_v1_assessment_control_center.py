@@ -37,11 +37,27 @@ def _report(*, target_met: bool = True, combined_score: bool = False) -> dict[st
                         "geography_work_model_commute",
                         "hard_requirements",
                     ],
+                    "profile_fit_factors": {
+                        "geography_work_model_commute": {
+                            "status": "unknown",
+                            "reason": "approved_candidate_geography_preference_missing_or_ambiguous",
+                        },
+                        "hard_requirements": {
+                            "status": "unknown",
+                            "reason": "hard_requirement_evidence_missing",
+                        },
+                    },
                 },
                 {
                     "profile_fit_missing_factors": [
                         "geography_work_model_commute",
                     ],
+                    "profile_fit_factors": {
+                        "geography_work_model_commute": {
+                            "status": "unknown",
+                            "reason": "job_geography_work_model_or_commute_evidence_missing",
+                        },
+                    },
                 },
             ],
             "top5_authority_violations": [],
@@ -141,6 +157,35 @@ def test_fit_blocker_counts_ignores_unknown_diagnostic_keys() -> None:
     }
 
 
+def test_fit_blocker_reason_counts_are_public_and_fail_closed() -> None:
+    assert actions._fit_blocker_reason_counts(
+        {
+            "selected": [
+                {
+                    "profile_fit_missing_factors": ["skills_capabilities"],
+                    "profile_fit_factors": {
+                        "skills_capabilities": {
+                            "status": "unknown",
+                            "reason": "exact_current_candidate_fact_capability_review_missing",
+                        }
+                    },
+                },
+                {
+                    "profile_fit_missing_factors": ["hard_requirements"],
+                    "profile_fit_factors": {
+                        "hard_requirements": {
+                            "status": "unknown",
+                            "reason": "private_or_unexpected_reason",
+                        }
+                    },
+                },
+            ]
+        }
+    ) == {
+        "exact_current_candidate_fact_capability_review_missing": 1,
+    }
+
+
 def test_report_rejects_target_contract_drift() -> None:
     report = _report()
     report["targets"] = {
@@ -219,6 +264,11 @@ def test_incomplete_bounded_assessment_is_published_as_diagnostics(
     assert result["fit_blocker_counts"] == {
         "geography_work_model_commute": 2,
         "hard_requirements": 1,
+    }
+    assert result["fit_blocker_reason_counts"] == {
+        "approved_candidate_geography_preference_missing_or_ambiguous": 1,
+        "hard_requirement_evidence_missing": 1,
+        "job_geography_work_model_or_commute_evidence_missing": 1,
     }
     assert actions.REPORT_PATH.is_file()
 
