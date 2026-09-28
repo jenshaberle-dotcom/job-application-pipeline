@@ -4,7 +4,11 @@ set -uo pipefail
 
 RCC_REPOSITORY_ID="1230805345"
 RCC_REPOSITORY="jenshaberle-dotcom/job-application-pipeline"
-RCC_RUNNER_NAME="${RCC_RUNTIME_RUNNER_NAME:-job-pipeline-runtime-linux}"
+RCC_RUNNER_NAME="${RCC_RUNTIME_RUNNER_NAME:-${RUNNER_NAME:-}}"
+if [[ ! "$RCC_RUNNER_NAME" =~ ^rcc-general-linux-0[1-5]--jap$ ]]; then
+  printf 'ERROR RCC exact warm-pool facade required; observed=%s\n' "${RCC_RUNNER_NAME:-unset}" >&2
+  exit 1
+fi
 RCC_CONTEXT_FILE="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_RUNNER_NAME}.json}"
 LOG_DIR="$HOME/job-pipeline-logs"
 LOCK_DIR="/tmp/job-pipeline-daily.lock"
