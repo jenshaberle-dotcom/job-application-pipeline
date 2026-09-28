@@ -2,8 +2,10 @@
 
 Control sources (BA + StepStone) use their existing registered connectors.
 Additional boards are observed only through an explicitly selected external-index
-transport. No board page is fetched by the external-index path and no database,
-Bronze, Silver, Product, candidate, or connector write is performed.
+transport. No board page is fetched by the external-index path. The flight is
+read-only by default; an explicit write gate may persist minimized sensor evidence
+to the existing market_evidence boundary. Bronze, Silver, Product, candidate and
+connector writes remain forbidden.
 """
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ from src.config import get_database_config
 from src.connectors.base import SearchProfile, SearchTerm
 from src.connectors.bundesagentur import BundesagenturConnector
 from src.connectors.stepstone import StepStoneConnector
+from src.ingestion.repository import JobIngestionRepository
 from src.normalization.company_keys import normalize_company_key
 from src.search_intelligence.census_flight_authority import (
     CENSUS_EXTERNAL_INDEX_BACKENDS,
@@ -30,6 +33,7 @@ from src.search_intelligence.census_flight_authority import (
 )
 from src.search_intelligence.employer_discovery_census import (
     build_employer_discovery_census,
+    qualify_observation,
 )
 from src.search_intelligence.employer_discovery_census_adapter import (
     market_observation_from_raw_record,
@@ -38,6 +42,9 @@ from src.search_intelligence.external_index_job_sensors import (
     EXTERNAL_INDEX_SOURCES,
     accept_external_index_result,
     build_external_index_queries,
+)
+from src.search_intelligence.market_sensor_evidence_contract import (
+    build_market_sensor_evidence_payload,
 )
 from src.search_intelligence.market_sensor_coverage import (
     MarketSensorProfile,
@@ -52,6 +59,7 @@ from src.search_intelligence.public_web_search import (
 
 
 CONTROL_SOURCES = ("bundesagentur_fuer_arbeit", "stepstone")
+CENSUS_EXTERNAL_PROFILE_NAME = "job_first_employer_discovery_census"
 DEFAULT_OUTPUT = Path("/tmp/job-first-employer-discovery-census-comparison.json")
 
 
@@ -354,6 +362,8 @@ def _run_external_index_sources(
                         title=row.title,
                         snippet=row.snippet,
                         observed_at_utc=observed_at_utc,
+                        search_term=plan.search_term,
+                        location_signal=plan.location_signal,
                     )
                     if observation is None:
                         result_shape_rejected += 1
@@ -374,6 +384,42 @@ def _run_external_index_sources(
         }
 
     return observations, telemetry
+
+
+def _persist_external_market_evidence(
+    observations: list[Any],
+    *,
+    repository: JobIngestionRepository | None = None,
+) -> dict[str, int]:
+    """Persist qualified external-index observations through the sensor boundary."""
+
+    repo = repository or JobIngestionRepository()
+    qualified_count = 0
+    written_count = 0
+
+    for observation in observations:
+        if qualify_observation(observation) is None:
+            continue
+        company_name = " ".join(str(observation.company_name or "").split()).strip()
+        if not company_name:
+            continue
+        qualified_count += 1
+        payload = build_market_sensor_evidence_payload(
+            source_name=observation.source,
+            company_name=company_name,
+            display_title=observation.title,
+            search_profile_name=CENSUS_EXTERNAL_PROFILE_NAME,
+            search_term=observation.search_term,
+            ingestion_run_id=None,
+        )
+        evidence_id = repo.save_market_evidence(**payload)
+        if evidence_id is not None:
+            written_count += 1
+
+    return {
+        "qualified_observation_count": qualified_count,
+        "market_evidence_write_count": written_count,
+    }
 
 
 def _incremental_metrics(report: dict[str, Any]) -> dict[str, Any]:
@@ -456,6 +502,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         [*controls, *indexed],
         known_company_keys=known_company_keys,
     )
+
+    write_requested = bool(getattr(args, "write_market_evidence", False))
+    if write_requested and not authority.external_requests_authorized:
+        raise RuntimeError(
+            "market_evidence persistence requires an authorized external-index flight"
+        )
+    persistence = {
+        "qualified_observation_count": 0,
+        "market_evidence_write_count": 0,
+    }
+    if write_requested:
+        persistence = _persist_external_market_evidence(indexed)
     census["comparison"] = {
         "authority": {
             "provider": authority.provider,
@@ -479,7 +537,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "external_index_telemetry": index_telemetry,
         "metrics": _incremental_metrics(census),
         "writes": {
-            "database": 0,
+            "database": persistence["market_evidence_write_count"],
+            "market_evidence": persistence["market_evidence_write_count"],
+            "qualified_external_observations": persistence[
+                "qualified_observation_count"
+            ],
             "bronze": 0,
             "silver": 0,
             "product": 0,
@@ -502,6 +564,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-paid-external-provider",
         action="store_true",
         help="Required together with a paid provider before any provider request.",
+    )
+    parser.add_argument(
+        "--write-market-evidence",
+        action="store_true",
+        help=(
+            "Persist qualified external-index observations through the canonical "
+            "market_evidence sensor boundary. Does not create jobs or candidates."
+        ),
     )
     parser.add_argument("--max-results", type=int, default=5)
     parser.add_argument(
@@ -528,6 +598,10 @@ def main() -> int:
     if args.provider != "none" and not args.allow_paid_external_provider:
         raise SystemExit(
             "External provider selected without --allow-paid-external-provider"
+        )
+    if args.write_market_evidence and args.provider == "none":
+        raise SystemExit(
+            "--write-market-evidence requires an external provider flight"
         )
 
     report = run(args)
@@ -562,7 +636,11 @@ def main() -> int:
         f"{metrics['primary_incremental_novel_employer_count']}"
     )
     print("DIRECT_BOARD_REQUESTS=0")
-    print("DATABASE_WRITES=0")
+    print(f"DATABASE_WRITES={comparison['writes']['database']}")
+    print(
+        "MARKET_EVIDENCE_WRITES="
+        f"{comparison['writes']['market_evidence']}"
+    )
     print("BRONZE_WRITES=0")
     print("SILVER_WRITES=0")
     print("PRODUCT_WRITES=0")

@@ -30,6 +30,8 @@ class MarketJobObservation:
     location: str | None
     observed_at_utc: str
     reference: str
+    search_term: str | None = None
+    location_signal: str | None = None
     description: str = ""
     remote_signal: bool = False
 

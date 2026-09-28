@@ -349,6 +349,8 @@ def accept_external_index_result(
     title: object,
     snippet: object,
     observed_at_utc: str,
+    search_term: str | None = None,
+    location_signal: str | None = None,
 ) -> MarketJobObservation | None:
     """Derive minimal Census evidence from transient search-index metadata."""
     del provider  # transport identity is run telemetry, not job truth.
@@ -389,6 +391,8 @@ def accept_external_index_result(
         location=location,
         observed_at_utc=observed_at_utc,
         reference=f"external-index:{reference_hash}",
+        search_term=search_term,
+        location_signal=location_signal,
         description="",
         remote_signal=_remote_signal(f"{title_signal} {snippet_signal}"),
     )
