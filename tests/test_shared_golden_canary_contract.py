@@ -45,3 +45,19 @@ def test_real_canary_uses_exact_shared_facade_and_ephemeral_source() -> None:
     assert "RCC_PIP_INSTALL=NONE" in workflow
     assert "RCC_REMOTE_PIP_CACHE_RESTORE=NONE" in workflow
     assert "JAP_LOCAL_OSS_INSTALL_DURING_CANARY=NONE" in workflow
+
+
+def test_real_canary_local_oss_contract_matches_canonical_provisioner() -> None:
+    workflow = (ROOT / ".github/workflows/rcc-real-warm-canary.yml").read_text(
+        encoding="utf-8"
+    )
+    provisioner = (ROOT / "scripts/ensure_pinned_local_oss_runtime.sh").read_text(
+        encoding="utf-8"
+    )
+
+    expected = 'required = ("extruct", "trafilatura", "pymupdf")'
+    assert expected in provisioner
+    assert expected in workflow
+    assert 'test "${#specs[@]}" -eq 3' in workflow
+    assert "import pymupdf" in workflow
+    assert "assert pymupdf is not None" in workflow
