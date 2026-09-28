@@ -490,6 +490,22 @@ def load_product_v1_payload(
             """
             SELECT
                 readiness.*,
+                COALESCE(
+                    (
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'city', locations.city,
+                                'country_code', locations.country_code,
+                                'is_primary', locations.is_primary,
+                                'evidence_source', locations.evidence_source
+                            )
+                            ORDER BY locations.is_primary DESC, locations.city, locations.country_code
+                        )
+                        FROM silver_job_locations locations
+                        WHERE locations.silver_job_id = readiness.silver_job_id
+                    ),
+                    '[]'::jsonb
+                ) AS origin_locations,
                 capability_review.decision
                     AS profile_fit_capability_review_decision,
                 CASE
