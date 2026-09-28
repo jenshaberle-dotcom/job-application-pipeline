@@ -15,6 +15,7 @@ jobs:
   refill:
     name: Evidence-bound live Top 5 refill
     if: >-
+      vars.RCC_JAP_BLUE_ASSIGNMENT_FROZEN != 'true' &&
       github.event.issue.number == 1089 &&
       github.event.comment.user.login == 'jenshaberle-dotcom' &&
       github.event.comment.author_association == 'OWNER' &&
