@@ -85,7 +85,7 @@ def test_linkage_is_bidirectional_inside_application() -> None:
     assert "onOpenJob?: (silverJobId: number) => void" in tracking
     assert "projectedJobByApplicationId" in tracking
     assert "application.silver_job_id ?? projectedJobByApplicationId.get" in tracking
-    assert "Open in All jobs ↔" in tracking
+    assert "Open in All Jobs ↔" in tracking
     assert "onOpenJob(linkedJobId)" in tracking
 
 
