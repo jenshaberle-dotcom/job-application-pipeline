@@ -80,3 +80,16 @@ def test_builder_uses_null_not_fake_percentage_when_denominator_is_empty() -> No
     assert isinstance(flow, list)
     assert all(point["bronze_new"] is None for point in flow)
     assert all("bronze_observations" not in point for point in flow)
+
+
+
+def test_gold_activity_uses_latest_assessment_revision_timestamp() -> None:
+    source = (
+        __import__("pathlib").Path(__file__).parents[1]
+        / "scripts"
+        / "product_v1_data_layers_runtime.py"
+    ).read_text(encoding="utf-8")
+
+    assert "coalesce(updated_at, assessed_at)::date AS observed_date" in source
+    assert "max(coalesce(updated_at, assessed_at))" in source
+    assert "GROUP BY coalesce(updated_at, assessed_at)::date" in source
