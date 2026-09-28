@@ -159,3 +159,29 @@ def test_first_jap_observed_is_projected_independently_from_published_date() -> 
     assert projected["publication_date"] == "2026-09-01"
     assert projected["first_jap_observed_at"] == "2026-09-10T08:15:00+00:00"
     assert result["boundaries"]["first_jap_observed_is_observation_history_not_source_publish_time"] is True
+
+
+
+def test_sensor_discovered_job_enters_all_jobs_after_normal_employer_origin_gold_promotion() -> None:
+    promoted = {
+        "silver_job_id": 777,
+        "source_name": "generic_origin:encavis",
+        "canonical_source_type": "employer_origin_career_site",
+        "company_name": "Encavis GmbH",
+        "title": "Data Engineer",
+        "city": "Hannover",
+        "work_model": "hybrid",
+        "lifecycle_status": "active_confirmed",
+        "product_readiness_status": "assessment_required",
+    }
+
+    result = enrich_product_payload_for_operator(
+        {"job_readiness": [promoted], "top_jobs": [], "summary": {}, "boundaries": {}},
+        observation_evidence={},
+    )
+
+    assert [item["silver_job_id"] for item in result["job_readiness"]] == [777]
+    assert result["discovery_source_jobs"] == []
+    assert result["historical_jobs"] == []
+    assert result["out_of_profile_jobs"] == []
+    assert result["summary"]["review_scope_current_active_job_count"] == 1
