@@ -12,6 +12,10 @@ from src.connectors.base import SearchProfile
 from src.search_intelligence.census_flight_authority import (
     resolve_census_flight_authority,
 )
+from src.search_intelligence.public_web_search import (
+    PublicSearchResponse,
+    PublicSearchResult,
+)
 
 
 def test_none_is_default_zero_request_authority():
@@ -386,3 +390,68 @@ def test_comparison_script_has_no_write_or_direct_board_transport_authority():
         "src.connectors.registry",
     ):
         assert forbidden not in source
+
+
+def test_external_index_telemetry_separates_shape_rejection_from_acceptance(
+    monkeypatch,
+) -> None:
+    def fake_search(*, provider, query, max_results, timeout_seconds):
+        if query.startswith("site:xing.com "):
+            return PublicSearchResponse(
+                provider="tavily",
+                query=query,
+                status="ok",
+                request_count=1,
+                results=(
+                    PublicSearchResult(
+                        provider="tavily",
+                        query=query,
+                        url=(
+                            "https://www.xing.com/jobs/"
+                            "hannover-data-engineer-germany-158080692"
+                        ),
+                        title="Data Engineer - Germany in Hannover | XING Jobs",
+                        snippet=(
+                            "Hornetsecurity GmbH · Hannover · Hybrid · Data Engineer"
+                        ),
+                    ),
+                    PublicSearchResult(
+                        provider="tavily",
+                        query=query,
+                        url="https://www.xing.com/jobs/data-engineer-jobs-in-hannover",
+                        title="Data Engineer Jobs in Hannover",
+                        snippet="57 Data Engineer Jobs in Hannover",
+                    ),
+                ),
+            )
+        return PublicSearchResponse(
+            provider="tavily",
+            query=query,
+            status="zero_yield",
+            request_count=1,
+            results=(),
+        )
+
+    monkeypatch.setattr(
+        "scripts.run_job_first_employer_discovery_census_comparison.search_public_web",
+        fake_search,
+    )
+
+    observations, telemetry = _run_external_index_sources(
+        provider="tavily",
+        provider_available=True,
+        external_requests_authorized=True,
+        search_terms=("Data Engineer",),
+        locations=("Hannover",),
+        max_results=5,
+        max_external_requests=5,
+        timeout_seconds=1.0,
+        observed_at_utc="2026-09-28T08:55:00Z",
+    )
+
+    xing = telemetry["xing"]
+    assert len(observations) == 1
+    assert xing["provider_results_seen"] == 2
+    assert xing["accepted_observations"] == 1
+    assert xing["rejected_provider_results"] == 1
+    assert xing["rejection_reason_counts"] == {"unexpected_path": 1}
