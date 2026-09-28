@@ -16,6 +16,14 @@ body.data-layers-active .ow-main > :not(.data-layers-screen) {
   display: none !important;
 }
 
+body.data-layers-active .ow-topline > div > b:not(.ow-overlay-topline-title) {
+  display: none;
+}
+
+body.data-layers-active .ow-overlay-topline-title {
+  display: inline;
+}
+
 .data-layers-screen {
   min-width: 0;
   width: 100%;

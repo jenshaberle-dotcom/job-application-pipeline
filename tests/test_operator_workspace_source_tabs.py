@@ -18,12 +18,12 @@ def test_sources_inventory_is_clustered_into_counted_tabs() -> None:
     assert 'className="ow-source-tabs"' in workspace
     assert 'aria-label="Source groups"' in workspace
     for label in (
-        "Attention",
-        "Delivering",
-        "Active · 0 jobs",
-        "Sensors",
-        "Pending",
-        "Not implemented",
+        "Needs attention",
+        "Delivering jobs",
+        "Active · no jobs",
+        "Market discovery",
+        "Setup pending",
+        "Not connected",
     ):
         assert label in workspace
     assert ".ow-source-tabs button.active" in css

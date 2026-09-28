@@ -522,7 +522,7 @@ export default function ApplicationWorkspace() {
       status: "waiting",
       phase: "queued",
       percent: 0,
-      message: "Deine Bewerbungsunterlagen werden vorbereitet.",
+      message: "Your application documents are being prepared.",
       provider_request: 0,
       provider_request_limit: 3,
     });
@@ -761,7 +761,7 @@ export default function ApplicationWorkspace() {
               <header>
                 <span className="demo-eyebrow">Prepared application</span>
                 <h3>{drafting
-                  ? "Deine Bewerbungsunterlagen werden erstellt"
+                  ? "Your application documents are being created"
                   : draft?.status === "draft_for_review"
                     ? "Grounded text ready for review"
                     : draft?.status === "draft_unavailable"
@@ -772,8 +772,8 @@ export default function ApplicationWorkspace() {
               {drafting && <div className="demo-drafting-progress" role="status" aria-live="polite">
                 <div className="demo-drafting-progress-head">
                   <div>
-                    <strong>Deine Bewerbungsunterlagen werden erstellt</strong>
-                    <span>{draftProgress?.message || "ChatGPT Codex arbeitet an CV und Anschreiben."}</span>
+                    <strong>Your application documents are being created</strong>
+                    <span>{draftProgress?.message || "ChatGPT Codex is working on your CV and cover letter."}</span>
                   </div>
                   <b>{draftProgressPercent}%</b>
                 </div>
@@ -795,8 +795,8 @@ export default function ApplicationWorkspace() {
                 </div>
                 <small
                   className="demo-progress-explainer"
-                  title="Der Prozentwert steigt nur, wenn JAP einen verifizierten Arbeitsschritt abgeschlossen hat. Während Codex Text erzeugt, bleibt der Balken deshalb auf der aktuellen Phase."
-                >ⓘ Fortschritt basiert auf abgeschlossenen JAP-Arbeitsschritten.</small>
+                  title="Progress only advances after JAP verifies a completed step. While Codex is generating text, the bar remains at the current verified phase."
+                >ⓘ Progress is based on completed JAP steps.</small>
               </div>}
 
               {draft?.status === "draft_unavailable" && <div className="demo-error">

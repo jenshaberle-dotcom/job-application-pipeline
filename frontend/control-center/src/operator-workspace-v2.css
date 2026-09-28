@@ -45,6 +45,20 @@ button, input { font: inherit; }
 .ow-topline b { font-size: 13px; }
 .ow-topline span { font-size: 10px; color: var(--ow-muted); }
 .ow-topline button { border: 0; background: transparent; color: var(--ow-cyan); cursor: pointer; font-size: 11px; }
+.ow-topline-actions { display: flex; align-items: center; gap: 10px; }
+.ow-refresh-warning {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 199, 90, .34);
+  border-radius: 999px;
+  background: rgba(255, 199, 90, .07);
+  color: var(--ow-amber);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .ow-main { padding: 18px; }
 .ow-stack { display: flex; flex-direction: column; gap: 14px; max-width: 1600px; margin: 0 auto; }
 .ow-page-header { display: flex; align-items: flex-end; justify-content: space-between; min-height: 66px; }

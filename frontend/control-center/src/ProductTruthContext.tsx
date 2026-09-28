@@ -5,6 +5,7 @@ type ProductTruthContextValue = {
   payload: unknown | null;
   error: string | null;
   refreshing: boolean;
+  refreshWarning: string | null;
   refreshProductTruth: () => Promise<void>;
 };
 
@@ -14,6 +15,7 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
   const [payload, setPayload] = useState<unknown | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
 
   const refreshProductTruth = useCallback(() => {
@@ -38,6 +40,7 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
         const truth = await readProductTruth<unknown>({ fresh: true });
         setPayload(truth);
         setError(null);
+        setRefreshWarning(mailboxSyncWarning);
         if (mailboxSyncWarning) console.warn(mailboxSyncWarning);
       } catch (reason: unknown) {
         setError(String(reason));
@@ -86,8 +89,8 @@ export function ProductTruthProvider({ children }: { children: ReactNode }) {
   }, [error, refreshProductTruth]);
 
   const value = useMemo<ProductTruthContextValue>(
-    () => ({ payload, error, refreshing, refreshProductTruth }),
-    [payload, error, refreshing, refreshProductTruth],
+    () => ({ payload, error, refreshing, refreshWarning, refreshProductTruth }),
+    [payload, error, refreshing, refreshWarning, refreshProductTruth],
   );
 
   return <ProductTruthContext.Provider value={value}>{children}</ProductTruthContext.Provider>;
@@ -100,6 +103,7 @@ export function useProductTruth<T>() {
     payload: context.payload as T | null,
     error: context.error,
     refreshing: context.refreshing,
+    refreshWarning: context.refreshWarning,
     refreshProductTruth: context.refreshProductTruth,
   };
 }
