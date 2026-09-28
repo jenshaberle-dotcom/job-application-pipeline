@@ -16,6 +16,18 @@ Required product proof before the version bump:
 
 The reusable Product target is `.github/workflows/product-v1-assessment-cohort.yml`.
 
+Canonical Product refill implementation:
+
+```text
+run_product_v1_assessment_cohort
+→ run_product_v1_rankable_refill_campaign
+→ run_product_v1_rankable_refill_apply
+→ run_product_v1_rankable_refill_scout
+```
+
+The old `run_demo_001_rankable_refill_*` names are compatibility entrypoints only.
+They must not regain Product logic or become dependencies of the canonical chain.
+
 ## Runner authority hard cut
 
 The repository no longer owns workload runner allocation.
