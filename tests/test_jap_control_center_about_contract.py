@@ -54,7 +54,7 @@ def test_dynamic_operator_tabs_wait_for_workspace_without_time_budget() -> None:
 
 def test_demo_pilot_badge_is_hidden_from_operator_header() -> None:
     css = _text(ABOUT_CSS)
-    assert ".ow-topline > div > span" in css
+    assert ".ow-topline > div:first-child > span" in css
     assert "display: none" in css
 
 
