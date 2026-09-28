@@ -404,3 +404,50 @@ def test_control_center_user_facing_copy_stays_english() -> None:
     )
     for token in forbidden:
         assert token not in combined, token
+
+
+
+def test_demo_user_language_hides_internal_readiness_and_template_terms() -> None:
+    operator = (FRONTEND / "OperatorWorkspace.tsx").read_text(encoding="utf-8")
+    workspace = (FRONTEND / "ApplicationWorkspace.tsx").read_text(encoding="utf-8")
+    tracker = (FRONTEND / "F5ApplicationTracking.tsx").read_text(encoding="utf-8")
+    data_layers = (FRONTEND / "DataLayersTab.tsx").read_text(encoding="utf-8")
+
+    assert 'sortHeader("gate", "Candidate Fit")' in operator
+    assert "Ready for Top 5" in operator
+    assert "Requirements evidence needed" in operator
+    assert "Top 5 readiness" in operator
+    assert "verified match score" in operator
+    assert "CV source" in operator
+    assert "Cover letter source" in operator
+    assert "Review-first · no automatic applications" in operator
+    assert "Loading current job data…" in operator
+
+    visible_forbidden = (
+        "Authoritative Product score",
+        "Canonical CV",
+        "Canonical letter",
+        "Exact authority",
+        "Product V1 · review-first",
+        "Reading Product V1 truth",
+    )
+    for token in visible_forbidden:
+        assert token not in operator
+
+    assert "Employer source" in workspace
+    assert "Profile evidence" in workspace
+    assert "Source documents" in workspace
+    assert "Document templates" in workspace
+    assert "Document generation is review-first." in workspace
+    for token in (
+        "Employer-Origin authority",
+        "Candidate facts",
+        "F6 templates",
+        "F6 template authority",
+        "F6 is review-first",
+    ):
+        assert token not in workspace
+
+    assert "Silver #{linkedJobId}" not in tracker
+    assert "Job #{linkedJobId}" in tracker
+    assert "Loading current job data layers…" in data_layers
