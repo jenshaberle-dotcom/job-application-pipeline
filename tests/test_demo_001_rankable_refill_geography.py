@@ -41,11 +41,12 @@ def test_refill_scout_persists_geography_gate_and_source_fields() -> None:
     assert "readiness.country" in source
     assert "readiness.work_model" in source
     assert "readiness.commute_minutes" in source
-    assert "REFILL_GEOGRAPHY_BUCKETS" in source
+    assert "REFILL_GEOGRAPHY_BUCKETS" not in source
+    assert "geography_eligible = geography.eligible_for_bounded_pool" in source
     assert '"geography_eligible": geography_eligible' in source
     assert 'and row["geography_eligible"]' in source
-    assert '"positive_profile_geography_required_for_refill": True' in source
-    assert '"geography_review_required_excluded": True' in source
+    assert '"bounded_pool_geography_authority_reused": True' in source
+    assert '"geography_review_required_excluded": False' in source
     assert '"explicit_outside_germany_excluded": True' in source
 
 
@@ -86,6 +87,21 @@ def test_germany_location_without_remote_hannover_or_commute_stays_review_requir
     assert signal.eligible_for_bounded_pool is True
     assert signal.reason == "structured_germany_location_without_hannover_remote_or_commute"
 
+
+
+def test_review_required_germany_geography_remains_refill_eligible() -> None:
+    signal = _authoritative_geography(
+        {
+            "origin_locations": [
+                {"city": "Berlin", "country_code": "DE"},
+            ],
+            "work_model": "hybrid",
+            "commute_minutes": None,
+        }
+    )
+
+    assert signal.bucket == "commute_or_geography_review_required"
+    assert signal.eligible_for_bounded_pool is True
 
 def test_structured_hannover_location_is_positive_profile_geography() -> None:
     signal = _authoritative_geography(
