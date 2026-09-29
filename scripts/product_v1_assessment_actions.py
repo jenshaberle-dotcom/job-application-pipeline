@@ -91,7 +91,11 @@ def _validated_report(raw: object) -> dict[str, object]:
         "selection_requires_approved_candidate_fact_match": True,
         "top5_must_be_subset_of_selected_ten": True,
         "candidate_fit_and_affinity_remain_separate": True,
-        "numeric_candidate_fit_authority_created": False,
+        "candidate_fit_is_job_skills_vs_cv_skills": True,
+        "numeric_candidate_fit_authority_created": True,
+        "all_ten_require_numeric_candidate_fit": True,
+        "all_ten_require_authoritative_affinity": True,
+        "demo_cohort_frozen": True,
         "combined_score_authority_created": False,
         "demo_learning_sample": True,
         "canonical_role_classifier_unchanged": True,
@@ -273,6 +277,8 @@ def apply_assessment_action() -> dict[str, object]:
         if target_met:
             required_counts = {
                 "profile_fit_complete_count": 10,
+                "candidate_fit_authoritative_count": 10,
+                "affinity_authoritative_count": 10,
                 "profile_fit_passed_count": 5,
                 "rankable_job_count": 5,
                 "top_job_count": 5,
@@ -310,6 +316,8 @@ def apply_assessment_action() -> dict[str, object]:
             "summary": {
                 "selected_count": int(selection.get("selected_count") or 0),
                 "profile_fit_complete_count": int(final.get("profile_fit_complete_count") or 0),
+                "candidate_fit_authoritative_count": int(final.get("candidate_fit_authoritative_count") or 0),
+                "affinity_authoritative_count": int(final.get("affinity_authoritative_count") or 0),
                 "profile_fit_passed_count": int(final.get("profile_fit_passed_count") or 0),
                 "rankable_job_count": int(final.get("rankable_job_count") or 0),
                 "top_job_count": int(final.get("top_job_count") or 0),
@@ -321,9 +329,9 @@ def apply_assessment_action() -> dict[str, object]:
             "provider_requests": 0,
             "direct_rank_writes": 0,
             "direct_top5_writes": 0,
-            "candidate_fit_numeric_score_created": False,
+            "candidate_fit_numeric_score_created": True,
             "combined_score_created": False,
-            "mutation_scope": "existing_candidate_fit_hard_filter_and_ranking_authorities",
+            "mutation_scope": "frozen_demo_candidate_fit_affinity_hard_filter_and_ranking_authorities",
         }
     except OSError as exc:
         raise AssessmentActionStop("assessment local runtime/storage failure") from exc
