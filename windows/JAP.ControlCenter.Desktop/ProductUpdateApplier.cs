@@ -659,7 +659,11 @@ internal static class ProductUpdateApplier
         var marker = Path.Combine(stage, "frontend", "control-center", "dist", ".jap-source-sha");
         Require(File.Exists(marker), "Staged frontend source marker is missing.");
         Require(File.ReadAllText(marker).Trim().Equals(sourceSha, StringComparison.OrdinalIgnoreCase), "Staged frontend source marker mismatch.");
-        VerifyRuntimeFeatureContract(stage, sourceSha, version);
+        if (Version.TryParse(version, out var parsedVersion)
+            && parsedVersion >= new Version(1, 2, 5))
+        {
+            VerifyRuntimeFeatureContract(stage, sourceSha, version);
+        }
     }
 
     private static void VerifyRuntimeFeatureContract(string stage, string sourceSha, string version)

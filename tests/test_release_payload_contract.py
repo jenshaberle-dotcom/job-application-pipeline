@@ -70,6 +70,9 @@ def test_update_stage_and_cutover_both_verify_feature_contract() -> None:
         assert "critical_files" in source
         assert "ComputeFileSha256(candidate)" in source
 
+    applier = _read(APPLIER)
+    assert "parsedVersion >= new Version(1, 2, 5)" in applier
+
 
 def test_windows_release_is_hard_blocked_by_full_linux_validation() -> None:
     workflow = _read(WORKFLOW)
@@ -82,3 +85,12 @@ def test_windows_release_is_hard_blocked_by_full_linux_validation() -> None:
     assert "npm run build --prefix frontend/control-center" in workflow
     assert "build-release:" in workflow
     assert "needs: validate-release" in workflow
+
+
+def test_runtime_feature_contract_is_bom_safe_end_to_end() -> None:
+    workflow = _read(WORKFLOW)
+    launcher = _read(LAUNCHER)
+
+    assert 'read_text(encoding="utf-8-sig")' in launcher
+    assert '[System.Text.UTF8Encoding]::new($false)' in workflow
+    assert 'Set-Content -Encoding UTF8 (Join-Path $Runtime "runtime-feature-contract.json")' not in workflow
