@@ -22,6 +22,7 @@ from psycopg.rows import dict_row
 
 from scripts import run_product_v1_assessment_detail_refresh as assessment_refresh
 from scripts import run_f4a_r3_silver_requirement_backfill as requirement_backfill
+from scripts import run_f4b_affinity_authority as affinity_authority
 from scripts.run_product_v1_rankable_refill_apply import (
     APPROVAL_TOKEN as REFILL_APPROVAL_TOKEN,
 )
@@ -48,6 +49,9 @@ from src.search_intelligence.product_v1_demo_learning_sample import (
 APPROVAL_TOKEN = "PRODUCT-V1-RANKABLE-REFILL-CAMPAIGN-001"
 MATERIALIZATION_OUTPUT = Path(
     ".runtime/product/product_v1_rankable_refill_materialization.json"
+)
+AFFINITY_OUTPUT = Path(
+    ".runtime/product/product_v1_demo_cohort_affinity.json"
 )
 
 
@@ -270,6 +274,66 @@ def _refresh_selected(
     return planned, changed
 
 
+def _run_selected_affinity(
+    selected: list[dict[str, object]],
+    *,
+    apply: bool,
+    reviewed_by: str,
+) -> None:
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.run_f4b_affinity_authority",
+        "--reviewed-by",
+        reviewed_by,
+        "--output",
+        str(AFFINITY_OUTPUT),
+    ]
+    for row in selected:
+        command.extend(["--silver-job-id", str(int(row["silver_job_id"]))])
+    if apply:
+        command.extend(
+            [
+                "--apply",
+                "--approval-token",
+                affinity_authority.APPROVAL_TOKEN,
+            ]
+        )
+    subprocess.run(command, check=True)
+    report = json.loads(AFFINITY_OUTPUT.read_text(encoding="utf-8"))
+    expected = {int(row["silver_job_id"]) for row in selected}
+    exact = {
+        int(item["silver_job_id"])
+        for item in report.get("items") or []
+        if isinstance(item, dict)
+    }
+    skipped = {
+        int(item["silver_job_id"])
+        for item in report.get("skipped") or []
+        if isinstance(item, dict)
+    }
+    if exact | skipped != expected:
+        raise SystemExit(
+            "demo affinity cohort identity drift: "
+            f"expected={sorted(expected)} exact={sorted(exact)} skipped={sorted(skipped)}"
+        )
+    if skipped:
+        raise SystemExit(
+            "demo cohort affinity is not exact-authoritative for jobs: "
+            + ",".join(str(value) for value in sorted(skipped))
+        )
+    if apply and int(report.get("changed_count") or 0) + sum(
+        1 for item in report.get("items") or []
+        if isinstance(item, dict) and not bool(item.get("would_change"))
+    ) != len(expected):
+        raise SystemExit("demo cohort affinity apply cardinality mismatch")
+    print(
+        "DEMO_AFFINITY="
+        f"{'APPLY' if apply else 'PLAN'}|exact={len(exact)}|skipped={len(skipped)}|"
+        f"changed={int(report.get('changed_count') or 0)}"
+    )
+
+
 def _run_refill(args: argparse.Namespace) -> None:
     command = [
         sys.executable,
@@ -356,6 +420,12 @@ def main() -> int:
         return 0
 
     _run_refill(args)
+    if args.demo_learning_sample:
+        _run_selected_affinity(
+            selected,
+            apply=args.apply,
+            reviewed_by=reviewed_by,
+        )
     print("PRODUCT_V1_RANKABLE_REFILL_CAMPAIGN=COMPLETE")
     return 0
 
