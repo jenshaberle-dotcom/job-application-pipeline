@@ -163,6 +163,75 @@ def _profile_status(profile: Mapping[str, Any] | None, available: bool) -> str:
     return "active" if active == total else "mixed"
 
 
+def _ingestion_authority(
+    *,
+    source_role: str,
+    registered: bool,
+    validation: Mapping[str, Any],
+    approval: Mapping[str, Any],
+    active_profile_count: int,
+    recurring_profile_count: int,
+    truth_available: bool,
+) -> dict[str, Any]:
+    """Project whether a source may participate in recurring ingestion.
+
+    Registration, source admission, activation and recurring scheduling are
+    deliberately separate truths. An active profile with recurring ingestion
+    disabled remains explicitly manual-only.
+    """
+
+    truth_source = (
+        "connector_registry + source_admission_gates + "
+        "search_profiles.is_active + search_profiles.recurring_ingestion_enabled"
+    )
+    if not truth_available:
+        return {
+            "status": "unknown",
+            "recurring_authorized": None,
+            "manual_execution_allowed": None,
+            "truth_source": truth_source,
+            "truth_available": False,
+        }
+
+    if source_role not in {"employer_origin", "sensor"}:
+        return {
+            "status": "not_applicable",
+            "recurring_authorized": False,
+            "manual_execution_allowed": False,
+            "truth_source": truth_source,
+            "truth_available": True,
+        }
+
+    admitted = bool(validation.get("passed"))
+    approved = (not approval.get("required", True)) or bool(approval.get("passed"))
+    base_ready = registered and admitted and approved and active_profile_count > 0
+    if not base_ready:
+        return {
+            "status": "not_authorized",
+            "recurring_authorized": False,
+            "manual_execution_allowed": False,
+            "truth_source": truth_source,
+            "truth_available": True,
+        }
+
+    if recurring_profile_count > 0:
+        return {
+            "status": "recurring_authorized",
+            "recurring_authorized": True,
+            "manual_execution_allowed": True,
+            "truth_source": truth_source,
+            "truth_available": True,
+        }
+
+    return {
+        "status": "manual_only",
+        "recurring_authorized": False,
+        "manual_execution_allowed": True,
+        "truth_source": truth_source,
+        "truth_available": True,
+    }
+
+
 def _layer_status(
     bronze: int,
     silver: int,
@@ -460,6 +529,8 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "no_scheduler_mutation": True,
             "unknown_is_not_success": True,
             "registration_is_not_activation": True,
+            "active_profile_is_not_recurring_ingestion_authority": True,
+            "recurring_ingestion_requires_explicit_profile_authority": True,
             "sensor_gates_are_role_specific": True,
             "sensor_catalog_is_not_activation": True,
             "historical_layers_are_not_live_sensor_health": True,
@@ -517,6 +588,7 @@ def build_source_connector_overview(
         registration = _registration(registry, source_name)
         profile_count = _count(profile, "profile_count")
         active_count = _count(profile, "active_profile_count")
+        recurring_count = _count(profile, "recurring_profile_count")
         activated = active_count > 0 if availability["search_profiles"] else None
         generic_origin = source_name.startswith(GENERIC_SOURCE_PREFIX)
 
@@ -565,6 +637,15 @@ def build_source_connector_overview(
             source_role=source_role,
             run=run,
             run_health=run_health,
+        )
+        ingestion_authority = _ingestion_authority(
+            source_role=source_role,
+            registered=bool(registration["registered"]),
+            validation=validation,
+            approval=approval,
+            active_profile_count=active_count,
+            recurring_profile_count=recurring_count,
+            truth_available=availability["search_profiles"],
         )
         candidate_status = str(
             _get(candidate, "candidate_status")
@@ -688,12 +769,17 @@ def build_source_connector_overview(
                     "truth_source": "search_profiles.is_active + latest ingestion observation",
                     "truth_available": availability["search_profiles"],
                 },
+                "ingestion_authority": ingestion_authority,
                 "search_profiles": {
                     "status": _profile_status(profile, availability["search_profiles"]),
                     "profile_count": profile_count,
                     "active_profile_count": active_count,
+                    "recurring_profile_count": recurring_count,
                     "active_search_term_count": _count(
                         profile, "active_search_term_count"
+                    ),
+                    "recurring_search_term_count": _count(
+                        profile, "recurring_search_term_count"
                     ),
                     "truth_source": "search_profiles/search_terms",
                     "truth_available": availability["search_profiles"],
@@ -779,6 +865,14 @@ def build_source_connector_overview(
         "employer_origin_active_count": count_where(
             lambda s: s["source_role"] == "employer_origin"
             and s["activation"]["active"] is True
+        ),
+        "employer_origin_recurring_authorized_count": count_where(
+            lambda s: s["source_role"] == "employer_origin"
+            and s["ingestion_authority"]["status"] == "recurring_authorized"
+        ),
+        "employer_origin_manual_only_count": count_where(
+            lambda s: s["source_role"] == "employer_origin"
+            and s["ingestion_authority"]["status"] == "manual_only"
         ),
         "active_last_run_loaded_count": count_where(
             lambda s: s["source_role"] == "employer_origin"
