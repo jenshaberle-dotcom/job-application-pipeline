@@ -78,7 +78,7 @@ def _selection(
         rows = _load_rows(
             conn,
             authorized_sources=authorized,
-            limit=max(60, candidate_cap * 5),
+            limit=100 if demo_learning_sample else max(60, candidate_cap * 5),
         )
         conn.rollback()
 
