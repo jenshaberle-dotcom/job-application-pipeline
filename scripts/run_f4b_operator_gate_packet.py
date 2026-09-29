@@ -60,10 +60,10 @@ def classify_geography_candidate(
     commute. Unknown job evidence remains unknown.
     """
 
-    country_token = _normalize_label(country)
+    country_token = normalize_skill_label(country)
     if country_token in {"de", "deu", "deutschland", "germany"}:
         country_token = "de"
-    model = _normalize_label(work_model).replace("_", "-")
+    model = normalize_skill_label(work_model).replace("_", "-")
     if not country_token:
         return "unknown", "job_country_missing"
     if country_token != "de":
