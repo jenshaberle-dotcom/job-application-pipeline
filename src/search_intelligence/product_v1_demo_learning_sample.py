@@ -4,9 +4,11 @@ This module deliberately does not change the canonical Product role classifier.
 It selects a bounded sample for the live demo so Candidate Fit, Affinity, hard
 filters and ranking can be exercised on a broader real Employer-Origin cohort:
 
-- five Candidate-Fact-backed live jobs from the employer with the largest current
+- four Candidate-Fact-backed live jobs from the employer with the largest current
   eligible inventory; and
-- one target-interest job from each of five other employers.
+- one target-interest job from each of six other employers.
+
+That yields ten real jobs across seven real Employer-Origin sources.
 
 No company key or job id is embedded here. One operator-selected demo vacancy
 title may be preferred explicitly; it still has to satisfy the same live,
@@ -16,6 +18,7 @@ unchanged and decide fit/rankability.
 from __future__ import annotations
 
 from collections import defaultdict
+import re
 from typing import Mapping, Sequence
 
 from src.job_lifecycle_health import OUTCOME_SEEN_ACTIVE
@@ -23,8 +26,8 @@ from src.search_intelligence.product_v1_contenders import has_phrase
 
 
 DEMO_SAMPLE_SIZE = 10
-ANCHOR_JOB_COUNT = 5
-PEER_EMPLOYER_COUNT = 5
+ANCHOR_JOB_COUNT = 4
+PEER_EMPLOYER_COUNT = 6
 DEMO_PREFERRED_TITLES = (
     "E362/B - AI Engineer / KI-Entwickler (m/w/d)",
 )
@@ -57,6 +60,14 @@ def _eligible(row: Mapping[str, object]) -> bool:
         and isinstance(matches, list)
         and bool(matches)
     )
+
+
+_REFERENCE_PREFIX_RE = re.compile(r"^[A-Z0-9]+(?:/[A-Z0-9]+)?\s*-\s*", re.IGNORECASE)
+
+
+def _normalized_demo_title(value: object) -> str:
+    title = " ".join(str(value or "").split()).strip()
+    return _REFERENCE_PREFIX_RE.sub("", title).casefold()
 
 
 def _interest_score(row: Mapping[str, object]) -> int:
@@ -94,7 +105,7 @@ def select_demo_learning_sample(
 
     if len(grouped) < PEER_EMPLOYER_COUNT + 1:
         raise DemoLearningSampleStop(
-            "demo learning sample needs at least six eligible employers"
+            "demo learning sample needs at least seven eligible employers"
         )
 
     anchor_company, anchor_rows = sorted(
@@ -103,7 +114,7 @@ def select_demo_learning_sample(
     )[0]
     if len(anchor_rows) < ANCHOR_JOB_COUNT:
         raise DemoLearningSampleStop(
-            "largest eligible employer has fewer than five live fact-backed jobs"
+            "largest eligible employer has fewer than four live fact-backed jobs"
         )
 
     anchor_selected = sorted(
@@ -131,14 +142,14 @@ def select_demo_learning_sample(
 
     preferred_peers: list[Mapping[str, object]] = []
     preferred_companies: set[str] = set()
-    preferred_titles = {title.casefold() for title in DEMO_PREFERRED_TITLES}
+    preferred_titles = {_normalized_demo_title(title) for title in DEMO_PREFERRED_TITLES}
     for company, company_rows in grouped.items():
         if company == anchor_company:
             continue
         preferred = [
             row
             for row in company_rows
-            if str(row.get("title") or "").strip().casefold() in preferred_titles
+            if _normalized_demo_title(row.get("title")) in preferred_titles
         ]
         if not preferred:
             continue
@@ -170,5 +181,6 @@ __all__ = [
     "DEMO_PREFERRED_TITLES",
     "DemoLearningSampleStop",
     "PEER_EMPLOYER_COUNT",
+    "_normalized_demo_title",
     "select_demo_learning_sample",
 ]
