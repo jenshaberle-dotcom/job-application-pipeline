@@ -53,6 +53,8 @@ from src.search_intelligence.product_v1_demo_learning_sample import (
 SCHEMA = "job_application_pipeline.product_v1_assessment_cohort.v1"
 APPROVAL_TOKEN = "PRODUCT-V1-ASSESSMENT-COHORT-001"
 DEFAULT_OUTPUT = Path(".runtime/product/product_v1_assessment_cohort.json")
+FROZEN_DEMO_COHORT = Path(".runtime/product/demo_learning_cohort_frozen.json")
+CONTROL_CENTER_REPORT = Path(".runtime/product/control_center_assessment_cohort.json")
 
 
 class ProductAssessmentCohortStop(RuntimeError):
@@ -64,10 +66,81 @@ def _require(condition: bool, message: str) -> None:
         raise ProductAssessmentCohortStop(message)
 
 
+def _report_selection_ids(path: Path, candidate_cap: int) -> tuple[int, ...]:
+    if not path.is_file():
+        return ()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ()
+    if not isinstance(payload, Mapping):
+        return ()
+    if payload.get("schema") == "job_application_pipeline.demo_learning_cohort_frozen.v1":
+        raw = payload.get("silver_job_ids")
+    else:
+        boundaries = payload.get("boundaries")
+        selection = payload.get("selection")
+        if not isinstance(boundaries, Mapping) or boundaries.get("demo_learning_sample") is not True:
+            return ()
+        if not isinstance(selection, Mapping):
+            return ()
+        jobs = selection.get("jobs")
+        raw = [
+            item.get("silver_job_id")
+            for item in jobs
+            if isinstance(item, Mapping)
+        ] if isinstance(jobs, list) else []
+    try:
+        ids = tuple(dict.fromkeys(int(value) for value in raw or [] if int(value) > 0))
+    except (TypeError, ValueError):
+        return ()
+    return ids if len(ids) == candidate_cap else ()
+
+
+def _load_frozen_demo_ids(candidate_cap: int) -> tuple[tuple[int, ...], str | None]:
+    for path in (FROZEN_DEMO_COHORT, CONTROL_CENTER_REPORT, DEFAULT_OUTPUT):
+        ids = _report_selection_ids(path, candidate_cap)
+        if ids:
+            return ids, str(path)
+    return (), None
+
+
+def _write_frozen_demo_cohort(
+    selected: list[dict[str, object]],
+    *,
+    recovered_from: str | None,
+) -> None:
+    payload = {
+        "schema": "job_application_pipeline.demo_learning_cohort_frozen.v1",
+        "silver_job_ids": [int(row["silver_job_id"]) for row in selected],
+        "jobs": [
+            {
+                "silver_job_id": int(row["silver_job_id"]),
+                "company_name": row.get("company_name"),
+                "title": row.get("title"),
+                "source_name": row.get("source_name"),
+            }
+            for row in selected
+        ],
+        "recovered_from": recovered_from,
+        "boundaries": {
+            "runtime_demo_state_only": True,
+            "job_ids_hard_coded_in_source": False,
+            "automatic_replacement_on_drift": False,
+        },
+    }
+    FROZEN_DEMO_COHORT.parent.mkdir(parents=True, exist_ok=True)
+    FROZEN_DEMO_COHORT.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _selection(
     candidate_cap: int,
     *,
     demo_learning_sample: bool,
+    frozen_ids: tuple[int, ...] = (),
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
     authorized = sorted(
         authorized_recurring_employer_origin_sources(JobIngestionRepository())
@@ -85,15 +158,45 @@ def _selection(
         conn.rollback()
 
     scouted = scout(rows=rows, facts=facts)
-    selected = (
-        select_demo_learning_sample(
-            scouted,
-            candidate_cap=candidate_cap,
-            required_employers=DEMO_REQUIRED_EMPLOYERS,
+    if demo_learning_sample and frozen_ids:
+        _require(
+            len(frozen_ids) == candidate_cap,
+            "frozen demo cohort cardinality drift",
         )
-        if demo_learning_sample
-        else _selected_candidates(scouted, candidate_cap=candidate_cap)
-    )
+        by_id = {int(row["silver_job_id"]): row for row in scouted}
+        missing = sorted(set(frozen_ids) - set(by_id))
+        _require(
+            not missing,
+            "frozen demo cohort jobs disappeared from current Product truth: "
+            + ",".join(str(value) for value in missing),
+        )
+        selected = [dict(by_id[value]) for value in frozen_ids]
+        for row in selected:
+            _require(
+                row.get("live_outcome") == "seen_active",
+                f"frozen demo job is no longer live: {row['silver_job_id']}",
+            )
+            _require(
+                row.get("geography_eligible") is True,
+                f"frozen demo job left approved geography: {row['silver_job_id']}",
+            )
+            matches = row.get("candidate_fact_matches")
+            _require(
+                isinstance(matches, list) and bool(matches),
+                f"frozen demo job lost Candidate Fact capability evidence: {row['silver_job_id']}",
+            )
+        selection_mode = "demo_learning_frozen"
+    else:
+        selected = (
+            select_demo_learning_sample(
+                scouted,
+                candidate_cap=candidate_cap,
+                required_employers=DEMO_REQUIRED_EMPLOYERS,
+            )
+            if demo_learning_sample
+            else _selected_candidates(scouted, candidate_cap=candidate_cap)
+        )
+        selection_mode = "demo_learning_sample" if demo_learning_sample else "canonical"
     diagnostics = {
         "authorized_source_count": len(authorized),
         "approved_capability_fact_count": len(facts),
@@ -109,7 +212,8 @@ def _selection(
             1 for row in scouted if int(row.get("matched_fact_count") or 0) > 0
         ),
         "selected_count": len(selected),
-        "selection_mode": "demo_learning_sample" if demo_learning_sample else "canonical",
+        "selection_mode": selection_mode,
+        "frozen_selection": bool(demo_learning_sample and frozen_ids),
         "geography_buckets": {
             bucket: sum(
                 1 for row in scouted if str(row.get("geography_bucket") or "") == bucket
@@ -133,6 +237,7 @@ def _run_existing_authorities(
     reviewed_by: str,
     apply: bool,
     demo_learning_sample: bool,
+    selected_ids: tuple[int, ...] = (),
 ) -> int:
     command = [
         sys.executable,
@@ -147,6 +252,8 @@ def _run_existing_authorities(
     ]
     if demo_learning_sample:
         command.append("--demo-learning-sample")
+    for job_id in selected_ids:
+        command.extend(["--silver-job-id", str(job_id)])
     if apply:
         command.extend(
             [
@@ -192,6 +299,18 @@ def _current_product_truth(
         row
         for row in selected
         if str(row.get("product_readiness_status") or "") == "rankable"
+    ]
+    candidate_fit_authoritative = [
+        row
+        for row in selected
+        if str(row.get("candidate_fit_authority_status") or "") == "authoritative"
+        and row.get("candidate_fit_score") is not None
+    ]
+    affinity_authoritative = [
+        row
+        for row in selected
+        if str(row.get("affinity_authority_status") or "") == "authoritative"
+        and row.get("affinity_score") is not None
     ]
     top = [row for row in payload.get("top_jobs", []) if isinstance(row, Mapping)]
 
@@ -242,6 +361,8 @@ def _current_product_truth(
         "profile_fit_complete_count": len(complete),
         "profile_fit_passed_count": len(complete_passed),
         "rankable_job_count": len(rankable),
+        "candidate_fit_authoritative_count": len(candidate_fit_authoritative),
+        "affinity_authoritative_count": len(affinity_authoritative),
         "top_job_count": len(top),
         "selected_postflight_count": len(selected),
         "selected_readiness_counts": blocker_counts,
@@ -255,9 +376,14 @@ def _current_product_truth(
                 "profile_fit_decision": row.get("profile_fit_decision"),
                 "profile_fit_missing_factors": row.get("profile_fit_missing_factors"),
                 "profile_fit_factors": row.get("profile_fit_factors"),
+                "candidate_fit_score": row.get("candidate_fit_score"),
+                "candidate_fit_authority_status": row.get("candidate_fit_authority_status"),
+                "candidate_fit_observed_job_skill_count": row.get("candidate_fit_observed_job_skill_count"),
+                "candidate_fit_exact_match_count": row.get("candidate_fit_exact_match_count"),
                 "hard_filter_status": row.get("hard_filter_status"),
                 "product_readiness_status": row.get("product_readiness_status"),
                 "affinity_score": row.get("affinity_score"),
+                "affinity_authority_status": row.get("affinity_authority_status"),
             }
             for row in selected
         ],
@@ -306,11 +432,19 @@ def main() -> int:
             "invalid Product V1 assessment-cohort approval token",
         )
 
+    frozen_ids: tuple[int, ...] = ()
+    frozen_source: str | None = None
+    if args.demo_learning_sample:
+        frozen_ids, frozen_source = _load_frozen_demo_ids(args.candidate_cap)
     selected, selection_diagnostics = _selection(
         args.candidate_cap,
         demo_learning_sample=args.demo_learning_sample,
+        frozen_ids=frozen_ids,
     )
-    selected_ids = {int(row["silver_job_id"]) for row in selected}
+    selected_id_tuple = tuple(int(row["silver_job_id"]) for row in selected)
+    selected_ids = set(selected_id_tuple)
+    if args.demo_learning_sample and args.apply and not FROZEN_DEMO_COHORT.is_file():
+        _write_frozen_demo_cohort(selected, recovered_from=frozen_source)
     enough_candidates = len(selected) >= args.evaluated_target
 
     authority_exit = 0
@@ -321,6 +455,7 @@ def main() -> int:
             reviewed_by=reviewed_by,
             apply=args.apply,
             demo_learning_sample=args.demo_learning_sample,
+            selected_ids=selected_id_tuple,
         )
 
     final = _current_product_truth(selected_ids=selected_ids)
@@ -328,6 +463,8 @@ def main() -> int:
         enough_candidates
         and authority_exit == 0
         and int(final["profile_fit_complete_count"]) >= args.evaluated_target
+        and int(final["candidate_fit_authoritative_count"]) >= args.evaluated_target
+        and int(final["affinity_authoritative_count"]) >= args.evaluated_target
         and int(final["profile_fit_passed_count"]) >= args.top5_target
         and int(final["rankable_job_count"]) >= args.top5_target
         and int(final["top_job_count"]) == args.top5_target
@@ -345,6 +482,8 @@ def main() -> int:
         "selection": {
             "selected_count": len(selected),
             "enough_candidates": enough_candidates,
+            "frozen": bool(args.demo_learning_sample),
+            "frozen_source": frozen_source or ("new_runtime_freeze" if args.demo_learning_sample and args.apply else None),
             "jobs": [
                 {
                     "silver_job_id": int(row["silver_job_id"]),
@@ -374,7 +513,11 @@ def main() -> int:
             "selection_requires_approved_candidate_fact_match": True,
             "top5_must_be_subset_of_selected_ten": True,
             "candidate_fit_and_affinity_remain_separate": True,
-            "numeric_candidate_fit_authority_created": False,
+            "candidate_fit_is_job_skills_vs_cv_skills": True,
+            "numeric_candidate_fit_authority_created": True,
+            "all_ten_require_numeric_candidate_fit": True,
+            "all_ten_require_authoritative_affinity": True,
+            "demo_cohort_frozen": bool(args.demo_learning_sample),
             "combined_score_authority_created": False,
             "demo_learning_sample": bool(args.demo_learning_sample),
             "canonical_role_classifier_unchanged": True,
@@ -392,6 +535,8 @@ def main() -> int:
     print(f"EVALUATED_TARGET={args.evaluated_target}")
     print(f"PROFILE_FIT_COMPLETE={final['profile_fit_complete_count']}")
     print(f"PROFILE_FIT_PASSED={final['profile_fit_passed_count']}")
+    print(f"CANDIDATE_FIT_AUTHORITATIVE={final['candidate_fit_authoritative_count']}")
+    print(f"AFFINITY_AUTHORITATIVE={final['affinity_authoritative_count']}")
     print(f"RANKABLE={final['rankable_job_count']}")
     print(f"TOP5={final['top_job_count']}")
     print(f"TARGET_MET={str(target_met).lower()}")
