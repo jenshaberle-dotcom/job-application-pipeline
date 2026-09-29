@@ -333,7 +333,7 @@ jobs:
             $RelativeDist = $RuntimeFrontendFile.FullName.Substring($Runtime.Length).TrimStart("\", "/").Replace("\", "/")
             $CriticalHashes[$RelativeDist] = (Get-FileHash $RuntimeFrontendFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           }
-          @{
+          $RuntimeFeatureContract = @{
             schema = "job_application_pipeline.runtime_feature_contract.v1"
             version = $env:PRODUCT_VERSION
             source_sha = $env:GITHUB_SHA
@@ -347,7 +347,12 @@ jobs:
               frontend_generation_binding = "source_sha"
             }
             critical_files = $CriticalHashes
-          } | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 (Join-Path $Runtime "runtime-feature-contract.json")
+          } | ConvertTo-Json -Depth 8
+          [System.IO.File]::WriteAllText(
+            (Join-Path $Runtime "runtime-feature-contract.json"),
+            $RuntimeFeatureContract,
+            [System.Text.UTF8Encoding]::new($false)
+          )
           Write-Host "JAP_RUNTIME_FEATURE_PAYLOAD_PASS1=PASS files=$($CriticalHashes.Count)"
 
           foreach ($Required in @(
