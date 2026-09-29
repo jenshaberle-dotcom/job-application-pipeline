@@ -280,6 +280,28 @@ def _load_source_candidates(
             "ELSE candidate.source_type_candidate END"
         )
 
+    # A bounded/non-recurring generic-origin profile is already a canonical
+    # connector identity even when the global active-source projection remains
+    # intentionally frozen. Join candidate metadata onto that identity so the
+    # Sources UI does not render the same employer twice under legacy and
+    # generic names.
+    if _relation_exists(conn, "search_profiles"):
+        generic_profile_lookup = (
+            "(SELECT profile.source_name FROM search_profiles profile "
+            "WHERE profile.source_name = 'generic_origin:' || candidate.company_key "
+            "ORDER BY profile.id LIMIT 1)"
+        )
+        source_name_column = (
+            f"coalesce({generic_profile_lookup}, {source_name_column})"
+        )
+        source_type_column = (
+            "CASE WHEN "
+            + generic_profile_lookup
+            + " IS NOT NULL THEN 'employer_origin_career_site' ELSE "
+            + source_type_column
+            + " END"
+        )
+
     return _fetch_all(
         conn,
         f"""
