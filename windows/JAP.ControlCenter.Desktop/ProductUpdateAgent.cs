@@ -371,7 +371,7 @@ internal static class ProductUpdateAgent
         Require(GetString(root, "version") == version, "Staged runtime version identity mismatch.");
         Require(GetString(root, "compatibility_line") == CompatibilityLine, "Staged runtime compatibility identity mismatch.");
         Require(GetString(root, "update_generation") == UpdateGeneration, "Staged runtime generation identity mismatch.");
-        Require(File.Exists(Path.Combine(stage, "scripts", "run_product_v1_live_demo.py")), "Staged runtime launcher is missing.");
+        Require(File.Exists(Path.Combine(stage, "scripts", "run_jap_control_center_runtime.py")), "Staged runtime launcher is missing.");
         var runtimeBridge = Path.Combine(stage, "scripts", "run_jap_windows_control_center.sh");
         Require(File.Exists(runtimeBridge), "Staged WSL runtime bridge is missing.");
         Require(!File.ReadAllBytes(runtimeBridge).Contains((byte)'\r'), "Staged WSL runtime bridge contains CR bytes.");
@@ -402,10 +402,7 @@ internal static class ProductUpdateAgent
         Require(GetString(root, "version") == version, "Staged runtime feature contract version mismatch.");
         Require(root.TryGetProperty("features", out var features), "Staged runtime feature contract features are missing.");
         Require(GetString(features, "candidate_fit_scope") == "job_skills_vs_cv_skills", "Staged Candidate Fit scope mismatch.");
-        Require(GetString(features, "demo_cohort_policy") == "frozen_runtime_identity", "Staged demo cohort policy mismatch.");
-        Require(features.TryGetProperty("candidate_fit_required_count", out var fitCount) && fitCount.GetInt32() == 10, "Staged Candidate Fit cohort count mismatch.");
-        Require(features.TryGetProperty("affinity_required_count", out var affinityCount) && affinityCount.GetInt32() == 10, "Staged Affinity cohort count mismatch.");
-        Require(features.TryGetProperty("combined_score_authority", out var combined) && combined.ValueKind == JsonValueKind.False, "Staged Combined-score authority drift.");
+        Require(GetString(features, "assessment_cohort_policy") == "bounded_current_product_truth", "Staged demo cohort policy mismatch.");        Require(features.TryGetProperty("combined_score_authority", out var combined) && combined.ValueKind == JsonValueKind.False, "Staged Combined-score authority drift.");
         Require(GetString(features, "static_cache_control") == "no-store,max-age=0", "Staged cache-control contract mismatch.");
         Require(GetString(features, "frontend_generation_binding") == "source_sha", "Staged frontend generation binding mismatch.");
         Require(root.TryGetProperty("critical_files", out var criticalFiles) && criticalFiles.ValueKind == JsonValueKind.Object, "Staged critical-file contract is missing.");
