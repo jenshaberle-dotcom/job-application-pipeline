@@ -384,6 +384,46 @@ internal static class ProductUpdateAgent
         var marker = Path.Combine(stage, "frontend", "control-center", "dist", ".jap-source-sha");
         Require(File.Exists(marker), "Staged frontend source marker is missing.");
         Require(File.ReadAllText(marker).Trim().Equals(sourceSha, StringComparison.OrdinalIgnoreCase), "Staged frontend source marker mismatch.");
+        VerifyRuntimeFeatureContract(stage, sourceSha, version);
+    }
+
+    private static void VerifyRuntimeFeatureContract(string stage, string sourceSha, string version)
+    {
+        var contractPath = Path.Combine(stage, "runtime-feature-contract.json");
+        Require(File.Exists(contractPath), "Staged runtime feature contract is missing.");
+        using var document = JsonDocument.Parse(File.ReadAllText(contractPath));
+        var root = document.RootElement;
+        Require(
+            GetString(root, "schema") == "job_application_pipeline.runtime_feature_contract.v1",
+            "Staged runtime feature contract schema mismatch.");
+        Require(
+            GetString(root, "source_sha").Equals(sourceSha, StringComparison.OrdinalIgnoreCase),
+            "Staged runtime feature contract source mismatch.");
+        Require(GetString(root, "version") == version, "Staged runtime feature contract version mismatch.");
+        Require(root.TryGetProperty("features", out var features), "Staged runtime feature contract features are missing.");
+        Require(GetString(features, "candidate_fit_scope") == "job_skills_vs_cv_skills", "Staged Candidate Fit scope mismatch.");
+        Require(GetString(features, "demo_cohort_policy") == "frozen_runtime_identity", "Staged demo cohort policy mismatch.");
+        Require(features.TryGetProperty("candidate_fit_required_count", out var fitCount) && fitCount.GetInt32() == 10, "Staged Candidate Fit cohort count mismatch.");
+        Require(features.TryGetProperty("affinity_required_count", out var affinityCount) && affinityCount.GetInt32() == 10, "Staged Affinity cohort count mismatch.");
+        Require(features.TryGetProperty("combined_score_authority", out var combined) && combined.ValueKind == JsonValueKind.False, "Staged Combined-score authority drift.");
+        Require(GetString(features, "static_cache_control") == "no-store,max-age=0", "Staged cache-control contract mismatch.");
+        Require(GetString(features, "frontend_generation_binding") == "source_sha", "Staged frontend generation binding mismatch.");
+        Require(root.TryGetProperty("critical_files", out var criticalFiles) && criticalFiles.ValueKind == JsonValueKind.Object, "Staged critical-file contract is missing.");
+
+        foreach (var property in criticalFiles.EnumerateObject())
+        {
+            var relative = property.Name.Replace('/', Path.DirectorySeparatorChar);
+            var candidate = ProductUpdateIntegrity.RequirePathUnder(
+                stage,
+                Path.Combine(stage, relative),
+                "Staged critical-file path escaped runtime root.");
+            Require(File.Exists(candidate), $"Staged critical runtime file is missing: {property.Name}");
+            var expectedHash = property.Value.GetString()?.Trim().ToLowerInvariant() ?? string.Empty;
+            Require(DigestPattern.IsMatch(expectedHash), $"Staged critical runtime hash is invalid: {property.Name}");
+            Require(
+                ProductUpdateIntegrity.ComputeFileSha256(candidate) == expectedHash,
+                $"Staged critical runtime hash mismatch: {property.Name}");
+        }
     }
 
     private static void CopyDirectory(string source, string destination)
