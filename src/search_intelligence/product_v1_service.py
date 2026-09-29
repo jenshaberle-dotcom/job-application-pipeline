@@ -52,6 +52,42 @@ def _display_job(
     )
     enriched = enrich_review_fit(enriched)
 
+    candidate_fit_score = row.get("candidate_fit_score")
+    candidate_fit_status = str(
+        row.get("candidate_fit_authority_status") or "insufficient_evidence"
+    )
+    enriched["candidate_fit_score"] = candidate_fit_score
+    enriched["candidate_fit_authority"] = row.get("candidate_fit_authority")
+    enriched["candidate_fit_authority_status"] = candidate_fit_status
+    enriched["candidate_fit_scope"] = row.get("candidate_fit_scope")
+    enriched["candidate_fit_job_skill_evidence_status"] = row.get(
+        "candidate_fit_job_skill_evidence_status"
+    )
+    enriched["candidate_fit_observed_job_skill_count"] = row.get(
+        "candidate_fit_observed_job_skill_count"
+    )
+    enriched["candidate_fit_exact_match_count"] = row.get(
+        "candidate_fit_exact_match_count"
+    )
+    enriched["candidate_fit_unmatched_count"] = row.get(
+        "candidate_fit_unmatched_count"
+    )
+    enriched["candidate_fit_exact_coverage"] = row.get(
+        "candidate_fit_exact_coverage"
+    )
+    enriched["candidate_fit_overlap_class"] = row.get(
+        "candidate_fit_overlap_class"
+    )
+    # The generic Fit surface is now the exact job-skills-vs-CV-skills score.
+    # The older broad review preview remains separately available as
+    # review_fit_score/review_fit and must not be presented as Candidate Fit.
+    enriched["display_fit_score"] = (
+        candidate_fit_score if candidate_fit_status == "authoritative" else None
+    )
+    enriched["display_fit_scope"] = (
+        "candidate_skill_fit" if candidate_fit_status == "authoritative" else None
+    )
+
     affinity_score = row.get("affinity_score")
     affinity_status = str(row.get("affinity_authority_status") or "unavailable")
     enriched["affinity_score"] = affinity_score
@@ -67,8 +103,8 @@ def _display_job(
     # Legacy name retained for existing application/ranking compatibility. It is
     # now explicitly the exact-bound Affinity score, never Candidate Fit.
     enriched["product_overall_quality_score"] = affinity_score
-    # Compatibility for the current Control Center: the generic Fit field remains
-    # the F4A display Fit preview. Affinity is available only through affinity_*.
+    # Compatibility field follows the actual Candidate Fit display score.
+    # Affinity remains available only through affinity_*.
     enriched["overall_quality_score"] = enriched["display_fit_score"]
     enriched["combined_score"] = None
     return enriched
@@ -245,6 +281,11 @@ def build_product_v1_payload(
         for job in display_job_readiness
         if _value(job, "affinity_authority_status") == "authoritative"
     )
+    candidate_fit_authoritative_count = sum(
+        1
+        for job in display_job_readiness
+        if _value(job, "candidate_fit_authority_status") == "authoritative"
+    )
     payload = {
         "schema_version": "pipeline.product_v1.control_center.v1",
         "product": {
@@ -286,6 +327,7 @@ def build_product_v1_payload(
             "pending_market_opportunity_count": pending_market_opportunity_count,
             "current_active_job_count": lifecycle_counts["active_confirmed"],
             "affinity_authoritative_count": affinity_authoritative_count,
+            "candidate_fit_authoritative_count": candidate_fit_authoritative_count,
             "combined_score_count": 0,
             "profile_fit_complete_count": profile_fit_complete_count,
             "profile_fit_insufficient_evidence_count": profile_fit_insufficient_evidence_count,
@@ -327,6 +369,8 @@ def build_product_v1_payload(
             "observed_opportunity_is_not_ranking_authority": True,
             "historical_job_presence_is_not_current_activity": True,
             "current_compensation_is_local_runtime_context_only": True,
+            "candidate_fit_is_job_skills_vs_cv_skills": True,
+            "candidate_fit_excludes_geography_seniority_hard_requirements": True,
             "affinity_is_not_candidate_fit": True,
             "affinity_is_not_combined_score": True,
             "affinity_preview_is_not_ranking_authority": True,
