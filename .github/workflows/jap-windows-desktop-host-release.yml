@@ -451,7 +451,11 @@ jobs:
             foreach ($Property in $FeatureContract.critical_files.PSObject.Properties) {
               $EntryName = $Property.Name.Replace("\", "/")
               $ExpectedHash = [string]$Property.Value
-              $PayloadEntry = $RuntimeZip.GetEntry($EntryName)
+              $PayloadEntry = @(
+                $RuntimeZip.Entries |
+                  Where-Object { $_.FullName.Replace("\", "/") -eq $EntryName } |
+                  Select-Object -First 1
+              )[0]
               if ($null -eq $PayloadEntry) {
                 throw "Runtime release ZIP is missing contracted payload: $EntryName"
               }
