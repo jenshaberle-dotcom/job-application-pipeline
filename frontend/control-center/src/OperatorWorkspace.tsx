@@ -1310,7 +1310,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     visible[0] ||
     null;
   const sensorContractReady =
-    payload.source_connector_overview.schema_version === "pipeline.source_connector_overview.v5"
+    payload.source_connector_overview.schema_version === "pipeline.source_connector_overview.v6"
     && (overview.verified_discovery_evidence_count ?? 0) >= 7;
   const summaryTruth = [
     ["Employer sources", overview.employer_origin_count],
@@ -1323,7 +1323,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
 
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>Where jobs come from</span><h1>Sources</h1><p>See which employer sources currently deliver jobs, which discovery channels expand coverage and where attention is needed.</p></div><strong className="ow-big-count">{sources.length}</strong></header>
-    {!sensorContractReady && <div className="ow-callout warn"><b>Market discovery runtime mismatch</b><span>The installed UI expects the v5 market-sensor evidence contract. Restart/update the JAP runtime before trusting discovery counts or sensor yield.</span></div>}
+    {!sensorContractReady && <div className="ow-callout warn"><b>Market discovery runtime mismatch</b><span>The installed UI expects the v6 source-authority evidence contract. Restart/update the JAP runtime before trusting discovery counts or sensor yield.</span></div>}
     <section className="ow-source-summary-strip">
       {summaryTruth.map(([name, value]) => <div key={name}><span>{name}</span><b>{value}</b></div>)}
     </section>
