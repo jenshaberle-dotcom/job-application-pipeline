@@ -8,8 +8,10 @@ filters and ranking can be exercised on a broader real Employer-Origin cohort:
   eligible inventory; and
 - one target-interest job from each of five other employers.
 
-No company name or job id is embedded here.  The downstream Product authorities
-remain unchanged and decide fit/rankability.
+No company key or job id is embedded here. One operator-selected demo vacancy
+title may be preferred explicitly; it still has to satisfy the same live,
+geography and Candidate-Fact gates. The downstream Product authorities remain
+unchanged and decide fit/rankability.
 """
 from __future__ import annotations
 
@@ -23,6 +25,9 @@ from src.search_intelligence.product_v1_contenders import has_phrase
 DEMO_SAMPLE_SIZE = 10
 ANCHOR_JOB_COUNT = 5
 PEER_EMPLOYER_COUNT = 5
+DEMO_PREFERRED_TITLES = (
+    "E362/B - AI Engineer / KI-Entwickler (m/w/d)",
+)
 INTEREST_PHRASES = (
     "machine learning",
     "ml engineer",
@@ -124,10 +129,32 @@ def select_demo_learning_sample(
         )
         peer_candidates.append((peer_rank, company, best))
 
+    preferred_peers: list[Mapping[str, object]] = []
+    preferred_companies: set[str] = set()
+    preferred_titles = {title.casefold() for title in DEMO_PREFERRED_TITLES}
+    for company, company_rows in grouped.items():
+        if company == anchor_company:
+            continue
+        preferred = [
+            row
+            for row in company_rows
+            if str(row.get("title") or "").strip().casefold() in preferred_titles
+        ]
+        if not preferred:
+            continue
+        preferred_peers.append(sorted(preferred, key=_job_sort_key)[0])
+        preferred_companies.add(company)
+
     peer_candidates.sort(key=lambda item: item[0])
-    peer_selected = [
-        row for _rank, _company, row in peer_candidates[:PEER_EMPLOYER_COUNT]
+    remaining = [
+        row
+        for _rank, company, row in peer_candidates
+        if company not in preferred_companies
     ]
+    peer_selected = [
+        *preferred_peers,
+        *remaining[: max(0, PEER_EMPLOYER_COUNT - len(preferred_peers))],
+    ][:PEER_EMPLOYER_COUNT]
     if len(peer_selected) != PEER_EMPLOYER_COUNT:
         raise DemoLearningSampleStop("demo learning sample peer employer shortfall")
 
@@ -140,6 +167,7 @@ def select_demo_learning_sample(
 __all__ = [
     "ANCHOR_JOB_COUNT",
     "DEMO_SAMPLE_SIZE",
+    "DEMO_PREFERRED_TITLES",
     "DemoLearningSampleStop",
     "PEER_EMPLOYER_COUNT",
     "select_demo_learning_sample",
