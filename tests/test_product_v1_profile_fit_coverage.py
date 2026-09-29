@@ -280,6 +280,7 @@ def test_one_missing_hard_requirement_factor_is_neutral_for_fit_but_stays_explic
 def test_two_missing_fit_factors_remain_insufficient() -> None:
     result = build_profile_fit_coverage(
         _row(
+            work_model="hybrid",
             hard_filter_status="unknown",
             hard_filter_reasons={
                 "employment": "manual_review_required",
