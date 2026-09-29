@@ -242,6 +242,10 @@ def _apply_one(
             "revision_binding": "exact_persisted_revision",
             "signal_names": candidate["signal_names"],
             "uncertainties": candidate["uncertainties"],
+            "source_field_resolved_count": candidate["source_field_resolved_count"],
+            "source_field_total_count": candidate["source_field_total_count"],
+            "source_field_coverage": candidate["source_field_coverage"],
+            "partial_source_fields_do_not_block_affinity": True,
         }
         cur.execute(
             "UPDATE product_v1_ranking_score_reviews SET status='superseded', updated_at=now() WHERE silver_job_id=%s AND status='active'",
