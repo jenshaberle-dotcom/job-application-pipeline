@@ -77,7 +77,7 @@ function normalizeRepositoryShape(value: JsonRecord): JsonRecord {
   };
 }
 
-function demoActionable(job: JsonRecord): boolean {
+function productActionable(job: JsonRecord): boolean {
   return job.product_actionable === true && typeof job.employer_origin_url === "string";
 }
 
@@ -95,7 +95,7 @@ export function normalizeProductV1Payload(value: unknown): unknown {
   const normalized = normalizeRepositoryShape(value);
   const allJobs = normalized.job_readiness as JsonRecord[];
   const allTopJobs = normalized.top_jobs as JsonRecord[];
-  const actionableJobs = allJobs.filter(demoActionable);
+  const actionableJobs = allJobs.filter(productActionable);
   const currentJobs = allJobs.filter(isCurrentProductJob);
   const rankableJobs = allJobs.filter(isRankableProductJob);
   const summary = isRecord(value.summary) ? { ...value.summary } : {};
