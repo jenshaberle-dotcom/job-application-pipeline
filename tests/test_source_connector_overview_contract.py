@@ -6,6 +6,7 @@ from src.search_intelligence.source_connector_overview import (
 )
 
 
+ROOT = Path(__file__).resolve().parents[1]
 API = Path("scripts/run_product_v1_control_center.py")
 APP = Path("frontend/control-center/src/App.tsx")
 WORKSPACE = Path("frontend/control-center/src/OperatorWorkspace.tsx")
