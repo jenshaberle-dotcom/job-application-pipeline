@@ -4,7 +4,7 @@ name: JAP product-local Windows release
 # This workflow is product packaging/publication only. It must remain independent
 # from RCC physical pool cardinality and may not select self-hosted runners,
 # facades or physical members. Runtime workload allocation remains RCC-owned.
-# 1.2.5 retry: release stays blocked until the full CI-quality preflight is green.
+# 1.2.6 hotfix final gate: release stays blocked until the full CI-quality preflight is green.
 
 on:
   push:
