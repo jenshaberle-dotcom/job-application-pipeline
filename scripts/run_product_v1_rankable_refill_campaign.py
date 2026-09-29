@@ -39,6 +39,10 @@ from src.ingestion.repository import JobIngestionRepository
 from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
+from src.search_intelligence.product_v1_demo_learning_sample import (
+    DEMO_REQUIRED_EMPLOYERS,
+    select_demo_learning_sample,
+)
 
 APPROVAL_TOKEN = "PRODUCT-V1-RANKABLE-REFILL-CAMPAIGN-001"
 MATERIALIZATION_OUTPUT = Path(
@@ -53,10 +57,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewed-by", default="jens")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
+    parser.add_argument("--demo-learning-sample", action="store_true")
     return parser
 
 
-def _selected(candidate_cap: int) -> list[dict[str, object]]:
+def _selected(candidate_cap: int, *, demo_learning_sample: bool) -> list[dict[str, object]]:
     authorized = sorted(
         authorized_recurring_employer_origin_sources(JobIngestionRepository())
     )
@@ -67,16 +72,25 @@ def _selected(candidate_cap: int) -> list[dict[str, object]]:
         rows = _load_rows(
             conn,
             authorized_sources=authorized,
-            limit=max(30, candidate_cap * 4),
+            limit=100 if demo_learning_sample else max(30, candidate_cap * 4),
+            demo_learning_sample=demo_learning_sample,
         )
         conn.rollback()
-    return _selected_candidates(scout(rows=rows, facts=facts), candidate_cap=candidate_cap)
+    scouted = scout(rows=rows, facts=facts)
+    if demo_learning_sample:
+        return select_demo_learning_sample(
+            scouted,
+            candidate_cap=candidate_cap,
+            required_employers=DEMO_REQUIRED_EMPLOYERS,
+        )
+    return _selected_candidates(scouted, candidate_cap=candidate_cap)
 
 
 def _materialize_missing(
     selected: list[dict[str, object]],
     *,
     apply: bool,
+    demo_learning_sample: bool,
 ) -> tuple[int, int]:
     missing_ids = [
         int(row["silver_job_id"])
@@ -94,9 +108,12 @@ def _materialize_missing(
     ]
     for job_id in missing_ids:
         command.extend(["--silver-job-id", str(job_id)])
+    if not demo_learning_sample:
+        command.append("--role-relevant-only")
+    else:
+        command.append("--demo-learning-sample")
     command.extend(
         [
-            "--role-relevant-only",
             "--output",
             str(MATERIALIZATION_OUTPUT),
         ]
@@ -148,9 +165,12 @@ def _refresh_selected(
     *,
     apply: bool,
     applied_by: str,
+    demo_learning_sample: bool,
 ) -> tuple[int, int]:
-    authorized = sorted(
-        authorized_recurring_employer_origin_sources(JobIngestionRepository())
+    authorized = (
+        sorted({str(row["source_name"]) for row in selected})
+        if demo_learning_sample
+        else sorted(authorized_recurring_employer_origin_sources(JobIngestionRepository()))
     )
     planned = 0
     changed = 0
@@ -204,6 +224,8 @@ def _run_refill(args: argparse.Namespace) -> None:
         "--reviewed-by",
         str(args.reviewed_by),
     ]
+    if args.demo_learning_sample:
+        command.append("--demo-learning-sample")
     if args.apply:
         command.extend(
             [
@@ -227,7 +249,10 @@ def main() -> int:
     if args.apply and args.approval_token != APPROVAL_TOKEN:
         raise SystemExit("invalid Product V1 rankable-refill campaign approval token")
 
-    selected = _selected(args.candidate_cap)
+    selected = _selected(
+        args.candidate_cap,
+        demo_learning_sample=args.demo_learning_sample,
+    )
     if not selected:
         raise SystemExit("no live Candidate-Fact-backed refill candidates")
 
@@ -237,6 +262,7 @@ def main() -> int:
     materialization_planned, materialized = _materialize_missing(
         selected,
         apply=args.apply,
+        demo_learning_sample=args.demo_learning_sample,
     )
     print(f"ASSESSMENT_MATERIALIZATION_PLANNED={materialization_planned}")
     print(f"ASSESSMENT_MATERIALIZED={materialized}")
@@ -252,6 +278,7 @@ def main() -> int:
         selected,
         apply=args.apply,
         applied_by=reviewed_by,
+        demo_learning_sample=args.demo_learning_sample,
     )
     print(f"ASSESSMENT_REFRESH_PLANNED={planned}")
     print(f"ASSESSMENT_REFRESH_CHANGED={changed}")

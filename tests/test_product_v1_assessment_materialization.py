@@ -39,6 +39,7 @@ def _row(**overrides: object) -> dict[str, object]:
         "silver_job_id": 123,
         "raw_job_id": 321,
         "source_name": SOURCE,
+        "canonical_source_type": "employer_origin_ats_backed_career_site",
         "source_url": DETAIL_URL,
         "title": "Senior Data Engineer",
         "origin_validation_status": None,
@@ -109,6 +110,14 @@ def test_source_role_authority_is_required_separately_from_feed_evidence() -> No
         match="active recurring employer-origin profile authority",
     ):
         validate_materialization_authority(_row(), authorized_sources=set())
+
+
+def test_materialization_rejects_non_origin_product_source_type() -> None:
+    with pytest.raises(MaterializationStop, match="not employer-origin"):
+        validate_materialization_authority(
+            _row(canonical_source_type="market_sensor"),
+            authorized_sources={SOURCE},
+        )
 
 
 def test_non_authoritative_lifecycle_reason_is_rejected() -> None:

@@ -17,6 +17,8 @@ def test_product_assessment_cohort_is_reusable_not_job_specific() -> None:
     assert "--evaluated-target" in runner
     assert "--top5-target" in runner
     assert "--candidate-cap" in runner
+    assert "--demo-learning-sample" in runner
+    assert '"canonical_role_classifier_unchanged": True' in runner
     assert "profile_fit_complete" in runner
     assert "profile_fit_decision" in runner
     assert '"profile_fit_factors": row.get("profile_fit_factors")' in runner

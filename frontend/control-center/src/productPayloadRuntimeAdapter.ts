@@ -52,18 +52,6 @@ export function structuredLocationText(value: unknown): string | null {
   return labels.length ? labels.join(" · ") : null;
 }
 
-function operatorPrimaryScore(job: JsonRecord): unknown {
-  // F4B C1: the operator list score is explicit PD-052 Affinity whenever an
-  // exact-bound authoritative Affinity exists. Candidate Fit remains separate
-  // display_fit_* truth and no Combined score is manufactured.
-  if (typeof job.affinity_score === "number") return job.affinity_score;
-  const readiness = String(job.product_readiness_status || "").trim().toLowerCase();
-  if (readiness !== "rankable") return job.overall_quality_score;
-  return typeof job.product_overall_quality_score === "number"
-    ? job.product_overall_quality_score
-    : job.overall_quality_score;
-}
-
 function normalizeJobs(value: unknown): JsonRecord[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((job) => {
@@ -72,7 +60,9 @@ function normalizeJobs(value: unknown): JsonRecord[] {
     return [{
       ...job,
       city: structuredLocation || job.city,
-      overall_quality_score: operatorPrimaryScore(job),
+      // Preserve the backend Candidate-Fit/review score. Affinity has its own
+      // explicit fields and must never overwrite this value in the UI adapter.
+      overall_quality_score: job.overall_quality_score,
       explanations: normalizeEvidence(job.explanations),
       uncertainties: normalizeEvidence(job.uncertainties),
     }];

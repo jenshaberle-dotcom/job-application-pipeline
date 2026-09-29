@@ -25,6 +25,7 @@ def _row(
         "silver_job_id": silver_job_id,
         "raw_job_id": silver_job_id + 1000,
         "source_name": SOURCE,
+        "canonical_source_type": "employer_origin_ats_backed_career_site",
         "source_url": url,
         "title": "Senior Data Engineer",
         "origin_validation_status": None,

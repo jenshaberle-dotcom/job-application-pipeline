@@ -330,6 +330,7 @@ def build_tracking_job_linkage(
                     "application_id": int(application["application_id"]),
                     "silver_job_id": int(candidate["silver_job_id"]),
                     "effective_stage": application.get("effective_stage"),
+                    "observed_event_class": application.get("observed_event_class"),
                     "linkage_status": "exact_projected",
                     "linkage_basis": result["classification"],
                     "database_link_persisted": False,

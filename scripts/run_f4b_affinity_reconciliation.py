@@ -88,6 +88,22 @@ def _canonical_weights_match(policy: RankingPolicy) -> bool:
     ) and set(policy.weights) == set(CANONICAL_PD052_WEIGHTS)
 
 
+def _assessment_field_coverage(assessment) -> tuple[int, int, float]:
+    resolved = 0
+    if assessment.employment_type != "unknown":
+        resolved += 1
+    if assessment.required_languages:
+        resolved += 1
+    if assessment.weekly_hours_min is not None or assessment.weekly_hours_max is not None:
+        resolved += 1
+    if assessment.work_model != "unknown":
+        resolved += 1
+    if assessment.requirements_seniority != "unknown":
+        resolved += 1
+    total = 5
+    return resolved, total, round(resolved / total, 2)
+
+
 def _revision_binding(
     *, row: Mapping[str, object], current_detail_sha256: str
 ) -> tuple[str, str | None]:
@@ -138,6 +154,7 @@ def build_affinity_candidate(
     )
     components = evidence.ranking_scores_patch()
     score = calculate_overall_quality_score(components, policy)
+    resolved_fields, total_fields, field_coverage = _assessment_field_coverage(assessment)
     return {
         "silver_job_id": int(row["silver_job_id"]),
         "company_name": str(row.get("company_name") or ""),
@@ -148,6 +165,10 @@ def build_affinity_candidate(
         "legacy_affinity_proxy_score": float(score),
         "components": components,
         "uncertainties": list(evidence.uncertainties),
+        "source_field_resolved_count": resolved_fields,
+        "source_field_total_count": total_fields,
+        "source_field_coverage": field_coverage,
+        "partial_source_fields_do_not_block_affinity": True,
         "signal_count": len(evidence.references),
         "signal_names": sorted({reference.signal for reference in evidence.references}),
         "rubric_version": RUBRIC_VERSION,

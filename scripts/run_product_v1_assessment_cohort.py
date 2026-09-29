@@ -44,6 +44,10 @@ from src.ingestion.repository import JobIngestionRepository
 from scripts.product_v1_job_presentation_runtime import (
     is_employer_origin_review_source,
 )
+from src.search_intelligence.product_v1_demo_learning_sample import (
+    DEMO_REQUIRED_EMPLOYERS,
+    select_demo_learning_sample,
+)
 
 
 SCHEMA = "job_application_pipeline.product_v1_assessment_cohort.v1"
@@ -60,7 +64,11 @@ def _require(condition: bool, message: str) -> None:
         raise ProductAssessmentCohortStop(message)
 
 
-def _selection(candidate_cap: int) -> tuple[list[dict[str, object]], dict[str, object]]:
+def _selection(
+    candidate_cap: int,
+    *,
+    demo_learning_sample: bool,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
     authorized = sorted(
         authorized_recurring_employer_origin_sources(JobIngestionRepository())
     )
@@ -71,12 +79,21 @@ def _selection(candidate_cap: int) -> tuple[list[dict[str, object]], dict[str, o
         rows = _load_rows(
             conn,
             authorized_sources=authorized,
-            limit=max(60, candidate_cap * 5),
+            limit=100 if demo_learning_sample else max(60, candidate_cap * 5),
+            demo_learning_sample=demo_learning_sample,
         )
         conn.rollback()
 
     scouted = scout(rows=rows, facts=facts)
-    selected = _selected_candidates(scouted, candidate_cap=candidate_cap)
+    selected = (
+        select_demo_learning_sample(
+            scouted,
+            candidate_cap=candidate_cap,
+            required_employers=DEMO_REQUIRED_EMPLOYERS,
+        )
+        if demo_learning_sample
+        else _selected_candidates(scouted, candidate_cap=candidate_cap)
+    )
     diagnostics = {
         "authorized_source_count": len(authorized),
         "approved_capability_fact_count": len(facts),
@@ -92,6 +109,7 @@ def _selection(candidate_cap: int) -> tuple[list[dict[str, object]], dict[str, o
             1 for row in scouted if int(row.get("matched_fact_count") or 0) > 0
         ),
         "selected_count": len(selected),
+        "selection_mode": "demo_learning_sample" if demo_learning_sample else "canonical",
         "geography_buckets": {
             bucket: sum(
                 1 for row in scouted if str(row.get("geography_bucket") or "") == bucket
@@ -114,6 +132,7 @@ def _run_existing_authorities(
     top5_target: int,
     reviewed_by: str,
     apply: bool,
+    demo_learning_sample: bool,
 ) -> int:
     command = [
         sys.executable,
@@ -126,6 +145,8 @@ def _run_existing_authorities(
         "--reviewed-by",
         reviewed_by,
     ]
+    if demo_learning_sample:
+        command.append("--demo-learning-sample")
     if apply:
         command.extend(
             [
@@ -264,6 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewed-by", default="jens")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
+    parser.add_argument("--demo-learning-sample", action="store_true")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     return parser
 
@@ -284,7 +306,10 @@ def main() -> int:
             "invalid Product V1 assessment-cohort approval token",
         )
 
-    selected, selection_diagnostics = _selection(args.candidate_cap)
+    selected, selection_diagnostics = _selection(
+        args.candidate_cap,
+        demo_learning_sample=args.demo_learning_sample,
+    )
     selected_ids = {int(row["silver_job_id"]) for row in selected}
     enough_candidates = len(selected) >= args.evaluated_target
 
@@ -295,6 +320,7 @@ def main() -> int:
             top5_target=args.top5_target,
             reviewed_by=reviewed_by,
             apply=args.apply,
+            demo_learning_sample=args.demo_learning_sample,
         )
 
     final = _current_product_truth(selected_ids=selected_ids)
@@ -350,6 +376,8 @@ def main() -> int:
             "candidate_fit_and_affinity_remain_separate": True,
             "numeric_candidate_fit_authority_created": False,
             "combined_score_authority_created": False,
+            "demo_learning_sample": bool(args.demo_learning_sample),
+            "canonical_role_classifier_unchanged": True,
         },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

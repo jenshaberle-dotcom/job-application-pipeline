@@ -93,6 +93,8 @@ def _validated_report(raw: object) -> dict[str, object]:
         "candidate_fit_and_affinity_remain_separate": True,
         "numeric_candidate_fit_authority_created": False,
         "combined_score_authority_created": False,
+        "demo_learning_sample": True,
+        "canonical_role_classifier_unchanged": True,
     }
     drift = {
         key: {"expected": expected_value, "actual": boundaries.get(key)}
@@ -198,6 +200,7 @@ def _run_cohort(*, output: Path) -> subprocess.CompletedProcess[str]:
         "10",
         "--reviewed-by",
         "control-center:operator",
+        "--demo-learning-sample",
         "--apply",
         "--approval-token",
         APPROVAL_TOKEN,
