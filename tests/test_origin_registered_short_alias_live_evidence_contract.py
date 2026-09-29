@@ -3,6 +3,7 @@ from __future__ import annotations
 import scripts.run_origin_url_default_repair as default_entry  # noqa: F401
 from src.search_intelligence.origin_registered_short_alias_live_evidence_contract import (
     REGISTERED_EXACT_HOST_IDENTITY_ALIASES,
+    REGISTERED_EXACT_ORIGIN_HOSTS,
 )
 import src.search_intelligence.origin_source_discovery_agent as origin_agent
 
@@ -56,6 +57,32 @@ def test_cgm_exact_host_identity_survives_generic_live_title() -> None:
         "audited exact-host identity alias" in reason
         for reason in assessment.reasons
     )
+
+
+def test_ivv_official_job_host_is_exact_audited_but_fraunhofer_collision_is_not() -> None:
+    official = _assessment(
+        url="https://www.jobs.ivv.de/",
+        company_key="ivv",
+        company_name="ivv GmbH",
+        title="Aktuelle Stellenangebote bei ivv!",
+    )
+    collision = _assessment(
+        url="https://www.ivv.fraunhofer.de/de/jobs-karriere.html",
+        company_key="ivv",
+        company_name="ivv GmbH",
+        title="Fraunhofer IVV Jobs und Karriere",
+    )
+
+    assert REGISTERED_EXACT_ORIGIN_HOSTS["ivv"] == (
+        "jobs.ivv.de",
+        "www.jobs.ivv.de",
+    )
+    assert official.decision == "select_candidate"
+    assert any(
+        "audited exact-host identity alias" in reason
+        for reason in official.reasons
+    )
+    assert collision.decision != "select_candidate"
 
 
 def test_eon_group_host_requires_entity_token_in_origin_path() -> None:
