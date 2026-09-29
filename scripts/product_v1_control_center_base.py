@@ -63,18 +63,22 @@ def _relation_exists(
 
 
 def _fetch_all(
-    conn: psycopg.Connection[object], query: str
+    conn: psycopg.Connection[object],
+    query: str,
+    params: tuple[object, ...] | None = None,
 ) -> list[dict[str, object]]:
     with conn.cursor() as cur:
-        cur.execute(query)
+        cur.execute(query, params)
         return [dict(row) for row in cur.fetchall()]
 
 
 def _fetch_one(
-    conn: psycopg.Connection[object], query: str
+    conn: psycopg.Connection[object],
+    query: str,
+    params: tuple[object, ...] | None = None,
 ) -> dict[str, object] | None:
     with conn.cursor() as cur:
-        cur.execute(query)
+        cur.execute(query, params)
         row = cur.fetchone()
     return dict(row) if row else None
 
