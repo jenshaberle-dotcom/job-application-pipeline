@@ -951,6 +951,8 @@ type AssessmentCohortResponse = {
   summary?: {
     selected_count?: number;
     profile_fit_complete_count?: number;
+    candidate_fit_authoritative_count?: number;
+    affinity_authoritative_count?: number;
     profile_fit_passed_count?: number;
     rankable_job_count?: number;
     top_job_count?: number;
@@ -978,7 +980,7 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
   const runAssessment = async () => {
     setAssessmentState({
       status: "running",
-      message: "Evaluating current jobs with the existing Candidate Fit and ranking authorities…",
+      message: "Evaluating the frozen 10-job demo cohort: CV-skill Candidate Fit, Affinity and Top 5…",
     });
     try {
       const response = await fetch("/api/v1/product-v1/assessment-cohort", {
@@ -1006,7 +1008,7 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
       if (result.target_met) {
         setAssessmentState({
           status: "complete",
-          message: "Candidate Fit is current and the authoritative Top 5 contains five qualified jobs.",
+          message: "Frozen demo cohort ready: 10/10 Candidate Fit scores, 10/10 Affinity scores and 5 authoritative Top-5 jobs.",
         });
         return;
       }
@@ -1019,8 +1021,10 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
         .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
         .map(([reason, count]) => `${fitBlockerReasonLabel[reason] || label(reason)}: ${count}`);
       const baseStatus = [
-        `${summary.profile_fit_complete_count ?? 0}/10 Candidate Fit complete`,
-        `${summary.profile_fit_passed_count ?? 0} Fit passed`,
+        `${summary.candidate_fit_authoritative_count ?? 0}/10 Candidate Fit scored`,
+        `${summary.affinity_authoritative_count ?? 0}/10 Affinity scored`,
+        `${summary.profile_fit_complete_count ?? 0}/10 gate evidence complete`,
+        `${summary.profile_fit_passed_count ?? 0} gates passed`,
         `${summary.rankable_job_count ?? 0} ready to rank`,
         `${summary.top_job_count ?? 0}/5 Top 5`,
       ].join(" · ");
