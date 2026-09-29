@@ -1,7 +1,7 @@
 """Read-only Product V1 scout for real, current employer-origin rankable refill candidates.
 
 The scout never creates Product authority. Canonical mode reads current Product
-V1 rows from active recurring employer-origin sources. Demo learning mode reads
+V1 rows from active recurring employer-origin sources. The scout reads
 current Product employer-origin rows independently of recurring ingestion. Both
 probe each exact vacancy URL live and compare the returned detail text with
 approved Candidate Fact capability tags.
@@ -182,18 +182,9 @@ def _load_rows(
     *,
     authorized_sources: Sequence[str],
     limit: int,
-    demo_learning_sample: bool = False,
 ) -> list[dict[str, object]]:
-    source_clause = (
-        "readiness.canonical_source_type = ANY(%s)"
-        if demo_learning_sample
-        else "readiness.source_name = ANY(%s)"
-    )
-    source_values = (
-        sorted(EMPLOYER_ORIGIN_SOURCE_TYPES)
-        if demo_learning_sample
-        else list(authorized_sources)
-    )
+    source_clause = "readiness.source_name = ANY(%s)"
+    source_values = list(authorized_sources)
     with conn.cursor() as cur:
         cur.execute(
             f"""
