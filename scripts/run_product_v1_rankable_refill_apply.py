@@ -268,7 +268,11 @@ def main() -> int:
         with conn.cursor() as cur:
             cur.execute("SET TRANSACTION READ ONLY")
         facts = _load_candidate_facts(conn)
-        rows = _load_rows(conn, authorized_sources=authorized, limit=max(30, args.candidate_cap * 4))
+        rows = _load_rows(
+            conn,
+            authorized_sources=authorized,
+            limit=100 if args.demo_learning_sample else max(30, args.candidate_cap * 4),
+        )
         profile_sha256 = _load_profile_sha256(conn)
         conn.rollback()
 
