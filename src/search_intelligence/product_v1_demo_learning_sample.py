@@ -33,7 +33,6 @@ DEMO_PREFERRED_TITLES = (
 )
 DEMO_REQUIRED_EMPLOYERS = (
     "Finanz Informatik GmbH & Co. KG",
-    "ivv GmbH",
 )
 INTEREST_PHRASES = (
     "machine learning",
