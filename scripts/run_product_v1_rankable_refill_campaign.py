@@ -60,13 +60,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--candidate-cap", type=int, default=7)
     parser.add_argument("--target-rankable", type=int, default=5)
     parser.add_argument("--reviewed-by", default="jens")
+    parser.add_argument("--silver-job-id", type=int, action="append", default=[])
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
     parser.add_argument("--demo-learning-sample", action="store_true")
     return parser
 
 
-def _selected(candidate_cap: int, *, demo_learning_sample: bool) -> list[dict[str, object]]:
+def _selected(
+    candidate_cap: int,
+    *,
+    demo_learning_sample: bool,
+    explicit_ids: tuple[int, ...] = (),
+) -> list[dict[str, object]]:
     authorized = sorted(
         authorized_recurring_employer_origin_sources(JobIngestionRepository())
     )
@@ -82,6 +88,26 @@ def _selected(candidate_cap: int, *, demo_learning_sample: bool) -> list[dict[st
         )
         conn.rollback()
     scouted = scout(rows=rows, facts=facts)
+    if explicit_ids:
+        if len(explicit_ids) != candidate_cap:
+            raise SystemExit("explicit cohort cardinality must equal candidate-cap")
+        by_id = {int(row["silver_job_id"]): row for row in scouted}
+        missing = sorted(set(explicit_ids) - set(by_id))
+        if missing:
+            raise SystemExit(
+                "explicit cohort jobs missing from current scout: "
+                + ",".join(str(value) for value in missing)
+            )
+        selected = [dict(by_id[value]) for value in explicit_ids]
+        for row in selected:
+            if row.get("live_outcome") != "seen_active":
+                raise SystemExit(f"explicit cohort job not live: {row['silver_job_id']}")
+            if row.get("geography_eligible") is not True:
+                raise SystemExit(f"explicit cohort job outside demo geography: {row['silver_job_id']}")
+            matches = row.get("candidate_fact_matches")
+            if not isinstance(matches, list) or not matches:
+                raise SystemExit(f"explicit cohort job lacks Candidate Fact match: {row['silver_job_id']}")
+        return selected
     if demo_learning_sample:
         return select_demo_learning_sample(
             scouted,
@@ -348,6 +374,8 @@ def _run_refill(args: argparse.Namespace) -> None:
     ]
     if args.demo_learning_sample:
         command.append("--demo-learning-sample")
+    for job_id in tuple(dict.fromkeys(args.silver_job_id)):
+        command.extend(["--silver-job-id", str(job_id)])
     if args.apply:
         command.extend(
             [
@@ -371,9 +399,15 @@ def main() -> int:
     if args.apply and args.approval_token != APPROVAL_TOKEN:
         raise SystemExit("invalid Product V1 rankable-refill campaign approval token")
 
+    explicit_ids = tuple(dict.fromkeys(args.silver_job_id))
+    if any(value <= 0 for value in explicit_ids):
+        raise SystemExit("--silver-job-id values must be positive")
+    if explicit_ids and len(explicit_ids) != args.candidate_cap:
+        raise SystemExit("explicit cohort cardinality must equal candidate-cap")
     selected = _selected(
         args.candidate_cap,
         demo_learning_sample=args.demo_learning_sample,
+        explicit_ids=explicit_ids,
     )
     if not selected:
         raise SystemExit("no live Candidate-Fact-backed refill candidates")
