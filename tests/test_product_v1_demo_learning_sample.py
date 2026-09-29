@@ -107,7 +107,7 @@ def test_demo_learning_sample_fails_closed_without_seven_employers() -> None:
         raise AssertionError("expected fail-closed demo sample")
 
 
-def test_operator_required_fi_and_ivv_remain_in_seven_employer_sample() -> None:
+def test_operator_required_fi_remains_in_seven_employer_sample() -> None:
     rows = [
         row(index, "Anchor Corp", "Platform Engineer", facts=2, role=True)
         for index in range(1, 5)
@@ -117,23 +117,28 @@ def test_operator_required_fi_and_ivv_remain_in_seven_employer_sample() -> None:
         for index in range(7)
     ]
     rows += [
-        row(100, DEMO_REQUIRED_EMPLOYERS[0], "AI Engineer / KI-Entwickler (m/w/d)", facts=2, role=True),
-        row(101, DEMO_REQUIRED_EMPLOYERS[1], "Softwareentwickler Identity Management", facts=1, role=False),
+        row(
+            100,
+            DEMO_REQUIRED_EMPLOYERS[0],
+            "AI Engineer / KI-Entwickler (m/w/d)",
+            facts=2,
+            role=True,
+        ),
     ]
 
     selected = select_demo_learning_sample(
         rows, required_employers=DEMO_REQUIRED_EMPLOYERS
     )
     assert len(selected) == 10
-    assert {100, 101}.issubset({item["silver_job_id"] for item in selected})
+    assert 100 in {item["silver_job_id"] for item in selected}
     assert len({item["company_name"] for item in selected}) == 7
 
-    without_ivv = [item for item in rows if item["silver_job_id"] != 101]
+    without_fi = [item for item in rows if item["silver_job_id"] != 100]
     try:
         select_demo_learning_sample(
-            without_ivv, required_employers=DEMO_REQUIRED_EMPLOYERS
+            without_fi, required_employers=DEMO_REQUIRED_EMPLOYERS
         )
     except DemoLearningSampleStop as exc:
-        assert "ivv GmbH" in str(exc)
+        assert "Finanz Informatik" in str(exc)
     else:
-        raise AssertionError("expected missing ivv to stop the required sample")
+        raise AssertionError("expected missing FI to stop the required sample")
