@@ -278,6 +278,7 @@ def test_finanz_informatik_real_current_title_without_mail_reference_prefix_link
             "application_id": 18,
             "silver_job_id": 611,
             "effective_stage": "interview",
+            "observed_event_class": None,
             "linkage_status": "exact_projected",
             "linkage_basis": "exact_counterparty_domain_title_reference_normalized",
             "database_link_persisted": False,
