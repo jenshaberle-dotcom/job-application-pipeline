@@ -453,7 +453,7 @@ jobs:
               $ExpectedHash = [string]$Property.Value
               $PayloadEntry = @(
                 $RuntimeZip.Entries |
-                  Where-Object { $_.FullName.Replace("\\", "/") -eq $EntryName } |
+                  Where-Object { $_.FullName.Replace("\", "/") -eq $EntryName } |
                   Select-Object -First 1
               )[0]
               if ($null -eq $PayloadEntry) {
