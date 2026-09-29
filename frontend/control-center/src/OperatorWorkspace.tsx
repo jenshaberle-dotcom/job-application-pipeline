@@ -28,6 +28,7 @@ type Job = {
   overall_quality_score?: number | null;
   product_overall_quality_score?: number | null;
   affinity_score?: number | null;
+  affinity_preview_score?: number | null;
   affinity_authority_status?: string | null;
   affinity_components?: {
     profile_direction?: number | null;
@@ -305,6 +306,19 @@ function affinityScore(job: Job): number | null {
   return null;
 }
 
+function affinityDisplayScore(job: Job): number | null {
+  return affinityScore(job)
+    ?? (typeof job.affinity_preview_score === "number" ? job.affinity_preview_score : null);
+}
+
+function affinityDisplayTitle(job: Job): string {
+  return affinityScore(job) != null
+    ? "Authoritative PD-052 Affinity"
+    : affinityDisplayScore(job) != null
+      ? "PD-052 Affinity preview · not ranking authority"
+      : "Affinity not assessed yet";
+}
+
 function candidateFitText(job: Job) {
   const decision = normalize(job.profile_fit_decision);
   if (decision === "passed") return "Fit confirmed";
@@ -427,8 +441,8 @@ const compareText = (left: string, right: string) => left.localeCompare(right, "
 
 function compareJobs(a: Job, b: Job, sort: JobSort) {
   if (sort === "fit_desc" || sort === "fit_asc") {
-    const aFit = affinityScore(a) ?? -1;
-    const bFit = affinityScore(b) ?? -1;
+    const aFit = affinityDisplayScore(a) ?? -1;
+    const bFit = affinityDisplayScore(b) ?? -1;
     const fitDelta = sort === "fit_desc" ? bFit - aFit : aFit - bFit;
     if (fitDelta !== 0) return fitDelta;
   }
@@ -633,8 +647,9 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
     ["Hard requirements", profileFitFactors.hard_requirements?.status],
   ] as Array<[string, string | undefined]>;
   const affinity = affinityScore(job);
+  const affinityDisplay = affinityDisplayScore(job);
   const scoreRows = ([
-    ["Affinity", affinity],
+    [affinity == null && affinityDisplay != null ? "Affinity preview" : "Affinity", affinityDisplay],
     ["Profile direction", job.affinity_components?.profile_direction ?? job.profile_direction_score],
     ["Data focus", job.affinity_components?.data_focus ?? job.data_focus_score],
     ["Reliability", job.affinity_components?.reliability_focus ?? job.reliability_focus_score],
@@ -860,7 +875,7 @@ function Jobs({
             ].filter(Boolean).join(" ")}
             onClick={() => onSelectJob(job.silver_job_id)}
           >
-            <strong title={isRankable(job) ? "Verified ranking score" : "Role affinity only · more fit evidence needed"}>{scoreText(affinityScore(job))}</strong>
+            <strong title={affinityDisplayTitle(job)}>{scoreText(affinityDisplayScore(job))}{affinityScore(job) == null && affinityDisplayScore(job) != null ? "*" : ""}</strong>
             <Status value={job.review_label?.label || "unreviewed"} />
 
             <span className="ow-job-name">

@@ -526,7 +526,7 @@ internal sealed class MainWindow : Form
             var core = _webView.CoreWebView2
                 ?? throw new InvalidOperationException(
                     "WebView2 ist während der Runtime-Wiederherstellung nicht verfügbar.");
-            core.Navigate(ProductUri.AbsoluteUri);
+            core.Navigate(ProductNavigationUri());
             _startupPanel.Visible = false;
             _webView.Visible = true;
             _webView.BringToFront();
@@ -655,7 +655,7 @@ internal sealed class MainWindow : Form
         core.NavigationCompleted += OnNavigationCompleted;
         try
         {
-            core.Navigate(ProductUri.AbsoluteUri);
+            core.Navigate(ProductNavigationUri());
             CoreWebView2NavigationCompletedEventArgs completed;
             try
             {
@@ -679,6 +679,44 @@ internal sealed class MainWindow : Form
         }
 
         WriteStartupPhase("product_navigation_ready");
+    }
+
+    private string ProductNavigationUri()
+    {
+        var sourceRevision = ResolveDesktopSourceRevision();
+        return sourceRevision == "unknown"
+            ? ProductUri.AbsoluteUri
+            : ProductUri.AbsoluteUri + "?generation=" + Uri.EscapeDataString(sourceRevision);
+    }
+
+    private string ResolveDesktopSourceRevision()
+    {
+        var buildInfo = Path.Combine(AppContext.BaseDirectory, "build-info.json");
+        if (!File.Exists(buildInfo))
+        {
+            return "unknown";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(buildInfo));
+            if (document.RootElement.TryGetProperty(
+                    "source_sha",
+                    out var sourceElement))
+            {
+                var source = sourceElement.GetString();
+                if (!string.IsNullOrWhiteSpace(source))
+                {
+                    return source.Trim().ToLowerInvariant();
+                }
+            }
+        }
+        catch (JsonException exc)
+        {
+            WriteStartupPhase("build_source_invalid", exc.Message);
+        }
+
+        return "unknown";
     }
 
     private string ResolveDesktopHostVersion()

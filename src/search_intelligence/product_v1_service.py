@@ -55,6 +55,7 @@ def _display_job(
     affinity_score = row.get("affinity_score")
     affinity_status = str(row.get("affinity_authority_status") or "unavailable")
     enriched["affinity_score"] = affinity_score
+    enriched["affinity_preview_score"] = row.get("affinity_preview_score")
     enriched["affinity_authority"] = row.get("affinity_authority") or "pd-052"
     enriched["affinity_authority_status"] = affinity_status
     enriched["affinity_components"] = {
@@ -328,6 +329,7 @@ def build_product_v1_payload(
             "current_compensation_is_local_runtime_context_only": True,
             "affinity_is_not_candidate_fit": True,
             "affinity_is_not_combined_score": True,
+            "affinity_preview_is_not_ranking_authority": True,
             "combined_score_authority": False,
             "review_fit_preview_is_not_ranking_authority": True,
             "profile_fit_coverage_is_not_ranking_authority": True,
