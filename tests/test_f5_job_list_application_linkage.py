@@ -113,6 +113,23 @@ def test_applied_job_row_has_distinct_green_application_state() -> None:
 
 
 
+
+def test_rejected_application_is_red_without_reclassifying_all_closed_applications() -> None:
+    source = _text(WORKSPACE)
+    styles = _text(STYLES)
+
+    assert "observed_event_class?: string | null" in source
+    assert "isRejectedApplication" in source
+    assert 'normalize(application.observed_event_class) === "rejection"' in source
+    assert '"Rejected"' in source
+    assert "application-rejected" in source
+    assert ".ow-job-list > button.application-rejected" in styles
+    assert ".ow-application-status.rejected" in styles
+    assert "var(--ow-red)" in styles
+    assert "application-closed" in source
+    assert ".ow-job-list > button.application-closed" in styles
+
+
 def test_job_detail_preserves_1_0_79_application_navigation_affordances() -> None:
     source = _text(WORKSPACE)
 
