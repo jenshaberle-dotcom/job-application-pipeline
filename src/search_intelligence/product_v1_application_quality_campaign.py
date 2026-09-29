@@ -1,4 +1,4 @@
-"""Application-specific bounded quality campaign for DEMO-001.
+"""Application-specific bounded Product V1 quality campaign.
 
 The shared LLM booster cost ceilings were calibrated on compact origin prompts.
 Application drafting carries substantially larger vacancy and approved base-document
