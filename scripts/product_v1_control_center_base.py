@@ -515,6 +515,7 @@ def load_product_v1_payload(
                     ),
                     '[]'::jsonb
                 ) AS origin_locations,
+                assessment.overall_quality_score AS affinity_preview_score,
                 capability_review.decision
                     AS profile_fit_capability_review_decision,
                 CASE
@@ -708,15 +709,13 @@ class ProductV1Handler(BaseHTTPRequestHandler):
             mimetypes.guess_type(candidate.name)[0]
             or "application/octet-stream"
         )
-        cache = (
-            "public, max-age=31536000, immutable"
-            if "/assets/" in requested_path
-            else "no-cache"
-        )
+        # This is a local desktop surface whose executable/runtime generation
+        # changes in-place across updates. Never let WebView2 retain a previous
+        # generation's index or hashed assets across a product cutover.
         self._send_bytes(
             candidate.read_bytes(),
             content_type=content_type,
-            cache_control=cache,
+            cache_control="no-store, max-age=0",
         )
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
