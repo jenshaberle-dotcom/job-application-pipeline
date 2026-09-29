@@ -6,7 +6,7 @@ import JobReviewLabelControls, {
 import F5ApplicationTracking, { type F5ProductPayload } from "./F5ApplicationTracking";
 import { useProductTruth } from "./ProductTruthContext";
 import "./operator-workspace-v2.css";
-import "./operator-demo-hardening.css";
+import "./operator-product-hardening.css";
 
 type Job = {
   silver_job_id: number;
@@ -60,8 +60,8 @@ type Job = {
   profile_fit_missing_factors?: string[];
   profile_fit_failed_factors?: string[];
   review_label?: JobReviewLabelState | null;
-  demo_live_verified?: boolean;
-  demo_live_reason?: string | null;
+  product_live_verified?: boolean;
+  product_live_reason?: string | null;
   last_health_checked_at?: string | null;
   latest_health_observed_at?: string | null;
 };
