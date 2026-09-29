@@ -402,7 +402,7 @@ internal static class ProductUpdateAgent
         Require(GetString(root, "version") == version, "Staged runtime feature contract version mismatch.");
         Require(root.TryGetProperty("features", out var features), "Staged runtime feature contract features are missing.");
         Require(GetString(features, "candidate_fit_scope") == "job_skills_vs_cv_skills", "Staged Candidate Fit scope mismatch.");
-        Require(GetString(features, "assessment_cohort_policy") == "bounded_current_product_truth", "Staged demo cohort policy mismatch.");        Require(features.TryGetProperty("combined_score_authority", out var combined) && combined.ValueKind == JsonValueKind.False, "Staged Combined-score authority drift.");
+        Require(GetString(features, "assessment_cohort_policy") == "bounded_current_product_truth", "Staged assessment cohort policy mismatch.");        Require(features.TryGetProperty("combined_score_authority", out var combined) && combined.ValueKind == JsonValueKind.False, "Staged Combined-score authority drift.");
         Require(GetString(features, "static_cache_control") == "no-store,max-age=0", "Staged cache-control contract mismatch.");
         Require(GetString(features, "frontend_generation_binding") == "source_sha", "Staged frontend generation binding mismatch.");
         Require(root.TryGetProperty("critical_files", out var criticalFiles) && criticalFiles.ValueKind == JsonValueKind.Object, "Staged critical-file contract is missing.");
