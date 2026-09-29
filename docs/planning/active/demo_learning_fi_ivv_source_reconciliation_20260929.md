@@ -29,16 +29,27 @@
 - The previously indexed ivv “KI-Entwickler” detail currently returns HTTP 410
   and is absent from the live portal. It cannot be used as a current sample job.
 
-## Remaining effect boundary
+## Demo connector boundary
 
-`docs/current/FREEZE-II-CONNECTOR-ACTIVATION-AUTHORITY.md` currently says
-`activation_allowed: false`. ivv therefore remains a qualified candidate,
-not a productive Employer-Origin source. The demo selector now requires both
-FI and ivv when `--demo-learning-sample` is used and fails visibly until a
-current ivv job has passed normal ingestion and the live Candidate Fact gate.
-No ivv job, profile, Bronze, Silver, Gold, or ranking state was manufactured.
+ivv is intentionally separated from the ten-job ranking sample. The sample still
+requires the real Finanz Informatik vacancy, while ivv demonstrates the reusable
+Employer-Origin connector path.
 
-The next reviewed activation step must first satisfy the Freeze-II authority
-conditions, then include ivv in a current generic proof cohort and run the
-normal ingestion path. A later live sample can select whichever ivv vacancy
-actually passes the same exact-detail, geography, and Candidate Fact checks.
+`scripts/run_generic_origin_demo_profile.py` prepares an exact, non-recurring
+`generic_origin:ivv` execution profile only after the materialized ivv origin URL
+exists. Apply mode requires an explicit approval token and keeps
+`recurring_ingestion_enabled = FALSE`. It does not change candidate status,
+write the canonical generic active-source projection, change scheduling, rank a
+job, or touch applications.
+
+The bounded follow-up remains the normal shared pipeline:
+
+```text
+python -m scripts.run_generic_origin_demo_profile --company-key ivv --apply --approval-token DEMO-GENERIC-ORIGIN-PROFILE-001
+python -m src.ingest_jobs --profile demo_generic_origin__ivv
+python -m src.run_silver_jobs --source generic_origin:ivv --limit 1
+```
+
+A current ivv job may enter Product and later the learning sample only if normal
+Silver, lifecycle, Candidate Fit, hard-filter and Affinity authorities accept it.
+No job row or score is manufactured merely to make the demo look complete.
