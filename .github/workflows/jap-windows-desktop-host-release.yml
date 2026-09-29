@@ -14,6 +14,7 @@ on:
     # this publisher does not provide runtime workload or runner authority.
     paths:
       - "windows/JAP.ControlCenter.Desktop/VERSION"
+      - ".github/workflows/jap-windows-desktop-host-release.yml"
   workflow_dispatch:
 
 permissions:
@@ -36,11 +37,35 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Prove demo release regression contracts
+      - name: Install exact runtime and development test environment
         shell: powershell
         run: |
-          python -m py_compile scripts/product_v1_control_center_base.py scripts/run_product_v1_live_demo.py scripts/run_product_v1_assessment_cohort.py scripts/product_v1_assessment_actions.py scripts/run_product_v1_rankable_refill_campaign.py scripts/run_product_v1_rankable_refill_apply.py scripts/run_f4b_affinity_authority.py scripts/run_f4b_operator_gate_packet.py src/search_intelligence/product_v1_service.py src/search_intelligence/product_v1_candidate_fit.py
-          python -m pip install --disable-pip-version-check --quiet pytest
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check -r requirements-dev.txt
+          python -m pip check
+
+      - name: Compile all active Python paths
+        shell: powershell
+        run: python -m compileall -q src scripts tests
+
+      - name: Validate migration tooling and governance contracts
+        shell: powershell
+        run: |
+          python scripts/validate_ci_contract.py
+          python scripts/check_documentation_references.py
+          python scripts/check_documentation_architecture.py
+
+      - name: Run hard Ruff correctness gate
+        shell: powershell
+        run: python -m ruff check . --select E4,E7,E9,F --ignore E402
+
+      - name: Run full Python test suite
+        shell: powershell
+        run: python -m pytest -q
+
+      - name: Prove 1.2.5 demo-specific contracts explicitly
+        shell: powershell
+        run: |
           python -m pytest -q tests/test_demo_release_1_2_4_contract.py tests/test_affinity_surface_consistency.py tests/test_generic_origin_demo_profile.py tests/test_product_v1_candidate_fit.py tests/test_product_v1_assessment_control_center.py tests/test_product_v1_assessment_cohort_contract.py tests/test_f4b_operator_truth_surface.py tests/test_release_payload_contract.py tests/test_demo_001_rankable_refill_campaign.py tests/test_product_v1_rankable_refill_authority.py
 
       - name: Resolve immutable product version
