@@ -13,9 +13,12 @@ same reviewed server/action boundaries but does not block every interactive star
 on the external demo workspace probe. It still binds the generated frontend bundle
 to the exact installed source SHA and publishes local app identity for About.
 
-The launcher never changes pipeline product truth, activates a source, persists an
-application/draft, submits, or sends anything. The final readiness proof invokes no
-provider and performs no second vacancy fetch. Readiness diagnostics are published
+The launcher never changes ranking/application truth, submits, or sends anything.
+Installed-demo mode may materialize the explicitly approved non-recurring ivv
+generic-origin execution profile when its qualified local candidate already exists;
+this grants no recurring scheduler authority and performs no ingestion. The final
+readiness proof invokes no provider and performs no second vacancy fetch. Readiness
+diagnostics are published
 atomically only after the staged artifact parses as a JSON object and its readiness
 state agrees with the child exit status. Interrupted or contradictory child output
 therefore cannot become canonical. Use ``--reuse-frontend`` only for a source-bound
@@ -67,6 +70,36 @@ def _configure_launcher_private_document_root() -> Path:
 def _run(command: list[str], *, cwd: Path) -> None:
     print("+ " + " ".join(command))
     subprocess.run(command, cwd=cwd, check=True)
+
+
+def _prepare_installed_demo_connectors() -> None:
+    """Materialize demo-only, non-recurring connector profiles without ingestion."""
+
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.run_generic_origin_demo_profile",
+        "--company-key",
+        "ivv",
+        "--apply",
+        "--approval-token",
+        "DEMO-GENERIC-ORIGIN-PROFILE-001",
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        reason = (completed.stderr or completed.stdout or "unknown").strip()
+        print(
+            f"JAP_DEMO_CONNECTOR=SKIPPED source=generic_origin:ivv reason={reason}",
+            file=sys.stderr,
+        )
+        return
+    print("JAP_DEMO_CONNECTOR=READY source=generic_origin:ivv recurring=false")
 
 
 def _frontend_install_command(npm: str) -> tuple[list[str], str]:
@@ -328,6 +361,7 @@ def main() -> int:
         print(f"JAP_APP_INFO=UNAVAILABLE reason={exc}", file=sys.stderr)
 
     if args.installed_runtime:
+        _prepare_installed_demo_connectors()
         print("JAP_INSTALLED_RUNTIME=READY_TO_SERVE")
         print("JAP_INSTALLED_RUNTIME_NETWORK=startup_local_only")
         print("JAP_INSTALLED_RUNTIME_BOUNDARY=no_auto_submit,no_send,no_startup_provider")
