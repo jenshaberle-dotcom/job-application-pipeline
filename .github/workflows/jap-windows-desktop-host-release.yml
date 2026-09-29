@@ -231,7 +231,8 @@ jobs:
             "scripts/product_v1_control_center_base.py",
             "scripts/run_product_v1_assessment_cohort.py",
             "scripts/product_v1_assessment_actions.py",
-            "scripts/run_product_v1_live_demo.py"
+            "scripts/run_product_v1_live_demo.py",
+            "scripts/run_jap_windows_control_center.sh"
           )
           foreach ($Relative in $CriticalSourceFiles) {
             $SourceHash = (Get-FileHash $Relative -Algorithm SHA256).Hash.ToLowerInvariant()
