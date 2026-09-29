@@ -132,6 +132,7 @@ type LinkedApplication = {
   application_id?: number;
   silver_job_id?: number | null;
   effective_stage: ApplicationStage;
+  observed_event_class?: string | null;
   observed_at?: string | null;
   linkage_status?: "persisted" | "exact_projected";
   linkage_basis?: string;
@@ -273,6 +274,13 @@ const applicationStageLabel: Record<ApplicationStage, string> = {
 const isAppliedStage = (stage: ApplicationStage) => stage !== "prepared";
 const canPrepareApplication = (stage: ApplicationStage | null | undefined) =>
   stage == null || stage === "prepared";
+const isRejectedApplication = (application: LinkedApplication | null | undefined) =>
+  application?.effective_stage === "closed"
+  && normalize(application.observed_event_class) === "rejection";
+const applicationStatusLabel = (application: LinkedApplication) =>
+  isRejectedApplication(application)
+    ? "Rejected"
+    : applicationStageLabel[application.effective_stage];
 
 const fitFactorLabel: Record<string, string> = {
   geography_work_model_commute: "location / work model",
@@ -838,13 +846,16 @@ function Jobs({
             linkedApplication &&
             ["applied", "reply", "interview", "offer"].includes(linkedApplication.effective_stage),
           );
-          const applicationClosed = linkedApplication?.effective_stage === "closed";
+          const applicationRejected = isRejectedApplication(linkedApplication);
+          const applicationClosed =
+            linkedApplication?.effective_stage === "closed" && !applicationRejected;
           return <button
             type="button"
             key={job.silver_job_id}
             className={[
               selected?.silver_job_id === job.silver_job_id ? "selected" : "",
               applicationActive ? "application-active" : "",
+              applicationRejected ? "application-rejected" : "",
               applicationClosed ? "application-closed" : "",
             ].filter(Boolean).join(" ")}
             onClick={() => onSelectJob(job.silver_job_id)}
@@ -874,7 +885,7 @@ function Jobs({
 
             {linkedApplication
               ? <span
-                  className={`ow-application-status linked ${linkedApplication.effective_stage}`}
+                  className={`ow-application-status linked ${applicationRejected ? "rejected" : linkedApplication.effective_stage}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenApplication(linkedApplication.application_id ?? null);
@@ -883,7 +894,7 @@ function Jobs({
                     ? "Exactly matched from mailbox evidence to this JAP job; the DB link is not persisted yet. Click to open the application."
                     : "Persisted application link. Click to open the application."}
                 >
-                  {applicationStageLabel[linkedApplication.effective_stage]}
+                  {applicationStatusLabel(linkedApplication)}
                 </span>
               : <span
                   className="ow-application-status none"
