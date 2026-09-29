@@ -128,6 +128,9 @@ button, input { font: inherit; }
 .ow-job-list > button.application-active:hover { background: #143a32; }
 .ow-job-list > button.application-active.selected { background: #174438; box-shadow: inset 3px 0 0 var(--ow-green), inset 0 0 0 1px rgba(96,213,155,.18); }
 .ow-job-list > button.application-closed { box-shadow: inset 3px 0 0 #667985; }
+.ow-job-list > button.application-rejected { background: #351b22; box-shadow: inset 3px 0 0 var(--ow-red); }
+.ow-job-list > button.application-rejected:hover { background: #43212a; }
+.ow-job-list > button.application-rejected.selected { background: #4a222d; box-shadow: inset 3px 0 0 var(--ow-red), inset 0 0 0 1px rgba(255,105,125,.18); }
 
 .ow-job-list > button > strong { color: var(--ow-cyan); }
 .ow-job-name, .ow-location { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -337,6 +340,7 @@ button, input { font: inherit; }
 .ow-application-status.interview,
 .ow-application-status.offer { border-color:#2d7795;color:var(--ow-cyan);background:#0c2b3a; }
 .ow-application-status.closed { border-color:#4e5b65;color:#98aab4;background:#111d25; }
+.ow-application-status.rejected { border-color:#78414a;color:var(--ow-red);background:#331c24; }
 .ow-application-status.prepared { border-color:#7f6527;color:var(--ow-amber);background:#312811; }
 .ow-application-status.none { opacity:.45; }
 .ow-application-status.linked { cursor: pointer; }
