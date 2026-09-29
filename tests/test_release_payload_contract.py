@@ -69,3 +69,16 @@ def test_update_stage_and_cutover_both_verify_feature_contract() -> None:
         assert "combined_score_authority" in source
         assert "critical_files" in source
         assert "ComputeFileSha256(candidate)" in source
+
+
+def test_windows_release_is_hard_blocked_by_full_linux_validation() -> None:
+    workflow = _read(WORKFLOW)
+
+    assert "validate-release:" in workflow
+    assert "name: Full Linux product validation" in workflow
+    assert "runs-on: ubuntu-latest" in workflow
+    assert "python -m pytest -q" in workflow
+    assert "python -m ruff check . --select E4,E7,E9,F --ignore E402" in workflow
+    assert "npm run build --prefix frontend/control-center" in workflow
+    assert "build-release:" in workflow
+    assert "needs: validate-release" in workflow
