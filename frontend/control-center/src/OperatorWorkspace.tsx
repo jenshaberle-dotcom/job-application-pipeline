@@ -117,7 +117,18 @@ type SourceConnector = {
     }>;
   } | null;
   activation: { status: string; active: boolean | null };
-  search_profiles: { active_profile_count: number; profile_count: number };
+  ingestion_authority: {
+    status: string;
+    recurring_authorized: boolean | null;
+    manual_execution_allowed: boolean | null;
+  };
+  search_profiles: {
+    active_profile_count: number;
+    recurring_profile_count: number;
+    profile_count: number;
+    active_search_term_count?: number;
+    recurring_search_term_count?: number;
+  };
   gates: {
     connector_validation_gate: { status: string; decision?: string | null };
     final_approval_gate: { status: string; decision?: string | null };
@@ -193,6 +204,8 @@ type ProductPayload = {
       healthy_sensor_count: number;
       employer_origin_count: number;
       employer_origin_active_count: number;
+      employer_origin_recurring_authorized_count?: number;
+      employer_origin_manual_only_count?: number;
       active_last_run_loaded_count: number;
       active_last_run_zero_count: number;
       implemented_count: number;
@@ -243,7 +256,7 @@ type JobSort =
   | "gate_asc"
   | "gate_desc";
 type SortColumn = "fit" | "review" | "job" | "location" | "published" | "observed" | "gate";
-type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Pending" | "Not implemented";
+type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Manual only" | "Market sensors" | "Pending" | "Not implemented";
 type SourceTab = "All" | SourceGroup;
 
 function downloadBase64Document(contentBase64: string, filename: string, mimeType: string) {
@@ -1244,6 +1257,7 @@ function Applications({
 function sourceGroup(source: SourceConnector): SourceGroup {
   if (source.current_blocker) return "Needs attention";
   if (normalize(source.source_role) === "sensor") return "Market sensors";
+  if (["manual only", "manual_only"].includes(normalize(source.ingestion_authority?.status))) return "Manual only";
   if (source.activation.active === true) {
     if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded > 0) return "Delivering now";
     if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded === 0) return "Active, 0 current jobs";
@@ -1256,7 +1270,7 @@ function sourceGroup(source: SourceConnector): SourceGroup {
 function Sources({ payload }: { payload: ProductPayload }) {
   const sources = payload.source_connector_overview.sources;
   const overview = payload.source_connector_overview.summary;
-  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Pending", "Not implemented"];
+  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Manual only", "Market sensors", "Pending", "Not implemented"];
   const groupCounts = Object.fromEntries(
     groups.map((group) => [group, sources.filter((source) => sourceGroup(source) === group).length]),
   ) as Record<SourceGroup, number>;
@@ -1267,6 +1281,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     sources.find((source) => source.current_blocker)?.source_name ||
     sources.find((source) => sourceGroup(source) === "Delivering now")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Active, 0 current jobs")?.source_name ||
+    sources.find((source) => sourceGroup(source) === "Manual only")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Market sensors")?.source_name ||
     sources[0]?.source_name || ""
   );
@@ -1275,6 +1290,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     { id: "Needs attention", label: "Needs attention", count: groupCounts["Needs attention"] },
     { id: "Delivering now", label: "Delivering jobs", count: groupCounts["Delivering now"] },
     { id: "Active, 0 current jobs", label: "Active · no jobs", count: groupCounts["Active, 0 current jobs"] },
+    { id: "Manual only", label: "Manual only", count: groupCounts["Manual only"] },
     { id: "Market sensors", label: "Market discovery", count: groupCounts["Market sensors"] },
     { id: "Pending", label: "Setup pending", count: groupCounts.Pending },
     { id: "Not implemented", label: "Not connected", count: groupCounts["Not implemented"] },
@@ -1298,10 +1314,10 @@ function Sources({ payload }: { payload: ProductPayload }) {
     && (overview.verified_discovery_evidence_count ?? 0) >= 7;
   const summaryTruth = [
     ["Employer sources", overview.employer_origin_count],
+    ["Recurring authorized", overview.employer_origin_recurring_authorized_count ?? 0],
+    ["Manual only", overview.employer_origin_manual_only_count ?? 0],
     ["Delivering jobs", overview.active_last_run_loaded_count],
-    ["Active · no current jobs", overview.active_last_run_zero_count],
     ["Discovery coverage", overview.discovery_coverage_count ?? overview.sensor_count],
-    ["New employer leads", overview.discovery_lead_count ?? 0],
     ["Needs attention", overview.attention_count],
   ] as Array<[string, number]>;
 
@@ -1365,16 +1381,19 @@ function Sources({ payload }: { payload: ProductPayload }) {
           <div><span>Verified</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div>
           <div><span>Ready for use</span><b>{label(selected.gates.final_approval_gate.status)}</b></div>
           <div><span>Status</span><b>{label(selected.activation.status)}</b></div>
+          <div><span>Ingestion authority</span><b>{label(selected.ingestion_authority?.status)}</b></div>
           <div><span>Last check</span><b>{selected.discovery_evidence ? "verified sensor flight" : label(selected.last_ingestion.status)}</b></div>
           <div><span>Jobs found</span><b>{selected.discovery_evidence ? `${selected.discovery_evidence.qualifying_jobs} qualifying` : `${selected.last_ingestion.total_loaded} found · ${selected.last_ingestion.inserted_count} new`}</b></div>
-          <div><span>Search setup</span><b>{selected.discovery_evidence ? `${selected.discovery_evidence.search_term_count} terms · ${selected.discovery_evidence.location_signals.length} markets` : `${selected.search_profiles.active_profile_count}/${selected.search_profiles.profile_count} active`}</b></div>
+          <div><span>Search setup</span><b>{selected.discovery_evidence ? `${selected.discovery_evidence.search_term_count} terms · ${selected.discovery_evidence.location_signals.length} markets` : `${selected.search_profiles.active_profile_count}/${selected.search_profiles.profile_count} active · ${selected.search_profiles.recurring_profile_count ?? 0} recurring`}</b></div>
           <div><span>Data coverage</span><b>Raw {selected.layers.bronze_count} · normalized {selected.layers.silver_count}</b></div>
         </div>
         {selected.current_blocker
           ? <div className="ow-callout warn"><b>Next step</b><span>{selected.next_action}</span></div>
           : isCoverageTarget(selected)
             ? <div className="ow-callout info"><b>Coverage target · not directly connected</b><span>Discovery evidence is obtained through the qualified external-index path. Employer leads still require direct Employer-Origin verification before Product promotion.</span></div>
-            : <div className="ow-callout good"><b>No action needed</b><span>This source is currently ready to use.</span></div>}
+            : ["manual only", "manual_only"].includes(normalize(selected.ingestion_authority?.status))
+              ? <div className="ow-callout info"><b>Manual execution only</b><span>This connector may be run explicitly, but recurring ingestion is not authorized.</span></div>
+              : <div className="ow-callout good"><b>No action needed</b><span>This source is currently ready to use.</span></div>}
       </article>}
     </section>
   </div>;
