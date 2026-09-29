@@ -47,6 +47,13 @@ type JobRequirementTruth = {
   affinity_components?: AffinityComponents | null;
   display_fit_score?: number | null;
   display_fit_scope?: string | null;
+  candidate_fit_score?: number | null;
+  candidate_fit_authority_status?: string | null;
+  candidate_fit_scope?: string | null;
+  candidate_fit_job_skill_evidence_status?: string | null;
+  candidate_fit_observed_job_skill_count?: number | null;
+  candidate_fit_exact_match_count?: number | null;
+  candidate_fit_unmatched_count?: number | null;
   combined_score?: number | null;
   profile_direction_score?: number | null;
   data_focus_score?: number | null;
@@ -365,16 +372,20 @@ export default function JobReviewLabelControls({
   const scores = scoreCandidates.filter((item): item is [string, number] => typeof item[1] === "number");
 
   const fitDecision = normalized(job?.profile_fit_decision);
-  const fitPrimary = fitDecision === "passed"
-    ? "confirmed"
+  const numericFit = job?.candidate_fit_authority_status === "authoritative"
+    && typeof job?.candidate_fit_score === "number"
+    ? job.candidate_fit_score
+    : null;
+  const fitPrimary = numericFit != null
+    ? `${Math.round(numericFit)}%`
     : fitDecision === "failed"
       ? "conflict"
       : "?";
-  const fitSecondary = fitDecision === "passed"
-    ? "Evidence-backed categorical Candidate Fit; numeric Fit is not authoritative in this campaign."
+  const fitSecondary = numericFit != null
+    ? `${job?.candidate_fit_exact_match_count ?? 0}/${job?.candidate_fit_observed_job_skill_count ?? 0} observed job skills are evidenced by approved CV/Candidate Facts. Geography, seniority and hard requirements are separate gates.`
     : fitDecision === "failed"
       ? "Evidence-backed Fit conflict; high Affinity cannot override it."
-      : "Insufficient evidence; numeric Candidate Fit is deferred to F4B-FOLLOWUP-001 / #891.";
+      : "Job-skill evidence or approved CV capability evidence is still incomplete.";
   const combinedPrimary = typeof job?.combined_score === "number"
     ? `${Math.round(job.combined_score)}%`
     : fitDecision === "failed"
@@ -467,7 +478,7 @@ export default function JobReviewLabelControls({
             : "Will ich diesen Job? Independent of Candidate Fit and hard-filter completion."}
         />
         <EvidenceRow
-          label="Job Fit"
+          label="Candidate Fit"
           primary={fitPrimary}
           secondary={fitSecondary}
           fit={job?.profile_fit_decision || undefined}
