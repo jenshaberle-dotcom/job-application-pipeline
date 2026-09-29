@@ -32,6 +32,10 @@ from src.search_intelligence.product_v1_service import build_product_v1_payload
 from src.search_intelligence.source_connector_overview import (
     build_source_connector_overview,
 )
+from src.search_intelligence.product_v1_candidate_fit import (
+    build_candidate_fit,
+    normalize_skill_label,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,6 +90,117 @@ def _tracked_profile_fit_preference_tags() -> tuple[str, ...]:
         ROOT / "config" / "product_v1_candidate_fit_policy.json"
     )
     return policy.preference_tags()
+
+
+def _load_candidate_fit_inputs(
+    conn: psycopg.Connection[object],
+    silver_job_ids: list[int],
+) -> tuple[set[str], dict[int, dict[str, object]], bool]:
+    """Load privacy-bounded inputs for CV-skill Candidate Fit."""
+
+    if (
+        not silver_job_ids
+        or not _relation_exists(conn, "candidate_fact_profiles")
+        or not _relation_exists(conn, "candidate_facts")
+        or not _relation_exists(conn, "silver_job_requirement_evidence")
+    ):
+        return set(), {}, False
+
+    profile = _fetch_one(
+        conn,
+        """
+        SELECT status
+        FROM candidate_fact_profiles
+        WHERE profile_key = 'default'
+        """,
+    )
+    if profile is None or str(profile.get("status") or "") != "approved":
+        return set(), {}, False
+
+    capability_rows = _fetch_all(
+        conn,
+        """
+        SELECT capability_tags
+        FROM candidate_facts
+        WHERE profile_key = 'default'
+          AND approval_status = 'approved'
+          AND evidence_class = ANY(%s)
+          AND (valid_from IS NULL OR valid_from <= current_date)
+          AND (valid_until IS NULL OR valid_until >= current_date)
+        """,
+        (
+            [
+                "professional_employment",
+                "formal_education",
+                "portfolio_implementation",
+                "training_certification",
+            ],
+        ),
+    )
+    tags: set[str] = set()
+    for row in capability_rows:
+        raw = row.get("capability_tags")
+        if isinstance(raw, list):
+            tags.update(
+                normalize_skill_label(value)
+                for value in raw
+                if normalize_skill_label(value)
+            )
+
+    sidecars = _fetch_all(
+        conn,
+        """
+        SELECT silver_job_id, evidence_hash, evidence_payload
+        FROM silver_job_requirement_evidence
+        WHERE silver_job_id = ANY(%s)
+        """,
+        (silver_job_ids,),
+    )
+    return (
+        tags,
+        {int(row["silver_job_id"]): row for row in sidecars},
+        bool(tags),
+    )
+
+
+def _enrich_candidate_fit_truth(
+    conn: psycopg.Connection[object],
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    ids = [
+        int(row.get("silver_job_id") or 0)
+        for row in rows
+        if int(row.get("silver_job_id") or 0) > 0
+    ]
+    tags, sidecars, profile_ready = _load_candidate_fit_inputs(conn, ids)
+    enriched: list[dict[str, object]] = []
+    for row in rows:
+        item = dict(row)
+        sidecar = sidecars.get(int(item.get("silver_job_id") or 0))
+        if profile_ready and sidecar is not None:
+            fit = build_candidate_fit(
+                sidecar_payload=sidecar.get("evidence_payload"),
+                candidate_capability_tags=tags,
+            )
+            item.update(fit.payload())
+            item["candidate_fit_requirement_evidence_hash"] = sidecar.get("evidence_hash")
+        else:
+            item.update(
+                {
+                    "candidate_fit_score": None,
+                    "candidate_fit_authority": "candidate-facts-exact-skill-coverage-v1",
+                    "candidate_fit_authority_status": "insufficient_evidence",
+                    "candidate_fit_scope": "job_skills_vs_cv_skills",
+                    "candidate_fit_job_skill_evidence_status": "missing",
+                    "candidate_fit_observed_job_skill_count": 0,
+                    "candidate_fit_exact_match_count": 0,
+                    "candidate_fit_unmatched_count": 0,
+                    "candidate_fit_exact_coverage": None,
+                    "candidate_fit_overlap_class": "not_observed",
+                }
+            )
+        enriched.append(item)
+    return enriched
 
 
 def _load_profile_fit_preference_tags(
@@ -608,6 +723,7 @@ def load_product_v1_payload(
                 silver_job_id
             """,
         )
+        job_readiness = _enrich_candidate_fit_truth(conn, job_readiness)
         profile_fit_preference_tags = _load_profile_fit_preference_tags(conn)
         ranking_policy = _fetch_one(
             conn,
