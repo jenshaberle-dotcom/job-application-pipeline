@@ -83,7 +83,7 @@ def test_runtime_bundle_replaces_git_checkout_and_frontend_build_authority() -> 
     assert 'source "$PROJECT_ROOT/.venv/bin/activate"' in runner
     assert 'source "$PROJECT_ROOT/.env"' in runner
     assert 'export PRODUCT_V1_PRIVATE_DOCUMENT_ROOT="$PROJECT_ROOT/private_application_sources"' in runner
-    assert 'launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime --reuse-frontend)' in runner
+    assert 'launcher=(python -u scripts/run_jap_control_center_runtime.py --installed-runtime --reuse-frontend)' in runner
     assert "git -C" not in runner
     assert "git fetch" not in runner
     assert "npm ci" not in runner
@@ -141,7 +141,7 @@ def test_stop_path_is_managed_pid_only() -> None:
     assert "managed_pid" in runner
     assert "current_generation_pid" in runner
     assert '"/proc/$pid/cmdline"' in runner
-    assert "scripts/run_product_v1_live_demo.py" in runner
+    assert "scripts/run_jap_control_center_runtime.py" in runner
     assert "JAP_WINDOWS_APP_PRIOR_GENERATION_RUNTIME=STOPPING" in runner
     assert "JAP_WINDOWS_APP_PRIOR_GENERATION_RUNTIME=STOPPED" in runner
     assert 'kill "$pid"' in runner
