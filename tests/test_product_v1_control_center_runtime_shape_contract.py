@@ -36,13 +36,13 @@ def test_runtime_adapter_accepts_repository_backed_structured_evidence() -> None
 def test_runtime_adapter_keeps_product_readiness_visible_before_assessment() -> None:
     adapter = ADAPTER.read_text(encoding="utf-8")
 
-    # Product V1 readiness is already the canonical persisted review surface.
-    # Legacy demo actionability may remain as diagnostics, but it must not hide
+    # Product V1 readiness is the canonical persisted review surface.
+    # Product actionability remains diagnostic metadata and must not hide
     # assessment_required or other operator-visible Product gate states.
-    assert "const actionableJobs = allJobs.filter(demoActionable)" in adapter
+    assert "const actionableJobs = allJobs.filter(productActionable)" in adapter
     assert "job_readiness: allJobs" in adapter
     assert "top_jobs: allTopJobs" in adapter
-    assert "demo_actionable_job_count: actionableJobs.length" in adapter
+    assert "product_actionable_job_count: actionableJobs.length" in adapter
     assert "job_readiness: actionableJobs" not in adapter
     assert "top_jobs: actionableTopJobs" not in adapter
 
@@ -52,7 +52,6 @@ def test_runtime_adapter_current_counts_use_persisted_lifecycle_truth() -> None:
 
     assert "function isCurrentProductJob(job: JsonRecord): boolean" in adapter
     assert 'String(job.lifecycle_status || "").trim().toLowerCase() === "active_confirmed"' in adapter
-    assert "job.demo_live_verified === true" not in adapter
     assert "const currentJobs = allJobs.filter(isCurrentProductJob)" in adapter
     assert "review_scope_current_active_job_count: currentJobs.length" in adapter
 
