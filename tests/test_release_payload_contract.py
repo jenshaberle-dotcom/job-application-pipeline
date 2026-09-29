@@ -70,6 +70,9 @@ def test_update_stage_and_cutover_both_verify_feature_contract() -> None:
         assert "critical_files" in source
         assert "ComputeFileSha256(candidate)" in source
 
+    applier = _read(APPLIER)
+    assert "parsedVersion >= new Version(1, 2, 5)" in applier
+
 
 def test_windows_release_is_hard_blocked_by_full_linux_validation() -> None:
     workflow = _read(WORKFLOW)
